@@ -109,6 +109,8 @@ print-color-mode-supported keyword color
 print-color-mode-supported keyword monochrome
 print-color-mode-default keyword color
 copies-supported rangeOfInteger 1-99
+multiple-document-handling-supported keyword separate-documents-uncollated-copies
+multiple-document-handling-supported keyword separate-documents-collated-copies
 print-quality-supported enum 3
 print-quality-supported enum 4
 print-quality-supported enum 5

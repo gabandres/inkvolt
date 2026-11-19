@@ -538,6 +538,14 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
 
     private bool CanPrint() => !IsBusy && !IsAdding && !QueueBusy && Sheets.Count > 0;
 
+    private CancellationTokenSource? _printCts;
+
+    /// <summary>A job going straight to the printer can be stopped: while it's drawn, sent and printed (Cancel-Job).</summary>
+    [ObservableProperty] public partial bool CanCancel { get; set; }
+
+    [RelayCommand]
+    private void Cancel() => _printCts?.Cancel();
+
     [RelayCommand(CanExecute = nameof(CanPrint))]
     private async Task PrintAsync()
     {
@@ -560,9 +568,22 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
                 return;
             }
             SetMessage(Strings.Photos_Sending);
-            var sent = await PhotoPrinting.PrintAsync(target, settings, photos, layout, "Photos");
+            _printCts = new CancellationTokenSource();
+            CanCancel = target is PrintTarget.Direct;
+            var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
+            var sent = await PhotoPrinting.PrintAsync(target, settings, photos, layout, "Photos", progress, _printCts.Token);
             SetMessage(string.Format(Strings.Photos_Sent, SheetCount(sent)));
             RatingRequest.NoteSuccess(state);
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Strings.Print_Cancelled);
+        }
+        catch (Core.Printing.Direct.DirectPrintException ex)
+        {
+            // Its words say whether the printer may have the job (MayHavePrinted): nothing more to add.
+            Log.Write($"Photo print (direct) failed: {ex.Message}, may have printed: {ex.MayHavePrinted}");
+            SetMessage(ex.Message, error: true);
         }
         catch (Exception ex)
         {
@@ -572,6 +593,9 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         }
         finally
         {
+            _printCts?.Dispose();
+            _printCts = null;
+            CanCancel = false;
             IsBusy = false;
         }
         if (Message is { } said) Prompt.Announce(said);

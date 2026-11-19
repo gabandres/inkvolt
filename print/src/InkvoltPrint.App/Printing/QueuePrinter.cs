@@ -76,17 +76,29 @@ public static class QueuePrinter
         // From here the job belongs to the spooler: aborting a half-written XPS job leaves it stuck in the queue.
         onSpooling?.Invoke();
         progress.Report(Core.Plural.Of(pages.Count, Strings.Print_SendingPages_One, Strings.Print_SendingPages_Many));
-        await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, (paper, images) => new RenderedPaginator(pages, paper, options.Sizing, images));
+        await SpoolAsync(queueName, options.Copies, options.TwoSided, options.JobName, (paper, images) => PagesPaginator.OnePerSheet(pages, paper, options.Sizing, images));
     }
 
     /// <summary>Copies: scanned pages, each centred on its own sheet at actual size (larger pages shrink to fit) or fit to the paper.</summary>
     public static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName,
         PageSizing sizing = PageSizing.ActualSize) =>
-        SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => new RenderedPaginator(pages, paper, sizing, images));
+        SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => PagesPaginator.OnePerSheet(pages, paper, sizing, images));
+
+    /// <summary>
+    /// A page copy laid out by the PC: <paramref name="pagesPerSheet"/> pages on each side (<see cref="CopyLayout.NUp"/>), collated
+    /// by the queue or, when not, sheet by sheet here (<see cref="CopyLayout.Order"/>).
+    /// </summary>
+    public static Task PrintCopyAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, bool collate, int pagesPerSheet,
+        string jobName, PageSizing sizing)
+    {
+        var sides = CopyLayout.Sides(pages.Count, pagesPerSheet);
+        var (order, ticketCopies) = CopyLayout.Order(sides.Count, copies, collate, twoSided);
+        return SpoolAsync(queueName, ticketCopies, twoSided, jobName, (paper, images) => new PagesPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images));
+    }
 
     /// <summary>A batch's file: pages already drawn, on the ticket <paramref name="makeTicket"/> validated.</summary>
     internal static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, string jobName, PageSizing sizing, Func<PrintQueue, PrintTicket> makeTicket) =>
-        SpoolAsync(queueName, jobName, makeTicket, (_, _, paper, images) => new RenderedPaginator(pages, paper, sizing, images));
+        SpoolAsync(queueName, jobName, makeTicket, (_, _, paper, images) => PagesPaginator.OnePerSheet(pages, paper, sizing, images));
 
     /// <summary>ID card copy: front on the top half of one sheet, back on the bottom half, actual size (<see cref="CopyLayout.IdCard"/>).</summary>
     public static Task PrintIdCardAsync(string queueName, RenderedPage front, RenderedPage back, int copies, string jobName) =>
@@ -143,34 +155,51 @@ public static class QueuePrinter
         await done.Task;
     }
 
-    internal sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
+    /// <summary>
+    /// Rendered or scanned pages on paper: sides in print order (−1: a blank back), each with its pages placed by
+    /// <see cref="CopyLayout.NUp"/> (one per sheet: centred, sized per <see cref="PageSizing"/>, a landscape page on portrait
+    /// paper turned rather than shrunk, as the copy preview places it). Print a PDF, batches and copies all go through it,
+    /// to a Windows queue or straight to the printer (<see cref="DirectPrinter"/>).
+    /// </summary>
+    internal sealed class PagesPaginator(IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, IReadOnlyList<int> order, int pagesPerSheet,
+        Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
     {
+        /// <summary>Each page on its own sheet, in order.</summary>
+        public static PagesPaginator OnePerSheet(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing, PrintImages images) =>
+            new(pages, CopyLayout.Sides(pages.Count, 1), [.. Enumerable.Range(0, pages.Count)], 1, paper, sizing, images);
+
         public override bool IsPageCountValid => true;
-        public override int PageCount => pages.Count;
+        public override int PageCount => order.Count;
         public override Size PageSize { get => paper; set { } }
         public override IDocumentPaginatorSource? Source => null;
 
+        /// <summary>One picture per scanned page however often it prints (uncollated copies repeat sheets): the job embeds it once.</summary>
+        private readonly Dictionary<int, BitmapFrame> _frames = [];
+
         public override DocumentPage GetPage(int pageNumber)
         {
-            var src = pages[pageNumber];
-            var bitmap = images.Jpeg(src.Image);
-
-            // Landscape page on portrait paper: rotate rather than shrink it (the copy preview places it the same way).
-            var (at, rotate) = PageFit.Place(src.WidthInches * 96, src.HeightInches * 96, paper.Width, paper.Height, sizing);
-
-            var image = new Image
-            {
-                Source = bitmap,
-                Stretch = Stretch.Fill,
-                Width = rotate ? at.Height : at.Width,
-                Height = rotate ? at.Width : at.Height,
-                LayoutTransform = rotate ? new RotateTransform(90) : Transform.Identity,
-            };
-            // A Canvas, not a FixedPage: the XPS serializer wraps each page visual in its own FixedPage.
             var page = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
-            Canvas.SetLeft(image, at.X);
-            Canvas.SetTop(image, at.Y);
-            page.Children.Add(image);
+            if (order[pageNumber] is var side and >= 0)
+            {
+                var on = sides[side];
+                var placed = CopyLayout.NUp([.. on.Select(i => (pages[i].WidthInches * 96, pages[i].HeightInches * 96))], pagesPerSheet, paper.Width, paper.Height, sizing);
+                for (var i = 0; i < placed.Count; i++)
+                {
+                    var (at, rotate) = placed[i];
+                    if (!_frames.TryGetValue(on[i], out var frame)) _frames[on[i]] = frame = images.Jpeg(pages[on[i]].Image);
+                    var image = new Image
+                    {
+                        Source = frame,
+                        Stretch = Stretch.Fill,
+                        Width = rotate ? at.Height : at.Width,
+                        Height = rotate ? at.Width : at.Height,
+                        LayoutTransform = rotate ? new RotateTransform(90) : Transform.Identity,
+                    };
+                    Canvas.SetLeft(image, at.X);
+                    Canvas.SetTop(image, at.Y);
+                    page.Children.Add(image);
+                }
+            }
             return Finish(page, paper);
         }
     }

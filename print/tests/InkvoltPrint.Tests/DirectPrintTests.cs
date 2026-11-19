@@ -642,6 +642,7 @@ public class DirectPrintTests
             TwoSided = true,
             Color = true,
             MaxCopies = 99,
+            CollatedCopies = true,
             Qualities = [4, 5],
             MediaTypes = ["stationery", "photographic-glossy"],
         };
@@ -723,11 +724,111 @@ public class DirectPrintTests
         Assert.Equal(Core.CoreStrings.Direct_NoFormat, p2);
         Assert.Null(DirectPrintPlan.Choose(Caps(), new DirectPrintRequest(0), out var p3));
         Assert.Equal(Core.CoreStrings.Direct_Copies, p3);
-        // A quality or type the printer doesn't list isn't sent (it would be ignored or refused).
-        var plan = DirectPrintPlan.Choose(Caps(), new DirectPrintRequest { Quality = 3, MediaType = "labels", Color = false }, out _)!;
-        Assert.Null(plan.Quality);
-        Assert.Null(plan.MediaType);
+        // A quality or paper type the printer doesn't list is said, not dropped.
+        Assert.Null(DirectPrintPlan.Choose(Caps(), new DirectPrintRequest { Quality = 3 }, out var p4));
+        Assert.Equal(Core.CoreStrings.Direct_NoQuality, p4);
+        Assert.Null(DirectPrintPlan.Choose(Caps(), new DirectPrintRequest { MediaType = "labels" }, out var p5));
+        Assert.Equal(Core.CoreStrings.Direct_NoMediaType, p5);
+        var plan = DirectPrintPlan.Choose(Caps(), new DirectPrintRequest { Quality = 4, MediaType = "stationery", Color = false }, out _)!;
+        Assert.Equal((4, "stationery"), (plan.Quality, plan.MediaType));
         Assert.Equal(RasterColor.Gray8, plan.Color);
+        Assert.False(plan.Grey);
+    }
+
+    [Fact]
+    public void Grey_on_a_format_that_takes_only_color_is_made_grey_here()
+    {
+        var rgbOnly = Caps(c => c with { PwgColors = [RasterColor.Rgb8] });
+        var grey = DirectPrintPlan.Choose(rgbOnly, new DirectPrintRequest { Color = false }, out _)!;
+        Assert.Equal(RasterColor.Rgb8, grey.Color);
+        Assert.True(grey.Grey);
+        Assert.Equal("monochrome", grey.ColorMode);
+        var color = DirectPrintPlan.Choose(rgbOnly, new DirectPrintRequest { Color = true }, out _)!;
+        Assert.False(color.Grey);
+        Assert.Equal("color", color.ColorMode);
+        // The pixels: RGB with the three equal.
+        var page = RasterPage.FromBgra(1, 1, 4, [0, 0, 255, 255], RasterColor.Rgb8, grey: true);
+        Assert.Equal(new byte[] { 77, 77, 77 }, page.Pixels);
+    }
+
+    [Fact]
+    public void The_printer_makes_copies_only_when_it_collates_them()
+    {
+        var collates = DirectPrintPlan.Choose(Caps(), new DirectPrintRequest(3), out _)!;
+        Assert.Equal((3, 1), (collates.Copies, collates.Repeat));
+        var body = new IppResponse(0, IppCodec.DecodeGroups(DirectJob.PrintJobRequest("ipp://x/", "u", "j", collates)).Groups[1].Attributes);
+        Assert.Equal("separate-documents-collated-copies", body.Str("multiple-document-handling"));
+        var doesnt = DirectPrintPlan.Choose(Caps(c => c with { CollatedCopies = false }), new DirectPrintRequest(3), out _)!;
+        Assert.Equal((1, 3), (doesnt.Copies, doesnt.Repeat)); // the pages go three times, collated by the order they're sent in
+        var one = new IppResponse(0, IppCodec.DecodeGroups(DirectJob.PrintJobRequest("ipp://x/", "u", "j", doesnt)).Groups[1].Attributes);
+        Assert.Null(one.Int("copies"));
+        Assert.Null(one.Str("multiple-document-handling"));
+        Assert.True(IppPrintCaps.From(IppCodec.Decode(Printer(b => b.Kw("multiple-document-handling-supported",
+            "separate-documents-uncollated-copies", "separate-documents-collated-copies")))).CollatedCopies);
+        Assert.False(IppPrintCaps.From(IppCodec.Decode(Printer(b => b.Kw("multiple-document-handling-supported",
+            "separate-documents-uncollated-copies")))).CollatedCopies);
+    }
+
+    [Fact]
+    public async Task The_printers_attributes_are_read_once_a_while()
+    {
+        var reads = 0;
+        var now = new DateTime(2026, 11, 19, 12, 0, 0);
+        var fail = false;
+        var cache = new IppCapsCache(_ =>
+        {
+            reads++;
+            return fail ? Task.FromException<IppPrintCaps>(new TimeoutException()) : Task.FromResult(new IppPrintCaps { MaxCopies = reads });
+        }, TimeSpan.FromMinutes(2), () => now);
+        Assert.Equal(1, (await cache.GetAsync()).MaxCopies);
+        Assert.Equal(1, (await cache.GetAsync()).MaxCopies); // the two-sided check, the paper check and the print share one read
+        now = now.AddMinutes(3);
+        Assert.Equal(2, (await cache.GetAsync()).MaxCopies);
+        cache.Forget();
+        fail = true;
+        await Assert.ThrowsAsync<TimeoutException>(() => cache.GetAsync());
+        fail = false;
+        Assert.Equal(4, (await cache.GetAsync()).MaxCopies); // a failed read isn't kept
+        Assert.Equal(4, reads);
+    }
+
+    [Fact]
+    public async Task A_cancel_says_whether_the_printer_took_it()
+    {
+        async Task<Exception> Stop(Func<byte[], byte[]> answer)
+        {
+            using var http = new DeviceHttp("192.0.2.11", new Answering(answer));
+            return await Record.ExceptionAsync(() => DirectJob.StopAsync(new IppClient(http), "ana", 5, new CancellationToken(true)));
+        }
+        Assert.IsType<OperationCanceledException>(await Stop(_ => IppCodec.EncodeResponse(0, 1, [])));
+        foreach (ushort ended in new ushort[] { 0x0404, 0x0406, 0x0407 }) // not possible (it ended), not found, gone
+            Assert.IsType<OperationCanceledException>(await Stop(_ => IppCodec.EncodeResponse(ended, 1, [])));
+        foreach (ushort refused in new ushort[] { 0x040C, 0x0401, 0x0500 })
+        {
+            var ex = Assert.IsType<DirectPrintException>(await Stop(_ => IppCodec.EncodeResponse(refused, 1, [])));
+            Assert.True(ex.MayHavePrinted);
+            Assert.Equal(Core.CoreStrings.Direct_CancelNotTaken, ex.Message);
+        }
+        Assert.IsType<DirectPrintException>(await Stop(_ => [1, 2])); // no answer to speak of
+    }
+
+    [Fact]
+    public void A_printers_clock_out_of_range_is_left_out_not_thrown()
+    {
+        // Offset 14:59 (RFC 2579 allows 13 hours), and year 9999, which an offset can push past what a date holds.
+        foreach (var value in new byte[][]
+        {
+            [0x07, 0xEA, 11, 18, 9, 30, 0, 0, (byte)'+', 14, 59],
+            [0x27, 0x0F, 12, 31, 23, 59, 59, 0, (byte)'-', 13, 59],
+            [0x27, 0x0F, 12, 31, 23, 59, 59, 0, (byte)'+', 0, 0],
+        })
+        {
+            var answer = Response(0, b => b.Group(IppCodec.JobTag).Int("job-id", 3).Enums("job-state", 5).Raw(0x31, "date-time-at-creation", value));
+            var job = PrinterJobs.Parse(answer, new DateTime(2026, 11, 19, 12, 0, 0)).Single();
+            Assert.Equal(new DateTime(2026, 11, 19, 12, 0, 0), job.Submitted); // the time it was read instead
+            Assert.Null(IppCodec.ReadDateTime(value));
+        }
+        Assert.NotNull(IppCodec.ReadDateTime([0x07, 0xEA, 11, 18, 9, 30, 0, 0, (byte)'+', 13, 0]));
     }
 
     [Theory]
@@ -752,6 +853,13 @@ public class DirectPrintTests
             DirectJob.Describe(new DirectJobState(8, ["document-format-error"], null, null), 3));
         Assert.Equal(Core.CoreStrings.Direct_RefusedFormat, DirectJob.Refused(0x040A));
         Assert.Equal(Core.CoreStrings.Direct_RefusedSignIn, DirectJob.Refused(0x0401));
+        // RFC 8011 §13.1: busy is service-unavailable, temporary-error, not-accepting-jobs and busy; job-canceled is a cancel at
+        // the printer; uri-scheme-not-supported is no format problem.
+        foreach (ushort busy in new ushort[] { 0x0502, 0x0505, 0x0506, 0x0507 }) Assert.Equal(Core.CoreStrings.Direct_RefusedBusy, DirectJob.Refused(busy));
+        Assert.Equal(Core.CoreStrings.Direct_CanceledAtPrinter, DirectJob.Refused(0x0508));
+        Assert.Equal(Core.CoreStrings.Direct_Refused, DirectJob.Refused(0x040C));
+        Assert.Equal(Core.CoreStrings.Direct_RefusedTooLarge, DirectJob.Refused(0x0408));
+        Assert.Equal(Core.CoreStrings.Direct_RefusedFormat, DirectJob.Refused(0x041B));
         Assert.Equal(Core.CoreStrings.Direct_Refused, DirectJob.Refused(0x0400)); // no codes in words the user reads
         var hostile = IppCodec.Decode(Job(b => b.Int("job-state", 99)), IppCodec.JobTag);
         Assert.Null(DirectJob.StateOf(hostile));
@@ -830,6 +938,22 @@ public class DirectPrintTests
         var ex2 = await Assert.ThrowsAsync<DirectPrintException>(() =>
             DirectJob.SendAsync(new IppClient(http2), "ana", "test", Plan(), new MemoryStream([1, 2, 3])));
         Assert.True(ex2.MayHavePrinted);
+    }
+
+    [Fact]
+    public void The_apps_state_file_puts_back_every_list_a_hand_edit_left_null()
+    {
+        // state.json is read into AppState (the app, which this project can't reference); a "DirectPrinters": null there threw
+        // at start-up. Every list and dictionary AppState declares must be put back in Load.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Inkvolt.slnx"))) dir = dir.Parent;
+        var source = File.ReadAllText(Path.Combine(dir!.FullName, "print", "src", "InkvoltPrint.App", "AppState.cs"));
+        var load = source.IndexOf("public static AppState Load", StringComparison.Ordinal);
+        Assert.True(load > 0);
+        var names = Regex.Matches(source[..load], @"public (?:List|Dictionary)<.*> (\w+) \{ get; set; \}").Select(m => m.Groups[1].Value).ToList();
+        Assert.Contains("DirectPrinters", names);
+        var body = source[load..source.IndexOf("return state;", load, StringComparison.Ordinal)];
+        foreach (var name in names) Assert.Matches($@"state\.{name} (=|\?\?=)", body);
     }
 
     [Fact]

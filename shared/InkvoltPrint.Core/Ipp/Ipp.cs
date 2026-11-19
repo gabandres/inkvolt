@@ -175,13 +175,19 @@ public static class IppCodec
     }
 
     /// <summary>RFC 2579 DateAndTime (RFC 8010 §3.9): year, month, day, hour, minutes, seconds, deciseconds, UTC direction, hours, minutes.</summary>
-    private static DateTimeOffset? ReadDateTime(ReadOnlySpan<byte> v)
+    /// <remarks>
+    /// Null for anything a DateTimeOffset can't hold (an offset past ±14:00, or a year whose UTC time leaves 1-9999): a printer's
+    /// clock is hostile input, and a throw here would escape the callers' catches after a job was sent.
+    /// </remarks>
+    internal static DateTimeOffset? ReadDateTime(ReadOnlySpan<byte> v)
     {
+        if (v.Length != 11) return null;
         int year = BinaryPrimitives.ReadUInt16BigEndian(v), month = v[2], day = v[3], hour = v[4], minute = v[5], second = v[6];
-        if (year is < 1970 or > 9999 || month is < 1 or > 12 || day < 1 || day > System.DateTime.DaysInMonth(year, month)
-            || hour > 23 || minute > 59 || second > 60 || v[9] > 14 || v[10] > 59 || v[8] is not ((byte)'+' or (byte)'-')) return null;
+        if (year is < 1970 or > 9998 || month is < 1 or > 12 || day < 1 || day > System.DateTime.DaysInMonth(year, month)
+            || hour > 23 || minute > 59 || second > 60 || v[9] > 13 || v[10] > 59 || v[8] is not ((byte)'+' or (byte)'-')) return null;
         var offset = TimeSpan.FromMinutes((v[9] * 60 + v[10]) * (v[8] == '-' ? -1 : 1));
-        return new DateTimeOffset(year, month, day, hour, minute, Math.Min(second, 59), offset);
+        try { return new DateTimeOffset(year, month, day, hour, minute, Math.Min(second, 59), offset); }
+        catch (ArgumentOutOfRangeException) { return null; }
     }
 
     /// <summary>Operation id and request id of an IPP request (for <see cref="Net.FixtureHandler"/>).</summary>

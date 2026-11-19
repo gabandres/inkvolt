@@ -20,6 +20,40 @@ public sealed record DirectPaper(string Name, int WidthHmm, int HeightHmm, int L
 }
 
 /// <summary>
+/// One printer's <see cref="IppPrintCaps"/>, read once and kept for a while: each read carries <c>media-col-database</c>, and the
+/// Print tab's two-sided check, the photo options, the paper check and the print itself would each ask again. A failed or
+/// cancelled read isn't kept. One read is shared by every caller; each waits on it with its own cancellation.
+/// </summary>
+public sealed class IppCapsCache(Func<CancellationToken, Task<IppPrintCaps>> read, TimeSpan? keep = null, Func<DateTime>? now = null)
+{
+    public static readonly TimeSpan DefaultKeep = TimeSpan.FromMinutes(2);
+
+    private readonly Lock _gate = new();
+    private Task<IppPrintCaps>? _read;
+    private DateTime _at;
+
+    public Task<IppPrintCaps> GetAsync(CancellationToken ct = default)
+    {
+        lock (_gate)
+        {
+            var at = now?.Invoke() ?? DateTime.UtcNow;
+            if (_read is not { IsFaulted: false, IsCanceled: false } kept || at - _at >= (keep ?? DefaultKeep))
+            {
+                (_read, _at) = (read(CancellationToken.None), at);
+                kept = _read;
+            }
+            return kept.WaitAsync(ct);
+        }
+    }
+
+    /// <summary>Read again next time (a setting changed at the printer, or a job was refused for one).</summary>
+    public void Forget()
+    {
+        lock (_gate) _read = null;
+    }
+}
+
+/// <summary>
 /// What a printer says it takes for driverless printing, read from Get-Printer-Attributes (PWG 5100.14 IPP Everywhere,
 /// PWG 5102.4, Apple's <c>urf-supported</c>, Mopria's <c>pclm-*</c>). Everything a printer says is hostile input: lists are
 /// cut to a few hundred values, sizes and resolutions outside what paper and printers have are left out.
@@ -39,7 +73,7 @@ public sealed record IppPrintCaps
         "media-bottom-margin-supported", "media-left-margin-supported", "media-right-margin-supported", "media-top-margin-supported",
         "media-type-supported", "media-type-default",
         "sides-supported", "print-color-mode-supported", "print-color-mode-default", "copies-supported",
-        "print-quality-supported", "print-quality-default",
+        "print-quality-supported", "print-quality-default", "multiple-document-handling-supported",
     ];
 
     /// <summary>Most papers kept: a real printer lists a few dozen.</summary>
@@ -80,6 +114,9 @@ public sealed record IppPrintCaps
 
     /// <summary>Most copies it makes of a document itself (<c>copies-supported</c>); 1: the pages are sent again for each copy.</summary>
     public int MaxCopies { get; init; } = 1;
+
+    /// <summary>It collates the copies it makes (<c>multiple-document-handling-supported</c> lists <c>separate-documents-collated-copies</c>).</summary>
+    public bool CollatedCopies { get; init; }
 
     /// <summary><c>print-quality</c> values it takes: 3 draft, 4 normal, 5 high.</summary>
     public IReadOnlyList<int> Qualities { get; init; } = [];
@@ -157,6 +194,7 @@ public sealed record IppPrintCaps
             Color = colorModes.Contains("color") || (colorModes.Count == 0 && (pwgColors.Contains(RasterColor.Rgb8) || urfColors.Contains(RasterColor.Rgb8))),
             ColorByDefault = r.Str("print-color-mode-default") is "color" or "auto" && colorModes.Contains("color"),
             MaxCopies = copies,
+            CollatedCopies = r.Strs("multiple-document-handling-supported").Take(MaxValues).Contains("separate-documents-collated-copies"),
             Qualities = qualities,
             DefaultQuality = r.Int("print-quality-default") is { } dq and >= 3 and <= 5 ? dq : null,
             MediaTypes = r.Strs("media-type-supported").Take(MaxValues).Where(Keyword).Distinct().ToList(),

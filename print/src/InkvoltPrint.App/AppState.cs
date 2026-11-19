@@ -371,6 +371,7 @@ public sealed class AppState
             state.Printers = (state.Printers ?? []).Where(k => k is { Uuid: not null, Host: not null }).ToList();
             state.ForgottenUuids ??= [];
             state.NoFirmwareNotify ??= [];
+            state.DirectPrinters = (state.DirectPrinters ?? []).OfType<string>().ToList();
             state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);

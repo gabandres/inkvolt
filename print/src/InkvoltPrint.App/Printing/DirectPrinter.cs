@@ -16,8 +16,17 @@ public abstract record PrintTarget
 {
     public sealed record Queue(string Name) : PrintTarget;
 
+    /// <param name="Caps">The printer's attributes, read once for this connection and kept a while (<see cref="IppCapsCache"/>).</param>
     /// <param name="Sent">Called with the job's name and pages once the printer has it (the demo's made-up print queue card).</param>
-    public sealed record Direct(IppClient Ipp, string User, Action<string, int>? Sent = null) : PrintTarget;
+    public sealed record Direct(IppClient Ipp, string User, IppCapsCache Caps, Action<string, int>? Sent = null) : PrintTarget
+    {
+        /// <summary>A target with a cache of its own (the developer check).</summary>
+        public static Direct For(IppClient ipp, string user, Action<string, int>? sent = null) => new(ipp, user, CapsOf(ipp), sent);
+
+        /// <summary>A cache reading this printer's attributes for driverless printing.</summary>
+        public static IppCapsCache CapsOf(IppClient ipp) =>
+            new(async ct => IppPrintCaps.From(await ipp.GetPrinterAttributesAsync(IppPrintCaps.Requested, ct).ConfigureAwait(false)));
+    }
 }
 
 /// <summary>
@@ -37,17 +46,17 @@ public static class DirectPrinter
     /// <summary>Developer check only: the one raster format sent.</summary>
     internal static RasterFormat? OnlyFormat { get; set; }
 
-    /// <summary>What the printer can do for the Print and Copy tabs (two-sided), read off the UI thread.</summary>
-    public static async Task<IppPrintCaps> ReadCapsAsync(PrintTarget.Direct target, CancellationToken ct = default) =>
-        IppPrintCaps.From(await target.Ipp.GetPrinterAttributesAsync(IppPrintCaps.Requested, ct).ConfigureAwait(false));
+    /// <summary>What the printer can do (two-sided, papers…), from the target's cache: asked once a while, not for every check.</summary>
+    public static Task<IppPrintCaps> ReadCapsAsync(PrintTarget.Direct target, CancellationToken ct = default) => target.Caps.GetAsync(ct);
 
     /// <summary>
     /// Draws, sends and follows one job. <paramref name="onSending"/> marks the point of no return (the document starts going
     /// out); <paramref name="onSent"/> the printer has it, after which <paramref name="ct"/> cancels it at the printer (Cancel-Job).
     /// Returns true when the printer said the job was printed, false when it has it but didn't say yet.
     /// </summary>
-    /// <exception cref="DirectPrintException">The printer can't take the request, refused it, or stopped it.</exception>
-    /// <exception cref="OperationCanceledException">Cancelled before sending, or cancelled at the printer after.</exception>
+    /// <exception cref="DirectPrintException">The printer can't take the request, refused it, or stopped it, or didn't take a
+    /// cancel (<see cref="DirectPrintException.MayHavePrinted"/> says whether it may have the job).</exception>
+    /// <exception cref="OperationCanceledException">Cancelled before sending, or cancelled at the printer after (it took the cancel).</exception>
     public static async Task<bool> PrintAsync(PrintTarget.Direct target, string jobName, DirectPrintRequest request,
         Func<Size, PrintImages, DocumentPaginator> paginator, IProgress<string>? progress, CancellationToken ct,
         Action? onSending = null, Action? onSent = null)
@@ -60,7 +69,11 @@ public static class DirectPrinter
             if (only == RasterFormat.Pclm && caps.PclmDpis.Count == 0)
                 caps = caps with { PclmDpis = [600], Formats = [.. caps.Formats, RasterFormat.Pclm] };
         }
-        var plan = DirectPrintPlan.Choose(caps, request, out var problem) ?? throw new DirectPrintException(problem!, mayHavePrinted: false);
+        if (DirectPrintPlan.Choose(caps, request, out var problem) is not { } plan)
+        {
+            target.Caps.Forget(); // the printer may have changed (a tray, a setting): read it again next time
+            throw new DirectPrintException(problem!, mayHavePrinted: false);
+        }
         Directory.CreateDirectory(PrintImages.Root);
         var path = Path.Combine(PrintImages.Root, $"{Guid.NewGuid():N}.raster");
         await using var document = new FileStream(path, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None, 1 << 16, FileOptions.DeleteOnClose);
@@ -76,7 +89,14 @@ public static class DirectPrinter
 
         onSending?.Invoke();
         progress?.Report(Core.Plural.Of(pages, Strings.Print_SendingPages_One, Strings.Print_SendingPages_Many));
-        var (jobId, state) = await DirectJob.SendAsync(target.Ipp, target.User, jobName, plan, document, CancellationToken.None);
+        (int JobId, DirectJobState? State) sent;
+        try { sent = await DirectJob.SendAsync(target.Ipp, target.User, jobName, plan, document, CancellationToken.None); }
+        catch (DirectPrintException)
+        {
+            target.Caps.Forget();
+            throw;
+        }
+        var (jobId, state) = sent;
         Log.Write($"Direct print: {plan.DocumentFormat} {plan.Dpi} dpi {plan.Color} {plan.Paper.Name}, {pages} page(s) × {plan.Copies * plan.Repeat}, {document.Length:N0} bytes, job {jobId}");
         target.Sent?.Invoke(jobName, pages);
         onSent?.Invoke();
@@ -86,11 +106,7 @@ public static class DirectPrinter
         var watched = new Progress<DirectJobState>(s => progress?.Report(DirectJob.Describe(s, impressions)));
         if (state is not null) progress?.Report(DirectJob.Describe(state, impressions));
         var last = await DirectJob.WatchAsync(target.Ipp, target.User, jobId, watched, WatchEvery, WatchQuiet, ct) ?? state;
-        if (ct.IsCancellationRequested)
-        {
-            await DirectJob.CancelAsync(target.Ipp, target.User, jobId);
-            throw new OperationCanceledException(ct);
-        }
+        if (ct.IsCancellationRequested) await DirectJob.StopAsync(target.Ipp, target.User, jobId, ct); // says whether the printer took it
         if (last is { State: DirectJobState.Aborted or DirectJobState.Canceled })
             throw new DirectPrintException(DirectJob.Describe(last, impressions), mayHavePrinted: true);
         return last is { State: DirectJobState.Completed };
@@ -150,7 +166,7 @@ public static class DirectPrinter
         bitmap.Render(visual);
         var pixels = new byte[w * h * 4];
         bitmap.CopyPixels(pixels, w * 4, 0);
-        return RasterPage.FromBgra(w, h, w * 4, pixels, plan.Color).Enlarged(k).Fitted(job.WidthPixels, job.HeightPixels);
+        return RasterPage.FromBgra(w, h, w * 4, pixels, plan.Color, plan.Grey).Enlarged(k).Fitted(job.WidthPixels, job.HeightPixels);
     }
 }
 
@@ -197,27 +213,32 @@ public static class PrintTargets
             pages.Add(await pdf.RenderAsync(options.Pages[i], QueuePrinter.RenderDpi, ct: ct));
         }
         return await DirectPrinter.PrintAsync((PrintTarget.Direct)target, options.JobName, new DirectPrintRequest(options.Copies, options.TwoSided),
-            (paper, images) => new QueuePrinter.RenderedPaginator(pages, paper, options.Sizing, images), progress, ct, onSpooling, onSent);
+            (paper, images) => QueuePrinter.PagesPaginator.OnePerSheet(pages, paper, options.Sizing, images), progress, ct, onSpooling, onSent);
     }
 
-    /// <summary>Copies: scanned pages, each on its own sheet.</summary>
-    public static Task PrintPagesAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName,
-        PageSizing sizing = PageSizing.ActualSize) =>
-        target switch
-        {
-            PrintTarget.Queue q => QueuePrinter.PrintPagesAsync(q.Name, pages, copies, twoSided, jobName, sizing),
-            PrintTarget.Direct d => DirectPrinter.PrintAsync(d, jobName, new DirectPrintRequest(copies, twoSided),
-                (paper, images) => new QueuePrinter.RenderedPaginator(pages, paper, sizing, images), null, CancellationToken.None),
-            _ => throw new ArgumentOutOfRangeException(nameof(target)),
-        };
+    /// <summary>
+    /// A page copy laid out by the PC (<see cref="QueuePrinter.PrintCopyAsync"/>'s layout): its sides in order, collated here when
+    /// asked not to be, else the copies collated by the printer or sent again (<see cref="DirectPrintPlan"/>). Progress and
+    /// cancel go through drawing, sending and the printer's job.
+    /// </summary>
+    public static Task PrintCopyAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, bool collate, int pagesPerSheet,
+        string jobName, PageSizing sizing, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        if (target is PrintTarget.Queue q) return QueuePrinter.PrintCopyAsync(q.Name, pages, copies, twoSided, collate, pagesPerSheet, jobName, sizing);
+        var sides = CopyLayout.Sides(pages.Count, pagesPerSheet);
+        var (order, printerCopies) = CopyLayout.Order(sides.Count, copies, collate, twoSided);
+        return DirectPrinter.PrintAsync((PrintTarget.Direct)target, jobName, new DirectPrintRequest(printerCopies, twoSided),
+            (paper, images) => new QueuePrinter.PagesPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images), progress, ct);
+    }
 
     /// <summary>ID card copy: front and back on one sheet.</summary>
-    public static Task PrintIdCardAsync(PrintTarget target, RenderedPage front, RenderedPage back, int copies, string jobName) =>
+    public static Task PrintIdCardAsync(PrintTarget target, RenderedPage front, RenderedPage back, int copies, string jobName,
+        IProgress<string>? progress = null, CancellationToken ct = default) =>
         target switch
         {
             PrintTarget.Queue q => QueuePrinter.PrintIdCardAsync(q.Name, front, back, copies, jobName),
             PrintTarget.Direct d => DirectPrinter.PrintAsync(d, jobName, new DirectPrintRequest(copies),
-                (paper, images) => new QueuePrinter.IdCardPaginator(front, back, paper, images), null, CancellationToken.None),
+                (paper, images) => new QueuePrinter.IdCardPaginator(front, back, paper, images), progress, ct),
             _ => throw new ArgumentOutOfRangeException(nameof(target)),
         };
 }

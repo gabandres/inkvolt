@@ -66,7 +66,8 @@ public sealed class RasterPage
     /// From 32-bit BGRA rows (WPF's Pbgra32 on a white page, so alpha is already applied), as grey (ITU-R BT.601 weights)
     /// or RGB. <paramref name="stride"/> is the bytes from one row to the next.
     /// </summary>
-    public static RasterPage FromBgra(int width, int height, int stride, ReadOnlySpan<byte> bgra, RasterColor color)
+    /// <param name="grey">RGB with the three equal (the grey value): grey printing on a format that takes only color.</param>
+    public static RasterPage FromBgra(int width, int height, int stride, ReadOnlySpan<byte> bgra, RasterColor color, bool grey = false)
     {
         if (width <= 0 || height <= 0 || stride < width * 4 || bgra.Length < (long)stride * (height - 1) + width * 4)
             throw new ArgumentException("pixel buffer too small for the size", nameof(bgra));
@@ -80,6 +81,13 @@ public sealed class RasterPage
             {
                 byte b = row[x * 4], g = row[x * 4 + 1], r = row[x * 4 + 2];
                 if (channels == 1) pixels[o++] = (byte)((77 * r + 150 * g + 29 * b + 128) >> 8);
+                else if (grey)
+                {
+                    var level = (byte)((77 * r + 150 * g + 29 * b + 128) >> 8);
+                    pixels[o++] = level;
+                    pixels[o++] = level;
+                    pixels[o++] = level;
+                }
                 else
                 {
                     pixels[o++] = r;

@@ -185,7 +185,7 @@ public static class PhotoPrinting
 
     /// <summary>Photos to either target; returns the number of sheets.</summary>
     public static async Task<int> PrintAsync(PrintTarget target, PhotoJobSettings settings, IReadOnlyList<PhotoJobPhoto> photos,
-        PhotoLayoutOptions layout, string jobName)
+        PhotoLayoutOptions layout, string jobName, IProgress<string>? progress = null, CancellationToken ct = default)
     {
         if (target is PrintTarget.Queue q) return await PrintAsync(q.Name, settings, photos, layout, jobName);
         var direct = (PrintTarget.Direct)target;
@@ -202,7 +202,7 @@ public static class PhotoPrinting
             Quality = IppPhotoNames.Quality(settings.Quality),
             MediaType = IppPhotoNames.MediaTypeKeyword(settings.MediaType),
         };
-        await DirectPrinter.PrintAsync(direct, jobName, request, (paper, images) => new PhotoPaginator(laidOut, photos, paper, images), null, CancellationToken.None);
+        await DirectPrinter.PrintAsync(direct, jobName, request, (paper, images) => new PhotoPaginator(laidOut, photos, paper, images), progress, ct);
         return laidOut.Count;
     }
 

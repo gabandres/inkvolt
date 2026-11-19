@@ -28,7 +28,7 @@ public static class DirectJob
 {
     /// <summary>
     /// Print-Job's attributes (RFC 8011 §4.2.1.1, PWG 5100.14 §6): the operation's (user, job name, document format), then
-    /// the job's: <c>copies</c>, <c>sides</c>, <c>print-color-mode</c>, <c>print-quality</c> and <c>media-col</c> (size, margins,
+    /// the job's: <c>copies</c> with <c>multiple-document-handling</c> (collated), <c>sides</c>, <c>print-color-mode</c>, <c>print-quality</c> and <c>media-col</c> (size, margins,
     /// type and source), each only when it says something.
     /// </summary>
     public static byte[] PrintJobRequest(string printerUri, string user, string jobName, DirectPrintPlan plan, int requestId = 1)
@@ -38,7 +38,12 @@ public static class DirectJob
             .Name("job-name", jobName.Length == 0 ? "Inkvolt Print" : jobName)
             .MimeMediaType("document-format", plan.DocumentFormat)
             .JobGroup();
-        if (plan.Copies > 1) r.Integer("copies", plan.Copies);
+        if (plan.Copies > 1)
+        {
+            // The plan has the printer make copies only when it collates them (PWG 5100.19's keyword); else it repeats the pages.
+            r.Integer("copies", plan.Copies);
+            r.Keyword("multiple-document-handling", "separate-documents-collated-copies");
+        }
         r.Keyword("sides", plan.TwoSided ? "two-sided-long-edge" : "one-sided");
         if (plan.ColorMode is { } mode) r.Keyword("print-color-mode", mode);
         if (plan.Quality is { } q) r.Enum("print-quality", q);
@@ -112,9 +117,18 @@ public static class DirectJob
     /// <summary>RFC 8011 §13.1.4 client errors and §13.1.5 server errors, in plain words.</summary>
     public static string Refused(ushort status) => status switch
     {
+        // forbidden, not-authenticated, not-authorized
         0x0401 or 0x0402 or 0x0403 => CoreStrings.Direct_RefusedSignIn,
-        0x040A or 0x040B or 0x040C or 0x040F or 0x0410 or 0x0411 => CoreStrings.Direct_RefusedFormat,
-        0x0506 or 0x0507 or 0x0508 => CoreStrings.Direct_RefusedBusy,
+        // request-entity-too-large
+        0x0408 => CoreStrings.Direct_RefusedTooLarge,
+        // document-format-not-supported, attributes-or-values-not-supported, conflicting-attributes, compression-not-supported,
+        // compression-error, document-format-error, document-unprintable-error
+        0x040A or 0x040B or 0x040E or 0x040F or 0x0410 or 0x0411 or 0x041B => CoreStrings.Direct_RefusedFormat,
+        // service-unavailable, temporary-error, not-accepting-jobs, busy
+        0x0502 or 0x0505 or 0x0506 or 0x0507 => CoreStrings.Direct_RefusedBusy,
+        // job-canceled: cancelled at the printer while it came in
+        0x0508 => CoreStrings.Direct_CanceledAtPrinter,
+        // the rest (bad-request, uri-scheme-not-supported, internal-error, device-error…): refused, no more said
         _ => CoreStrings.Direct_Refused,
     };
 
@@ -167,12 +181,25 @@ public static class DirectJob
         try
         {
             var r = await ipp.CancelJobAsync(CancelJobRequest(ipp.PrinterUri, user, jobId), ct).ConfigureAwait(false);
-            return r.Ok || r.StatusCode is 0x0406 or 0x040C; // not found, or not possible as it already ended
+            // client-error-not-possible (it already ended), not-found, gone: nothing left to stop
+            return r.Ok || r.StatusCode is 0x0404 or 0x0406 or 0x0407;
         }
         catch (Exception ex) when (ex is HttpRequestException or TimeoutException or IOException or Net.DeviceHttpException or FormatException)
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// The person cancelled a job the printer has: Cancel-Job, then an <see cref="OperationCanceledException"/> when the printer
+    /// took it, or a <see cref="DirectPrintException"/> saying it may still print when the printer refused or didn't answer.
+    /// Always throws.
+    /// </summary>
+    public static async Task StopAsync(IppClient ipp, string user, int jobId, CancellationToken cancelled)
+    {
+        if (!await CancelAsync(ipp, user, jobId).ConfigureAwait(false))
+            throw new DirectPrintException(CoreStrings.Direct_CancelNotTaken, mayHavePrinted: true);
+        throw new OperationCanceledException(cancelled);
     }
 
     /// <summary>The state in the app's words: "Printing page 3", "Printed", "Stopped: …", for the line under Print.</summary>

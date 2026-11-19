@@ -174,8 +174,8 @@ Inkvolt PDF, the suite's other app, is Store ID `9MXDTSFJ9W28` (`BermudezSystems
 
 Version: four numbers, the last one 0 (the Store reserves it), higher than every earlier submission.
 
-Submitted: 1.6.0.0 on 2026-11-17 (submission 1152921505702430623, GitHub release `print-v1.6.0.0`; release notes en and es
-through the API). Published: 1.5.0.0 (submitted 2026-11-08, submission 1152921505702349302, GitHub release `print-v1.5.0.0`;
+Published: 1.6.0.0 (submitted 2026-11-17, Published by 2026-11-19; submission 1152921505702430623, GitHub release
+`print-v1.6.0.0`; release notes en and es through the API); 1.5.0.0 (submitted 2026-11-08, submission 1152921505702349302, GitHub release `print-v1.5.0.0`;
 its certification notes add the Get the driver sentence above); 1.4.0.0 on 2026-11-06 (GitHub release `print-v1.4.0.0`;
 1.3.0.0 was published 2026-11-03 without a tag or GitHub release).
 

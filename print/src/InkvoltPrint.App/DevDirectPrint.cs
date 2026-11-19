@@ -47,7 +47,7 @@ internal static class DevDirectPrint
             var url = new Uri(args[1]);
             var endpoint = new UriBuilder(url.Scheme == "ipps" ? Uri.UriSchemeHttps : Uri.UriSchemeHttp, url.Host, url.Port, url.AbsolutePath).Uri;
             using var http = new DeviceHttp(url.Host);
-            var target = new PrintTarget.Direct(new IppClient(http, endpoint), Environment.UserName);
+            var target = PrintTarget.Direct.For(new IppClient(http, endpoint), Environment.UserName);
             DirectPrinter.KeepCopyIn = Value(args, "--keep");
             if (DirectPrinter.KeepCopyIn is { } keep) Directory.CreateDirectory(keep);
             DirectPrinter.OnlyFormat = Value(args, "--format") switch
@@ -65,7 +65,7 @@ internal static class DevDirectPrint
                 // Two "scans": a made-up PDF's pages drawn at 300 dpi, as a scanner's JPEGs would come in.
                 var scans = await PdfSource.OpenAsync(BatchPrintSamples.Pdf(2, "Scanned"));
                 var pages = new[] { await scans.RenderAsync(1, 300), await scans.RenderAsync(2, 300) };
-                await PrintTargets.PrintPagesAsync(target, pages, copies, twoSided, "copy");
+                await PrintTargets.PrintCopyAsync(target, pages, copies, twoSided, collate: true, pagesPerSheet: 1, "copy", Core.Printing.PageSizing.ActualSize, progress);
             }
             else if (args.Contains("--photos"))
             {

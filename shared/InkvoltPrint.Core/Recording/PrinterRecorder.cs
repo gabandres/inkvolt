@@ -162,11 +162,15 @@ public static class PrinterRecorder
         }
     }
 
-    /// <summary>The LEDM documents the app reads by type: status, supplies, usage, settings (with their Cap documents), events.</summary>
+    /// <summary>
+    /// The LEDM documents the app reads by type: status, supplies, usage, settings (with their Cap documents), events, and the
+    /// copy settings (<see cref="LedmCopy"/>: never captured yet, so a recording is what confirms their element names).
+    /// </summary>
     private static IEnumerable<string> LedmResources() =>
         new[] { LedmResource.ProductStatusDyn, LedmResource.ProductConfigDyn, LedmResource.ProductConfigCap, LedmResource.ConsumableConfigDyn,
                 LedmResource.ProductUsageDyn, LedmResource.PrintConfigDyn, LedmResource.PrintConfigCap, LedmResource.MediaHandlingDyn,
-                LedmResource.MediaHandlingCap, LedmResource.EventTable, "ledm:hpLedmProductStatusCap", "ledm:hpLedmEventMgmtCap" }
+                LedmResource.MediaHandlingCap, LedmResource.EventTable, "ledm:hpLedmProductStatusCap", "ledm:hpLedmEventMgmtCap",
+                LedmCopy.CapResource, LedmCopy.DynResource }
             .Concat(LedmSettingCatalog.All.SelectMany(d => new[] { d.DynResource, d.CapResource }))
             .Distinct(StringComparer.Ordinal);
 

@@ -30,7 +30,7 @@ public sealed record DirectPrintRequest(int Copies = 1, bool TwoSided = false)
 /// How one job goes to a printer with no driver: the raster format (PWG raster first, then Apple raster, then PCLm, the first
 /// the printer both lists and says how to make), its resolution (300 dpi when offered; else the nearest above, drawn at 300
 /// and enlarged when it is a multiple), color, the paper with its margins, two-sided and how the back is turned, and copies
-/// (the printer's when it makes enough, else the pages are sent again). <see cref="Choose"/> never changes what was asked
+/// (the printer's when it makes enough and collates them, else the pages are sent again). <see cref="Choose"/> never changes what was asked
 /// quietly: a setting the printer can't keep is a problem, and nothing is sent.
 /// </summary>
 public sealed record DirectPrintPlan(RasterFormat Format, int Dpi, RasterColor Color, DirectPaper Paper)
@@ -53,6 +53,9 @@ public sealed record DirectPrintPlan(RasterFormat Format, int Dpi, RasterColor C
 
     /// <summary>The <c>print-color-mode</c> keyword sent, or null.</summary>
     public string? ColorMode { get; init; }
+
+    /// <summary>Sent as RGB but drawn grey: the person asked for grey and the format takes only color.</summary>
+    public bool Grey { get; init; }
 
     public int? Quality { get; init; }
     public string? MediaType { get; init; }
@@ -108,6 +111,16 @@ public sealed record DirectPrintPlan(RasterFormat Format, int Dpi, RasterColor C
             problem = CoreStrings.Direct_NoPaper;
             return null;
         }
+        if (request.Quality is { } quality && !caps.Qualities.Contains(quality))
+        {
+            problem = CoreStrings.Direct_NoQuality;
+            return null;
+        }
+        if (request.MediaType is { } type && !caps.MediaTypes.Contains(type))
+        {
+            problem = CoreStrings.Direct_NoMediaType;
+            return null;
+        }
         var wantColor = request.Color ?? caps.ColorByDefault;
         foreach (var format in caps.Formats.Where(f => request.Format is null || f == request.Format))
         {
@@ -120,16 +133,20 @@ public sealed record DirectPrintPlan(RasterFormat Format, int Dpi, RasterColor C
             var color = wantColor && caps.Color && colors.Contains(RasterColor.Rgb8) ? RasterColor.Rgb8
                 : colors.Contains(RasterColor.Gray8) ? RasterColor.Gray8 : colors.Contains(RasterColor.Rgb8) ? RasterColor.Rgb8 : (RasterColor?)null;
             if (color is null || ChooseDpi(dpis) is not { } dpi) continue;
-            var printerCopies = request.Copies <= caps.MaxCopies;
+            // Grey asked for (or a printer that prints only black) on a format that takes only RGB: the pages are made grey here.
+            var grey = color == RasterColor.Rgb8 && !(wantColor && caps.Color);
+            // The printer makes the copies only when it collates them; else the pages go again, a copy at a time.
+            var printerCopies = request.Copies <= caps.MaxCopies && (request.Copies == 1 || caps.CollatedCopies);
             return new DirectPrintPlan(format, dpi, color.Value, paper)
             {
                 TwoSided = request.TwoSided,
                 Back = back,
                 Copies = printerCopies ? request.Copies : 1,
                 Repeat = printerCopies ? 1 : request.Copies,
-                ColorMode = caps.Color ? (color == RasterColor.Rgb8 ? "color" : "monochrome") : null,
-                Quality = request.Quality is { } q && caps.Qualities.Contains(q) ? q : null,
-                MediaType = request.MediaType is { } t && caps.MediaTypes.Contains(t) ? t : null,
+                Grey = grey,
+                ColorMode = caps.Color ? (color == RasterColor.Rgb8 && !grey ? "color" : "monochrome") : null,
+                Quality = request.Quality,
+                MediaType = request.MediaType,
                 StripHeight = caps.PclmStripHeight,
                 RunLength = caps.PclmRunLength,
             };

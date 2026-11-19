@@ -3442,4 +3442,31 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Direct_Queued" xml:space="preserve">
     <value>Esperando su turno en la impresora</value>
   </data>
+  <data name="PrinterCopy_NotOffered" xml:space="preserve">
+    <value>Al final, la impresora no acepta solicitudes de copia de las aplicaciones. Elige A través de este PC y vuelve a copiar.</value>
+  </data>
+  <data name="PrinterCopy_NotRead" xml:space="preserve">
+    <value>No se envió: no se pudo leer la configuración de copia de la impresora. Vuelve a intentarlo o elige A través de este PC.</value>
+  </data>
+  <data name="PrinterCopy_Busy" xml:space="preserve">
+    <value>La impresora está ocupada y no empezó la copia. Vuelve a intentarlo cuando esté inactiva.</value>
+  </data>
+  <data name="PrinterCopy_Refused" xml:space="preserve">
+    <value>La impresora rechazó la copia. Elige A través de este PC y vuelve a copiar.</value>
+  </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>La impresora no respondió, así que puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
+  </data>
+  <data name="Direct_RefusedTooLarge" xml:space="preserve">
+    <value>La impresora no acepta un trabajo tan grande. Imprime menos páginas cada vez.</value>
+  </data>
+  <data name="Direct_NoQuality" xml:space="preserve">
+    <value>La impresora no ofrece esa calidad de impresión. Elige otra.</value>
+  </data>
+  <data name="Direct_NoMediaType" xml:space="preserve">
+    <value>La impresora no acepta ese tipo de papel. Elige otro.</value>
+  </data>
+  <data name="Direct_CancelNotTaken" xml:space="preserve">
+    <value>La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora.</value>
+  </data>
 </root>

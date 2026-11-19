@@ -286,10 +286,21 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         var ipp = DirectIpp;
         return Core.Printing.Direct.PrintRoutes.Choose(queue is not null, ipp is not null, Print.PrintDirect) switch
         {
-            Core.Printing.Direct.PrintRoute.Direct => new Printing.PrintTarget.Direct(ipp!, _pc.UserName, _pc.MadeUpPrint),
+            Core.Printing.Direct.PrintRoute.Direct => new Printing.PrintTarget.Direct(ipp!, _pc.UserName, CapsFor(ipp!), _pc.MadeUpPrint),
             Core.Printing.Direct.PrintRoute.Queue => new Printing.PrintTarget.Queue(queue!),
             _ => null,
         };
+    }
+
+    private (Core.Ipp.IppClient Client, Core.Printing.Direct.IppCapsCache Caps)? _directCaps;
+
+    /// <summary>One attributes cache per connection's IPP client: a reconnect (a new client) reads them again.</summary>
+    private Core.Printing.Direct.IppCapsCache CapsFor(Core.Ipp.IppClient ipp)
+    {
+        if (_directCaps is { } known && ReferenceEquals(known.Client, ipp)) return known.Caps;
+        var caps = Printing.PrintTarget.Direct.CapsOf(ipp);
+        _directCaps = (ipp, caps);
+        return caps;
     }
 
     /// <summary>The Print tab's choice and note, and whether Copy has somewhere to print, after a connection or a queue change.</summary>
@@ -931,6 +942,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         BindScanner();
+        _ = FindPrinterCopyAsync(conn);
         if (conn.Probe.HasHpInterfaces) // settings are LEDM's
         {
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, _pc.Passwords, _pc.Browser is null ? null : OpenWebPage);
@@ -942,6 +954,24 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             conn.Http.SetCredentials("admin", pw);
 
         _remember(this);
+    }
+
+    /// <summary>
+    /// The Copy tab learns whether the printer copies by itself (HP LEDM copy settings; reads only), for this connection. A
+    /// check that fails lets go of the copier found on an earlier connection, so a copy never goes through a closed one.
+    /// </summary>
+    private async Task FindPrinterCopyAsync(PrinterConnection conn)
+    {
+        Core.Ledm.PrinterCopier? copier = null;
+        try
+        {
+            copier = await Core.Ledm.PrinterCopier.DetectAsync(conn);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Printer copy not checked: {ex.Message}");
+        }
+        if (_monitor?.Connection == conn) Copy.AttachPrinterCopy(copier);
     }
 
     /// <summary>
