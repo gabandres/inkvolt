@@ -3554,6 +3554,26 @@ Empezar de nuevo</value>
   <data name="Queue_SuppliesNotReported" xml:space="preserve">
     <value>Esta impresora no lo informa.</value>
   </data>
+  <data name="PrintTab_Direct" xml:space="preserve">
+    <value>Imprimir directamente en la impresora (sin cola de Windows)</value>
+  </data>
+  <data name="PrintTab_DirectTip" xml:space="preserve">
+    <value>Envía las páginas por la red en el formato de imagen de la propia impresora (IPP Everywhere), sin su controlador de Windows. También para Copiar y Fotos.</value>
+  </data>
+  <data name="Print_RouteDirect" xml:space="preserve">
+    <value>Esta impresora no tiene cola de Windows: las páginas van directamente a ella por la red (IPP Everywhere).</value>
+  </data>
+  <data name="Print_RouteDirectChosen" xml:space="preserve">
+    <value>Las páginas van directamente a la impresora por la red, no por su cola de Windows.</value>
+  </data>
+  <data name="Print_SentDirect" xml:space="preserve">
+    <value>Impreso: {0} ({1:0.0} s).</value>
+    <comment>{0} = '3 pages × 2 copies', {1} = seconds</comment>
+  </data>
+  <data name="Print_DirectDrawing" xml:space="preserve">
+    <value>Creando la página {0} de {1} en el formato de la impresora…</value>
+    <comment>{0} = page, {1} = pages</comment>
+  </data>
   <data name="Copy_CopyWith" xml:space="preserve">
     <value>Copiar con</value>
   </data>

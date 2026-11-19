@@ -22,7 +22,7 @@ namespace InkvoltPrint.App.ViewModels;
 /// (<see cref="PrinterCopier"/>) copies by itself instead, unless the user picks Through this PC (<see cref="CopyRoute"/>).
 /// </summary>
 /// <param name="demoPrint">Demo printer: instead of a Windows queue, "prints" here (job name, sheets).</param>
-public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppState state, Action<string, int>? demoPrint = null) : ObservableObject
+public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, AppState state, Action<string, int>? demoPrint = null) : ObservableObject
 {
     private const int CopyDpi = 300;
     private const double PreviewHeight = 520;
@@ -205,7 +205,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     [NotifyCanExecuteChangedFor(nameof(CopyCommand), nameof(ScanBackCommand), nameof(StartOverCommand), nameof(PrintAgainCommand), nameof(PrintPreviewedCommand))]
     public partial bool IsBusy { get; set; }
 
-    /// <summary>Pages are coming off the scanner (Cancel is possible); false while the copy is handed to Windows.</summary>
+    /// <summary>Pages are coming off the scanner, or going straight to the printer (Cancel is possible); false while a copy is handed to Windows.</summary>
     [ObservableProperty] public partial bool IsScanning { get; set; }
 
     /// <summary>ID card: the front is scanned; waiting for the card to be turned over.</summary>
@@ -384,7 +384,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         var twoSided = TwoSided && CanTwoSided;
         var (perSheet, collate, sizing) = (PerSheet, Collate, Sizing);
         var sheets = CopyLayout.Sheets(pages.Count, perSheet, copies, twoSided);
-        return PrintAsync("Copy", sheets, queue => QueuePrinter.PrintCopyAsync(queue, pages, copies, twoSided, collate, perSheet, "Copy", sizing),
+        return PrintAsync("Copy", sheets, (target, progress, ct) => PrintTargets.PrintCopyAsync(target, pages, copies, twoSided, collate, perSheet, "Copy", sizing, progress, ct),
             copies > 1 ? Core.Plural.Of(pages.Count, Strings.Copy_WhatPagesCopies_One, Strings.Copy_WhatPagesCopies_Many, copies)
                 : Core.Plural.Of(pages.Count, Strings.Copy_WhatPages_One, Strings.Copy_WhatPages_Many));
     }
@@ -440,7 +440,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         AwaitingBack = false;
         _front = null;
         var copies = Copies;
-        await PrintAsync("ID card copy", copies, queue => QueuePrinter.PrintIdCardAsync(queue, front, back, copies, "ID card copy"),
+        await PrintAsync("ID card copy", copies, (target, progress, ct) => PrintTargets.PrintIdCardAsync(target, front, back, copies, "ID card copy", progress, ct),
             copies > 1 ? string.Format(Strings.Copy_WhatCardCopies, copies) : Strings.Copy_WhatCard);
     }
 
@@ -522,7 +522,11 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     }
 
     /// <summary>Hands the scanned copy to the printer's Windows queue (the demo printer's made-up queue in demo mode).</summary>
-    private async Task PrintAsync(string jobName, int sheets, Func<string, Task> print, string what)
+    /// <remarks>
+    /// Straight to the printer (roadmap 2.1), the copy can be cancelled while it's drawn, sent and printed, and says how it goes;
+    /// a failure that may have printed (<see cref="Core.Printing.Direct.DirectPrintException.MayHavePrinted"/>) offers no Print again.
+    /// </remarks>
+    private async Task PrintAsync(string jobName, int sheets, Func<PrintTarget, IProgress<string>, CancellationToken, Task> print, string what)
     {
         ForgetPrintAgain();
         IsBusy = true;
@@ -534,16 +538,33 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
                 SetMessage(string.Format(Strings.Copy_SentDemo, what));
                 return;
             }
-            if (await findQueue() is not { } queue)
+            if (await findTarget() is not { } target)
             {
                 SetMessage(Strings.Copy_NotSetUp, error: true);
                 KeepForPrintAgain();
                 return;
             }
             SetMessage(Strings.Copy_Sending);
-            await print(queue);
+            if (target is PrintTarget.Direct)
+            {
+                _cts = new CancellationTokenSource();
+                IsScanning = true; // Cancel shows
+            }
+            var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
+            await print(target, progress, _cts?.Token ?? CancellationToken.None);
             SetMessage(string.Format(Strings.Copy_Sent, what));
             RatingRequest.NoteSuccess(state);
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Strings.Copy_Cancelled); // cancelled before it went, or the printer took the cancel
+            KeepForPrintAgain();
+        }
+        catch (Core.Printing.Direct.DirectPrintException ex)
+        {
+            Log.Write($"Copy print (direct) failed: {ex.Message}, may have printed: {ex.MayHavePrinted}");
+            SetMessage(ex.Message, error: true);
+            if (!ex.MayHavePrinted) KeepForPrintAgain();
         }
         catch (Exception ex)
         {
@@ -554,6 +575,12 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         }
         finally
         {
+            if (_cts is not null && IsScanning)
+            {
+                _cts.Dispose();
+                _cts = null;
+                IsScanning = false;
+            }
             IsBusy = false;
         }
 
@@ -569,19 +596,14 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         if (_twoSidedChecked || demoPrint is not null) return;
         try
         {
-            if (await findQueue() is not { } queue)
+            if (await findTarget() is not { } target)
             {
                 CanTwoSided = false;
             }
             else
             {
-                if (state.GetTwoSided(queue) is { } known) CanTwoSided = known;
-                CanTwoSided = await Task.Run(() =>
-                {
-                    using var q = QueuePrinter.Open(queue);
-                    return QueuePrinter.SupportsTwoSided(q);
-                });
-                state.SetTwoSided(queue, CanTwoSided);
+                if (target is PrintTarget.Queue { Name: var queue } && state.GetTwoSided(queue) is { } known) CanTwoSided = known;
+                CanTwoSided = await PrintTargets.SupportsTwoSidedAsync(target, state);
                 _twoSidedChecked = true;
             }
         }

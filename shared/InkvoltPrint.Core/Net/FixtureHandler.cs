@@ -9,8 +9,8 @@ namespace InkvoltPrint.Core.Net;
 /// printer) and by tests. A request path maps to a document name by replacing <c>/</c> with <c>_</c> and adding
 /// <c>.xml</c> when there is no extension: <c>/DevMgmt/ProductStatusDyn.xml</c> → <c>DevMgmt_ProductStatusDyn.xml</c>,
 /// <c>/eSCL/ScannerCapabilities</c> → <c>eSCL_ScannerCapabilities.xml</c>. An IPP Get-Printer-Attributes request to
-/// <c>/ipp/print</c> is answered from <c>ipp_print.ipp.txt</c> (<see cref="Ipp.IppText"/>), and so is Identify-Printer when
-/// that document lists it. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a document is 404 (so IPP
+/// <c>/ipp/print</c> is answered from <c>ipp_print.ipp.txt</c> (<see cref="Ipp.IppText"/>), and so are Identify-Printer and
+/// the job operations (Print-Job kept in <see cref="PrintJobs"/> and completed at once) when that document lists them. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a document is 404 (so IPP
 /// and product images are simply "not supported"). A scan job that asks for <c>application/pdf</c> (a scanner whose
 /// capabilities offer only PDF from a source) gets its pages as a PDF, the JPEGs embedded as they are: one PDF per glass page,
 /// the whole feeder batch in one PDF, as many feeders send it.
@@ -34,6 +34,14 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
     private readonly Queue<byte[]> _batch = new();
 
     private bool CanScan => scanPage is not null || scanArea is not null;
+
+    private readonly List<byte[]> _printed = [];
+
+    /// <summary>Every Print-Job request received, whole (attributes and document), oldest first.</summary>
+    public IReadOnlyList<byte[]> PrintJobs
+    {
+        get { lock (_printed) return [.. _printed]; }
+    }
 
     /// <summary><c>/ipp/print</c> → <c>ipp_print.ipp.txt</c>.</summary>
     public static string IppDocumentName(string path) => path.Trim('/').Replace('/', '_') + ".ipp.txt";
@@ -95,15 +103,26 @@ public sealed class FixtureHandler(Func<string, byte[]?> document, Func<byte[]>?
         if (request.Method == HttpMethod.Post && request.Content?.Headers.ContentType?.MediaType == "application/ipp")
         {
             if (document(IppDocumentName(path)) is not { } text) return Reply(request, HttpStatusCode.NotFound);
-            var (operation, id) = Ipp.IppCodec.ReadRequestHeader(await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
+            var sent = await request.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+            var (operation, id) = Ipp.IppCodec.ReadRequestHeader(sent);
             var attributes = Ipp.IppText.Parse(System.Text.Encoding.UTF8.GetString(text));
-            // Get-Printer-Attributes is answered from the document, and Identify-Printer (a no-op here) when the document's
-            // operations-supported lists it; anything else gets server-error-operation-not-supported.
-            var identify = operation == Ipp.IppCodec.IdentifyPrinter
-                           && attributes.Any(a => a.Name == "operations-supported" && a.Value == ((int)Ipp.IppCodec.IdentifyPrinter).ToString(System.Globalization.CultureInfo.InvariantCulture));
-            var body = operation == Ipp.IppCodec.GetPrinterAttributes ? Ipp.IppCodec.EncodeResponse(0, id, attributes)
-                : identify ? Ipp.IppCodec.EncodeResponse(0, id, [])
-                : Ipp.IppCodec.EncodeResponse(0x0501, id, []);
+            // Get-Printer-Attributes is answered from the document; Identify-Printer (a no-op here), Print-Job (kept in
+            // PrintJobs, completed at once), Get-Job-Attributes, Get-Jobs (none waiting) and Cancel-Job when the document's
+            // operations-supported lists them; anything else gets server-error-operation-not-supported.
+            bool Lists(ushort op) => attributes.Any(a => a.Name == "operations-supported" && a.Value == ((int)op).ToString(System.Globalization.CultureInfo.InvariantCulture));
+            byte[] Job(int job, int state) => Ipp.IppCodec.EncodeResponse(0, id,
+                [new("job-id", Ipp.IppCodec.Integer, $"{job}"), new("job-state", Ipp.IppCodec.Enum, $"{state}"),
+                 new("job-state-reasons", Ipp.IppCodec.Keyword, state == 9 ? "job-completed-successfully" : "none")], Ipp.IppCodec.JobTag);
+            byte[] body;
+            if (operation == Ipp.IppCodec.GetPrinterAttributes) body = Ipp.IppCodec.EncodeResponse(0, id, attributes);
+            else if (!Lists(operation)) body = Ipp.IppCodec.EncodeResponse(0x0501, id, []);
+            else if (operation == Ipp.IppCodec.PrintJob)
+            {
+                lock (_printed) _printed.Add(sent);
+                body = Job(PrintJobs.Count, 3);
+            }
+            else if (operation == Ipp.IppCodec.GetJobAttributes) body = Job(1, 9);
+            else body = Ipp.IppCodec.EncodeResponse(0, id, []);
             return Reply(request, HttpStatusCode.OK, body, "application/ipp");
         }
         // LEDM maintenance (internal print jobs, alignment): accepted and forgotten, like settings writes. Nothing prints.

@@ -247,6 +247,25 @@ public sealed class AppState
     /// <summary>Queue name → whether its driver reports two-sided printing (cached: the query is slow).</summary>
     public Dictionary<string, bool> TwoSidedQueues { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>Printers the person prints to straight over IPP although they have a Windows queue (roadmap 2.1).</summary>
+    public List<string> DirectPrinters { get; set; } = [];
+
+    public bool GetPrintDirect(string uuid)
+    {
+        lock (_gate) return DirectPrinters.Contains(uuid, StringComparer.OrdinalIgnoreCase);
+    }
+
+    public void SetPrintDirect(string uuid, bool value)
+    {
+        lock (_gate)
+        {
+            if (DirectPrinters.Contains(uuid, StringComparer.OrdinalIgnoreCase) == value) return;
+            if (value) DirectPrinters.Add(uuid);
+            else DirectPrinters.RemoveAll(u => string.Equals(u, uuid, StringComparison.OrdinalIgnoreCase));
+        }
+        Save();
+    }
+
     /// <summary>
     /// Printer id → other UUIDs the user confirmed are that printer ("This is my printer": a repair, reset or new network board
     /// gave it a new one). The printer keeps its id (pins, password, queue); these just count as it.
@@ -317,6 +336,8 @@ public sealed class AppState
             if (Firmware.Remove(oldId, out var firmware)) Firmware.TryAdd(newId, firmware);
             for (var i = 0; i < NoFirmwareNotify.Count; i++)
                 if (string.Equals(NoFirmwareNotify[i], oldId, StringComparison.OrdinalIgnoreCase)) NoFirmwareNotify[i] = newId;
+            for (var i = 0; i < DirectPrinters.Count; i++)
+                if (string.Equals(DirectPrinters[i], oldId, StringComparison.OrdinalIgnoreCase)) DirectPrinters[i] = newId;
             if (string.Equals(SelectedUuid, oldId, StringComparison.OrdinalIgnoreCase)) SelectedUuid = newId;
         }
         Save();
@@ -370,6 +391,7 @@ public sealed class AppState
             state.Printers = (state.Printers ?? []).Where(k => k is { Uuid: not null, Host: not null }).ToList();
             state.ForgottenUuids ??= [];
             state.NoFirmwareNotify ??= [];
+            state.DirectPrinters = (state.DirectPrinters ?? []).OfType<string>().ToList();
             state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);

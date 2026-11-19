@@ -28,7 +28,34 @@ public static class IppText
         ["charset"] = IppCodec.Charset,
         ["naturalLanguage"] = IppCodec.NaturalLanguage,
         ["mimeMediaType"] = 0x49,
+        ["resolution"] = IppCodec.Resolution,
+        ["rangeOfInteger"] = IppCodec.RangeOfInteger,
     };
+
+    /// <summary><c>300dpi</c>, <c>600x300dpi</c> or <c>118dpcm</c> (as ipptool writes them).</summary>
+    public static IppResolution? ParseResolution(string text)
+    {
+        var units = text.EndsWith("dpi", StringComparison.Ordinal) ? (byte)3 : text.EndsWith("dpcm", StringComparison.Ordinal) ? (byte)4 : (byte)0;
+        if (units == 0) return null;
+        var parts = text[..^(units == 3 ? 3 : 4)].Split('x');
+        if (parts.Length is < 1 or > 2 || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var x)) return null;
+        var y = x;
+        if (parts.Length == 2 && !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out y)) return null;
+        return new IppResolution(x, y, units);
+    }
+
+    /// <summary>A resolution as ipptool writes it: <c>300dpi</c>, or <c>600x300dpi</c> when the two differ.</summary>
+    private static string ResolutionText(int x, int y, byte units) =>
+        string.Create(CultureInfo.InvariantCulture, $"{x}{(x == y ? "" : $"x{y}")}{(units == 3 ? "dpi" : "dpcm")}");
+
+    /// <summary><c>1-99</c>.</summary>
+    public static IppRange? ParseRange(string text)
+    {
+        var dash = text.IndexOf('-', 1);
+        return dash > 0 && int.TryParse(text[..dash], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var lo)
+               && int.TryParse(text[(dash + 1)..], NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var hi) && lo <= hi
+            ? new IppRange(lo, hi) : null;
+    }
 
     public static IReadOnlyList<IppValue> Parse(string text)
     {
@@ -47,6 +74,8 @@ public static class IppText
             {
                 IppCodec.Integer or IppCodec.Enum => int.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _),
                 IppCodec.Boolean => value is "true" or "false",
+                IppCodec.Resolution => ParseResolution(value) is not null,
+                IppCodec.RangeOfInteger => ParseRange(value) is not null,
                 _ => true,
             };
             if (!ok) throw new FormatException($"IPP text line {number}: \"{value}\" is not a valid {parts[1]}");
@@ -58,8 +87,8 @@ public static class IppText
     /// <summary>
     /// The other way: a Get-Printer-Attributes response's printer attributes as this text, one value per line, so a recording
     /// (<see cref="Recording.PrinterRecorder"/>) can be read and served again. Values this form can't hold are left out with a
-    /// comment line naming them: collections (<c>media-col-database</c>), dateTime, resolution, rangeOfInteger, the
-    /// with-language strings and out-of-band values. Line breaks inside a text value become spaces.
+    /// comment line naming them: collections (<c>media-col-database</c>), dateTime, the with-language strings and
+    /// out-of-band values. Line breaks inside a text value become spaces.
     /// </summary>
     public static string FromResponse(ReadOnlySpan<byte> response)
     {
@@ -93,7 +122,11 @@ public static class IppText
             {
                 IppCodec.Integer or IppCodec.Enum when valLen == 4 => BinaryPrimitives.ReadInt32BigEndian(value).ToString(CultureInfo.InvariantCulture),
                 IppCodec.Boolean when valLen == 1 => value[0] != 0 ? "true" : "false",
-                IppCodec.Integer or IppCodec.Enum or IppCodec.Boolean => null,
+                IppCodec.Resolution when valLen == 9 && value[8] is 3 or 4 => ResolutionText(
+                    BinaryPrimitives.ReadInt32BigEndian(value), BinaryPrimitives.ReadInt32BigEndian(value[4..]), value[8]),
+                IppCodec.RangeOfInteger when valLen == 8 => string.Create(CultureInfo.InvariantCulture,
+                    $"{BinaryPrimitives.ReadInt32BigEndian(value)}-{BinaryPrimitives.ReadInt32BigEndian(value[4..])}"),
+                IppCodec.Integer or IppCodec.Enum or IppCodec.Boolean or IppCodec.Resolution or IppCodec.RangeOfInteger => null,
                 _ => Encoding.UTF8.GetString(value).ReplaceLineEndings(" ").Trim(),
             };
             if (text is null) { skipped.Add(last); continue; }

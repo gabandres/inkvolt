@@ -59,6 +59,13 @@ public partial class App : Application
             _ = RunStatusAsync(e.Args);
             return;
         }
+        // --direct-print <ipp-url> …: developer check of driverless printing against a test printer (DevDirectPrint).
+        if (e.Args.Length > 1 && e.Args[0] == DevDirectPrint.Argument)
+        {
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            _ = DevDirectPrint.RunAsync(e.Args).ContinueWith(t => Dispatcher.Invoke(() => Shutdown(t.Result)), TaskScheduler.Default);
+            return;
+        }
         // The Store package started by its startup task behaves as --background; one started by a toast clicked after it
         // had exited opens that printer once the window is up.
         var activation = PackagedActivation.Read();
