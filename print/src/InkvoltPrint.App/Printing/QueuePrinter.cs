@@ -158,9 +158,10 @@ public static class QueuePrinter
     /// <summary>
     /// Rendered or scanned pages on paper: sides in print order (−1: a blank back), each with its pages placed by
     /// <see cref="CopyLayout.NUp"/> (one per sheet: centred, sized per <see cref="PageSizing"/>, a landscape page on portrait
-    /// paper turned rather than shrunk, as the copy preview places it). Print a PDF, batches and copies all go through it.
+    /// paper turned rather than shrunk, as the copy preview places it). Print a PDF, batches and copies all go through it,
+    /// to a Windows queue or straight to the printer (<see cref="DirectPrinter"/>).
     /// </summary>
-    private sealed class PagesPaginator(IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, IReadOnlyList<int> order, int pagesPerSheet,
+    internal sealed class PagesPaginator(IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, IReadOnlyList<int> order, int pagesPerSheet,
         Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
     {
         /// <summary>Each page on its own sheet, in order.</summary>
@@ -204,7 +205,7 @@ public static class QueuePrinter
     }
 
     /// <summary>One sheet: the card's front on the top half, its back on the bottom half.</summary>
-    private sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper, PrintImages images) : DocumentPaginator
+    internal sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper, PrintImages images) : DocumentPaginator
     {
         public override bool IsPageCountValid => true;
         public override int PageCount => 1;

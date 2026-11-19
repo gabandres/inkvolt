@@ -40,6 +40,11 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   state reduced to what matters before printing (ready, sleeping, busy, needs attention, error, offline, toner, paper).
 - **Batch** (scan): one feeder run saved as several files, split at separator sheets or by hand (`BatchSplit`).
 - **Batch print**: many files sent in order, a job for each (`Core/Printing/BatchPrint`). Not the scan batch above. Its **estimate** is the sheets a file comes to, read from the file itself before anything prints (`BatchMeasurer`, `BatchPrintLine`); a file's **fingerprint** (its length and SHA-256) is what shows it's still what the estimate saw. **Sent** means the queue has it, not that paper came out. A **list** is a saved batch (`BatchPrintList`). A **batch print folder** is one printed as it fills (`BatchPrintFolder`); a file in its `working` folder may have printed, so it's never sent again by itself. On the Mac, its **places** are the files, folders and lists the Batch Print window was given, kept by their paths with a bookmark each so the sandboxed `print` command, and a list opened in a later launch, can reach them (`BatchPlaces`, `BatchPlaceList`, `PrintState.batchPlaces`).
+- **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
+  queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
+  Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight
+  to the printer where there isn't or the person chose it (`PrintRoutes`). Its **plan** is what the printer's attributes allow
+  for one request (`DirectPrintPlan`); a setting the printer can't keep stops the job, never changes quietly.
 - **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T),
   a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
   Left out of the files unless the batch keeps them.

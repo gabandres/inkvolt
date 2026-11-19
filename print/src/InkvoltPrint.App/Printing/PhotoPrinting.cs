@@ -6,6 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using InkvoltPrint.App.ViewModels;
 using InkvoltPrint.Core.Photos;
+using InkvoltPrint.Core.Printing.Direct;
 
 namespace InkvoltPrint.App.Printing;
 
@@ -143,6 +144,66 @@ public static class PhotoPrinting
             return new PhotoPaginator(laidOut, photos, paperDips, images);
         });
         return sheets;
+    }
+
+    /// <summary>The photo options of either target: a queue's driver (off the UI thread), or a printer's IPP attributes.</summary>
+    public static async Task<PhotoQueueOptions> ReadOptionsAsync(PrintTarget target)
+    {
+        if (target is PrintTarget.Queue q) return await Task.Run(() => ReadOptions(q.Name));
+        var caps = await DirectPrinter.ReadCapsAsync((PrintTarget.Direct)target);
+        var papers = caps.Papers.GroupBy(p => p.Name)
+            .Select(g => g.FirstOrDefault(p => !p.Borderless) ?? g.First())
+            .Select(p => new PaperChoice(p.Name, PhotoPaperText.Paper(null, p.WidthInches, p.HeightInches), p.WidthInches, p.HeightInches, null))
+            .DistinctBy(p => p.Label)
+            .ToList();
+        var types = caps.MediaTypes.Select(IppPhotoNames.MediaTypeName).OfType<string>().Distinct()
+            .Select(n => new Option<string>(n, PhotoPaperText.MediaType(n))).ToList();
+        var qualities = caps.Qualities.Select(IppPhotoNames.QualityName).Distinct().Select(n => new Option<string>(n, PhotoPaperText.Quality(n))).ToList();
+        var colors = (caps.Color ? new[] { "Color", "Grayscale" } : ["Grayscale"]).Select(n => new Option<string>(n, PhotoPaperText.Color(n))).ToList();
+        return new PhotoQueueOptions(papers, caps.DefaultPaper?.Name,
+            types, caps.DefaultMediaType is { } t ? IppPhotoNames.MediaTypeName(t) : null,
+            qualities, caps.DefaultQuality is { } dq ? IppPhotoNames.QualityName(dq) : null,
+            colors, caps.Color && caps.ColorByDefault ? "Color" : "Grayscale");
+    }
+
+    /// <summary>Borderless and margins for the chosen paper, from either target.</summary>
+    public static async Task<PaperSetup?> ReadPaperAsync(PrintTarget target, PhotoJobSettings settings)
+    {
+        if (target is PrintTarget.Queue q) return settings.Paper?.Media is null ? null : await Task.Run(() => ReadPaper(q.Name, settings));
+        var caps = await DirectPrinter.ReadCapsAsync((PrintTarget.Direct)target);
+        return DirectSetup(caps, settings);
+    }
+
+    private static PaperSetup? DirectSetup(IppPrintCaps caps, PhotoJobSettings settings)
+    {
+        var same = caps.Papers.Where(p => p.Name == settings.Paper?.Key).ToList();
+        if ((same.FirstOrDefault(p => !p.Borderless) ?? same.FirstOrDefault()) is not { } paper) return null;
+        static double In(int hmm) => hmm / 2540.0;
+        return new PaperSetup(same.Any(p => p.Borderless),
+            new SheetPaper(paper.WidthInches, paper.HeightInches, In(paper.Left), In(paper.Top), In(paper.Right), In(paper.Bottom)));
+    }
+
+    /// <summary>Photos to either target; returns the number of sheets.</summary>
+    public static async Task<int> PrintAsync(PrintTarget target, PhotoJobSettings settings, IReadOnlyList<PhotoJobPhoto> photos,
+        PhotoLayoutOptions layout, string jobName, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        if (target is PrintTarget.Queue q) return await PrintAsync(q.Name, settings, photos, layout, jobName);
+        var direct = (PrintTarget.Direct)target;
+        var setup = DirectSetup(await DirectPrinter.ReadCapsAsync(direct), settings)
+                    ?? throw new Core.Printing.Direct.DirectPrintException(Core.CoreStrings.Direct_NoPaper, mayHavePrinted: false);
+        var borderless = settings.Borderless && setup.CanBorderless;
+        var sheetPaper = borderless ? setup.Paper with { Left = 0, Top = 0, Right = 0, Bottom = 0 } : setup.Paper;
+        var laidOut = PhotoLayout.Sheets(photos.Select(p => p.Input).ToList(), layout, sheetPaper);
+        var request = new DirectPrintRequest
+        {
+            PaperName = settings.Paper?.Key,
+            Borderless = borderless,
+            Color = IppPhotoNames.Color(settings.Color),
+            Quality = IppPhotoNames.Quality(settings.Quality),
+            MediaType = IppPhotoNames.MediaTypeKeyword(settings.MediaType),
+        };
+        await DirectPrinter.PrintAsync(direct, jobName, request, (paper, images) => new PhotoPaginator(laidOut, photos, paper, images), progress, ct);
+        return laidOut.Count;
     }
 
     /// <summary>The job's pages. Each sheet's pictures are decoded when the serializer asks for it, at no more than <see cref="PrintDpi"/>.</summary>

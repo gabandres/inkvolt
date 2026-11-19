@@ -905,7 +905,15 @@
                             <CheckBox Content="{x:Static loc:Strings.PrintTab_BothSides}" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
                                       Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}" />
 
+                            <CheckBox IsChecked="{Binding PrintDirect}" Margin="0,12,0,0" ToolTip="{x:Static loc:Strings.PrintTab_DirectTip}"
+                                      AutomationProperties.Name="{x:Static loc:Strings.PrintTab_Direct}"
+                                      Visibility="{Binding CanChooseDirect, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.PrintTab_Direct}" TextWrapping="Wrap" />
+                            </CheckBox>
+
                             <TextBlock Text="{Binding Summary}" Style="{StaticResource Caption}" Margin="0,16,0,0" />
+                            <TextBlock Text="{Binding RouteNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding RouteNote, Converter={StaticResource VisibleWhen}}" />
                         </StackPanel>
                     </StackPanel>
                     </ScrollViewer>
@@ -1282,6 +1290,8 @@
                                 <TextBlock Text="{x:Static loc:Strings.Common_Print}" FontWeight="SemiBold" />
                             </StackPanel>
                         </Button>
+                        <Button Content="{x:Static loc:Strings.Common_Cancel}" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}" />
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />

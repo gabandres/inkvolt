@@ -264,6 +264,34 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   software", [CUPS](https://www.cups.org/doc/man-ippeveprinter.html)) accepts a 10-page PDF, a photo sheet and a copy
   in each raster format and the pages it saves match ours; the M234dw (PCLm / PWG / URF, no PDF) prints a page from a
   PC with no queue for it.
+- **Built (Windows, 2026-11-19).** `Core/Printing/Raster`: `PwgRasterWriter` (PWG 5102.4: `RaS2`, the 1796-byte header,
+  the line compression), `UrfWriter` (Apple raster as CUPS reads it) and `PclmWriter` (strips of 8-bit gray or RGB, Flate or
+  run-length, the page tree last, a classic cross-reference table), back sides turned as the printer's
+  `pwg-raster-document-sheet-back` / `urf-supported` DM / `pclm-raster-back-side` asks. `Core/Printing/Direct`:
+  `IppPrintCaps` (the formats and how to make them, `media-col-database` or else `media-supported` with the
+  `media-*-margin-supported`, sides, color, copies, quality, paper types; lists cut, sizes and resolutions out of range left
+  out), `DirectPrintPlan` (PWG first, then URF, then PCLm; 300 dpi, or drawn at 300 and enlarged for a 600-only printer;
+  copies the printer doesn't make sent again, a blank back between two-sided copies; what can't be kept stops the job),
+  `DirectJob` (Print-Job sent once with the raster streamed from a temporary file, Get-Job-Attributes every second until it
+  ends, Cancel-Job), `PrinterJobs` (Get-Jobs for the print queue card) and `PrintRoutes` (the Windows queue stays the
+  default; a printer with none, or one the person ticks *Print straight to the printer* for, goes direct). The IPP codec
+  reads collections, resolutions, ranges and dates (`IppCodec.DecodeGroups`, nesting bounded) and writes requests
+  (`IppRequest`). The app draws the same pages the queue path lays out (`QueuePrinter`'s paginators, the photo sheets) with
+  WPF at the plan's resolution (`App/Printing/DirectPrinter`, `PrintTargets`) for Print a PDF, Copy and Print photos.
+  Tests (`DirectPrintTests`, `RasterEncoderTests`, 45): each encoder byte for byte against its spec and read back by
+  decoders written from the specs, the requests' bytes, hostile attributes, the plan, a job through the demo inkjet's
+  fixture. Checked against CUPS 2.4.7's `ippeveprinter` (WSL) with `InkvoltPrint.exe --direct-print` (`DevDirectPrint`): a
+  10-page PDF, a photo contact sheet and a two-page copy in PWG raster, URF and PCLm, grey on a monochrome printer and color
+  on one set up for it, two-sided with turned backs, copies, IPP and IPPS: every file it kept was byte-identical to ours and
+  libcups read the PWG and URF back (page sizes, transforms, pixels), Windows' own PDF engine the PCLm
+  (`--direct-print --read-pclm`). ippeveprinter drops every `pclm-*` attribute it's
+  given, so the PCLm run assumed 600 dpi (dev aid only). After review: copies go to the printer only with
+  `multiple-document-handling` collated (else the pages are sent again), grey on an RGB-only format is drawn grey, a quality
+  or paper type the printer lacks stops the job, a cancel the printer doesn't take says the job may still print, a job that
+  may have printed offers no Print again, Copy and Photos get progress and Cancel, the attributes are read once per
+  connection a while (`IppCapsCache`), the printer's clock out of range is left out. Not yet: Batch print and the scan presets' print step still need
+  the Windows queue; job alerts don't watch direct jobs. Pending on hardware: the M234dw printing a page from a PC with no
+  queue for it. **Mac: waits** (no Mac now); PrintCore would carry the same encoders and plan.
 - **Effort** M. Windows; Mac the same code in PrintCore (today it prints through the CUPS queue).
 
 ### 2.2 Scan from the printer's button
