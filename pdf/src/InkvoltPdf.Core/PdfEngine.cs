@@ -132,12 +132,17 @@ public sealed partial class PdfEngine : IDisposable
         _pages = new PageGeometry[doc.Pages.Count];
         _pageStrings = new string?[_pages.Length];
         _pageTexts = new PageText?[_pages.Length];
+        // Reading every page's size loads it: one is held at a time. MuPDF loads a page with comments the slower the more
+        // pages it holds (250 pages of 40 comments: 120 ms held one by one, 290 to 390 ms held 32 at a time), and the
+        // last pages of the document aren't the ones shown first.
+        var sizing = new LoadedPages(doc, 1);
         for (var i = 0; i < _pages.Length; i++)
         {
-            _loaded.Touch(i); // reading every page's size loads it: keep only the last few
+            sizing.Touch(i);
             var b = doc.Pages[i].Bounds;
             _pages[i] = new PageGeometry(b.X0, b.Y0, b.Width, b.Height);
         }
+        sizing.Clear();
     }
 
     /// <exception cref="PasswordRequiredException">The document is encrypted and the password is missing or wrong.</exception>
@@ -1173,6 +1178,14 @@ public sealed partial class PdfEngine : IDisposable
                 _nodes.Remove(old);
                 Free(old);
             }
+        }
+
+        /// <summary>Frees every page it holds.</summary>
+        public void Clear()
+        {
+            foreach (var page in _lru) Free(page);
+            _lru.Clear();
+            _nodes.Clear();
         }
 
         private void Free(int page)

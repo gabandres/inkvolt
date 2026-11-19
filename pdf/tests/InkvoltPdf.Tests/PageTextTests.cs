@@ -171,7 +171,8 @@ public class PageTextTests
     public void ScrollingALongDocumentKeepsFewPagesLoaded()
     {
         using var engine = PdfEngine.Open(TestPdf.Make(90), InputFileTypes.PDF, null);
-        Assert.InRange(engine.LoadedCounts().Render.Pages, 0, PdfEngine.LoadedPagesKept);
+        // Every page's size was read, one page held at a time (MuPDF loads a page with comments slower the more it holds).
+        Assert.Equal(0, engine.LoadedCounts().Render.Pages);
         var first = engine.Render(0, 0.25);
         for (var p = 0; p < engine.PageCount; p++)
         {

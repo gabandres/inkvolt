@@ -34,6 +34,11 @@ public static class SignatureStamps
     public static IReadOnlyList<TextStamp> Read(byte[] data, string? password)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Sign_PdfCantRead);
+        return Read(doc);
+    }
+
+    internal static IReadOnlyList<TextStamp> Read(PdfDocument doc)
+    {
         var list = new List<TextStamp>();
         for (var p = 0; p < doc.PageCount; p++)
         {

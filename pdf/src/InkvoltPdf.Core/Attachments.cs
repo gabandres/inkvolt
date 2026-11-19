@@ -31,6 +31,11 @@ public static class Attachments
     public static IReadOnlyList<AttachmentInfo> List(byte[] data, string? password)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Attach_CantRead);
+        return List(doc);
+    }
+
+    internal static IReadOnlyList<AttachmentInfo> List(PdfDocument doc)
+    {
         var list = new List<AttachmentInfo>();
         foreach (var (key, value) in PdfObj.NameTree(EmbeddedFilesRoot(doc)))
             if (PdfObj.Dict(value) is { } fs) list.Add(Describe(DocPrefix + key, key, fs, AttachmentSource.Document, -1));

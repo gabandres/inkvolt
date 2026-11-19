@@ -439,6 +439,9 @@ public partial class DocumentTab
         IReadOnlyList<LinkInfo> Links,
         bool SuspectWords);
 
+    /// <summary>How long the view stays still before a document's first read of its review panes; and the most it waits.</summary>
+    private static readonly TimeSpan ReviewQuiet = TimeSpan.FromSeconds(1), ReviewWaitMost = TimeSpan.FromSeconds(10);
+
     /// <summary>Reads labels, comments, attachments, layers and signatures off the UI thread (the latest request wins).</summary>
     private async Task LoadReviewAsync()
     {
@@ -449,6 +452,14 @@ public partial class DocumentTab
         var pw = Session.Password;
         var first = !_reviewLoadedOnce;
         var wantTitle = first || _displayDocTitle;
+        // A document just opened shows its first pages and lets a scroll begun at once go on first: reading 10,000
+        // comments meanwhile made the garbage collector pause the app for 2 of a scroll's 4 s. The panes fill a moment
+        // later (at most after ReviewWaitMost, should the view keep scrolling).
+        if (first)
+        {
+            await Viewer.SettledAsync(ReviewQuiet, ReviewWaitMost);
+            if (ticket != _reviewLoad || _disposed) return;
+        }
         ReviewInfo info;
         try
         {
@@ -521,10 +532,10 @@ public partial class DocumentTab
                 return fallback;
             }
         }
-        string[] annots = ["/Annots"];
         var labels = Try("page labels", ["/PageLabels"], d => DocumentFeatures.PageLabels(d, pw), null, null);
-        var comments = Try<IReadOnlyList<AnnotationInfo>>("comments", annots, d => Annotations.Read(d, pw), [], []);
-        var files = Try<IReadOnlyList<AttachmentInfo>>("attachments", ["/EmbeddedFiles", "/Annots"], d => Attachments.List(d, pw), [], []);
+        // Comments, attachments, signature stamps and links from one read of the document (each part failing alone, logged).
+        var marks = Try("page annotations", ["/Annots", "/EmbeddedFiles"],
+            d => Annotations.ReadPages(d, pw, (what, ex) => Log.Write($"Reading {what} failed: {ex.Message}")), new PageAnnotations([], [], [], []), new PageAnnotations([], [], [], []));
         var layers = Try<IReadOnlyList<LayerInfo>>("layers", ["/OCProperties"], d => Layers.List(d, pw), [], []);
         var order = layers.Count > 0 ? Try<IReadOnlyList<LayerOrderNode>>("layer order", ["/OCProperties"], d => Layers.ReadOrder(d, pw), [], []) : [];
         // A repaired file's signatures are never presented as checked against the repaired bytes.
@@ -535,11 +546,9 @@ public partial class DocumentTab
                 new ViewerPrefs(null, null, null, false))
             : null;
         var title = wantTitle ? Try<string?>("title", ["/Title"], d => PageEditor.ReadMetadata(d, pw).Title, null, "") : null;
-        var sigStamps = Try<IReadOnlyList<TextStamp>>("signature stamps", annots, d => SignatureStamps.Read(d, pw), [], []);
-        var links = Try<IReadOnlyList<LinkInfo>>("links", annots, d => Links.Read(d, pw), [], []);
         // A file recognized by Batch or a scan (or Recognize Text, then saved) with suspect words left: they can be reviewed.
         var suspects = first && Try("suspect words", [TextLayer.FontPrefix], d => TextLayer.HasSuspectWords(d, pw), false, false);
-        return new ReviewInfo(labels, comments, files, layers, order, sigs, xfa, prefs, title, sigStamps, links, suspects);
+        return new ReviewInfo(labels, marks.Comments, marks.Attachments, layers, order, sigs, xfa, prefs, title, marks.SignatureStamps, marks.Links, suspects);
     }
 
     /// <summary>Honors the document's opening settings (only for files without a remembered position).</summary>
