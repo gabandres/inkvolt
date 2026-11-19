@@ -33,6 +33,7 @@ public sealed class SuspectWordItem(int page, int index, OcrWord word, string pa
             if (Word.Suspect.HasFlag(SuspectReasons.LettersAndDigits)) why.Add(Strings.Suspects_WhyLettersDigits);
             if (Word.Suspect.HasFlag(SuspectReasons.OddCharacters)) why.Add(Strings.Suspects_WhyOddCharacters);
             if (Word.Suspect.HasFlag(SuspectReasons.ReadDifferently)) why.Add(Strings.Suspects_WhyReadDifferently);
+            if (Word.Suspect.HasFlag(SuspectReasons.Unsure)) why.Add(Strings.Suspects_WhyUnsure);
             return string.Join(Strings.Suspects_WhySeparator, why);
         }
     }

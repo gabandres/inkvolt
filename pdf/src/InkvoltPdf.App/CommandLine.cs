@@ -31,7 +31,7 @@ internal static class CommandLine
             cts.Cancel();
         };
         Log.Write($"Command line: {args[0]}");
-        var ocr = args[0].ToLowerInvariant() is "--batch" or "--watch" ? PageOcr.Engine : null;
+        var ocr = args[0].ToLowerInvariant() is "--batch" or "--watch" ? PageOcr.Chosen : null;
         var host = new BatchHost
         {
             Ocr = PageOcr.ForBatch(ocr),

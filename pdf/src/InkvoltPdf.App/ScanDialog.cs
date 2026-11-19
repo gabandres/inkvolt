@@ -180,7 +180,7 @@ internal sealed class ScanDialog : Window
         Cell(Strings.File_PageSize, _size, 1, 2);
         body.Children.Add(grid);
 
-        var ocrAvailable = PageOcr.Engine is not null;
+        var ocrAvailable = PageOcr.Chosen is not null;
         _ocr.IsChecked = ocrAvailable && AppSettings.Current.ScanOcr;
         _ocr.IsEnabled = ocrAvailable;
         _ocr.ToolTip = ocrAvailable
@@ -636,7 +636,7 @@ internal sealed class ScanDialog : Window
             return;
         }
         var pages = _pages.Select(p => (p.Jpeg, p.Dpi)).ToList();
-        var ocr = _ocr.IsChecked == true ? PageOcr.Engine : null;
+        var ocr = _ocr.IsChecked == true ? PageOcr.Chosen : null;
         AppSettings.Current.ScanOcr = _ocr.IsChecked == true;
         SetBusy(true);
         _message.Text = Strings.Web_Making;
@@ -742,7 +742,7 @@ internal sealed class ScanDialog : Window
             _pendingPreset = preset;
             return;
         }
-        var plan = PresetPlan.For(preset, caps, null, PageOcr.Engine is not null, RegionInfo.CurrentRegion.IsMetric);
+        var plan = PresetPlan.For(preset, caps, null, PageOcr.Chosen is not null, RegionInfo.CurrentRegion.IsMetric);
         var r = plan.Request;
         _filling = true;
         try

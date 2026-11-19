@@ -369,7 +369,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   File: "name contents.html" and ".json" beside each file). Free.
 - **Recognize Text (OCR)** (Review menu): scanned pages get an invisible text layer, so they can be searched, selected
   and copied; runs on the PC with Windows' own OCR, one undo step. The language is any OCR language installed in
-  Windows. Each page is straightened and cleaned first (on by default): skew up to 15°, sideways and upside-down pages
+  Windows, or one of Tesseract's languages that Windows lacks (see **Tesseract** below); a **Second language** reads
+  pages in two languages (two of Windows': each line is kept from the language that reads it better, by its spell
+  checker; with a Tesseract language, Tesseract reads both at once, words of either inside a line). What is chosen
+  there is what Batch, Scan and the exports read with (never downloading). Each page is straightened and cleaned first (on by default): skew up to 15°, sideways and upside-down pages
   turned upright (a page whose lines don't say which way up it is, such as one of numbers only, is turned over only when
   it reads clearly better so), a 3 × 3 median against noise, grey or shaded paper evened out to white, lone specks removed; the words
   are then placed back on the page as it is, turned with it. **Replace the scans with the cleaned pages** (off by
@@ -382,7 +385,22 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   cut from the page; Correct to (Enter, or one of the spelling suggestions) or Keep as read writes the text layer again,
   one undo step each, and search finds the corrected word. The words, their boxes and suspect marks are kept in the
   layer itself (comment lines at its start), so the review works after saving and reopening. Batch, Export and Scan
-  clean pages the same way but don't mark suspect words.
+  clean pages the same way but don't mark suspect words. Tesseract gives a confidence per word: a word it read under 60
+  of 100 is a suspect word too ("the recognizer wasn't sure of it").
+- **Tesseract** (roadmap 2.2): the languages Windows has no recognizer for (Hindi, Thai, Hebrew, Ukrainian, Vietnamese,
+  …) are listed after Windows' own in Recognize Text, marked "Tesseract, N MB to download". Nothing is downloaded until
+  one is chosen and the download confirmed ("Download (29.03 MB)"); then, into the app's data folder
+  (`%LOCALAPPDATA%\InkvoltPdf\tesseract`; the package's LocalCache folder in the Store version): the Tesseract project's Windows
+  installer from its GitHub release (`tesseract-ocr/tesseract` 5.5.3, built and signed by UB Mannheim, whose builds the
+  project's documentation points Windows users to; x64, emulated on ARM64), checked against its pinned size and
+  SHA-256 and **never run**: Inkvolt decodes its LZMA stream itself (`Lzma`) and keeps only tesseract.exe, the 33 DLLs
+  it loads and its licence, each checked against its own pinned SHA-256 (about 47 MB on disk), then deletes the
+  installer. Each language is one file of `tesseract-ocr/tessdata_fast` at a pinned commit, checked the same way.
+  Every file is checked again before its first use in a run; one that differs is deleted, so it is downloaded again
+  when asked. tesseract.exe runs as a separate program for each page, no window: the page goes in on its input as a
+  PGM, its words come back as TSV, read as untrusted (bounded, boxes kept inside the page); a page has a time limit
+  (two minutes, a minute more per language), Cancel kills it, and a job holds it to 3 GB and ends it with the app. Nothing is sent but the requests for the files. The
+  pins are written by `pdf/tools/tesseract-pin`.
 - **Export to Word, Excel or text** (File › Export, command palette): a page range, "recognize text on scanned pages",
   "open the file when done", progress with Cancel (nothing is written until the end). **Word (.docx)**: the pages are
   rebuilt as editable text: paragraphs (wrapped lines joined, hyphenated words rejoined), fonts, sizes, bold, italic and
@@ -814,6 +832,12 @@ Inkvolt PDF uses MuPDF (via MuPDFCore), which is AGPL-3.0, so Inkvolt PDF and an
 the AGPL with its source available. Other dependencies: PDFsharp (MIT; pinned to 6.2.x because 6.5+ changed to AGPL
 with a runtime license check), Jint (BSD-2-Clause), HarfBuzzSharp (MIT). Data: Adobe's ZapfDingbats AFM (Adobe's AFM
 license) and its glyph list (BSD-3-Clause), in `src/InkvoltPdf.Core/Fonts`.
+
+Tesseract (Apache-2.0) isn't part of Inkvolt PDF: it is downloaded from the Tesseract project only when the person asks,
+and runs as a separate program. Its Windows build includes libraries under their own licenses (among them Leptonica
+BSD-2-Clause, libarchive BSD-2-Clause, curl's MIT-style license; libiconv, libintl, libunistring and libidn2 LGPL; GCC's
+runtime GPL-3.0 with the runtime library exception; JBIG-KIT GPL-2.0-or-later); its licence is kept beside it. Its
+language data (tessdata_fast) is Apache-2.0. See `THIRD-PARTY-NOTICES.md`.
 
 All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › About).
 `System.Security.Cryptography.Pkcs` is pinned to a patched release (PDFsharp pulls a vulnerable 8.0.1).

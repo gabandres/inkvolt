@@ -11542,4 +11542,74 @@ Fix it on the printer first, or print anyway: the job waits in the Windows queue
     <value>{0} file names couldn't be used (they hold characters no file name can have, or Windows refused the path), so they were left out.</value>
     <comment>{0} the count</comment>
   </data>
+  <data name="Review_OcrSecondLanguage" xml:space="preserve">
+    <value>Second language</value>
+    <comment>Label: a second language on the same pages</comment>
+  </data>
+  <data name="Review_OcrSecondLanguageHelp" xml:space="preserve">
+    <value>For pages in two languages. Two of Windows' languages: each line is kept from the one that reads it better. With a Tesseract language, Tesseract reads both at once.</value>
+    <comment>Screen reader help</comment>
+  </data>
+  <data name="Review_OcrNoSecondLanguage" xml:space="preserve">
+    <value>None</value>
+    <comment>No second language</comment>
+  </data>
+  <data name="Review_OcrTesseractItem" xml:space="preserve">
+    <value>{0} (Tesseract)</value>
+    <comment>{0} a language name; read by Tesseract, already on this PC</comment>
+  </data>
+  <data name="Review_OcrTesseractDownloadItem" xml:space="preserve">
+    <value>{0} (Tesseract, {1} to download)</value>
+    <comment>{0} a language name; {1} a size such as 1.1 MB</comment>
+  </data>
+  <data name="Ocr_DownloadTitle" xml:space="preserve">
+    <value>Download Tesseract?</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Ocr_DownloadEngineBody" xml:space="preserve">
+    <value>Windows has no text recognizer for {0}. Tesseract, the free recognizer of the Tesseract OCR project, reads it here on this PC.
+
+Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only the files are requested; nothing from your documents is sent. They're kept on this PC for next time.</value>
+    <comment>{0} language names joined by " + "; {1} a size such as 28 MB</comment>
+  </data>
+  <data name="Ocr_DownloadLanguageBody" xml:space="preserve">
+    <value>Tesseract needs its data for {0} to read it. Download it from github.com/tesseract-ocr ({1})? Only the files are requested; nothing from your documents is sent.</value>
+    <comment>{0} language names joined by " + "; {1} a size such as 4.1 MB</comment>
+  </data>
+  <data name="Ocr_DownloadButton" xml:space="preserve">
+    <value>Download ({0})</value>
+    <comment>Button; {0} a size such as 28 MB</comment>
+  </data>
+  <data name="Ocr_DownloadingTitle" xml:space="preserve">
+    <value>Downloading Tesseract</value>
+    <comment>Progress window title</comment>
+  </data>
+  <data name="Ocr_DownloadingEngine" xml:space="preserve">
+    <value>Downloading the Tesseract engine and checking it…</value>
+    <comment>Progress</comment>
+  </data>
+  <data name="Ocr_DownloadingLanguage" xml:space="preserve">
+    <value>Downloading {0}…</value>
+    <comment>Progress; {0} a language name</comment>
+  </data>
+  <data name="Ocr_DownloadFailedTitle" xml:space="preserve">
+    <value>Tesseract wasn't downloaded</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Ocr_DownloadNetwork" xml:space="preserve">
+    <value>Inkvolt PDF couldn't get the files from github.com. Check the internet connection and try again.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Ocr_DownloadNotPinned" xml:space="preserve">
+    <value>What was downloaded isn't the file Inkvolt PDF expects, so it was deleted and nothing was run. Try again later.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Ocr_DownloadDisk" xml:space="preserve">
+    <value>The files couldn't be saved on this PC. Check that the disk has free space and try again.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Suspects_WhyUnsure" xml:space="preserve">
+    <value>the recognizer wasn't sure of it</value>
+    <comment>Why a recognized word is suspect; lowercase</comment>
+  </data>
 </root>

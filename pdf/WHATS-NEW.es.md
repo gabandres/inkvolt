@@ -5,6 +5,10 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 `docs/SPANISH-REVIEW.md`'s.
 
 ## Next
+- Reconocer texto lee más de 100 idiomas más con Tesseract, un reconocedor gratuito, para los que Windows no tiene (hindi, tailandés, hebreo, ucraniano, vietnamita y muchos más). Elige uno e Inkvolt PDF ofrece descargarlo (unos 30 MB la primera vez); no se descarga nada hasta que lo digas, y se queda en tu equipo.
+- Páginas en dos idiomas: elige un segundo idioma en Reconocer texto. Cada línea se lee en el idioma que le corresponde, o los dos a la vez con Tesseract.
+- En lote, Escanear y las exportaciones leen ahora en el idioma que elegiste por última vez en Reconocer texto.
+- Con Tesseract, una palabra de la que no estaba seguro aparece entre las palabras dudosas para revisar.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.

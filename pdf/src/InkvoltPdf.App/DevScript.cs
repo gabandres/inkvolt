@@ -22,7 +22,7 @@ namespace InkvoltPdf.App;
 /// inventory (What's in This PDF's report, logged) ·
 /// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
 /// a11yreport path (save the report) · tag title|language (Make Accessible without its window) · ro (the reading order
-/// pane: opens it, logs this page's pieces) · suspects (the Suspect words pane: opens it, logs its words) · suspectsel i ·
+/// pane: opens it, logs this page's pieces) · suspects (the Suspect words pane: opens it, logs its words) · tesseract [tag …] (its files here, the recognizer chosen, where a language is in Recognize Text's list) · suspectsel i ·
 /// suspectfix text|keep · findcount word (how often search finds it) · rosel i|pic · romove i by · ropage i by · roshow by · roalt text · rodecorative · rokind kind [level] · roapply · pdfa2a (with
 /// <c>savepath</c>) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
 /// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
@@ -814,6 +814,19 @@ internal static class DevScript
                 var q = arg.Split('|', 2);
                 var r = await PrinterCheck.CheckAsync(new InkvoltPrint.Core.Suite.QueueInfo(q[0], q.Length > 1 ? q[1] : null));
                 log.Add(r is null ? $"printercheck '{q[0]}': no Inkvolt Print printer" : $"printercheck '{q[0]}': {r.Printer.Name} ({r.Printer.Host}) {r.Health.State} warn={r.Health.ShouldWarn} '{r.Health.Summary}' supplies=[{string.Join("; ", r.Health.Supplies)}]");
+                break;
+            }
+            case "tesseract":
+            {
+                // tesseract: Tesseract's files on this PC (roadmap 2.2) and what Recognize Text, Batch and Scan read with now.
+                var store = PageOcr.Tesseract;
+                var langs = TesseractCatalog.Languages.Where(store.HasLanguage).Select(l => l.Code);
+                var chosen = PageOcr.Chosen;
+                log.Add($"tesseract: engine={(store.HasEngine ? TesseractCatalog.Version : "none")} languages=[{string.Join(",", langs)}] " +
+                        $"chosen={chosen?.GetType().Name ?? "none"} '{chosen?.LanguageName}'");
+                // tesseract tag [tag]: where those languages are in Recognize Text's lists (its combo1 and combo2 indexes).
+                foreach (var tag in arg.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+                    log.Add($"tesseract: {tag} at {PageOcr.Offer().FindIndex(c => string.Equals(c.Tag, tag, StringComparison.OrdinalIgnoreCase))}");
                 break;
             }
             case "inkvolt":

@@ -15,8 +15,8 @@ locally, without a service, on what we already have (MuPDF, `DocLayout`, the edi
 week), M (2-4 weeks), L (more than a month).
 
 **Priority.** Decided 2026-10-30 with the owner: the features other apps keep behind their paid tiers come first, on both
-platforms. Second engines and other additions with no known demand wait for it: Tesseract in 2.2 stays to do until
-reviews or issues ask for missing languages.
+platforms. Second engines and other additions with no known demand wait for it. (Tesseract in 2.2: the owner decided
+2026-11-18 to build it as an optional download; built on Windows 2026-11-19.)
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
 PLAN.md's E1-E16. Done on the Mac since: 3.3 and 3.5 (2026-11-07), 2.1 and 3.1 (2026-11-10), 1.1's additions of 2026-11-01 and 3.4
@@ -444,8 +444,49 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   A page whose lines don't say which way up it is
   (2026-11-03) is read both ways and turned over only when that reading has clearly more real words (two, or a quarter
   more); digits count neither way, so a page of numbers (`digit-lines`, the redaction corpus's third page, read "OO 6830
-  9999 9999 9999" turned over before) stays as it is. Still to do: the second engine (Tesseract) for languages Windows lacks and mixed languages per page,
-  "make the text editable", straightened lines and trapezoid correction (ABBYY's). Mac: stage A done with E14 (2026-11-02,
+  9999 9999 9999" turned over before) stays as it is. **Built (Windows, 2026-11-19): the second engine and mixed
+  languages per page.** Decided with the owner 2026-11-18: Tesseract (Apache-2.0) is an optional download, never
+  bundled. Recognize Text lists Windows' installed OCR languages, then the 111 of Tesseract's (tessdata_fast) that none
+  of them reads, each marked "Tesseract, N MB to download" until it is here (`OcrLanguages.Offer`); choosing one asks
+  first ("Download (29.03 MB)": engine and language), then downloads into the app's data folder
+  (`%LOCALAPPDATA%\InkvoltPdf\tesseract`; in the Store package, its LocalCache folder, a real path: run from
+  %LOCALAPPDATA% as the package sees it, redirected into the package, tesseract.exe started but never loaded its DLLs
+  and hung) with a progress window and Cancel
+  (`TesseractStore`, `PinnedDownload`: pinned https address, size and SHA-256 checked before anything is kept, `.part`
+  then moved into place). **Source of tesseract.exe:** the Tesseract project's own GitHub release
+  (`tesseract-ocr/tesseract` 5.5.3, `tesseract-ocr-w64-setup-5.5.3.20260724.exe`, uploaded by its maintainer Stefan
+  Weil with GitHub's SHA-256 digest, built and Authenticode-signed by UB Mannheim, whose builds the project's
+  documentation points Windows users to). Chosen over UB Mannheim's own server (the same build, not on the project's
+  release page, no published digest), conda-forge and MSYS2 (dozens of separate packages to pin, zstd or bzip2
+  archives) and NuGet bindings (a native binding, a new package). It is x64; ARM64 PCs run it emulated (checked on
+  this PC). It is an NSIS installer that asks for elevation, so it is **never run**: Inkvolt decodes its solid LZMA
+  stream itself (`Lzma`, after the format's public-domain reference decoder) and keeps only tesseract.exe, the 33 DLLs
+  its import tables load and the licence, each at its pinned place, size and SHA-256 (`TesseractStore.Extract`; 47 MB on
+  disk), then deletes the installer. Each language is one tessdata_fast file at a pinned commit (`TesseractCatalog`,
+  written by `pdf/tools/tesseract-pin/pin.py`, which reads the installer's NSIS header and the DLLs' imports). Every
+  file is hashed again before its first use in a run, and one that differs is deleted. tesseract.exe runs as a separate
+  program per image (`TesseractRecognizer`, `BoundedProcess`): the page on stdin as a PGM at 300 dpi, `-l hin+eng`, TSV
+  on stdout, no window; two minutes a page plus one per extra language, 32 MB of output at most, killed with what it
+  started on Cancel or either limit, and in a job that holds it to 3 GB and ends it when Inkvolt ends; the TSV parsed as hostile (`TesseractTsv`: twelve fields or the row is left out,
+  boxes clipped to the image, words bounded in length and count, control characters dropped) and a failure said in
+  plain words. Tesseract's words carry its confidence, so a word under 60 is a suspect word (`SuspectReasons.Unsure`,
+  "the recognizer wasn't sure of it") beside the heuristics, and the Suspect words pane reviews Tesseract's layer as
+  Windows'. Tesseract doesn't skip lines as Windows' recognizer does, so `MissedLines` doesn't read its pages again
+  (`IRereadsMissed`). **Mixed languages:** a Second language in Recognize Text. Two of Windows' languages: both
+  recognizers read the page and each line is kept from the reading that looks more like real words (its language's
+  spell checker, else the engine's confidence; ties to the first language; a line only one read is kept in its place:
+  `MixedRecognizer`), suspect words checked against either dictionary (`EitherSpelling`). With a Tesseract language,
+  Tesseract reads both in one run (words of either inside a line), downloading the other language's data too
+  (`OcrLanguages.Plan`). Batch, Scan and the exports read with what Recognize Text last chose, never downloading
+  (`PageOcr.Chosen`, Windows' default when Tesseract isn't here). Checked in the app (`--script`, a throwaway data
+  folder): the download from GitHub, the extraction and checks (19 s), a Russian scan read by Tesseract (search finds
+  "Москва"), an English and Spanish page read by Windows' two recognizers line by line (search finds "murciélago",
+  "cigüeña"); the Store build (`pack-msix.ps1 -Architectures arm64 -SmokeSideBySide`, its smoke test passed, then
+  the registered side-by-side layout driven the same way) downloads into its LocalCache and reads the Russian scan. Tests: `TesseractTests` (TSV,
+  LZMA, the extraction, the pins, the download against a fake server, languages and plans, mixed lines, the pipeline,
+  the program's limits; the real engine opt-in with INKVOLTPDF_TESSERACT=folder or `download`). Still to do:
+  "make the text editable", straightened lines and trapezoid correction (ABBYY's); Tesseract on the Mac (Vision reads
+  its languages; a second engine there waits). Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
   Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there. Suspect
   words for Batch, Scan and export on the Mac too (2026-11-04, E14a): Batch (window, watched folders, `--batch`) and

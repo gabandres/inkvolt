@@ -460,11 +460,19 @@ public sealed class BatchHost
 }
 
 /// <summary>A recognizer that runs one call at a time under a lock it shares with the other users of one engine.</summary>
-public sealed class SerialRecognizer(InkvoltPrint.Core.Imaging.ITextRecognizer inner, Lock gate) : InkvoltPrint.Core.Imaging.ITextRecognizer
+public sealed class SerialRecognizer(InkvoltPrint.Core.Imaging.ITextRecognizer inner, Lock gate) : InkvoltPrint.Core.Imaging.ITextRecognizer, IRereadsMissed
 {
     public string Language => inner.Language;
 
     public string LanguageName => inner.LanguageName;
+
+    /// <summary>The inner one's re-reader, under the same lock.</summary>
+    public InkvoltPrint.Core.Imaging.ITextRecognizer? Rereader => ScanText.RereaderOf(inner) switch
+    {
+        null => null,
+        var r when ReferenceEquals(r, inner) => this,
+        var r => new SerialRecognizer(r, gate),
+    };
 
     public IReadOnlyList<InkvoltPrint.Core.Imaging.RecognizedWord> Recognize(byte[] pixels, int width, int height, int channels, CancellationToken cancel = default)
     {

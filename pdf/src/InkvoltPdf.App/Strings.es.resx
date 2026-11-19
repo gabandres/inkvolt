@@ -11541,4 +11541,74 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>No se pudieron usar {0} nombres de archivo (tienen caracteres que ningún nombre de archivo puede tener, o Windows no aceptó la ruta), así que se omitieron.</value>
     <comment>{0} the count</comment>
   </data>
+  <data name="Review_OcrSecondLanguage" xml:space="preserve">
+    <value>Segundo idioma</value>
+    <comment>Label: a second language on the same pages</comment>
+  </data>
+  <data name="Review_OcrSecondLanguageHelp" xml:space="preserve">
+    <value>Para páginas en dos idiomas. Con dos idiomas de Windows, cada línea se toma del que la lee mejor. Con un idioma de Tesseract, Tesseract lee los dos a la vez.</value>
+    <comment>Screen reader help</comment>
+  </data>
+  <data name="Review_OcrNoSecondLanguage" xml:space="preserve">
+    <value>Ninguno</value>
+    <comment>No second language</comment>
+  </data>
+  <data name="Review_OcrTesseractItem" xml:space="preserve">
+    <value>{0} (Tesseract)</value>
+    <comment>{0} a language name; read by Tesseract, already on this PC</comment>
+  </data>
+  <data name="Review_OcrTesseractDownloadItem" xml:space="preserve">
+    <value>{0} (Tesseract, {1} para descargar)</value>
+    <comment>{0} a language name; {1} a size such as 1.1 MB</comment>
+  </data>
+  <data name="Ocr_DownloadTitle" xml:space="preserve">
+    <value>¿Descargar Tesseract?</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Ocr_DownloadEngineBody" xml:space="preserve">
+    <value>Windows no tiene un reconocedor de texto para {0}. Tesseract, el reconocedor gratuito del proyecto Tesseract OCR, lo lee aquí, en este equipo.
+
+¿Descargar el motor de Tesseract y {0} de github.com/tesseract-ocr ({1})? Solo se piden los archivos; no se envía nada de tus documentos. Se guardan en este equipo para la próxima vez.</value>
+    <comment>{0} language names joined by " + "; {1} a size such as 28 MB</comment>
+  </data>
+  <data name="Ocr_DownloadLanguageBody" xml:space="preserve">
+    <value>Tesseract necesita sus datos de {0} para leerlo. ¿Descargarlos de github.com/tesseract-ocr ({1})? Solo se piden los archivos; no se envía nada de tus documentos.</value>
+    <comment>{0} language names joined by " + "; {1} a size such as 4.1 MB</comment>
+  </data>
+  <data name="Ocr_DownloadButton" xml:space="preserve">
+    <value>Descargar ({0})</value>
+    <comment>Button; {0} a size such as 28 MB</comment>
+  </data>
+  <data name="Ocr_DownloadingTitle" xml:space="preserve">
+    <value>Descargando Tesseract</value>
+    <comment>Progress window title</comment>
+  </data>
+  <data name="Ocr_DownloadingEngine" xml:space="preserve">
+    <value>Descargando el motor de Tesseract y comprobándolo…</value>
+    <comment>Progress</comment>
+  </data>
+  <data name="Ocr_DownloadingLanguage" xml:space="preserve">
+    <value>Descargando {0}…</value>
+    <comment>Progress; {0} a language name</comment>
+  </data>
+  <data name="Ocr_DownloadFailedTitle" xml:space="preserve">
+    <value>No se descargó Tesseract</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Ocr_DownloadNetwork" xml:space="preserve">
+    <value>Inkvolt PDF no pudo obtener los archivos de github.com. Comprueba la conexión a internet e inténtalo de nuevo.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Ocr_DownloadNotPinned" xml:space="preserve">
+    <value>Lo que se descargó no es el archivo que Inkvolt PDF espera, así que se eliminó y no se ejecutó nada. Inténtalo más tarde.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Ocr_DownloadDisk" xml:space="preserve">
+    <value>No se pudieron guardar los archivos en este equipo. Comprueba que el disco tenga espacio libre e inténtalo de nuevo.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Suspects_WhyUnsure" xml:space="preserve">
+    <value>el reconocedor no estaba seguro</value>
+    <comment>Why a recognized word is suspect; lowercase</comment>
+  </data>
 </root>

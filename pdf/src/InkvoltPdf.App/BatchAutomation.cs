@@ -110,7 +110,7 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         }
         Output = Setting.Output is { Length: > 0 } o ? o : preset.OutputFolder ?? WatchedFolder.DefaultOutput(Setting.Folder);
         var plan = preset.ToPlan(Output) with { Steps = steps };
-        var ocr = PageOcr.Engine;
+        var ocr = PageOcr.Chosen;
         if ((WatchedFolder.Validate(Setting.Folder, Output) ?? plan.Validate(ocr is not null)) is { } error)
         {
             Show(Loc.Format(Strings.Batch_NotWatching, error), problem: true);

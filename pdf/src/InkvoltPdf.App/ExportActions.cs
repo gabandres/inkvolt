@@ -33,7 +33,7 @@ internal static class ExportActions
     {
         if (!await tab.SettleAsync()) return;
         var kind = Describe(format);
-        var ocr = PageOcr.Engine;
+        var ocr = PageOcr.Chosen;
         var dlg = new FormDialog(owner, kind.Title, Strings.Export_ExportButton, 480);
         var range = dlg.AddRange(tab, preferSelection: false);
         var useOcr = dlg.AddCheck(Strings.Export_UseOcr, ocr is not null && AppSettings.Current.ExportOcr);
@@ -275,7 +275,7 @@ internal static class ExportActions
         ExportFormat format, int[] pages, bool recognize, string path, CancellationToken cancel = default, bool detached = false)
     {
         var kind = Describe(format);
-        var ocr = PageOcr.Engine;
+        var ocr = PageOcr.Chosen;
         recognize &= ocr is not null;
         using var progress = new ProgressPrompt(owner, kind.Title, Strings.Access_ReadingPages, detached);
         using var both = CancellationTokenSource.CreateLinkedTokenSource(progress.Token, cancel);

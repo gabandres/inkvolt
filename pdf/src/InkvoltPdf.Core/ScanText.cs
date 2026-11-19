@@ -53,7 +53,8 @@ public sealed record RecognizedPage(IReadOnlyList<OcrWord> Words, double Skew, i
 /// <summary>
 /// Text recognition of one page, engine-neutral: render the page at 300 dpi, clean it, hand it to an
 /// <see cref="ITextRecognizer"/>, and map its words back onto the page (through the straightening and the quarter turns),
-/// then mark suspect words. The engine is Windows' today (WindowsRecognizer), and could be another.
+/// then mark suspect words. The engine is Windows' (WindowsRecognizer), Tesseract's (<see cref="TesseractRecognizer"/>) or
+/// two of them line by line (<see cref="MixedRecognizer"/>).
 /// </summary>
 public static class ScanText
 {
@@ -70,13 +71,15 @@ public static class ScanText
         var image = pdf.Render(page, scale, null, cancel, annotations: !options.KeepCleanedImage);
         var dpi = (int)Math.Round(scale * 72);
 
-        List<OcrWord> AsScanned() => recognizer.Recognize(image.Pixels, image.Width, image.Height, 3, cancel)
-            .Select(w => new OcrWord(w.Text, new RectD(w.X / scale, w.Y / scale, w.Width / scale, w.Height / scale))).ToList();
+        IReadOnlyList<RecognizedWord> ReadAsScanned() => recognizer.Recognize(image.Pixels, image.Width, image.Height, 3, cancel);
+        List<OcrWord> OnPage(IReadOnlyList<RecognizedWord> read) =>
+            read.Select(w => new OcrWord(w.Text, new RectD(w.X / scale, w.Y / scale, w.Width / scale, w.Height / scale))).ToList();
 
         if (!options.Clean)
         {
-            var plain = AsScanned();
-            return new RecognizedPage(options.CheckWords ? Mark(plain, null, spelling) : plain, 0, 0, null);
+            var read = ReadAsScanned();
+            var plain = OnPage(read);
+            return new RecognizedPage(options.CheckWords ? Mark(plain, null, Unsure(read), spelling) : plain, 0, 0, null);
         }
 
         var color = options.KeepCleanedImage && IsColor(image.Pixels);
@@ -101,15 +104,14 @@ public static class ScanText
             }
         }
 
-        if (options.RereadMissed) found = MissedLines.Reread(gray, found, dpi, recognizer, cancel);
+        if (options.RereadMissed && RereaderOf(recognizer) is { } rereader) found = MissedLines.Reread(gray, found, dpi, rereader, cancel);
 
         var frame = new ScanFrame(image.Width, image.Height, cleaned.Skew, turns);
         var onScan = found.Select(w => frame.ToRendered(w, scale)).ToList();
-        var words = options.KeepCleanedImage
-            ? found.Select(w => new OcrWord(w.Text, new RectD(w.X / scale, w.Y / scale, w.Width / scale, w.Height / scale))).ToList()
-            : onScan;
+        var words = options.KeepCleanedImage ? OnPage(found) : onScan;
         // A page that wasn't upright as scanned can't be read as scanned: nothing to compare with.
-        if (options.CheckWords) words = Mark(words, turns == 0 ? SuspectWords.ReadDifferently(onScan, AsScanned(), spelling) : null, spelling);
+        if (options.CheckWords)
+            words = Mark(words, turns == 0 ? SuspectWords.ReadDifferently(onScan, OnPage(ReadAsScanned()), spelling) : null, Unsure(found), spelling);
 
         CleanedPageImage? keep = null;
         if (options.KeepCleanedImage)
@@ -123,12 +125,22 @@ public static class ScanText
         return new RecognizedPage(words, cleaned.Skew, turns, keep);
     }
 
-    private static List<OcrWord> Mark(List<OcrWord> words, bool[]? readDifferently, ISpelling? spelling)
+    /// <summary>
+    /// The recognizer that reads again what <paramref name=recognizer/> left out (<see cref=MissedLines/>): itself,
+    /// unless it names another or none (<see cref=IRereadsMissed/>).
+    /// </summary>
+    public static ITextRecognizer? RereaderOf(ITextRecognizer recognizer) => recognizer is IRereadsMissed r ? r.Rereader : recognizer;
+
+    /// <summary>Which words the engine itself was unsure of (its confidence under <see cref="SuspectWords.UnsureBelow"/>; Tesseract's).</summary>
+    private static bool[] Unsure(IReadOnlyList<RecognizedWord> read) => [.. read.Select(w => w.Confidence < SuspectWords.UnsureBelow)];
+
+    private static List<OcrWord> Mark(List<OcrWord> words, bool[]? readDifferently, bool[] unsure, ISpelling? spelling)
     {
         for (var i = 0; i < words.Count; i++)
         {
             var reasons = SuspectWords.Check(words[i].Text, spelling);
             if (readDifferently is not null && readDifferently[i]) reasons |= SuspectReasons.ReadDifferently;
+            if (i < unsure.Length && unsure[i]) reasons |= SuspectReasons.Unsure;
             if (reasons != SuspectReasons.None) words[i] = words[i] with { Suspect = reasons };
         }
         return words;

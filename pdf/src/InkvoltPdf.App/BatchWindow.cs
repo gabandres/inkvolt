@@ -441,7 +441,7 @@ internal sealed class BatchWindow : Window
         Item(Strings.Batch_ItemHeaderFooter, () => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null);
         Item(Strings.Batch_ItemRotate, () => AskRotate(null));
         Item(Strings.Batch_ItemFlatten, () => AskFlatten(null));
-        var ocr = PageOcr.Engine is not null;
+        var ocr = PageOcr.Chosen is not null;
         Item(Strings.Batch_ItemOcr, () => new OcrStep(), ocr, ocr ? null : PageOcr.Unavailable);
         Item(Strings.Batch_ItemMakeAccessible, () => new MakeAccessibleStep());
         Item(Strings.Batch_ItemPdfA2b, () => new SaveAsPdfAStep());
@@ -704,7 +704,7 @@ internal sealed class BatchWindow : Window
             case AddLongTermStep:
                 return Strings.Batch_LongTermDescribe;
             case OcrStep:
-                return PageOcr.Engine is { } e ? Loc.Format(Strings.Batch_DescOcr, e.LanguageName) : PageOcr.Unavailable;
+                return PageOcr.Chosen is { } e ? Loc.Format(Strings.Batch_DescOcr, e.LanguageName) : PageOcr.Unavailable;
             case ExportStep x:
                 return x.Format switch
                 {
@@ -892,7 +892,7 @@ internal sealed class BatchWindow : Window
             return;
         }
         var plan = Plan();
-        var ocr = PageOcr.Engine;
+        var ocr = PageOcr.Chosen;
         if (plan.Validate(ocr is not null) is { } error)
         {
             Status(error, error: true);
