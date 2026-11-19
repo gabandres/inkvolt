@@ -200,7 +200,7 @@ public sealed partial class DocumentSession : IDisposable
     /// <param name="inPlaceBytes">PDFs this big or bigger open in place (<see cref="InPlaceBytes"/>; tests use less).</param>
     internal static DocumentSession Open(string path, string? password, long inPlaceBytes)
     {
-        var copy = ReadDiskCopy(Path.GetFullPath(path), PdfEngine.TypeFromPath(path), password, inPlaceBytes);
+        var copy = ReadDiskCopy(Path.GetFullPath(path), PdfEngine.TypeFromPath(path), password, inPlaceBytes, shown: true);
         return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), copy.Data, password, copy.Type, copy.Engine)
         {
             _onDisk = copy.Stamp, OpenPassword = copy.OpenPassword, _diskPassword = password, _inPlace = copy.InPlace, _inPlaceBytes = inPlaceBytes,
@@ -429,7 +429,7 @@ public sealed partial class DocumentSession : IDisposable
     /// </summary>
     /// <exception cref="PasswordRequiredException">The file needs another password (another program protected it).</exception>
     public void ReloadFromDisk() =>
-        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), FileType, _diskPassword, _inPlaceBytes));
+        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), FileType, _diskPassword, _inPlaceBytes, shown: true));
 
     /// <summary>
     /// <see cref="ReloadFromDisk"/> with the reading and parsing on a worker thread; the content is swapped on the calling
@@ -440,12 +440,14 @@ public sealed partial class DocumentSession : IDisposable
     {
         var (path, type, inPlaceBytes) = (FilePath, FileType, _inPlaceBytes);
         password ??= _diskPassword;
-        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), type, password, inPlaceBytes));
+        // Its first page is asked for only once the copy is kept: one no longer wanted starts no check.
+        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), type, password, inPlaceBytes, shown: false));
         if (stillWanted?.Invoke() == false || path != FilePath)
         {
             copy.Engine.Dispose();
             return false;
         }
+        copy.Engine.CheckFirstPage();
         ApplyReload(copy);
         return true;
     }
@@ -455,7 +457,8 @@ public sealed partial class DocumentSession : IDisposable
         string? OpenPassword, long RepairedLength = 0);
 
 
-    private static DiskCopy ReadDiskCopy(string path, InputFileTypes type, string? password, long inPlaceBytes)
+    /// <param name="shown">The copy will be shown (opened or reloaded at once): its first page is checked as it opens.</param>
+    private static DiskCopy ReadDiskCopy(string path, InputFileTypes type, string? password, long inPlaceBytes, bool shown)
     {
         // Stamp before reading: a write that lands mid-read then shows up as a change rather than going unnoticed.
         var stamp = DiskStamp(path);
@@ -474,7 +477,7 @@ public sealed partial class DocumentSession : IDisposable
                 throw;
             }
         }
-        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password, shown: true);
+        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password, shown);
         var open = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
         return new DiskCopy(data, null, type, bytesEngine, stamp, password, open, repaired);
     }
@@ -540,17 +543,18 @@ public sealed partial class DocumentSession : IDisposable
         }
         var normal = normalizing.GetAwaiter().GetResult();
         if (ReferenceEquals(normal.Data, data)) return (data, engine, 0);
+        // The bytes as they are go before the changed copy opens: their first page's check (a shown document's) is taken
+        // back, and their shared copy let go of, rather than kept beside the changed copy's.
+        engine.Dispose();
         try
         {
-            var changed = open(normal.Data);
-            engine.Dispose();
-            return (normal.Data, changed, normal.Repaired ? normal.Data.LongLength : 0);
+            return (normal.Data, open(normal.Data), normal.Repaired ? normal.Data.LongLength : 0);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // The view and every reader stay on the file as it is: its fields may be missing, but its pages show.
+            // The view and every reader stay on the file as it is (opened again): its fields may be missing, but its pages show.
             Log?.Invoke($"The viewer refused the {normal.Outcome} copy of a damaged file; opened as it is: {ex.Message}");
-            return (data, engine, 0);
+            return (data, open(data), 0);
         }
     }
 

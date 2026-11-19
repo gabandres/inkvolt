@@ -597,11 +597,22 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// </summary>
     public int SlowWorkers { get; init; } = Math.Clamp(Environment.ProcessorCount / 3, 2, 4);
 
-    /// <summary>Pages whose checks (with their pictures) take this long or longer make their document's <see cref="CheckedDocument.Slow"/>.</summary>
+    /// <summary>Pages whose checks (not their pictures) take this long or longer make their document's <see cref="CheckedDocument.Slow"/>.</summary>
     public TimeSpan SlowCheck { get; init; } = TimeSpan.FromMilliseconds(200);
 
     /// <summary>Check processes at once for pages of <paramref name="doc"/>.</summary>
     internal int WorkersFor(CheckedDocument doc) => doc.Slow && Workers >= 2 ? Math.Max(Workers, SlowWorkers) : Workers;
+
+    /// <summary>Check processes at once for what is queued: the most any queued page's document has. Under _gate.</summary>
+    private int Cap()
+    {
+        var cap = Workers;
+        foreach (var r in _queue) cap = Math.Max(cap, WorkersFor(r.Doc));
+        return cap;
+    }
+
+    /// <summary>A link with nothing to do: neither checking a page nor opening a document ahead. Under _gate.</summary>
+    private static bool IsIdle(Link link) => link.Current is null && link.Preparing is null;
 
     /// <summary>A check process with nothing to do for this long ends (the next page starts one again).</summary>
     public TimeSpan Idle { get; init; } = TimeSpan.FromMinutes(2);
@@ -611,6 +622,18 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
 
     /// <summary>Test hook: called on the link's thread before a process is sent a document to open.</summary>
     internal Action<CheckedDocument>? TestBeforeOpen { get; set; }
+
+    /// <summary>Test hook: called on the link's thread before it opens a document ahead (<see cref="Link.Prepare"/>).</summary>
+    internal Action<CheckedDocument>? TestBeforePrepare { get; set; }
+
+    /// <summary>Test hook: links that remember a document they failed to open ahead.</summary>
+    internal int PreparesFailedHeld
+    {
+        get
+        {
+            lock (_gate) return _links.Count(l => l.PrepareFailed is not null);
+        }
+    }
 
     private readonly object _gate = new();
     private readonly LinkedList<CheckRequest> _queue = []; // under _gate
@@ -666,10 +689,10 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 return request;
             }
             _queue.AddLast(request);
-            var idle = _links.Count(l => l.Current is null);
+            var idle = _links.Count(IsIdle);
             // A second process starts before it takes a page: meanwhile the one running checks what is queued (a page of
             // text in some 15 ms, against the 200 ms a process takes to start and open the document).
-            if (idle < _queue.Count && _links.Count < WorkersFor(doc) && !Pausing()) StartLink(now: _links.Count > 0);
+            if (idle < _queue.Count && _links.Count < Cap() && !Pausing()) StartLink(now: _links.Count > 0);
             Monitor.PulseAll(_gate);
         }
         return request;
@@ -708,7 +731,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// <summary>Lets go of a document's shared copy once no check of it is queued or under way. Under _gate.</summary>
     private void ReleaseShared(CheckedDocument doc)
     {
-        if (doc.Shared is not { } shared || _links.Any(l => l.Current?.Doc == doc) || (!doc.Closed && _queue.Any(r => r.Doc == doc))) return;
+        if (doc.Shared is not { } shared || _links.Any(l => l.Current?.Doc == doc || l.Preparing == doc) || (!doc.Closed && _queue.Any(r => r.Doc == doc))) return;
         doc.Shared = null;
         shared.Dispose();
     }
@@ -813,6 +836,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         lock (_gate)
         {
             doc.Closed = true;
+            // A document opened ahead and failed isn't remembered past its close (its bytes and sizes would be kept).
+            foreach (var l in _links)
+                if (l.PrepareFailed == doc) l.PrepareFailed = null;
             for (var node = _queue.First; node is not null;)
             {
                 var next = node.Next;
@@ -830,7 +856,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         // and asks again at once). A file opened in place stays held until the process lets go: whoever closed the
         // document may save over it next.
         if (doc.Path is null) return;
-        lock (_gate) busy = [.. _links.Where(l => l.Current?.Doc == doc)];
+        lock (_gate) busy = [.. _links.Where(l => l.Current?.Doc == doc || l.Preparing == doc)];
         foreach (var link in busy) link.Kill();
         lock (_gate)
         {
@@ -876,7 +902,8 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
             while (true)
             {
-                CheckRequest? request = null, prepare = null;
+                CheckRequest? request = null;
+                CheckedDocument? prepare = null;
                 var close = false;
                 lock (_gate)
                 {
@@ -894,10 +921,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                             // A document another process has open is opened here first, its page left to whichever
                             // process is free then: opening it (MuPDF reading every page's size, 0.1 to 0.3 s) takes
                             // longer than the other's check of a page of text, and the next pages find both ready.
-                            if (node.Value.Doc != link.Open && link.Prepared != node.Value.Doc && _links.Any(l => l != link && l.Open == node.Value.Doc))
+                            if (node.Value.Doc != link.Open && link.PrepareFailed != node.Value.Doc && _links.Any(l => l != link && l.Open == node.Value.Doc))
                             {
-                                link.Prepared = node.Value.Doc;
-                                link.Current = prepare = new CheckRequest(node.Value.Doc, -1);
+                                link.Preparing = prepare = node.Value.Doc;
                                 break;
                             }
                             request = node.Value;
@@ -919,17 +945,20 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 }
                 if (prepare is not null)
                 {
+                    var opened = false;
                     try
                     {
-                        link.Prepare(prepare.Doc);
+                        opened = link.Prepare(prepare);
                     }
                     finally
                     {
                         lock (_gate)
                         {
-                            link.Current = null;
+                            link.Preparing = null;
+                            // Tried once: not again for this document, unless it closes meanwhile (not remembered then).
+                            link.PrepareFailed = opened || prepare.Closed ? null : prepare;
                             if (link.StartFailed) StartFailed();
-                            ReleaseShared(prepare.Doc);
+                            ReleaseShared(prepare);
                             Monitor.PulseAll(_gate);
                         }
                     }
@@ -980,7 +1009,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 _links.Remove(link);
                 // Requests this thread would have taken: another thread, or a new one once starts may be tried again;
                 // with no link left and none to start, they run unchecked.
-                if (_queue.Count > 0 && !_disposed && _links.Count < Workers && !Pausing()) StartLink();
+                if (_queue.Count > 0 && !_disposed && _links.Count < Cap() && !Pausing()) StartLink();
                 FailOpenIfNoLink();
                 Monitor.PulseAll(_gate);
             }
@@ -1014,30 +1043,49 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         private NamedPipeServerStream? _pipe;
         private bool _killed;                   // under _processGate
 
-        /// <summary>The request it is checking (under the plan's lock); one of page -1 while it opens a document ahead (<see cref="Prepare"/>).</summary>
+        /// <summary>The request it is checking (under the plan's lock).</summary>
         public CheckRequest? Current { get; set; }
 
-        /// <summary>The document it last opened ahead, tried once (under the plan's lock).</summary>
-        public CheckedDocument? Prepared { get; set; }
+        /// <summary>The document it is opening ahead, taking no page (<see cref="Prepare"/>; under the plan's lock).</summary>
+        public CheckedDocument? Preparing { get; set; }
+
+        /// <summary>A document it failed to open ahead, not tried ahead again; forgotten when it closes (under the plan's lock).</summary>
+        public CheckedDocument? PrepareFailed { get; set; }
 
         /// <summary>
-        /// Opens a document another process checks pages of, without taking a page: the next one asked finds both ready. A
-        /// failure is left to the next check (which opens it again, and decides as it always did).
+        /// Opens a document another process checks pages of, without taking a page: the next one asked finds both ready.
+        /// A failure decides nothing: the next check of one of its pages opens it again, and decides as it always did.
         /// </summary>
-        public void Prepare(CheckedDocument doc)
+        /// <returns>Whether the process has it open.</returns>
+        public bool Prepare(CheckedDocument doc)
         {
-            if (doc.Closed || plan._disposed || !EnsureStarted(doc)) return;
+            if (doc.Closed || plan._disposed || !EnsureStarted(doc)) return false;
             StartFailed = false;
             try
             {
-                var shared = doc.Data is null ? null : plan.SharedOf(doc);
-                if (doc.Data is not null && shared is null) return;
-                OpenDocument(doc, shared);
+                plan.TestBeforePrepare?.Invoke(doc);
+                return EnsureOpen(doc, decides: false);
             }
             catch (Exception ex) when (ex is IOException or InvalidDataException or ObjectDisposedException or AggregateException)
             {
                 Kill();
+                return false;
             }
+        }
+
+        /// <summary>
+        /// Has the process open <paramref name="doc"/> (a check's, or one opened ahead): false when the document closed
+        /// meanwhile or the process couldn't open it, which, when the check <paramref name="decides"/>, makes it unopenable
+        /// (its pages run unchecked).
+        /// </summary>
+        private bool EnsureOpen(CheckedDocument doc, bool decides)
+        {
+            if (Open == doc) return true;
+            plan.TestBeforeOpen?.Invoke(doc);
+            // Closed since the check was taken: withdrawn before anything is sent, the process kept.
+            var shared = doc.Data is null ? null : plan.SharedOf(doc);
+            if (doc.Data is not null && shared is null) return false;
+            return OpenDocument(doc, shared, decides);
         }
 
         /// <summary>The document the process has open; null if none.</summary>
@@ -1057,14 +1105,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 StartFailed = false;
                 try
                 {
-                    if (Open != doc)
-                    {
-                        plan.TestBeforeOpen?.Invoke(doc);
-                        // Closed since the check was taken: withdrawn before anything is sent, the process kept.
-                        var shared = doc.Data is null ? null : plan.SharedOf(doc);
-                        if (doc.Data is not null && shared is null) return PageVerdict.Unchecked;
-                        if (!OpenDocument(doc, shared)) return PageVerdict.Unchecked;
-                    }
+                    if (!EnsureOpen(doc, decides: true)) return PageVerdict.Unchecked;
                     var scale = plan.Sending(request);
                     FindWorkers.WriteInt(_pipe!, PageChecks.AskCheck);
                     FindWorkers.WriteInt(_pipe!, request.Page);
@@ -1078,13 +1119,14 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     // MuPDF giving up there (a damaged page, an allocation past the process's memory limit) says nothing
                     // of what the page costs here, where nothing limits it: refused, not tried again.
                     if (answer != PageChecks.Drawn) return PageVerdict.Failed;
+                    // The check's own time, not its picture's (a large one comes slowly on a busy PC, whatever the page).
+                    doc.Checked(Stopwatch.GetElapsedTime(sent) >= plan.SlowCheck);
                     if (scale > 0)
                     {
                         // Decided: the render waiting for it knows at once, then waits for the picture only so long.
                         request.Complete(PageVerdict.Fine);
                         ReceivePicture(request, scale);
                     }
-                    doc.Checked(Stopwatch.GetElapsedTime(sent) >= plan.SlowCheck);
                     return PageVerdict.Fine;
                 }
                 catch (TimeoutException)
@@ -1221,7 +1263,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
         }
 
-        private bool OpenDocument(CheckedDocument doc, PdfEngine.SharedBytes? shared)
+        private bool OpenDocument(CheckedDocument doc, PdfEngine.SharedBytes? shared, bool decides)
         {
             Open = null;
             FindWorkers.WriteInt(_pipe!, PageChecks.AskOpen);
@@ -1239,7 +1281,8 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
             if (answer != PageChecks.Opened)
             {
-                lock (plan._gate) doc.Unopenable = true;
+                if (decides)
+                    lock (plan._gate) doc.Unopenable = true;
                 return false;
             }
             Open = doc;

@@ -115,7 +115,7 @@ public sealed partial class PdfEngine
     /// <param name="request">The check of <paramref name="page"/>.</param>
     private void AskAfter(int page, CheckRequest request, ViewScale? view)
     {
-        var ahead = _checked!.Slow ? Math.Max(2, _checkedBy!.WorkersFor(_checked)) : 2;
+        var ahead = PagesAhead();
         for (var (next, before) = (page + 1, (CheckRequest?)request); next <= page + ahead && next < _pages.Length && before is not null; next++)
         {
             before.Ahead ??= AskAhead(next, view);
@@ -148,10 +148,16 @@ public sealed partial class PdfEngine
     private readonly List<CheckRequest> _pictured = [];
 
     /// <summary>
-    /// Pictures kept for pages no render waits for yet (asked ahead): the last few, so pages scrolled past don't keep
-    /// theirs; as many as pages are asked ahead (<see cref="AskAfter"/>).
+    /// Pages checked ahead of one asked for (<see cref="AskAfter"/>): two, or as many as there are check processes for a
+    /// document whose pages are slow to check. Under _checkGate, once checks are planned.
     /// </summary>
-    private const int PicturesAhead = 4;
+    private int PagesAhead() => _checked!.Slow ? Math.Max(2, _checkedBy!.WorkersFor(_checked)) : 2;
+
+    /// <summary>
+    /// Pictures kept for pages no render waits for yet (asked ahead): the last few, so pages scrolled past don't keep
+    /// theirs; one more than are asked ahead (three for two). Under _checkGate.
+    /// </summary>
+    private int PicturesAhead() => PagesAhead() + 1;
 
     /// <summary>
     /// A request now draws a picture: the oldest of those no render waits for, beyond <see cref="PicturesAhead"/>, let go
@@ -162,7 +168,8 @@ public sealed partial class PdfEngine
         _pictured.Remove(request);
         _pictured.Add(request);
         var ahead = _pictured.Count(r => r.Waiters == 0);
-        for (var i = 0; ahead > PicturesAhead && i < _pictured.Count;)
+        var kept = PicturesAhead();
+        for (var i = 0; ahead > kept && i < _pictured.Count;)
         {
             if (_pictured[i].Waiters > 0)
             {

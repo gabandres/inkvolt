@@ -1142,10 +1142,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   The drawing set: the Mac's bands on every core don't port, as MuPDFCore's process-wide locks hold threads in one
   process back (a sheet's kept list drawn on 1, 2, 4, 6, 8 and 12 strips: 740 to 1,558, about 340, 280 to 490, 377 to
   1,233, 772 to 1,068 and 1,092 to 2,928 ms), but processes don't wait on each other. A document whose last three
-  checks each took 200 ms or more with their pictures (`CheckedDocument.Slow`: a sheet's list, 170 to 350 ms, its small
-  drawing and its picture) has as many pages checked ahead as there are processes for it, up to `SlowWorkers` (a third of
-  the cores, 2 to 4; some 100 MB each), the extra ones started only while the others are busy; four pictures ahead are
-  kept. Scroll proxy (20 sheets after a cold open, four pairs in turn): 3.07 to 3.66 s a sheet before, 1.79 to 3.07 s
+  checks each took 200 ms or more, their pictures not counted (`CheckedDocument.Slow`: a sheet's list, 170 to 350 ms, and
+  its small drawing) has as many pages checked ahead as there are processes for it, up to `SlowWorkers` (a third of the
+  cores, 2 to 4; some 100 MB each), the extra ones started only while the others are busy (and one ended replaced up to
+  the same number); one picture more than the pages asked ahead is kept (three for two, as before). Scroll proxy (20 sheets after a cold open, four pairs in turn): 3.07 to 3.66 s a sheet before, 1.79 to 3.07 s
   after (medians 3.36 and 1.97 s; 0.6 s on the quiet PC of RESULTS.md). Tried and dropped: the check drawing the render's
   picture first in place of its small drawing (a fifth of a sheet's check), slower under load, as a picture past its
   1.5 s limit then cost both; two strips a check process (four did better with four processes).
@@ -1160,19 +1160,28 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   on every core of this PC at once at best 8 s; a text-only reading needs MuPDF entry points MuPDFCore 2.0.1 doesn't
   export, the owner's call as before); its scroll proxy (a sheet's list and its drawing on four strips take 450 ms or more
   on one process, so the first sheets can't come in 200 ms; later ones come as fast as the processes draw them);
-  comments.pdf's on-screen scroll on a busy PC: the garbage collector, not the viewer. During a 4 s scroll right after
-  opening, its collections paused the app for 2.1 to 2.4 s (130 to 180 collections) while the review panes' PDFsharp read
-  of 10,000 comments ran, 0.7 to 0.9 s with that read left out; one read instead of four didn't change it within the
-  4 s, as the first read alone spans them. Reading the panes in a process of their own, or after the scroll settles, is
-  the owner's call.
+  comments.pdf's on-screen scroll, on a busy PC, was the garbage collector's, not the viewer's: during a 4 s scroll right
+  after opening, its collections paused the app for 2.1 to 2.4 s (130 to 210) while the review panes' PDFsharp read of
+  10,000 comments ran, 0.7 to 0.9 s with that read left out; one read instead of four didn't change it, as the first
+  alone spans the scroll. **Its review (2026-11-19):** a document's first read for its review panes now waits until the
+  view has stood still for 1 s, its pages in view drawn and no scroll since (at most 10 s; `PageViewer.SettledAsync`), so
+  a scroll begun just after opening goes first and the panes fill once it stops (later reads, after an edit, go at
+  once). Same app scroll (dev script `scrollbench`, comments.pdf): collections paused 0.37 to 1.22 s in 7 runs (2.25 to
+  2.42 s in 4 before it), 59 to 73 fps with the longest gap 47 to 78 ms in 6 of them (one gap of 411 ms), master in turn
+  55 to 61 fps, longest gap 65 to 84 ms. A wait of 0.4 s after the pages showed left the read under the scroll (it begins
+  0.5 s after opening): 2.26 to 2.42 s paused. The review's other fixes: a check process opening a document ahead
+  (`Prepare`, now its own state, not a placeholder request) that fails decides nothing (the document isn't marked
+  unopenable) and isn't remembered past the document's close; one open sequence for both (`EnsureOpen`); a shown
+  document whose bytes are repaired lets go of the bytes as they are, and their first page's check, before the repaired
+  copy opens; a reload read in the background asks for its first page only once it is kept.
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
 - **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30),
   page checks that draw the render's picture (2026-11-06), the comments' first page and the drawing set's sheets checked
-  further ahead (2026-11-19); the drawing set's scroll and first Find remain over target, and the comments' on-screen
-  scroll on a busy PC (the review panes' read collected meanwhile); Mac: the benchmark and Find on threads done (E16,
+  further ahead, the review panes' first read after the view settles (2026-11-19); the drawing set's scroll and first
+  Find remain over target; Mac: the benchmark and Find on threads done (E16,
   2026-11-02), drawings in bands on every core (2026-11-07: a sheet 584 to 223 ms); the same two still over target.
 
 ### 3.7 Spanish interface

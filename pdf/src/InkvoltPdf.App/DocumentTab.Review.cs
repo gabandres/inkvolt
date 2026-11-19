@@ -439,6 +439,9 @@ public partial class DocumentTab
         IReadOnlyList<LinkInfo> Links,
         bool SuspectWords);
 
+    /// <summary>How long the view stays still before a document's first read of its review panes; and the most it waits.</summary>
+    private static readonly TimeSpan ReviewQuiet = TimeSpan.FromSeconds(1), ReviewWaitMost = TimeSpan.FromSeconds(10);
+
     /// <summary>Reads labels, comments, attachments, layers and signatures off the UI thread (the latest request wins).</summary>
     private async Task LoadReviewAsync()
     {
@@ -449,6 +452,14 @@ public partial class DocumentTab
         var pw = Session.Password;
         var first = !_reviewLoadedOnce;
         var wantTitle = first || _displayDocTitle;
+        // A document just opened shows its first pages and lets a scroll begun at once go on first: reading 10,000
+        // comments meanwhile made the garbage collector pause the app for 2 of a scroll's 4 s. The panes fill a moment
+        // later (at most after ReviewWaitMost, should the view keep scrolling).
+        if (first)
+        {
+            await Viewer.SettledAsync(ReviewQuiet, ReviewWaitMost);
+            if (ticket != _reviewLoad || _disposed) return;
+        }
         ReviewInfo info;
         try
         {

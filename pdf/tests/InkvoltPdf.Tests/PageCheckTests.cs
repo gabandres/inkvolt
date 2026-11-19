@@ -161,6 +161,35 @@ public sealed class PageCheckTests : IDisposable
     }
 
     [Fact]
+    public async Task AReloadNoLongerWantedStartsNoCheck()
+    {
+        // A copy read from disk in the background and thrown away (the tab closed meanwhile, say) asks for nothing; one
+        // kept has its first page asked for as it is swapped in.
+        using var app = PageChecks.UseForTests(_plan);
+        var path = Path.Combine(Path.GetTempPath(), $"inkvolt-check-{Guid.NewGuid():N}.pdf");
+        File.WriteAllBytes(path, ThreePages(Drawn, ""));
+        try
+        {
+            using var session = DocumentSession.Open(path);
+            session.Engine.Render(0, 0.25);
+            var since = Stopwatch.StartNew();
+            while (_plan.ChecksRun < 3 && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(10);
+            Thread.Sleep(300);
+            var before = _plan.ChecksRun;
+            Assert.False(await session.ReloadFromDiskAsync(stillWanted: () => false));
+            Thread.Sleep(500);
+            Assert.Equal(before, _plan.ChecksRun);
+            Assert.True(await session.ReloadFromDiskAsync());
+            while (_plan.ChecksRun == before && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(10);
+            Assert.Equal(before + 1, _plan.ChecksRun);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void ADocumentOpenedToBeShownHasItsFirstPageCheckedWhileItsBytesAreStillRead()
     {
         // PDFsharp's read of the bytes (0.7 s for 10,000 comments) and the first page's check overlap: the first page
@@ -186,6 +215,70 @@ public sealed class PageCheckTests : IDisposable
             Thread.Sleep(300);
             Assert.Equal(3, _plan.ChecksRun); // the first page once, then the two after it
         }
+    }
+
+    [Fact]
+    public void AShownDocumentsRepairedCopyTakesTheFirstPagesCheckFromTheBytesAsTheyAre()
+    {
+        // The bytes as they are go before the repaired copy opens: their first page's check is taken back (or let go of
+        // with its shared copy once done) rather than kept beside the repaired copy's, which is the one checked and shown.
+        using var app = PageChecks.UseForTests(_plan);
+        var file = ThreePages(Drawn, "");
+        var repaired = ThreePages(Drawn, "");
+        var opener = DocumentSession.Opener(InputFileTypes.PDF, null, shown: true);
+        PdfEngine? first = null;
+        var firstGone = false;
+        var (bytes, engine, _) = DocumentSession.OpenReadable(file, InputFileTypes.PDF, null, b =>
+        {
+            if (ReferenceEquals(b, file)) return first = opener(b);
+            try
+            {
+                first!.Render(0, 0.25);
+            }
+            catch (ObjectDisposedException)
+            {
+                firstGone = true;
+            }
+            return opener(b);
+        }, () => Task.FromResult(new PdfRepair.Result(repaired, PdfRepair.Outcome.Repaired)), TimeSpan.FromSeconds(60));
+        using (engine)
+        {
+            Assert.True(firstGone);
+            Assert.Same(repaired, bytes);
+            engine.Render(0, 0.25);
+            Assert.Equal(PageVerdict.Fine, engine.VerdictOf(0));
+        }
+    }
+
+    [Fact]
+    public void ADocumentAProcessFailsToOpenAheadIsStillCheckedAndForgottenOnClose()
+    {
+        // The second process fails to open the document ahead (here: its pipe breaks): that decides nothing. The page goes to
+        // a check as before, the document isn't marked unopenable, and the failed document isn't kept once closed.
+        using var plan = new PageCheckPlan(CheckExe, ["page-check-slow"]) { Limit = Limit, SlowCheck = TimeSpan.FromHours(1) };
+        using var engine = PdfEngine.Open(Pages(8), InputFileTypes.PDF, null);
+        engine.CheckPlan = plan;
+        var prepares = 0;
+        plan.TestBeforePrepare = _ =>
+        {
+            Interlocked.Increment(ref prepares);
+            throw new IOException("The pipe broke.");
+        };
+        // The first process runs before the document opens (as the app starts one with its window), and each check takes
+        // 0.4 s: it has the document open, with pages queued, when the second one is up, which opens it ahead of taking one.
+        plan.Prestart();
+        var since = Stopwatch.StartNew();
+        while (plan.Pids.Count == 0 && since.Elapsed < Timing.Limit(Slack)) Thread.Sleep(10);
+        Thread.Sleep(500); // connected
+        foreach (var page in Enumerable.Range(0, 8))
+        {
+            engine.Render(page, 0.25);
+            Assert.Equal(PageVerdict.Fine, engine.VerdictOf(page)); // checked, not run unchecked as for a document no process can open
+        }
+        Assert.Equal(1, Volatile.Read(ref prepares)); // tried once
+        Assert.Equal(1, plan.PreparesFailedHeld);
+        engine.Dispose();
+        Assert.Equal(0, plan.PreparesFailedHeld);
     }
 
     [Theory]
@@ -686,17 +779,14 @@ public sealed class PageCheckTests : IDisposable
     [Fact]
     public void ThePreviewIsSkippedOnlyForAPictureStillComing()
     {
-        // Page 2's picture, drawn ahead and let go of for newer ones (four are kept), is not coming: the viewer shows its
-        // preview first.
-        using var engine = Open(Pages(10));
+        // Page 2's picture, drawn ahead and let go of for newer ones (three are kept, two pages asked ahead), is not
+        // coming: the viewer shows its preview first.
+        using var engine = Open(Pages(8));
         engine.Render(0, 1.5);
         var since = Stopwatch.StartNew();
         while (_plan.ChecksRun < 3 && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(10);
         Thread.Sleep(300); // their answers in
-        engine.Render(5, 1.5); // pages 7 and 8 asked ahead: four pictures kept
-        while (_plan.ChecksRun < 6 && since.Elapsed < Timing.Limit(Limit + Slack)) Thread.Sleep(10);
-        Thread.Sleep(300);
-        engine.Render(8, 1.5); // page 10 asked ahead: page 2's let go of
+        engine.Render(5, 1.5);
         Assert.False(engine.CheckDraws(1, 1.5));
         Assert.True(engine.CheckDraws(2, 1.5));
     }
