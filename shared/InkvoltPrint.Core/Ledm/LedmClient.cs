@@ -155,14 +155,21 @@ public sealed class LedmClient(DeviceHttp http)
         await PutPathAsync(path, body, ct).ConfigureAwait(false);
     }
 
-    /// <summary>PUT an LEDM document to a path, over HTTPS. Throws <see cref="LedmAuthRequiredException"/> on 401/403.</summary>
-    public async Task PutPathAsync(string path, XDocument body, CancellationToken ct = default)
+    /// <summary>
+    /// PUT an LEDM document to a path, over HTTPS. Throws <see cref="LedmAuthRequiredException"/> on 401/403 and
+    /// <see cref="DeviceHttpException"/> on any other refusal. <paramref name="once"/>: a request that must never arrive twice
+    /// (one that starts a copy), sent on a connection of its own and never resent (<see cref="DeviceHttp.SendOnceAsync"/>).
+    /// </summary>
+    public async Task PutPathAsync(string path, XDocument body, CancellationToken ct = default, bool once = false)
     {
         using var req = new HttpRequestMessage(HttpMethod.Put, http.Https(path))
         {
             Content = new StringContent(Serialize(body), Encoding.UTF8, new MediaTypeHeaderValue("text/xml")),
         };
-        using var resp = await http.SendAsync(req, TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
+        var timeout = TimeSpan.FromSeconds(15);
+        using var resp = once
+            ? await http.SendOnceAsync(req, timeout, ct).ConfigureAwait(false)
+            : await http.SendAsync(req, timeout, ct).ConfigureAwait(false);
         if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             throw new LedmAuthRequiredException(http.HasCredentials);
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);

@@ -68,21 +68,34 @@ public static class CopyLayout
     {
         Check(pagesPerSheet);
         var sides = new List<int[]>();
-        for (var first = 0; first < pageCount; first += pagesPerSheet)
-            sides.Add(Enumerable.Range(first, Math.Min(pagesPerSheet, pageCount - first)).ToArray());
+        for (var side = 0; (long)side * pagesPerSheet < pageCount; side++) sides.Add(PagesOnSide(pageCount, pagesPerSheet, side));
         return sides;
+    }
+
+    /// <summary>The page indices on one side (<see cref="Sides"/>); none for a side past the last page.</summary>
+    public static int[] PagesOnSide(int pageCount, int pagesPerSheet, int side)
+    {
+        Check(pagesPerSheet);
+        var first = (long)side * pagesPerSheet;
+        return side < 0 || first >= pageCount ? [] : Enumerable.Range((int)first, (int)Math.Min(pagesPerSheet, pageCount - first)).ToArray();
     }
 
     /// <summary>
     /// The sides one print job holds, in order (−1: a blank back), and the copy count for the print ticket. Collated
-    /// (or one copy): each side once, the queue making the copies (1 2 3, 1 2 3). Uncollated: each sheet repeated here,
-    /// one copy on the ticket (1 1, 2 2, 3 3), so it doesn't depend on a driver honouring the ticket's collation; on
-    /// two-sided paper a sheet is a side and its back, an odd last side getting a blank back so copies don't share a sheet.
+    /// (or one copy): each side once, the queue making the copies (1 2 3, 1 2 3); but two-sided with an odd number of sides,
+    /// the copies are made here, each ending on a blank back, so no two copies share a sheet. Uncollated: each sheet repeated
+    /// here, one copy on the ticket (1 1, 2 2, 3 3), so it doesn't depend on a driver honouring the ticket's collation; on
+    /// two-sided paper a sheet is a side and its back, an odd last side getting a blank back.
     /// </summary>
     public static (IReadOnlyList<int> Sides, int TicketCopies) Order(int sideCount, int copies, bool collate, bool twoSided)
     {
         copies = Math.Max(1, copies);
-        if (collate || copies == 1 || sideCount <= 0) return (Enumerable.Range(0, Math.Max(0, sideCount)).ToList(), copies);
+        if (sideCount <= 0) return ([], copies);
+        var once = Enumerable.Range(0, sideCount).ToList();
+        if (copies == 1) return (once, 1);
+        if (collate && twoSided && sideCount % 2 == 1)
+            return ([.. Enumerable.Repeat(once.Append(-1), copies).SelectMany(s => s)], 1);
+        if (collate) return (once, copies);
         var order = new List<int>();
         var perSheet = twoSided ? 2 : 1;
         for (var first = 0; first < sideCount; first += perSheet)

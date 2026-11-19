@@ -87,8 +87,11 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     /// <summary>The printer's own copier takes requests (an HP printer listing LEDM's copy settings with a start).</summary>
     [ObservableProperty] public partial bool HasPrinterCopy { get; private set; }
 
-    /// <summary>Copy with the printer itself (the default when it can), not through this PC.</summary>
-    [ObservableProperty] public partial bool OnPrinterChosen { get; set; } = true;
+    /// <summary>
+    /// Copy with the printer itself, not through this PC. Off by default: the printer's copy settings' names are assumed until
+    /// a recorded printer confirms them (<see cref="LedmCopy"/>).
+    /// </summary>
+    [ObservableProperty] public partial bool OnPrinterChosen { get; set; }
 
     /// <summary>This copy is made by the printer by itself: no scan comes to the PC, no Windows queue is used.</summary>
     public bool OnPrinter => CopyRoute.OnPrinter(HasPrinterCopy, OnPrinterChosen, IdCard);
@@ -96,17 +99,22 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     /// <summary>The choice between the printer itself and this PC: only when the printer offers it, for page copies.</summary>
     public bool ShowWhere => HasPrinterCopy && !IdCard;
 
-    /// <summary>Options only the PC's copy has: the scan source, size, pages per sheet, the preview.</summary>
-    public bool ShowPcOptions => IsDocument && !OnPrinter;
+    private CopyControls Controls => CopyRoute.Controls(OnPrinter, IdCard, Copies, CanTwoSided);
+
+    /// <summary>Options only the PC's page copy has: the scan source, size, pages per sheet, the preview.</summary>
+    public bool ShowPcOptions => Controls.PcOptions;
 
     public bool ShowSource => HasSourceChoice && ShowPcOptions;
-    public bool ShowCopies => !OnPrinter || _printer?.Offer.CanSetCopies == true;
-    public bool ShowColor => !OnPrinter || _printer?.Offer.CanColor == true;
-    public bool ShowCollate => IsDocument && Copies > 1 && (!OnPrinter || _printer?.Offer.CanCollate == true);
+    public bool ShowCopies => Controls.Copies;
+    public bool ShowColor => Controls.Color;
+    public bool ShowCollate => Controls.Collate;
 
     partial void OnOnPrinterChosenChanged(bool value) => RouteChanged();
 
-    /// <summary>The way a copy goes changed (printer found or gone, the choice, ID card): everything shown that depends on it.</summary>
+    /// <summary>
+    /// The way a copy goes changed (printer found or gone, the choice, ID card): everything shown that depends on it. The
+    /// options keep their values (the copies typed stay for the next copy through the PC).
+    /// </summary>
     private void RouteChanged()
     {
         foreach (var name in new[] { nameof(OnPrinter), nameof(ShowWhere), nameof(ShowPcOptions), nameof(ShowSource), nameof(ShowCopies),
@@ -114,7 +122,6 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
                      nameof(EmptyHint), nameof(Summary) })
             OnPropertyChanged(name);
         CopyCommand.NotifyCanExecuteChanged();
-        Copies = ClampCopies(Copies);
     }
 
     public string? UnavailableReason =>
@@ -191,8 +198,8 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     [NotifyPropertyChangedFor(nameof(ShowTwoSided))]
     public partial bool CanTwoSided { get; set; }
 
-    /// <summary>Two-sided output is for page copies (an ID card copy is one sheet), when the queue or the printer's own copier can.</summary>
-    public bool ShowTwoSided => OnPrinter ? _printer?.Offer.CanTwoSided == true : CanTwoSided && !IdCard;
+    /// <summary>Two-sided output through the PC, for page copies (an ID card copy is one sheet), when the queue can.</summary>
+    public bool ShowTwoSided => Controls.TwoSided;
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(CopyCommand), nameof(ScanBackCommand), nameof(StartOverCommand), nameof(PrintAgainCommand), nameof(PrintPreviewedCommand))]
@@ -229,13 +236,10 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         get
         {
             if (IdCard) return Copies > 1 ? string.Format(Strings.Copy_SummaryIdCardCopies, Copies) : Strings.Copy_SummaryIdCard;
+            if (OnPrinter) return Strings.Copy_SummaryOnPrinter;
             var parts = new List<string> { Core.Plural.Of(Copies, Strings.Copy_Copies_One, Strings.Copy_Copies_Many) };
-            if (OnPrinter) parts.Add(Strings.Copy_SummaryOnPrinter);
-            else
-            {
-                if (PerSheet > 1) parts.Add(string.Format(Strings.Copy_PerSheet_Many, PerSheet));
-                parts.Add(FitToPaper ? Strings.Copy_SummaryFit : Strings.Copy_SummaryActual);
-            }
+            if (PerSheet > 1) parts.Add(string.Format(Strings.Copy_PerSheet_Many, PerSheet));
+            parts.Add(FitToPaper ? Strings.Copy_SummaryFit : Strings.Copy_SummaryActual);
             if (TwoSided && ShowTwoSided) parts.Add(Strings.Copy_SummaryBothSides);
             if (!Collate && ShowCollate) parts.Add(Strings.Copy_SummaryUncollated);
             return string.Join(", ", parts) + ".";
@@ -260,12 +264,9 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
 
     partial void OnCopiesChanged(int value)
     {
-        if (ClampCopies(value) is var clamped && clamped != value) Copies = clamped;
+        if (CopyRoute.ClampCopies(value) is var clamped && clamped != value) Copies = clamped;
         OnPropertyChanged(nameof(ShowCollate));
     }
-
-    /// <summary>1 to 99, and no more than the printer's own copier takes when it makes the copy.</summary>
-    private int ClampCopies(int value) => Math.Clamp(value, 1, OnPrinter && _printer is { } p ? p.Offer.MaxCopies : LedmCopy.MaxCopies);
 
     [RelayCommand] private void MoreCopies() => Copies++;
     [RelayCommand] private void FewerCopies() => Copies--;
@@ -303,7 +304,10 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         else await CopyPagesAsync();
     }
 
-    /// <summary>Asks the printer's own copier for the copy: one request, nothing scanned to the PC, no queue.</summary>
+    /// <summary>
+    /// Asks the printer's own copier for the copy: one request, nothing scanned to the PC, no queue, the printer's own settings.
+    /// Any failure here may come after the request went out, so the words never say to simply try again.
+    /// </summary>
     private async Task CopyOnPrinterAsync()
     {
         if (_printer is not { } printer) return;
@@ -312,13 +316,11 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         try
         {
             SetMessage(Strings.Copy_StartingPrinter);
-            var offer = printer.Offer;
-            var copies = offer.CanSetCopies ? ClampCopies(Copies) : 1;
-            var result = await printer.CopyAsync(new PrinterCopyRequest(copies, Collate, TwoSided && offer.CanTwoSided, IsColor && offer.CanColor));
+            var result = await printer.CopyAsync();
             if (result.Problem is { } problem) SetMessage(problem, error: true);
             else
             {
-                SetMessage(string.Format(Strings.Copy_SentPrinter, Core.Plural.Of(copies, Strings.Copy_Copies_One, Strings.Copy_Copies_Many)));
+                SetMessage(Strings.Copy_SentPrinter);
                 RatingRequest.NoteSuccess(state);
             }
         }
@@ -351,7 +353,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         var pages = await ScanAsync(ScanChoices.ToRequest(source, Color, dpi, size), dpi, page =>
         {
             scanned.Add(page);
-            ShowSheets(scanned);
+            ShowSide(scanned, (scanned.Count - 1) / PerSheet); // only the side the page lands on: earlier ones are done
         });
         if (pages is not { Count: > 0 }) return;
         if (PreviewFirst)
@@ -396,21 +398,23 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     /// <summary>The preview: each side of paper as it prints, with its pages placed (<see cref="CopyLayout.NUp"/>), one copy's worth.</summary>
     private void ShowSheets(IReadOnlyList<RenderedPage> pages)
     {
+        var sides = CopyLayout.Sides(pages.Count, PerSheet).Count;
+        for (var s = 0; s < sides; s++) ShowSide(pages, s);
+        while (Sheets.Count > sides) Sheets.RemoveAt(Sheets.Count - 1);
+    }
+
+    /// <summary>One side of the preview, made anew (its pages so far) or added after the last.</summary>
+    private void ShowSide(IReadOnlyList<RenderedPage> pages, int side)
+    {
         var perSheet = PerSheet;
-        var sizing = Sizing;
-        var sides = CopyLayout.Sides(pages.Count, perSheet);
-        for (var s = 0; s < sides.Count; s++)
-        {
-            var on = sides[s];
-            var placed = CopyLayout.NUp([.. on.Select(i => (pages[i].WidthInches * 96, pages[i].HeightInches * 96))], perSheet, PreviewPaper.W, PreviewPaper.H, sizing);
-            var images = new List<CopyImage>();
-            for (var i = 0; i < placed.Count; i++)
-                images.Add(new CopyImage(Thumbnail(pages[on[i]]), placed[i].At, null, placed[i].Rotated));
-            var sheet = new CopySheet(PreviewPaper.W, PreviewPaper.H, PreviewHeight * PreviewPaper.W / PreviewPaper.H, PreviewHeight, images);
-            if (s < Sheets.Count) Sheets[s] = sheet;
-            else Sheets.Add(sheet);
-        }
-        while (Sheets.Count > sides.Count) Sheets.RemoveAt(Sheets.Count - 1);
+        var on = CopyLayout.PagesOnSide(pages.Count, perSheet, side);
+        var placed = CopyLayout.NUp([.. on.Select(i => (pages[i].WidthInches * 96, pages[i].HeightInches * 96))], perSheet, PreviewPaper.W, PreviewPaper.H, Sizing);
+        var images = new List<CopyImage>();
+        for (var i = 0; i < placed.Count; i++)
+            images.Add(new CopyImage(Thumbnail(pages[on[i]]), placed[i].At, null, placed[i].Rotated));
+        var sheet = new CopySheet(PreviewPaper.W, PreviewPaper.H, PreviewHeight * PreviewPaper.W / PreviewPaper.H, PreviewHeight, images);
+        if (side < Sheets.Count) Sheets[side] = sheet;
+        else Sheets.Add(sheet);
     }
 
     private async Task ScanFrontAsync()
@@ -586,8 +590,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
             Log.Write($"Two-sided check (copy) failed: {ex}");
             CanTwoSided = false;
         }
-        if (!CanTwoSided && !OnPrinter) TwoSided = false;
-        OnPropertyChanged(nameof(ShowTwoSided));
+        if (!CanTwoSided) TwoSided = false;
     }
 
     private ScanColor Color => IsColor ? ScanColor.Color : ScanColor.Grayscale;

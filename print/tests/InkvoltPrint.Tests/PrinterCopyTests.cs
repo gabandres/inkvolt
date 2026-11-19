@@ -9,7 +9,7 @@ using InkvoltPrint.Core.Probe;
 namespace InkvoltPrint.Tests;
 
 /// <summary>
-/// The printer's own copier over HP LEDM (<see cref="LedmCopy"/>, <see cref="PrinterCopier"/>) and the way a copy goes
+/// The printer's own copier over HP LEDM (<see cref="LedmCopy"/>, <see cref="PrinterCopier"/>) and the Copy tab's choices
 /// (<see cref="CopyRoute"/>). The M234dw's tree lists the copy documents; the documents themselves are the hand-written demo
 /// ones (<c>Fixtures/hp-demo</c>), as none has been captured.
 /// </summary>
@@ -24,10 +24,10 @@ public class PrinterCopyTests
 
     private static XDocument Doc(string name) => XDocument.Parse(Encoding.UTF8.GetString(Fixture(DemoLaser, name)!));
 
-    private sealed record Sent(HttpMethod Method, Uri Uri, string? ContentType, byte[] Body);
+    private sealed record Sent(HttpMethod Method, Uri Uri, string? ContentType, byte[] Body, bool ConnectionClose);
 
     /// <summary>A printer's web server from fixtures that records every request and answers writes with <paramref name="put"/>.</summary>
-    private sealed class Recorder(string[] folders, HttpStatusCode put = HttpStatusCode.OK) : HttpMessageHandler
+    private sealed class Recorder(string[] folders, HttpStatusCode put = HttpStatusCode.OK, Func<HttpRequestMessage, Exception?>? fail = null) : HttpMessageHandler
     {
         private readonly FixtureHandler _documents = new(name => Fixture(folders, name));
         public List<Sent> Requests { get; } = [];
@@ -35,16 +35,18 @@ public class PrinterCopyTests
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
             var body = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(ct);
-            Requests.Add(new Sent(request.Method, request.RequestUri!, request.Content?.Headers.ContentType?.MediaType, body));
+            Requests.Add(new Sent(request.Method, request.RequestUri!, request.Content?.Headers.ContentType?.MediaType, body, request.Headers.ConnectionClose == true));
+            if (fail?.Invoke(request) is { } ex) throw ex;
             if (request.Method == HttpMethod.Put) return new HttpResponseMessage(put) { RequestMessage = request };
             using var invoker = new HttpMessageInvoker(_documents, disposeHandler: false);
             return await invoker.SendAsync(request, ct);
         }
     }
 
-    private static async Task<(PrinterConnection, PrinterCopier?, Recorder)> ConnectAsync(string[] folders, HttpStatusCode put = HttpStatusCode.OK)
+    private static async Task<(PrinterConnection, PrinterCopier?, Recorder)> ConnectAsync(string[] folders, HttpStatusCode put = HttpStatusCode.OK,
+        Func<HttpRequestMessage, Exception?>? fail = null)
     {
-        var printer = new Recorder(folders, put);
+        var printer = new Recorder(folders, put, fail);
         var conn = await PrinterConnection.OpenAsync(Host, transport: printer);
         return (conn, await PrinterCopier.DetectAsync(conn), printer);
     }
@@ -73,57 +75,40 @@ public class PrinterCopyTests
     }
 
     [Fact]
-    public async Task The_demo_laser_offers_copies_collate_and_two_sided_but_not_color_by_reading_only()
+    public async Task The_demo_laser_offers_its_start_by_reading_only()
     {
         var (conn, copier, printer) = await ConnectAsync(DemoLaser);
         using var _ = conn;
 
         Assert.NotNull(copier);
-        var offer = copier.Offer;
-        Assert.True(offer.CanSetCopies);
-        Assert.Equal(99, offer.MaxCopies);
-        Assert.True(offer.CanCollate);
-        Assert.True(offer.CanTwoSided);
-        Assert.False(offer.CanColor); // its ColorModeSupport is readOnly, with mono only
+        Assert.Equal(["CopyState"], copier.Start.Path);
+        Assert.Equal("start", copier.Start.Value);
         Assert.DoesNotContain(printer.Requests, s => s.Method != HttpMethod.Get && s.ContentType != "application/ipp");
     }
 
     // ------------------------------------------------------------------ the request
 
     [Fact]
-    public async Task One_copy_request_is_one_PUT_over_HTTPS_byte_for_byte()
+    public async Task One_copy_is_one_PUT_of_the_start_alone_over_HTTPS_byte_for_byte()
     {
         var (conn, copier, printer) = await ConnectAsync(DemoLaser);
         using var _ = conn;
         var before = printer.Requests.Count;
 
-        var result = await copier!.CopyAsync(new PrinterCopyRequest(Copies: 3, Collate: false, TwoSided: true, Color: true));
+        var result = await copier!.CopyAsync();
 
         Assert.True(result.Ok, result.Problem);
-        var writes = printer.Requests.Skip(before).Where(s => s.Method != HttpMethod.Get).ToList();
-        var put = Assert.Single(writes);
+        var put = Assert.Single(printer.Requests.Skip(before), s => s.Method != HttpMethod.Get);
         Assert.Equal(HttpMethod.Put, put.Method);
         Assert.Equal(new Uri($"https://{Host}/DevMgmt/CopyConfigDyn.xml"), put.Uri); // HTTPS: an admin password never crosses in clear text
         Assert.Equal("text/xml", put.ContentType);
-        // The printer's own names and namespaces; the settings it offers, then the start; color left out (it can't be set).
+        Assert.True(put.ConnectionClose); // sent once, on a connection of its own (SendOnceAsync)
+        // The printer's own names and namespaces, and only the start: its copies, two-sided and the rest stay as its panel has them.
         Assert.Equal(
             "<cpcfgdyn:CopyConfigDyn xmlns:cpcfgdyn=\"http://www.hp.com/schemas/imaging/con/ledm/cpcfgdyn/2008/05/05\" " +
             "xmlns:dd=\"http://www.hp.com/schemas/imaging/con/dictionaries/1.0/\">" +
-            "<cpcfgdyn:CopySettings><dd:Copies>3</dd:Copies><dd:Collate>uncollated</dd:Collate><dd:Duplex>simplexToDuplex</dd:Duplex></cpcfgdyn:CopySettings>" +
             "<cpcfgdyn:CopyState>start</cpcfgdyn:CopyState></cpcfgdyn:CopyConfigDyn>",
             Encoding.UTF8.GetString(put.Body));
-    }
-
-    [Fact]
-    public void One_copy_one_sided_writes_collated_and_simplex_explicitly()
-    {
-        var offer = LedmCopy.Read(Doc("DevMgmt_CopyConfigDyn.xml"), Doc("DevMgmt_CopyConfigCap.xml"))!;
-
-        var body = LedmClient.Serialize(LedmCopy.Build(Doc("DevMgmt_CopyConfigDyn.xml"), offer, new PrinterCopyRequest(1, Collate: false, TwoSided: false, Color: false)));
-
-        // A default left on the printer's panel (two-sided, say) doesn't slip into this copy.
-        Assert.Contains("<dd:Copies>1</dd:Copies><dd:Collate>collated</dd:Collate><dd:Duplex>simplexToSimplex</dd:Duplex>", body);
-        Assert.EndsWith("<cpcfgdyn:CopyState>start</cpcfgdyn:CopyState></cpcfgdyn:CopyConfigDyn>", body);
     }
 
     [Theory]
@@ -137,11 +122,25 @@ public class PrinterCopyTests
         var (conn, copier, printer) = await ConnectAsync(DemoLaser, status);
         using var _ = conn;
 
-        var result = await copier!.CopyAsync(new PrinterCopyRequest(1, true, false, false));
+        var result = await copier!.CopyAsync();
 
         Assert.False(result.Ok);
         Assert.Contains(says, result.Problem);
         Assert.DoesNotContain(((int)status).ToString(System.Globalization.CultureInfo.InvariantCulture), result.Problem);
+        Assert.Single(printer.Requests, s => s.Method == HttpMethod.Put);
+    }
+
+    [Fact]
+    public async Task No_answer_to_the_PUT_says_it_may_already_be_copying_not_try_again()
+    {
+        var (conn, copier, printer) = await ConnectAsync(DemoLaser, fail: r => r.Method == HttpMethod.Put ? new HttpRequestException("reset") : null);
+        using var _ = conn;
+
+        var result = await copier!.CopyAsync();
+
+        Assert.False(result.Ok);
+        Assert.Contains("may already be copying", result.Problem);
+        Assert.DoesNotContain("Try again", result.Problem);
         Assert.Single(printer.Requests, s => s.Method == HttpMethod.Put);
     }
 
@@ -153,7 +152,7 @@ public class PrinterCopyTests
         var (conn, copier, _) = await ConnectAsync(DemoLaser, status);
         using var _c = conn;
 
-        var ex = await Assert.ThrowsAsync<LedmAuthRequiredException>(() => copier!.CopyAsync(new PrinterCopyRequest(1, true, false, false)));
+        var ex = await Assert.ThrowsAsync<LedmAuthRequiredException>(() => copier!.CopyAsync());
         Assert.False(ex.CredentialsWereSent);
     }
 
@@ -161,101 +160,90 @@ public class PrinterCopyTests
 
     private const string Ns = "xmlns:c=\"urn:example:cap\" xmlns:d=\"urn:example:dyn\" xmlns:dd=\"urn:example:dd\"";
 
-    private static string Dyn(string settings = "<dd:Copies>1</dd:Copies><dd:Duplex>simplex</dd:Duplex>", string state = "<d:CopyState>idle</d:CopyState>") =>
-        $"<d:CopyConfigDyn {Ns}><d:CopySettings>{settings}</d:CopySettings>{state}</d:CopyConfigDyn>";
+    private static string Dyn(string body = "<d:CopySettings><dd:Copies>1</dd:Copies></d:CopySettings><d:CopyState>idle</d:CopyState>") =>
+        $"<d:CopyConfigDyn {Ns}>{body}</d:CopyConfigDyn>";
 
-    private const string StartCap = "<c:CopyStateSupport elementXPath=\"d:CopyConfigDyn/d:CopyState\" access=\"readWrite\"><d:CopyState>start</d:CopyState></c:CopyStateSupport>";
+    private static string StartCap(string xpath = "d:CopyConfigDyn/d:CopyState", string access = "readWrite", string values = "<d:CopyState>start</d:CopyState>") =>
+        $"<c:CopyStateSupport elementXPath=\"{xpath}\" access=\"{access}\">{values}</c:CopyStateSupport>";
 
-    private static PrinterCopyOffer? Read(string dyn, string capEntries) =>
+    private static CopyStart? Read(string dyn, string capEntries) =>
         LedmCopy.Read(XDocument.Parse(dyn), XDocument.Parse($"<c:CopyConfigCap {Ns}>{capEntries}</c:CopyConfigCap>"));
 
     [Fact]
-    public void No_writable_start_means_no_offer_whatever_else_is_writable()
+    public void Only_a_writable_explicit_start_command_counts()
     {
-        const string copies = "<c:Copies min=\"1\" max=\"99\" elementXPath=\"d:CopyConfigDyn/d:CopySettings/dd:Copies\" access=\"readWrite\" />";
+        Assert.NotNull(Read(Dyn(), StartCap()));
+        Assert.Equal("startCopy", Read(Dyn(), StartCap(values: "<d:CopyState>idle</d:CopyState><d:CopyState>startCopy</d:CopyState>"))?.Value);
+        Assert.Equal("Start", Read(Dyn(), StartCap(values: "<d:CopyState>Start</d:CopyState>"))?.Value); // the printer's own spelling
 
-        Assert.Null(Read(Dyn(), copies));
-        Assert.Null(Read(Dyn(), copies + StartCap.Replace("readWrite", "readOnly")));
-        Assert.Null(Read(Dyn(), copies + StartCap.Replace(">start<", ">idle<"))); // a value the app doesn't know as "start"
-        Assert.Null(Read(Dyn(state: ""), copies + StartCap)); // the Cap names it, the Dyn hasn't got it
+        Assert.Null(Read(Dyn(), StartCap(access: "readOnly")));
+        Assert.Null(Read(Dyn(), StartCap(values: "<d:CopyState>processing</d:CopyState>"))); // a state, not a command
+        Assert.Null(Read(Dyn(), StartCap(values: "<d:CopyState>idle</d:CopyState><d:CopyState>copying</d:CopyState>")));
+        Assert.Null(Read(Dyn("<d:CopySettings />"), StartCap())); // the Cap names it, the Dyn hasn't got it
         Assert.Null(LedmCopy.Read(XDocument.Parse(Dyn()), null));
-        Assert.NotNull(Read(Dyn(), copies + StartCap));
+        // A writable copy setting that isn't a start (copies, say) never makes an offer.
+        Assert.Null(Read(Dyn(), "<c:Copies min=\"1\" max=\"99\" elementXPath=\"d:CopyConfigDyn/d:CopySettings/dd:Copies\" access=\"readWrite\" />"));
     }
 
     [Fact]
-    public void Copies_are_bounded_by_the_printer_and_by_ninety_nine()
+    public void Long_choice_lists_and_long_values_are_cut()
     {
-        var huge = Read(Dyn(), StartCap + "<c:Copies min=\"1\" max=\"2147483647\" elementXPath=\"d:CopyConfigDyn/d:CopySettings/dd:Copies\" access=\"readWrite\" />")!;
-        var five = Read(Dyn(), StartCap + "<c:Copies min=\"1\" max=\"5\" elementXPath=\"d:CopyConfigDyn/d:CopySettings/dd:Copies\" access=\"readWrite\" />")!;
-        var garbage = Read(Dyn(), StartCap + "<c:Copies min=\"x\" max=\"-3\" elementXPath=\"d:CopyConfigDyn/d:CopySettings/dd:Copies\" access=\"readWrite\" />")!;
-        var mustBeTwo = Read(Dyn(), StartCap + "<c:Copies min=\"2\" max=\"9\" elementXPath=\"d:CopyConfigDyn/d:CopySettings/dd:Copies\" access=\"readWrite\" />")!;
-
-        Assert.Equal(LedmCopy.MaxCopies, huge.MaxCopies);
-        Assert.Equal(5, five.MaxCopies);
-        Assert.False(garbage.CanSetCopies);
-        Assert.False(mustBeTwo.CanSetCopies); // one copy must stay possible
-        Assert.Contains("<dd:Copies>5</dd:Copies>", Body(five, new PrinterCopyRequest(500, true, false, false)));
-        Assert.Contains("<dd:Copies>1</dd:Copies>", Body(five, new PrinterCopyRequest(-4, true, false, false)));
-        Assert.DoesNotContain("Copies", Body(garbage, new PrinterCopyRequest(3, true, false, false)));
-    }
-
-    private static string Body(PrinterCopyOffer offer, PrinterCopyRequest request) =>
-        LedmClient.Serialize(LedmCopy.Build(XDocument.Parse(Dyn()), offer, request));
-
-    [Fact]
-    public void Only_choices_the_Cap_lists_are_written_and_long_lists_or_values_are_cut()
-    {
-        var many = string.Concat(Enumerable.Range(0, 40).Select(i => $"<dd:Duplex>junk{i}</dd:Duplex>"));
-        var cut = Read(Dyn(), StartCap + $"<c:DuplexSupport access=\"readWrite\">{many}<dd:Duplex>simplex</dd:Duplex><dd:Duplex>duplex</dd:Duplex></c:DuplexSupport>")!;
-        var longValue = Read(Dyn(), StartCap + $"<c:DuplexSupport access=\"readWrite\"><dd:Duplex>simplex</dd:Duplex><dd:Duplex>{new string('d', 100)}</dd:Duplex></c:DuplexSupport>")!;
-        var oneWay = Read(Dyn(), StartCap + "<c:DuplexSupport access=\"readWrite\"><dd:Duplex>duplex</dd:Duplex></c:DuplexSupport>")!;
-        var fine = Read(Dyn(), StartCap + "<c:DuplexSupport access=\"readWrite\"><dd:Duplex>SIMPLEX</dd:Duplex><dd:Duplex>Duplex</dd:Duplex></c:DuplexSupport>")!;
-
-        Assert.False(cut.CanTwoSided); // past the 32 choices read
-        Assert.False(longValue.CanTwoSided);
-        Assert.False(oneWay.CanTwoSided); // no way to write one-sided
-        Assert.True(fine.CanTwoSided);
-        Assert.Contains("<dd:Duplex>Duplex</dd:Duplex>", Body(fine, new PrinterCopyRequest(1, true, true, false))); // the printer's own spelling
+        var many = string.Concat(Enumerable.Range(0, 40).Select(i => $"<d:CopyState>junk{i}</d:CopyState>"));
+        Assert.Null(Read(Dyn(), StartCap(values: many + "<d:CopyState>start</d:CopyState>"))); // past the 32 choices read
+        Assert.Null(Read(Dyn(), StartCap(values: $"<d:CopyState>start{new string(' ', 100)}x</d:CopyState>")));
     }
 
     [Fact]
-    public void A_setting_the_PUT_could_not_reach_is_not_offered()
+    public void The_whole_elementXPath_is_followed_not_just_its_last_step()
     {
-        // Two CopySettings: BuildPut follows the first of each name, so the Duplex in the second can't be written.
-        var dyn = $"<d:CopyConfigDyn {Ns}><d:CopySettings><dd:Copies>1</dd:Copies></d:CopySettings><d:CopySettings><dd:Duplex>simplex</dd:Duplex></d:CopySettings><d:CopyState>idle</d:CopyState></d:CopyConfigDyn>";
-        var offer = Read(dyn, StartCap + "<c:DuplexSupport elementXPath=\"d:CopyConfigDyn/d:CopySettings[2]/dd:Duplex\" access=\"readWrite\"><dd:Duplex>simplex</dd:Duplex><dd:Duplex>duplex</dd:Duplex></c:DuplexSupport>")!;
-
-        Assert.False(offer.CanTwoSided);
+        // A CopyState under CopySettings isn't the root's CopyState the Cap names.
+        var nested = Dyn("<d:CopySettings><d:CopyState>idle</d:CopyState></d:CopySettings>");
+        Assert.Null(Read(nested, StartCap()));
+        Assert.Equal(["CopySettings", "CopyState"], Read(nested, StartCap("d:CopyConfigDyn/d:CopySettings/d:CopyState"))?.Path);
+        Assert.Equal(["CopySettings", "CopyState"], Read(nested, StartCap("/d:CopySettings[1]/d:CopyState"))?.Path); // without the root, a leading slash, [1]
+        // The second of a name: a PUT built from the first of each name couldn't reach it.
+        var twice = Dyn("<d:CopySettings /><d:CopySettings><d:CopyState>idle</d:CopyState></d:CopySettings>");
+        Assert.Null(Read(twice, StartCap("d:CopyConfigDyn/d:CopySettings[2]/d:CopyState")));
+        Assert.Null(Read(twice, StartCap("d:CopyConfigDyn/d:CopySettings/d:CopyState")));
+        // An element holding elements, not a value.
+        Assert.Null(Read(Dyn("<d:CopyState><d:Inner>idle</d:Inner></d:CopyState>"), StartCap()));
     }
 
     [Theory]
-    [InlineData("d:CopyConfigDyn/d:CopySettings/dd:Duplex", "Duplex")]
-    [InlineData("d:CopyConfigDyn/d:CopySettings[1]/dd:Duplex[1]", "Duplex")]
-    [InlineData("Duplex/", "Duplex")]
-    [InlineData("/", null)]
-    [InlineData("a/b:", null)]
-    public void The_target_is_the_last_step_of_the_elementXPath(string xpath, string? expected)
+    [InlineData("")]
+    [InlineData("/")]
+    [InlineData("d:CopyConfigDyn/d:CopyState[@x='1']")]
+    [InlineData("d:CopyConfigDyn/d:CopyState[0]")]
+    [InlineData("d:CopyConfigDyn/d:CopyState[")]
+    [InlineData("d:CopyConfigDyn//d:CopyState")]
+    [InlineData("d:CopyConfigDyn/*")]
+    [InlineData("d:CopyConfigDyn/b:")]
+    public void An_elementXPath_it_doesnt_understand_offers_nothing(string xpath) =>
+        Assert.Null(Read(Dyn(), StartCap(xpath)));
+
+    [Fact]
+    public void A_very_long_or_deep_elementXPath_offers_nothing()
     {
-        var entry = new XElement("DuplexSupport", new XAttribute("elementXPath", xpath));
-        Assert.Equal(expected, LedmCopy.Target(entry));
+        Assert.Null(Read(Dyn(), StartCap(string.Concat(Enumerable.Repeat("d:A/", 20)) + "d:CopyState")));
+        Assert.Null(Read(Dyn(), StartCap("d:CopyConfigDyn/" + new string('a', 600) + "/d:CopyState")));
     }
 
     [Fact]
-    public void Without_an_elementXPath_the_target_is_the_Cap_name_less_Support()
+    public void Without_an_elementXPath_the_start_is_the_roots_child_named_like_the_entry()
     {
-        Assert.Equal("Duplex", LedmCopy.Target(new XElement("DuplexSupport")));
-        Assert.Equal("Copies", LedmCopy.Target(new XElement("Copies")));
-        Assert.Equal("Support", LedmCopy.Target(new XElement("Support")));
+        var cap = "<c:CopyStateSupport access=\"readWrite\"><d:CopyState>start</d:CopyState></c:CopyStateSupport>";
+        Assert.Equal(["CopyState"], Read(Dyn(), cap)?.Path);
+        Assert.Null(Read(Dyn("<d:CopySettings><d:CopyState>idle</d:CopyState></d:CopySettings>"), cap)); // not anywhere below
     }
 
-    // ------------------------------------------------------------------ which way a copy goes
+    // ------------------------------------------------------------------ which way a copy goes, and what the tab shows
 
     [Theory]
     [InlineData(true, true, false, true)]
-    [InlineData(true, false, false, false)] // Through this PC chosen
+    [InlineData(true, false, false, false)] // Through this PC, the default
     [InlineData(true, true, true, false)] // an ID card is laid out by the PC
     [InlineData(false, true, false, false)] // the printer doesn't offer it
-    public void The_printer_copies_by_itself_only_when_it_offers_it_for_a_page_copy_left_chosen(bool offers, bool chosen, bool idCard, bool expected) =>
+    public void The_printer_copies_by_itself_only_when_it_offers_it_for_a_page_copy_and_it_was_chosen(bool offers, bool chosen, bool idCard, bool expected) =>
         Assert.Equal(expected, CopyRoute.OnPrinter(offers, chosen, idCard));
 
     [Fact]
@@ -267,4 +255,30 @@ public class PrinterCopyTests
         Assert.Equal(CopyBlocker.NoQueue, CopyRoute.Blocker(false, true, true, false));
         Assert.Equal(CopyBlocker.None, CopyRoute.Blocker(false, true, true, true));
     }
+
+    [Fact]
+    public void On_the_printer_no_option_is_shown_its_panel_decides()
+    {
+        Assert.Equal(new CopyControls(false, false, false, false, false), CopyRoute.Controls(onPrinter: true, idCard: false, copies: 5, queueTwoSided: true));
+    }
+
+    [Theory]
+    [InlineData(false, 1, true, true, false, true, true, true)]
+    [InlineData(false, 2, true, true, true, true, true, true)] // collate once there's more than one copy
+    [InlineData(false, 2, false, true, true, true, false, true)] // two-sided only when the queue can
+    [InlineData(true, 2, true, true, false, true, false, false)] // an ID card: one sheet, no collate, no page options
+    public void Through_the_PC_the_options_follow_the_copy(bool idCard, int copies, bool queueTwoSided,
+        bool showCopies, bool collate, bool color, bool twoSided, bool pcOptions) =>
+        Assert.Equal(new CopyControls(showCopies, collate, color, twoSided, pcOptions), CopyRoute.Controls(onPrinter: false, idCard, copies, queueTwoSided));
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(-5, 1)]
+    [InlineData(1, 1)]
+    [InlineData(42, 42)]
+    [InlineData(99, 99)]
+    [InlineData(100, 99)]
+    [InlineData(int.MaxValue, 99)]
+    [InlineData(int.MinValue, 1)]
+    public void Copies_stay_between_one_and_ninety_nine(int typed, int kept) => Assert.Equal(kept, CopyRoute.ClampCopies(typed));
 }

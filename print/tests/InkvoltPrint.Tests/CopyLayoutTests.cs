@@ -187,9 +187,28 @@ public class CopyLayoutTests
     public void Collated_copies_print_each_side_once_and_leave_the_copies_to_the_queue()
     {
         Assert.Equal(("0 1 2", 2), Order(3, 2, collate: true, twoSided: false));
-        Assert.Equal(("0 1 2", 2), Order(3, 2, collate: true, twoSided: true));
+        Assert.Equal(("0 1 2 3", 2), Order(4, 2, collate: true, twoSided: true)); // even: each copy ends on a full sheet
         Assert.Equal(("0 1", 1), Order(2, 1, collate: false, twoSided: true)); // one copy: nothing to collate
+        Assert.Equal(("0 1 2", 1), Order(3, 1, collate: true, twoSided: true)); // one copy: its last back is blank anyway
     }
+
+    [Fact]
+    public void Collated_two_sided_copies_of_an_odd_count_each_end_on_a_blank_back()
+    {
+        // Left to the queue's copy count, copy 2 would start on copy 1's last back: made here instead, one copy on the ticket.
+        Assert.Equal(("0 1 2 -1 0 1 2 -1 0 1 2 -1", 1), Order(3, 3, collate: true, twoSided: true));
+        Assert.Equal(("0 -1 0 -1", 1), Order(1, 2, collate: true, twoSided: true));
+        Assert.Equal(6, CopyLayout.Sheets(5, 2, 3, twoSided: true)); // 3 sides: 2 sheets a copy, as the order prints them
+    }
+
+    [Theory]
+    [InlineData(5, 2, 0, "0 1")]
+    [InlineData(5, 2, 2, "4")]
+    [InlineData(5, 2, 3, "")]
+    [InlineData(5, 4, -1, "")]
+    [InlineData(int.MaxValue, 4, int.MaxValue, "")]
+    public void A_side_holds_its_pages_and_a_side_past_the_end_none(int pages, int perSheet, int side, string expected) =>
+        Assert.Equal(expected, string.Join(' ', CopyLayout.PagesOnSide(pages, perSheet, side)));
 
     [Fact]
     public void Uncollated_copies_repeat_each_sheet_with_one_copy_on_the_ticket()

@@ -3385,4 +3385,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="PrinterCopy_Refused" xml:space="preserve">
     <value>La impresora rechazó la copia. Elige A través de este PC y vuelve a copiar.</value>
   </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>La impresora no respondió, así que puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
+  </data>
 </root>

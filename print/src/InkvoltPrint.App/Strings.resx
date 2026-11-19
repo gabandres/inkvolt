@@ -4380,7 +4380,7 @@ Start over</value>
     <comment>radio button under Copy_CopyWith</comment>
   </data>
   <data name="Copy_OnPrinterHelp" xml:space="preserve">
-    <value>No Windows queue needed</value>
+    <value>With its control panel's settings; no Windows queue needed</value>
     <comment>caption under Copy_OnPrinter</comment>
   </data>
   <data name="Copy_ThroughPc" xml:space="preserve">
@@ -4388,7 +4388,7 @@ Start over</value>
     <comment>radio button under Copy_CopyWith; PrinterCopy_* messages in the Core name it</comment>
   </data>
   <data name="Copy_ThroughPcHelp" xml:space="preserve">
-    <value>Preview, 2 or 4 pages per sheet</value>
+    <value>Copies, preview, 2 or 4 pages per sheet</value>
     <comment>caption under Copy_ThroughPc</comment>
   </data>
   <data name="Copy_PagesPerSheet" xml:space="preserve">
@@ -4424,8 +4424,8 @@ Start over</value>
     <value>Put the pages face up in the printer's document feeder, or one page face down on its glass, then press Copy. The printer copies by itself.</value>
   </data>
   <data name="Copy_SummaryOnPrinter" xml:space="preserve">
-    <value>on the printer itself</value>
-    <comment>part of the summary, after Copy_Copies_*</comment>
+    <value>The printer copies with the copies, two-sided and other settings on its own control panel.</value>
+    <comment>the copy summary when the printer copies by itself</comment>
   </data>
   <data name="Copy_SummaryUncollated" xml:space="preserve">
     <value>not collated</value>
@@ -4435,14 +4435,13 @@ Start over</value>
     <value>Asking the printer to copy…</value>
   </data>
   <data name="Copy_SentPrinter" xml:space="preserve">
-    <value>The printer is copying: {0}.</value>
-    <comment>{0} = Copy_Copies_*</comment>
+    <value>The printer is copying, with the settings on its control panel.</value>
   </data>
   <data name="Copy_PrinterNeedsPassword" xml:space="preserve">
     <value>{0} Save it under Printer settings, then copy again.</value>
     <comment>{0} = the printer's own message that it needs its admin password</comment>
   </data>
   <data name="Copy_PrinterFailed" xml:space="preserve">
-    <value>Couldn't ask the printer to copy. Check that it's on, then try again.</value>
+    <value>Something went wrong while asking the printer to copy, and it may already be copying. Check its control panel before copying again.</value>
   </data>
 </root>

@@ -3561,13 +3561,13 @@ Empezar de nuevo</value>
     <value>La propia impresora</value>
   </data>
   <data name="Copy_OnPrinterHelp" xml:space="preserve">
-    <value>No necesita la cola de Windows</value>
+    <value>Con la configuración de su panel de control; no necesita la cola de Windows</value>
   </data>
   <data name="Copy_ThroughPc" xml:space="preserve">
     <value>A través de este PC</value>
   </data>
   <data name="Copy_ThroughPcHelp" xml:space="preserve">
-    <value>Vista previa, 2 o 4 páginas por hoja</value>
+    <value>Copias, vista previa, 2 o 4 páginas por hoja</value>
   </data>
   <data name="Copy_PagesPerSheet" xml:space="preserve">
     <value>Páginas por hoja</value>
@@ -3597,7 +3597,7 @@ Empezar de nuevo</value>
     <value>Pon las páginas boca arriba en el alimentador de documentos de la impresora, o una página boca abajo en su cristal, y presiona Copiar. La impresora copia por sí sola.</value>
   </data>
   <data name="Copy_SummaryOnPrinter" xml:space="preserve">
-    <value>en la propia impresora</value>
+    <value>La impresora copia con el número de copias, la doble cara y la demás configuración de su propio panel de control.</value>
   </data>
   <data name="Copy_SummaryUncollated" xml:space="preserve">
     <value>sin intercalar</value>
@@ -3606,12 +3606,12 @@ Empezar de nuevo</value>
     <value>Pidiendo a la impresora que copie…</value>
   </data>
   <data name="Copy_SentPrinter" xml:space="preserve">
-    <value>La impresora está copiando: {0}.</value>
+    <value>La impresora está copiando, con la configuración de su panel de control.</value>
   </data>
   <data name="Copy_PrinterNeedsPassword" xml:space="preserve">
     <value>{0} Guárdala en Configuración de la impresora y vuelve a copiar.</value>
   </data>
   <data name="Copy_PrinterFailed" xml:space="preserve">
-    <value>No se pudo pedir a la impresora que copie. Comprueba que esté encendida y vuelve a intentarlo.</value>
+    <value>Algo falló al pedir a la impresora que copie, y puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
   </data>
 </root>

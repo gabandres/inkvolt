@@ -4101,4 +4101,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="PrinterCopy_Refused" xml:space="preserve">
     <value>The printer turned the copy down. Choose Through this PC, then copy again.</value>
   </data>
+  <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
+    <value>The printer didn't answer, so it may already be copying. Check its control panel before copying again.</value>
+  </data>
 </root>
