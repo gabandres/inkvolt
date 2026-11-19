@@ -33,6 +33,7 @@ public sealed class SuspectWordItem(int page, int index, OcrWord word, string pa
             if (Word.Suspect.HasFlag(SuspectReasons.LettersAndDigits)) why.Add(Strings.Suspects_WhyLettersDigits);
             if (Word.Suspect.HasFlag(SuspectReasons.OddCharacters)) why.Add(Strings.Suspects_WhyOddCharacters);
             if (Word.Suspect.HasFlag(SuspectReasons.ReadDifferently)) why.Add(Strings.Suspects_WhyReadDifferently);
+            if (Word.Suspect.HasFlag(SuspectReasons.Unsure)) why.Add(Strings.Suspects_WhyUnsure);
             return string.Join(Strings.Suspects_WhySeparator, why);
         }
     }
@@ -234,7 +235,7 @@ public partial class DocumentTab
         SuspectText.Text = item.Text;
         SuspectSuggestions.Children.Clear();
         var core = SuspectWords.Core(item.Text);
-        var suggestions = item.Word.Suspect.HasFlag(SuspectReasons.NotInDictionary) && PageOcr.Spelling(item.Language) is { } spelling
+        var suggestions = item.Word.Suspect.HasFlag(SuspectReasons.NotInDictionary) && PageOcr.SpellingOf(item.Language) is { } spelling
             ? spelling.Suggest(core).Take(4).ToList()
             : [];
         foreach (var s in suggestions)

@@ -384,7 +384,9 @@ public sealed record BatchPlan
     public bool IsSequential => Steps.OfType<HeaderFooterStep>().Any(s => s.ContinueBates && s.Options.Bates is not null) || Steps.Any(s => s is AddLongTermStep);
 
     /// <summary>What is wrong with the plan (for the dialog), or null.</summary>
-    public string? Validate(bool ocrAvailable)
+    /// <param name="ocrMissing">Why text recognition can't read now (the language chosen still needs a download), said
+    /// instead of the general message when the plan recognizes text.</param>
+    public string? Validate(bool ocrAvailable, string? ocrMissing = null)
     {
         if (Steps.Count == 0) return PdfStrings.Batch_PlanNoSteps;
         if (Steps.Select(s => s.Feature).FirstOrDefault(f => f is { } x && !Pro.Allows(x)) is { } locked) return Pro.Locked(locked);
@@ -414,7 +416,7 @@ public sealed record BatchPlan
         if (lastRedaction > 0 && Steps.Take(lastRedaction).Any(s => s is ExportStep or ReportContentsStep))
             return PdfStrings.Batch_PlanRedactFirst;
         if (!ocrAvailable && Steps.Any(s => s is OcrStep))
-            return PdfStrings.Batch_PlanNoOcr;
+            return ocrMissing ?? PdfStrings.Batch_PlanNoOcr;
         return null;
     }
 }
@@ -436,6 +438,12 @@ public sealed record BatchPasswordRequest(BatchFile File, BatchPasswordKind Kind
 /// <summary>What the app gives a batch: password prompts and text recognition.</summary>
 public sealed class BatchHost
 {
+    /// <summary>
+    /// Why <see cref="Ocr"/> is null, when it is: the language chosen in Recognize Text still needs Tesseract's download
+    /// (named). A plan that recognizes text stops with it rather than reading in another language.
+    /// </summary>
+    public string? OcrUnavailable { get; init; }
+
     /// <summary>Asks for a file's password (one prompt at a time); null skips the file. Unset: files that need one are skipped.</summary>
     public Func<BatchPasswordRequest, CancellationToken, Task<string?>>? AskPassword { get; init; }
 
@@ -460,11 +468,22 @@ public sealed class BatchHost
 }
 
 /// <summary>A recognizer that runs one call at a time under a lock it shares with the other users of one engine.</summary>
-public sealed class SerialRecognizer(InkvoltPrint.Core.Imaging.ITextRecognizer inner, Lock gate) : InkvoltPrint.Core.Imaging.ITextRecognizer
+public sealed class SerialRecognizer(InkvoltPrint.Core.Imaging.ITextRecognizer inner, Lock gate) : InkvoltPrint.Core.Imaging.ITextRecognizer, IRereadsMissed
 {
     public string Language => inner.Language;
 
     public string LanguageName => inner.LanguageName;
+
+    /// <summary>The recognizer it runs one call at a time (for its languages and spell checkers).</summary>
+    public InkvoltPrint.Core.Imaging.ITextRecognizer Inner => inner;
+
+    /// <summary>The inner one's re-reader, under the same lock.</summary>
+    public InkvoltPrint.Core.Imaging.ITextRecognizer? Rereader => ScanText.RereaderOf(inner) switch
+    {
+        null => null,
+        var r when ReferenceEquals(r, inner) => this,
+        var r => new SerialRecognizer(r, gate),
+    };
 
     public IReadOnlyList<InkvoltPrint.Core.Imaging.RecognizedWord> Recognize(byte[] pixels, int width, int height, int channels, CancellationToken cancel = default)
     {
@@ -541,7 +560,7 @@ public static class BatchRunner
     public static async Task<BatchSummary> RunAsync(IReadOnlyList<BatchFile> files, BatchPlan plan, BatchHost host, IProgress<BatchProgress>? progress,
         CancellationToken cancel)
     {
-        if (plan.Validate(host.Ocr is not null) is { } error) throw new ArgumentException(error, nameof(plan));
+        if (plan.Validate(host.Ocr is not null, host.OcrUnavailable) is { } error) throw new ArgumentException(error, nameof(plan));
         var results = new BatchItemResult?[files.Count];
         var names = new OutputNames(!plan.NeverOverwrite, files.Select(f => f.Path));
         using var prompts = new SemaphoreSlim(1, 1);

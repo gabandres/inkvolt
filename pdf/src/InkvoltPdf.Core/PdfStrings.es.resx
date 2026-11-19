@@ -6948,4 +6948,12 @@
     <value>Quita para siempre lo que marcaste</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Tesseract_Failed" xml:space="preserve">
+    <value>Tesseract se detuvo sin leer la página. Inténtalo de nuevo o elige un idioma que lea Windows.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Tesseract_TooSlow" xml:space="preserve">
+    <value>Tesseract tardó demasiado en leer una página, así que se detuvo. Inténtalo de nuevo con menos páginas o un solo idioma.</value>
+    <comment>Message</comment>
+  </data>
 </root>
