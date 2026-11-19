@@ -515,8 +515,8 @@ public sealed class WindowsWia : IWiaSystem
             Set(ip, WiaIds.Depth, s.Depth);
             Set(ip, WiaIds.XResolution, s.Resolution);
             Set(ip, WiaIds.YResolution, s.Resolution);
-            Set(ip, WiaIds.XPosition, 0);
-            Set(ip, WiaIds.YPosition, 0);
+            Set(ip, WiaIds.XPosition, s.X);
+            Set(ip, WiaIds.YPosition, s.Y);
             // The extents' limits follow the resolution just set: read them now.
             Set(ip, WiaIds.XExtent, Limit(ip, WiaIds.XExtent, s.Width));
             Set(ip, WiaIds.YExtent, Limit(ip, WiaIds.YExtent, s.Height));

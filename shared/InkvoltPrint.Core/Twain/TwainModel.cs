@@ -80,14 +80,17 @@ public sealed record TwainCaps(bool Feeder, bool FeederOnly, bool Duplex, bool F
 /// <param name="Feeder">CAP_FEEDERENABLED (and CAP_AUTOFEED).</param>
 /// <param name="Right">Image layout frame, inches from the top left.</param>
 /// <param name="Count">CAP_XFERCOUNT: -1 (all the feeder holds) or 1 (the glass).</param>
-public sealed record TwainSettings(bool Feeder, bool Duplex, ushort PixelType, ushort BitDepth, int Resolution, double Right, double Bottom, short Count)
+/// <param name="Left">The frame's left edge, inches (0 unless a region was asked for).</param>
+public sealed record TwainSettings(bool Feeder, bool Duplex, ushort PixelType, ushort BitDepth, int Resolution, double Right, double Bottom, short Count,
+    double Left = 0, double Top = 0)
 {
     public static TwainSettings From(WiaScanSettings s) => new(
         s.Feeder, s.Duplex,
         s.DataType switch { WiaIds.DataThreshold => Tw.PtBw, WiaIds.DataGrayscale => Tw.PtGray, _ => Tw.PtRgb },
         (ushort)s.Depth, s.Resolution,
-        Math.Round(s.Width / (double)s.Resolution, 3), Math.Round(s.Height / (double)s.Resolution, 3),
-        s.Feeder ? (short)-1 : (short)1);
+        Math.Round((s.X + s.Width) / (double)s.Resolution, 3), Math.Round((s.Y + s.Height) / (double)s.Resolution, 3),
+        s.Feeder ? (short)-1 : (short)1,
+        Math.Round(s.X / (double)s.Resolution, 3), Math.Round(s.Y / (double)s.Resolution, 3));
 }
 
 /// <summary>TWAIN failures as the WIA errors <see cref="WiaErrors.Message"/> words, so both read the same to the user.</summary>

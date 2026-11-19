@@ -73,6 +73,13 @@ public abstract class PcEnvironment
     public abstract DriverScanners Wia { get; }
 
     /// <summary>
+    /// Where a shared scanner (roadmap 3.1) listens and announces itself: Kestrel on the network's private side, Windows' DNS-SD responder,
+    /// Windows' network categories, the certificate kept in the user's key store; on the made-up PC, Kestrel on 127.0.0.1 only, on any
+    /// free port, with a certificate made for the run and nothing announced.
+    /// </summary>
+    public abstract Core.Sharing.ShareEnvironment ScannerSharing { get; }
+
+    /// <summary>
     /// Network printers' Windows queues are looked up (whether one is set up, and setting one up). False on the made-up PC,
     /// where every printer's queue counts as set up and is never looked for.
     /// </summary>
@@ -184,6 +191,10 @@ public abstract class PcEnvironment
         public override (IReadOnlyList<SpoolerQueue>, IReadOnlyList<WiaDeviceInfo>)? FixedDevices => null;
         public override DriverScanners Wia { get; } =WindowsTwain.BesideWia(Log.Write); // WIA scanners and TWAIN sources, one list
         public override bool HasWindowsQueues => true;
+
+        public override Core.Sharing.ShareEnvironment ScannerSharing => _sharing ??= new(new InkvoltPrint.Sharing.KestrelShareHost(),
+            new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));
+        private Core.Sharing.ShareEnvironment? _sharing;
 
         public override async Task<string?> FindQueueAsync(string uuid, string? host, SpoolerQueue? listed, AppState state)
         {

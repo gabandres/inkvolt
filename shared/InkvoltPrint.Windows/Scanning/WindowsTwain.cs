@@ -245,7 +245,7 @@ public sealed class WindowsTwain : IWiaSystem
             SetOne(Tw.IcapYResolution, Tw.TyFix32, Tw.ToFix32(t.Resolution));
             var layout = new TwImageLayout
             {
-                Right = Tw.ToFix32(t.Right), Bottom = Tw.ToFix32(t.Bottom),
+                Left = Tw.ToFix32(t.Left), Top = Tw.ToFix32(t.Top), Right = Tw.ToFix32(t.Right), Bottom = Tw.ToFix32(t.Bottom),
                 DocumentNumber = uint.MaxValue, PageNumber = uint.MaxValue, FrameNumber = uint.MaxValue,
             };
             Entry(App, _source, Tw.DgImage, Tw.DatImageLayout, Tw.MsgSet, ref layout); // a source that refuses scans its whole area

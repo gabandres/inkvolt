@@ -6,6 +6,7 @@ using InkvoltPrint.App.Presets;
 using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Probe;
 using InkvoltPrint.Core.Queues;
+using InkvoltPrint.Core.Sharing;
 using InkvoltPrint.Core.Snmp;
 using InkvoltPrint.Core.Suite;
 using InkvoltPrint.Core.Wia;
@@ -60,6 +61,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _pc = pc;
         _wia = pc.Wia;
         Presets = new ScanPresetLibrary(state, demo: pc.IsDemo);
+        // One scanner shared on the network at a time (roadmap 3.1): each entry with a Windows scanner shows its card and hands it the
+        // connected scanner; it listens only once that scanner is connected.
+        Share = new ScannerShare(pc.ScannerSharing, pc.ComputerName, state.ScannerShare, state.SetScannerShare,
+            () => Core.Pro.Allows(Core.ProFeature.ScannerSharing), line => Log.Write(line));
+        Printers.CollectionChanged += (_, e) =>
+        {
+            foreach (var p in e.NewItems?.OfType<PrinterViewModel>() ?? []) p.UseShare(Share);
+        };
+        Views.ProWindow.LicenceChanged += RecheckShare;
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
         foreach (var k in state.Printers.ToList())
         {
@@ -122,6 +132,24 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     }
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
+
+    /// <summary>The scanner shared on the network (roadmap 3.1, Inkvolt Pro): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
+    public ScannerShare Share { get; }
+
+    /// <summary>Inkvolt Pro was entered or removed: sharing starts or stops as it now may.</summary>
+    private void RecheckShare() => _ = RecheckShareAsync();
+
+    private async Task RecheckShareAsync()
+    {
+        try
+        {
+            await Share.RecheckAsync();
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"Scanner sharing not checked again: {ex.Message}");
+        }
+    }
 
     /// <summary>The Fleet page: every printer at once (roadmap 2.6). Made when first shown.</summary>
     public FleetViewModel Fleet => _fleet ??= new FleetViewModel(this, _pc);
@@ -735,6 +763,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!Prompt.Ask(string.Format(Strings.Main_ForgetAsk, p.Name) + warning + "\n\n" + again, Strings.Common_Remove))
             return;
         p.ScanButton.Button.Seal(); // first: its scan button saves nothing from now on, so the choice removed below never comes back
+        if (p.Sharing is { IsOn: true } shared) shared.IsOn = false; // a forgotten scanner isn't shared on
         _state.RemovePrinter(p.Uuid);
         _pc.History.Forget(p.Uuid);
         _pc.SnmpLogins.Delete(p.Uuid); // its community goes with it: Add a printer asks for it again
@@ -777,6 +806,16 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
+        // First: the shared scanner's port closes and its announcement ends before anything else stops (the choice is kept).
+        Views.ProWindow.LicenceChanged -= RecheckShare;
+        try
+        {
+            if (!Task.Run(() => Share.DisposeAsync().AsTask()).Wait(TimeSpan.FromSeconds(4))) Log.Write("Scanner sharing took too long to stop.");
+        }
+        catch (AggregateException ex)
+        {
+            Log.Write($"Scanner sharing didn't stop cleanly: {ex.InnerException?.Message}");
+        }
         _fleet?.Hide();
         _queueWatch.Cancel();
         _queueWatch.Dispose();

@@ -110,7 +110,10 @@ public sealed record WiaScannerInfo(
 /// <param name="Width">Area in pixels at <paramref name="Resolution"/> (the driver's own limit applies too).</param>
 /// <param name="Pages">WIA_DPS_PAGES to set: 1 for one side from the feeder (one page per transfer), 0 (all pages) for both sides,
 /// since a sheet is two pages then and 1 would give the front only; null for the glass (left alone).</param>
-public sealed record WiaScanSettings(int? Handling, bool Feeder, int DataType, int Depth, int Resolution, int Width, int Height, int? Pages = null)
+/// <param name="X">Where the area starts, in pixels at <paramref name="Resolution"/> from the left (0: the edge).</param>
+/// <param name="Y">Where the area starts, in pixels from the top.</param>
+public sealed record WiaScanSettings(int? Handling, bool Feeder, int DataType, int Depth, int Resolution, int Width, int Height, int? Pages = null,
+    int X = 0, int Y = 0)
 {
     /// <summary>Both sides of each sheet: two pages per sheet, front first.</summary>
     public bool Duplex => Feeder && Handling is { } h && (h & WiaIds.SelectDuplex) != 0;

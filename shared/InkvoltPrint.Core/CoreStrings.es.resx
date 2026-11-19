@@ -3514,4 +3514,40 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora.</value>
   </data>
+  <data name="Wia_InUse" xml:space="preserve">
+    <value>El escáner está ocupado con otro escaneo, de este PC o de un dispositivo que escanea con él desde la red. Vuelve a intentarlo cuando termine.</value>
+  </data>
+  <data name="Share_InstanceName" xml:space="preserve">
+    <value>{0} en {1}</value>
+  </data>
+  <data name="Share_Off" xml:space="preserve">
+    <value>Desactivado. Si lo activas, los teléfonos, Mac y otros equipos de una red privada pueden escanear con este escáner mientras Inkvolt Print esté abierto aquí.</value>
+  </data>
+  <data name="Share_OtherShared" xml:space="preserve">
+    <value>Ahora se comparte {0}. Si activas esto, se comparte este escáner en su lugar: se comparte un escáner a la vez.</value>
+  </data>
+  <data name="Share_WaitingForScanner" xml:space="preserve">
+    <value>Se compartirá cuando el escáner responda. Comprueba que esté encendido y conectado.</value>
+  </data>
+  <data name="Share_NoPrivateNetwork" xml:space="preserve">
+    <value>No se comparte: este PC no está en una red privada. Si confías en esta red, cámbiala a Privada en Configuración de Windows › Red e Internet, y el escáner se comparte al instante.</value>
+  </data>
+  <data name="Share_Starting" xml:space="preserve">
+    <value>Iniciando…</value>
+  </data>
+  <data name="Share_On" xml:space="preserve">
+    <value>Se comparte como "{0}" en el puerto {1}. Los teléfonos, Mac y otros equipos de esta red privada pueden escanear con él mientras Inkvolt Print esté abierto aquí.</value>
+  </data>
+  <data name="Share_OnThisPc" xml:space="preserve">
+    <value>Demostración: se comparte como "{0}" en el puerto {1}, solo para este PC.</value>
+  </data>
+  <data name="Share_PortInUse" xml:space="preserve">
+    <value>No se comparte: otro programa usa el puerto {0}. Ciérralo y luego desactiva y vuelve a activar el uso compartido.</value>
+  </data>
+  <data name="Share_Failed" xml:space="preserve">
+    <value>No se comparte: el uso compartido no pudo iniciarse. Desactívalo y vuelve a activarlo; si sigue sin iniciarse, Ayuda › Informar un problema envía los detalles.</value>
+  </data>
+  <data name="Share_NotAnnounced" xml:space="preserve">
+    <value>No se pudo anunciar, así que puede que los dispositivos no lo muestren solos: agrégalo con la dirección de este PC.</value>
+  </data>
 </root>

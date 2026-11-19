@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/InkvoltPrint.App/InkvoltPrint.App.csproj" />
     <Project Path="src/InkvoltPrint.Cli/InkvoltPrint.Cli.csproj" />
+    <Project Path="src/InkvoltPrint.Sharing/InkvoltPrint.Sharing.csproj" />
   </Folder>
   <Folder Name="/shared/">
     <Project Path="../shared/InkvoltPrint.Core/InkvoltPrint.Core.csproj" />

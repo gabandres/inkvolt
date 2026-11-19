@@ -3643,4 +3643,16 @@ Empezar de nuevo</value>
   <data name="ScanTab_ButtonPreset" xml:space="preserve">
     <value>El ajuste de escaneo que se ejecuta al pulsar el botón de la impresora</value>
   </data>
+  <data name="ScanTab_Share" xml:space="preserve">
+    <value>Compartir en la red</value>
+  </data>
+  <data name="ScanTab_ShareSwitch" xml:space="preserve">
+    <value>Compartir este escáner en la red (Inkvolt Pro)</value>
+  </data>
+  <data name="ScanTab_ShareFingerprint" xml:space="preserve">
+    <value>Huella digital del certificado (SHA-256), para compararla donde un dispositivo la muestre:</value>
+  </data>
+  <data name="Tray_ShareScanner" xml:space="preserve">
+    <value>_Compartir un escáner en la red</value>
+  </data>
 </root>

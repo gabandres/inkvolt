@@ -224,6 +224,8 @@ public partial class App : Application
             _ = DevSnapshot.SimulateAlertsAsync(Tray);
         if (args.Contains("--simulate-jobs") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateJobsAsync(Tray);
+        if (args.Contains("--share") && demo && !args.Contains("--snapshot"))
+            _ = DevSnapshot.ShareAsync(_vm);
         if (Array.IndexOf(args, "--snapshot") is var i and >= 0 && i + 1 < args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args); // it reads its own flags
         _started = true;
