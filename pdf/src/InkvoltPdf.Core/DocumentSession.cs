@@ -215,7 +215,7 @@ public sealed partial class DocumentSession : IDisposable
     /// </summary>
     public static DocumentSession FromBytes(byte[] data, string displayName, string? password = null, bool repair = false)
     {
-        (data, var engine, var repaired) = repair ? OpenReadable(data, InputFileTypes.PDF, password) : (data, PdfEngine.Open(data, InputFileTypes.PDF, password), 0L);
+        (data, var engine, var repaired) = repair ? OpenReadable(data, InputFileTypes.PDF, password, shown: true) : (data, PdfEngine.Open(data, InputFileTypes.PDF, password), 0L);
         var session = new DocumentSession(null, displayName, data, password, InputFileTypes.PDF, engine) { RepairedLength = repaired };
         session._savedVersion = -1; // never saved
         return session;
@@ -233,7 +233,7 @@ public sealed partial class DocumentSession : IDisposable
     public static DocumentSession Recover(byte[] data, string? originalPath, string displayName, (long Length, DateTime WriteTimeUtc)? diskStamp = null,
         string? password = null, long repairedLength = 0)
     {
-        (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password);
+        (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password, shown: true);
         repaired = Math.Max(repaired, Math.Clamp(repairedLength, 0, data.LongLength));
         var path = originalPath is null ? null : Path.GetFullPath(originalPath);
         var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
@@ -474,7 +474,7 @@ public sealed partial class DocumentSession : IDisposable
                 throw;
             }
         }
-        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password);
+        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password, shown: true);
         var open = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
         return new DiskCopy(data, null, type, bytesEngine, stamp, password, open, repaired);
     }
@@ -490,8 +490,28 @@ public sealed partial class DocumentSession : IDisposable
     /// bytes, the file is opened as it is (logged). Also returns the repaired copy's length (0 when not repaired). Blocks:
     /// call it off the UI thread.
     /// </summary>
-    public static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password) =>
-        OpenReadable(data, type, password, bytes => PdfEngine.Open(bytes, type, password));
+    /// <param name="shown">The document is one the user sees (a session's): each engine opened has its first page checked
+    /// (<see cref="PdfEngine.CheckFirstPage"/>) at once, while PDFsharp still reads the bytes, rather than after: the first
+    /// page then waits for the longer of the two, not both. An engine let go of for the repaired copy takes its check back.</param>
+    public static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, bool shown = false) =>
+        OpenReadable(data, type, password, Opener(type, password, shown));
+
+    /// <summary>Opens the engine on bytes; for a document the user sees, with its first page asked for at once.</summary>
+    internal static Func<byte[], PdfEngine> Opener(InputFileTypes type, string? password, bool shown) => bytes =>
+    {
+        var engine = PdfEngine.Open(bytes, type, password);
+        if (!shown) return engine;
+        try
+        {
+            engine.CheckFirstPage();
+            return engine;
+        }
+        catch
+        {
+            engine.Dispose();
+            throw;
+        }
+    };
 
     /// <param name="open">Opens the engine on bytes (tests: one that refuses the repaired copy).</param>
     internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open) =>

@@ -29,6 +29,11 @@ public static class Links
     public static IReadOnlyList<LinkInfo> Read(byte[] data, string? password)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Link_CantRead);
+        return Read(doc);
+    }
+
+    internal static IReadOnlyList<LinkInfo> Read(PdfDocument doc)
+    {
         var list = new List<LinkInfo>();
         for (var p = 0; p < doc.PageCount; p++)
         {

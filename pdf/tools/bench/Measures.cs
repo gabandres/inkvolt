@@ -56,7 +56,7 @@ public static class Measures
         var readMs = Ms(sw);
         PdfEngine OpenEngine()
         {
-            var engine = data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : DocumentSession.OpenReadable(data, InputFileTypes.PDF, null).Engine;
+            var engine = data is null ? PdfEngine.OpenFile(path, InputFileTypes.PDF, null) : DocumentSession.OpenReadable(data, InputFileTypes.PDF, null, shown: true).Engine;
             engine.CheckFirstPage(); // as DocumentSession does for the document the user opens
             return engine;
         }

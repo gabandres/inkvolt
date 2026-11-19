@@ -51,6 +51,10 @@ public sealed record AnnotationInfo(
     AnnotStyle? Style = null,
     int PageRotation = 0);
 
+/// <summary>What <see cref="Annotations.ReadPages"/> reads of every page's annotations.</summary>
+public sealed record PageAnnotations(IReadOnlyList<AnnotationInfo> Comments, IReadOnlyList<AttachmentInfo> Attachments, IReadOnlyList<TextStamp> SignatureStamps,
+    IReadOnlyList<LinkInfo> Links);
+
 /// <summary>
 /// Reads and edits comments (markup annotations): text highlights/underlines/strike-outs/squiggles and sticky notes.
 /// Widgets, links and popups are not listed. Every call takes the document bytes and returns new bytes.
@@ -74,6 +78,48 @@ public static partial class Annotations
     public static IReadOnlyList<AnnotationInfo> Read(byte[] data, string? password)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Comment_CantRead);
+        return Read(doc);
+    }
+
+    /// <summary>
+    /// What the review panes show of every page's annotations (comments, attachments, signature stamps, links), from one
+    /// read of the document: PDFsharp's read is most of each reader's time, and four reads of 10,000 comments made so much
+    /// garbage that its collections paused the viewer while it scrolled. A part that fails to read is logged through
+    /// <paramref name="failed"/> and empty, as when each read the document itself.
+    /// </summary>
+    public static PageAnnotations ReadPages(byte[] data, string? password, Action<string, Exception> failed)
+    {
+        PdfDocument doc;
+        try
+        {
+            doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Comment_CantRead);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            foreach (var what in new[] { "comments", "attachments", "signature stamps", "links" }) failed(what, ex);
+            return new PageAnnotations([], [], [], []);
+        }
+        using (doc)
+        {
+            IReadOnlyList<T> Part<T>(string what, Func<PdfDocument, IReadOnlyList<T>> read)
+            {
+                try
+                {
+                    return read(doc);
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    failed(what, ex);
+                    return [];
+                }
+            }
+            return new PageAnnotations(Part("comments", Read), Part("attachments", Attachments.List), Part("signature stamps", SignatureStamps.Read),
+                Part("links", Links.Read));
+        }
+    }
+
+    internal static IReadOnlyList<AnnotationInfo> Read(PdfDocument doc)
+    {
         var list = new List<AnnotationInfo>();
         for (var p = 0; p < doc.PageCount; p++)
         {

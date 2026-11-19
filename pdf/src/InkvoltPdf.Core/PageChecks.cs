@@ -164,7 +164,7 @@ public static class PageChecks
     /// <summary>
     /// A render waiting for its page's check gets, after the check, the check's drawing of the whole page at its scale when
     /// that is of this many pixels or fewer (a sheet fit to a 4K screen) and is drawn within <see cref="PictureLimit"/>:
-    /// the display list is made once, in the check process, and the two check processes draw a page and the next one at
+    /// the display list is made once, in the check process, and the check processes draw a page and the next ones at
     /// once, where threads in one process wait on each other (pdf/ROADMAP.md 3.6). Otherwise the render draws the page
     /// here, as before. The picture is only a shortcut: the page's verdict is sent before it is drawn, so its time never
     /// counts against <see cref="Limit"/>.
@@ -410,6 +410,22 @@ internal sealed class CheckedDocument(byte[]? data, string? path, InputFileTypes
         set => _pictureLate = value;
     }
 
+    private int _slowInARow;
+
+    /// <summary>
+    /// The last three of its pages checked each took <see cref="PageCheckPlan.SlowCheck"/> or longer (one alone may be a
+    /// check process's first, its code still compiling): more of its pages are checked ahead, on more processes
+    /// (<see cref="PageCheckPlan.SlowWorkers"/>). Read anywhere.
+    /// </summary>
+    public bool Slow => Volatile.Read(ref _slowInARow) >= 3;
+
+    /// <summary>A page of it was checked, in <see cref="PageCheckPlan.SlowCheck"/> or longer when <paramref name="slow"/>.</summary>
+    public void Checked(bool slow)
+    {
+        if (slow) Interlocked.Increment(ref _slowInARow);
+        else Volatile.Write(ref _slowInARow, 0);
+    }
+
     private volatile bool _closed;
 
     /// <summary>Set under the plan's lock; read anywhere.</summary>
@@ -572,6 +588,21 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// </summary>
     public int Workers { get; init; } = 2;
 
+    /// <summary>
+    /// Check processes at once while a document's pages take <see cref="SlowCheck"/> or longer each (a drawing set's sheet:
+    /// its display list and its picture, 0.4 to 0.8 s): as many pages are checked ahead, so scrolling gets a sheet every
+    /// 0.2 s or so where two processes gave one every 0.3 to 0.4 s. MuPDFCore's process-wide locks keep more threads in
+    /// one process from helping (a sheet drawn on six threads is slower than on four), processes don't wait on each other.
+    /// Each takes some 100 MB with a sheet; never more than <see cref="Workers"/> when that is under 2.
+    /// </summary>
+    public int SlowWorkers { get; init; } = Math.Clamp(Environment.ProcessorCount / 3, 2, 4);
+
+    /// <summary>Pages whose checks (with their pictures) take this long or longer make their document's <see cref="CheckedDocument.Slow"/>.</summary>
+    public TimeSpan SlowCheck { get; init; } = TimeSpan.FromMilliseconds(200);
+
+    /// <summary>Check processes at once for pages of <paramref name="doc"/>.</summary>
+    internal int WorkersFor(CheckedDocument doc) => doc.Slow && Workers >= 2 ? Math.Max(Workers, SlowWorkers) : Workers;
+
     /// <summary>A check process with nothing to do for this long ends (the next page starts one again).</summary>
     public TimeSpan Idle { get; init; } = TimeSpan.FromMinutes(2);
 
@@ -636,7 +667,9 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
             _queue.AddLast(request);
             var idle = _links.Count(l => l.Current is null);
-            if (idle < _queue.Count && _links.Count < Workers && !Pausing()) StartLink();
+            // A second process starts before it takes a page: meanwhile the one running checks what is queued (a page of
+            // text in some 15 ms, against the 200 ms a process takes to start and open the document).
+            if (idle < _queue.Count && _links.Count < WorkersFor(doc) && !Pausing()) StartLink(now: _links.Count > 0);
             Monitor.PulseAll(_gate);
         }
         return request;
@@ -843,7 +876,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
             }
             while (true)
             {
-                CheckRequest? request = null;
+                CheckRequest? request = null, prepare = null;
                 var close = false;
                 lock (_gate)
                 {
@@ -858,6 +891,15 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                         }
                         if (Next(link.Open) is { } node)
                         {
+                            // A document another process has open is opened here first, its page left to whichever
+                            // process is free then: opening it (MuPDF reading every page's size, 0.1 to 0.3 s) takes
+                            // longer than the other's check of a page of text, and the next pages find both ready.
+                            if (node.Value.Doc != link.Open && link.Prepared != node.Value.Doc && _links.Any(l => l != link && l.Open == node.Value.Doc))
+                            {
+                                link.Prepared = node.Value.Doc;
+                                link.Current = prepare = new CheckRequest(node.Value.Doc, -1);
+                                break;
+                            }
                             request = node.Value;
                             _queue.Remove(node);
                             request.Started = true;
@@ -873,6 +915,25 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                 {
                     link.Close();
                     lock (_gate) Monitor.PulseAll(_gate);
+                    continue;
+                }
+                if (prepare is not null)
+                {
+                    try
+                    {
+                        link.Prepare(prepare.Doc);
+                    }
+                    finally
+                    {
+                        lock (_gate)
+                        {
+                            link.Current = null;
+                            if (link.StartFailed) StartFailed();
+                            ReleaseShared(prepare.Doc);
+                            Monitor.PulseAll(_gate);
+                        }
+                    }
+                    if (link.StartFailed) return;
                     continue;
                 }
                 var verdict = PageVerdict.Unchecked;
@@ -953,8 +1014,31 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
         private NamedPipeServerStream? _pipe;
         private bool _killed;                   // under _processGate
 
-        /// <summary>The request it is checking (under the plan's lock).</summary>
+        /// <summary>The request it is checking (under the plan's lock); one of page -1 while it opens a document ahead (<see cref="Prepare"/>).</summary>
         public CheckRequest? Current { get; set; }
+
+        /// <summary>The document it last opened ahead, tried once (under the plan's lock).</summary>
+        public CheckedDocument? Prepared { get; set; }
+
+        /// <summary>
+        /// Opens a document another process checks pages of, without taking a page: the next one asked finds both ready. A
+        /// failure is left to the next check (which opens it again, and decides as it always did).
+        /// </summary>
+        public void Prepare(CheckedDocument doc)
+        {
+            if (doc.Closed || plan._disposed || !EnsureStarted(doc)) return;
+            StartFailed = false;
+            try
+            {
+                var shared = doc.Data is null ? null : plan.SharedOf(doc);
+                if (doc.Data is not null && shared is null) return;
+                OpenDocument(doc, shared);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidDataException or ObjectDisposedException or AggregateException)
+            {
+                Kill();
+            }
+        }
 
         /// <summary>The document the process has open; null if none.</summary>
         public CheckedDocument? Open { get; private set; }
@@ -987,6 +1071,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                     FindWorkers.WriteLong(_pipe!, BitConverter.DoubleToInt64Bits(scale));
                     FindWorkers.WriteInt(_pipe!, (int)Math.Clamp(PageChecks.PictureLimit.TotalMilliseconds, 1, int.MaxValue));
                     _pipe!.Flush();
+                    var sent = Stopwatch.GetTimestamp();
                     var page = ReadInt(plan.Limit);
                     var answer = ReadInt(plan.Limit);
                     if (page != request.Page || answer is not (PageChecks.Drawn or PageChecks.Failed)) throw new InvalidDataException("Not an answer.");
@@ -999,6 +1084,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
                         request.Complete(PageVerdict.Fine);
                         ReceivePicture(request, scale);
                     }
+                    doc.Checked(Stopwatch.GetElapsedTime(sent) >= plan.SlowCheck);
                     return PageVerdict.Fine;
                 }
                 catch (TimeoutException)
