@@ -81,14 +81,15 @@ public static class DemoFleet
 
     /// <summary>
     /// The made-up PC's scanners (WIA): the scanner part of the USB laser (glass and a feeder, color or grey, its own driver's
-    /// resolutions; Windows lists it apart from the print queue, and its model number matches it to the queue's driver) and a USB
-    /// photo flatbed that belongs to no printer, listed on its own.
+    /// resolutions, a Scan button its driver reports; Windows lists it apart from the print queue, and its model number matches it
+    /// to the queue's driver) and a USB photo flatbed that belongs to no printer, listed on its own.
     /// </summary>
     public static IReadOnlyList<FakeWiaScanner> Scanners(Func<WiaScanSettings, int, byte[]> draw) =>
     [
         new(new WiaDeviceInfo(@"{6BDD1FC6-810F-11D0-BEC7-08002BE2092F}\0000", "Demo Laser 2100", "Demo", "Demo Laser 2100 scanner", @"\\.\Usbscan0"),
             new WiaScannerInfo(WiaIds.CapFeed | WiaIds.CapFlat | WiaIds.CapDetectFeedAvailable, 8500, 11690, 8500, 14000,
-                WiaValues.Of(300, 100, 150, 200, 300, 600), [0, WiaIds.DataGrayscale, WiaIds.DataColor], [WiaIds.FormatBmp]), draw),
+                WiaValues.Of(300, 100, 150, 200, 300, 600), [0, WiaIds.DataGrayscale, WiaIds.DataColor], [WiaIds.FormatBmp],
+                Buttons: [WiaIds.ScanButtonEvents[0]]), draw), // its Scan button (roadmap 2.2)
         new(new WiaDeviceInfo(@"{6BDD1FC6-810F-11D0-BEC7-08002BE2092F}\0001", "Demo Photo Scanner 40", "Demo", "Demo Photo Scanner 40", @"\\.\Usbscan1"),
             new WiaScannerInfo(null, 8500, 11700, null, null, WiaValues.Range(300, 50, 2400, 1), [WiaIds.DataGrayscale, WiaIds.DataColor], [WiaIds.FormatJpeg, WiaIds.FormatBmp]), draw),
     ];

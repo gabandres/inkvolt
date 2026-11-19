@@ -11,7 +11,8 @@ namespace InkvoltPrint.App;
 /// <summary>
 /// <c>InkvoltPrint.exe --demo</c>: made-up printers for screenshots and trying the app without a printer. The HP laser's
 /// web server is a <see cref="FixtureHandler"/> over the scrubbed test fixtures (embedded from
-/// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>) at <see cref="FixtureHandler.DemoHost"/>; the inkjet (an Epson-style
+/// <c>tests/InkvoltPrint.Tests/Fixtures/m234dw</c>, with <c>hp-demo</c>'s hand-written copy and Scan to Computer documents and
+/// <see cref="Panel"/>'s made-up list of computers) at <see cref="FixtureHandler.DemoHost"/>; the inkjet (an Epson-style
 /// IPP Everywhere / eSCL printer with no HP interfaces) answers IPP and eSCL from <c>Fixtures/inkjet-demo</c>, written from
 /// the public specs, at <see cref="InkjetHost"/>. A <see cref="HostRouter"/> sends each request to its printer. Demo mode makes no network
 /// access: no discovery, no probes, no Windows print queue, no HP software check; state lives in memory only
@@ -105,6 +106,7 @@ internal static class Demo
         public override bool OpensOtherApps => false;
         public override string RecordingsFolder => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Inkvolt Print demo recordings");
         public override string UserName => "demo";
+        public override string ComputerName => "DEMO-PC";
         public override string? ImageCache => null;
         public override bool ChecksHpSoftware => false;
         public override Core.History.SupplyHistoryStore History { get; } = new(null, Core.History.DemoSupplyHistory.Seed);
@@ -143,9 +145,23 @@ internal static class Demo
         Firmware = new(StringComparer.OrdinalIgnoreCase) { [Uuid] = new Core.History.FirmwareRecord("2023-11-02", new DateOnly(2025, 11, 20)) },
     };
 
+    /// <summary>
+    /// The HP laser's panel (Scan to Computer, roadmap 2.2): the made-up list this PC goes on, one for the whole run so it outlives
+    /// each connection, in front of the laser's documents. <c>--scan-button</c> presses it (DevSnapshot).
+    /// </summary>
+    public static FakeScanToComputer Panel { get; } = new(new FixtureHandler(name => Document(ResourcePrefix + name), scanArea: Scan));
+
+    /// <summary>A handler shared by every connection: each one's client lets go of this wrapper, never of the shared handler.</summary>
+    private sealed class Shared(HttpMessageHandler handler) : HttpMessageHandler
+    {
+        private readonly HttpMessageInvoker _invoker = new(handler, disposeHandler: false);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => _invoker.SendAsync(request, ct);
+    }
+
     public static HttpMessageHandler CreateTransport() => new HostRouter(new Dictionary<string, HttpMessageHandler>
     {
-        [FixtureHandler.DemoHost] = new FixtureHandler(name => Document(ResourcePrefix + name), scanArea: Scan),
+        [FixtureHandler.DemoHost] = new Shared(Panel),
         [InkjetHost] = new FixtureHandler(name => InkjetDocument(InkjetPrefix + name), scanArea: Scan, feederBatch: () => FeederBatch ? Batch.Value : null),
         // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
         [OfficeNewHost] = new FixtureHandler(name => OfficeDocument(ResourcePrefix + name), scanArea: Scan),

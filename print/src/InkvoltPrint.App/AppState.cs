@@ -196,7 +196,27 @@ public sealed class AppState
         {
             Printers.RemoveAll(k => string.Equals(k.Uuid, id, StringComparison.OrdinalIgnoreCase));
             Firmware.Remove(id);
+            ScanButtons.Remove(id);
         }
+    }
+
+    /// <summary>Printer id → its scan button (roadmap 2.2): on or off, the preset a press runs, this PC's place on the printer's panel.</summary>
+    public Dictionary<string, Core.Presets.ScanButtonChoice> ScanButtons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Core.Presets.ScanButtonChoice? GetScanButton(string printerId)
+    {
+        lock (_gate) return ScanButtons.GetValueOrDefault(printerId);
+    }
+
+    /// <summary>Keeps the choice and saves.</summary>
+    public void SetScanButton(string printerId, Core.Presets.ScanButtonChoice choice)
+    {
+        lock (_gate)
+        {
+            if (ScanButtons.GetValueOrDefault(printerId) == choice) return;
+            ScanButtons[printerId] = choice;
+        }
+        Save();
     }
 
     /// <summary>Printer id → its firmware version, the day first seen and the last change (roadmap 1.5, Core.History.FirmwareWatch).</summary>

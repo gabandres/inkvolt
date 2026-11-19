@@ -3614,4 +3614,13 @@ Empezar de nuevo</value>
   <data name="Copy_PrinterFailed" xml:space="preserve">
     <value>Algo falló al pedir a la impresora que copie, y puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
   </data>
+  <data name="ScanTab_Button" xml:space="preserve">
+    <value>Escanear desde el botón de la impresora</value>
+  </data>
+  <data name="ScanTab_ButtonRuns" xml:space="preserve">
+    <value>Ejecuta</value>
+  </data>
+  <data name="ScanTab_ButtonPreset" xml:space="preserve">
+    <value>El ajuste de escaneo que se ejecuta al pulsar el botón de la impresora</value>
+  </data>
 </root>

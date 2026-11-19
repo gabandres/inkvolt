@@ -607,6 +607,26 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <!-- Scan from the printer's button (roadmap 2.2): HP's Scan to Computer on the panel, or the scanner's button through
+                 Windows; says so when the printer offers neither -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12"
+                    DataContext="{Binding DataContext.Selected.ScanButton, RelativeSource={RelativeSource AncestorType=Window}}"
+                    Visibility="{Binding IsShown, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8FE;" FontSize="16" Margin="0,2,12,0" VerticalAlignment="Top" />
+                    <StackPanel>
+                        <TextBlock Text="{x:Static loc:Strings.ScanTab_Button}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,2,0,0" />
+                        <WrapPanel Margin="0,8,0,0" Visibility="{Binding IsOffered, Converter={StaticResource VisibleWhen}}">
+                            <CheckBox Content="{Binding SwitchText}" IsChecked="{Binding IsOn}" AutomationProperties.Name="{Binding SwitchText}"
+                                      AutomationProperties.HelpText="{Binding Text}" VerticalAlignment="Center" Margin="0,0,24,0" />
+                            <TextBlock Text="{x:Static loc:Strings.ScanTab_ButtonRuns}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                            <ComboBox ItemsSource="{Binding Choices}" SelectedValuePath="Id" SelectedValue="{Binding PresetId}" DisplayMemberPath="Name" MinWidth="180" VerticalAlignment="Center"
+                                      AutomationProperties.Name="{x:Static loc:Strings.ScanTab_ButtonPreset}" />
+                        </WrapPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <Grid Margin="0,0,16,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />

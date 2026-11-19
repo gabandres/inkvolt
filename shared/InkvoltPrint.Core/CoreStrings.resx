@@ -4104,4 +4104,46 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
     <value>The printer didn't answer, so it may already be copying. Check its control panel before copying again.</value>
   </data>
+  <data name="ScanButton_NoPreset" xml:space="preserve">
+    <value>no preset yet (make one with Manage presets…)</value>
+  </data>
+  <data name="ScanButton_None" xml:space="preserve">
+    <value>This printer's own Scan button can't send scans here: it offers neither HP's Scan to Computer nor a scan button Windows can report.</value>
+  </data>
+  <data name="ScanButton_PanelOff" xml:space="preserve">
+    <value>Turn this on to add this PC ({0}) to the printer's panel under Scan to Computer. Choosing it there then scans here.</value>
+  </data>
+  <data name="ScanButton_Listed" xml:space="preserve">
+    <value>On the printer's panel: Scan to Computer › {0}. Pressing Scan there runs {1} here while Inkvolt Print or its icon in the notification area is running.</value>
+  </data>
+  <data name="ScanButton_ListedByOther" xml:space="preserve">
+    <value>A computer named {0} is already on the printer's panel, put there by other software (HP's, perhaps), so Inkvolt Print doesn't add it twice. Close that software or restart the printer, then turn this off and on.</value>
+  </data>
+  <data name="ScanButton_NeedsPassword" xml:space="preserve">
+    <value>The printer asks for its admin password before it adds this PC. Enter it in Printer settings, then turn this off and on.</value>
+  </data>
+  <data name="ScanButton_Refused" xml:space="preserve">
+    <value>The printer didn't add this PC to its panel. It may not take computers added this way; scan from this tab instead.</value>
+  </data>
+  <data name="ScanButton_NotReached" xml:space="preserve">
+    <value>The printer isn't answering. This PC goes back on its panel when it does.</value>
+  </data>
+  <data name="ScanButton_Adding" xml:space="preserve">
+    <value>Adding this PC to the printer's panel…</value>
+  </data>
+  <data name="ScanButton_DriverOff" xml:space="preserve">
+    <value>Turn this on to scan here when the scanner's button sends a scan to this PC (Scan to Computer on the printer's panel, through Windows).</value>
+  </data>
+  <data name="ScanButton_DriverOn" xml:space="preserve">
+    <value>When the scanner's button sends a scan to this PC, {0} runs here while Inkvolt Print or its icon in the notification area is running.</value>
+  </data>
+  <data name="ScanButton_DriverFailed" xml:space="preserve">
+    <value>Windows didn't let Inkvolt Print hear this scanner's button. Scan from this tab instead, or turn this off and on to try again.</value>
+  </data>
+  <data name="ScanButton_PanelSwitch" xml:space="preserve">
+    <value>Show this PC on the printer's panel</value>
+  </data>
+  <data name="ScanButton_DriverSwitch" xml:space="preserve">
+    <value>Scan here when the scanner's button is pressed</value>
+  </data>
 </root>

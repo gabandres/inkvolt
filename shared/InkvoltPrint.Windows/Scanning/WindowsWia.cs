@@ -51,6 +51,106 @@ public sealed class WindowsWia : IWiaSystem
         }
     }
 
+    /// <summary>
+    /// The scanner's buttons: a <c>WIA.DeviceManager</c> of its own, on an STA thread of its own (its waits pump COM's messages, so
+    /// the WIA service's calls come in), with <c>RegisterEvent</c> for each event and its <c>OnEvent</c> connected through
+    /// <see cref="ComEventsHelper"/> (late bound: no interop assembly). A runtime registration: it lasts while this app runs and
+    /// needs no administrator rights; disposing unregisters and lets the manager go.
+    /// </summary>
+    public async Task<IDisposable> WatchButtonsAsync(string deviceId, IReadOnlyList<string> events, Action pressed, CancellationToken ct)
+    {
+        if (events.Count == 0 || ManagerType is not { } type) return NoButtons.Instance;
+        var thread = new WorkThread("Inkvolt WIA buttons", true);
+        using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        limit.CancelAfter(ListTimeout);
+        try
+        {
+            return await thread.RunAsync(() => Wrap(() => ButtonWatch.Start(type, thread, deviceId, events, pressed)), limit.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            thread.Finish();
+            throw new WiaException(WiaErrors.NotAnswering, "Windows didn't answer in time when asked for the scanner's buttons.");
+        }
+        catch
+        {
+            thread.Finish();
+            throw;
+        }
+    }
+
+    /// <summary>One app's registration for one scanner's buttons; touched on its own thread only.</summary>
+    private sealed class ButtonWatch : IDisposable
+    {
+        /// <summary><c>_IDeviceManagerEvents</c>, the manager's event interface, and <c>OnEvent</c>'s DISPID (wiaaut.dll's type library).</summary>
+        private static readonly Guid EventsInterface = new("2E9A5206-2360-49DF-9D9B-1762B4BEAE77");
+        private const int OnEventId = 1;
+
+        private readonly WorkThread _thread;
+        private readonly object _manager;
+        private readonly string _deviceId;
+        private readonly List<string> _registered = [];
+        private readonly Action<string, string, string> _handler;
+        private int _disposed;
+
+        private ButtonWatch(WorkThread thread, object manager, string deviceId, Action pressed, IReadOnlyList<string> events)
+        {
+            _thread = thread;
+            _manager = manager;
+            _deviceId = deviceId;
+            _handler = (eventId, device, _) =>
+            {
+                if (string.Equals(device, deviceId, StringComparison.OrdinalIgnoreCase) && WiaIds.ScanButtonsIn([eventId]).Any(e => events.Contains(e, StringComparer.OrdinalIgnoreCase))) pressed();
+            };
+        }
+
+        public static ButtonWatch Start(Type managerType, WorkThread thread, string deviceId, IReadOnlyList<string> events, Action pressed)
+        {
+            var manager = Activator.CreateInstance(managerType)!;
+            var watch = new ButtonWatch(thread, manager, deviceId, pressed, events);
+            try
+            {
+                ComEventsHelper.Combine(manager, EventsInterface, OnEventId, watch._handler);
+                foreach (var id in events)
+                {
+                    ((dynamic)manager).RegisterEvent(id, deviceId);
+                    watch._registered.Add(id);
+                }
+                return watch;
+            }
+            catch
+            {
+                watch.Stop();
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            // On its own thread, as COM wants; not waited for (a WIA service that hangs mustn't hold up the caller).
+            _ = _thread.RunAsync(() =>
+            {
+                Stop();
+                return true;
+            }, CancellationToken.None);
+            _thread.Finish(); // the thread ends after that
+        }
+
+        private void Stop()
+        {
+            foreach (var id in _registered)
+            {
+                try { ((dynamic)_manager).UnregisterEvent(id, _deviceId); }
+                catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException) { }
+            }
+            _registered.Clear();
+            try { ComEventsHelper.Remove(_manager, EventsInterface, OnEventId, _handler); }
+            catch (Exception ex) when (ex is COMException or InvalidOperationException) { }
+            Release(_manager);
+        }
+    }
+
     public IWiaDeviceHost Device(string deviceId)
     {
         lock (_gate)
@@ -350,7 +450,43 @@ public sealed class WindowsWia : IWiaSystem
                 Number(dp, WiaIds.HorizontalSheetFeedSize), Number(dp, WiaIds.VerticalSheetFeedSize),
                 Property(ip, WiaIds.XResolution) is { } res ? Values(res) : WiaValues.Only(0),
                 Property(ip, WiaIds.DataType) is { } dt ? Values(dt).List : [],
-                formats);
+                formats,
+                WiaIds.ScanButtonsIn(Events(device)));
+        }
+
+        /// <summary>The event IDs the driver lists (<c>Device.Events</c>); none when it lists none or can't say.</summary>
+        private static List<string> Events(object device)
+        {
+            var ids = new List<string>();
+            object? events = null;
+            try
+            {
+                events = ((dynamic)device).Events;
+                int count = ((dynamic)events!).Count;
+                for (var i = 1; i <= Math.Min(count, 64); i++)
+                {
+                    object? ev = null;
+                    try
+                    {
+                        object index = i;
+                        ev = ((dynamic)events!).Item(ref index);
+                        if (((dynamic)ev!).EventID is string id) ids.Add(id);
+                    }
+                    finally
+                    {
+                        Release(ev);
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is COMException or Microsoft.CSharp.RuntimeBinder.RuntimeBinderException or InvalidCastException)
+            {
+                // A driver without events: no button to hear.
+            }
+            finally
+            {
+                Release(events);
+            }
+            return ids;
         }
 
         public WiaScannerInfo Info { get; }

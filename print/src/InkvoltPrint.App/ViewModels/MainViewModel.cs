@@ -784,5 +784,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _usbWatch?.Dispose();
         _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
+        // Exit: this PC comes off the printers' panels (Scan to Computer) before the process ends, each within its limit.
+        var closing = Printers.Select(p => p.Closing).Where(t => !t.IsCompleted).ToArray();
+        if (closing.Length > 0)
+        {
+            try { Task.WaitAll(closing, PrinterViewModel.CloseLimit + TimeSpan.FromSeconds(1)); }
+            catch (AggregateException ex) { Log.Write($"Taking this PC off a printer's panel failed: {ex.InnerException?.Message}"); }
+        }
     }
 }

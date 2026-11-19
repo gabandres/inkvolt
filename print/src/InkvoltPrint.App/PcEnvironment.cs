@@ -147,6 +147,9 @@ public abstract class PcEnvironment
     /// <summary>The user name sent with maintenance jobs.</summary>
     public abstract string UserName { get; }
 
+    /// <summary>The name this PC goes on a printer's panel by (Scan to Computer, roadmap 2.2): the computer's name; the demo's made up.</summary>
+    public virtual string ComputerName => Environment.MachineName;
+
     /// <summary>Where printers' product photos are cached; null: not cached (the demo writes nothing to the user's data).</summary>
     public abstract string? ImageCache { get; }
 

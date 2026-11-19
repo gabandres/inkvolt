@@ -175,6 +175,35 @@ public sealed class LedmClient(DeviceHttp http)
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// POST an LEDM document that makes something on the printer (a Scan to Computer destination), over HTTPS, sent once and
+    /// never resent (<see cref="DeviceHttp.SendOnceAsync"/>: a second one would make a second). Returns the reply's
+    /// <c>Location</c> as given (null when it has none). Throws <see cref="LedmAuthRequiredException"/> on 401/403 and
+    /// <see cref="DeviceHttpException"/> on any other refusal.
+    /// </summary>
+    public async Task<string?> PostPathAsync(string path, XDocument body, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Post, http.Https(path))
+        {
+            Content = new StringContent(Serialize(body), Encoding.UTF8, new MediaTypeHeaderValue("text/xml")),
+        };
+        using var resp = await http.SendOnceAsync(req, TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
+        if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new LedmAuthRequiredException(http.HasCredentials);
+        await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
+        return resp.Headers.Location?.OriginalString;
+    }
+
+    /// <summary>DELETE an LEDM resource over HTTPS; a 404 counts as done (nothing left to remove). Refusals throw as <see cref="PostPathAsync"/>.</summary>
+    public async Task DeletePathAsync(string path, CancellationToken ct = default)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Delete, http.Https(path));
+        using var resp = await http.SendAsync(req, TimeSpan.FromSeconds(10), ct).ConfigureAwait(false);
+        if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            throw new LedmAuthRequiredException(http.HasCredentials);
+        if (resp.StatusCode != HttpStatusCode.NotFound) await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
+    }
+
     /// <summary>An LEDM PUT body as sent: one line, with the XML declaration even when the document has none.</summary>
     public static string Serialize(XDocument body) =>
         body.Declaration is null ? "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + body.ToString(SaveOptions.DisableFormatting) : body.ToString(SaveOptions.DisableFormatting);

@@ -33,7 +33,8 @@ namespace InkvoltPrint.App;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
-/// command palette with the words typed, and <c>--run-palette</c> then runs its first entry.
+/// command palette with the words typed, and <c>--run-palette</c> then runs its first entry. <c>--scan-button [press]</c> (demo only)
+/// turns the shown printer's scan button on and with <c>press</c> presses it on the made-up panel or scanner (roadmap 2.2).
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -84,6 +85,19 @@ internal static class DevSnapshot
             tabs.SelectedItem = tabs.Items.OfType<TabItem>().FirstOrDefault(t => string.Equals(t.Tag as string, tab, StringComparison.OrdinalIgnoreCase))
                 ?? tabs.Items.OfType<TabItem>().FirstOrDefault(t => (t.Header as string)?.Contains(tab, StringComparison.OrdinalIgnoreCase) == true);
             await Task.Delay(TimeSpan.FromSeconds(3));
+        }
+        // --scan-button [press] (demo only): turns the shown printer's scan button on (the HP laser: this made-up PC goes on its
+        // made-up panel); press then presses it there, or the USB laser's scanner button, and waits for the preset's scan.
+        if (args.Contains("--scan-button") && window.DataContext is ViewModels.MainViewModel { Selected: { Pc.IsDemo: true } buttonPrinter })
+        {
+            buttonPrinter.ScanButton.IsOn = true;
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            if (Value(args, "--scan-button") == "press")
+            {
+                if (!Demo.Panel.Press())
+                    foreach (var made in Demo.Wia.Scanners) made.Press();
+                await Task.Delay(TimeSpan.FromSeconds(6));
+            }
         }
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
