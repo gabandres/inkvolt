@@ -235,7 +235,7 @@ public partial class DocumentTab
         SuspectText.Text = item.Text;
         SuspectSuggestions.Children.Clear();
         var core = SuspectWords.Core(item.Text);
-        var suggestions = item.Word.Suspect.HasFlag(SuspectReasons.NotInDictionary) && PageOcr.Spelling(item.Language) is { } spelling
+        var suggestions = item.Word.Suspect.HasFlag(SuspectReasons.NotInDictionary) && PageOcr.SpellingOf(item.Language) is { } spelling
             ? spelling.Suggest(core).Take(4).ToList()
             : [];
         foreach (var s in suggestions)

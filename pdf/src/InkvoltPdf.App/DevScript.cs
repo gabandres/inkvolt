@@ -821,7 +821,7 @@ internal static class DevScript
                 // tesseract: Tesseract's files on this PC (roadmap 2.2) and what Recognize Text, Batch and Scan read with now.
                 var store = PageOcr.Tesseract;
                 var langs = TesseractCatalog.Languages.Where(store.HasLanguage).Select(l => l.Code);
-                var chosen = PageOcr.Chosen;
+                var chosen = await PageOcr.ChosenAsync();
                 log.Add($"tesseract: engine={(store.HasEngine ? TesseractCatalog.Version : "none")} languages=[{string.Join(",", langs)}] " +
                         $"chosen={chosen?.GetType().Name ?? "none"} '{chosen?.LanguageName}'");
                 // tesseract tag [tag]: where those languages are in Recognize Text's lists (its combo1 and combo2 indexes).

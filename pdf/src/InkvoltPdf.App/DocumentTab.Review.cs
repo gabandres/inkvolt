@@ -1282,7 +1282,8 @@ public partial class DocumentTab
     internal async Task<RedactionSearchResult?> SearchPatterns(RedactionPatternOptions options)
     {
         if (!Session.IsPdf || Viewer.Engine is not { } engine) return null;
-        var ocr = PageOcr.For(AppSettings.Current.OcrLanguage);
+        // Scans are read as Recognize Text is set (a Tesseract language or two included); a download still needed is offered.
+        var ocr = await PageOcr.ReadyAsync(Window.GetWindow(this));
         RedactionSearchResult found;
         using (var prompt = new ProgressPrompt(Window.GetWindow(this), Strings.Review_RedactPatternTitle, Strings.Review_SearchingPages))
         {
@@ -1325,7 +1326,7 @@ public partial class DocumentTab
         var earlier = Viewer.Redactions.ToList();
         if (RedactReviewDialog.Show(owner, this, found, earlier) is not { } review) return false;
         var name = Session.DisplayName;
-        var run = new PatternRedaction(name, options, found, review.Accepted, review.Skipped, PatternRedactionMode.Reviewed, PageOcr.For(AppSettings.Current.OcrLanguage))
+        var run = new PatternRedaction(name, options, found, review.Accepted, review.Skipped, PatternRedactionMode.Reviewed, await PageOcr.ChosenAsync())
         {
             Marked = [.. review.LookAreas.Concat(review.EarlierApplied).Select(m => (m.PageIndex, m.Rect))],
         };
@@ -1419,7 +1420,7 @@ public partial class DocumentTab
         // What is about to be redacted, for the check afterwards: the text under the marks, the document as it is.
         var before = Session.Data;
         var values = check && Viewer.Engine is { } engine ? RedactionCheck.ValuesUnder(engine, areas) : [];
-        var ocr = PageOcr.Engine;
+        var ocr = await PageOcr.ChosenAsync();
         var ocrSkipped = false;
         var ok = await RunEdit(Loc.Plural(marks.Count, Strings.Review_UndoRedact_One, Strings.Review_UndoRedact_Many), (d, pw) =>
         {
@@ -1510,23 +1511,18 @@ public partial class DocumentTab
     public async Task<bool> RecognizeText(bool atOnce = false)
     {
         if (!Session.IsPdf || IsBusy || Window.GetWindow(this) is not { } owner) return false;
-        var offer = PageOcr.Offer();
-        // No OCR language in Windows: Tesseract's languages can still be chosen (and downloaded), but not without a window.
-        if (offer.Count == 0 || (atOnce && PageOcr.Chosen is null))
-        {
-            Prompt.Info(owner, Strings.Review_OcrUnavailable, PageOcr.Unavailable);
-            return false;
-        }
         var count = Viewer.PageCount;
         var current = Viewer.CurrentPage;
         var settings = AppSettings.Current;
         int[] pages = [.. Enumerable.Range(0, count)];
         var keepCleaned = false;
         InkvoltPrint.Core.Imaging.ITextRecognizer? ocr;
-        if (atOnce) ocr = PageOcr.Chosen;
+        // At once: the languages chosen last time, their download offered if it is still needed, never another language.
+        if (atOnce) ocr = await PageOcr.ReadyAsync(owner);
         else
         {
-            if (AskRecognize(owner, count, current, offer) is not { } asked) return false;
+            // Windows without an OCR language still offers Tesseract's languages, to download.
+            if (AskRecognize(owner, count, current, PageOcr.Offer(fresh: true)) is not { } asked) return false;
             (pages, keepCleaned) = (asked.Pages, asked.KeepCleaned);
             if (!await PageOcr.EnsureAsync(owner, asked.Plan)) return false;
             ocr = await Task.Run(() => PageOcr.Build(PageOcr.Plan(asked.Plan.First, asked.Plan.Second)));
@@ -1535,6 +1531,8 @@ public partial class DocumentTab
                 Prompt.Error(owner, Strings.Ocr_DownloadFailedTitle, Strings.Ocr_DownloadNotPinned);
                 return false;
             }
+            // Saved only now that what it needs is here: Batch, Scan and export read with it from now on.
+            PageOcr.Choose(asked.Plan);
         }
         if (ocr is null) return false;
         var reader = PageOcr.Pages(ocr, new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: keepCleaned));
@@ -1543,7 +1541,7 @@ public partial class DocumentTab
 
     /// <summary>
     /// Recognize Text's window: the pages, the language (Windows' installed ones, then Tesseract's, to download when chosen)
-    /// and a second language on the same pages, the options (saved for next time); null if cancelled.
+    /// and a second language on the same pages, the options (saved for next time; the languages once installed); null if cancelled.
     /// </summary>
     private (int[] Pages, bool KeepCleaned, OcrPlan Plan)? AskRecognize(Window owner, int count, int current, IReadOnlyList<OcrLanguageChoice> offer)
     {
@@ -1552,9 +1550,10 @@ public partial class DocumentTab
         var which = dlg.AddChoice(Strings.Common_Pages, [Strings.Review_OcrAllWithoutText, Loc.Format(Strings.Review_OcrCurrentPage, PageLabel(current)), Strings.Review_OcrPageRange]);
         var range = dlg.Add(Strings.Review_OcrPageRange, new TextBox { Text = Core.PageRange.Format(SelectedPages.Length > 1 ? SelectedPages : [current]) });
         range.GotKeyboardFocus += (_, _) => which.SelectedIndex = 2;
+        var hasEngine = PageOcr.Tesseract.HasEngine; // once, not per language
         string Item(OcrLanguageChoice c) => c.Windows ? c.Name
-            : PageOcr.Tesseract.HasEngine && PageOcr.Tesseract.HasLanguage(c.Tesseract!) ? Loc.Format(Strings.Review_OcrTesseractItem, c.Name)
-            : Loc.Format(Strings.Review_OcrTesseractDownloadItem, c.Name, FileActions.FormatSize(c.Tesseract!.Size + (PageOcr.Tesseract.HasEngine ? 0 : TesseractCatalog.InstallerSize)));
+            : hasEngine && PageOcr.Tesseract.HasLanguage(c.Tesseract!) ? Loc.Format(Strings.Review_OcrTesseractItem, c.Name)
+            : Loc.Format(Strings.Review_OcrTesseractDownloadItem, c.Name, FileActions.FormatSize(c.Tesseract!.Size + (hasEngine ? 0 : TesseractCatalog.InstallerSize)));
         var items = offer.Select(Item).ToList();
         var chosen = PageOcr.ChosenPlan(offer);
         var language = dlg.AddChoice(Strings.Review_OcrLanguage, items, chosen is null ? 0 : Math.Max(0, offer.ToList().IndexOf(chosen.First)));
@@ -1591,8 +1590,7 @@ public partial class DocumentTab
 
         var first = offer[Math.Clamp(language.SelectedIndex, 0, offer.Count - 1)];
         var also = second.SelectedIndex > 0 && second.SelectedIndex <= offer.Count ? offer[second.SelectedIndex - 1] : null;
-        settings.OcrLanguage = first.Tag;
-        settings.OcrSecondLanguage = also is null || also == first ? "" : also.Tag;
+        // The languages are saved by RecognizeText once they can be read (PageOcr.Choose), not before their download.
         settings.OcrClean = clean.IsChecked == true;
         settings.OcrSuspects = suspects.IsChecked == true;
         settings.Save();

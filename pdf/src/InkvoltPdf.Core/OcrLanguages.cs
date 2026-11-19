@@ -51,9 +51,16 @@ public static class OcrLanguages
         return result;
     }
 
-    /// <summary>The choice with <paramref name="tag"/> (as saved), or null when it isn't offered now.</summary>
-    public static OcrLanguageChoice? Find(IReadOnlyList<OcrLanguageChoice> offer, string? tag) =>
-        string.IsNullOrEmpty(tag) ? null : offer.FirstOrDefault(c => string.Equals(c.Tag, tag, StringComparison.OrdinalIgnoreCase));
+    /// <summary>
+    /// The choice with <paramref name="tag"/> (as saved), else the one that reads the same language (a Windows language
+    /// removed since: Tesseract's, to download; "en-US" saved, "en-GB" installed); null when nothing reads it.
+    /// </summary>
+    public static OcrLanguageChoice? Find(IReadOnlyList<OcrLanguageChoice> offer, string? tag)
+    {
+        if (string.IsNullOrEmpty(tag)) return null;
+        return offer.FirstOrDefault(c => string.Equals(c.Tag, tag, StringComparison.OrdinalIgnoreCase))
+            ?? (TesseractCatalog.ForTag(tag) is { } same ? offer.FirstOrDefault(c => c.Tesseract?.Code == same.Code) : null);
+    }
 
     /// <param name="second">The other language on the same pages; null (or the same one): one language.</param>
     /// <param name="hasEngine">Tesseract is on this PC.</param>

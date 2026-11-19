@@ -477,8 +477,17 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   spell checker, else the engine's confidence; ties to the first language; a line only one read is kept in its place:
   `MixedRecognizer`), suspect words checked against either dictionary (`EitherSpelling`). With a Tesseract language,
   Tesseract reads both in one run (words of either inside a line), downloading the other language's data too
-  (`OcrLanguages.Plan`). Batch, Scan and the exports read with what Recognize Text last chose, never downloading
-  (`PageOcr.Chosen`, Windows' default when Tesseract isn't here). Checked in the app (`--script`, a throwaway data
+  (`OcrLanguages.Plan`). The choice is saved only once what it needs is installed (`PageOcr.Choose`); Batch (window,
+  watched folders, `--batch`), Scan, the exports, Compare, Redact by Pattern (its search, reviewed run and read-back)
+  and Apply Redactions' text read with it (`PageOcr.ChosenAsync`: built and checked off the UI thread, kept until the
+  choice changes), never downloading and never in another language: when it can't read (files gone), they say which
+  language needs its download (a Batch plan stops with that; Scan & OCR at once, Redact by Pattern offer the download).
+  A page in two languages keeps both tags in its text layer ("en-US+es-MX"), so the Suspect words pane suggests from
+  both dictionaries; the Mac reads such a layer but keeps only one tag when it writes it again (a port to do).
+  Review fixes (2026-11-19): installs one at a time (a lock per store and a lock file across app copies, temporary
+  names per run); a line's garbage ("rn,1l") counts a tenth a letter, under a name no dictionary knows; a Tesseract
+  first language re-reads no gaps with the other's recognizer; a reading with confidences isn't read again as scanned
+  (half Tesseract's time); a broken pipe to tesseract.exe is said as Tesseract's failure. Checked in the app (`--script`, a throwaway data
   folder): the download from GitHub, the extraction and checks (19 s), a Russian scan read by Tesseract (search finds
   "Москва"), an English and Spanish page read by Windows' two recognizers line by line (search finds "murciélago",
   "cigüeña"); the Store build (`pack-msix.ps1 -Architectures arm64 -SmokeSideBySide`, its smoke test passed, then

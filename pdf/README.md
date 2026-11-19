@@ -372,7 +372,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Windows, or one of Tesseract's languages that Windows lacks (see **Tesseract** below); a **Second language** reads
   pages in two languages (two of Windows': each line is kept from the language that reads it better, by its spell
   checker; with a Tesseract language, Tesseract reads both at once, words of either inside a line). What is chosen
-  there is what Batch, Scan and the exports read with (never downloading). Each page is straightened and cleaned first (on by default): skew up to 15°, sideways and upside-down pages
+  there, saved once what it needs is installed, is what Batch, Scan, the exports, Compare and the redaction tools read
+  with (never downloading, never another language: if its files are gone, they say which language needs its download). Each page is straightened and cleaned first (on by default): skew up to 15°, sideways and upside-down pages
   turned upright (a page whose lines don't say which way up it is, such as one of numbers only, is turned over only when
   it reads clearly better so), a 3 × 3 median against noise, grey or shaded paper evened out to white, lone specks removed; the words
   are then placed back on the page as it is, turned with it. **Replace the scans with the cleaned pages** (off by

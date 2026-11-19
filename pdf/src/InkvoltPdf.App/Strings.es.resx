@@ -11611,4 +11611,8 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>el reconocedor no estaba seguro</value>
     <comment>Why a recognized word is suspect; lowercase</comment>
   </data>
+  <data name="Ocr_ChosenNotHere" xml:space="preserve">
+    <value>El reconocimiento de texto está configurado en {0}, que necesita la descarga de Tesseract. Elígelo en Revisar &gt; Reconocer texto para descargarlo, o elige otro idioma allí.</value>
+    <comment>{0} language names joined by " + "</comment>
+  </data>
 </root>

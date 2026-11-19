@@ -109,9 +109,13 @@ public static class ScanText
         var frame = new ScanFrame(image.Width, image.Height, cleaned.Skew, turns);
         var onScan = found.Select(w => frame.ToRendered(w, scale)).ToList();
         var words = options.KeepCleanedImage ? OnPage(found) : onScan;
-        // A page that wasn't upright as scanned can't be read as scanned: nothing to compare with.
+        // A page that wasn't upright as scanned can't be read as scanned: nothing to compare with. An engine that says how
+        // sure it is of each word (Tesseract) isn't asked twice: its confidence marks the doubtful words, at half the time.
         if (options.CheckWords)
-            words = Mark(words, turns == 0 ? SuspectWords.ReadDifferently(onScan, OnPage(ReadAsScanned()), spelling) : null, Unsure(found), spelling);
+        {
+            var compare = turns == 0 && !found.Any(w => w.Confidence is not null);
+            words = Mark(words, compare ? SuspectWords.ReadDifferently(onScan, OnPage(ReadAsScanned()), spelling) : null, Unsure(found), spelling);
+        }
 
         CleanedPageImage? keep = null;
         if (options.KeepCleanedImage)
@@ -130,6 +134,15 @@ public static class ScanText
     /// unless it names another or none (<see cref=IRereadsMissed/>).
     /// </summary>
     public static ITextRecognizer? RereaderOf(ITextRecognizer recognizer) => recognizer is IRereadsMissed r ? r.Rereader : recognizer;
+
+    /// <summary>The languages a recognizer reads (BCP-47 tags, first one first): two for a page in two languages.</summary>
+    public static IReadOnlyList<string> LanguagesOf(ITextRecognizer recognizer) => recognizer switch
+    {
+        SerialRecognizer s => LanguagesOf(s.Inner),
+        MixedRecognizer m => [.. LanguagesOf(m.First).Concat(LanguagesOf(m.Second)).Distinct(StringComparer.OrdinalIgnoreCase)],
+        TesseractRecognizer t => [.. t.Languages.Select(l => l.Tag)],
+        _ => [recognizer.Language],
+    };
 
     /// <summary>Which words the engine itself was unsure of (its confidence under <see cref="SuspectWords.UnsureBelow"/>; Tesseract's).</summary>
     private static bool[] Unsure(IReadOnlyList<RecognizedWord> read) => [.. read.Select(w => w.Confidence < SuspectWords.UnsureBelow)];

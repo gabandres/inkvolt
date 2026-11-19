@@ -22,8 +22,11 @@ public sealed class MixedRecognizer(ITextRecognizer first, ISpelling? firstSpell
 
     public ITextRecognizer Second => second;
 
-    /// <summary>The first one's re-reader (Windows' recognizer itself), else the second one's.</summary>
-    public ITextRecognizer? Rereader => ScanText.RereaderOf(first) ?? ScanText.RereaderOf(second);
+    /// <summary>
+    /// The first one's re-reader (Windows' recognizer itself); none when the first is Tesseract, which skips no lines (the
+    /// second language's recognizer would read a gap in the wrong language).
+    /// </summary>
+    public ITextRecognizer? Rereader => ScanText.RereaderOf(first);
 
     public IReadOnlyList<RecognizedWord> Recognize(byte[] pixels, int width, int height, int channels, CancellationToken cancel = default)
     {
@@ -84,18 +87,25 @@ public sealed class MixedRecognizer(ITextRecognizer first, ISpelling? firstSpell
         static void Add(Dictionary<int, double> scores, int group, double score) => scores[group] = scores.GetValueOrDefault(group) + score;
     }
 
-    /// <summary>How much a word counts for its reading: its letters, each as plausible as the word is (0-1).</summary>
+    /// <summary>
+    /// How much a word counts for its reading: its letters, each as plausible as the word is (0-1). A word its spell
+    /// checker knows: 1; one it doesn't (a name): a quarter, up to a half with the engine's confidence; without a spell
+    /// checker: the engine's confidence, else a half. Letters mixed with digits or punctuation ("rn,1l", "negr0") read as
+    /// garbage: a tenth at most, so they never outweigh a name.
+    /// </summary>
     internal static double Plausibility(RecognizedWord word, ISpelling? spelling)
     {
         var core = SuspectWords.Core(word.Text);
         var letters = core.Count(char.IsLetter);
         if (letters == 0) return 0;
-        var wordLike = core.All(c => char.IsLetter(c) || c is '\'' or '’' or '-');
+        var sure = word.Confidence is { } conf ? Math.Clamp(conf, 0, 100) / 100 : (double?)null;
+        var wordLike = core.All(c => char.IsLetter(c) || char.GetUnicodeCategory(c) is System.Globalization.UnicodeCategory.NonSpacingMark
+            or System.Globalization.UnicodeCategory.SpacingCombiningMark || c is '\'' or '’' or '-');
         double p;
-        if (spelling is not null && wordLike)
-            p = core.Split('-', StringSplitOptions.RemoveEmptyEntries).All(spelling.IsKnown) ? 1 : (word.Confidence ?? 0) / 200; // a name it doesn't know: half its confidence
-        else if (word.Confidence is { } c) p = c / 100;
-        else p = 0.5;
+        if (!wordLike) p = 0.1 * (sure ?? 1);
+        else if (spelling is not null)
+            p = core.Split('-', StringSplitOptions.RemoveEmptyEntries).All(spelling.IsKnown) ? 1 : 0.25 + 0.25 * (sure ?? 0);
+        else p = sure ?? 0.5;
         return letters * p;
     }
 

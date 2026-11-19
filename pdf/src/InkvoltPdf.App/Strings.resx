@@ -11612,4 +11612,8 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>the recognizer wasn't sure of it</value>
     <comment>Why a recognized word is suspect; lowercase</comment>
   </data>
+  <data name="Ocr_ChosenNotHere" xml:space="preserve">
+    <value>Text recognition is set to {0}, which needs Tesseract's download. Choose it in Review &gt; Recognize Text to download it, or choose another language there.</value>
+    <comment>{0} language names joined by " + "</comment>
+  </data>
 </root>

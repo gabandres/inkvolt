@@ -76,6 +76,7 @@ public sealed class TesseractStore(string root)
 {
     private readonly Lock _gate = new();
     private readonly HashSet<string> _verified = [];
+    private readonly SemaphoreSlim _installing = new(1, 1);
 
     public string Root => root;
 
@@ -133,21 +134,28 @@ public sealed class TesseractStore(string root)
     /// </summary>
     public async Task InstallEngineAsync(HttpClient http, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
-        Directory.CreateDirectory(root);
-        var installer = Path.Combine(root, "tesseract-setup.download");
-        try
+        using (await LockAsync(cancel).ConfigureAwait(false))
         {
-            if (!PinnedDownload.Matches(installer, TesseractCatalog.InstallerSize, TesseractCatalog.InstallerSha256, cancel))
+            // Another tab, or another Inkvolt PDF, may have installed it while this one waited.
+            if (HasEngine && await Task.Run(() => Verify([], cancel), cancel).ConfigureAwait(false))
+            {
+                progress?.Report(1);
+                return;
+            }
+            var installer = Path.Combine(root, $"tesseract-setup.{Guid.NewGuid():N}.download");
+            try
+            {
                 await PinnedDownload.FetchAsync(http, TesseractCatalog.InstallerUrl, TesseractCatalog.InstallerSize, TesseractCatalog.InstallerSha256,
                     installer, progress is null ? null : new Fraction(progress, 0, 0.6, TesseractCatalog.InstallerSize), cancel).ConfigureAwait(false);
-            await Task.Run(() => Extract(installer, TesseractCatalog.StreamOffset, TesseractCatalog.StreamProperties, TesseractCatalog.StreamDictionary,
-                TesseractCatalog.EngineFiles, EngineFolder, progress is null ? null : new Fraction(progress, 0.6, 0.4, TesseractCatalog.EngineFiles.Max(f => f.Offset + f.Size)),
-                cancel), cancel).ConfigureAwait(false);
-            lock (_gate) _verified.Add("");
-        }
-        finally
-        {
-            PinnedDownload.TryDelete(installer);
+                await Task.Run(() => Extract(installer, TesseractCatalog.StreamOffset, TesseractCatalog.StreamProperties, TesseractCatalog.StreamDictionary,
+                    TesseractCatalog.EngineFiles, EngineFolder, progress is null ? null : new Fraction(progress, 0.6, 0.4, TesseractCatalog.EngineFiles.Max(f => f.Offset + f.Size)),
+                    cancel), cancel).ConfigureAwait(false);
+                lock (_gate) _verified.Add("");
+            }
+            finally
+            {
+                PinnedDownload.TryDelete(installer);
+            }
         }
         progress?.Report(1);
     }
@@ -155,9 +163,66 @@ public sealed class TesseractStore(string root)
     /// <summary>Downloads a language's data into <see cref="LanguageFolder"/>, checked. Progress: 0 to 1.</summary>
     public async Task InstallLanguageAsync(HttpClient http, TesseractLanguage language, IProgress<double>? progress = null, CancellationToken cancel = default)
     {
-        await PinnedDownload.FetchAsync(http, language.Url, language.Size, language.Sha256, LanguageFile(language),
-            progress is null ? null : new Fraction(progress, 0, 1, language.Size), cancel).ConfigureAwait(false);
-        lock (_gate) _verified.Add(language.Code);
+        using (await LockAsync(cancel).ConfigureAwait(false))
+        {
+            if (HasLanguage(language) && await Task.Run(() => PinnedDownload.Matches(LanguageFile(language), language.Size, language.Sha256, cancel), cancel).ConfigureAwait(false))
+            {
+                lock (_gate) _verified.Add(language.Code);
+                progress?.Report(1);
+                return;
+            }
+            await PinnedDownload.FetchAsync(http, language.Url, language.Size, language.Sha256, LanguageFile(language),
+                progress is null ? null : new Fraction(progress, 0, 1, language.Size), cancel).ConfigureAwait(false);
+            lock (_gate) _verified.Add(language.Code);
+        }
+    }
+
+    /// <summary>
+    /// One install at a time into this folder: across this app's tabs (a lock per store) and across copies of the app
+    /// running at once (a lock file in the folder, held open without sharing; it goes with the process if that ends).
+    /// </summary>
+    internal async Task<IDisposable> LockAsync(CancellationToken cancel = default)
+    {
+        await _installing.WaitAsync(cancel).ConfigureAwait(false);
+        try
+        {
+            Directory.CreateDirectory(root);
+            var path = Path.Combine(root, "install.lock");
+            while (true)
+            {
+                try
+                {
+                    var file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None, 1, FileOptions.DeleteOnClose);
+                    return new Held(file, _installing);
+                }
+                catch (IOException)
+                {
+                    // another Inkvolt PDF is installing: wait for it
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // the lock file is being deleted as the other one lets go
+                }
+                await Task.Delay(200, cancel).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            _installing.Release();
+            throw;
+        }
+    }
+
+    private sealed class Held(FileStream file, SemaphoreSlim gate) : IDisposable
+    {
+        private int _done;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _done, 1) != 0) return;
+            file.Dispose();
+            gate.Release();
+        }
     }
 
     /// <summary>
@@ -170,8 +235,7 @@ public sealed class TesseractStore(string root)
     {
         if (files.Count == 0 || files.Any(f => f.Offset < 0 || f.Size < 0 || f.Name.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || f.Name is "." or ".."))
             throw new ArgumentException("Not a list of files to take.", nameof(files));
-        var staging = destination + ".partial";
-        if (Directory.Exists(staging)) Directory.Delete(staging, recursive: true);
+        var staging = $"{destination}.{Guid.NewGuid():N}.partial";
         Directory.CreateDirectory(staging);
         try
         {

@@ -161,7 +161,7 @@ public class TesseractTests
         foreach (var f in files)
             Assert.Equal(Solid().AsSpan((int)f.Offset, (int)f.Size).ToArray(), File.ReadAllBytes(Path.Combine(destination, f.Name)));
         Assert.Equal(3, Directory.GetFiles(destination).Length);
-        Assert.False(Directory.Exists(destination + ".partial"));
+        Assert.Empty(Directory.GetDirectories(Path.GetDirectoryName(destination)!, "*.partial"));
     }
 
     [Fact]
@@ -172,7 +172,7 @@ public class TesseractTests
         var destination = Path.Combine(temp.Path, "engine", "1.0");
         Assert.Throws<InvalidDataException>(() => TesseractStore.Extract(archive, 1000, Stream()[0], BitConverter.ToUInt32(Stream(), 1), files, destination));
         Assert.False(Directory.Exists(destination));
-        Assert.False(Directory.Exists(destination + ".partial"));
+        Assert.Empty(Directory.Exists(Path.GetDirectoryName(destination)) ? Directory.GetDirectories(Path.GetDirectoryName(destination)!, "*.partial") : []);
         // Another stream than the pinned one (its properties differ) isn't decoded at all.
         (archive, files) = FakeInstaller(temp.Path);
         Assert.Throws<InvalidDataException>(() => TesseractStore.Extract(archive, 1000, (byte)(Stream()[0] + 1), BitConverter.ToUInt32(Stream(), 1), files, destination));
@@ -275,7 +275,47 @@ public class TesseractTests
             var ex = await Assert.ThrowsAsync<PinnedDownloadException>(() => PinnedDownload.FetchAsync(http, Url, body.Length, sha, other));
             Assert.Equal(problem, ex.Problem);
             Assert.False(File.Exists(other));
-            Assert.False(File.Exists(other + ".part"));
+            Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(other)!, "*.part"));
+        }
+    }
+
+    [Fact]
+    public async Task TwoDownloadsOfOneFileAtOnceEachWriteTheirOwnPart()
+    {
+        using var temp = new TempFolder();
+        var body = new byte[300_000];
+        new Random(3).NextBytes(body);
+        var sha = Convert.ToHexStringLower(SHA256.HashData(body));
+        var path = Path.Combine(temp.Path, "tessdata", "eng.traineddata");
+        using var http = new HttpClient(new FakeServer(_ => Ok(body)));
+        await Task.WhenAll(Enumerable.Range(0, 4).Select(_ => Task.Run(() => PinnedDownload.FetchAsync(http, Url, body.Length, sha, path))));
+        Assert.Equal(body, File.ReadAllBytes(path));
+        Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(path)!, "*.part"));
+    }
+
+    [Fact]
+    public async Task OneInstallAtATimeInAFolderAcrossStores()
+    {
+        using var temp = new TempFolder();
+        var (a, b) = (new TesseractStore(temp.Path), new TesseractStore(temp.Path)); // as two copies of the app would
+        var held = await a.LockAsync();
+        var second = a.LockAsync();
+        var other = b.LockAsync();
+        await Task.Delay(600);
+        Assert.False(second.IsCompleted);
+        Assert.False(other.IsCompleted);
+        held.Dispose();
+        var next = await Task.WhenAny(second, other);
+        await Task.Delay(400);
+        Assert.False(second.IsCompleted && other.IsCompleted); // still one at a time
+        (await next).Dispose();
+        (await (next == second ? other : second).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(10)))).Dispose();
+        using var cancel = new CancellationTokenSource();
+        using (await a.LockAsync())
+        {
+            var waiting = b.LockAsync(cancel.Token);
+            await cancel.CancelAsync();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
         }
     }
 
@@ -292,7 +332,7 @@ public class TesseractTests
         }));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => PinnedDownload.FetchAsync(http, Url, 100_000, new string('0', 64), path, cancel: cancel.Token));
         Assert.False(File.Exists(path));
-        Assert.False(File.Exists(path + ".part"));
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.part"));
         await Assert.ThrowsAsync<ArgumentException>(() => PinnedDownload.FetchAsync(http, new Uri("http://example.test/x"), 1, new string('0', 64), path));
     }
 
@@ -332,7 +372,10 @@ public class TesseractTests
         Assert.Equal(rest.Order(StringComparer.CurrentCultureIgnoreCase), rest);
         Assert.Equal(TesseractCatalog.Languages.Length, offer.Count);
         Assert.Equal("hi", OcrLanguages.Find(offer, "HI")?.Tag);
-        Assert.Null(OcrLanguages.Find(offer, "fr-FR"));
+        // A language saved that isn't offered as saved: the one reading the same language (Windows' en-US for "en-GB"; Tesseract's French, to download).
+        Assert.Equal("en-US", OcrLanguages.Find(offer, "en-GB")?.Tag);
+        Assert.Equal("fr", OcrLanguages.Find(offer, "fr-FR")?.Tag);
+        Assert.Null(OcrLanguages.Find(offer, "xx-YY"));
     }
 
     [Fact]
@@ -427,6 +470,18 @@ public class TesseractTests
     }
 
     [Fact]
+    public void GarbageNeverOutweighsANameTheDictionaryLacks()
+    {
+        // "rn,1l" and "negr0" are a recognizer misreading; "Zbigniew" is a name no dictionary knows.
+        Assert.True(MixedRecognizer.Plausibility(W("rn,1l", 0, 0, 0), English) < MixedRecognizer.Plausibility(W("Zbigniew", 0, 0, 0), English) / 4);
+        Assert.True(MixedRecognizer.Plausibility(W("negr0rnk", 0, 0, 0), null) < MixedRecognizer.Plausibility(W("Zbigniew", 0, 0, 0), English));
+        Assert.True(MixedRecognizer.Plausibility(W("Zbigniew", 0, 0, 0), English) < MixedRecognizer.Plausibility(W("sleeps", 0, 0, 0), English) * 8 / 6);
+        // A line of garbage loses to the same line read as a name and words.
+        var chosen = MixedRecognizer.Choose([W("Zbigniew", 10, 10, 0), W("sleeps", 60, 10, 0)], English, [W("Zb1g,n1ew", 10, 10, 0), W("s1eeps", 60, 10, 0)], Spanish);
+        Assert.Equal(["Zbigniew", "sleeps"], chosen.Select(w => w.Text));
+    }
+
+    [Fact]
     public void TwoRecognizersReadThePageAndTheSpellingsAnswerTogether()
     {
         var first = new Fixed("en-US", W("cat", 10, 10, 0));
@@ -437,11 +492,31 @@ public class TesseractTests
         Assert.Equal(["cat"], mixed.Recognize([0], 1, 1, 1).Select(w => w.Text));
         Assert.Equal((1, 1), (first.Calls, second.Calls));
         Assert.Same(first, mixed.Rereader);
+        Assert.Null(new MixedRecognizer(new SureOfNothing(), null, first, English).Rereader); // Tesseract first: no re-reading in the other language
+        Assert.Equal(["en-US", "es-MX"], ScanText.LanguagesOf(new SerialRecognizer(mixed, new Lock())));
+        Assert.Equal("en-US+es-MX", new PageRecognizer(mixed).Language);
 
         var either = EitherSpelling.Of(English, Spanish)!;
         Assert.True(either.IsKnown("gato") && either.IsKnown("cat"));
         Assert.False(either.IsKnown("chat"));
         Assert.Same(English, EitherSpelling.Of(English, null));
+    }
+
+    [Fact]
+    public void ATextLayerKeepsBothLanguagesOfAPageInTwo()
+    {
+        var pdf = ExportTestPdf.Make();
+        var data = TextLayer.AddInvisibleText(pdf, null, new Dictionary<int, IReadOnlyList<OcrWord>> { [0] = [new OcrWord("gato", new RectD(72, 72, 40, 12))] }, "en-US+es-MX");
+        Assert.Equal("en-US+es-MX", TextLayer.Words(data, null)[0].Language);
+    }
+
+    [Fact]
+    public void ABatchThatCantReadInTheChosenLanguageSaysWhichAndStops()
+    {
+        var plan = new BatchPlan { Steps = [new OcrStep()], OutputFolder = Path.GetTempPath() };
+        Assert.Equal("Russian needs its download", plan.Validate(ocrAvailable: false, "Russian needs its download"));
+        Assert.Equal(PdfStrings.Batch_PlanNoOcr, plan.Validate(ocrAvailable: false));
+        Assert.Null(plan.Validate(ocrAvailable: true, "unused"));
     }
 
     // ---- Through Recognize Text's pipeline ----
@@ -469,8 +544,9 @@ public class TesseractTests
         var words = ScanText.Recognize(pdf, 0, reader, new RecognizeOptions()).Words;
         Assert.Equal(SuspectReasons.Unsure, words[0].Suspect & SuspectReasons.Unsure);
         Assert.Equal(SuspectReasons.None, words[1].Suspect & SuspectReasons.Unsure);
-        // The cleaned page and the page as scanned (suspect words compare them), and none of the ink no word covers read alone.
-        Assert.InRange(reader.Calls, 2, 3);
+        // The cleaned page only (once more if it can't tell which way up): its confidence marks suspect words, so the page
+        // isn't read again as scanned, and no ink no word covers is read alone.
+        Assert.InRange(reader.Calls, 1, 2);
         var plain = ScanText.Recognize(pdf, 0, new SureOfNothing(), RecognizeOptions.AsScanned with { CheckWords = true }).Words;
         Assert.True(plain[0].Suspect.HasFlag(SuspectReasons.Unsure));
         Assert.Null(ScanText.RereaderOf(new SerialRecognizer(reader, new Lock())));
@@ -522,6 +598,18 @@ public class TesseractTests
         Assert.Equal(0, ok.ExitCode);
         Assert.Contains("hello", Encoding.ASCII.GetString(ok.Output));
         Assert.Equal(3, BoundedProcess.Run(Cmd("exit 3"), [], 1000, TimeSpan.FromSeconds(30)).ExitCode);
+        // One that ends without reading its (large) input: its exit code, or the program's failure, never a raw pipe error.
+        for (var i = 0; i < 5; i++)
+        {
+            try
+            {
+                Assert.Equal(2, BoundedProcess.Run(Cmd("exit 2"), new byte[20_000_000], 1000, TimeSpan.FromSeconds(30)).ExitCode);
+            }
+            catch (BoundedProcessException)
+            {
+                // fine: said as Tesseract's failure
+            }
+        }
         Assert.Throws<BoundedProcessException>(() => BoundedProcess.Run(new ProcessStartInfo("C:\\no\\such\\tesseract.exe"), [], 1000, TimeSpan.FromSeconds(5)));
     }
 

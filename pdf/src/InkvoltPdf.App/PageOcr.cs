@@ -73,8 +73,20 @@ internal static class PageOcr
     /// <summary>The installed OCR languages (tag, name).</summary>
     public static IReadOnlyList<(string Tag, string Name)> Languages => WindowsRecognizer.Languages();
 
-    /// <summary>What Recognize Text offers: Windows' installed OCR languages, then Tesseract's that none of them reads.</summary>
-    public static List<OcrLanguageChoice> Offer() => OcrLanguages.Offer(Languages, NameOf);
+    private static List<OcrLanguageChoice>? _offer;
+
+    /// <summary>
+    /// What Recognize Text offers: Windows' installed OCR languages, then Tesseract's that none of them reads. Kept for the
+    /// run; <paramref name="fresh"/> (Recognize Text's window) asks Windows again.
+    /// </summary>
+    public static List<OcrLanguageChoice> Offer(bool fresh = false)
+    {
+        lock (Gate)
+            if (!fresh && _offer is { } kept) return kept;
+        var offer = OcrLanguages.Offer(Languages, NameOf);
+        lock (Gate) _offer = offer;
+        return offer;
+    }
 
     private static readonly Dictionary<string, string> Names = [];
 
@@ -107,8 +119,9 @@ internal static class PageOcr
         OcrLanguages.Plan(first, second, Tesseract.HasEngine, Tesseract.HasLanguage);
 
     /// <summary>
-    /// The plan Recognize Text last chose (<see cref="AppSettings.OcrLanguage"/>, <see cref="AppSettings.OcrSecondLanguage"/>);
-    /// null when nothing is chosen (Windows' default then). A language no longer offered counts as not chosen.
+    /// The plan Recognize Text last chose (<see cref="AppSettings.OcrLanguage"/>, <see cref="AppSettings.OcrSecondLanguage"/>,
+    /// saved only once what it needs is on this PC); with nothing chosen, Windows' default language. Null when there is
+    /// nothing to read with at all.
     /// </summary>
     public static OcrPlan? ChosenPlan(IReadOnlyList<OcrLanguageChoice>? offer = null)
     {
@@ -119,23 +132,68 @@ internal static class PageOcr
     }
 
     /// <summary>
-    /// The recognizer for what Recognize Text last chose, when it can read without downloading anything (else Windows'
-    /// default, <see cref="Engine"/>); null when there is none at all.
+    /// Whether the chosen languages can be read now, without downloading anything (cheap: no file is hashed). When they
+    /// can't, nothing reads in another language instead: <see cref="Unavailable"/> says why.
     /// </summary>
-    public static ITextRecognizer? Chosen
+    public static bool CanRead => ChosenPlan() is { } plan ? !plan.NeedsDownload : Engine is not null;
+
+    /// <summary>What reads now, as the person knows it ("Russian", "English + Spanish"); null when nothing can.</summary>
+    public static string? ChosenName => ChosenPlan() is { NeedsDownload: false } plan ? NamesOf(plan) : null;
+
+    private static string NamesOf(OcrPlan plan) => plan.Second is { } s ? $"{plan.First.Name} + {s.Name}" : plan.First.Name;
+
+    private static int _installs;
+    private static (string Key, Task<ITextRecognizer?> Task)? _chosen;
+
+    /// <summary>
+    /// The recognizer for what Recognize Text last chose, built (and Tesseract's files checked) off the UI thread and kept
+    /// until the choice changes or something is installed; null when it can't read now (<see cref="Unavailable"/> says why).
+    /// Never another language instead, never a download (Batch, a watched folder, the command line, export, Scan, Compare;
+    /// <see cref="ReadyAsync"/> offers the download where a person is there to say yes).
+    /// </summary>
+    public static Task<ITextRecognizer?> ChosenAsync()
     {
-        get
+        var settings = AppSettings.Current;
+        var key = $"{settings.OcrLanguage}|{settings.OcrSecondLanguage}|{Volatile.Read(ref _installs)}";
+        lock (Gate)
         {
-            try
+            if (_chosen is { } kept && kept.Key == key && !(kept.Task.IsCompleted && kept.Task.Result is null)) return kept.Task;
+            var task = Task.Run(() =>
             {
-                if (ChosenPlan() is { NeedsDownload: false } plan && Build(plan) is { } chosen) return chosen;
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException)
-            {
-                Log.Write($"OCR as chosen isn't available: {ex.Message}");
-            }
-            return Engine;
+                try
+                {
+                    return ChosenPlan() is { } plan ? Build(plan) : null;
+                }
+                catch (Exception ex) when (ex is not OutOfMemoryException)
+                {
+                    Log.Write($"OCR as chosen isn't available: {ex.Message}");
+                    return null;
+                }
+            });
+            _chosen = (key, task);
+            return task;
         }
+    }
+
+    /// <summary>
+    /// <see cref="ChosenAsync"/> where a person is there: when the chosen language still needs Tesseract's download, offers
+    /// it (naming the language); when it still can't read, says why. Null then.
+    /// </summary>
+    public static async Task<ITextRecognizer?> ReadyAsync(Window owner)
+    {
+        if (ChosenPlan() is { NeedsDownload: true } plan && !await EnsureAsync(owner, plan)) return null;
+        var ocr = await ChosenAsync();
+        if (ocr is null) Prompt.Info(owner, Strings.Review_OcrUnavailable, Unavailable);
+        return ocr;
+    }
+
+    /// <summary>Saves Recognize Text's languages (once what they need is on this PC), so Batch, Scan and export read with them.</summary>
+    public static void Choose(OcrPlan plan)
+    {
+        var settings = AppSettings.Current;
+        settings.OcrLanguage = plan.First.Tag;
+        settings.OcrSecondLanguage = plan.Second?.Tag ?? "";
+        settings.Save();
     }
 
     /// <summary>
@@ -204,6 +262,7 @@ internal static class PageOcr
         var size = FileActions.FormatSize(plan.DownloadBytes);
         var body = plan.NeedsEngine ? Loc.Format(Strings.Ocr_DownloadEngineBody, names, size) : Loc.Format(Strings.Ocr_DownloadLanguageBody, names, size);
         if (!Prompt.Confirm(owner, Strings.Ocr_DownloadTitle, body, Loc.Format(Strings.Ocr_DownloadButton, size))) return false;
+        Interlocked.Increment(ref _installs);
 
         using var progress = new ProgressPrompt(owner, Strings.Ocr_DownloadingTitle, plan.NeedsEngine ? Strings.Ocr_DownloadingEngine : Strings.Ocr_DownloadingTitle);
         var total = Math.Max(1, plan.DownloadBytes);
@@ -274,15 +333,21 @@ internal static class PageOcr
         }
     }
 
-    /// <summary>The spell checkers for what a recognizer reads: each language's, as one when it reads two.</summary>
-    public static ISpelling? SpellingFor(ITextRecognizer ocr) => ocr switch
-    {
-        MixedRecognizer mixed => EitherSpelling.Of(SpellingFor(mixed.First), SpellingFor(mixed.Second)),
-        TesseractRecognizer { Languages.Count: > 1 } t => t.Languages.Select(l => (ISpelling?)Spelling(l.Tag)).Aggregate(EitherSpelling.Of),
-        _ => Spelling(ocr.Language),
-    };
+    /// <summary>The spell checkers for what a recognizer reads (through Batch's one-at-a-time wrapper): each language's, as one when it reads two.</summary>
+    public static ISpelling? SpellingFor(ITextRecognizer ocr) => SpellingOf(string.Join('+', ScanText.LanguagesOf(ocr)));
 
-    public static string Unavailable => Strings.Ocr_NoLanguage;
+    /// <summary>The spell checkers for a text layer's languages ("en-US", or "en-US+es-MX" for a page in two), as one.</summary>
+    public static ISpelling? SpellingOf(string? languages) =>
+        string.IsNullOrEmpty(languages) ? null
+        : languages.Split('+', StringSplitOptions.RemoveEmptyEntries).Select(l => (ISpelling?)Spelling(l)).Aggregate((ISpelling?)null, EitherSpelling.Of);
+
+    /// <summary>
+    /// Why nothing reads now: the chosen language still needs Tesseract's download (named, with where to get it), or Windows
+    /// has no OCR language at all.
+    /// </summary>
+    public static string Unavailable => ChosenPlan() is { NeedsDownload: true } plan
+        ? Loc.Format(Strings.Ocr_ChosenNotHere, NamesOf(plan))
+        : Strings.Ocr_NoLanguage;
 
     /// <summary>A page recognizer reading as <paramref name="options"/> say, with the spell checker for its language when they mark suspect words.</summary>
     public static PageRecognizer Pages(ITextRecognizer ocr, RecognizeOptions options) =>
@@ -300,10 +365,7 @@ internal static class PageOcr
     /// Batch's text recognition (the Batch window, a watched folder, the command line): <paramref name="ocr"/> one call at a
     /// time (the files running together share it), reading as Recognize Text was last set (<see cref="AsSet"/>). Null without one.
     /// </summary>
-    public static PageRecognizer? ForBatch(ITextRecognizer? ocr) =>
-        ocr is null ? null : new PageRecognizer(new SerialRecognizer(ocr, new Lock()),
-            new RecognizeOptions(Clean: AppSettings.Current.OcrClean, CheckWords: AppSettings.Current.OcrSuspects),
-            AppSettings.Current.OcrSuspects ? SpellingFor(ocr) : null);
+    public static PageRecognizer? ForBatch(ITextRecognizer? ocr) => ocr is null ? null : AsSet(new SerialRecognizer(ocr, new Lock()));
 
     /// <summary>
     /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first, no suspect words

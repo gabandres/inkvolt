@@ -90,13 +90,22 @@ public static partial class BoundedProcess
             if (tooMuch) throw new BoundedProcessException($"{Path.GetFileName(start.FileName)} wrote more than {maxOutput} bytes.");
             return new Result(process.ExitCode, read.Result, errors.Result);
         }
-        catch (Exception ex) when (ex is OperationCanceledException || (ex is AggregateException a && a.InnerExceptions.All(e => e is OperationCanceledException)))
+        catch (Exception ex) when (ex is OperationCanceledException || (ex is AggregateException a && a.Flatten().InnerExceptions.All(e => e is OperationCanceledException)))
         {
             Kill(process);
             cancel.ThrowIfCancellationRequested();
             throw new BoundedProcessException(tooMuch
                 ? $"{Path.GetFileName(start.FileName)} wrote more than {maxOutput} bytes."
                 : $"{Path.GetFileName(start.FileName)} took longer than {timeout.TotalSeconds:0} s.", ex, timedOut: !tooMuch);
+        }
+        catch (Exception ex) when (ex is AggregateException or IOException or ObjectDisposedException or InvalidOperationException
+                                       or System.ComponentModel.Win32Exception)
+        {
+            // A pipe broken or closed under a reader: the program failed, said in plain words by its caller.
+            Kill(process);
+            cancel.ThrowIfCancellationRequested();
+            var inner = ex is AggregateException agg ? agg.Flatten().InnerExceptions.FirstOrDefault(e => e is not OperationCanceledException) ?? ex : ex;
+            throw new BoundedProcessException($"{Path.GetFileName(start.FileName)} failed: {inner.GetType().Name}: {inner.Message}", ex);
         }
         catch
         {

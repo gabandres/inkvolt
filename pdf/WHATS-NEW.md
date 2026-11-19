@@ -7,7 +7,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 ## Next
 - Recognize Text reads more than 100 more languages with Tesseract, a free recognizer, for the ones Windows doesn't have (Hindi, Thai, Hebrew, Ukrainian, Vietnamese and many more). Choose one and Inkvolt PDF offers to download it (about 30 MB the first time); nothing is downloaded until you say so, and it stays on your PC.
 - Pages in two languages: choose a second language in Recognize Text. Each line is read in the language that fits it, or both at once with Tesseract.
-- Batch, Scan and the exports now read in the language you last chose in Recognize Text.
+- Batch, Scan, the exports, Compare Files and Redact by Pattern now read scans in the language you last chose in Recognize Text.
 - With Tesseract, a word it wasn't sure of is listed among the suspect words to check.
 
 ## 1.15.0

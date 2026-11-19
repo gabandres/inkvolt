@@ -32,7 +32,7 @@ public static class PinnedDownload
         IProgress<long>? progress = null, CancellationToken cancel = default)
     {
         if (url.Scheme != Uri.UriSchemeHttps) throw new ArgumentException("Pinned downloads are https only.", nameof(url));
-        var part = destination + ".part";
+        var part = $"{destination}.{Guid.NewGuid():N}.part"; // its own: two downloads of one file never write into each other
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);

@@ -19,8 +19,11 @@ public sealed class PageRecognizer(ITextRecognizer recognizer, RecognizeOptions?
 
     public RecognizeOptions Options { get; } = options ?? new RecognizeOptions();
 
-    /// <summary>The language it reads in (a BCP-47 tag), kept with the text layer for its review.</summary>
-    public string Language => recognizer.Language;
+    /// <summary>
+    /// The languages it reads in (BCP-47 tags joined by "+": "en-US+es-MX" for a page in two), kept with the text layer
+    /// for its review (<see cref="ScanText.LanguagesOf"/>).
+    /// </summary>
+    public string Language => string.Join('+', ScanText.LanguagesOf(recognizer));
 
     /// <summary>
     /// The words on one page, read as <see cref="Options"/> say, whether it has text or not; nothing is kept or written
