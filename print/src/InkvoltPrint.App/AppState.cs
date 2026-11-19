@@ -396,6 +396,7 @@ public sealed class AppState
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
+            state.ScanButtons = new((state.ScanButtons ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.Firmware = new((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }), StringComparer.OrdinalIgnoreCase);
             state.Tray?.Repair();
             return state;
