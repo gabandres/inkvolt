@@ -95,7 +95,26 @@ public static class PinnedDownload
             }
             if (!string.Equals(Convert.ToHexStringLower(hash.GetHashAndReset()), sha256, StringComparison.OrdinalIgnoreCase))
                 throw new PinnedDownloadException(DownloadProblem.WrongContent, "The file isn't the one expected.");
-            File.Move(part, destination, overwrite: true);
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    File.Move(part, destination, overwrite: true);
+                    break;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    // Another download of the same file put it in place a moment ago (or is moving it now): theirs is the
+                    // same pinned file, so it is kept; else try again shortly, then give up.
+                    if (PinnedDownload.Matches(destination, size, sha256, cancel))
+                    {
+                        TryDelete(part);
+                        break;
+                    }
+                    if (attempt >= 20) throw;
+                    await Task.Delay(50, cancel).ConfigureAwait(false);
+                }
+            }
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or IOException)
         {
