@@ -32,7 +32,7 @@ public sealed record PhotoLayoutChoice(string Key, PhotoLayoutKind Kind, PhotoSi
 /// Windows queue (<see cref="PhotoPrinting"/>); the layout arithmetic is Core's <see cref="PhotoLayout"/>.
 /// </summary>
 /// <param name="demo">Demo printer: the made-up queue's options, and "prints" there (job name, sheets).</param>
-public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppState state, DemoPhotoQueue? demo = null) : ObservableObject
+public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget, AppState state, DemoPhotoQueue? demo = null) : ObservableObject
 {
     public const int MaxPhotos = 500;
 
@@ -387,7 +387,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         {
             PhotoQueueOptions? options;
             if (demo is not null) options = demo.Options;
-            else options = await findQueue() is { } queue ? await Task.Run(() => PhotoPrinting.ReadOptions(queue)) : null;
+            else options = await findTarget() is { } target ? await PhotoPrinting.ReadOptionsAsync(target) : null;
             _optionsRead = true;
             if (options is null) return; // not set up in Windows yet: the fallback paper until it is
             Papers = options.Papers.Count > 0 ? options.Papers : [FallbackPaper];
@@ -423,11 +423,7 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
         try
         {
             if (demo is not null) setup = demo.Setup(paper);
-            else if (paper.Media is not null && await findQueue() is { } queue)
-            {
-                var settings = Settings(paper);
-                setup = await Task.Run(() => PhotoPrinting.ReadPaper(queue, settings));
-            }
+            else if (await findTarget() is { } target) setup = await PhotoPrinting.ReadPaperAsync(target, Settings(paper));
         }
         catch (Exception ex)
         {
@@ -558,13 +554,13 @@ public sealed partial class PhotosViewModel(Func<Task<string?>> findQueue, AppSt
                 SetMessage(string.Format(Strings.Photos_SentDemo, SheetCount(sheets)));
                 return;
             }
-            if (await findQueue() is not { } queue)
+            if (await findTarget() is not { } target)
             {
                 SetMessage(Strings.Print_NotSetUp, error: true);
                 return;
             }
             SetMessage(Strings.Photos_Sending);
-            var sent = await PhotoPrinting.PrintAsync(queue, settings, photos, layout, "Photos");
+            var sent = await PhotoPrinting.PrintAsync(target, settings, photos, layout, "Photos");
             SetMessage(string.Format(Strings.Photos_Sent, SheetCount(sent)));
             RatingRequest.NoteSuccess(state);
         }

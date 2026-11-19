@@ -4379,4 +4379,24 @@ Start over</value>
     <value>Page {0}</value>
     <comment>Under a scanned page's thumbnail, beside six icon buttons: keep it short ({0} = page number)</comment>
   </data>
+  <data name="PrintTab_Direct" xml:space="preserve">
+    <value>Print straight to the printer (no Windows queue)</value>
+  </data>
+  <data name="PrintTab_DirectTip" xml:space="preserve">
+    <value>Sends the pages over the network as the printer's own raster format (IPP Everywhere), without its Windows driver. Also for Copy and Photos.</value>
+  </data>
+  <data name="Print_RouteDirect" xml:space="preserve">
+    <value>No Windows queue for this printer: pages go straight to it over the network (IPP Everywhere).</value>
+  </data>
+  <data name="Print_RouteDirectChosen" xml:space="preserve">
+    <value>Pages go straight to the printer over the network, not through its Windows queue.</value>
+  </data>
+  <data name="Print_SentDirect" xml:space="preserve">
+    <value>Printed: {0} ({1:0.0} s).</value>
+    <comment>{0} = '3 pages × 2 copies', {1} = seconds</comment>
+  </data>
+  <data name="Print_DirectDrawing" xml:space="preserve">
+    <value>Making page {0} of {1} in the printer's format…</value>
+    <comment>{0} = page, {1} = pages</comment>
+  </data>
 </root>

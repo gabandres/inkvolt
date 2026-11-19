@@ -19,7 +19,7 @@ namespace InkvoltPrint.App.ViewModels;
 /// one sheet (top and bottom halves). Needs a scanner and a Windows queue; says which one is missing otherwise.
 /// </summary>
 /// <param name="demoPrint">Demo printer: instead of a Windows queue, "prints" here (job name, sheets).</param>
-public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppState state, Action<string, int>? demoPrint = null) : ObservableObject
+public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, AppState state, Action<string, int>? demoPrint = null) : ObservableObject
 {
     private const int CopyDpi = 300;
     private const double PreviewHeight = 520;
@@ -212,7 +212,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         var copies = Copies;
         var twoSided = TwoSided && CanTwoSided;
         var sheets = (twoSided ? (pages.Count + 1) / 2 : pages.Count) * copies;
-        await PrintAsync("Copy", sheets, queue => QueuePrinter.PrintPagesAsync(queue, pages, copies, twoSided, "Copy", sizing),
+        await PrintAsync("Copy", sheets, target => PrintTargets.PrintPagesAsync(target, pages, copies, twoSided, "Copy", sizing),
             copies > 1 ? Core.Plural.Of(pages.Count, Strings.Copy_WhatPagesCopies_One, Strings.Copy_WhatPagesCopies_Many, copies)
                 : Core.Plural.Of(pages.Count, Strings.Copy_WhatPages_One, Strings.Copy_WhatPages_Many));
     }
@@ -240,7 +240,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         AwaitingBack = false;
         _front = null;
         var copies = Copies;
-        await PrintAsync("ID card copy", copies, queue => QueuePrinter.PrintIdCardAsync(queue, front, back, copies, "ID card copy"),
+        await PrintAsync("ID card copy", copies, target => PrintTargets.PrintIdCardAsync(target, front, back, copies, "ID card copy"),
             copies > 1 ? string.Format(Strings.Copy_WhatCardCopies, copies) : Strings.Copy_WhatCard);
     }
 
@@ -319,7 +319,7 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
     }
 
     /// <summary>Hands the scanned copy to the printer's Windows queue (the demo printer's made-up queue in demo mode).</summary>
-    private async Task PrintAsync(string jobName, int sheets, Func<string, Task> print, string what)
+    private async Task PrintAsync(string jobName, int sheets, Func<PrintTarget, Task> print, string what)
     {
         ForgetPrintAgain();
         IsBusy = true;
@@ -331,14 +331,14 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
                 SetMessage(string.Format(Strings.Copy_SentDemo, what));
                 return;
             }
-            if (await findQueue() is not { } queue)
+            if (await findTarget() is not { } target)
             {
                 SetMessage(Strings.Copy_NotSetUp, error: true);
                 KeepForPrintAgain();
                 return;
             }
             SetMessage(Strings.Copy_Sending);
-            await print(queue);
+            await print(target);
             SetMessage(string.Format(Strings.Copy_Sent, what));
             RatingRequest.NoteSuccess(state);
         }
@@ -366,19 +366,14 @@ public sealed partial class CopyViewModel(Func<Task<string?>> findQueue, AppStat
         if (_twoSidedChecked || demoPrint is not null) return;
         try
         {
-            if (await findQueue() is not { } queue)
+            if (await findTarget() is not { } target)
             {
                 CanTwoSided = false;
             }
             else
             {
-                if (state.GetTwoSided(queue) is { } known) CanTwoSided = known;
-                CanTwoSided = await Task.Run(() =>
-                {
-                    using var q = QueuePrinter.Open(queue);
-                    return QueuePrinter.SupportsTwoSided(q);
-                });
-                state.SetTwoSided(queue, CanTwoSided);
+                if (target is PrintTarget.Queue { Name: var queue } && state.GetTwoSided(queue) is { } known) CanTwoSided = known;
+                CanTwoSided = await PrintTargets.SupportsTwoSidedAsync(target, state);
                 _twoSidedChecked = true;
             }
         }

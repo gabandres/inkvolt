@@ -45,16 +45,76 @@ public sealed class IppClient
     public Task<IppResponse> IdentifyPrinterAsync(IReadOnlyList<string> actions, string? userName, CancellationToken ct = default) =>
         PostAsync(IppCodec.EncodeIdentifyPrinter(PrinterUri, userName, actions), TimeSpan.FromSeconds(10), ct, once: true);
 
-    private async Task<IppResponse> PostAsync(byte[] body, TimeSpan timeout, CancellationToken ct, bool once = false)
+    /// <summary>
+    /// Print-Job (RFC 8011 §4.2.1): <paramref name="request"/> (an <see cref="IppRequest"/>'s bytes) followed by the document,
+    /// sent once and never again by the connection pool (a resend would print the job twice), with a time limit for a slow
+    /// printer taking a large raster. Returns the job group of the answer.
+    /// </summary>
+    public async Task<IppResponse> PrintJobAsync(byte[] request, Stream document, TimeSpan timeout, CancellationToken ct = default)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint)
-        {
-            Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/ipp") } },
-        };
+        using var req = new HttpRequestMessage(HttpMethod.Post, Endpoint) { Content = new DocumentContent(request, document) };
+        using var resp = await _http.SendOnceAsync(req, timeout, ct).ConfigureAwait(false);
+        await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
+        return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false), IppCodec.JobTag);
+    }
+
+    /// <summary>Get-Job-Attributes (RFC 8011 §4.3.4): the job group.</summary>
+    public Task<IppResponse> GetJobAttributesAsync(byte[] request, CancellationToken ct = default) =>
+        PostAsync(request, TimeSpan.FromSeconds(5), ct, group: IppCodec.JobTag);
+
+    /// <summary>Cancel-Job (RFC 8011 §4.3.3), sent once.</summary>
+    public Task<IppResponse> CancelJobAsync(byte[] request, CancellationToken ct = default) =>
+        PostAsync(request, TimeSpan.FromSeconds(10), ct, once: true, group: IppCodec.JobTag);
+
+    /// <summary>Get-Jobs (RFC 8011 §4.2.6): the reply's bytes, one job group per job (<see cref="IppCodec.DecodeGroups"/>).</summary>
+    public async Task<byte[]> GetJobsAsync(byte[] request, CancellationToken ct = default)
+    {
+        using var req = IppPost(request);
+        using var resp = await _http.SendAsync(req, TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+        await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
+        return await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false);
+    }
+
+    private HttpRequestMessage IppPost(byte[] body) => new(HttpMethod.Post, Endpoint)
+    {
+        Content = new ByteArrayContent(body) { Headers = { ContentType = new MediaTypeHeaderValue("application/ipp") } },
+    };
+
+    private async Task<IppResponse> PostAsync(byte[] body, TimeSpan timeout, CancellationToken ct, bool once = false, byte group = IppCodec.PrinterTag)
+    {
+        using var req = IppPost(body);
         using var resp = once ? await _http.SendOnceAsync(req, timeout, ct).ConfigureAwait(false)
             : await _http.SendAsync(req, timeout, ct).ConfigureAwait(false);
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
-        return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false));
+        return IppCodec.Decode(await resp.Content.ReadAsByteArrayAsync(ct).ConfigureAwait(false), group);
+    }
+
+    /// <summary>An IPP request with a document after it, written straight from the document's stream (a raster can be hundreds of MB).</summary>
+    private sealed class DocumentContent : HttpContent
+    {
+        private readonly byte[] _head;
+        private readonly Stream _document;
+
+        public DocumentContent(byte[] head, Stream document)
+        {
+            (_head, _document) = (head, document);
+            Headers.ContentType = new MediaTypeHeaderValue("application/ipp");
+        }
+
+        protected override async Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context) =>
+            await SerializeToStreamAsync(stream, context, CancellationToken.None).ConfigureAwait(false);
+
+        protected override async Task SerializeToStreamAsync(Stream stream, System.Net.TransportContext? context, CancellationToken ct)
+        {
+            await stream.WriteAsync(_head, ct).ConfigureAwait(false);
+            await _document.CopyToAsync(stream, 1 << 16, ct).ConfigureAwait(false);
+        }
+
+        protected override bool TryComputeLength(out long length)
+        {
+            length = _document.CanSeek ? _head.Length + _document.Length - _document.Position : 0;
+            return _document.CanSeek;
+        }
     }
 
     /// <summary>Most supplies taken from a printer (a real one has a handful): a reply's bytes hold thousands, one card and history line each.</summary>

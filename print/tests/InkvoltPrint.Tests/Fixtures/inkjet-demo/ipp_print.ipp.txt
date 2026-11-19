@@ -70,3 +70,46 @@ operations-supported enum 60
 identify-actions-default keyword flash
 identify-actions-supported keyword flash
 identify-actions-supported keyword sound
+# Driverless printing (PWG 5100.14 §5.6, PWG 5102.4, Apple's urf-supported): what Print a PDF, Copy and Photos send it
+# when it has no Windows queue. media-col-database is a collection, which this form can't hold: the papers come from
+# media-supported and the margins from media-*-margin-supported (0 among them: borderless too).
+pwg-raster-document-type-supported keyword sgray_8
+pwg-raster-document-type-supported keyword srgb_8
+pwg-raster-document-resolution-supported resolution 300dpi
+pwg-raster-document-resolution-supported resolution 600dpi
+pwg-raster-document-sheet-back keyword rotated
+urf-supported keyword V1.4
+urf-supported keyword CP1
+urf-supported keyword W8
+urf-supported keyword SRGB24
+urf-supported keyword RS300-600
+urf-supported keyword DM3
+media-supported keyword na_letter_8.5x11in
+media-supported keyword na_legal_8.5x14in
+media-supported keyword iso_a4_210x297mm
+media-supported keyword na_index-4x6_4x6in
+media-supported keyword na_5x7_5x7in
+media-default keyword na_letter_8.5x11in
+media-bottom-margin-supported integer 0
+media-bottom-margin-supported integer 300
+media-left-margin-supported integer 0
+media-left-margin-supported integer 300
+media-right-margin-supported integer 0
+media-right-margin-supported integer 300
+media-top-margin-supported integer 0
+media-top-margin-supported integer 300
+media-type-supported keyword stationery
+media-type-supported keyword photographic-glossy
+media-type-supported keyword photographic-matte
+media-type-default keyword stationery
+sides-supported keyword one-sided
+sides-supported keyword two-sided-long-edge
+sides-supported keyword two-sided-short-edge
+print-color-mode-supported keyword color
+print-color-mode-supported keyword monochrome
+print-color-mode-default keyword color
+copies-supported rangeOfInteger 1-99
+print-quality-supported enum 3
+print-quality-supported enum 4
+print-quality-supported enum 5
+print-quality-default enum 4

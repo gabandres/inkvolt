@@ -143,7 +143,7 @@ public static class QueuePrinter
         await done.Task;
     }
 
-    private sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
+    internal sealed class RenderedPaginator(IReadOnlyList<RenderedPage> pages, Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
     {
         public override bool IsPageCountValid => true;
         public override int PageCount => pages.Count;
@@ -176,7 +176,7 @@ public static class QueuePrinter
     }
 
     /// <summary>One sheet: the card's front on the top half, its back on the bottom half.</summary>
-    private sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper, PrintImages images) : DocumentPaginator
+    internal sealed class IdCardPaginator(RenderedPage front, RenderedPage back, Size paper, PrintImages images) : DocumentPaginator
     {
         public override bool IsPageCountValid => true;
         public override int PageCount => 1;
