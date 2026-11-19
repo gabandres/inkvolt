@@ -84,6 +84,18 @@ public static class QueuePrinter
         PageSizing sizing = PageSizing.ActualSize) =>
         SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => new RenderedPaginator(pages, paper, sizing, images));
 
+    /// <summary>
+    /// A page copy laid out by the PC: <paramref name="pagesPerSheet"/> pages on each side (<see cref="CopyLayout.NUp"/>), collated
+    /// by the queue or, when not, sheet by sheet here (<see cref="CopyLayout.Order"/>).
+    /// </summary>
+    public static Task PrintCopyAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, bool collate, int pagesPerSheet,
+        string jobName, PageSizing sizing)
+    {
+        var sides = CopyLayout.Sides(pages.Count, pagesPerSheet);
+        var (order, ticketCopies) = CopyLayout.Order(sides.Count, copies, collate, twoSided);
+        return SpoolAsync(queueName, ticketCopies, twoSided, jobName, (paper, images) => new CopyPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images));
+    }
+
     /// <summary>A batch's file: pages already drawn, on the ticket <paramref name="makeTicket"/> validated.</summary>
     internal static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, string jobName, PageSizing sizing, Func<PrintQueue, PrintTicket> makeTicket) =>
         SpoolAsync(queueName, jobName, makeTicket, (_, _, paper, images) => new RenderedPaginator(pages, paper, sizing, images));
@@ -171,6 +183,46 @@ public static class QueuePrinter
             Canvas.SetLeft(image, at.X);
             Canvas.SetTop(image, at.Y);
             page.Children.Add(image);
+            return Finish(page, paper);
+        }
+    }
+
+    /// <summary>A page copy's sides in print order (−1: a blank back), each with its pages placed by <see cref="CopyLayout.NUp"/>.</summary>
+    private sealed class CopyPaginator(IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, IReadOnlyList<int> order, int pagesPerSheet,
+        Size paper, PageSizing sizing, PrintImages images) : DocumentPaginator
+    {
+        public override bool IsPageCountValid => true;
+        public override int PageCount => order.Count;
+        public override Size PageSize { get => paper; set { } }
+        public override IDocumentPaginatorSource? Source => null;
+
+        /// <summary>One picture per scanned page however often it prints (uncollated copies repeat sheets): the job embeds it once.</summary>
+        private readonly Dictionary<int, BitmapFrame> _frames = [];
+
+        public override DocumentPage GetPage(int pageNumber)
+        {
+            var page = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
+            if (order[pageNumber] is var side and >= 0)
+            {
+                var on = sides[side];
+                var placed = CopyLayout.NUp([.. on.Select(i => (pages[i].WidthInches * 96, pages[i].HeightInches * 96))], pagesPerSheet, paper.Width, paper.Height, sizing);
+                for (var i = 0; i < placed.Count; i++)
+                {
+                    var (at, rotate) = placed[i];
+                    if (!_frames.TryGetValue(on[i], out var frame)) _frames[on[i]] = frame = images.Jpeg(pages[on[i]].Image);
+                    var image = new Image
+                    {
+                        Source = frame,
+                        Stretch = Stretch.Fill,
+                        Width = rotate ? at.Height : at.Width,
+                        Height = rotate ? at.Width : at.Height,
+                        LayoutTransform = rotate ? new RotateTransform(90) : Transform.Identity,
+                    };
+                    Canvas.SetLeft(image, at.X);
+                    Canvas.SetTop(image, at.Y);
+                    page.Children.Add(image);
+                }
+            }
             return Finish(page, paper);
         }
     }

@@ -873,6 +873,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         BindScanner();
+        _ = FindPrinterCopyAsync(conn);
         if (conn.Probe.HasHpInterfaces) // settings are LEDM's
         {
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, _pc.Passwords, _pc.Browser is null ? null : OpenWebPage);
@@ -884,6 +885,20 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             conn.Http.SetCredentials("admin", pw);
 
         _remember(this);
+    }
+
+    /// <summary>The Copy tab learns whether the printer copies by itself (HP LEDM copy settings; reads only), for this connection.</summary>
+    private async Task FindPrinterCopyAsync(PrinterConnection conn)
+    {
+        try
+        {
+            var copier = await Core.Ledm.PrinterCopier.DetectAsync(conn);
+            if (_monitor?.Connection == conn) Copy.AttachPrinterCopy(copier);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Printer copy not checked: {ex.Message}");
+        }
     }
 
     /// <summary>

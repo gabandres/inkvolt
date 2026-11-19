@@ -158,16 +158,19 @@ public sealed class LedmClient(DeviceHttp http)
     /// <summary>PUT an LEDM document to a path, over HTTPS. Throws <see cref="LedmAuthRequiredException"/> on 401/403.</summary>
     public async Task PutPathAsync(string path, XDocument body, CancellationToken ct = default)
     {
-        var xml = body.Declaration is null ? "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + body.ToString(SaveOptions.DisableFormatting) : body.ToString(SaveOptions.DisableFormatting);
         using var req = new HttpRequestMessage(HttpMethod.Put, http.Https(path))
         {
-            Content = new StringContent(xml, Encoding.UTF8, new MediaTypeHeaderValue("text/xml")),
+            Content = new StringContent(Serialize(body), Encoding.UTF8, new MediaTypeHeaderValue("text/xml")),
         };
         using var resp = await http.SendAsync(req, TimeSpan.FromSeconds(15), ct).ConfigureAwait(false);
         if (resp.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
             throw new LedmAuthRequiredException(http.HasCredentials);
         await DeviceHttp.EnsureSuccessAsync(resp).ConfigureAwait(false);
     }
+
+    /// <summary>An LEDM PUT body as sent: one line, with the XML declaration even when the document has none.</summary>
+    public static string Serialize(XDocument body) =>
+        body.Declaration is null ? "<?xml version=\"1.0\" encoding=\"UTF-8\"?>" + body.ToString(SaveOptions.DisableFormatting) : body.ToString(SaveOptions.DisableFormatting);
 
     private static XDocument Load(byte[] bytes) => DeviceXml.Load(bytes);
 }

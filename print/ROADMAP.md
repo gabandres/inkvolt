@@ -53,7 +53,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
 | 3.1 Share a scanner on the network | | All of it |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
-| 3.3 The printer's own copier | All of it | |
+| 3.3 The printer's own copier | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 3.4 Job notifications | All of it | |
 | 3.5 Open in Inkvolt PDF on the Mac | All of it (done 2026-11-02) | |
 
@@ -477,6 +477,36 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Beat it when:** an HP printer whose tree lists `CopyConfigCap` / `CopyConfigDyn` (the M234dw's does) copies on
   the printer, no queue needed; the PC path stays for the rest and gains 2-up and 4-up, collate and a preview. Test:
   the LEDM copy document byte for byte against a recording fake; layout tests; on the M234dw, one copy from the app.
+- **Built (Windows, 2026-11-19).** **The printer's own copier:** `Core/Ledm/LedmCopy` reads `CopyConfigCap` and
+  `CopyConfigDyn` the way LEDM's other settings are read: a Cap entry marked `readWrite` names its Dyn element (the last step
+  of its `elementXPath`, else its name less `Support`), choices are its child elements, numbers its `min`/`max`. An offer
+  exists only with a writable start; then copies (up to the printer's maximum and 99), collate, two-sided and color, each
+  only when the Cap lists both its on and off values. `LedmCopy.Build` makes one partial Dyn from the printer's own element
+  names and namespaces (`LedmSettingCatalog.BuildPut`), the start last; `Core/Ledm/PrinterCopier` finds it by reading only
+  (the tree, then two GETs) and sends it once (`SendOnceAsync`, never retried) as a PUT over HTTPS; 401/403 asks for the
+  admin password, 404/405/501, busy and other refusals are told in words, a send with no answer says it may have started.
+  The Copy tab's *Copy with: The printer itself* (the default when offered; `Core/Printing/CopyRoute`) needs no scan to the PC
+  and no Windows queue; ID cards and *Through this PC* take the PC path. **Unconfirmed:** no CopyConfig document has been
+  captured (the fixtures hold only the M234dw's tree; the printer was off the network on the day), so the element names
+  (`CopyState` = `start`, `Copies`, `Collate`, `Duplex`, `ColorMode`, a few synonyms each) and their values are an assumption,
+  modelled on the captured PrintConfig and ProductConfig documents and kept in one table (`LedmCopy.Names`, `Values`). A
+  printer whose documents differ gets no offer and copies through the PC: nothing is sent on a guess. Record a printer now
+  saves both documents (`PrinterRecorder`), so one recording settles it. The demo HP laser's copy documents are written by
+  hand to the assumed names (`Fixtures/hp-demo`). **Through the PC:** 1, 2 or 4 pages per sheet (`CopyLayout.Sides`, `NUp`:
+  2-up stacked and turned on portrait paper, side by side on landscape, 4-up two by two in reading order, inside a ¼ in
+  margin), collate on or off (`CopyLayout.Order`: uncollated sheets repeated by the app with one copy on the ticket, a blank
+  back after an odd last side two-sided; collated left to the queue's copy count as before), and *Preview before printing*
+  (scan, show each sheet as it prints, then Print; pages per sheet and size still change it); `QueuePrinter.PrintCopyAsync`.
+  **Checked:** `PrinterCopyTests` (the M234dw tree lists both documents; without them nothing is offered and only GETs go
+  out; the demo laser's offer; the PUT byte for byte, its HTTPS address and type; refusals in words, never sent twice; the
+  password; hostile Caps: no or read-only or unknown start, copies 2³¹−1 or garbage or a minimum above one, 40 choices,
+  100-character values, a one-way choice, an element the PUT can't reach, odd `elementXPath`s; `CopyRoute`) and
+  `CopyLayoutTests` (sides, 2-up and 4-up placement and turning, bounds, the orders, sheet counts, a page with no size).
+  `--demo --snapshot`: the HP laser's Copy tab copying on the printer (English and Spanish), the inkjet's 2-up and 4-up
+  previews from a feeder batch (`--copy-pc`, `--copy-per-sheet`, `--copy-preview`, `--uncollated`, `--copies`).
+  **Not checked:** one copy from the app on a real M234dw (and its Record a printer to confirm the names); 2-up, 4-up and
+  uncollated copies on paper; the preview by a person on screen. **Mac half waits** (no Mac available now): PrintCore's
+  copy, the LEDM request and the layout, to port with these tests' names.
 - **Effort** S-M. Windows and Mac.
 
 ### 3.4 Job notifications

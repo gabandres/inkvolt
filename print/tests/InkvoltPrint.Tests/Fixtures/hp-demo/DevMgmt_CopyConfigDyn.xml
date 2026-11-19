@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo mode only: written by hand, never captured (see DevMgmt_CopyConfigCap.xml next to it). -->
+<cpcfgdyn:CopyConfigDyn xmlns:cpcfgdyn="http://www.hp.com/schemas/imaging/con/ledm/cpcfgdyn/2008/05/05" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/">
+	<dd:Version>
+		<dd:Revision>demo</dd:Revision>
+	</dd:Version>
+	<cpcfgdyn:CopySettings>
+		<dd:Copies>1</dd:Copies>
+		<dd:Collate>collated</dd:Collate>
+		<dd:Duplex>simplexToSimplex</dd:Duplex>
+		<dd:ColorMode>mono</dd:ColorMode>
+	</cpcfgdyn:CopySettings>
+	<cpcfgdyn:CopyState>idle</cpcfgdyn:CopyState>
+</cpcfgdyn:CopyConfigDyn>
