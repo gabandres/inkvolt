@@ -603,11 +603,15 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     /// <summary>Check processes at once for pages of <paramref name="doc"/>.</summary>
     internal int WorkersFor(CheckedDocument doc) => doc.Slow && Workers >= 2 ? Math.Max(Workers, SlowWorkers) : Workers;
 
-    /// <summary>Check processes at once for what is queued: the most any queued page's document has. Under _gate.</summary>
+    /// <summary>
+    /// Check processes at once for what is queued: the most any queued page's document has, for pages drawn for the view
+    /// (with a picture); others (Find, text, thumbnails) have <see cref="Workers"/>, as Find reads in its own workers. Under _gate.
+    /// </summary>
     private int Cap()
     {
         var cap = Workers;
-        foreach (var r in _queue) cap = Math.Max(cap, WorkersFor(r.Doc));
+        foreach (var r in _queue)
+            if (r.PictureScale > 0) cap = Math.Max(cap, WorkersFor(r.Doc));
         return cap;
     }
 

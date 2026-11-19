@@ -115,7 +115,7 @@ public sealed partial class PdfEngine
     /// <param name="request">The check of <paramref name="page"/>.</param>
     private void AskAfter(int page, CheckRequest request, ViewScale? view)
     {
-        var ahead = PagesAhead();
+        var ahead = view is null ? 2 : PagesAhead(); // further only for the view's pages (scrolling), not for Find or text
         for (var (next, before) = (page + 1, (CheckRequest?)request); next <= page + ahead && next < _pages.Length && before is not null; next++)
         {
             before.Ahead ??= AskAhead(next, view);

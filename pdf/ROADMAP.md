@@ -1173,7 +1173,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (`Prepare`, now its own state, not a placeholder request) that fails decides nothing (the document isn't marked
   unopenable) and isn't remembered past the document's close; one open sequence for both (`EnsureOpen`); a shown
   document whose bytes are repaired lets go of the bytes as they are, and their first page's check, before the repaired
-  copy opens; a reload read in the background asks for its first page only once it is kept.
+  copy opens; a reload read in the background asks for its first page only once it is kept. Pages are checked further
+  ahead, on more processes, only for the view (renders with a picture), not for Find or text: comments.pdf's checks
+  took 200 ms in a row under this load, and Find then shared the cores with four check processes. Bench `one` after it,
+  master in turn: comments.pdf first page 0.96 to 1.21 s against 1.35 to 1.61 s, the scroll proxy's slowest page 43 to
+  88 ms against 342 to 1,094, Find 1.6 to 2.5 s against 1.4 to 1.8 s (no find workers started: its pace in process now
+  says under 2 s left; target 5 s); drawings.pdf scroll proxy 707, 751 and 1,494 ms a sheet against 743, 921 and 977
+  (medians 751 and 921; whole runs of sheets ready ahead, between stalls where a picture missed its 1.5 s on this load).
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
