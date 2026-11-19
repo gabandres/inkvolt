@@ -1175,13 +1175,69 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   inline picture's filters aren't counted (a patch to MuPDF, the owner's call); image files and `PdfEdit`'s editing documents run unbounded; a hostile page
   holds its engine (its neighbours, its thumbnails) for up to 10 s once.
   `PageCheckTests` (Windows' names where they apply); mac/docs/PLAN.md "A hostile file's time".
+  **The comments' first page and the drawing set's sheets ahead (Windows, 2026-11-19).** Profiled first (bench `one` and
+  timings in process; the PC loaded by other sessions throughout, its CPU at about half clock). comments.pdf's first page
+  was two waits in a row: PDFsharp's read of the bytes as they open (`PdfRepair.Normalize`, 0.7 to 1.0 s), then the first
+  page's check (0.4 to 0.5 s), which began only after that read and whose process opened the document by reading every
+  page's size; and MuPDF loads a page with comments the slower the more pages it holds (all 250 sizes: 120 ms one page
+  held at a time, 290 to 390 ms 32 at a time). Now `PdfEngine` reads the sizes one page held at a time; a document the
+  user sees has its first page asked for as soon as MuPDF has opened it (`DocumentSession.OpenReadable(shown)`), so the
+  check runs while PDFsharp reads; a second check process starts before it takes a page (the first goes on checking
+  meanwhile), and opens a document the other has open before it takes one of its pages (`PageCheckPlan` `Prepare`), so a
+  page of text no longer waits 0.2 s for a process to start and open it. The review panes read the comments, attachments,
+  signature stamps and links from one PDFsharp read instead of four (`Annotations.ReadPages`). bench `one`, branch and
+  master alternating, three pairs: comments.pdf first page 1.05 to 1.10 s against 1.18 to 1.53 s (its render 0.04 to 0.11
+  s against 0.37 to 0.55; the rest is PDFsharp's read, 0.7 s on a quiet PC), the scroll proxy's slowest page 52 to 115 ms
+  against 433 to 469 (none over 200 ms, one before).
+  The drawing set: the Mac's bands on every core don't port, as MuPDFCore's process-wide locks hold threads in one
+  process back (a sheet's kept list drawn on 1, 2, 4, 6, 8 and 12 strips: 740 to 1,558, about 340, 280 to 490, 377 to
+  1,233, 772 to 1,068 and 1,092 to 2,928 ms), but processes don't wait on each other. A document whose last three
+  checks each took 200 ms or more, their pictures not counted (`CheckedDocument.Slow`: a sheet's list, 170 to 350 ms, and
+  its small drawing) has as many pages checked ahead as there are processes for it, up to `SlowWorkers` (a third of the
+  cores, 2 to 4; some 100 MB each), the extra ones started only while the others are busy (and one ended replaced up to
+  the same number); one picture more than the pages asked ahead is kept (three for two, as before). Scroll proxy (20 sheets after a cold open, four pairs in turn): 3.07 to 3.66 s a sheet before, 1.79 to 3.07 s
+  after (medians 3.36 and 1.97 s; 0.6 s on the quiet PC of RESULTS.md). Tried and dropped: the check drawing the render's
+  picture first in place of its small drawing (a fifth of a sheet's check), slower under load, as a picture past its
+  1.5 s limit then cost both; two strips a check process (four did better with four processes).
+  Bench `run`, branch then master then branch then master, 15:06 to 15:58 (the load swung: master's text Find took 59.8
+  s in one run, 4.8 s in the next; no RESULTS.md committed), branch's two runs against master's: comments.pdf first page
+  1.12 and 1.10 s against 1.33 and 1.46 s, its scroll proxy's slowest page 28 and 24 ms against 344 and 374 (none over
+  200 ms against one); drawings.pdf scroll proxy 706 and 1,684 ms a sheet (10 and 14 over 200 ms) against 3,089 and 1,199
+  (18 and 17), first page 0.94 and 1.33 s against 1.19 and 0.99 s, Find 43.8 and 66.7 s against 75.6 and 55.4 s, pages
+  still blank 200 ms after the on-screen scroll 0 and 6 against 6 and 6; text and scan within the load's noise; peak
+  working sets unchanged (0.17 to 0.42 GB, with the find workers' at most 0.95 GB).
+  Still missed, and why: the drawing set's Find (400 sheets of some 250 ms of MuPDF's content lexer each, 100 s of CPU:
+  on every core of this PC at once at best 8 s; a text-only reading needs MuPDF entry points MuPDFCore 2.0.1 doesn't
+  export, the owner's call as before); its scroll proxy (a sheet's list and its drawing on four strips take 450 ms or more
+  on one process, so the first sheets can't come in 200 ms; later ones come as fast as the processes draw them);
+  comments.pdf's on-screen scroll, on a busy PC, was the garbage collector's, not the viewer's: during a 4 s scroll right
+  after opening, its collections paused the app for 2.1 to 2.4 s (130 to 210) while the review panes' PDFsharp read of
+  10,000 comments ran, 0.7 to 0.9 s with that read left out; one read instead of four didn't change it, as the first
+  alone spans the scroll. **Its review (2026-11-19):** a document's first read for its review panes now waits until the
+  view has stood still for 1 s, its pages in view drawn and no scroll since (at most 10 s; `PageViewer.SettledAsync`), so
+  a scroll begun just after opening goes first and the panes fill once it stops (later reads, after an edit, go at
+  once). Same app scroll (dev script `scrollbench`, comments.pdf): collections paused 0.37 to 1.22 s in 7 runs (2.25 to
+  2.42 s in 4 before it), 59 to 73 fps with the longest gap 47 to 78 ms in 6 of them (one gap of 411 ms), master in turn
+  55 to 61 fps, longest gap 65 to 84 ms. A wait of 0.4 s after the pages showed left the read under the scroll (it begins
+  0.5 s after opening): 2.26 to 2.42 s paused. The review's other fixes: a check process opening a document ahead
+  (`Prepare`, now its own state, not a placeholder request) that fails decides nothing (the document isn't marked
+  unopenable) and isn't remembered past the document's close; one open sequence for both (`EnsureOpen`); a shown
+  document whose bytes are repaired lets go of the bytes as they are, and their first page's check, before the repaired
+  copy opens; a reload read in the background asks for its first page only once it is kept. Pages are checked further
+  ahead, on more processes, only for the view (renders with a picture), not for Find or text: comments.pdf's checks
+  took 200 ms in a row under this load, and Find then shared the cores with four check processes. Bench `one` after it,
+  master in turn: comments.pdf first page 0.96 to 1.21 s against 1.35 to 1.61 s, the scroll proxy's slowest page 43 to
+  88 ms against 342 to 1,094, Find 1.6 to 2.5 s against 1.4 to 1.8 s (no find workers started: its pace in process now
+  says under 2 s left; target 5 s); drawings.pdf scroll proxy 707, 751 and 1,494 ms a sheet against 743, 921 and 977
+  (medians 751 and 921; whole runs of sheets ready ahead, between stalls where a picture missed its 1.5 s on this load).
 - **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
   500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
   under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
   comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
 - **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30),
-  page checks that draw the render's picture (2026-11-06); the drawing set's scroll, first Find and (on the line) first
-  page remain over target; Mac: the benchmark and Find on threads done (E16,
+  page checks that draw the render's picture (2026-11-06), the comments' first page and the drawing set's sheets checked
+  further ahead, the review panes' first read after the view settles (2026-11-19); the drawing set's scroll and first
+  Find remain over target; Mac: the benchmark and Find on threads done (E16,
   2026-11-02), drawings in bands on every core (2026-11-07: a sheet 584 to 223 ms); the same two still over target.
 
 ### 3.7 Spanish interface

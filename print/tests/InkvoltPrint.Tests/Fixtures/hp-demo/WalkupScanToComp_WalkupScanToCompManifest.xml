@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo mode only (Inkvolt Print's demo HP laser): written by hand, never captured from a device. The LaserJet MFP M234dw's
+     DiscoveryTree doesn't list a walk-up scan interface, so these names are LedmWalkupScan's assumed ones (LedmWalkupScan.Names),
+     laid out like the captured FirmwareUpdate manifest: a resource map whose root link is the base, one node per resource, each
+     typed by its element name. FakeScanToComputer lists this manifest in the demo printer's tree. A recording of a printer
+     that lists the interface replaces this. -->
+<man:Manifest xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:man="http://www.hp.com/schemas/imaging/con/ledm/manifest/2009/03/24" xmlns:map="http://www.hp.com/schemas/imaging/con/ledm/resourcemap/2009/01/27" xmlns:wus="http://www.hp.com/schemas/imaging/con/ledm/walkupscan/2010/09/28">
+	<dd:Version>
+		<dd:Revision>demo</dd:Revision>
+	</dd:Version>
+	<man:InterfaceNamespaces>
+		<man:InterfaceNamespace>http://www.hp.com/schemas/imaging/con/ledm/walkupscan/2010/09/28</man:InterfaceNamespace>
+	</man:InterfaceNamespaces>
+	<map:ResourceMap>
+		<map:ResourceLink>
+			<dd:ResourceURI>/WalkupScanToComp</dd:ResourceURI>
+			<map:Base>Root</map:Base>
+		</map:ResourceLink>
+		<map:ResourceNode>
+			<map:ResourceLink>
+				<dd:ResourceURI>/WalkupScanToCompDestinations</dd:ResourceURI>
+			</map:ResourceLink>
+			<map:ResourceType>
+				<wus:WalkupScanToCompElementType>WalkupScanToCompDestinations</wus:WalkupScanToCompElementType>
+			</map:ResourceType>
+			<map:Methods>
+				<map:Method><map:Verb>Get</map:Verb></map:Method>
+				<map:Method><map:Verb>Post</map:Verb></map:Method>
+			</map:Methods>
+		</map:ResourceNode>
+		<map:ResourceNode>
+			<map:ResourceLink>
+				<dd:ResourceURI>/WalkupScanToCompEvent</dd:ResourceURI>
+			</map:ResourceLink>
+			<map:ResourceType>
+				<wus:WalkupScanToCompElementType>WalkupScanToCompEvent</wus:WalkupScanToCompElementType>
+			</map:ResourceType>
+			<map:Methods>
+				<map:Method><map:Verb>Get</map:Verb></map:Method>
+			</map:Methods>
+		</map:ResourceNode>
+	</map:ResourceMap>
+</man:Manifest>

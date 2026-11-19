@@ -46,7 +46,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 1.5 Firmware watch | All of it (the cartridge promise) | |
 | 1.6 The Pro key | | The seam itself |
 | 2.1 Print straight to the printer | All of it | |
-| 2.2 Scan from the printer's button | All of it | |
+| 2.2 Scan from the printer's button | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 2.3 Scan cleanup, Unicode OCR | All of it | |
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
 | 2.5 TWAIN | All of it (Windows done 2026-11-05, but 32-bit sources) | |
@@ -305,6 +305,36 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   destination list shows the PC after connect and not after exit; a simulated walk-up event runs the preset and
   saves its file; the FakeWiaSystem's button event does the same. On hardware: an HP all-in-one that lists the
   walk-up interface (the M234dw's `DiscoveryTree.xml` doesn't: one that does, recorded with 1.2).
+- **Built (Windows, 2026-11-19).** Scan tab › *Scan from the printer's button*, per printer, **off by default** (on an HP panel
+  it changes the printer's list), with the preset a press runs; a press brings the printer's Scan tab up (from the notification
+  area too) and runs that preset as its one-click scan does, saving its file. **HP's Scan to Computer:** `Core/Ledm/LedmWalkupScan`
+  (the documents) and `ScanToComputer` (one connection): found by reading only (the DiscoveryTree's walk-up `SupportedIfc`, its
+  manifest, the destination list; the tree must list the EventTable); turned on, this PC (`LedmWalkupScan.PanelName`: the
+  computer's name, plain letters, at most 32) is added with one POST over HTTPS, never resent (`LedmClient.PostPathAsync`), kept
+  while the app or its tray icon runs (the window hidden stops the status loop, not this) and added again after the printer's
+  `PowerUpEvent` or a lost connection. Presses come through the connection's one EventTable long poll, shared with the status (`LedmEventFeed`)
+  (`DelayedReplyResponse`, captured in the M234dw's EventCapabilities): **no listener and no port on this PC**. A press counts
+  once (category and `AgingStamp`), only after the app started, only when the event names this PC's destination and the event
+  document says `ScanRequested` (choosing the PC alone doesn't). Removed with one DELETE when turned off, on exit
+  (`MainViewModel.Dispose` waits up to 4 s) and when the printer is forgotten; only a path below the printer's list is ever
+  deleted (`LedmWalkupScan.OwnPath`), and nothing goes to another device found at the address. A computer by this PC's name that
+  the app didn't add (HP's software) is left alone and said; this app's destination is known by a marker in its host name (a tag
+  kept in `state.json`), so a run after a crash or a lost answer adopts it rather than adding a second, and removes it. 401/403, refusals and silence are told in words. **A Windows scanner's button:**
+  `WiaScannerInfo.Buttons` (the scan-button events among the driver's `Device.Events`; their GUIDs read from wiaaut.dll's type
+  library) and `IWiaSystem.WatchButtonsAsync` (`WindowsWia`: `DeviceManager.RegisterEvent` with `OnEvent` through
+  `ComEventsHelper`, on an STA thread of its own, for this run only, no administrator rights); the WSD scan driver raises these
+  for `ScanAvailableEvent`. The panel comes first when both exist; a printer with neither says so. `Core/Presets/ScanButton`
+  decides it all; the app shows it (`ScanButtonViewModel`). **Unconfirmed:** no walk-up document has been captured (the M234dw
+  doesn't list the interface), so every name is an assumption in one table (`LedmWalkupScan.Names`); a printer whose documents
+  don't match offers nothing and nothing is POSTed on a guess. Record a printer saves the walk-up manifest and every document it
+  lists. The demo HP laser's walk-up documents are written by hand (`Fixtures/hp-demo`) and `FakeScanToComputer` plays its
+  panel; the demo USB laser's made-up scanner has a Scan button (`--demo --scan-button press`). Tests: `ScanButtonTests` (the
+  list shows the PC after connect and not after exit, a simulated press runs the preset and saves its file, only this PC's
+  `ScanRequested` counts, old presses don't, a restart adds it again, HP's own entry is left alone, refusals, no Location, another
+  device, the recording, hostile lists and paths; the FakeWiaSystem's button event, neither, the panel before the driver). **On
+  hardware, not tried:** an HP all-in-one that lists the interface (and a recording of it); a WSD or USB scanner's button
+  through WIA. **Mac half waits** (ICA's button events; the HP part would be PrintCore's port of `LedmWalkupScan` and
+  `ScanToComputer`).
 - **Effort** M. Windows and Mac (the HP part shared; WSD is Windows', ICA's button events the Mac's).
 
 ### 2.3 Scan cleanup and a Unicode OCR layer

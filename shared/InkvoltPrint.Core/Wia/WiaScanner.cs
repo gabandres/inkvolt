@@ -44,6 +44,22 @@ public interface IWiaSystem
     Task<IReadOnlyList<WiaDeviceInfo>> ListScannersAsync(CancellationToken ct);
 
     IWiaDeviceHost Device(string deviceId);
+
+    /// <summary>
+    /// Hears the scanner's buttons: <paramref name="pressed"/> is called (on any thread) each time the driver raises one of
+    /// <paramref name="events"/> for <paramref name="deviceId"/>, until the result is disposed. Only while this app runs: nothing is
+    /// registered with Windows to start it. A system that can't (TWAIN) hears nothing.
+    /// </summary>
+    Task<IDisposable> WatchButtonsAsync(string deviceId, IReadOnlyList<string> events, Action pressed, CancellationToken ct) =>
+        Task.FromResult<IDisposable>(NoButtons.Instance);
+}
+
+/// <summary>Nothing to stop: buttons that aren't heard.</summary>
+public sealed class NoButtons : IDisposable
+{
+    public static NoButtons Instance { get; } = new();
+
+    public void Dispose() { }
 }
 
 /// <summary>

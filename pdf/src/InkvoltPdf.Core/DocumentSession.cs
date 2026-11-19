@@ -200,7 +200,7 @@ public sealed partial class DocumentSession : IDisposable
     /// <param name="inPlaceBytes">PDFs this big or bigger open in place (<see cref="InPlaceBytes"/>; tests use less).</param>
     internal static DocumentSession Open(string path, string? password, long inPlaceBytes)
     {
-        var copy = ReadDiskCopy(Path.GetFullPath(path), PdfEngine.TypeFromPath(path), password, inPlaceBytes);
+        var copy = ReadDiskCopy(Path.GetFullPath(path), PdfEngine.TypeFromPath(path), password, inPlaceBytes, shown: true);
         return new DocumentSession(Path.GetFullPath(path), Path.GetFileName(path), copy.Data, password, copy.Type, copy.Engine)
         {
             _onDisk = copy.Stamp, OpenPassword = copy.OpenPassword, _diskPassword = password, _inPlace = copy.InPlace, _inPlaceBytes = inPlaceBytes,
@@ -215,7 +215,7 @@ public sealed partial class DocumentSession : IDisposable
     /// </summary>
     public static DocumentSession FromBytes(byte[] data, string displayName, string? password = null, bool repair = false)
     {
-        (data, var engine, var repaired) = repair ? OpenReadable(data, InputFileTypes.PDF, password) : (data, PdfEngine.Open(data, InputFileTypes.PDF, password), 0L);
+        (data, var engine, var repaired) = repair ? OpenReadable(data, InputFileTypes.PDF, password, shown: true) : (data, PdfEngine.Open(data, InputFileTypes.PDF, password), 0L);
         var session = new DocumentSession(null, displayName, data, password, InputFileTypes.PDF, engine) { RepairedLength = repaired };
         session._savedVersion = -1; // never saved
         return session;
@@ -233,7 +233,7 @@ public sealed partial class DocumentSession : IDisposable
     public static DocumentSession Recover(byte[] data, string? originalPath, string displayName, (long Length, DateTime WriteTimeUtc)? diskStamp = null,
         string? password = null, long repairedLength = 0)
     {
-        (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password);
+        (data, var engine, var repaired) = OpenReadable(data, InputFileTypes.PDF, password, shown: true);
         repaired = Math.Max(repaired, Math.Clamp(repairedLength, 0, data.LongLength));
         var path = originalPath is null ? null : Path.GetFullPath(originalPath);
         var openPassword = PdfSecurity.IsOpenPassword(data, password) ? password : null;
@@ -429,7 +429,7 @@ public sealed partial class DocumentSession : IDisposable
     /// </summary>
     /// <exception cref="PasswordRequiredException">The file needs another password (another program protected it).</exception>
     public void ReloadFromDisk() =>
-        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), FileType, _diskPassword, _inPlaceBytes));
+        ApplyReload(ReadDiskCopy(FilePath ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), FileType, _diskPassword, _inPlaceBytes, shown: true));
 
     /// <summary>
     /// <see cref="ReloadFromDisk"/> with the reading and parsing on a worker thread; the content is swapped on the calling
@@ -440,12 +440,14 @@ public sealed partial class DocumentSession : IDisposable
     {
         var (path, type, inPlaceBytes) = (FilePath, FileType, _inPlaceBytes);
         password ??= _diskPassword;
-        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), type, password, inPlaceBytes));
+        // Its first page is asked for only once the copy is kept: one no longer wanted starts no check.
+        var copy = await Task.Run(() => ReadDiskCopy(path ?? throw new InvalidOperationException(PdfStrings.Doc_NotSavedYet), type, password, inPlaceBytes, shown: false));
         if (stillWanted?.Invoke() == false || path != FilePath)
         {
             copy.Engine.Dispose();
             return false;
         }
+        copy.Engine.CheckFirstPage();
         ApplyReload(copy);
         return true;
     }
@@ -455,7 +457,8 @@ public sealed partial class DocumentSession : IDisposable
         string? OpenPassword, long RepairedLength = 0);
 
 
-    private static DiskCopy ReadDiskCopy(string path, InputFileTypes type, string? password, long inPlaceBytes)
+    /// <param name="shown">The copy will be shown (opened or reloaded at once): its first page is checked as it opens.</param>
+    private static DiskCopy ReadDiskCopy(string path, InputFileTypes type, string? password, long inPlaceBytes, bool shown)
     {
         // Stamp before reading: a write that lands mid-read then shows up as a change rather than going unnoticed.
         var stamp = DiskStamp(path);
@@ -474,7 +477,7 @@ public sealed partial class DocumentSession : IDisposable
                 throw;
             }
         }
-        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password);
+        var (data, bytesEngine, repaired) = OpenReadable(File.ReadAllBytes(path), type, password, shown);
         var open = type == InputFileTypes.PDF && PdfSecurity.IsOpenPassword(data, password) ? password : null;
         return new DiskCopy(data, null, type, bytesEngine, stamp, password, open, repaired);
     }
@@ -490,8 +493,28 @@ public sealed partial class DocumentSession : IDisposable
     /// bytes, the file is opened as it is (logged). Also returns the repaired copy's length (0 when not repaired). Blocks:
     /// call it off the UI thread.
     /// </summary>
-    public static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password) =>
-        OpenReadable(data, type, password, bytes => PdfEngine.Open(bytes, type, password));
+    /// <param name="shown">The document is one the user sees (a session's): each engine opened has its first page checked
+    /// (<see cref="PdfEngine.CheckFirstPage"/>) at once, while PDFsharp still reads the bytes, rather than after: the first
+    /// page then waits for the longer of the two, not both. An engine let go of for the repaired copy takes its check back.</param>
+    public static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, bool shown = false) =>
+        OpenReadable(data, type, password, Opener(type, password, shown));
+
+    /// <summary>Opens the engine on bytes; for a document the user sees, with its first page asked for at once.</summary>
+    internal static Func<byte[], PdfEngine> Opener(InputFileTypes type, string? password, bool shown) => bytes =>
+    {
+        var engine = PdfEngine.Open(bytes, type, password);
+        if (!shown) return engine;
+        try
+        {
+            engine.CheckFirstPage();
+            return engine;
+        }
+        catch
+        {
+            engine.Dispose();
+            throw;
+        }
+    };
 
     /// <param name="open">Opens the engine on bytes (tests: one that refuses the repaired copy).</param>
     internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open) =>
@@ -520,17 +543,18 @@ public sealed partial class DocumentSession : IDisposable
         }
         var normal = normalizing.GetAwaiter().GetResult();
         if (ReferenceEquals(normal.Data, data)) return (data, engine, 0);
+        // The bytes as they are go before the changed copy opens: their first page's check (a shown document's) is taken
+        // back, and their shared copy let go of, rather than kept beside the changed copy's.
+        engine.Dispose();
         try
         {
-            var changed = open(normal.Data);
-            engine.Dispose();
-            return (normal.Data, changed, normal.Repaired ? normal.Data.LongLength : 0);
+            return (normal.Data, open(normal.Data), normal.Repaired ? normal.Data.LongLength : 0);
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            // The view and every reader stay on the file as it is: its fields may be missing, but its pages show.
+            // The view and every reader stay on the file as it is (opened again): its fields may be missing, but its pages show.
             Log?.Invoke($"The viewer refused the {normal.Outcome} copy of a damaged file; opened as it is: {ex.Message}");
-            return (data, engine, 0);
+            return (data, open(data), 0);
         }
     }
 

@@ -182,7 +182,11 @@ public sealed partial class PageViewer : ScrollViewer
             if (!ReferenceEquals(e.OriginalSource, this)) return;
             // Viewport size changes (window resize, nav pane, scrollbars appearing) re-fit and re-center the pages.
             if (Math.Abs(e.ViewportWidthChange) > 0.5 || Math.Abs(e.ViewportHeightChange) > 0.5) QueueRelayout();
-            if (Math.Abs(e.VerticalChange) > 0.5 || Math.Abs(e.HorizontalChange) > 0.5) HideLinkTip();
+            if (Math.Abs(e.VerticalChange) > 0.5 || Math.Abs(e.HorizontalChange) > 0.5)
+            {
+                HideLinkTip();
+                _lastScroll = Environment.TickCount64;
+            }
             UpdateCurrentPage();
             _surface.InvalidateVisual();
             QueueUpdate();
@@ -232,6 +236,28 @@ public sealed partial class PageViewer : ScrollViewer
     /// <summary>Dev scripts (<c>scrollbench</c>): visible pages showing no picture yet (no render has landed, and not failed).</summary>
     internal int DevBlankVisiblePages() =>
         _engine is null ? 0 : VisiblePages(Viewport).Count(p => !_failed.Contains(p) && !_full.ContainsKey(p) && !_stale.ContainsKey(p));
+
+    private long _lastScroll; // Environment.TickCount64 of the view's last scroll
+
+    /// <summary>
+    /// Completes once the view has stayed still for <paramref name="quiet"/>: its pages in view showing their pictures, and
+    /// no scroll since; or after <paramref name="most"/> whatever it does. Work that would hold up the first pages or a
+    /// scroll begun just after them waits for it (the review panes' read of a document with 10,000 comments made the
+    /// garbage collector pause the app for 2 s of a 4 s scroll).
+    /// </summary>
+    public async Task SettledAsync(TimeSpan quiet, TimeSpan most)
+    {
+        var now = Environment.TickCount64;
+        var until = now + (long)most.TotalMilliseconds;
+        var still = now; // since when the view has shown its pages without scrolling
+        for (; now < until; now = Environment.TickCount64)
+        {
+            if (DevBlankVisiblePages() > 0) still = now;
+            still = Math.Max(still, Volatile.Read(ref _lastScroll));
+            if (now - still >= quiet.TotalMilliseconds) return;
+            await Task.Delay(50);
+        }
+    }
     public bool CanGoForward => _forward.Count > 0;
 
     public ViewerTool Tool

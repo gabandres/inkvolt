@@ -63,13 +63,7 @@ public sealed partial class PdfEngine
             request.Speculative = false;
             request.Waiters++; // before Pictured: a picture someone waits for is never let go of
             if (picture > 0 && (request.PictureScale == picture || plan.WantPicture(request, picture))) Pictured(request);
-            // The next two pages are checked meanwhile, one in each check process: scrolling, Find and thumbnails go on in
-            // page order. The one after next is asked ahead of the next, so a page given up on takes both back with it.
-            if (_checkAhead)
-            {
-                request.Ahead ??= AskAhead(page + 1, view);
-                if (page + 1 < _pages.Length && _checking[page + 1] is { } next) next.Ahead ??= AskAhead(page + 2, view);
-            }
+            if (_checkAhead) AskAfter(page, request, view);
         }
         RenderedImage? taken = null;
         try
@@ -113,6 +107,23 @@ public sealed partial class PdfEngine
     }
 
     /// <summary>
+    /// The pages after <paramref name="page"/> are checked meanwhile, one in each check process: the next two, or as many
+    /// as there are processes for a document whose pages are slow to check (<see cref="CheckedDocument.Slow"/>).
+    /// Scrolling, Find and thumbnails go on in page order. Each is asked ahead of the one before it, so a page given up on
+    /// takes those after it back with it; one known already ends the run. Under _checkGate.
+    /// </summary>
+    /// <param name="request">The check of <paramref name="page"/>.</param>
+    private void AskAfter(int page, CheckRequest request, ViewScale? view)
+    {
+        var ahead = view is null ? 2 : PagesAhead(); // further only for the view's pages (scrolling), not for Find or text
+        for (var (next, before) = (page + 1, (CheckRequest?)request); next <= page + ahead && next < _pages.Length && before is not null; next++)
+        {
+            before.Ahead ??= AskAhead(next, view);
+            before = _checking![next];
+        }
+    }
+
+    /// <summary>
     /// Whether a render of the whole page with its comments at <paramref name="scale"/> would come from the page's check
     /// (not decided yet, the picture small enough, and still to be asked for or still coming at that scale; none of this
     /// document's late): the viewer asks for it at once instead of a quick preview first, which would leave the full
@@ -136,8 +147,17 @@ public sealed partial class PdfEngine
     /// <summary>Requests whose check draws a picture not taken yet (under _checkGate), oldest first.</summary>
     private readonly List<CheckRequest> _pictured = [];
 
-    /// <summary>Pictures kept for pages no render waits for yet (asked ahead): the last few, so pages scrolled past don't keep theirs.</summary>
-    private const int PicturesAhead = 3;
+    /// <summary>
+    /// Pages checked ahead of one asked for (<see cref="AskAfter"/>): two, or as many as there are check processes for a
+    /// document whose pages are slow to check. Under _checkGate, once checks are planned.
+    /// </summary>
+    private int PagesAhead() => _checked!.Slow ? Math.Max(2, _checkedBy!.WorkersFor(_checked)) : 2;
+
+    /// <summary>
+    /// Pictures kept for pages no render waits for yet (asked ahead): the last few, so pages scrolled past don't keep
+    /// theirs; one more than are asked ahead (three for two). Under _checkGate.
+    /// </summary>
+    private int PicturesAhead() => PagesAhead() + 1;
 
     /// <summary>
     /// A request now draws a picture: the oldest of those no render waits for, beyond <see cref="PicturesAhead"/>, let go
@@ -148,7 +168,8 @@ public sealed partial class PdfEngine
         _pictured.Remove(request);
         _pictured.Add(request);
         var ahead = _pictured.Count(r => r.Waiters == 0);
-        for (var i = 0; ahead > PicturesAhead && i < _pictured.Count;)
+        var kept = PicturesAhead();
+        for (var i = 0; ahead > kept && i < _pictured.Count;)
         {
             if (_pictured[i].Waiters > 0)
             {

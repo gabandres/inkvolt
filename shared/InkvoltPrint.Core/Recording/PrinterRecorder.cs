@@ -110,6 +110,7 @@ public static class PrinterRecorder
             {
                 foreach (var resource in LedmResources()) await Quietly(() => ledm.GetAsync(resource, ct)).ConfigureAwait(false);
                 await Quietly(() => ledm.GetFirmwareUpdateAsync(ct)).ConfigureAwait(false);
+                await Quietly(() => WalkupScanAsync(ledm, ct)).ConfigureAwait(false);
             }
             if (connection.Cdm is { } cdm)
                 foreach (var path in new[] { Cdm.CdmPaths.Identity, Cdm.CdmPaths.Supplies, Cdm.CdmPaths.SystemStatus, Cdm.CdmPaths.PrintStatus, Cdm.CdmPaths.Alerts })
@@ -173,6 +174,27 @@ public static class PrinterRecorder
                 LedmCopy.CapResource, LedmCopy.DynResource }
             .Concat(LedmSettingCatalog.All.SelectMany(d => new[] { d.DynResource, d.CapResource }))
             .Distinct(StringComparer.Ordinal);
+
+    /// <summary>Documents read from a walk-up interface's manifest, at most.</summary>
+    private const int MaxWalkupDocuments = 16;
+
+    /// <summary>
+    /// The walk-up scan interface (Scan to Computer, <see cref="LedmWalkupScan"/>: never captured yet, so a recording is what
+    /// confirms its names): every <c>SupportedIfc</c> the tree lists whose type names a walk-up interface, its manifest, and each
+    /// document the manifest lists (the destination list with the computers on it, the event document, its Cap). GETs only, as
+    /// the whole recording: nothing is added to the printer's list.
+    /// </summary>
+    private static async Task<bool> WalkupScanAsync(LedmClient ledm, CancellationToken ct)
+    {
+        if (await ledm.GetTreeAsync(ct).ConfigureAwait(false) is not { } tree) return false;
+        foreach (var (_, manifestPath) in tree.Interfaces.Where(i => i.Key.Contains("Walkup", StringComparison.OrdinalIgnoreCase)).Take(4))
+        {
+            if (!LedmWalkupScan.IsLocalPath(manifestPath) || await Quietly(() => ledm.GetPathAsync(manifestPath, ct)).ConfigureAwait(false) is not { } manifest) continue;
+            foreach (var (_, path) in LedmManifest.Entries(manifest).Where(e => LedmWalkupScan.IsLocalPath(e.Path)).DistinctBy(e => e.Path).Take(MaxWalkupDocuments))
+                await Quietly(() => ledm.GetPathAsync(path, ct)).ConfigureAwait(false);
+        }
+        return true;
+    }
 
     private static async Task ScanAsync(EsclClient scanner, List<(string, byte[])> scans, List<string> notKept, CancellationToken ct)
     {

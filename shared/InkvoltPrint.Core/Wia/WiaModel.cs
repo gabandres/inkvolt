@@ -35,6 +35,22 @@ public static class WiaIds
 
     public const string FormatBmp = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}", FormatJpeg = "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}",
         FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}";
+
+    /// <summary>
+    /// The scan-button events a driver may list (wiaaut.dll's <c>EventID</c> constants, read from its type library: Scan, Scan to
+    /// print, fax, OCR, e-mail, film, and the three numbered ones). Windows' WSD scan driver raises these when the printer's panel
+    /// sends a scan to this PC (WS-Scan's <c>ScanAvailableEvent</c>); a USB scanner's driver when its button is pressed.
+    /// </summary>
+    public static readonly IReadOnlyList<string> ScanButtonEvents =
+    [
+        "{A6C5A715-8C6E-11D2-977A-0000F87A926F}", "{B441F425-8C6E-11D2-977A-0000F87A926F}", "{C00EB793-8C6E-11D2-977A-0000F87A926F}",
+        "{9D095B89-37D6-4877-AFED-62A297DC6DBE}", "{C686DCEE-54F2-419E-9A27-2FC7F2E98F9E}", "{9B2B662C-6185-438C-B68B-E39EE25E71CB}",
+        "{FC4767C1-C8B3-48A2-9CFA-2E90CB3D3590}", "{154E27BE-B617-4653-ACC5-0FD7BD4C65CE}", "{A65B704A-7F3C-4447-A75D-8A26DFCA1FDF}",
+    ];
+
+    /// <summary>The scan-button events among a driver's events (GUID strings, any case or braces), in <see cref="ScanButtonEvents"/>' spelling; at most nine.</summary>
+    public static IReadOnlyList<string> ScanButtonsIn(IEnumerable<string> events) =>
+        [.. ScanButtonEvents.Where(b => events.Take(256).Any(e => Guid.TryParse(e, out var g) && g == Guid.Parse(b)))];
 }
 
 /// <summary>A scanner Windows has a WIA driver for, as listed without connecting to it.</summary>
@@ -79,13 +95,15 @@ public sealed record WiaValues(int Current, IReadOnlyList<int> List, int? Min = 
 /// <param name="FeederWidth">Widest and longest sheet the feeder takes, thousandths of an inch; null when not given (or 0: any length).</param>
 /// <param name="DataTypes">Data types the item offers (<see cref="WiaIds.DataColor"/>, <see cref="WiaIds.DataGrayscale"/>…); empty when not said.</param>
 /// <param name="Formats">Transfer formats (GUID strings) the item offers.</param>
+/// <param name="Buttons">The scan-button events the driver lists (<see cref="WiaIds.ScanButtonsIn"/>); null or empty: none.</param>
 public sealed record WiaScannerInfo(
     int? Handling,
     int? BedWidth, int? BedHeight,
     int? FeederWidth, int? FeederHeight,
     WiaValues Resolutions,
     IReadOnlyList<int> DataTypes,
-    IReadOnlyList<string> Formats);
+    IReadOnlyList<string> Formats,
+    IReadOnlyList<string>? Buttons = null);
 
 /// <summary>What one scan sets on the device and item before transferring pages.</summary>
 /// <param name="Handling">Document handling select: glass, feeder, or feeder with both sides (front first); null for a glass-only driver (left alone).</param>

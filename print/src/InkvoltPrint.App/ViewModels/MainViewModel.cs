@@ -734,6 +734,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             : Strings.Main_ForgetNotFromWindowsNetwork;
         if (!Prompt.Ask(string.Format(Strings.Main_ForgetAsk, p.Name) + warning + "\n\n" + again, Strings.Common_Remove))
             return;
+        p.ScanButton.Button.Seal(); // first: its scan button saves nothing from now on, so the choice removed below never comes back
         _state.RemovePrinter(p.Uuid);
         _pc.History.Forget(p.Uuid);
         _pc.SnmpLogins.Delete(p.Uuid); // its community goes with it: Add a printer asks for it again
@@ -784,5 +785,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _usbWatch?.Dispose();
         _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
+        // Exit: this PC comes off the printers' panels (Scan to Computer) before the process ends, each within its limit.
+        var closing = Printers.Select(p => p.Closing).Where(t => !t.IsCompleted).ToArray();
+        if (closing.Length > 0)
+        {
+            try { Task.WaitAll(closing, PrinterViewModel.CloseLimit + TimeSpan.FromSeconds(1)); }
+            catch (AggregateException ex) { Log.Write($"Taking this PC off a printer's panel failed: {ex.InnerException?.Message}"); }
+        }
     }
 }
