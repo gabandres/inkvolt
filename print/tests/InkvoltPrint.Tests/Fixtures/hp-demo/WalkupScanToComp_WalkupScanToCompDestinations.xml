@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo mode only: written by hand, never captured (see WalkupScanToComp_WalkupScanToCompManifest.xml next to it). An empty list;
+     FakeScanToComputer adds the computers POSTed to it, each a WalkupScanToCompDestination with dd:ResourceURI, dd:Name,
+     dd3:Hostname and wus:LinkType. -->
+<wus:WalkupScanToCompDestinations xmlns:wus="http://www.hp.com/schemas/imaging/con/ledm/walkupscan/2010/09/28" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/" xmlns:dd3="http://www.hp.com/schemas/imaging/con/dictionaries/2009/04/06">
+	<dd:Version>
+		<dd:Revision>demo</dd:Revision>
+	</dd:Version>
+</wus:WalkupScanToCompDestinations>

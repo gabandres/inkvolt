@@ -83,6 +83,10 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
     public IWiaDeviceHost Device(string deviceId) =>
         deviceId.StartsWith(TwainPrefix, StringComparison.Ordinal) ? new InUse(twain.Device(deviceId[TwainPrefix.Length..]), this) : wia.Device(deviceId);
 
+    /// <summary>A WIA scanner's buttons through WIA; a TWAIN source's aren't heard.</summary>
+    public Task<IDisposable> WatchButtonsAsync(string deviceId, IReadOnlyList<string> events, Action pressed, CancellationToken ct) =>
+        deviceId.StartsWith(TwainPrefix, StringComparison.Ordinal) ? Task.FromResult<IDisposable>(NoButtons.Instance) : wia.WatchButtonsAsync(deviceId, events, pressed, ct);
+
     /// <summary>WIA's scanners, then the TWAIN sources (with their "twain:" ids) that aren't any WIA entry.</summary>
     public static IReadOnlyList<WiaDeviceInfo> Merge(IReadOnlyList<WiaDeviceInfo> wiaScanners, IReadOnlyList<WiaDeviceInfo> twainSources)
     {

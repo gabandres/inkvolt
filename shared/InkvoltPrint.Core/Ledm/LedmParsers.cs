@@ -90,12 +90,18 @@ public static class LedmParsers
             scanner?.Elements().Sum(e => e.Value.Trim().ToInt() ?? 0));
     }
 
+    /// <summary>Events read from one table, and payloads read from one event: a table is the printer's reply, so both are bounded.</summary>
+    private const int MaxEvents = 64, MaxPayloads = 8;
+
     public static IReadOnlyList<LedmEvent> ParseEventTable(XDocument doc) =>
-        doc.Root!.Kids("Event").Select(e => new LedmEvent(
+        doc.Root!.Kids("Event").Take(MaxEvents).Select(e => new LedmEvent(
             e.KidValue("UnqualifiedEventCategory") ?? "unknown",
             e.KidValue("AgingStamp"),
             e.Kid("Payload")?.KidValue("ResourceType"),
-            e.Kid("Payload")?.KidValue("ResourceURI"))).ToList();
+            e.Kid("Payload")?.KidValue("ResourceURI"))
+        {
+            Uris = [.. e.Kids("Payload").Take(MaxPayloads).Select(p => p.KidValue("ResourceURI")).OfType<string>()],
+        }).ToList();
 
     private static string ColorName(string? code, bool feminine) => code switch
     {
@@ -109,4 +115,8 @@ public static class LedmParsers
     };
 }
 
-public sealed record LedmEvent(string Category, string? AgingStamp, string? ResourceType, string? ResourceUri);
+public sealed record LedmEvent(string Category, string? AgingStamp, string? ResourceType, string? ResourceUri)
+{
+    /// <summary>Every payload's resource, in order (an event may name more than one: a destination and the event document, say).</summary>
+    public IReadOnlyList<string> Uris { get; init; } = [];
+}

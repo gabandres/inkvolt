@@ -15,6 +15,13 @@ public sealed class FakeWiaSystem(IEnumerable<FakeWiaScanner> scanners) : IWiaSy
 
     public IWiaDeviceHost Device(string deviceId) =>
         _scanners.FirstOrDefault(s => s.Device.Id == deviceId) ?? throw new WiaException(WiaErrors.NoDeviceAvailable, "No such scanner.");
+
+    /// <summary>The scanner's <see cref="FakeWiaScanner.Press"/> calls <paramref name="pressed"/> for the events asked that its driver lists.</summary>
+    public Task<IDisposable> WatchButtonsAsync(string deviceId, IReadOnlyList<string> events, Action pressed, CancellationToken ct)
+    {
+        if (_scanners.FirstOrDefault(s => s.Device.Id == deviceId) is not { } scanner) throw new WiaException(WiaErrors.NoDeviceAvailable, "No such scanner.");
+        return Task.FromResult(scanner.Listen(events, pressed));
+    }
 }
 
 /// <param name="draw">A page for the settings (width and height in pixels, resolution, grey or color): JPEG bytes.</param>
@@ -65,6 +72,43 @@ public sealed class FakeWiaScanner(WiaDeviceInfo device, WiaScannerInfo info, Fu
 
     private int _page, _sides;
     private bool _duplex;
+    private readonly List<(IReadOnlyList<string> Events, Action Pressed)> _listeners = [];
+
+    /// <summary>Apps hearing this scanner's buttons now.</summary>
+    public int Listeners
+    {
+        get { lock (_listeners) return _listeners.Count; }
+    }
+
+    /// <summary>Its button: the driver raises <paramref name="eventId"/> (Scan, by default) to those hearing it, when its <see cref="WiaScannerInfo.Buttons"/> list it.</summary>
+    public void Press(string? eventId = null)
+    {
+        eventId ??= WiaIds.ScanButtonEvents[0];
+        if (Info.Buttons?.Contains(eventId, StringComparer.OrdinalIgnoreCase) != true) return;
+        List<Action> heard;
+        lock (_listeners) heard = [.. _listeners.Where(l => l.Events.Contains(eventId, StringComparer.OrdinalIgnoreCase)).Select(l => l.Pressed)];
+        foreach (var pressed in heard) pressed();
+    }
+
+    internal IDisposable Listen(IReadOnlyList<string> events, Action pressed)
+    {
+        var entry = (events, pressed);
+        lock (_listeners) _listeners.Add(entry);
+        return new Stop(() =>
+        {
+            lock (_listeners) _listeners.Remove(entry);
+        });
+    }
+
+    private sealed class Stop(Action stop) : IDisposable
+    {
+        private int _done;
+
+        public void Dispose()
+        {
+            if (Interlocked.Exchange(ref _done, 1) == 0) stop();
+        }
+    }
 
     public Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct)
     {

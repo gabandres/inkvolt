@@ -40,6 +40,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   state reduced to what matters before printing (ready, sleeping, busy, needs attention, error, offline, toner, paper).
 - **Batch** (scan): one feeder run saved as several files, split at separator sheets or by hand (`BatchSplit`).
 - **Batch print**: many files sent in order, a job for each (`Core/Printing/BatchPrint`). Not the scan batch above. Its **estimate** is the sheets a file comes to, read from the file itself before anything prints (`BatchMeasurer`, `BatchPrintLine`); a file's **fingerprint** (its length and SHA-256) is what shows it's still what the estimate saw. **Sent** means the queue has it, not that paper came out. A **list** is a saved batch (`BatchPrintList`). A **batch print folder** is one printed as it fills (`BatchPrintFolder`); a file in its `working` folder may have printed, so it's never sent again by itself. On the Mac, its **places** are the files, folders and lists the Batch Print window was given, kept by their paths with a bookmark each so the sandboxed `print` command, and a list opened in a later launch, can reach them (`BatchPlaces`, `BatchPlaceList`, `PrintState.batchPlaces`).
+- **Scan button** (a printer's): a press on the printer that runs a scan preset on this PC (`ScanButton` in
+  `shared/InkvoltPrint.Core/Presets`): **Scan to Computer** on an HP panel, where this PC is a **destination** on the printer's
+  list, added by this app and taken off again (`ScanToComputer`, `LedmWalkupScan`), or the **driver's button**, the
+  scan-button events a Windows scanner's driver raises (`WiaScannerInfo.Buttons`). A **press** counts once, for this PC only.
 - **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
   queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight
