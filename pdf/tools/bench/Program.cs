@@ -104,6 +104,8 @@ if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerA
         if (fileHow == "work")
         {
             // Busy for 15 s without a word, then read as any file.
+            // At normal priority: starved below it on a loaded PC, it went past the stall without a turn, as a stuck one does.
+            System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.Normal;
             var busy = System.Diagnostics.Stopwatch.StartNew();
             while (busy.Elapsed < TimeSpan.FromSeconds(15)) { }
             return;
