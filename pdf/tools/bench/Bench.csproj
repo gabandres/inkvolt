@@ -11,4 +11,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The command line's console wiring, as the apps have it (CommandOutputTests start "command-output"). -->
+    <Compile Include="..\..\..\shared\InkvoltPrint.Windows\Suite\ConsoleOutput.cs" Link="ConsoleOutput.cs" />
+  </ItemGroup>
 </Project>
