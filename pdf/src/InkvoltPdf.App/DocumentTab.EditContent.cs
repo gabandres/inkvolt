@@ -193,19 +193,26 @@ public partial class DocumentTab
     /// <summary>Insert Picture in the paragraph editor: an image file, put where the caret was.</summary>
     private async Task InsertParagraphPicture()
     {
-        var dlg = new Microsoft.Win32.OpenFileDialog { Title = Strings.EditContent_InsertPictureTitle, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
-        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
-        byte[] file;
         try
         {
-            file = await File.ReadAllBytesAsync(dlg.FileName);
+            var dlg = new Microsoft.Win32.OpenFileDialog { Title = Strings.EditContent_InsertPictureTitle, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
+            if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+            byte[] file;
+            try
+            {
+                file = await File.ReadAllBytesAsync(dlg.FileName);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Prompt.Error(Window.GetWindow(this), Strings.EditContent_InsertPictureFailed, ex.Message);
+                return;
+            }
+            Viewer.InsertParagraphPicture(file, Path.GetFileName(dlg.FileName));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        finally
         {
-            Prompt.Error(Window.GetWindow(this), Strings.EditContent_InsertPictureFailed, ex.Message);
-            return;
+            Viewer.EndParagraphPictureRequest();
         }
-        Viewer.InsertParagraphPicture(file, Path.GetFileName(dlg.FileName));
     }
 
     private async Task MoveImage(ImageMove m)

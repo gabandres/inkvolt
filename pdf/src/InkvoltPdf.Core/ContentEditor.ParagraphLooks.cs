@@ -305,7 +305,8 @@ public static partial class ContentEditor
     /// pasted in. A mark kept from the old text keeps its picture; a picture's mark cut and pasted elsewhere (the text
     /// between can't keep both) is the next mark that came.
     /// </summary>
-    internal static int[] PictureMarks(string old, string now, IReadOnlyList<InlinePicture> pictures)
+    /// <param name="inserted">Places in <paramref name="now"/> of marks the editor put in for new pictures: -1, never a picture of the old text's.</param>
+    internal static int[] PictureMarks(string old, string now, IReadOnlyList<InlinePicture> pictures, IReadOnlySet<int>? inserted = null)
     {
         var marks = now.Count(c => c == TextParagraph.PictureMark);
         var result = new int[marks];
@@ -313,8 +314,14 @@ public static partial class ContentEditor
         if (marks == 0 || !old.Contains(TextParagraph.PictureMark)) return result;
         var map = CharMap(old, now);
         var ordinal = new Dictionary<int, int>(); // a mark's place in now → its number among now's marks
+        var insertedAt = new HashSet<int>(); // the inserted marks' numbers among now's marks
         for (int i = 0, k = 0; i < now.Length; i++)
-            if (now[i] == TextParagraph.PictureMark) ordinal[i] = k++;
+        {
+            if (now[i] != TextParagraph.PictureMark) continue;
+            if (inserted?.Contains(i) == true) insertedAt.Add(k);
+            else ordinal[i] = k;
+            k++;
+        }
         var pictureAt = new Dictionary<int, int>(); // a picture's mark's place in old → the picture
         for (var k = 0; k < pictures.Count; k++)
             if (pictures[k].Mark >= 0 && pictures[k].Mark < old.Length && old[pictures[k].Mark] == TextParagraph.PictureMark) pictureAt.TryAdd(pictures[k].Mark, k);
@@ -333,7 +340,7 @@ public static partial class ContentEditor
         // A mark cut and pasted elsewhere (the text between can't keep both): the pictures whose marks went, in order.
         var free = new Queue<int>(Enumerable.Range(0, pictures2).Where(k => !used[k] && pictureAt.ContainsValue(k)));
         for (var i = 0; i < marks && free.Count > 0; i++)
-            if (result[i] == -1) result[i] = free.Dequeue();
+            if (result[i] == -1 && !insertedAt.Contains(i)) result[i] = free.Dequeue();
         return result;
     }
 

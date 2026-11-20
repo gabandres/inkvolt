@@ -126,26 +126,30 @@ public class FontKerningTests
         Assert.Equal(0, k.Kern(20, 10));
     }
 
-    [Fact]
-    public void OnlyTheDefaultScriptsKernFeatureCounts()
+    [Theory]
+    [InlineData(true, -30)]
+    [InlineData(false, -50)]
+    public void OneScriptsKernFeatureCountsLatinFirst(bool latinKerns, int expected)
     {
-        // Two scripts, each with a kern feature of its own lookup holding the same pair (10 then 20: -50): DFLT's applies, once.
-        var pair = Words(1, 12, 4, 0, 1, 18, 1, 1, 10, 1, 20, -50 & 0xFFFF);
-        var lookup = Words(2, 0, 1, 8).Concat(pair).ToArray();
-        var lookups = Words(2, 6, 6 + lookup.Length).Concat(lookup).Concat(lookup).ToArray();
+        // DFLT's kern feature has its lookup (10 then 20: -50), latn's another (-30). Latin's applies, once; a latn
+        // language system without a kern feature leaves DFLT's.
+        static byte[] Pair(int v) => Words(1, 12, 4, 0, 1, 18, 1, 1, 10, 1, 20, v & 0xFFFF);
+        var lookup0 = Words(2, 0, 1, 8).Concat(Pair(-50)).ToArray();
+        var lookup1 = Words(2, 0, 1, 8).Concat(Pair(-30)).ToArray();
+        var lookups = Words(2, 6, 6 + lookup0.Length).Concat(lookup0).Concat(lookup1).ToArray();
         byte[] Feature(int index) => Words(0, 1, index);
         var features = Words(2).Concat(Encoding.ASCII.GetBytes("kern")).Concat(Words(14)).Concat(Encoding.ASCII.GetBytes("kern")).Concat(Words(20))
             .Concat(Feature(0)).Concat(Feature(1)).ToArray();
-        // Script list: DFLT (default language: feature 0), latn (default language: feature 1).
-        byte[] LangSys(int feature) => Words(0, 0xFFFF, 1, feature);
+        // Script list: DFLT (default language: feature 0), latn (default language: feature 1, or none).
+        byte[] LangSys(int? feature) => feature is { } f ? Words(0, 0xFFFF, 1, f) : Words(0, 0xFFFF, 0);
         var scripts = Words(2).Concat(Encoding.ASCII.GetBytes("DFLT")).Concat(Words(14)).Concat(Encoding.ASCII.GetBytes("latn")).Concat(Words(26))
-            .Concat(Words(4, 0)).Concat(LangSys(0)).Concat(Words(4, 0)).Concat(LangSys(1)).ToArray();
+            .Concat(Words(4, 0)).Concat(LangSys(0)).Concat(Words(4, 0)).Concat(LangSys(latinKerns ? 1 : null)).ToArray();
         var scriptAt = 10;
         var featureAt = scriptAt + scripts.Length;
         var lookupAt = featureAt + features.Length;
         var gpos = Words(1, 0, scriptAt, featureAt, lookupAt).Concat(scripts).Concat(features).Concat(lookups).ToArray();
         var k = PairKerning.Read(Sfnt(("GPOS", gpos)))!;
-        Assert.Equal(-50, k.Kern(10, 20));
+        Assert.Equal(expected, k.Kern(10, 20));
     }
 
     [Fact]

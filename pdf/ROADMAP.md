@@ -445,7 +445,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   text set off its line (not a script), or a color that is a pattern's, still edits line by line. `ParagraphEditTests.Mixed`
   (+5). Kerning from the font's own table (2026-11-20): new pairs in text the page kerned (any TJ pair adjustment in
   the paragraph, or in the one run) get the font's own (`FontKerning`, `PairKerning`: GPOS 'kern' pair adjustments,
-  formats 1 and 2 and through extension lookups, else the kern table's format 0; bounded, a hostile table gives none),
+  formats 1 and 2 and through extension lookups, of one language system as a shaper picks for Latin (latn, DFLT, then the
+  other scripts, the first with a kern feature), else the kern table's format 0; bounded, a hostile table gives none),
   from the embedded TrueType program when it kept its tables, else from the installed face of the font's own family
   (`StandInFonts.Twin`: Helvetica as Arial) when its widths are the page font's within 1.5%; the pairs the text carried
   win, a word space gets none, text set without kerning stays without. CFF and Type 1 programs have no kerning of
@@ -460,8 +461,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (any filter, color space, decode array; its soft or stencil mask drawn apart as its alpha) and stored as a new picture
   (Flate RGB, an /SMask when it had a mask) where that part was; the old picture leaves the page and, unused, the file,
   so the pixels cut off are gone (a signed file's earlier revision keeps them, as for any removal). A clip another
-  program cropped with (`PageImage.Uncropped`) is made real the same way. Stencils, pictures masked by a color, turned
-  pictures (past a quarter turn) and a kept part over 50 million pixels are refused; colors are drawn as RGB. New
+  program cropped with (`PageImage.Uncropped`) when the clip is the picture's own (inside its q … Q; one outside clips
+  what follows too, and stays). The picture's /OC, /Intent and /Alt go with it (not /Alternates: those are the whole
+  picture). Stencils, pictures masked by a color, transparency inside JPEG 2000 data (/SMaskInData) or blended with a
+  matte color (/Matte), turned pictures (past a quarter turn), a picture over 200 million pixels (MuPDF decodes all of
+  it) and a kept part over 50 million are refused; colors are drawn as RGB. A new picture is placed through the inverse
+  of the text's own CTM (a generator's scale or flip), its mark known by its place (`NewPicture.Mark`) before a moved
+  picture's could take it; the editor stays open while Insert Picture's file dialog has the focus. New
   pictures in the flow (2026-11-20): Picture… on the paragraph editor's bar puts a mark at the caret for an image file
   (`NewPicture`; `ReplaceParagraph`'s and `Check`'s `added`): marks that are none of the paragraph's pictures take the
   new ones in order (one past them is refused), each as tall as the paragraph's ascent and as wide as its proportions,

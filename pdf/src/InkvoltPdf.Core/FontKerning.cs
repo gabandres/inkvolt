@@ -92,19 +92,24 @@ internal sealed class PairKerning
             var n = U16(b, feature + 2);
             for (var k = 0; k < n && wanted.Count < MaxLookups; k++) wanted.Add(U16(b, feature + 4 + 2 * k));
         }
-        // Only the features of one language system, as a shaper applies them to Latin text: the default script's
-        // (DFLT), else Latin's (latn), else the first script's; its default language, else its first one. Another
-        // script's or language's kern feature may hold the same pairs again.
-        var langSys = DefaultLangSys(b, g + U16(b, g + 4));
-        if (langSys >= 0)
+        // Only the features of one language system, as a shaper applies them to Latin text: Latin's (latn), else the
+        // default script's (DFLT), else each other script's in turn; its default language, else its first one; the first
+        // of those that has a kern feature. Another script's or language's kern feature may hold the same pairs again.
+        var chosen = false;
+        foreach (var langSys in LangSystems(b, g + U16(b, g + 4)))
         {
             var n = U16(b, langSys + 4);
             for (var k = 0; k < n; k++)
-                if (U16(b, langSys + 6 + 2 * k) is var i && Kern(i)) Add(i);
+                if (U16(b, langSys + 6 + 2 * k) is var i && Kern(i))
+                {
+                    Add(i);
+                    chosen = true;
+                }
+            if (chosen) break;
         }
-        else
+        if (!chosen)
         {
-            // No script list to choose by: the first kern feature.
+            // No language system with one: the first kern feature.
             for (var i = 0; i < count; i++)
                 if (Kern(i))
                 {
@@ -133,25 +138,35 @@ internal sealed class PairKerning
         return result;
     }
 
-    /// <summary>The language system whose features apply (DFLT, else latn, else the first script; its default, else its first), or -1.</summary>
-    private static int DefaultLangSys(byte[] b, int scripts)
+    /// <summary>
+    /// The language systems a shaper would apply to Latin text, in the order they are tried: latn's, DFLT's, then each other
+    /// script's; of each script its default language system, else its first. At most 64 scripts are looked at.
+    /// </summary>
+    private static IEnumerable<int> LangSystems(byte[] b, int scripts)
     {
-        var n = U16(b, scripts);
-        if (n == 0) return -1;
+        var n = Math.Min(U16(b, scripts), 64);
+        var order = new List<int>();
         int? Find(string tag)
         {
             for (var i = 0; i < n; i++)
             {
                 var rec = scripts + 2 + 6 * i;
                 if (rec + 6 > b.Length) return null;
-                if (b[rec] == tag[0] && b[rec + 1] == tag[1] && b[rec + 2] == tag[2] && b[rec + 3] == tag[3]) return scripts + U16(b, rec + 4);
+                if (b[rec] == tag[0] && b[rec + 1] == tag[1] && b[rec + 2] == tag[2] && b[rec + 3] == tag[3]) return i;
             }
             return null;
         }
-        var script = Find("DFLT") ?? Find("latn") ?? scripts + U16(b, scripts + 6);
-        var def = U16(b, script);
-        if (def != 0) return script + def;
-        return U16(b, script + 2) > 0 ? script + U16(b, script + 4 + 4) : -1;
+        if (Find("latn") is { } latn) order.Add(latn);
+        if (Find("DFLT") is { } dflt) order.Add(dflt);
+        for (var i = 0; i < n; i++)
+            if (!order.Contains(i)) order.Add(i);
+        foreach (var i in order)
+        {
+            var script = scripts + U16(b, scripts + 2 + 6 * i + 4);
+            var def = U16(b, script);
+            if (def != 0) yield return script + def;
+            else if (U16(b, script + 2) > 0) yield return script + U16(b, script + 4 + 4);
+        }
     }
 
     /// <summary>A lookup's adjustment for a pair: its first subtable that covers the pair decides.</summary>

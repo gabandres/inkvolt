@@ -217,6 +217,67 @@ public partial class ParagraphEditTests
         Assert.Equal("Now then " + text, Body0(again, "Now then").Text);
     }
 
+    [Theory]
+    [InlineData("flipped")]
+    [InlineData("scaled")]
+    public void ANewPictureUnderTheGeneratorsOwnCtmLandsByItsWord(string kind)
+    {
+        // The text drawn under a cm of the generator's: flipped (top-down, as many converters write) or scaled by 0.5.
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder(kind == "flipped" ? "q 1 0 0 -1 0 792 cm BT /FA 11 Tf" : "q 0.5 0 0 0.5 0 0 cm BT /FA 22 Tf");
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var y = Top - i * Step;
+            sb.Append(kind == "flipped" ? $" 1 0 0 -1 {N(Left)} {N(792 - y)} Tm ({lines[i]}) Tj" : $" 1 0 0 1 {N(2 * Left)} {N(2 * y)} Tm ({lines[i]}) Tj");
+        }
+        sb.Append(" ET Q\nBT /FA 11 Tf 72 500 Td (Next block starts here) Tj ET");
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        var text = p.Text.Replace("boxing", "boxing \uFFFC", StringComparison.Ordinal);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text, added: [Orange()]);
+        var image = ContentEditor.Read(edited, null, 0).Images.Single();
+        var q = Body0(edited);
+        var boxing = q.Runs.Single(r => r.Text.TrimEnd().EndsWith("boxing", StringComparison.Ordinal));
+        Assert.True(Math.Abs(image.Box.Bottom - boxing.Origin.Y) < 1, $"{image.Box} on {boxing.Origin}"); // its foot on the baseline
+        Assert.True(image.Box.X >= boxing.Box.Right - 0.5 && image.Box.X - boxing.Box.Right < 0.5 * Size);
+        Assert.Equal(3 * image.Box.Height, image.Box.Width, 1);
+        Assert.Equal(text, q.Text);
+    }
+
+    [Fact]
+    public void AnInsertedMarkIsTheNewPicturesThoughAnOldOneMoved()
+    {
+        // The paragraph's picture cut from its line and pasted at the end; a new one inserted at the start: each its own.
+        var (pdf, _) = WithPicture();
+        var p = Body0(pdf);
+        var text = "\uFFFC " + p.Text.Replace(" \uFFFC", "", StringComparison.Ordinal) + " \uFFFC";
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text, allowOverlap: true, added: [Orange() with { Mark = 0 }]);
+        var images = ContentEditor.Read(edited, null, 0).Images;
+        Assert.Equal(2, images.Count);
+        var first = images.MinBy(i => (i.Box.Y, i.Box.X))!;
+        Assert.Equal(3, first.Box.Width / first.Box.Height, 1); // the new, orange one where it was inserted
+        Assert.Equal(Left, first.Box.X, 0);
+        var moved = images.Single(i => i != first);
+        Assert.Equal((12, 9), ((int)Math.Round(moved.Box.Width), (int)Math.Round(moved.Box.Height))); // the old one, at the end
+    }
+
+    [Fact]
+    public void TakingATallPictureOffTheEndOfTheFirstLineLiftsNothing()
+    {
+        // A picture twice the type's height right after the first line's last word (the line reaches to it).
+        var lines = Wrap(Body, Width - 40);
+        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td ({lines[0]}) Tj");
+        foreach (var l in lines.Skip(1)) sb.Append($" T* ({l}) Tj");
+        sb.Append(" 0 -60 Td (Next block starts here) Tj ET\n");
+        sb.Append($"q 12 0 0 22 {N(Left + Measure(lines[0]) + 3)} {N(Top)} cm /Im1 Do Q\n");
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var p = Body0(pdf);
+        Assert.Single(p.Pictures);
+        var first = p.Runs[0].Origin.Y;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, p.Text.Replace(" \uFFFC", "", StringComparison.Ordinal));
+        Assert.Equal(first, Body0(edited).Runs[0].Origin.Y, 1);
+    }
+
     [Fact]
     public void NewPicturesTakeTheTypedMarksInOrderAndNoMore()
     {
@@ -238,7 +299,8 @@ public partial class ParagraphEditTests
     // ---- Cropping ----
 
     /// <summary>A page drawing /Im1 as given, its 4 x 2 pixels one color a column: red, green, blue, white.</summary>
-    private static byte[] Columns(string content)
+    /// <param name="change">Changes to /Im1's dictionary, in its document.</param>
+    private static byte[] Columns(string content, Action<PdfSharp.Pdf.PdfDocument, PdfSharp.Pdf.PdfDictionary>? change = null)
     {
         var pdf = ContentEditPdf.Make(content);
         using var d = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify);
@@ -247,6 +309,7 @@ public partial class ParagraphEditTests
         im.Stream!.Value = [.. row, .. row];
         im.Elements.Remove("/Filter");
         im.Elements["/Length"] = new PdfSharp.Pdf.PdfInteger(24);
+        change?.Invoke(d, im);
         using var ms = new MemoryStream();
         d.Save(ms, false);
         return ms.ToArray();
@@ -342,6 +405,38 @@ public partial class ParagraphEditTests
     }
 
     [Fact]
+    public void AClipDrawnBeforeAPictureOutsideItsOwnSaveStays()
+    {
+        // The clip also governs what follows the picture (a rectangle filled after it): cropping keeps it.
+        var pdf = Columns("q 100 0 0 50 72 600 cm 0 0 0.75 1 re W n /Im1 Do 0 0 1 1 re f Q");
+        var image = ContentEditor.Read(pdf, null, 0).Images.Single();
+        var cropped = ContentEditor.CropImage(pdf, null, image, new RectD(72, 142, 50, 50));
+        Assert.Contains("0 0 0.75 1 re W n", ContentEditPdf.Content(cropped));
+        Assert.Contains("0 0 1 1 re f", ContentEditPdf.Content(cropped));
+        Assert.Equal(2, Assert.Single(PicturesIn(cropped)).W);
+    }
+
+    [Fact]
+    public void ACropKeepsThePicturesLayerAndIntent()
+    {
+        var pdf = Columns("q 100 0 0 50 72 600 cm /Im1 Do Q", (d, im) =>
+        {
+            var layer = new PdfSharp.Pdf.PdfDictionary(d);
+            layer.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/OCG");
+            layer.Elements["/Name"] = new PdfSharp.Pdf.PdfString("Photos");
+            d.Internals.AddObject(layer);
+            im.Elements["/OC"] = layer.Reference!;
+            im.Elements["/Intent"] = new PdfSharp.Pdf.PdfName("/Perceptual");
+        });
+        var image = ContentEditor.Read(pdf, null, 0).Images.Single();
+        var cropped = ContentEditor.CropImage(pdf, null, image, new RectD(122, 142, 50, 50));
+        using var d = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(cropped), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var kept = d.Internals.GetAllObjects().OfType<PdfSharp.Pdf.PdfDictionary>().Single(o => o.Elements.GetName("/Subtype") == "/Image" && o.Elements.GetName("/ColorSpace") == "/DeviceRGB");
+        Assert.Equal("Photos", PdfObj.Dict(kept.Elements["/OC"])!.Elements.GetString("/Name"));
+        Assert.Equal("/Perceptual", kept.Elements.GetName("/Intent"));
+    }
+
+    [Fact]
     public void ACropThatCantBeMadeIsRefused()
     {
         var turned = ContentEditPdf.Make("q 70.71 70.71 -35.36 35.36 200 400 cm /Im1 Do Q");
@@ -358,6 +453,26 @@ public partial class ParagraphEditTests
         var s = ContentEditor.Read(stencil, null, 0).Images.Single();
         var ex = Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(stencil, null, s, new RectD(72, 142, 50, 50)));
         Assert.Contains("stencil", ex.Message);
+        // Transparency inside JPEG 2000 data, or a soft mask blended with a matte color.
+        var inData = Columns("q 100 0 0 50 72 600 cm /Im1 Do Q", (_, im) => im.Elements["/SMaskInData"] = new PdfSharp.Pdf.PdfInteger(1));
+        var i1 = ContentEditor.Read(inData, null, 0).Images.Single();
+        Assert.Contains("transparency", Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(inData, null, i1, new RectD(72, 142, 50, 50))).Message);
+        var matte = Columns("q 100 0 0 50 72 600 cm /Im1 Do Q", (d, im) =>
+        {
+            var mask = ImageImport.ImageStream(d, 4, 2, new byte[8], "/DeviceGray");
+            mask.Elements["/Matte"] = new PdfSharp.Pdf.PdfArray(d, new PdfSharp.Pdf.PdfReal(1), new PdfSharp.Pdf.PdfReal(1), new PdfSharp.Pdf.PdfReal(1));
+            im.Elements["/SMask"] = mask.Reference!;
+        });
+        var i2 = ContentEditor.Read(matte, null, 0).Images.Single();
+        Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(matte, null, i2, new RectD(72, 142, 50, 50)));
+        // A picture that says it is 60,000 pixels square: refused before MuPDF decodes it.
+        var huge = Columns("q 100 0 0 50 72 600 cm /Im1 Do Q", (_, im) =>
+        {
+            im.Elements["/Width"] = new PdfSharp.Pdf.PdfInteger(60000);
+            im.Elements["/Height"] = new PdfSharp.Pdf.PdfInteger(60000);
+        });
+        var i3 = ContentEditor.Read(huge, null, 0).Images.Single();
+        Assert.Contains("too large", Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(huge, null, i3, new RectD(72, 142, 1, 1))).Message);
     }
 
     [Fact]

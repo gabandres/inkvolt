@@ -3814,6 +3814,9 @@
   <data name="Edit_CropStencil" xml:space="preserve">
     <value>Esta imagen es un solo color pintado a través de una plantilla (o enmascarado por un color), así que no se puede recortar.</value>
   </data>
+  <data name="Edit_CropTransparency" xml:space="preserve">
+    <value>Esta imagen guarda su transparencia de una forma que un recorte no puede conservar (dentro de sus datos JPEG 2000, o mezclada con un color de fondo), así que no se puede recortar.</value>
+  </data>
   <data name="Edit_CropFailed" xml:space="preserve">
     <value>No se pudo recortar la imagen: no se pudo leer su contenido.</value>
   </data>

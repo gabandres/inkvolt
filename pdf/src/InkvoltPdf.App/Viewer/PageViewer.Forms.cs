@@ -732,6 +732,8 @@ public sealed partial class PageViewer
         if (_editorDrawing is not null && e.NewFocus is DependencyObject f && EditorCompanion is { } companion && IsDescendant(companion, f)) return;
         // The paragraph editor's look bar works on its selection.
         if (_editorParagraph is not null && e.NewFocus is DependencyObject lf && InLookBar(lf)) return;
+        // Insert Picture's file dialog has the focus for now.
+        if (_editorParagraph is not null && _pictureAsked) return;
         CommitEditor();
     }
 

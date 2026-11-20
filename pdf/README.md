@@ -916,7 +916,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   draws it upright on one of its lines, no taller than two and a half lines and with no text over it; a picture can't
   be added to turned text or text inside a reused drawing. A cropped picture is stored again losslessly as RGB, from
   its own pixels (a JPEG photo's crop can be larger than the photo was; CMYK and spot colors become RGB); turned pictures
-  (other than a quarter turn), stencils and pictures masked by a color can't be cropped. A line break typed into a paragraph starts a new paragraph for the next edit; a word hyphenated
+  (other than a quarter turn), stencils, pictures masked by a color and pictures whose transparency is inside JPEG 2000
+  data or blended with a matte color can't be cropped. A line break typed into a paragraph starts a new paragraph for the next edit; a word hyphenated
   at a line end keeps its hyphen as typed ("respon-sible" stays one word; a soft hyphen the line break added is
   dropped). Pictures inside form XObjects (reused
   drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can text

@@ -138,7 +138,10 @@ public sealed partial class PageViewer
                             italic != lead.Italic ? italic : null);
                         var text = r.Text.Replace("\r\n", "\n").Replace('\r', '\n');
                         // A mark Insert Picture put in stands for its picture (one per mark still there).
-                        if (r.Tag is NewPicture np) added.AddRange(Enumerable.Repeat(np, text.Count(ch => ch == TextParagraph.PictureMark)));
+                        // A mark Insert Picture put in stands for its picture (one per mark still there), at its place in the text.
+                        if (r.Tag is NewPicture np)
+                            for (var i = 0; i < text.Length; i++)
+                                if (text[i] == TextParagraph.PictureMark) added.Add(np with { Mark = sb.Length + i });
                         if (!look.IsPlain && text.Length > 0)
                         {
                             if (spans.Count > 0 && spans[^1].End == sb.Length && spans[^1].Look == look) spans[^1] = spans[^1] with { Length = spans[^1].Length + text.Length };
@@ -234,6 +237,8 @@ public sealed partial class PageViewer
             bar.Children.Add(Btn(Strings.Viewer_InsertPictureButton, Strings.Viewer_InsertPicture, () =>
             {
                 _pictureCaret = box.CaretPosition.GetInsertionPosition(LogicalDirection.Forward);
+                // The file dialog takes the focus: the editor stays open (and isn't written) until it is back.
+                _pictureAsked = true;
                 ParagraphPictureRequested?.Invoke(this, EventArgs.Empty);
             }));
         void Swatch(string name, int rgb)
@@ -352,6 +357,14 @@ public sealed partial class PageViewer
     }
 
     private TextPointer? _pictureCaret;
+    private bool _pictureAsked;
+
+    /// <summary>The host is done asking for Insert Picture's file (chosen or not): the editor takes the focus back.</summary>
+    public void EndParagraphPictureRequest()
+    {
+        _pictureAsked = false;
+        if (_editor is RichTextBox box) box.Focus();
+    }
 
     /// <summary>
     /// Puts a picture (an image file) into the open paragraph editor where the caret was when Insert Picture was chosen: a
@@ -364,6 +377,7 @@ public sealed partial class PageViewer
         var mark = new Run(TextParagraph.PictureMark.ToString(), at) { Tag = new NewPicture(file, name) };
         box.CaretPosition = mark.ElementEnd;
         _pictureCaret = null;
+        _pictureAsked = false;
         box.Focus();
         UpdateRunInfo();
     }

@@ -46,19 +46,24 @@ public static partial class ContentEditor
             int cw = cx1 - cx0, ch = ry1 - ry0;
             if (cw < 1 || ch < 1) throw new ContentEditException(PdfStrings.Edit_PictureTooSmall);
             var placed = Placed(ops, at);
-            var clipAt = CropBefore(ops, at) is null ? -1 : at - 3;
             if (cw == w && ch == h)
             {
-                // All of it: only a clip that cut it goes.
-                if (placed is { Clip: >= 0 } p0) return [(ops[p0.Clip].Start, ops[p0.Clip + 2].End, "")];
-                return clipAt >= 0 ? [(ops[clipAt].Start, ops[clipAt + 2].End, "")] : [];
+                // All of it: only a clip of the picture's own (inside its q … Q) goes; one drawn outside such a group
+                // clips what follows it too, so it stays.
+                return placed is { Clip: >= 0 } p0 ? [(ops[p0.Clip].Start, ops[p0.Clip + 2].End, "")] : [];
             }
             if (source.Stencil) throw new ContentEditException(PdfStrings.Edit_CropStencil);
-            if ((long)cw * ch > MaxCropPixels) throw new ContentEditException(PdfStrings.Edit_CropTooLarge);
+            if (source.OddTransparency) throw new ContentEditException(PdfStrings.Edit_CropTransparency);
+            // MuPDF decodes the whole picture to draw a part of it: the picture's own size is bounded too.
+            if ((long)cw * ch > MaxCropPixels || (long)w * h > PdfEngine.MaxPixels) throw new ContentEditException(PdfStrings.Edit_CropTooLarge);
             var (rgb, alpha) = RenderCrop(data, password, found.PageIndex, source, Slice(op, content), cx0, ry0, cw, ch);
             var picture = ImageImport.ImageStream(doc, cw, ch, rgb, "/DeviceRGB");
             if (alpha is not null) picture.Elements["/SMask"] = ImageImport.ImageStream(doc, cw, ch, alpha, "/DeviceGray").Reference!;
             if (source.Interpolate) picture.Elements["/Interpolate"] = new PdfBoolean(true);
+            // What else the picture said of itself: the layer it is in, its rendering intent, its alternate text.
+            if (source.Dict is { } old)
+                foreach (var key in new[] { "/OC", "/Intent", "/Alt" }) // not /Alternates: those are the whole picture again
+                    if (old.Elements[key] is { } v) picture.Elements[key] = v;
             var name = AddXObject(doc, page, picture);
             // The new picture's unit square onto the part of the old one's it shows.
             var s = new Mat((double)cw / w, 0, 0, (double)ch / h, (double)cx0 / w, (double)(h - ry1) / h);
@@ -69,15 +74,24 @@ public static partial class ContentEditor
                 var m = cm is null ? s : s.Times(new Mat(cm.N(0), cm.N(1), cm.N(2), cm.N(3), cm.N(4), cm.N(5)));
                 return [(ops[pl.Q].Start, ops[pl.End].End, $"q {m.Write()} cm /{name} Do Q")];
             }
-            return [(clipAt >= 0 ? ops[clipAt].Start : op.Start, op.End, $"q {s.Write()} cm /{name} Do Q")];
+            // Drawn without a q … Q of its own: only the drawing is replaced; a clip before it (which may clip what follows
+            // too) stays.
+            return [(op.Start, op.End, $"q {s.Write()} cm /{name} Do Q")];
         }, dropName: true);
     }
 
     /// <summary>
     /// What a crop needs of a picture: its pixel size (1 to 65,535 each way), its resource name (null: an inline image),
-    /// its masks' names in the copy it is drawn from, whether it is a stencil or masked by color. Null when it can't be read.
+    /// its masks' names in the copy it is drawn from, whether it is a stencil or masked by color, or keeps its transparency
+    /// where a crop can't (inside JPEG 2000 data, /SMaskInData; colors blended with a matte color, a soft mask's /Matte).
+    /// Null when it can't be read.
     /// </summary>
-    private sealed record CropPicture(int Width, int Height, string? Name, bool Stencil, bool SoftMask, bool MaskImage, bool Interpolate);
+    private sealed record CropPicture(int Width, int Height, string? Name, bool Stencil, bool SoftMask, bool MaskImage, bool Interpolate)
+    {
+        public bool OddTransparency { get; init; }
+        /// <summary>The image XObject (null: an inline image).</summary>
+        public PdfDictionary? Dict { get; init; }
+    }
 
     private static CropPicture? CropSource(PdfPage page, COp op)
     {
@@ -98,10 +112,12 @@ public static partial class ContentEditor
         double iw = PdfObj.Num(image.Elements["/Width"]), ih = PdfObj.Num(image.Elements["/Height"]);
         if (!Size(iw, ih)) return null;
         var mask = PdfObj.Resolve(image.Elements["/Mask"]);
+        var smask = PdfObj.Dict(image.Elements["/SMask"]);
+        var odd = PdfObj.Num(image.Elements["/SMaskInData"]) != 0 || smask?.Elements["/Matte"] is not null;
         return new CropPicture((int)iw, (int)ih, op.Operands[0].Name,
             PdfObj.Resolve(image.Elements["/ImageMask"]) is PdfBoolean { Value: true } || mask is PdfArray, // a color key: stencil-like, not kept
-            PdfObj.Dict(image.Elements["/SMask"]) is not null, PdfObj.Dict(mask) is not null,
-            PdfObj.Resolve(image.Elements["/Interpolate"]) is PdfBoolean { Value: true });
+            smask is not null, PdfObj.Dict(mask) is not null,
+            PdfObj.Resolve(image.Elements["/Interpolate"]) is PdfBoolean { Value: true }) { OddTransparency = odd, Dict = image };
     }
 
     /// <summary>
