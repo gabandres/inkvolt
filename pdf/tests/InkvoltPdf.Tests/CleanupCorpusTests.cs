@@ -48,6 +48,28 @@ public class CleanupCorpusTests
         Assert.Equal(filter, PageCleanup.Apply(today.Pixels, today.Width, today.Height, channels, CleanupCorpus.Dpi, filter).Done);
     }
 
+    /// <summary>
+    /// The faded file's regression (2.7 → 3.0% after cleanup): once its colors are restored the paper is white all over, and
+    /// whitening it again lightened the type's edges. Now whitening only takes its specks out.
+    /// </summary>
+    [Fact]
+    public void AFadedPageOnceRestoredOnlyLosesItsSpecksToWhitening()
+    {
+        var (px, w, h, channels, _) = CleanupCorpus.ScanPage(File("es-faded"), 0);
+        var today = CleanupCorpus.Today(px, w, h, channels);
+        var restored = PageCleanup.Apply(today.Pixels, w, h, channels, CleanupCorpus.Dpi, PageFilters.RestoreColors).Pixels;
+        var both = PageCleanup.Apply(today.Pixels, w, h, channels, CleanupCorpus.Dpi, PageFilters.RestoreColors | PageFilters.Whiten);
+        Assert.True(both.Specks > 0);
+        var changed = 0;
+        for (var i = 0; i < restored.Length; i++)
+            if (both.Pixels[i] != restored[i])
+            {
+                Assert.Equal(255, both.Pixels[i]); // a speck gone, nothing else touched
+                changed++;
+            }
+        Assert.InRange(changed, 1, restored.Length / 100);
+    }
+
     [Theory]
     [InlineData("ru-grey-skewed", "и")]
     [InlineData("ja-faded", "")]

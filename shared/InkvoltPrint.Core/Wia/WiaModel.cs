@@ -34,7 +34,17 @@ public static class WiaIds
     public const int DataThreshold = 0, DataGrayscale = 2, DataColor = 3;
 
     public const string FormatBmp = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}", FormatJpeg = "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}",
-        FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}";
+        FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}", FormatMemoryBmp = "{B96B3CAA-0728-11D3-9D7B-0000F81EF32E}",
+        FormatTiff = "{B96B3CB1-0728-11D3-9D7B-0000F81EF32E}";
+
+    /// <summary><c>WiaImgFmt_PDFA</c> (WiaDef.h): a PDF/A document, the one PDF format WIA defines.</summary>
+    public const string FormatPdf = "{9980BD5B-3463-43C7-BDCA-3CAA146F229F}";
+
+    /// <summary>The picture formats a page can come in (one of them is all a scan needs to come as JPEG).</summary>
+    public static readonly IReadOnlyList<string> PictureFormats = [FormatBmp, FormatMemoryBmp, FormatJpeg, FormatPng, FormatTiff];
+
+    /// <summary>Two format GUID strings are the same format (any case, braces or none).</summary>
+    public static bool SameFormat(string? a, string b) => Guid.TryParse(a, out var x) && Guid.TryParse(b, out var y) && x == y;
 
     /// <summary>
     /// The scan-button events a driver may list (wiaaut.dll's <c>EventID</c> constants, read from its type library: Scan, Scan to
@@ -60,8 +70,20 @@ public sealed record WiaDeviceInfo(string Id, string Name, string? Manufacturer 
     /// <summary>The port a TWAIN source is listed with (<see cref="IsTwain"/>).</summary>
     public const string TwainPort = "TWAIN";
 
+    /// <summary>
+    /// The port a 32-bit-only TWAIN source is listed with (<see cref="IsTwain32Only"/>): its driver is in Windows' <c>twain_32</c>
+    /// folder with no 64-bit one beside it.
+    /// </summary>
+    public const string Twain32Port = "TWAIN 32-bit";
+
     /// <summary>A TWAIN source (listed by the TWAIN manager and scanned through it, its maker's TWAIN driver), not a WIA driver.</summary>
-    public bool IsTwain => Port == TwainPort;
+    public bool IsTwain => Port is TwainPort or Twain32Port;
+
+    /// <summary>
+    /// A TWAIN source with only a 32-bit driver: named in the lists so it isn't simply missing, and declined (a 64-bit app can't
+    /// load a 32-bit driver, nor can the 64-bit TWAIN manager): <see cref="WiaErrors.Only32Bit"/>.
+    /// </summary>
+    public bool IsTwain32Only => Port == Twain32Port;
 
     /// <summary>Windows reaches it with its built-in eSCL (AirScan) driver: Inkvolt Print scans such a printer over eSCL itself when it finds it.</summary>
     public bool IsEscl => Port?.StartsWith(@"SWD\Escl", StringComparison.OrdinalIgnoreCase) == true;
@@ -96,6 +118,11 @@ public sealed record WiaValues(int Current, IReadOnlyList<int> List, int? Min = 
 /// <param name="DataTypes">Data types the item offers (<see cref="WiaIds.DataColor"/>, <see cref="WiaIds.DataGrayscale"/>…); empty when not said.</param>
 /// <param name="Formats">Transfer formats (GUID strings) the item offers.</param>
 /// <param name="Buttons">The scan-button events the driver lists (<see cref="WiaIds.ScanButtonsIn"/>); null or empty: none.</param>
+/// <param name="FeederResolutions">The feeder's own resolutions when its driver defines them apart from the glass's (a WIA 2.0
+/// driver's feeder item: <see cref="Wia2Items"/>); null: <paramref name="Resolutions"/> for both.</param>
+/// <param name="FeederFormats">The feeder's own transfer formats, likewise; null: <paramref name="Formats"/>.</param>
+/// <param name="CancelsPage">Reached through WIA 2.0's own interface: a page under way can be stopped in the driver and reports its
+/// progress (<see cref="IWiaDevice.TransferPage(WiaScanSettings, Action{int}?, CancellationToken)"/>).</param>
 public sealed record WiaScannerInfo(
     int? Handling,
     int? BedWidth, int? BedHeight,
@@ -103,7 +130,23 @@ public sealed record WiaScannerInfo(
     WiaValues Resolutions,
     IReadOnlyList<int> DataTypes,
     IReadOnlyList<string> Formats,
-    IReadOnlyList<string>? Buttons = null);
+    IReadOnlyList<string>? Buttons = null,
+    WiaValues? FeederResolutions = null,
+    IReadOnlyList<string>? FeederFormats = null,
+    bool CancelsPage = false)
+{
+    /// <summary>
+    /// The driver offers PDF and no picture format (print/ROADMAP.md 1.3, as some eSCL feeders do): pages are asked as PDF and
+    /// taken out of it as JPEG (<see cref="Escl.ScannerPdf"/>). An empty list says nothing, so a page is asked as a picture.
+    /// </summary>
+    public bool PdfOnly => OnlyPdf(Formats);
+
+    /// <summary><see cref="PdfOnly"/> for the source a job scans from: the feeder's own formats when its driver lists them apart.</summary>
+    public bool PdfOnlyFor(bool feeder) => OnlyPdf(feeder && FeederFormats is { Count: > 0 } own ? own : Formats);
+
+    private static bool OnlyPdf(IReadOnlyList<string> formats) => formats.Any(f => WiaIds.SameFormat(f, WiaIds.FormatPdf))
+        && !formats.Any(f => WiaIds.PictureFormats.Any(p => WiaIds.SameFormat(f, p)));
+}
 
 /// <summary>What one scan sets on the device and item before transferring pages.</summary>
 /// <param name="Handling">Document handling select: glass, feeder, or feeder with both sides (front first); null for a glass-only driver (left alone).</param>
@@ -112,8 +155,9 @@ public sealed record WiaScannerInfo(
 /// since a sheet is two pages then and 1 would give the front only; null for the glass (left alone).</param>
 /// <param name="X">Where the area starts, in pixels at <paramref name="Resolution"/> from the left (0: the edge).</param>
 /// <param name="Y">Where the area starts, in pixels from the top.</param>
+/// <param name="Pdf">Pages are transferred as PDF (<see cref="WiaScannerInfo.PdfOnly"/>), each transfer a PDF of one page or more.</param>
 public sealed record WiaScanSettings(int? Handling, bool Feeder, int DataType, int Depth, int Resolution, int Width, int Height, int? Pages = null,
-    int X = 0, int Y = 0)
+    int X = 0, int Y = 0, bool Pdf = false)
 {
     /// <summary>Both sides of each sheet: two pages per sheet, front first.</summary>
     public bool Duplex => Feeder && Handling is { } h && (h & WiaIds.SelectDuplex) != 0;
@@ -142,6 +186,12 @@ public static class WiaErrors
     /// </summary>
     public const int NotAnswering = unchecked((int)0x800705B4);
 
+    /// <summary>
+    /// Not from WIA: the scanner's only driver is a 32-bit TWAIN source, which this 64-bit app can't load.
+    /// HRESULT_FROM_WIN32(ERROR_BAD_EXE_FORMAT), what loading one would give.
+    /// </summary>
+    public const int Only32Bit = unchecked((int)0x800700C1);
+
     // COM failures that aren't WIA's: the WIA service restarted or stopped (RPC), access denied, out of memory.
     public const int RpcServerUnavailable = unchecked((int)0x800706BA), RpcCallFailed = unchecked((int)0x800706BE),
         RpcDisconnected = unchecked((int)0x80010108), AccessDenied = unchecked((int)0x80070005), OutOfMemory = unchecked((int)0x8007000E);
@@ -159,7 +209,7 @@ public static class WiaErrors
     /// object is dead, and a fresh connection costs little.
     /// </summary>
     public static bool NeedsReconnect(int hresult) => hresult is not (PaperJam or PaperEmpty or PaperProblem or Busy or WarmingUp
-        or UserIntervention or DeviceLocked or IncorrectHardwareSetting or CoverOpen or LampOff or NotAnswering);
+        or UserIntervention or DeviceLocked or IncorrectHardwareSetting or CoverOpen or LampOff or NotAnswering or Only32Bit);
 
     /// <summary>
     /// Any failure of a WIA call as a <see cref="WiaException"/>: COM errors keep their HRESULT, also those .NET turned into other
@@ -188,6 +238,7 @@ public static class WiaErrors
         CoverOpen => CoreStrings.Wia_CoverOpen,
         LampOff => CoreStrings.Wia_LampOff,
         NotAnswering => CoreStrings.Wia_LastRequestStuck,
+        Only32Bit => CoreStrings.Twain_Only32Bit,
         RpcServerUnavailable or RpcCallFailed or RpcDisconnected => CoreStrings.Wia_ServiceRestarted,
         AccessDenied => CoreStrings.Wia_AccessDenied,
         OutOfMemory => CoreStrings.Wia_OutOfMemory,

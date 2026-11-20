@@ -188,13 +188,20 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (exit 0, no lock or file left in `working`). Found and fixed (`CommandOutput`, tests in `CommandOutputTests`): MuPDF's
   output redirect took over .NET's console writers, so redirected lines ended "\r\r\n" and, typed in a terminal, 1.15.0's
   command line ended at once (0xC0000409) printing nothing. Left: a share on another PC over a real network (only this
-  PC's loopback SMB was tried), a run as a scheduled task; the memory a small file can ask for. The 200 MB stream (a
-  200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`, `BoundedFilters`), so nothing there
-  catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is decoded and packed again) and 760 MB in
-  a watermark or header and footer (measured, the copies not traced); rotate and text export stay under 100 MB. Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by its size on disk, so
-  such files run side by side with others. Lowering the limit would refuse real 200 MB scans; what it takes is pricing a
-  file by what it unpacks to (its streams' lengths counted as `BoundedFilters.InflatesPast` does, without keeping them)
-  before it is admitted, then finding which copies Reduce File Size and the page marks make and streaming the large ones.
+  PC's loopback SMB was tried), a run as a scheduled task. The 200 MB stream (a 200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`,
+  `BoundedFilters`), so nothing there catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is
+  decoded and packed again) and 760 MB in a watermark or header and footer (measured, the copies not traced); rotate and
+  text export stay under 100 MB. Done 2026-11-19: Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by the
+  larger of its size on disk and what its streams unpack to (`BatchRunner.Unpacked`: before the file is admitted, the
+  bytes after each `stream` keyword are inflated a chunk at a time and counted, kept nowhere, as
+  `BoundedFilters.InflatedLength` does for PDFsharp; a picture counts what its dictionary says it decodes to, width ×
+  height × components × bits, and isn't inflated; encrypted streams count nothing; counting stops past the budget or
+  50,000 streams, and when the batch is cancelled), 8 bytes a byte, so such a file runs alone instead of beside others
+  (`BatchTests.AFileIsPricedByWhatItsStreamsUnpackTo`: 64 MB in a 64 KB file weighs 512 MB, alone in a 256 MB budget).
+  The count runs ahead of the files' admission on a thread of its own. Reduce File Size's and the page marks' own copies
+  of a large stream are bounded by that price (8 bytes a byte covers the 1.6 GB measured) rather than streamed: the batch
+  stays under its budget, and a stream can't unpack past 256 MB anywhere. A picture whose data unpacks to far more than
+  its size says is priced by its size (only Reduce File Size's packing would unpack it, bounded at 256 MB).
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the
@@ -218,7 +225,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   outlines it), what is wrong and what fixes it; the 48 human conditions are a 15-item checklist in the same pane; the
   report saves as one accessible HTML page; Batch's Check Accessibility action writes it beside each file and fails a
   file with failures. Not checked: 09-007, 09-008 (Ruby, Warichu), 28-018 (a printer's mark's appearance), 31-023
-  (veraPDF doesn't check these either); widths of CFF and Type 1 programs. Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
+  (veraPDF doesn't check these either). Widths (31-016) are checked against every kind of embedded program: TrueType's
+  hmtx, and (done 2026-11-19) CFF and Type 1 charstrings (`CffProgram`: the Type 2 width rule, local and global
+  subroutines followed, each glyph's Private DICT through FDSelect, FontMatrix; `Type1Program`: hsbw or sbw, div,
+  FontMatrix, lenIV; bounded against programs built to loop; tests on crafted fonts in `AccessibilityCheckTests`). Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
   OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
   conditions for 50 (wcag-table-word, long called a veraPDF inconsistency, was a later object stream PDFsharp missed; see
   the tool's README); veraPDF's own 297 PDF/UA-1 test
@@ -287,8 +297,30 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   picture. Fix redacts, sanitizes and rewrites. With 1.1's patterns it also looks for what they find outside the pages, and
   a part it couldn't search to the end is reported, not read as clean. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
-  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30). Still to
-  do: glyph-spacing inference around pixel redactions.
+  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30).
+  Glyph spacing around pixel redactions (Windows, done 2026-11-19): the redaction lays out again, in the page image,
+  each line an area cuts (`RedactionLines`, through `Redaction.Redact`): its words keep their letters and order, start
+  where the line started, a space of a quarter of the line's height between them, and each box takes a width rounded to
+  steps of twice the line's height; a line redacted whole is its rounded box; a block over several lines keeps its area.
+  So neither the text after a box (where the removed words ended), a justified line's spaces nor the box's own width
+  tells the removed width beyond its step. A line that would run into the next column or off the page narrows its
+  spaces. Where the boxes went (`RedactedPages.Blacked`) is what the check after Apply, Redact by Pattern and Batch are
+  told, the words that moved (`Moved`) where a kept hit is looked for, and the page's picture lists its boxes
+  (`/PdLaidOut`). The check also finds boxes drawn into pictures (another tool's pixel redaction, a scan's marker) with
+  text beside them (`GlyphSpacing`), not those of a line Inkvolt laid out. Tests (`RedactionLinesTests`,
+  `RedactionCheckTests`): two pages differing only in a name 22 pt wider, ragged and justified, give the same line to the
+  pixel (each word within one); a picture box beside text is flagged and fixed. After review (2026-11-20): a line keeps
+  its alignment edge (its start, its end when right-aligned, its middle when centred, told from the lines near it and,
+  alone, the page's middle); a line turned sideways is laid out along its own axis (read up the page, from its far end);
+  an area reaching past a line's end, or a tall one over several lines, leaves paper there, not black with its drawn
+  edges (a tall area is rows of lines; one that leaves no line beside it is a block, as drawn); the paper comes from
+  beside the line outside every area; every line is drawn from the page as it was (overlapping bands); an earlier
+  redaction's box on the line keeps its width and moves with it, and Batch moves its earlier boxes with the words;
+  a line whose space holds a rule or a picture is left in place with its boxes rounded as far as its words allow, and
+  isn't recorded as laid out (`/PdLaidOut` records every other box Inkvolt draws, blocks too), so the check reports it.
+  Limit: a moved word keeps the anti-aliased shading of where it was, a fraction of a pixel (0.24 pt at 300 dpi): MuPDF
+  renders on the pixel grid (a region's origin is rounded to a whole pixel), so a word can't be drawn again at a
+  sub-pixel offset, and thresholding its edges only coarsens the same trace. Mac: not yet.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
 ### 1.6 Store update check (done 2026-10-27)
@@ -514,9 +546,65 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   "cigüeña"); the Store build (`pack-msix.ps1 -Architectures arm64 -SmokeSideBySide`, its smoke test passed, then
   the registered side-by-side layout driven the same way) downloads into its LocalCache and reads the Russian scan. Tests: `TesseractTests` (TSV,
   LZMA, the extraction, the pins, the download against a fake server, languages and plans, mixed lines, the pipeline,
-  the program's limits; the real engine opt-in with INKVOLTPDF_TESSERACT=folder or `download`). Still to do:
-  "make the text editable", straightened lines and trapezoid correction (ABBYY's); Tesseract on the Mac (Vision reads
-  its languages; a second engine there waits). Mac: stage A done with E14 (2026-11-02,
+  the program's limits; the real engine opt-in with INKVOLTPDF_TESSERACT=folder or `download`).
+  **Built (Windows, 2026-11-19): trapezoid correction, straightened lines and "make the text editable"** (the Mac half
+  waits). Two more cleaning options in Recognize Text, on by default, each acting only on a page that clearly needs it,
+  read by Batch, Scan and the exports too (`PageOcr.OptionsAsSet`), and written back with the cleaned page when the scans
+  are replaced. **Trapezoid** (shared `Imaging/PageWarp.cs`, `Trapezoid`): on a copy at most 800 px across, the page is
+  the light region the darker desk around it doesn't reach (Otsu's threshold, the two sides 50 levels apart or more), its
+  outline's convex hull cut to four corners, each side fitted as a line to the outline along its middle 80% (within 1.5 px,
+  followed over 17 of 20 stretches), the corners where they meet; only when the page is whole in the photo (no outline
+  pixel on its edge), the corners 50° to 130°, the page fills its four sides (95-104%), and it doesn't lie square (a
+  corner over 1.5° off, or opposite sides 1.5% apart: a square page is `Deskew`'s). A homography (`Homography`) maps it to
+  a rectangle of the proportions the photo shows (the mean of opposite sides), as large as fits, white around it.
+  **Straightened lines** (`CurvedLines`, `LineCurve`): at about 100 dpi the text is cut into strips a third of an inch
+  apart; each strip's ink per row is matched to its neighbour's by a shift and a stretch (searched within 45% of the line
+  step, so a line never matches the next; correlation 0.5 or more), chained out from the inkiest middle strip and smoothed
+  by polynomials (degree 4 at most) for the shift and the stretch along the lines, so lines can bow, sag towards the spine
+  and fan out; used when the curves stay within a third of a line step of the matches, the matched strips span 60% of the
+  text, and the lines are bent by 15% of a line step or more once one tilt of the page is taken out. A page tilted by up
+  to 3° is first looked at as it is (smoothed and whitened, so a desk, a shadow or grey paper isn't ink; not looked at
+  again when nothing is found): a bend found there is flattened without turning the page, so its margins stay upright,
+  and past the strips measured the map goes on with the page's tilt there, so the lines' ends lose their tilt too. A
+  page in columns (a gap of a quarter of an inch with no ink all the way down) is measured on its inkiest column only, as
+  two columns' lines needn't be level with each other (matched across the gutter, a flat two-column page looked bent);
+  the other columns follow its map. Lines running down a sideways page are flattened along their own way. Limits, by
+  their nature: letters squeezed near a spine aren't widened (how much the page turns away from the camera there follows
+  from the lines' bend only together with the camera's distance, which a photo doesn't give); a page photographed with
+  no desk visible around it gets no trapezoid correction, as there are no page edges to find (its text lines' fan is
+  straightened in part by the lines' stretch); two facing pages in one photo aren't split. Words read on a warped page map back onto it through the warps
+  (`ScanFrame`: each word takes the length, height and slant its box has on the photo; angles are compared round the
+  circle, `Angles`, so an upside-down page's words at 179.9° and −179.9° stay one line). Measured with Windows' recognizer
+  (`pdf/tools/ocr-corpus` `photos`, its RESULTS-photos.md, synthetic photos with known maps): at an angle 1.6% → 0.8% and
+  0.0% → 0.0%; a book's page 100% → 1.7% and 99.5% → 1.6% (the bend made stage A turn the page over). Bounded: images over
+  80 million pixels or under 64 a side aren't warped, the measuring copies are small, everything cancels.
+  **Make Text Editable** (Review and Scan & OCR's menu; free, as all of 2.2): a page's recognized text (its Inkvolt text
+  layer) becomes real visible text (`EditableText`). Words are put in lines by angle and height (a gap over 2.5 line
+  heights is a column's), lines in paragraphs as 2.1 joins them (same weight, size within 15%, a step of 0.9-2.5 sizes and
+  steady, left edges or a first-line indent lined up), and a paragraph's lines are given one size, an even step and one
+  left edge so the paragraph editor reads them as one. The font is matched (`FontMatch`, `ScanLook`): words of the scan
+  (150 dpi) and the same words drawn in a face (all of them on one picture, each word once a run) are brought to one
+  height, the drawing scaled to the scan word's width, and correlated, less for another stroke weight. The scan's class
+  (serif, sans serif, monospaced) comes from the common family of each; then every installed family of that class (from
+  Windows' font list, the common ones first, at most 24, files over 4 MB left out), those whose glyphs' proportions fit
+  the words' boxes, the eight closest compared by look on 40 words, judged on the 60% of the words that look most like
+  each (a page's italic or bold words look like no regular face), a common family preferred unless another looks
+  clearly better; the best four are kept for the document's next pages. Each paragraph then takes the face of the family
+  (regular, bold, italic, bold italic) that looks most like it, and a heading (a line on its own, a sixth bigger or more)
+  that of any short-listed or common family; each paragraph is drawn in its ink's colour (its darkest tenth: grey print
+  black, a clear colour kept). Each line's size is the median of its words'
+  (by width, unless a word's height disagrees), its baseline where its words' ink puts it, each word starts where the scan
+  has it (a space between words, narrowed when the words are close). The scan is covered behind each line in the paper's
+  own colour (the lightest 15% of what is under it), or kept showing on request; the invisible layer goes. One undo step
+(the edit transaction). Corpus pages typeset in Times and Helvetica come out in Times New Roman and Arial, the
+  Helvetica-Bold heading in Arial Bold, each word within 1.5 pt of its place, a Times-Italic paragraph in Times New Roman
+  Italic and a dark blue one in blue; their paragraphs edit as paragraphs. Speed (Release build, an ARM64 laptop with other
+  work running): 0.58 s a page, a first page 0.6 s with the candidate fonts loading. Tests: `PageWarpTests` (19),
+  `EditableTextTests` (11). Checked in the app
+  (`--script`, a throwaway data folder): a book's page and a photo at an angle recognized with the scans replaced (pages
+  straight, margins upright), made editable (9-10 paragraphs a page, lines of a paragraph joined), a paragraph edited,
+  both undone. Still to do: Tesseract on the Mac (Vision reads its languages; a second engine there waits); the Mac half
+  of part B. Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
   Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there. Suspect
   words for Batch, Scan and export on the Mac too (2026-11-04, E14a): Batch (window, watched folders, `--batch`) and

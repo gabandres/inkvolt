@@ -340,8 +340,16 @@ internal static class Demo
         return new(scanners);
     }
 
-    /// <summary>The made-up PC's driver scanners as the app lists them (<see cref="Core.Wia.DriverScanners"/>): WIA's, and with <c>--twain</c> its TWAIN source.</summary>
-    private static Core.Wia.DriverScanners Scanners(bool twain) => new(Wia, new Core.Wia.FakeWiaSystem(twain ? [TwainScanner] : []));
+    /// <summary>
+    /// The made-up PC's driver scanners as the app lists them (<see cref="Core.Wia.DriverScanners"/>): WIA's, and with <c>--twain</c>
+    /// its TWAIN source and a film scanner whose only driver is 32-bit (listed, declined).
+    /// </summary>
+    private static Core.Wia.DriverScanners Scanners(bool twain) => new(Wia, new Core.Wia.FakeWiaSystem(twain ? [TwainScanner, Twain32Scanner] : []));
+
+    /// <summary><c>--twain</c>'s made-up film scanner with only a 32-bit TWAIN driver: named in the list and declined, never opened.</summary>
+    private static Core.Wia.FakeWiaScanner Twain32Scanner { get; } = new(
+        new Core.Wia.WiaDeviceInfo("Demo FilmScan 35", "Demo FilmScan 35", "Demo", null, Core.Wia.WiaDeviceInfo.Twain32Port),
+        new Core.Wia.WiaScannerInfo(null, null, null, null, null, Core.Wia.WiaValues.Only(0), [], []), WiaPage);
 
     /// <summary>
     /// <c>--twain</c>'s made-up TWAIN-only document scanner: glass and a feeder (both sides), black and white, grey or color,

@@ -9,9 +9,16 @@ namespace InkvoltPdf.Core;
 /// document in place of the scan (the user's choice, off by default); the words then fit the cleaned page.
 /// <see cref="RereadMissed"/>: on a cleaned page, read again on its own each line-sized stretch of ink no word was read on
 /// and each word left out inside a line read (<see cref="MissedLines"/>), as Windows' recognizer now and then skips a whole line.
+/// <see cref="Trapezoid"/> and <see cref="CurvedLines"/> (with <see cref="Clean"/>): a page photographed at an angle is warped
+/// back to a rectangle, and lines bent by a book's spine are flattened, each only when the page shows it clearly
+/// (<see cref="ScanCleanup.Clean"/>'s <see cref="CleanupSteps"/>).
 /// </summary>
-public sealed record RecognizeOptions(bool Clean = true, bool CheckWords = true, bool KeepCleanedImage = false, bool RereadMissed = true)
+public sealed record RecognizeOptions(bool Clean = true, bool CheckWords = true, bool KeepCleanedImage = false, bool RereadMissed = true,
+    bool Trapezoid = false, bool CurvedLines = false)
 {
+    /// <summary>The cleanup's further steps these options ask for.</summary>
+    public CleanupSteps Steps => (Trapezoid ? CleanupSteps.Trapezoid : 0) | (CurvedLines ? CleanupSteps.CurvedLines : 0);
+
     /// <summary>As Recognize Text read pages before 2.2: the page as rendered, no cleaning, no suspect words.</summary>
     public static readonly RecognizeOptions AsScanned = new(Clean: false, CheckWords: false, RereadMissed: false);
 }
@@ -83,7 +90,7 @@ public static class ScanText
         }
 
         var color = options.KeepCleanedImage && IsColor(image.Pixels);
-        var cleaned = ScanCleanup.Clean(image.Pixels, image.Width, image.Height, 3, dpi, color, cancel);
+        var cleaned = ScanCleanup.Clean(image.Pixels, image.Width, image.Height, 3, dpi, color, cancel, options.Steps);
         var (turns, gray, bgr) = (cleaned.QuarterTurns, cleaned.Gray, cleaned.Bgr);
         var found = recognizer.Recognize(gray.Pixels, gray.Width, gray.Height, 1, cancel);
         if (!cleaned.UprightSure)
@@ -106,7 +113,7 @@ public static class ScanText
 
         if (options.RereadMissed && RereaderOf(recognizer) is { } rereader) found = MissedLines.Reread(gray, found, dpi, rereader, cancel);
 
-        var frame = new ScanFrame(image.Width, image.Height, cleaned.Skew, turns);
+        var frame = new ScanFrame(image.Width, image.Height, cleaned.Skew, turns, cleaned.Perspective, cleaned.Curve);
         var onScan = found.Select(w => frame.ToRendered(w, scale)).ToList();
         var words = options.KeepCleanedImage ? OnPage(found) : onScan;
         // A page that wasn't upright as scanned can't be read as scanned: nothing to compare with. An engine that says how
@@ -181,11 +188,13 @@ public static class ScanText
 
 /// <summary>
 /// Where a point of the cleaned page image was on the page as rendered: the cleaned image is the rendered one
-/// (<see cref="Width"/> × <see cref="Height"/> px) straightened by <see cref="Skew"/> degrees (rotated anticlockwise by
-/// that much about its centre, same size) and then turned <see cref="QuarterTurns"/> quarters clockwise. Turning and
-/// straightening are both about the centre, so going back is turning back, then rotating by the skew.
+/// (<see cref="Width"/> × <see cref="Height"/> px), its photographed page warped to a rectangle (<see cref="Perspective"/>,
+/// when there was one), straightened by <see cref="Skew"/> degrees (rotated anticlockwise by that much about its centre,
+/// same size), its bent lines flattened (<see cref="Curve"/>) and then turned <see cref="QuarterTurns"/> quarters
+/// clockwise. Turning and straightening are both about the centre, so going back is turning back, unbending, rotating
+/// by the skew, then mapping into the photo.
 /// </summary>
-public readonly record struct ScanFrame(int Width, int Height, double Skew, int QuarterTurns)
+public readonly record struct ScanFrame(int Width, int Height, double Skew, int QuarterTurns, Perspective? Perspective = null, LineCurve? Curve = null)
 {
     /// <summary>The angle (degrees clockwise) at which text that is level in the cleaned image runs on the rendered page.</summary>
     public double TextAngle
@@ -211,17 +220,34 @@ public readonly record struct ScanFrame(int Width, int Height, double Skew, int 
             3 => (w - y, x),
             _ => (x, y),
         };
-        if (Skew == 0) return (x, y);
-        // Undo the straightening: the content goes back clockwise by the skew, about the centre.
-        var (sin, cos) = Math.SinCos(Skew * Math.PI / 180);
-        var (dx, dy) = (x - w / 2.0, y - h / 2.0);
-        return (w / 2.0 + dx * cos - dy * sin, h / 2.0 + dx * sin + dy * cos);
+        if (Curve is { } curve) (x, y) = curve.Source(x, y);
+        if (Skew != 0)
+        {
+            // Undo the straightening: the content goes back clockwise by the skew, about the centre.
+            var (sin, cos) = Math.SinCos(Skew * Math.PI / 180);
+            var (dx, dy) = (x - w / 2.0, y - h / 2.0);
+            (x, y) = (w / 2.0 + dx * cos - dy * sin, h / 2.0 + dx * sin + dy * cos);
+        }
+        return Perspective is { } p ? p.Source(x, y) : (x, y);
     }
 
-    /// <summary>A recognized word of the cleaned image as a word on the page (points; its box turned by <see cref="TextAngle"/>).</summary>
+    /// <summary>
+    /// A recognized word of the cleaned image as a word on the page (points; its box turned by <see cref="TextAngle"/>).
+    /// Through a warp (<see cref="Perspective"/>, <see cref="Curve"/>) a word takes the length, height and slant its
+    /// box's middle lines have on the page.
+    /// </summary>
     public OcrWord ToRendered(RecognizedWord word, double scale)
     {
         var (cx, cy) = ToRendered(word.X + word.Width / 2, word.Y + word.Height / 2);
-        return new OcrWord(word.Text, new RectD((cx - word.Width / 2) / scale, (cy - word.Height / 2) / scale, word.Width / scale, word.Height / scale), TextAngle);
+        var level = new OcrWord(word.Text, new RectD((cx - word.Width / 2) / scale, (cy - word.Height / 2) / scale, word.Width / scale, word.Height / scale), TextAngle);
+        if (Perspective is null && Curve is null) return level;
+        var (mid, centre) = (word.Y + word.Height / 2, word.X + word.Width / 2);
+        var (l, r) = (ToRendered(word.X, mid), ToRendered(word.X + word.Width, mid));
+        var (t, b) = (ToRendered(centre, word.Y), ToRendered(centre, word.Y + word.Height));
+        var width = Math.Sqrt((r.X - l.X) * (r.X - l.X) + (r.Y - l.Y) * (r.Y - l.Y));
+        var height = Math.Sqrt((b.X - t.X) * (b.X - t.X) + (b.Y - t.Y) * (b.Y - t.Y));
+        var angle = Math.Atan2(r.Y - l.Y, r.X - l.X) * 180 / Math.PI;
+        if (!(width > 0 && height > 0 && double.IsFinite(width) && double.IsFinite(height) && double.IsFinite(angle) && double.IsFinite(cx) && double.IsFinite(cy))) return level;
+        return new OcrWord(word.Text, new RectD((cx - width / 2) / scale, (cy - height / 2) / scale, width / scale, height / scale), Math.Round(angle, 2));
     }
 }

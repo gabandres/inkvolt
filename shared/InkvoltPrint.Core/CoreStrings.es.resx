@@ -3559,4 +3559,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Share_NotAnnounced" xml:space="preserve">
     <value>No se pudo anunciar, así que puede que los dispositivos no lo muestren solos: agrégalo con la dirección de este PC.</value>
   </data>
+  <data name="Twain_Only32Bit" xml:space="preserve">
+    <value>Este escáner solo tiene un controlador TWAIN de 32 bits, que una aplicación de 64 bits no puede usar. Instala el controlador TWAIN de 64 bits del fabricante o su controlador de Windows (WIA), o usa la aplicación del propio escáner.</value>
+  </data>
 </root>

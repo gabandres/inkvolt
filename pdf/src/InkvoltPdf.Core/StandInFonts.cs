@@ -197,6 +197,24 @@ internal static class StandInFonts
         return RankFor(font, bold, italic).FirstOrDefault() ?? throw new ContentEditException(PdfStrings.Font_NoneOnPc);
     }
 
+    /// <summary>An installed family and its faces' files, with its class (from its name for a family Windows lists).</summary>
+    internal sealed record InstalledFamily(string Name, Kind Kind, string Regular, string? Bold, string? Italic, string? BoldItalic, bool Common);
+
+    /// <summary>
+    /// Every installed family with its faces' files: the common ones above that are on this PC first, then every other
+    /// TrueType family Windows lists, by name (Make Text Editable matches a scan's text against them).
+    /// </summary>
+    internal static IReadOnlyList<InstalledFamily> AllFamilies() => AllFamiliesOnce.Value;
+
+    private static readonly Lazy<List<InstalledFamily>> AllFamiliesOnce = new(() =>
+    {
+        var all = Families.Where(f => SystemFonts.Exists(f.Regular)).Select(f => new InstalledFamily(f.Name, f.Kind, f.Regular, f.Bold, f.Italic, f.BoldItalic, true)).ToList();
+        foreach (var f in InstalledFamilies.Value.Values.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase))
+            if (f.Regular is { } regular && !all.Any(a => a.Name.Equals(f.Name, StringComparison.OrdinalIgnoreCase)))
+                all.Add(new InstalledFamily(f.Name, KindOf(f.Name, 0), regular, f.Bold, f.Italic, f.BoldItalic, false));
+        return all;
+    });
+
     /// <summary>A family's face closest to the style asked (its regular one when it has no bold or italic); null when not installed.</summary>
     private static StandInFont? Face(Family f, bool bold, bool italic)
     {

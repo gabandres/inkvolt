@@ -2,8 +2,9 @@ using InkvoltPrint.Core.Wia;
 
 namespace InkvoltPrint.Core.Suite;
 
-/// <summary>How Inkvolt PDF's Scan dialog reaches a scanner: eSCL over the network, or a driver on this PC (WIA, TWAIN).</summary>
-public enum ScannerKind { Network, Wia, Twain }
+/// <summary>How Inkvolt PDF's Scan dialog reaches a scanner: eSCL over the network, or a driver on this PC (WIA, TWAIN); a
+/// 32-bit-only TWAIN source is listed and declined.</summary>
+public enum ScannerKind { Network, Wia, Twain, Twain32 }
 
 /// <summary>
 /// The Scan dialog's list of scanners, network (eSCL) and driver ones side by side: their keys (remembered as the last scanner),
@@ -17,20 +18,23 @@ public static class ScannerList
     {
         ScannerKind.Wia => "wia:" + id,
         ScannerKind.Twain => DriverScanners.TwainPrefix + id,
+        ScannerKind.Twain32 => DriverScanners.Twain32Prefix + id,
         _ => id,
     };
 
     /// <summary>A driver scanner as <see cref="DriverScanners"/> lists it: a TWAIN source's id already carries its "twain:".</summary>
     public static string Key(WiaDeviceInfo driver) => driver.IsTwain ? driver.Id : Key(ScannerKind.Wia, driver.Id);
 
-    /// <summary>A driver scanner's kind: <see cref="ScannerKind.Twain"/> for a TWAIN source, else <see cref="ScannerKind.Wia"/>.</summary>
-    public static ScannerKind Kind(WiaDeviceInfo driver) => driver.IsTwain ? ScannerKind.Twain : ScannerKind.Wia;
+    /// <summary>A driver scanner's kind: <see cref="ScannerKind.Twain32"/> for a 32-bit-only TWAIN source, <see cref="ScannerKind.Twain"/>
+    /// for another, else <see cref="ScannerKind.Wia"/>.</summary>
+    public static ScannerKind Kind(WiaDeviceInfo driver) => driver.IsTwain32Only ? ScannerKind.Twain32 : driver.IsTwain ? ScannerKind.Twain : ScannerKind.Wia;
 
-    /// <summary>"Name  (host)", "Name  (USB · Windows driver)", "Name  (TWAIN driver)".</summary>
+    /// <summary>"Name  (host)", "Name  (USB · Windows driver)", "Name  (TWAIN driver)", "Name  (TWAIN, 32-bit only)".</summary>
     public static string Label(ScannerKind kind, string name, string? host = null, bool remembered = true, string? connection = null) => kind switch
     {
         ScannerKind.Wia => $"{name}  ({(connection is null ? "" : connection + " · ")}Windows driver)",
         ScannerKind.Twain => $"{name}  (TWAIN driver)",
+        ScannerKind.Twain32 => $"{name}  (TWAIN, 32-bit only)",
         _ => $"{name}  ({host}){(remembered ? "" : " · found on the network")}",
     };
 

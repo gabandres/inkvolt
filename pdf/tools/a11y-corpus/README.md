@@ -27,7 +27,8 @@ of veraPDF's own PDF/UA-1 test files (one pass and one fail for headings, tables
 14 pass veraPDF, 36 fail.
 
 **Result (2026-10-30, veraPDF 1.30.3):** the same pass or fail for 50 of 50 files; the same failing conditions for 50 of 50.
-With `-Synthetic`: 296 of 297 files (the other can't be opened, below), conditions the same for 296.
+With `-Synthetic`: 296 of 297 files (the other can't be opened, below), conditions the same for 296. Again on 2026-11-19
+with CFF and Type 1 widths checked (31-016): the same, 50 of 50 and 296 of 297.
 
 ## Make Accessible on the corpus
 

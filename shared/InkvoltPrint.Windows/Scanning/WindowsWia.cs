@@ -212,7 +212,8 @@ public sealed class WindowsWia : IWiaSystem
     private sealed class Slot(string id, int number) : IWiaDeviceHost
     {
         private readonly WorkThread _thread = new($"Inkvolt WIA {number}", true);
-        private ComDevice? _device;
+        private IWiaDevice? _device;
+        private bool _wia1Only;
 
         public async Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct)
         {
@@ -230,13 +231,26 @@ public sealed class WindowsWia : IWiaSystem
         {
             try
             {
-                _device ??= Wrap(() => Connect(id));
-                return Wrap(() => work(_device));
+                // A WIA 2.0 driver through WIA 2.0's own interface (its items, progress, a page stopped in the driver), else WIA 1.0's.
+                _device ??= Wrap(() => (_wia1Only ? null : (IWiaDevice?)Wia2Device.TryConnect(id)) ?? Connect(id));
+                try
+                {
+                    return Wrap(() => work(_device));
+                }
+                catch (Wia2UnusableException)
+                {
+                    // Its WIA 2.0 item takes no format this app reads: WIA 1.0's path from now on, and this call again through it.
+                    (_device as IDisposable)?.Dispose();
+                    _device = null;
+                    _wia1Only = true;
+                    _device = Wrap(() => Connect(id));
+                    return Wrap(() => work(_device));
+                }
             }
             catch (WiaException ex) when (WiaErrors.NeedsReconnect(ex.Code))
             {
                 // Connect again next time: the scanner was off or unplugged, its driver or the WIA service restarted (RPC errors).
-                _device?.Dispose();
+                (_device as IDisposable)?.Dispose();
                 _device = null;
                 throw;
             }
@@ -304,7 +318,7 @@ public sealed class WindowsWia : IWiaSystem
         {
             return call();
         }
-        catch (Exception ex) when (ex is not (WiaException or OperationCanceledException))
+        catch (Exception ex) when (ex is not (WiaException or OperationCanceledException or Wia2UnusableException))
         {
             throw WiaErrors.From(ex);
         }
@@ -527,15 +541,18 @@ public sealed class WindowsWia : IWiaSystem
         public byte[]? TransferPage(WiaScanSettings s)
         {
             // JPEG straight from the driver when it offers it; otherwise BMP (every driver has it), turned into JPEG here. Black and
-            // white (1 bit) is always BMP: drivers list JPEG for their color and grey types, and refuse it for the threshold one.
-            var format = s.Depth > 1 && Info.Formats.Contains(WiaIds.FormatJpeg, StringComparer.OrdinalIgnoreCase) ? WiaIds.FormatJpeg : WiaIds.FormatBmp;
+            // white (1 bit) is always BMP: drivers list JPEG for their color and grey types, and refuse it for the threshold one. A
+            // driver that offers only PDF sends its PDF, handed over as it is (WiaScanner takes the pages out).
+            var format = s.Pdf ? WiaIds.FormatPdf
+                : s.Depth > 1 && Info.Formats.Contains(WiaIds.FormatJpeg, StringComparer.OrdinalIgnoreCase) ? WiaIds.FormatJpeg : WiaIds.FormatBmp;
             object? image = null, jpeg = null, data = null;
             try
             {
                 image = _item.Transfer(format);
                 if (image is null) return null;
                 var file = image;
-                if (!string.Equals((string)((dynamic)image).FormatID, WiaIds.FormatJpeg, StringComparison.OrdinalIgnoreCase)) file = jpeg = ToJpeg(image);
+                string sent = ((dynamic)image).FormatID;
+                if (!WiaIds.SameFormat(sent, WiaIds.FormatJpeg) && !WiaIds.SameFormat(sent, WiaIds.FormatPdf)) file = jpeg = ToJpeg(image);
                 data = ((dynamic)file).FileData;
                 byte[]? bytes = ((dynamic)data!).BinaryData as byte[];
                 return bytes is { Length: > 0 } ? bytes : null;

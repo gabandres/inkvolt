@@ -224,6 +224,7 @@ public static class Cmd
     };
     public static readonly RoutedUICommand RecognizeText = Make(Strings.Cmd_RecognizeText, nameof(RecognizeText));
     public static readonly RoutedUICommand ReviewSuspectWords = Make(Strings.Cmd_ReviewSuspectWords, nameof(ReviewSuspectWords));
+    public static readonly RoutedUICommand MakeTextEditable = Make(Strings.Cmd_MakeTextEditable, nameof(MakeTextEditable));
     public static readonly RoutedUICommand ReloadFromDisk = Make(Strings.Cmd_ReloadFromDisk, nameof(ReloadFromDisk), K(Key.F5));
 
     // File: create, protect, reduce (see FileTools, SecurityActions)

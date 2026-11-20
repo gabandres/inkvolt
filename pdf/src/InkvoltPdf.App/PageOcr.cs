@@ -358,8 +358,18 @@ internal static class PageOcr
     /// suspect words marked or not (<see cref="AppSettings.OcrSuspects"/>), no cleaned page kept. Export and the scan dialog
     /// read through it, and Batch (<see cref="ForBatch"/>).
     /// </summary>
-    public static PageRecognizer AsSet(ITextRecognizer ocr) =>
-        Pages(ocr, new RecognizeOptions(Clean: AppSettings.Current.OcrClean, CheckWords: AppSettings.Current.OcrSuspects));
+    public static PageRecognizer AsSet(ITextRecognizer ocr) => Pages(ocr, OptionsAsSet());
+
+    /// <summary>
+    /// Recognize Text's choices as last set: cleaned or not, suspect words, and with cleaning a photographed page's
+    /// trapezoid and a book's bent lines (<see cref="AppSettings.OcrTrapezoid"/>, <see cref="AppSettings.OcrCurvedLines"/>).
+    /// </summary>
+    public static RecognizeOptions OptionsAsSet(bool keepCleaned = false)
+    {
+        var s = AppSettings.Current;
+        return new RecognizeOptions(Clean: s.OcrClean, CheckWords: s.OcrSuspects, KeepCleanedImage: keepCleaned,
+            Trapezoid: s.OcrClean && s.OcrTrapezoid, CurvedLines: s.OcrClean && s.OcrCurvedLines);
+    }
 
     /// <summary>
     /// Batch's text recognition (the Batch window, a watched folder, the command line): <paramref name="ocr"/> one call at a

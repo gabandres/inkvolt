@@ -254,6 +254,48 @@ public class PageCleanupTests
         Assert.True(WhiteShare(clean, 0, 0, w, h, w) > 0.97, $"{WhiteShare(clean, 0, 0, w, h, w):P1}");
     }
 
+    [Fact]
+    public void Paper_already_white_only_loses_its_specks()
+    {
+        // A page at its white point (a faded print once restored, a scanner that sets its own): the type's soft edges stay as they
+        // are, not lightened by evening out paper that has nothing left to even out (ocr-corpus cleanup, es-faded).
+        const int w = 1200, h = 1500;
+        var page = TextPage(w, h, 255, 30);
+        for (var y = h / 10; y < h - h / 10; y++)
+            if (page[y * w + w / 10] == 30) page[y * w + w / 10 - 1] = 200; // a light edge left of the first column of letters
+        Assert.Equal(PageFilters.None, PageCleanup.Apply(page, w, h, 1, Dpi, PageFilters.Whiten).Done); // nothing to do: left as it is
+
+        var specked = (byte[])page.Clone();
+        Fill(specked, w, 600, 1440, 3, 3, 20); // a speck in the bottom margin, far from the words
+        var result = PageCleanup.Apply(specked, w, h, 1, Dpi, PageFilters.Whiten);
+        Assert.Equal(PageFilters.Whiten, result.Done);
+        Assert.Equal(1, result.Specks);
+        Assert.Equal(255, result.Pixels[1441 * w + 601]);
+        Assert.Equal(page, result.Pixels); // everything else as scanned, the light edges too
+    }
+
+    [Fact]
+    public void A_grey_page_restored_first_has_nothing_left_to_whiten()
+    {
+        // Restore colors takes its grey paper to white: whitening finds nothing left to even out, and no specks.
+        const int w = 1200, h = 1500;
+        var page = TextPage(w, h, 200, 30);
+        Assert.Equal(PageFilters.RestoreColors, PageCleanup.Apply(page, w, h, 1, Dpi, PageFilters.RestoreColors | PageFilters.Whiten).Done);
+    }
+
+    [Fact]
+    public void Paper_white_at_one_side_and_shaded_at_the_other_still_goes_white()
+    {
+        const int w = 1200, h = 1500;
+        var page = new byte[w * h];
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+                page[y * w + x] = (byte)(255 - 60.0 * x * x / (w * w));
+        Noise(page, 2);
+        var clean = Whitened(page, w, h);
+        Assert.True(WhiteShare(clean, w / 2, 0, w, h, w) > 0.97, $"{WhiteShare(clean, w / 2, 0, w, h, w):P1} of the shaded half");
+    }
+
     [Theory]
     [InlineData(25, 0)] // a pencil line 25 levels under the paper, one pixel wide
     [InlineData(25, 4)]
@@ -561,9 +603,9 @@ public class PageCleanupTests
         var page = TextPage(w, h, 200, 30);
         Screen(page, w, 500, 500, 2500, 2500, 9.2, 0.5);
         var clock = Stopwatch.StartNew();
-        var result = PageCleanup.Apply(page, w, h, 1, 600, PageFilters.PixelFilters);
+        var result = PageCleanup.Apply(page, w, h, 1, 600, PageFilters.Descreen | PageFilters.Whiten);
         Assert.True(clock.Elapsed < TimeSpan.FromMinutes(2), $"{clock.Elapsed.TotalSeconds:0.0} s");
-        Assert.Equal(PageFilters.PixelFilters, result.Done);
+        Assert.Equal(PageFilters.Descreen | PageFilters.Whiten, result.Done);
 
         using var cancel = Timing.CancelAfter(TimeSpan.FromMilliseconds(100)); // not a pool timer: Parallel.For fills the pool
         clock.Restart();

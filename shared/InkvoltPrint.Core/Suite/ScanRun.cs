@@ -10,6 +10,12 @@ public enum ScanPageFate { Kept, Blank, Unreadable }
 
 public sealed record ScanRunPage(byte[] Jpeg, ScanPageFate Fate);
 
+/// <summary>A preset's Clean up for <see cref="ScanRun.Clean"/>: its filters, the scan's resolution, and the app's JPEG codec (WIC).</summary>
+/// <param name="Decode">A JPEG as pixels: grey (1 channel) or BGR (3), rows packed.</param>
+/// <param name="Encode">Pixels as <paramref name="Decode"/> gives them, as a JPEG.</param>
+public sealed record ScanRunCleanup(PageFilters Filters, int Dpi, Func<byte[], (byte[] Pixels, int Width, int Height, int Channels)> Decode,
+    Func<byte[], int, int, int, byte[]> Encode);
+
 /// <summary>
 /// One scan job as Inkvolt PDF's Scan dialog runs it, on any <see cref="IScanner"/> (eSCL, WIA, TWAIN): each page the scanner
 /// sends, checked for blankness when asked (<see cref="BlankPage"/> on a small greyscale copy, off the caller's thread), then
@@ -18,13 +24,72 @@ public sealed record ScanRunPage(byte[] Jpeg, ScanPageFate Fate);
 public static class ScanRun
 {
     /// <param name="analysis">The greyscale copy of a page to judge (the app decodes with WIC); null keeps every page.</param>
+    /// <param name="cleanup">A preset's Clean up (<see cref="Clean"/>), applied to each kept page off the caller's thread; null: pages as scanned.</param>
     public static async IAsyncEnumerable<ScanRunPage> PagesAsync(IScanner scanner, ScanRequest request, Func<byte[], GrayImage>? analysis,
-        [EnumeratorCancellation] CancellationToken ct = default)
+        [EnumeratorCancellation] CancellationToken ct = default, ScanRunCleanup? cleanup = null)
     {
         await foreach (var jpeg in scanner.ScanAsync(request, ct).ConfigureAwait(false))
         {
-            yield return new ScanRunPage(jpeg, await FateAsync(jpeg, analysis, ct).ConfigureAwait(false));
+            var fate = await FateAsync(jpeg, analysis, ct).ConfigureAwait(false);
+            if (fate != ScanPageFate.Kept || cleanup is null || cleanup.Filters == PageFilters.None)
+            {
+                yield return new ScanRunPage(jpeg, fate);
+                continue;
+            }
+            yield return new ScanRunPage(await Task.Run(() => Clean(jpeg, cleanup, ct), ct).ConfigureAwait(false), fate);
         }
+    }
+
+    /// <summary>
+    /// A page cleaned as a preset's Clean up says, as Inkvolt Print's Scan tab cleans it (<see cref="PaperEdge"/> for the crop, on a
+    /// copy at about 100 dpi; <see cref="PageCleanup"/> for the pixels): the same JPEG when nothing changed it, else the cleaned page
+    /// encoded again. A page that can't be decoded or cleaned is kept as scanned: never lose a page to the cleanup.
+    /// </summary>
+    public static byte[] Clean(byte[] jpeg, ScanRunCleanup cleanup, CancellationToken ct = default)
+    {
+        if (cleanup.Filters == PageFilters.None) return jpeg;
+        try
+        {
+            var (pixels, width, height, channels) = cleanup.Decode(jpeg);
+            if (width < 1 || height < 1 || channels is not (1 or 3) || pixels.Length < (long)width * height * channels) return jpeg;
+            var changed = false;
+            if (cleanup.Filters.HasFlag(PageFilters.CropToPaper))
+            {
+                var gray = channels == 1 ? pixels : ScanCleanup.ToGray(pixels, width, height);
+                var factor = Math.Max(1, (int)Math.Round(cleanup.Dpi / 100.0));
+                if (PaperEdge.Find(ScanCleanup.Downscale(new GrayImage(width, height, gray), factor), cleanup.Dpi / (double)factor) is { IsFull: false } crop)
+                {
+                    (pixels, width, height) = Cut(pixels, width, height, channels, crop);
+                    changed = true;
+                }
+            }
+            ct.ThrowIfCancellationRequested();
+            if ((cleanup.Filters & PageFilters.PixelFilters) != 0)
+            {
+                var cleaned = PageCleanup.Apply(pixels, width, height, channels, cleanup.Dpi, cleanup.Filters, ct);
+                if (cleaned.Done != PageFilters.None)
+                {
+                    pixels = cleaned.Pixels;
+                    changed = true;
+                }
+            }
+            return changed ? cleanup.Encode(pixels, width, height, channels) : jpeg;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return jpeg;
+        }
+    }
+
+    private static (byte[] Pixels, int Width, int Height) Cut(byte[] px, int w, int h, int channels, CropBox crop)
+    {
+        var x = Math.Clamp((int)Math.Round(crop.X * w), 0, w - 1);
+        var y = Math.Clamp((int)Math.Round(crop.Y * h), 0, h - 1);
+        var cw = Math.Clamp((int)Math.Round(crop.Width * w), 1, w - x);
+        var ch = Math.Clamp((int)Math.Round(crop.Height * h), 1, h - y);
+        var cut = new byte[cw * ch * channels];
+        for (var row = 0; row < ch; row++) Buffer.BlockCopy(px, ((y + row) * w + x) * channels, cut, row * cw * channels, cw * channels);
+        return (cut, cw, ch);
     }
 
     private static async Task<ScanPageFate> FateAsync(byte[] jpeg, Func<byte[], GrayImage>? analysis, CancellationToken ct)

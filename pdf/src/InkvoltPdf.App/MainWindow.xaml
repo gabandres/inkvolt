@@ -298,6 +298,7 @@
                                     <MenuItem x:Name="AttachMenu" Header="{x:Static loc:Strings.Main_MenuAttachFile}" Click="OnAttachFile" />
                                     <MenuItem Command="app:Cmd.RecognizeText" />
                                     <MenuItem Command="app:Cmd.ReviewSuspectWords" />
+                                    <MenuItem Command="app:Cmd.MakeTextEditable" />
                                     <Separator />
                                     <MenuItem x:Name="RedactMenu" Command="app:Cmd.Redact" />
                                     <MenuItem x:Name="RedactTextMenu" Header="{x:Static loc:Strings.Main_MenuMarkSelectedText}" Click="OnRedactText" />

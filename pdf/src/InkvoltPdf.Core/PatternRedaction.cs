@@ -78,9 +78,23 @@ public sealed class PatternRedaction(string file, RedactionPatternOptions patter
         .GroupBy(x => x.Key)
         .ToDictionary(g => g.Key, g => (IReadOnlyList<RectD>)[.. g.SelectMany(x => x.Rects).Distinct()]);
 
+    /// <summary>What <see cref="Redact"/> made black, and the words it moved (the lines it laid out again); null before it ran.</summary>
+    private RedactedData? _redacted;
+
+    /// <summary>What is black after <see cref="Redact"/>: <see cref="Areas"/>, with the boxes where the lines laid out again put them.</summary>
+    public IReadOnlyDictionary<int, IReadOnlyList<RectD>> Blacked => _redacted?.Blacked ?? Areas;
+
+    /// <summary>The words and earlier boxes <see cref="Redact"/> moved (none before it ran).</summary>
+    public RedactionMoves Moved => _redacted?.Moved ?? RedactionMoves.None;
+
     /// <summary>The edit: <see cref="Areas"/> blacked out, the redacted pages' text recognized again (<see cref="Redaction.ApplyWithText"/>).</summary>
     public RedactedData Redact(byte[] data, string? password, IProgress<(int Done, int Total)>? progress = null, CancellationToken skipText = default) =>
-        Redaction.ApplyWithText(data, password, Areas, ocr, progress, skipText);
+        _redacted = Redaction.ApplyWithText(data, password, Areas, ocr, progress, skipText);
+
+    /// <summary>The run's <see cref="Areas"/> were redacted another way (the app's Apply Redactions, through
+    /// <see cref="Redaction.Redact"/>): what that made black and moved, for <see cref="Verify"/>.</summary>
+    public void Applied(IReadOnlyDictionary<int, IReadOnlyList<RectD>> blacked, RedactionMoves moved) =>
+        _redacted = new RedactedData([], false) { Blacked = blacked, Moved = moved };
 
     /// <summary>What the check is told (see <see cref="PatternRedactionMode"/>).</summary>
     /// <param name="before">The document before the redaction.</param>
@@ -90,7 +104,7 @@ public sealed class PatternRedaction(string file, RedactionPatternOptions patter
         var keptKeys = new HashSet<string>(kept, StringComparer.OrdinalIgnoreCase);
         var removed = RedactionSearch.SoughtValues(accepted).Where(v => !keptKeys.Contains(v));
         return mode == PatternRedactionMode.Reviewed
-            ? new RedactionCheckOptions { Values = [.. removed], Kept = kept, Areas = Areas, Original = before, Patterns = patterns }
+            ? new RedactionCheckOptions { Values = [.. removed], Kept = kept, Areas = Blacked, Original = before, Patterns = patterns }
             : new RedactionCheckOptions { Values = [.. EarlierValues, .. removed], Kept = kept, Patterns = patterns, ValuesOnly = true };
     }
 
@@ -119,7 +133,10 @@ public sealed class PatternRedaction(string file, RedactionPatternOptions patter
         if (Areas.Count > 0)
         {
             var reread = mode == PatternRedactionMode.Reviewed ? WithoutText(redacted, password, Areas.Keys) : Areas.Keys.ToHashSet();
-            still = RedactionSearch.ReadBack(redacted, password, patterns, ocr, reread, skipped, readBack, cancel);
+            // Kept hits on a line laid out again are looked for where their words went.
+            var moved = _redacted?.Moved ?? RedactionMoves.None;
+            var kept = moved.IsEmpty ? skipped : [.. skipped.Select(m => m with { Rects = [.. m.Rects.Select(r => moved.Now(m.Page, r))] })];
+            still = RedactionSearch.ReadBack(redacted, password, patterns, ocr, reread, kept, readBack, cancel);
         }
         StillThere = still;
         var options = CheckOptions(before);

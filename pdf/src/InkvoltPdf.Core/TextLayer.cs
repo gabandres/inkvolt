@@ -17,6 +17,20 @@ public sealed record OcrWord(string Text, RectD Rect, double Angle = 0, SuspectR
     public bool IsSuspect => Suspect != SuspectReasons.None;
 }
 
+/// <summary>Angles in degrees, compared round the circle.</summary>
+public static class Angles
+{
+    /// <summary><paramref name="a"/> in (−180, 180].</summary>
+    public static double Wrap(double a)
+    {
+        a %= 360;
+        return a <= -180 ? a + 360 : a > 180 ? a - 360 : a;
+    }
+
+    /// <summary><paramref name="a"/> − <paramref name="b"/> in (−180, 180]: 179.9° and −179.9° are 0.2° apart.</summary>
+    public static double Difference(double a, double b) => Wrap(a - b);
+}
+
 /// <summary>A page's Inkvolt text layer as read back: its words, and the language they were recognized in (when known).</summary>
 public sealed record OcrLayer(List<OcrWord> Words, string? Language);
 
@@ -90,6 +104,21 @@ public static class TextLayer
     /// <summary>Word <paramref name="index"/> is right as recognized: it stops being a suspect word.</summary>
     public static byte[] Keep(byte[] data, string? password, int page, int index) =>
         Change(data, password, page, index, w => w with { Suspect = SuspectReasons.None });
+
+    /// <summary>
+    /// Takes a page's Inkvolt text layer out: its stream from /Contents and the fonts only it drew with (Make Text
+    /// Editable, <see cref="EditableText"/>, puts real text in its place). False when the page has none.
+    /// </summary>
+    internal static bool Remove(PdfDocument doc, PdfPage page)
+    {
+        if (FindLayer(page) is not { } layer) return false;
+        var fonts = FontDictionary(doc, page);
+        foreach (var key in fonts.Elements.Keys.Where(k => k.StartsWith(FontPrefix, StringComparison.Ordinal) && layer.Text.Contains(k + " ", StringComparison.Ordinal)).ToList())
+            fonts.Elements.Remove(key);
+        if (PdfObj.Resolve(page.Elements["/Contents"]) is PdfArray list) list.Elements.RemoveAt(layer.Index);
+        else page.Elements["/Contents"] = PdfObj.AddStream(doc, [], compress: false).Reference!;
+        return true;
+    }
 
     /// <summary>Whether MuPDF finds any text on the page (a page that already has text needs no OCR).</summary>
     public static bool HasText(PdfEngine engine, int page) => engine.GetText(page).Text.Any(c => !char.IsWhiteSpace(c));
@@ -254,7 +283,7 @@ public static class TextLayer
 
             // An explicit space, stretched over the gap, to the next word on the same line (not across columns), measured
             // along the line: the next word's box as seen from this word's turned frame.
-            if (i + 1 < words.Count && space.Width > 0 && Math.Abs(words[i + 1].Angle - w.Angle) < 1)
+            if (i + 1 < words.Count && space.Width > 0 && Math.Abs(Angles.Difference(words[i + 1].Angle, w.Angle)) < 1)
             {
                 var next = InFrameOf(w, words[i + 1]);
                 var overlap = Math.Min(w.Rect.Bottom, next.Bottom) - Math.Max(w.Rect.Y, next.Y);
