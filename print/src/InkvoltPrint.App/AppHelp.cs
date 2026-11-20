@@ -15,20 +15,37 @@ public static class AppHelp
 {
     private static Version CurrentVersion => ReleaseNotes.Normalize(AboutDialog.AppVersion) ?? new Version(0, 0, 0);
 
-    /// <summary>Every versioned entry of this build's notes, newest first (none if the resource is missing).</summary>
+    /// <summary>
+    /// Every versioned entry of this build's notes, newest first, in the interface language (WHATS-NEW.es.md when it is Spanish);
+    /// none if the resource is missing.
+    /// </summary>
     public static IReadOnlyList<ReleaseNote> Notes()
     {
         try
         {
-            var info = Application.GetResourceStream(new Uri("pack://application:,,,/WHATS-NEW.md"));
-            if (info is null) return [];
-            using var reader = new StreamReader(info.Stream);
-            return ReleaseNotes.Parse(reader.ReadToEnd());
+            var english = Resource("WHATS-NEW.md");
+            return english is null ? [] : ReleaseNotes.For(english, Resource("WHATS-NEW.es.md"), AppLanguage.Current);
         }
         catch (IOException ex)
         {
             Log.Write($"Release notes not read: {ex.Message}");
             return [];
+        }
+    }
+
+    /// <summary>An embedded text file's text; null when the build has none (WPF says so with an IOException).</summary>
+    private static string? Resource(string name)
+    {
+        try
+        {
+            var info = Application.GetResourceStream(new Uri("pack://application:,,,/" + name));
+            if (info is null) return null;
+            using var reader = new StreamReader(info.Stream);
+            return reader.ReadToEnd();
+        }
+        catch (IOException) when (name != "WHATS-NEW.md")
+        {
+            return null;
         }
     }
 

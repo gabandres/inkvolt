@@ -18,9 +18,10 @@ pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print                    # St
 pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.6.0.0, the last submitted
 ```
 
-Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
-What's New shows that entry once after the update, and its lines are the Store's "What's new in this version". The script
-warns when the heading is missing.
+Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`), and the same in
+`print/WHATS-NEW.es.md`: the app's What's New shows that entry once after the update (the Spanish one when the interface is
+Spanish), and their lines are the Store's "What's new in this version" in English and Spanish. The script warns when either
+heading is missing.
 
 The defaults are the app's Partner Center identity (below); pass `-IdentityName`, `-Publisher` and
 `-PublisherDisplayName` only to build under another one.

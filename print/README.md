@@ -185,7 +185,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   the matching `Core/Suite/PaletteSearch` (shared with Inkvolt PDF's palette; both tested).
 - **Help** (sidebar › *Help and shortcuts*, F1): the keyboard shortcuts, why a printer may not be found (VPN, firewall, another
   network: *Add a printer* looks harder; the empty printer list says the same, with an *Add a printer…* button), *What's new*,
-  *Report a problem…*, *Open log folder* and *Inkvolt Pro…* (the licence window, see "Inkvolt suite"). **What's new** shows `WHATS-NEW.md` (embedded) once after an update, the versions
+  *Report a problem…*, *Open log folder* and *Inkvolt Pro…* (the licence window, see "Inkvolt suite"). **What's new** shows `WHATS-NEW.md` (embedded; `WHATS-NEW.es.md`, its Spanish line for line, when the interface is Spanish: `ReleaseNotes.For`, `WhatsNewSpanishTests`) once after an update, the versions
   since the one last run (`AppState.LastVersionSeen`; nothing on a new install, in demos or snapshots). **Report a problem** shows,
   then copies, the version, Windows, a settings summary (printer models, not names or addresses) and the log's last 200 lines,
   scrubbed of IP addresses (IPv4-mapped IPv6 too; versions such as 1.0.7.0 kept), MAC addresses, host names (`name:port`,

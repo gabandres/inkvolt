@@ -94,6 +94,10 @@ $notesFile = Join-Path $appRoot 'WHATS-NEW.md'
 if (-not (Select-String -Path $notesFile -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
     Write-Warning "$notesFile has no '## $notesVersion' heading: the app's What's New will show nothing for this update (rename '## Next')."
 }
+$notesEs = Join-Path $appRoot 'WHATS-NEW.es.md'
+if ((Test-Path $notesEs) -and -not (Select-String -Path $notesEs -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
+    Write-Warning "$notesEs has no '## $notesVersion' heading: What's New in Spanish will show nothing for this update (rename '## Next')."
+}
 if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }
 if ($IncludeHpCleanup -and $NoBuild) { throw '-IncludeHpCleanup changes the build: run without -NoBuild.' }
