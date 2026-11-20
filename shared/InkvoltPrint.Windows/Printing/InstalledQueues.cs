@@ -22,7 +22,7 @@ public static class InstalledQueues
     private static readonly TimedCalls<string, (SpoolerQueue? Queue, int Error)> Reads = new(ReadLimit);
     private static readonly TimedCalls<int, (IReadOnlyList<(string Name, uint Attributes)>, Dictionary<string, string?>)> Lists = new(TimeSpan.FromSeconds(10));
     private static readonly Dictionary<string, SpoolerQueue> LastRead = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly Dictionary<string, bool?> Presence = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, DeviceFacts> Presence = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Lock Gate = new();
 
     /// <summary>
@@ -88,11 +88,26 @@ public static class InstalledQueues
             var tcp = monitor == "Standard TCP/IP Port" && !QueueKinds.IsVirtual(q) ? await Task.Run(() => TcpPort(q.PortName)) : null;
             var found = q with { PortMonitor = monitor, ContainerId = container, PortAddress = tcp?.Host, PortCommunity = tcp?.Community };
             if (container is null || needsPresence?.Invoke(found) != true) return found;
-            var present = await DevicePresentAsync(container);
-            lock (Gate) Presence[container] = present;
-            return found with { DevicePresent = present };
+            var facts = await DeviceFactsAsync(container);
+            // A WSD queue's port has no address; its device node does (asked with presence: one query), and who it is.
+            if (!QueueKinds.IsWsd(found)) facts = facts with { Address = null, Serial = null, Model = null };
+            lock (Gate) Presence[container] = facts;
+            return found with { DevicePresent = facts.Present, DeviceAddress = facts.Address, DeviceSerial = facts.Serial, DeviceModel = facts.Model };
         }));
         return list;
+    }
+
+    /// <summary>
+    /// The queue with what the last list found of its device (present or not; a WSD printer's address, serial number and model):
+    /// they move between lists (DHCP, the printer switched off), and a queue printer's status source asks on each read.
+    /// </summary>
+    public static SpoolerQueue Latest(SpoolerQueue q)
+    {
+        if (q.ContainerId is null) return q;
+        lock (Gate)
+            return Presence.TryGetValue(q.ContainerId, out var facts)
+                ? q with { DevicePresent = facts.Present, DeviceAddress = facts.Address, DeviceSerial = facts.Serial, DeviceModel = facts.Model }
+                : q;
     }
 
     /// <summary>
@@ -106,7 +121,7 @@ public static class InstalledQueues
     internal static bool? LastPresence(string? containerId)
     {
         if (containerId is null) return null;
-        lock (Gate) return Presence.GetValueOrDefault(containerId);
+        lock (Gate) return Presence.TryGetValue(containerId, out var facts) ? facts.Present : null;
     }
 
     private static (string? Host, string? Community)? TcpPort(string port)
@@ -123,21 +138,46 @@ public static class InstalledQueues
     /// Whether Windows sees the printer behind a queue: its USB or WSD device nodes in the queue's container are present
     /// (<see cref="QueueKinds.DevicePresence"/>). Null when that can't be told.
     /// </summary>
-    internal static async Task<bool?> DevicePresentAsync(string? containerId)
+    internal static async Task<bool?> DevicePresentAsync(string? containerId) => (await DeviceFactsAsync(containerId)).Present;
+
+    /// <summary>
+    /// PKEY_PNPX_IpAddress, PKEY_PNPX_XAddrs, PKEY_PNPX_SerialNumber and PKEY_PNPX_ModelName (functiondiscoverykeys.h): a WSD
+    /// device node's addresses and what it says it is.
+    /// </summary>
+    private const string PnpxIpAddress = "{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12297", PnpxXAddrs = "{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 4099",
+        PnpxSerialNumber = "{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12290", PnpxModelName = "{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 8194";
+
+    /// <summary>What one list found of a queue's device: present or not, and a WSD printer's address, serial number and model.</summary>
+    internal sealed record DeviceFacts(bool? Present, string? Address, string? Serial, string? Model);
+
+    /// <summary>
+    /// Whether Windows sees the printer behind a queue (<see cref="DevicePresentAsync"/>) and, for a WSD printer, the IPv4
+    /// address its device node says (<see cref="QueueKinds.WsdAddress"/>) with its serial number and model
+    /// (<see cref="QueueKinds.WsdText"/>), from one query of the queue's container.
+    /// </summary>
+    internal static async Task<DeviceFacts> DeviceFactsAsync(string? containerId)
     {
-        if (containerId is null || string.Equals(containerId, QueueKinds.ThisPcContainer, StringComparison.OrdinalIgnoreCase)) return null;
+        if (containerId is null || string.Equals(containerId, QueueKinds.ThisPcContainer, StringComparison.OrdinalIgnoreCase)) return new(null, null, null, null);
         try
         {
             const string present = "System.Devices.Present", instance = "System.Devices.DeviceInstanceId";
-            var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ContainerId:=\"{{{containerId}}}\"", [present, instance], DeviceInformationKind.Device);
-            return QueueKinds.DevicePresence(nodes.Select(n => (n.Properties.TryGetValue(instance, out var id) ? id as string ?? "" : "",
-                n.Properties.TryGetValue(present, out var p) && p is true)));
+            var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ContainerId:=\"{{{containerId}}}\"",
+                [present, instance, PnpxIpAddress, PnpxXAddrs, PnpxSerialNumber, PnpxModelName], DeviceInformationKind.Device);
+            string Id(DeviceInformation n) => n.Properties.TryGetValue(instance, out var id) ? id as string ?? "" : "";
+            return new(QueueKinds.DevicePresence(nodes.Select(n => (Id(n), n.Properties.TryGetValue(present, out var p) && p is true))),
+                QueueKinds.WsdAddress(nodes.Select(n => (Id(n), Strings(n, PnpxIpAddress), Strings(n, PnpxXAddrs)))),
+                QueueKinds.WsdText(nodes.Select(n => (Id(n), Strings(n, PnpxSerialNumber)))),
+                QueueKinds.WsdText(nodes.Select(n => (Id(n), Strings(n, PnpxModelName)))));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             System.Diagnostics.Trace.WriteLine($"queue device presence: {ex.Message}");
-            return null;
+            return new(null, null, null, null);
         }
+
+        // A string list property (VT_VECTOR | VT_LPWSTR) comes as string[]; one string as itself.
+        static IReadOnlyList<string> Strings(DeviceInformation n, string key) =>
+            n.Properties.TryGetValue(key, out var v) ? v switch { string[] list => list, string one => [one], _ => [] } : [];
     }
 }
 

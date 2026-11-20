@@ -266,7 +266,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
         IsAddingAddress = true;
         try
         {
-            var probe = await main.IdentifyAsync(a.Host!, a.Ipp, CancellationToken.None, login);
+            var probe = await main.IdentifyAsync(a.Host!, a.Ipp, CancellationToken.None, login, a.Web);
             if (!probe.Reachable)
             {
                 AddressError = probe.SnmpRefused is { } refused
@@ -281,7 +281,7 @@ public sealed partial class AddPrinterViewModel(MainViewModel main) : Observable
                     listed.ReconnectCommand.Execute(null); // the community it answered to now
                 main.ShowPrinter(listed);
             }
-            else main.Add(probe, a.Host!);
+            else main.Add(probe, a.Host!, a.Web);
             CloseRequested?.Invoke();
         }
         catch (Exception ex)

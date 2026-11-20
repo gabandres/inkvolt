@@ -36,7 +36,7 @@ public sealed class SnmpValue
     /// <summary>The BER tag (<see cref="Ber"/>: INTEGER 0x02, OCTET STRING 0x04, Gauge32 0x42…).</summary>
     public byte Tag { get; }
 
-    /// <summary>INTEGER, Counter32, Gauge32, TimeTicks, Counter64 (a Counter64 above 2^63 wraps; nothing here reads one).</summary>
+    /// <summary>INTEGER, Counter32, Gauge32, TimeTicks, Counter64 (a Counter64 above 2^63 is kept as its bits: read it as a ulong).</summary>
     public long Number { get; }
 
     /// <summary>OCTET STRING, IpAddress, Opaque, and the content of a type Inkvolt Print doesn't know.</summary>
@@ -56,6 +56,9 @@ public sealed class SnmpValue
 
     public static SnmpValue Integer(long value) => new(Ber.Integer, value);
     public static SnmpValue Octets(byte[] value) => new(Ber.OctetString, bytes: (byte[])value.Clone());
+
+    /// <summary>An Opaque (RFC 2578 §7.1.9): any BER value wrapped as octets, kept as they came.</summary>
+    public static SnmpValue Opaque(byte[] value) => new(Ber.Opaque, bytes: (byte[])value.Clone());
     public static SnmpValue String(string value) => new(Ber.OctetString, bytes: Encoding.UTF8.GetBytes(value));
     public static SnmpValue Id(Oid value) => new(Ber.ObjectIdentifier, oid: value);
     public static SnmpValue Unsigned(byte tag, ulong value) =>
@@ -119,7 +122,8 @@ public sealed class SnmpValue
         Ber.Counter32 => $"Counter32: {Number}",
         Ber.Gauge32 => $"Gauge32: {Number}",
         Ber.TimeTicks => $"Timeticks: ({Number})",
-        Ber.Counter64 => $"Counter64: {Number}",
+        Ber.Counter64 => $"Counter64: {unchecked((ulong)Number)}",
+        Ber.Opaque => $"Opaque: {Convert.ToHexString(Bytes ?? [])}",
         Ber.OctetString => Text is { } t && t.All(c => !char.IsControl(c)) ? $"STRING: \"{t}\"" : $"Hex-STRING: {Convert.ToHexString(Bytes ?? [])}",
         Ber.IpAddress => $"IpAddress: {string.Join('.', Bytes!)}",
         Ber.ObjectIdentifier => $"OID: .{ObjectId}",

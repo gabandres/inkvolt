@@ -24,6 +24,9 @@ public sealed record DiscoveredPrinter(
     /// <summary>IPP printer URL from the <c>_ipp</c>/<c>_ipps</c> service (port and <c>rp</c> TXT); null if not advertised.</summary>
     public Uri? IppUri { get; init; }
 
+    /// <summary>Its web server's root from the IPP service's <c>adminurl</c>, when on a port of its own (<see cref="DnssdJoin.WebRoot"/>).</summary>
+    public Uri? WebRoot { get; init; }
+
     /// <summary>Every IPv4 address a service with this UUID announced (<see cref="Host"/> is the first). More than one: two devices claim the UUID.</summary>
     public IReadOnlyList<string> Addresses { get; init; } = [];
 }
@@ -210,6 +213,7 @@ public sealed class PrinterDiscovery : IDisposable
                     Txt: txt)
                 {
                     IppUri = ippUri,
+                    WebRoot = ippSvc is not null && host is not null ? DnssdJoin.WebRoot(ippSvc.Dnssd, host) : null,
                     Addresses = svcs.Select(s => s.IPv4).OfType<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
                 };
             })

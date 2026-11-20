@@ -37,7 +37,7 @@ public class PrinterReadingTests
 
         Assert.Equal("Yellow ink is low.", Assert.Single(reading.Status.Alerts).Message);
         Assert.Equal(5, reading.Supplies!.Count);
-        Assert.Null(reading.Usage); // page counts are LEDM's
+        Assert.Equal(1873, reading.Usage?.TotalImpressions); // printer-impressions-completed, from the same request
         Assert.Single(network.Seen, IsIpp);
     }
 

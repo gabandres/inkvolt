@@ -2006,6 +2006,12 @@ Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un re
   <data name="Printer_SupplyReplacement" xml:space="preserve">
     <value>Repuesto: {0}</value>
   </data>
+  <data name="Printer_SupplyYield" xml:space="preserve">
+    <value>Rinde unas {0:N0} páginas</value>
+  </data>
+  <data name="Printer_PanelSays" xml:space="preserve">
+    <value>En el panel de la impresora: {0}</value>
+  </data>
   <data name="Printer_SupplyFull" xml:space="preserve">
     <value>Lleno</value>
   </data>
@@ -2468,10 +2474,19 @@ Las actualizaciones de HP han traído la "seguridad dinámica", que impide que f
     <value>Nombre de usuario</value>
   </data>
   <data name="Snmp_AuthPassphrase" xml:space="preserve">
-    <value>Frase de contraseña de autenticación (SHA-256)</value>
+    <value>Frase de contraseña de autenticación</value>
   </data>
   <data name="Snmp_PrivPassphrase" xml:space="preserve">
-    <value>Frase de contraseña de privacidad (AES-128)</value>
+    <value>Frase de contraseña de privacidad</value>
+  </data>
+  <data name="Snmp_AuthProtocol" xml:space="preserve">
+    <value>Protocolo de autenticación</value>
+  </data>
+  <data name="Snmp_PrivProtocol" xml:space="preserve">
+    <value>Protocolo de privacidad</value>
+  </data>
+  <data name="Snmp_WeakProtocols" xml:space="preserve">
+    <value>MD5, SHA-1 y DES son antiguos y débiles: elígelos solo para una impresora que no ofrezca nada mejor.</value>
   </data>
   <data name="Snmp_V3Note" xml:space="preserve">
     <value>El usuario SNMPv3 de la impresora con autenticación y privacidad (authPriv). Cada solicitud va firmada y cifrada, y solo lee.</value>

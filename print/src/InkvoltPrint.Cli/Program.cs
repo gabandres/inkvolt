@@ -113,6 +113,18 @@ switch (cmd)
         Console.WriteLine(await InkvoltPrint.Windows.Queues.IppQueueInstaller.InstallAsync(args[2], new Uri(host)));
         foreach (var q in await InkvoltPrint.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"  {q.Name} | container={q.ContainerId}");
         break;
+    case "queues" when args.Contains("--watch"):
+        // Read-only: the spooler's change notices as the app gets them (a queue added, removed or renamed), for a minute.
+        {
+            var seen = 0;
+            using var watch = new InkvoltPrint.Windows.Printing.SpoolerChanges(
+                () => Console.WriteLine($"{DateTime.Now:HH:mm:ss} queues changed ({Interlocked.Increment(ref seen)})"),
+                line => Console.Error.WriteLine(line));
+            Console.WriteLine("Watching the spooler for a minute: add, remove or rename a queue.");
+            await Task.Delay(TimeSpan.FromMinutes(1));
+            Console.WriteLine($"{seen} change notices.");
+        }
+        break;
     case "queues":
         // Read-only: each installed queue as the app's sidebar sees it (virtual or not, connection, status from the spooler).
         var installed = await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync(_ => true);
@@ -121,7 +133,9 @@ switch (cmd)
             var status = InkvoltPrint.Core.Queues.SpoolerStatus.Describe(q).Status;
             Console.WriteLine($"{q.Name} | {(InkvoltPrint.Core.Queues.QueueKinds.IsVirtual(q) ? "virtual, left out" : InkvoltPrint.Core.Queues.QueueKinds.ConnectionText(q))} | " +
                               $"{status.Message}{string.Concat(status.Alerts.Select(a => $"; {a.Message}"))} | port={q.PortName} monitor={q.PortMonitor} " +
-                              $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}");
+                              $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}" +
+                              (q.DeviceAddress is { } at ? $" device-address={at}" : "") + (q.DeviceModel is { } dm ? $" device-model={dm}" : "") +
+                              (q.DeviceSerial is not null ? " device-serial=known" : ""));
             // What the printer (IPP through Windows, IPP over USB included) or the driver (bidi) says beyond the spooler; why not, on stderr.
             if (System.Diagnostics.Trace.Listeners.OfType<System.Diagnostics.ConsoleTraceListener>().FirstOrDefault() is null)
                 System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener(useErrorStream: true));
@@ -214,13 +228,14 @@ switch (cmd)
             inkvoltprint queues [--unplugged] [--bidi]     (read-only: installed queues as the sidebar sees them, and USB printers
                                                            that need their driver; --unplugged: also those not plugged in now;
                                                            --bidi: ask every queue's driver, also those the app doesn't)
+            inkvoltprint queues --watch                    (read-only: the spooler's change notices for a minute, as the app gets them)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners and TWAIN sources; --caps connects and reads what each offers)
             inkvoltprint scanners --needs-driver [--get-driver [--yes]] [--model "Epson Perfection V19"]
                                                            (USB scanners plugged in with no driver; --get-driver finds the maker's
                                                            driver, downloads and checks it, and asks before running it, --yes
                                                            without asking; then rescans and checks WIA lists the scanner)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
-            inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]
+            inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--web url] [--force]
                                                            (read-only: every reply the app reads, scrubbed, as test fixtures)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
@@ -399,6 +414,7 @@ async Task Record(string h, string folder)
         Community = Opt("--community") ?? InkvoltPrint.Core.Snmp.SnmpClient.DefaultCommunity,
         EsclHint = Opt("--escl") is { } e ? new Uri(e) : null,
         IppHint = Opt("--ipp") is { } i ? new Uri(i) : null,
+        WebHint = Opt("--web") is { } w ? InkvoltPrint.Core.Discovery.PrinterAddress.WebRoot(new Uri(w), h) : null,
         Scan = args.Contains("--scan"),
     };
 }

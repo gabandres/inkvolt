@@ -1,6 +1,7 @@
 # Demo mode's SNMP-only printer (made up, written from RFC 1213, RFC 2790 and RFC 3805; not captured from a device), as
 # net-snmp's "snmpwalk -On" prints objects. A mono laser with no IPP, LEDM or CDM: idle with a warning (tray 2 paper low),
-# toner 35%, drum 80%, a waste toner box with room left. Device index 1.
+# toner 35%, drum 80%, a waste toner box with room left. Device index 1. Toner and drum count in impressions (1,050 of
+# 3,000 and 24,000 of 30,000 pages left); the marker's life count is 48,213 impressions.
 .1.3.6.1.2.1.1.1.0 = STRING: "Demo Laser 5200 Series; firmware 1.0 (made up)"
 .1.3.6.1.2.1.1.2.0 = OID: .1.3.6.1.4.1.32473.1
 .1.3.6.1.2.1.1.3.0 = Timeticks: (123456) 0:20:34.56
@@ -14,6 +15,8 @@
 .1.3.6.1.2.1.25.3.5.1.2.1 = Hex-STRING: 80 00
 .1.3.6.1.2.1.43.5.1.1.16.1 = STRING: "Demo Laser 5200"
 .1.3.6.1.2.1.43.5.1.1.17.1 = STRING: "DEMO0005200"
+.1.3.6.1.2.1.43.10.2.1.3.1.1 = INTEGER: 7
+.1.3.6.1.2.1.43.10.2.1.4.1.1 = Counter32: 48213
 .1.3.6.1.2.1.43.11.1.1.2.1.1 = INTEGER: 1
 .1.3.6.1.2.1.43.11.1.1.2.1.2 = INTEGER: 1
 .1.3.6.1.2.1.43.11.1.1.2.1.3 = INTEGER: 1

@@ -188,7 +188,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// For a queue printer's supplies: where its levels came from ("From the printer over USB", "From its driver"); null for a
     /// network printer or when the levels are Windows' own (SNMP shows its origin in the status note).
     /// </summary>
-    public string? SuppliesSource => _queueSource is DeviceQueueStatusSource { From: { } from } && Supplies.Count > 0 ? QueueDeviceText.Source(from) : null;
+    public string? SuppliesSource => QueueSources.SuppliesFrom(_queueSource) is { From: { } from } && Supplies.Count > 0 ? QueueDeviceText.Source(from) : null;
 
     /// <summary>A queue printer that answers and reports no supply levels by any route: the page says so instead of showing nothing.</summary>
     public bool SuppliesNotReported => IsQueuePrinter && IsOnline && Supplies.Count == 0;
@@ -410,6 +410,19 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Its web server's root when that isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD <c>adminurl</c>): LEDM, CDM and
+    /// its pages are asked there from the next connection. Network printers only.
+    /// </summary>
+    public Uri? WebRoot
+    {
+        get => _monitor?.Target.WebHint;
+        set
+        {
+            if (_monitor is { } m) m.Target = m.Target with { WebHint = value };
+        }
+    }
+
     /// <summary>Who made it (HP when its LEDM interface answers); Other until connected.</summary>
     [ObservableProperty] public partial PrinterBrand Brand { get; set; }
 
@@ -520,6 +533,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial string? Model { get; set; }
     [ObservableProperty] public partial BitmapSource? Image { get; set; }
     [ObservableProperty] public partial string? StatusDetail { get; set; }
+
+    /// <summary>"On the printer's panel: …" when the panel says more than the status (<see cref="PrinterStatus.PanelNote"/>); null otherwise.</summary>
+    [ObservableProperty] public partial string? StatusPanel { get; set; }
+
+    private static string? PanelLine(string? note) => note is null ? null : string.Format(Strings.Printer_PanelSays, note);
 
     /// <summary>"About this printer" rows: model, address, serial, firmware…</summary>
     public ObservableCollection<InfoRow> About { get; } = [];
@@ -666,7 +684,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         var options = new Core.Recording.RecordOptions
         {
-            Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri,
+            Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri, WebHint = WebRoot,
             Login = SnmpLoginNow(),
         };
         return Core.Recording.ReportRecording.RunAsync(RecordHost ?? throw new InvalidOperationException("This printer has no address to record."), _pc.RecordingsFolder, options, DateTime.Now, ct);
@@ -759,7 +777,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task AnnouncedAsync(DiscoveredPrinter d)
     {
-        if (_monitor is not null && await _monitor.AnnouncedAsync(d.Host, d.EsclRoot, d.IppUri, d.Model)) Restart();
+        if (_monitor is not null && await _monitor.AnnouncedAsync(d.Host, d.EsclRoot, d.IppUri, d.Model, web: d.WebRoot)) Restart();
     }
 
     /// <summary>
@@ -872,6 +890,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _lastReading = DateTimeOffset.Now;
         StatusMessage = read.Status.Message;
         StatusDetail = read.Status.Detail;
+        StatusPanel = PanelLine(read.Status.PanelNote);
         StatusSeverity = read.Status.Severity;
         Sync(Alerts, read.Status.Alerts);
         OnPropertyChanged(nameof(SuppliesNotReported));
@@ -920,6 +939,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         IsOnline = v.IsOnline;
         StatusMessage = v.StatusMessage;
         StatusDetail = v.StatusDetail;
+        StatusPanel = PanelLine(v.StatusPanel);
         StatusSeverity = v.Severity;
         Sync(Alerts, v.Alerts);
         FirmwareNotice = v.FirmwareNotice;
@@ -1297,6 +1317,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         IsRefused = false; // can't reach it: Fix it…, not SNMP access…
         StatusMessage = message;
         StatusDetail = detail;
+        StatusPanel = null;
         StatusSeverity = Severity.Error;
         Alerts.Clear();
         OnPropertyChanged(nameof(ListStatus));
@@ -1457,7 +1478,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenWebPage()
     {
-        if (Host is not null) _pc.Browser?.Invoke(_webPage?.AbsoluteUri ?? $"https://{Host}/");
+        if (Host is not null)
+            _pc.Browser?.Invoke(_webPage?.AbsoluteUri ?? (WebRoot is { } web ? new UriBuilder(web) { Host = Host }.Uri.AbsoluteUri : $"https://{Host}/"));
     }
 
     [RelayCommand]
@@ -1583,11 +1605,16 @@ public sealed record SupplyViewModel(Consumable Supply)
     /// <summary>From the supply history: days left and pages on this cartridge, or why there's no estimate yet; null: nothing to say.</summary>
     public string? HistoryLine { get; init; }
 
+    /// <summary>"Replacement: HP 136A  ·  W1360A  ·  Rated for about 1,150 pages": what to buy and what a full one gives, as known.</summary>
     public string? Cartridge => string.Join("  ·  ", new[]
     {
-        Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
-        Supply.ProductNumber,
-    }.Where(s => s is not null)) is { Length: > 0 } c ? string.Format(Strings.Printer_SupplyReplacement, c) : null;
+        string.Join("  ·  ", new[]
+        {
+            Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
+            Supply.ProductNumber,
+        }.Where(s => s is not null)) is { Length: > 0 } c ? string.Format(Strings.Printer_SupplyReplacement, c) : null,
+        Supply.PageYield is { } pages && !Supply.IsWaste ? string.Format(Strings.Printer_SupplyYield, pages) : null,
+    }.Where(s => s is not null)) is { Length: > 0 } line ? line : null;
 
     public string Level => Supply.State is "out" or "full" or "missing" ? "empty" : IsLow ? "low" : "ok";
 

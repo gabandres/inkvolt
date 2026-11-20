@@ -32,6 +32,9 @@ public sealed record RecordOptions
 
     public Uri? IppHint { get; init; }
 
+    /// <summary>The printer's web server when it isn't on port 80 or 443 (<see cref="PrinterConnection.OpenAsync"/>'s <c>webHint</c>).</summary>
+    public Uri? WebHint { get; init; }
+
     /// <summary>Also one glass page and, when the feeder holds paper, its pages (kept as JPEG, as scanned: never scrubbed).</summary>
     public bool Scan { get; init; }
 
@@ -98,7 +101,8 @@ public static class PrinterRecorder
         var notKept = new List<string>();
         var scans = new List<(string Name, byte[] Jpeg)>();
 
-        var connection = await PrinterConnection.OpenAsync(host, options.EsclHint, ct, pin: null, transport: capture, options.IppHint, snmp).ConfigureAwait(false);
+        var connection = await PrinterConnection.OpenAsync(host, options.EsclHint, ct, pin: null, transport: capture, options.IppHint, snmp, webHint: options.WebHint)
+            .ConfigureAwait(false);
         using (connection)
         {
             var probe = connection.Probe;

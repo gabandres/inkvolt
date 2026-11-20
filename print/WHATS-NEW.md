@@ -15,6 +15,12 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Scanners with a newer (WIA 2.0) Windows driver: the Scan tab shows how far each page is, Stop stops the page being scanned, and the glass and the feeder each offer their own resolutions.
 - A scanner whose only driver is an old 32-bit TWAIN driver is now listed by its name and says why it can't be used here and which driver to install, instead of not showing at all.
 - Clean up's Whiten no longer makes faded pages harder to read once their colors are restored.
+- Supplies show the pages left and how many pages a full cartridge is rated for on more printers: newer HP printers, and other brands' printers that count their toner in pages. Their pages printed, and pages since each cartridge went in, show too.
+- SNMP access… with an SNMPv3 user (Inkvolt Pro) works with more printers: choose the protocol the printer uses beside each passphrase, SHA-256, SHA-1 or MD5 for authentication and AES-128, AES-192, AES-256 or DES for privacy.
+- A printer whose web page is on a port of its own can be added by that address (for example http://192.168.1.20:8080), and one that announces its page on the network is read there by itself.
+- The printer's status shows what its control panel says, when that tells you more than the status does.
+- Printers Windows set up through WSD now show the printer's own status and toner or ink levels when the printer answers SNMP, as printers on a TCP/IP port do.
+- A printer added, removed or renamed in Windows shows on the printer list, goes or takes its new name within a second or so, instead of at the next check.
 
 ## 1.6.0
 - SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, or the refusal may not come from your printer, Save anyway keeps it as it is.

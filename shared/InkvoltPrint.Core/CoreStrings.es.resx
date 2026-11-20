@@ -1856,13 +1856,13 @@
     <value>La impresora no conoce este nombre de usuario de SNMPv3.</value>
   </data>
   <data name="Snmp_WrongAuthKey" xml:space="preserve">
-    <value>La impresora rechazó la frase de contraseña de autenticación de SNMPv3.</value>
+    <value>La impresora rechazó la frase de contraseña de autenticación de SNMPv3: revísala junto con su protocolo.</value>
   </data>
   <data name="Snmp_WrongPrivKey" xml:space="preserve">
-    <value>La impresora no pudo leer la solicitud: revisa la frase de contraseña de privacidad de SNMPv3.</value>
+    <value>La impresora no pudo leer la solicitud: revisa la frase de contraseña de privacidad de SNMPv3 y su protocolo.</value>
   </data>
   <data name="Snmp_SecurityLevel" xml:space="preserve">
-    <value>La impresora no acepta SNMPv3 con autenticación y privacidad (SHA-256, AES-128) para este usuario.</value>
+    <value>La impresora no acepta SNMPv3 con autenticación y privacidad para este usuario.</value>
   </data>
   <data name="Snmp_EnterUserName" xml:space="preserve">
     <value>Escribe el nombre de usuario de SNMPv3.</value>

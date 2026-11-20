@@ -39,12 +39,10 @@ public sealed class WindowsFleetPc : IFleetPc
     public async Task<IReadOnlyList<NeedsDriverPrinter>> NeedsDriverAsync(IReadOnlyList<SpoolerQueue> queues, CancellationToken ct) =>
         (await UsbPrinters.ReadAsync(queues, ct)).Printers;
 
-    public IQueueStatusSource QueueStatus(SpoolerQueue queue)
-    {
-        var windows = new SpoolerStatusSource(queue);
-        if (QueueKinds.SnmpAddress(queue) is { } host) return new SnmpQueueStatusSource(windows, host, UdpSnmpTransport.Instance, queue.PortCommunity);
-        return new DeviceQueueStatusSource(windows, QueueDeviceReaders.For(queue));
-    }
+    /// <summary>As the app's (<see cref="QueueSources.For"/>): a WSD queue over SNMP and its IPP class driver's or driver's readings.</summary>
+    public IQueueStatusSource QueueStatus(SpoolerQueue queue) =>
+        QueueSources.For(queue, new SpoolerStatusSource(queue), () => QueueDeviceReaders.For(queue), UdpSnmpTransport.Instance,
+            () => InstalledQueues.Latest(queue));
 
     public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => Wia.ListScannersAsync(ct);
 

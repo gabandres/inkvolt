@@ -18,12 +18,31 @@
         <StackPanel x:Name="V3Panel" Margin="0,10,0,0" Visibility="Collapsed">
             <TextBlock x:Name="UserLabel" Text="{x:Static loc:Strings.Snmp_UserName}" Margin="0,0,0,6" />
             <TextBox x:Name="UserBox" MaxLength="32" AutomationProperties.LabeledBy="{Binding ElementName=UserLabel}" TextChanged="Field_Changed" />
+            <!-- Each passphrase with the protocol the printer's agent uses it with (SnmpAuth, SnmpPriv in their order: the protocols' own names, set in code). -->
             <TextBlock x:Name="AuthLabel" Text="{x:Static loc:Strings.Snmp_AuthPassphrase}" Margin="0,10,0,6" />
-            <PasswordBox x:Name="AuthBox" AutomationProperties.LabeledBy="{Binding ElementName=AuthLabel}" PasswordChanged="Field_Changed" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <PasswordBox x:Name="AuthBox" AutomationProperties.LabeledBy="{Binding ElementName=AuthLabel}" PasswordChanged="Field_Changed" />
+                <ComboBox x:Name="AuthProtocol" Grid.Column="1" MinWidth="110" Margin="8,0,0,0"
+                          AutomationProperties.Name="{x:Static loc:Strings.Snmp_AuthProtocol}" SelectionChanged="Protocol_Changed" />
+            </Grid>
             <TextBlock x:Name="PrivLabel" Text="{x:Static loc:Strings.Snmp_PrivPassphrase}" Margin="0,10,0,6" />
-            <PasswordBox x:Name="PrivBox" AutomationProperties.LabeledBy="{Binding ElementName=PrivLabel}" PasswordChanged="Field_Changed" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <PasswordBox x:Name="PrivBox" AutomationProperties.LabeledBy="{Binding ElementName=PrivLabel}" PasswordChanged="Field_Changed" />
+                <ComboBox x:Name="PrivProtocol" Grid.Column="1" MinWidth="110" Margin="8,0,0,0"
+                          AutomationProperties.Name="{x:Static loc:Strings.Snmp_PrivProtocol}" SelectionChanged="Protocol_Changed" />
+            </Grid>
             <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0"
                        Text="{x:Static loc:Strings.Snmp_V3Note}" />
+            <TextBlock x:Name="WeakNote" Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" Visibility="Collapsed"
+                       Text="{x:Static loc:Strings.Snmp_WeakProtocols}" />
             <TextBlock x:Name="ProNote" Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" Visibility="Collapsed" />
         </StackPanel>
         <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,8,0,0"

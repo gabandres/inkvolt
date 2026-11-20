@@ -15,6 +15,32 @@ public sealed record PrinterStatus(string Code, string Message, Severity Severit
     public bool IsUnavailable => Code == "unavailable";
 
     /// <summary>
+    /// What the printer's control panel says now, as the printer sends it (the Printer MIB's prtConsoleDisplayBufferText lines,
+    /// IPP's <c>printer-state-message</c>, LEDM's status text); null when it says nothing or wasn't read. CDM has no such text
+    /// that we know of.
+    /// </summary>
+    public string? PanelText { get; init; }
+
+    /// <summary>The longest panel text shown (a panel's few lines; a printer may send pages).</summary>
+    public const int MaxPanelText = 160;
+
+    /// <summary>
+    /// The panel's text to show with the status: one clean line of at most <see cref="MaxPanelText"/> characters
+    /// (<see cref="Fleet.FleetText.Clean"/>), only when it says more than the status line does (not the same words, ignoring case
+    /// and a final period, nor a plain "Idle" or "Ready" under the app's own word for it). A ready or idle printer's panel saying one
+    /// short line of a word or two is its state in the panel's language ("Prêt", "Bereit", "Lista"): not shown either. Null otherwise.
+    /// </summary>
+    public string? PanelNote =>
+        Fleet.FleetText.Clean(PanelText, MaxPanelText) is { } text && Ipp.IppClient.Headline(text, Message) is var said
+        && !string.Equals(said.TrimEnd('.', '!'), Message.Trim().TrimEnd('.', '!'), StringComparison.OrdinalIgnoreCase)
+        && !(Code is "ready" or "idle" && IsStateWord(said)) ? said : null;
+
+    /// <summary>One short line of one or two words, no figures: how a panel names its state, in whatever language.</summary>
+    private static bool IsStateWord(string text) =>
+        text.Length <= 20 && !text.Contains(" · ", StringComparison.Ordinal) && !text.Any(char.IsDigit)
+        && text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 2;
+
+    /// <summary>
     /// One line for a list of printers: the state, then for a warning or error the worst alert's words ("Ready · Yellow ink
     /// is low") and how many more there are, so an amber or red dot is never left unexplained. An alert that repeats or
     /// extends the state's words takes its place.
@@ -51,6 +77,13 @@ public sealed record Consumable(
     /// (IPP, SNMP) are both.
     /// </summary>
     public string Key { get => _key ?? Name; init => _key = value; }
+
+    /// <summary>
+    /// The pages a full cartridge is rated for, when the printer says (CDM's <c>capacity</c> in pages, IPP's <c>printer-supply</c>
+    /// and the Printer MIB's prtMarkerSuppliesMaxCapacity counted in impressions or sheets); null otherwise. Beside
+    /// <see cref="EstimatedPagesRemaining"/>, the pages left in it now.
+    /// </summary>
+    public int? PageYield { get; init; }
 
     /// <summary>Needs attention soon: low, empty, or (a waste box) almost full or full.</summary>
     public bool IsLow => State is "low" or "veryLow" or "out" or "almostFull" or "full" || (PercentRemaining is { } p && LowThreshold is { } t && p <= t);

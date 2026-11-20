@@ -124,7 +124,7 @@ public static class FleetReader
     private static async Task<FleetFacts> ReadNetworkAsync(InkvoltPrinter p, IFleetPc pc, DateTimeOffset now, CancellationToken ct)
     {
         using var session = new PrinterSession(p.Uuid, pc.Recipe(p), () => p.AcceptedUuids, _ => { });
-        var where = new PrinterWhere(p.Host, p.EsclRoot, p.IppUri, p.Snmp);
+        var where = new PrinterWhere(p.Host, p.EsclRoot, p.IppUri, p.Snmp, p.WebRoot);
         var step = await session.ConnectAsync(where, ct).ConfigureAwait(false);
         if (step is SessionStep.Elsewhere) return Elsewhere(p);
         if (step is SessionStep.Refused) return Refused(p, pc);
