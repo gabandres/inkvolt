@@ -409,6 +409,36 @@ public class ExportHtmlTests
     }
 
     [Fact]
+    public void The_space_a_line_break_or_a_join_makes_stays_outside_a_link()
+    {
+        var link = ExportLink.Web("https://example.com/");
+        ExportSpan S(string text, double x, double y, bool linked) =>
+            new(text, "Arial", 11, false, false, 0, new RectD(x, y, text.Length * 5.5, 13)) { Link = linked ? link : null };
+        // A link to the end of one line and from the start of the next; and two pieces of a line MuPDF read apart.
+        var wrapped = new[] { ExportLine.Of([S("See the ", 72, 72, false), S("guide", 116, 72, true)]), ExportLine.Of([S("here", 72, 86, true), S(" now.", 94, 86, false)]) };
+        var html = Html([new ExportPage(612, 792, wrapped, [], [])]);
+        Assert.Contains("See the <a href=\"https://example.com/\" rel=\"noopener noreferrer\">guide</a> <a href=\"https://example.com/\" rel=\"noopener noreferrer\">here</a> now.", html);
+        var pieces = new[] { ExportLine.Of([S("Read", 72, 200, true)]), ExportLine.Of([S("more", 110, 200, false)]) };
+        html = Html([new ExportPage(612, 792, pieces, [], [])]);
+        Assert.Contains("<a href=\"https://example.com/\" rel=\"noopener noreferrer\">Read</a> more", html);
+    }
+
+    [Fact]
+    public void Space_with_no_link_closes_the_link_before_it()
+    {
+        var link = ExportLink.Web("https://example.com/");
+        var spans = new List<ExportSpan>
+        {
+            new("one", "Arial", 11, true, false, 0, new RectD(72, 60, 15, 12)) { Link = link },
+            new(" ", "Arial", 11, true, false, 0, new RectD(87, 60, 3, 12)),
+            new("two", "Arial", 11, true, false, 0, new RectD(90, 60, 15, 12)),
+        };
+        var html = Html([new ExportPage(612, 792, [new ExportLine(spans, new RectD(72, 60, 33, 12))], [], [])]);
+        Assert.Contains("<a href=\"https://example.com/\" rel=\"noopener noreferrer\"><strong>one</strong></a><strong> two</strong>", html);
+        AssertInert(Dom(html));
+    }
+
+    [Fact]
     public void A_link_keeps_its_runs_stress_inside_it()
     {
         var link = ExportLink.Web("https://example.com/");

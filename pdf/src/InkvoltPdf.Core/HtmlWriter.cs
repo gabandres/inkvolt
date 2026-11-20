@@ -279,18 +279,20 @@ internal static partial class HtmlWriter
         {
             var text = Text(run.Text);
             if (text.Length == 0) continue;
-            if (string.IsNullOrWhiteSpace(run.Text))
-            {
-                sb.Append(text);
-                continue;
-            }
             var to = Anchor(run.Link) is null ? null : run.Link;
-            if (to != link)
+            var space = string.IsNullOrWhiteSpace(run.Text);
+            // Space with another link than the one open (none, mostly) closes it first: a link ends on its last word.
+            if (to != link && (!space || link is not null))
             {
                 Set(false, false, false);
                 if (link is not null) sb.Append("</a>");
-                link = to;
+                link = space ? null : to;
                 if (link is not null) sb.Append(Anchor(link));
+            }
+            if (space)
+            {
+                sb.Append(text); // in the stress around it: runs that look alike share the tags
+                continue;
             }
             Set(bold && run.Bold, run.Italic, run.Mono);
             sb.Append(text);
