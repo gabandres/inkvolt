@@ -1124,8 +1124,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
         if (device.IsTwain32Only)
         {
-            // Named, never opened: a 32-bit TWAIN driver can't load in this 64-bit app (roadmap 2.5). A printer keeps its own scanning.
-            if (!IsScannerOnly) return;
+            // Named, never opened: a 32-bit TWAIN driver can't load in this 64-bit app (roadmap 2.5). A printer handed one (WiaMatch
+            // keeps them on their own) lets go of any scanner it had and scans as it would without one.
+            if (!IsScannerOnly)
+            {
+                await UseWiaScannerAsync(null, system);
+                return;
+            }
             IsConnecting = false;
             IsOnline = false;
             StatusSeverity = Severity.Info;

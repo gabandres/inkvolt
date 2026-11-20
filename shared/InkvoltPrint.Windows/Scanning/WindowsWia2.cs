@@ -1,8 +1,11 @@
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using InkvoltPrint.Core.Wia;
 using ComStream = System.Runtime.InteropServices.ComTypes.IStream;
 using ComStatStg = System.Runtime.InteropServices.ComTypes.STATSTG;
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
 
 namespace InkvoltPrint.Windows.Scanning;
 
@@ -12,7 +15,9 @@ namespace InkvoltPrint.Windows.Scanning;
 /// defines them (each with its own sizes, resolutions and formats: <see cref="Wia2Items"/>), each page's progress, and a page under
 /// way stopped in the driver when the job is cancelled. Used for drivers written for WIA 2.0 (the device says "2.0") that have a
 /// glass or a feeder item; any other device, or one this fails to open, goes through <see cref="WindowsWia"/>'s WIA 1.0 path as
-/// before. Touched on its scanner's STA thread only, as <see cref="WindowsWia"/>'s devices are; 64-bit processes only (the
+/// before, and so does one whose item takes no format this app reads (<see cref="Wia2UnusableException"/>). Its items are
+/// touched on its scanner's STA thread only, as <see cref="WindowsWia"/>'s devices are; the transfer callback, an agile COM
+/// object, may be called on another thread (<see cref="Wia2TransferCallback"/>). 64-bit processes only (the
 /// property structures below are laid out for 64-bit). Failures are <see cref="WiaException"/>s with the driver's HRESULT.
 /// </summary>
 internal sealed class Wia2Device : IWiaDevice, IDisposable
@@ -26,6 +31,9 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
     private readonly List<(IWiaItem2 Item, Wia2Item Read)> _items;
     private readonly Queue<byte[]> _pending = new();
     private IWiaItem2? _job;
+
+    /// <summary>A failure that ended a transfer after some pages: raised once those pages are handed over.</summary>
+    private int? _failure;
 
     private Wia2Device(IWiaItem2 root, List<(IWiaItem2, Wia2Item)> items, WiaScannerInfo info)
     {
@@ -60,11 +68,17 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
             Check(mgr.CreateDevice(0, deviceId, out root));
             var props = (IWiaPropertyStorage)root;
             if (Props.ReadString(props, Wia2Ids.WiaVersion) is not { } version || !version.StartsWith("2.", StringComparison.Ordinal)) return null;
-            foreach (var child in Children(root))
+            var children = Children(root);
+            try
             {
-                var read = Read(child);
-                if (read is null) Release(child);
-                else items.Add((child, read));
+                foreach (var child in children)
+                    if (Read(child) is { } read) items.Add((child, read));
+            }
+            finally
+            {
+                // Every child not kept goes now: those of another kind, and all after one whose reading failed.
+                foreach (var child in children)
+                    if (!items.Any(i => ReferenceEquals(i.Item1, child))) Release(child);
             }
             if (Wia2Items.Info([.. items.Select(i => i.Item2)], WiaIds.ScanButtonsIn(Events(root))) is not { } info) return null;
             var device = new Wia2Device(root, items, info);
@@ -164,13 +178,14 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
     public int? ReadHandlingStatus()
     {
         var status = Props.ReadInt((IWiaPropertyStorage)_root, WiaIds.DocumentHandlingStatus);
-        return _pending.Count > 0 ? (status ?? 0) | WiaIds.FeedReady : status;
+        return _pending.Count > 0 || _failure is not null ? (status ?? 0) | WiaIds.FeedReady : status; // a failure still to raise too
     }
 
     /// <summary>The job's settings on its item (the feeder item for a feeder job, else the glass item); reads back which was taken.</summary>
     public int? Apply(WiaScanSettings s)
     {
         _pending.Clear();
+        _failure = null;
         var reads = _items.Select(i => i.Read).ToList();
         var index = Wia2Items.For(s, reads);
         _job = index < 0 ? null : _items[index].Item;
@@ -185,7 +200,9 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
             Props.WriteInt(props, WiaIds.Pages, s.Duplex ? 2 : 1);
         }
         Props.WriteInt(props, Wia2Ids.Tymed, Wia2Ids.TymedFile);
-        Props.WriteGuid(props, Wia2Ids.Format, new Guid(Wia2Items.FormatFor(s, reads[index].Formats)));
+        // A format this app reads, from the item's list, and taken by the driver; else WIA 1.0's path scans this device.
+        if (Wia2Items.FormatFor(s, reads[index].Formats) is not { } format || !Props.WriteGuid(props, Wia2Ids.Format, new Guid(format)))
+            throw new Wia2UnusableException("The driver's WIA 2.0 item takes no format this app reads.");
         Props.WriteInt(props, WiaIds.DataType, s.DataType);
         Props.WriteInt(props, WiaIds.Depth, s.Depth);
         Props.WriteInt(props, WiaIds.XResolution, s.Resolution);
@@ -210,26 +227,74 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
     public byte[]? TransferPage(WiaScanSettings settings, Action<int>? progress, CancellationToken cancel)
     {
         if (_pending.TryDequeue(out var waiting)) return waiting;
+        if (_failure is { } later)
+        {
+            // The pages before the failure were handed over first; now the failure itself (a jam on a later sheet).
+            _failure = null;
+            throw new WiaException(later, "The driver's transfer failed after some pages.");
+        }
         if (_job is not { } item || item is not IWiaTransfer transfer) throw new WiaException(WiaErrors.InvalidCommand, "No item to scan with.");
         var callback = new Wia2TransferCallback(progress, cancel);
         var hr = transfer.Download(0, callback);
         callback.Close();
         if (cancel.IsCancellationRequested) throw new OperationCanceledException(cancel);
-        if (hr < 0 && callback.Pages.Count == 0) throw new WiaException(hr, "The driver's transfer failed.");
-        if (callback.Error is { } error && callback.Pages.Count == 0) throw new WiaException(error, "The driver reported a failure.");
+        var failure = Wia2Items.FailureAfter(hr, callback.Error);
         var pages = callback.Pages.Select(p => ToPage(p, settings)).OfType<byte[]>().ToList();
-        if (pages.Count == 0) return null;
-        foreach (var later in pages.Skip(1)) _pending.Enqueue(later);
+        if (pages.Count == 0)
+        {
+            if (failure is { } now) throw new WiaException(now, "The driver's transfer failed.");
+            if (hr < 0) throw new WiaException(hr, "The driver's transfer failed."); // an empty feeder: the job's end
+            return null;
+        }
+        _failure = failure;
+        foreach (var next in pages.Skip(1)) _pending.Enqueue(next);
         return pages[0];
     }
 
-    /// <summary>A stream's bytes as the page WiaScanner takes: a JPEG or a PDF as they are, a BMP as JPEG; null for an empty stream.</summary>
+    /// <summary>
+    /// A stream's bytes as the page WiaScanner takes: a JPEG or a PDF as they are, a BMP, PNG or TIFF turned into JPEG (WIC); null
+    /// for an empty stream.
+    /// </summary>
     private static byte[]? ToPage(byte[] data, WiaScanSettings settings)
     {
         if (data.Length == 0) return null;
         if (data is [0xFF, 0xD8, ..] || Core.Escl.ScannerPdf.IsPdf(data)) return data;
-        if (data is [(byte)'B', (byte)'M', ..]) return WindowsWia.JpegFromBmp(data);
+        if (data is [(byte)'B', (byte)'M', ..] or [0x89, (byte)'P', (byte)'N', (byte)'G', ..] or [(byte)'I', (byte)'I', 42, 0, ..] or [(byte)'M', (byte)'M', 0, 42, ..])
+            return PictureToJpeg(data);
         throw new WiaException(WiaErrors.InvalidDriverResponse, settings.Pdf ? "The driver didn't send a PDF." : "The driver sent a picture this app doesn't read.");
+    }
+
+    /// <summary>
+    /// A BMP, PNG or TIFF page (a TIFF's first frame) as a JPEG at quality 90 through WIC (Windows.Graphics.Imaging), grey kept grey;
+    /// on the thread pool, so waiting here never blocks a call WIC makes back to this STA thread.
+    /// </summary>
+    internal static byte[] PictureToJpeg(byte[] picture)
+    {
+        try
+        {
+            return Task.Run(async () =>
+            {
+                using var input = new InMemoryRandomAccessStream();
+                await input.WriteAsync(picture.AsBuffer());
+                input.Seek(0);
+                var decoder = await BitmapDecoder.CreateAsync(input);
+                var format = decoder.BitmapPixelFormat == BitmapPixelFormat.Gray8 ? BitmapPixelFormat.Gray8 : BitmapPixelFormat.Bgra8;
+                using var bitmap = await decoder.GetSoftwareBitmapAsync(format, BitmapAlphaMode.Ignore);
+                using var output = new InMemoryRandomAccessStream();
+                var options = new BitmapPropertySet { ["ImageQuality"] = new BitmapTypedValue(0.9, global::Windows.Foundation.PropertyType.Single) };
+                var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.JpegEncoderId, output, options);
+                encoder.SetSoftwareBitmap(bitmap);
+                await encoder.FlushAsync();
+                var bytes = new byte[output.Size];
+                output.Seek(0);
+                await output.ReadAsync(bytes.AsBuffer(), (uint)bytes.Length, InputStreamOptions.None);
+                return bytes;
+            }).GetAwaiter().GetResult();
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            throw new WiaException(WiaErrors.InvalidDriverResponse, "The page couldn't be read: " + ex.Message);
+        }
     }
 
     public void Dispose()
@@ -453,58 +518,69 @@ public struct WiaTransferParams
 
 /// <summary>
 /// <c>IWiaTransferCallback</c>: a memory stream for each page the driver asks one for, its progress passed on, and S_FALSE once
-/// the job is cancelled (the driver stops the page). Called on the scanner's thread, during Download.
+/// the job is cancelled (the driver stops the page). Its COM wrapper is agile (a .NET object's is), so WIA may call it on any thread
+/// while Download runs, not only the scanner's: its state is kept under a lock, and <c>progress</c> must marshal to a UI itself.
 /// </summary>
 [ComVisible(true), ClassInterface(ClassInterfaceType.None)]
 public sealed class Wia2TransferCallback(Action<int>? progress, CancellationToken cancel) : IWiaTransferCallback
 {
+    private readonly Lock _gate = new();
+    private readonly List<byte[]> _pages = [];
     private MemoryStream? _current;
+    private int? _error;
 
-    public List<byte[]> Pages { get; } = [];
+    /// <summary>The pages the driver wrote, in order (read once Download has returned and <see cref="Close"/> was called).</summary>
+    public List<byte[]> Pages
+    {
+        get { lock (_gate) return [.. _pages]; }
+    }
 
-    /// <summary>A failure the driver reported through the callback (a jam, an empty feeder), when Download didn't return one.</summary>
-    public int? Error { get; private set; }
+    /// <summary>A failure the driver reported through the callback that ended the transfer (<see cref="Wia2Items.TransferError"/>).</summary>
+    public int? Error
+    {
+        get { lock (_gate) return _error; }
+    }
 
     public int Transfer(int flags, ref WiaTransferParams p)
     {
         if (cancel.IsCancellationRequested) return 1; // S_FALSE: cancel the transfer
-        switch (p.Message)
+        lock (_gate)
         {
-            case Wia2Ids.MsgStatus:
-                progress?.Invoke(p.PercentComplete);
-                break;
-            case Wia2Ids.MsgEndOfStream:
-                Finish();
-                break;
-            case Wia2Ids.MsgDeviceStatus when p.ErrorStatus < 0:
-                Error = p.ErrorStatus;
-                break;
+            _error = Wia2Items.TransferError(_error, p.Message, p.ErrorStatus);
+            if (p.Message == Wia2Ids.MsgEndOfStream) Finish();
         }
+        if (p.Message == Wia2Ids.MsgStatus) progress?.Invoke(p.PercentComplete);
         return 0;
     }
 
     public int GetNextStream(int flags, string? itemName, string? fullItemName, out System.Runtime.InteropServices.ComTypes.IStream? stream)
     {
-        Finish();
-        if (cancel.IsCancellationRequested)
+        lock (_gate)
         {
-            stream = null;
-            return 1;
+            Finish();
+            if (cancel.IsCancellationRequested)
+            {
+                stream = null;
+                return 1;
+            }
+            _current = new MemoryStream();
+            stream = new Wia2PageStream(_current);
+            return 0;
         }
-        _current = new MemoryStream();
-        stream = new Wia2PageStream(_current);
-        return 0;
     }
 
     private void Finish()
     {
         if (_current is not { } done) return;
         _current = null;
-        if (done.Length > 0) Pages.Add(done.ToArray());
+        if (done.Length > 0) _pages.Add(done.ToArray());
     }
 
     /// <summary>The page streams' bytes, the last one included (Download has returned).</summary>
-    public void Close() => Finish();
+    public void Close()
+    {
+        lock (_gate) Finish();
+    }
 }
 
 /// <summary>A COM stream over a page's memory, as WIA writes a page into it; capped at <see cref="Wia2Device.MaxPageBytes"/>.</summary>
@@ -553,3 +629,6 @@ public sealed class Wia2PageStream(MemoryStream inner) : ComStream
 
     public void Clone(out ComStream ppstm) => throw new NotSupportedException();
 }
+
+/// <summary>A WIA 2.0 device this path can't scan with (its item takes no format this app reads): WIA 1.0's path is used instead.</summary>
+internal sealed class Wia2UnusableException(string message) : Exception(message);

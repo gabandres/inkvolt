@@ -11714,4 +11714,8 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Scan_CleanColors" xml:space="preserve">
     <value>faded colors restored</value>
   </data>
+  <data name="Scan_Twain32Label" xml:space="preserve">
+    <value>{0}  (TWAIN, 32-bit only)</value>
+    <comment>{0} = scanner name; a scanner whose only driver is a 32-bit TWAIN one (listed, can't be used)</comment>
+  </data>
 </root>

@@ -110,7 +110,8 @@ public sealed class WiaScanner : IScanner
 
     /// <summary>
     /// Told each page's progress as a WIA 2.0 driver reports it (<see cref="WiaScannerInfo.CancelsPage"/>): the page's number in the
-    /// job (from 1) and its percent. Called on the scanner's thread; a WIA 1 driver never calls it.
+    /// job (from 1) and its percent. Called on any thread (WIA calls its transfer callback where it likes): marshal to a UI; a WIA
+    /// 1 driver never calls it.
     /// </summary>
     public Action<int, int>? Progress { get; set; }
 

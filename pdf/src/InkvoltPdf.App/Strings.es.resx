@@ -11712,4 +11712,7 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Scan_CleanColors" xml:space="preserve">
     <value>colores desvaídos restaurados</value>
   </data>
+  <data name="Scan_Twain32Label" xml:space="preserve">
+    <value>{0}  (TWAIN, solo de 32 bits)</value>
+  </data>
 </root>

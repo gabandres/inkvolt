@@ -3,6 +3,15 @@ using System.Runtime.ExceptionServices;
 namespace InkvoltPrint.Core.Wia;
 
 /// <summary>
+/// A scanner list that failed in part (the 64-bit TWAIN manager) with what was still read (the 32-bit-only sources, from their
+/// files): <see cref="DriverScanners"/> keeps the sources listed before beside them and says the failure (<see cref="Exception.InnerException"/>).
+/// </summary>
+public sealed class PartialListException(Exception failure, IReadOnlyList<WiaDeviceInfo> listed) : Exception(failure.Message, failure)
+{
+    public IReadOnlyList<WiaDeviceInfo> Listed { get; } = listed;
+}
+
+/// <summary>
 /// The PC's driver scanners as one list: WIA's and the TWAIN manager's 64-bit sources side by side, behind the one
 /// <see cref="IWiaSystem"/> Inkvolt Print's printer list, Scan and Copy tabs and Fleet, and Inkvolt PDF's Scan dialog, read, so a
 /// TWAIN source is matched to its printer (<see cref="WiaMatch"/>), listed on its own, connected and scanned exactly as a WIA
@@ -184,19 +193,31 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
             TwainFailure = null;
             _lastFailure = null;
         }
+        catch (PartialListException partial)
+        {
+            // The 64-bit manager failed, the 32-bit-only sources were still read: the 64-bit ones listed before stay beside them.
+            _sources = [.. before.Where(s => !s.IsTwain32Only), .. partial.Listed.Take(MaxSources).Select(s => s with { Id = Twain32Prefix + s.Id })];
+            Failed(partial.InnerException ?? partial);
+        }
         catch (Exception ex)
         {
-            var late = ex is OperationCanceledException;
-            TwainFailure = late ? new WiaException(WiaErrors.NotAnswering, "The TWAIN manager didn't answer in time.") : ex;
-            var why = late ? "the TWAIN manager didn't answer in time" : ex.Message;
-            if (why != _lastFailure) log?.Invoke($"TWAIN sources couldn't be listed ({why}); keeping the {_sources.Count} listed before");
-            _lastFailure = why;
+            Failed(ex);
         }
         finally
         {
             lock (_gate) _readAt = DateTime.UtcNow;
         }
         if (failedBefore != TwainFailure is not null || !before.Select(s => s.Id).SequenceEqual(_sources.Select(s => s.Id))) TwainChanged?.Invoke();
+    }
+
+    /// <summary>A TWAIN read that failed: why, said once while it lasts.</summary>
+    private void Failed(Exception ex)
+    {
+        var late = ex is OperationCanceledException;
+        TwainFailure = late ? new WiaException(WiaErrors.NotAnswering, "The TWAIN manager didn't answer in time.") : ex;
+        var why = late ? "the TWAIN manager didn't answer in time" : ex.Message;
+        if (why != _lastFailure) log?.Invoke($"TWAIN sources couldn't be listed ({why}); keeping the {_sources.Count} listed before");
+        _lastFailure = why;
     }
 
     private void Using(int delta)

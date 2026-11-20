@@ -90,6 +90,42 @@ public class Wia2Tests
         Assert.Equal(WiaIds.FormatBmp, Wia2Items.FormatFor(glass, [WiaIds.FormatBmp]));
     }
 
+    [Fact]
+    public void The_format_is_one_the_item_lists_and_none_means_WIA_1()
+    {
+        var info = Wia2Items.Info([Glass])!;
+        var color = WiaCapabilities.Plan(new ScanRequest(ScanSource.Platen), WiaCapabilities.From(info, "x"), info);
+        Assert.Equal(WiaIds.FormatPng, Wia2Items.FormatFor(color, [WiaIds.FormatPng, WiaIds.FormatTiff])); // no JPEG, no BMP
+        Assert.Equal(WiaIds.FormatTiff, Wia2Items.FormatFor(color, ["{b96b3cb1-0728-11d3-9d7b-0000f81ef32e}"])); // TIFF, any case
+        Assert.Equal(WiaIds.FormatJpeg, Wia2Items.FormatFor(color with { Depth = 1 }, [WiaIds.FormatJpeg])); // JPEG after all
+        Assert.Null(Wia2Items.FormatFor(color, ["{700B4A0F-2011-411C-B430-D1E0B2E10B28}"])); // XPS only: WIA 1.0's path
+        Assert.Equal(WiaIds.FormatBmp, Wia2Items.FormatFor(color, [])); // nothing said: BMP, as every driver takes
+    }
+
+    [Fact]
+    public void A_passing_device_status_is_forgotten_and_one_that_ends_the_transfer_kept()
+    {
+        int? error = null;
+        error = Wia2Items.TransferError(error, Wia2Ids.MsgDeviceStatus, WiaErrors.WarmingUp);
+        Assert.Null(error); // warming up passes
+        error = Wia2Items.TransferError(error, Wia2Ids.MsgDeviceStatus, WiaErrors.PaperJam);
+        Assert.Equal(WiaErrors.PaperJam, error);
+        Assert.Equal(WiaErrors.PaperJam, Wia2Items.TransferError(error, Wia2Ids.MsgDeviceStatus, 0)); // a later good status doesn't clear a jam…
+        Assert.Null(Wia2Items.TransferError(error, Wia2Ids.MsgStatus, 0)); // …the page going on does
+        Assert.Null(Wia2Items.TransferError(error, Wia2Ids.MsgNewPage, 0));
+        Assert.Equal(WiaErrors.CoverOpen, Wia2Items.TransferError(null, Wia2Ids.MsgEndOfTransfer, WiaErrors.CoverOpen));
+    }
+
+    [Fact]
+    public void A_jam_after_some_pages_is_raised_after_them_and_an_empty_feeder_isnt()
+    {
+        Assert.Equal(WiaErrors.PaperJam, Wia2Items.FailureAfter(WiaErrors.PaperJam, null));
+        Assert.Equal(WiaErrors.PaperJam, Wia2Items.FailureAfter(0, WiaErrors.PaperJam)); // reported through the callback
+        Assert.Null(Wia2Items.FailureAfter(WiaErrors.PaperEmpty, null)); // the job's end
+        Assert.Null(Wia2Items.FailureAfter(Wia2Ids.EndOfMedia, null));
+        Assert.Null(Wia2Items.FailureAfter(0, null));
+    }
+
     private static FakeWiaScanner Wia2Fake(int feederPages = 3) =>
         new(Usb, Wia2Items.Info([Glass, Feeder with { Formats = [WiaIds.FormatJpeg] }])!, (_, n) => [0xFF, 0xD8, (byte)n]) { FeederPages = feederPages };
 

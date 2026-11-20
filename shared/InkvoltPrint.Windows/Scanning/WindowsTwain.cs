@@ -41,7 +41,8 @@ public sealed class WindowsTwain : IWiaSystem
     /// </summary>
     public async Task<IReadOnlyList<WiaDeviceInfo>> ListScannersAsync(CancellationToken ct)
     {
-        var only32 = Only32Bit(); // named and declined, with or without the 64-bit manager
+        // Named and declined, with or without the 64-bit manager: read off this thread, under the caller's token (a slow disk).
+        var only32 = await Task.Run(Only32Bit, ct).WaitAsync(ct).ConfigureAwait(false);
         if (!ManagerInstalled) return only32;
         try
         {
@@ -49,7 +50,11 @@ public sealed class WindowsTwain : IWiaSystem
         }
         catch (WorkThreadStuckException)
         {
-            throw new WiaException(WiaErrors.NotAnswering, "The TWAIN manager still hasn't answered an earlier request.");
+            throw new PartialListException(new WiaException(WiaErrors.NotAnswering, "The TWAIN manager still hasn't answered an earlier request."), only32);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new PartialListException(ex, only32); // the manager failed: the 32-bit-only sources are still there to name
         }
     }
 
@@ -82,15 +87,9 @@ public sealed class WindowsTwain : IWiaSystem
         try
         {
             if (!Directory.Exists(folder32)) return [];
-            var files = DataSources(folder32).Select(path =>
-            {
-                FileVersionInfo? version = null;
-                try { version = FileVersionInfo.GetVersionInfo(path); }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
-                return new Twain32File(Path.GetRelativePath(folder32, path), version?.ProductName, version?.FileDescription, version?.CompanyName);
-            }).ToList();
+            var files = Files(folder32);
             var folder64 = Path.Combine(windows, "twain_64");
-            var in64 = Directory.Exists(folder64) ? DataSources(folder64).Select(p => Path.GetRelativePath(folder64, p)).ToList() : [];
+            var in64 = Directory.Exists(folder64) ? Files(folder64) : [];
             return Twain32Sources.From(files, in64);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -98,6 +97,15 @@ public sealed class WindowsTwain : IWiaSystem
             return [];
         }
     }
+
+    /// <summary>A TWAIN folder's data sources with what their version resources say (read as data: nothing is loaded).</summary>
+    private static List<Twain32File> Files(string folder) => [.. DataSources(folder).Select(path =>
+    {
+        FileVersionInfo? version = null;
+        try { version = FileVersionInfo.GetVersionInfo(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        return new Twain32File(Path.GetRelativePath(folder, path), version?.ProductName, version?.FileDescription, version?.CompanyName);
+    })];
 
     /// <summary>The .ds files in a TWAIN folder (makers put each in a folder of its own), a few levels down, links not followed.</summary>
     private static IEnumerable<string> DataSources(string folder) =>

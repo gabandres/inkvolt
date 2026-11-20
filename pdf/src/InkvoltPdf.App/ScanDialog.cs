@@ -60,7 +60,9 @@ internal sealed class ScanDialog : Window
     /// <param name="Driver">A WIA or TWAIN scanner as its driver lists it.</param>
     private sealed record ScannerItem(string Key, string Name, ScannerKind Kind, string Host, Uri? EsclRoot, bool Remembered, WiaDeviceInfo? Driver = null)
     {
-        public override string ToString() => ScannerList.Label(Kind, Name, Host, Remembered, Driver?.ConnectionText);
+        public override string ToString() => Kind == ScannerKind.Twain32
+            ? Loc.Format(Strings.Scan_Twain32Label, Name) // in the interface's language (connecting says why it is declined)
+            : ScannerList.Label(Kind, Name, Host, Remembered, Driver?.ConnectionText);
     }
 
     private sealed record Choice<T>(T Value, string Label)

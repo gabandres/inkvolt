@@ -213,6 +213,7 @@ public sealed class WindowsWia : IWiaSystem
     {
         private readonly WorkThread _thread = new($"Inkvolt WIA {number}", true);
         private IWiaDevice? _device;
+        private bool _wia1Only;
 
         public async Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct)
         {
@@ -231,8 +232,20 @@ public sealed class WindowsWia : IWiaSystem
             try
             {
                 // A WIA 2.0 driver through WIA 2.0's own interface (its items, progress, a page stopped in the driver), else WIA 1.0's.
-                _device ??= Wrap(() => (IWiaDevice?)Wia2Device.TryConnect(id) ?? Connect(id));
-                return Wrap(() => work(_device));
+                _device ??= Wrap(() => (_wia1Only ? null : (IWiaDevice?)Wia2Device.TryConnect(id)) ?? Connect(id));
+                try
+                {
+                    return Wrap(() => work(_device));
+                }
+                catch (Wia2UnusableException)
+                {
+                    // Its WIA 2.0 item takes no format this app reads: WIA 1.0's path from now on, and this call again through it.
+                    (_device as IDisposable)?.Dispose();
+                    _device = null;
+                    _wia1Only = true;
+                    _device = Wrap(() => Connect(id));
+                    return Wrap(() => work(_device));
+                }
             }
             catch (WiaException ex) when (WiaErrors.NeedsReconnect(ex.Code))
             {
@@ -305,7 +318,7 @@ public sealed class WindowsWia : IWiaSystem
         {
             return call();
         }
-        catch (Exception ex) when (ex is not (WiaException or OperationCanceledException))
+        catch (Exception ex) when (ex is not (WiaException or OperationCanceledException or Wia2UnusableException))
         {
             throw WiaErrors.From(ex);
         }

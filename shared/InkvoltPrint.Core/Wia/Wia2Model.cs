@@ -100,9 +100,44 @@ public static class Wia2Items
     public static int SelectReadBack(WiaScanSettings settings, IReadOnlyList<Wia2Item> items) =>
         For(settings, items) < 0 ? WiaIds.SelectFlatbed : settings.Feeder ? WiaIds.SelectFeeder | (settings.Duplex ? WiaIds.SelectDuplex : 0) : WiaIds.SelectFlatbed;
 
-    /// <summary>The format to ask a page in: PDF from a PDF-only item, else JPEG where offered, else BMP (black and white is always BMP).</summary>
-    public static string FormatFor(WiaScanSettings settings, IReadOnlyList<string> formats) =>
-        settings.Pdf ? WiaIds.FormatPdf
-        : settings.Depth > 1 && formats.Any(f => WiaIds.SameFormat(f, WiaIds.FormatJpeg)) ? WiaIds.FormatJpeg
-        : WiaIds.FormatBmp;
+    /// <summary>
+    /// The format to ask a page in, from those the item lists: PDF from a PDF-only item; else JPEG (not for black and white, which
+    /// drivers refuse as JPEG), BMP, PNG, TIFF, then JPEG after all; an item that lists nothing is asked for BMP, as every WIA 1.0
+    /// driver takes. Null when it lists none of these (WIA 1.0's path is used then).
+    /// </summary>
+    public static string? FormatFor(WiaScanSettings settings, IReadOnlyList<string> formats)
+    {
+        if (settings.Pdf) return WiaIds.FormatPdf;
+        if (formats.Count == 0) return WiaIds.FormatBmp;
+        bool Lists(string format) => formats.Any(f => WiaIds.SameFormat(f, format));
+        if (settings.Depth > 1 && Lists(WiaIds.FormatJpeg)) return WiaIds.FormatJpeg;
+        return new[] { WiaIds.FormatBmp, WiaIds.FormatPng, WiaIds.FormatTiff, WiaIds.FormatJpeg }.FirstOrDefault(Lists);
+    }
+
+    /// <summary>Device statuses that pass (the transfer goes on after them): warming up, busy, waiting for the user, locked.</summary>
+    private static bool Passing(int status) =>
+        status is WiaErrors.WarmingUp or WiaErrors.Busy or WiaErrors.UserIntervention or WiaErrors.DeviceLocked;
+
+    /// <summary>
+    /// The failure a transfer's callback has seen so far, after one more message: a device status or end of transfer that fails and
+    /// doesn't pass (a jam, an open cover) is kept; progress, a new page or a stream's end clears what came before (the device went
+    /// on after it, as it does after warming up); anything else leaves it as it was.
+    /// </summary>
+    public static int? TransferError(int? error, int message, int status) => message switch
+    {
+        Wia2Ids.MsgStatus or Wia2Ids.MsgNewPage or Wia2Ids.MsgEndOfStream => status < 0 && !Passing(status) ? status : null,
+        Wia2Ids.MsgDeviceStatus or Wia2Ids.MsgEndOfTransfer when status < 0 && !Passing(status) => status,
+        _ => error,
+    };
+
+    /// <summary>
+    /// The failure to raise for a transfer that ended with <paramref name="hr"/> (Download's result) and <paramref name="callbackError"/>
+    /// (<see cref="TransferError"/>'s last): none for success, the end of the media, or an empty feeder (the job's end); else the
+    /// failure, raised once the pages that did arrive are handed over (a jam on the third sheet keeps the first two).
+    /// </summary>
+    public static int? FailureAfter(int hr, int? callbackError)
+    {
+        var failure = hr < 0 ? hr : callbackError;
+        return failure is null or WiaErrors.PaperEmpty || failure >= 0 ? null : failure;
+    }
 }
