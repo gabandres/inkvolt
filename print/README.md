@@ -398,8 +398,13 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   Printers that answer IPP get no SNMP even when their IPP has no supply levels. A printer added before this check was
   remembered (SNMP-only printers added with the first SNMP build) isn't read over SNMP until it's added by address again.
   The move from SNMP to HTTP and the identity check were tested only with the made-up agents. SNMP-only printers can't be scanned with,
-  and their settings, firmware and page counts aren't read; a WSD queue's printer isn't asked over SNMP (its port has no
-  address). SNMPv3 (Pro) was tried only against the made-up agent: never against a printer's agent, nor with agents' other auth or
+  and their settings and firmware aren't read. A WSD queue's printer is asked over SNMP as a TCP/IP port's is since 2026-11-20:
+  its port has no address, but its WSD device node (the `DAFWSDProvider` node in the queue's container) has PnP-X's IP address
+  (`PKEY_PNPX_IpAddress`, else the host of `PKEY_PNPX_XAddrs`; IPv4 only; `QueueKinds.WsdAddress`), read with the 30 s list
+  for the unclaimed WSD queues; a WSD printer that doesn't answer SNMP is still read through Windows' IPP class driver or its
+  driver (`WsdSnmpTests`). On this PC the property was there for one of its two WSD printers (the other's node gave none); no
+  WSD printer that answers SNMP was on the network to read, and a printer that changes address keeps the old one until the
+  app restarts. SNMPv3 (Pro) was tried only against the made-up agent: never against a printer's agent, nor with agents' other auth or
   privacy protocols (MD5, SHA-1, DES, AES-192/256 are spoken since 2026-11-20 and tried only against the made-up agent and
   vectors from RFC 2202, NIST SP 800-38A and Python's own hashlib and cryptography). Which key extension a printer maker's
   agent uses for AES-192/256 after MD5 or SHA-1 isn't documented anywhere we found: both are tried, so a real printer only
@@ -410,7 +415,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   `PanelTextTests`). CDM has no such text in the replies we know of. Seen with the demo printers only: what a real panel's lines
   hold (a menu? a blank line?), and how often a printer's IPP message is more than its state, only real printers show.
 - Backlog: SNMP supply levels for IPP printers whose
-  `marker-*` attributes are missing; SNMP for WSD queues (the device's address from its PnP properties); queue
+  `marker-*` attributes are missing; queue
   changes as Windows notifies them (`FindFirstPrinterChangeNotification`) instead of reading every 5 s; QR code / barcode separator sheets (ZXing.Net, Apache-2.0); CDM page counts (`/cdm/deviceUsage/v1/lifetimeCounters`); photos: color management (ICC profiles), text or date on prints, saving a photo layout as a preset, a sheet of mixed sizes; maintenance: follow an alignment or cleaning to its end (the session's `Location`, the printer's state), offer the cleaning check page right after a cleaning, read the calibration paths from its manifest, CDM maintenance for newer HP models.
 - Scanners through Windows (WIA): built test-first against a fake (`FakeWiaSystem`: capabilities, settings, feeder loop,
   empty feeder, a jam part way, cancel, a driver that never says empty, one that refuses the feeder, one that scans the glass

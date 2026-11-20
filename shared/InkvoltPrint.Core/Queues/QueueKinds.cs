@@ -86,7 +86,7 @@ public static partial class QueueKinds
         return Connection(q) switch
         {
             QueueConnection.Shared => text,
-            QueueConnection.Network when port.StartsWith("WSD", StringComparison.OrdinalIgnoreCase) => $"{text} (WSD)",
+            QueueConnection.Network when port.StartsWith("WSD", StringComparison.OrdinalIgnoreCase) => q.DeviceAddress is { } at ? $"{text} (WSD, {at})" : $"{text} (WSD)",
             QueueConnection.Network when q.PortAddress?.Trim() is { Length: > 0 } address => $"{text} ({address})",
             QueueConnection.Network when Uri.TryCreate(port, UriKind.Absolute, out var u) && u.Host.Length > 0 => $"{text} (IPP, {u.Host})",
             QueueConnection.Network when QueueMatch.HostsIn(port).FirstOrDefault(h => System.Net.IPAddress.TryParse(h, out _)) is { } ip => $"{text} ({ip})",
@@ -97,14 +97,15 @@ public static partial class QueueKinds
 
     /// <summary>
     /// Where a queue's printer can be asked over SNMP: a network queue whose port has the printer's address (a Standard TCP/IP
-    /// or LPR port, an IPP URL, an address in the port's name). Null for USB, WSD (no address in the port), queues shared from
-    /// another PC (the address there is the PC's) and the rest.
+    /// or LPR port, an IPP URL, an address in the port's name), or a WSD queue whose device node says its address
+    /// (<see cref="SpoolerQueue.DeviceAddress"/>). Null for USB, a WSD queue whose address isn't known, queues shared from another
+    /// PC (the address there is the PC's) and the rest.
     /// </summary>
     public static string? SnmpAddress(SpoolerQueue q)
     {
         if (Connection(q) != QueueConnection.Network) return null;
         var port = q.PortName.Trim();
-        if (port.StartsWith("WSD", StringComparison.OrdinalIgnoreCase)) return null;
+        if (IsWsd(q)) return q.DeviceAddress is { } device && UsableIPv4(device) ? device : null;
         if (q.PortAddress?.Trim() is { Length: > 0 } address && Uri.CheckHostName(address) != UriHostNameType.Unknown) return address;
         if (Uri.TryCreate(port, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" or "ipp" or "ipps" && u.Host.Length > 0) return u.Host;
         var hosts = QueueMatch.HostsIn(port);
@@ -113,6 +114,30 @@ public static partial class QueueKinds
         // A TCP/IP port named after the printer's host name ("IP_printer.example", Windows' default naming).
         return q.PortMonitor is "Standard TCP/IP Port" or "LPR Port" && hosts.FirstOrDefault(h => h.Contains('.')) is { } name ? name : null;
     }
+
+    /// <summary>A queue on a WSD port (Windows' discovered network printers): its port has no address, its device node does.</summary>
+    public static bool IsWsd(SpoolerQueue q) =>
+        q.PortName.Trim().StartsWith("WSD", StringComparison.OrdinalIgnoreCase) || q.PortMonitor == "WSD Port Monitor";
+
+    /// <summary>
+    /// A WSD printer's IPv4 address from the device nodes in its queue's container: the first usable one a WSD node
+    /// (<c>SWD\DAFWSDProvider\…</c>) has in PnP-X's IP address property, else the host of its WS-Discovery transport address
+    /// (XAddrs, <c>http://192.0.2.30:3911/…</c>) when that is an IPv4 address. Null when none says one (an IPv6-only printer too:
+    /// SNMP is asked over IPv4 here). The values are the device's own: 16 nodes and 16 values each are looked at, at most.
+    /// </summary>
+    public static string? WsdAddress(IEnumerable<(string InstanceId, IReadOnlyList<string> IpAddresses, IReadOnlyList<string> XAddrs)> nodes)
+    {
+        var wsd = nodes.Where(n => n.InstanceId.StartsWith(@"SWD\DAFWSDProvider\", StringComparison.OrdinalIgnoreCase)).Take(16).ToList();
+        return wsd.SelectMany(n => n.IpAddresses.Take(16)).Select(a => a.Trim()).FirstOrDefault(UsableIPv4)
+               ?? wsd.SelectMany(n => n.XAddrs.Take(16)).SelectMany(x => x.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(16))
+                   .Select(x => x.Length <= 2048 && Uri.TryCreate(x, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" ? u.Host : null)
+                   .FirstOrDefault(h => h is not null && UsableIPv4(h));
+    }
+
+    /// <summary>A unicast IPv4 address a printer can have, written plainly: not 0.x, loopback, multicast or broadcast.</summary>
+    private static bool UsableIPv4(string text) =>
+        text.Length <= 15 && System.Net.IPAddress.TryParse(text, out var ip) && ip.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+        && ip.ToString() == text && ip.GetAddressBytes() is [not (0 or 127 or >= 224), ..];
 
     /// <summary>The device container Windows gives queues without a device of their own (and some virtual ones): the PC itself.</summary>
     public const string ThisPcContainer = "00000000-0000-0000-ffff-ffffffffffff";
@@ -126,8 +151,7 @@ public static partial class QueueKinds
     {
         if (q.ContainerId is not { Length: > 0 } container || string.Equals(container, ThisPcContainer, StringComparison.OrdinalIgnoreCase) || IsVirtual(q))
             return false;
-        var wsd = q.PortName.Trim().StartsWith("WSD", StringComparison.OrdinalIgnoreCase) || q.PortMonitor == "WSD Port Monitor";
-        return (Connection(q) == QueueConnection.Usb || wsd) && Unclaimed([q], known).Count > 0;
+        return (Connection(q) == QueueConnection.Usb || IsWsd(q)) && Unclaimed([q], known).Count > 0;
     }
 
     /// <summary>

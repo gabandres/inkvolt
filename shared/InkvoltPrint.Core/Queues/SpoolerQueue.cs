@@ -25,6 +25,13 @@ public sealed record SpoolerQueue(string Name, string PortName, string? DriverNa
     /// that can't be told (IPP and TCP/IP queues, or not looked up). The spooler keeps saying "ready" for a WSD printer that left.
     /// </summary>
     public bool? DevicePresent { get; init; }
+
+    /// <summary>
+    /// A WSD queue's printer's IPv4 address, as its WSD device node reports it (PnP-X's IP address, else its WS-Discovery
+    /// transport address; <see cref="QueueKinds.WsdAddress"/>); null for other queues, or when not known. Lets its printer be asked
+    /// over SNMP as a TCP/IP port's is (<see cref="QueueKinds.SnmpAddress"/>).
+    /// </summary>
+    public string? DeviceAddress { get; init; }
 }
 
 /// <summary><c>PRINTER_STATUS_*</c> and <c>PRINTER_ATTRIBUTE_*</c> (winspool.h; the status bits are System.Printing's PrintQueueStatus).</summary>

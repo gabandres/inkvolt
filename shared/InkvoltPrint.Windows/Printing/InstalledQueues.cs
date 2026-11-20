@@ -88,9 +88,10 @@ public static class InstalledQueues
             var tcp = monitor == "Standard TCP/IP Port" && !QueueKinds.IsVirtual(q) ? await Task.Run(() => TcpPort(q.PortName)) : null;
             var found = q with { PortMonitor = monitor, ContainerId = container, PortAddress = tcp?.Host, PortCommunity = tcp?.Community };
             if (container is null || needsPresence?.Invoke(found) != true) return found;
-            var present = await DevicePresentAsync(container);
+            var (present, address) = await DeviceFactsAsync(container);
             lock (Gate) Presence[container] = present;
-            return found with { DevicePresent = present };
+            // A WSD queue's port has no address; its device node does (asked with presence: one query).
+            return found with { DevicePresent = present, DeviceAddress = QueueKinds.IsWsd(found) ? address : null };
         }));
         return list;
     }
@@ -123,21 +124,36 @@ public static class InstalledQueues
     /// Whether Windows sees the printer behind a queue: its USB or WSD device nodes in the queue's container are present
     /// (<see cref="QueueKinds.DevicePresence"/>). Null when that can't be told.
     /// </summary>
-    internal static async Task<bool?> DevicePresentAsync(string? containerId)
+    internal static async Task<bool?> DevicePresentAsync(string? containerId) => (await DeviceFactsAsync(containerId)).Present;
+
+    /// <summary>PKEY_PNPX_IpAddress and PKEY_PNPX_XAddrs (functiondiscoverykeys.h): a WSD device node's addresses.</summary>
+    private const string PnpxIpAddress = "{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 12297", PnpxXAddrs = "{656A3BB3-ECC0-43FD-8477-4AE0404A96CD} 4099";
+
+    /// <summary>
+    /// Whether Windows sees the printer behind a queue (<see cref="DevicePresentAsync"/>) and, for a WSD printer, the IPv4
+    /// address its device node says (<see cref="QueueKinds.WsdAddress"/>), from one query of the queue's container.
+    /// </summary>
+    internal static async Task<(bool? Present, string? Address)> DeviceFactsAsync(string? containerId)
     {
-        if (containerId is null || string.Equals(containerId, QueueKinds.ThisPcContainer, StringComparison.OrdinalIgnoreCase)) return null;
+        if (containerId is null || string.Equals(containerId, QueueKinds.ThisPcContainer, StringComparison.OrdinalIgnoreCase)) return (null, null);
         try
         {
             const string present = "System.Devices.Present", instance = "System.Devices.DeviceInstanceId";
-            var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ContainerId:=\"{{{containerId}}}\"", [present, instance], DeviceInformationKind.Device);
-            return QueueKinds.DevicePresence(nodes.Select(n => (n.Properties.TryGetValue(instance, out var id) ? id as string ?? "" : "",
-                n.Properties.TryGetValue(present, out var p) && p is true)));
+            var nodes = await DeviceInformation.FindAllAsync($"System.Devices.ContainerId:=\"{{{containerId}}}\"", [present, instance, PnpxIpAddress, PnpxXAddrs],
+                DeviceInformationKind.Device);
+            string Id(DeviceInformation n) => n.Properties.TryGetValue(instance, out var id) ? id as string ?? "" : "";
+            return (QueueKinds.DevicePresence(nodes.Select(n => (Id(n), n.Properties.TryGetValue(present, out var p) && p is true))),
+                QueueKinds.WsdAddress(nodes.Select(n => (Id(n), Strings(n, PnpxIpAddress), Strings(n, PnpxXAddrs)))));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             System.Diagnostics.Trace.WriteLine($"queue device presence: {ex.Message}");
-            return null;
+            return (null, null);
         }
+
+        // A string list property (VT_VECTOR | VT_LPWSTR) comes as string[]; one string as itself.
+        static IReadOnlyList<string> Strings(DeviceInformation n, string key) =>
+            n.Properties.TryGetValue(key, out var v) ? v switch { string[] list => list, string one => [one], _ => [] } : [];
     }
 }
 

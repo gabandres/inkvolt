@@ -93,15 +93,18 @@ public abstract class PcEnvironment
     public abstract Task<string?> FindQueueAsync(string uuid, string? host, SpoolerQueue? listed, AppState state);
 
     /// <summary>
-    /// Where a queue printer's status comes from: Windows and the driver; for a queue whose port has the printer's address, the
-    /// printer itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one; for
-    /// the others (USB, WSD), the printer through Windows' IPP class driver (IPP over USB) or the driver over bidi when they answer.
+    /// Where a queue printer's status comes from: Windows and the driver; for a queue whose port has the printer's address, or a
+    /// WSD queue whose device node says it, the printer itself over SNMP too (status, problems, supply levels), with the port's
+    /// own SNMP community when it has one; for the others (USB, WSD), the printer through Windows' IPP class driver (IPP over USB)
+    /// or the driver over bidi when they answer. A WSD printer that doesn't answer SNMP is still asked those ways.
     /// </summary>
     public IQueueStatusSource QueueStatus(SpoolerQueue q)
     {
         var windows = SpoolerStatus(q);
-        if (QueueKinds.SnmpAddress(q) is { } host) return new SnmpQueueStatusSource(windows, host, Snmp, q.PortCommunity);
-        return DeviceReaders(q) is { Count: > 0 } readers ? new DeviceQueueStatusSource(windows, readers) : windows;
+        if (QueueKinds.SnmpAddress(q) is { } host) return new SnmpQueueStatusSource(QueueKinds.IsWsd(q) ? Device() : windows, host, Snmp, q.PortCommunity);
+        return Device();
+
+        IQueueStatusSource Device() => DeviceReaders(q) is { Count: > 0 } readers ? new DeviceQueueStatusSource(windows, readers) : windows;
     }
 
     protected abstract IQueueStatusSource SpoolerStatus(SpoolerQueue q);

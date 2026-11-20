@@ -121,7 +121,8 @@ switch (cmd)
             var status = InkvoltPrint.Core.Queues.SpoolerStatus.Describe(q).Status;
             Console.WriteLine($"{q.Name} | {(InkvoltPrint.Core.Queues.QueueKinds.IsVirtual(q) ? "virtual, left out" : InkvoltPrint.Core.Queues.QueueKinds.ConnectionText(q))} | " +
                               $"{status.Message}{string.Concat(status.Alerts.Select(a => $"; {a.Message}"))} | port={q.PortName} monitor={q.PortMonitor} " +
-                              $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}");
+                              $"driver={q.DriverName} status=0x{q.Status:X} attributes=0x{q.Attributes:X} container={q.ContainerId}" +
+                              (q.DeviceAddress is { } at ? $" device-address={at}" : ""));
             // What the printer (IPP through Windows, IPP over USB included) or the driver (bidi) says beyond the spooler; why not, on stderr.
             if (System.Diagnostics.Trace.Listeners.OfType<System.Diagnostics.ConsoleTraceListener>().FirstOrDefault() is null)
                 System.Diagnostics.Trace.Listeners.Add(new System.Diagnostics.ConsoleTraceListener(useErrorStream: true));
