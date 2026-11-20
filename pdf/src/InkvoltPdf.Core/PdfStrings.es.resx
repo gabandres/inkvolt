@@ -6932,6 +6932,10 @@
     <value>Haz que se pueda buscar en lo escaneado</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_MakeEditableDesc" xml:space="preserve">
+    <value>Convierte el texto reconocido en texto que puedes editar</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
   <data name="Bar_ScanDesc" xml:space="preserve">
     <value>Un PDF nuevo desde tu escáner</value>
     <comment>Line under a command in the bar's menu</comment>

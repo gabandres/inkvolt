@@ -607,6 +607,9 @@
   <data name="Cmd_ReviewSuspectWords" xml:space="preserve">
     <value>Review Suspect _Words</value>
   </data>
+  <data name="Cmd_MakeTextEditable" xml:space="preserve">
+    <value>Make Text Edita_ble…</value>
+  </data>
   <data name="Cmd_ReloadFromDisk" xml:space="preserve">
     <value>Re_load from Disk</value>
   </data>
@@ -3857,6 +3860,20 @@ Modified {1:g}</value>
   <data name="Review_OcrCleanHelp" xml:space="preserve">
     <value>Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing.</value>
   </data>
+  <data name="Review_OcrTrapezoid" xml:space="preserve">
+    <value>Straighten pages photographed at an angle</value>
+    <comment>Check box</comment>
+  </data>
+  <data name="Review_OcrTrapezoidHelp" xml:space="preserve">
+    <value>A page photographed at an angle on a darker surface is turned back into a rectangle before recognizing. Pages whose four edges don't clearly show are left as they are.</value>
+  </data>
+  <data name="Review_OcrCurvedLines" xml:space="preserve">
+    <value>Flatten lines bent by a book's spine</value>
+    <comment>Check box</comment>
+  </data>
+  <data name="Review_OcrCurvedLinesHelp" xml:space="preserve">
+    <value>Lines of text that curve towards the binding of an open book are made straight before recognizing. Pages whose lines are already straight are left as they are.</value>
+  </data>
   <data name="Review_OcrSuspects" xml:space="preserve">
     <value>Mark suspect words to check</value>
     <comment>Check box</comment>
@@ -3878,6 +3895,59 @@ Modified {1:g}</value>
   <data name="Review_UndoOcr" xml:space="preserve">
     <value>Recognize text</value>
     <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="Review_UndoMakeEditable" xml:space="preserve">
+    <value>Make text editable</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="Editable_Title" xml:space="preserve">
+    <value>Make Text Editable</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Editable_Button" xml:space="preserve">
+    <value>Make Editable</value>
+    <comment>Button</comment>
+  </data>
+  <data name="Editable_AllPages" xml:space="preserve">
+    <value>All pages with recognized text</value>
+    <comment>Choice</comment>
+  </data>
+  <data name="Editable_KeepScan" xml:space="preserve">
+    <value>Keep the scan showing behind the text</value>
+    <comment>Check box</comment>
+  </data>
+  <data name="Editable_KeepScanHelp" xml:space="preserve">
+    <value>Off: the scan is covered behind each line, in the paper's colour, so only the new text shows there. On: the scan stays as it is and the text is drawn over it.</value>
+  </data>
+  <data name="Editable_Note" xml:space="preserve">
+    <value>The words Recognize Text found become real text, in the installed font closest to the scan's, at their size and place, so Edit Text &amp; Images can change them. Check the suspect words first: they can't be reviewed afterwards. Undo puts the pages back.</value>
+  </data>
+  <data name="Editable_NoneTitle" xml:space="preserve">
+    <value>No recognized text</value>
+    <comment>Message title</comment>
+  </data>
+  <data name="Editable_None" xml:space="preserve">
+    <value>These pages have no text from Recognize Text to make editable. Recognize their text first.</value>
+  </data>
+  <data name="Editable_RecognizeAction" xml:space="preserve">
+    <value>Recognize Text</value>
+    <comment>Button in a message</comment>
+  </data>
+  <data name="Editable_Done_One" xml:space="preserve">
+    <value>Made {1} words editable on {0} page, in {2}. Click a paragraph with Edit Text &amp; Images to change it.</value>
+    <comment>{0} pages (1), {1} words, {2} the fonts</comment>
+  </data>
+  <data name="Editable_Done_Many" xml:space="preserve">
+    <value>Made {1} words editable on {0} pages, in {2}. Click a paragraph with Edit Text &amp; Images to change it.</value>
+    <comment>{0} pages, {1} words, {2} the fonts</comment>
+  </data>
+  <data name="Editable_EditAction" xml:space="preserve">
+    <value>Edit Text</value>
+    <comment>Button in a message</comment>
+  </data>
+  <data name="Editable_Working" xml:space="preserve">
+    <value>Making text editable</value>
+    <comment>Progress title</comment>
   </data>
   <data name="Review_RecognizingTitle" xml:space="preserve">
     <value>Recognizing text</value>

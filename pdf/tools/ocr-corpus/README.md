@@ -10,7 +10,14 @@ dotnet run --project pdf/tools/ocr-corpus -c Release -- make     # write the cor
 dotnet run --project pdf/tools/ocr-corpus -c Release -- run      # make what's missing, measure every file, write RESULTS.md
 dotnet run --project pdf/tools/ocr-corpus -c Release -- report   # RESULTS.md again from the last run's results.json
 dotnet run --project pdf/tools/ocr-corpus -c Release -- probe --count 18   # more pages, other seeds: lines skipped, re-reading's gain
+dotnet run --project pdf/tools/ocr-corpus -c Release -- photos   # photographed pages, stage A against straightened: RESULTS-photos.md
 ```
+
+`photos` (`PhotoCorpus.cs`, roadmap 2.2's trapezoid and straightened lines) puts two corpus pages, typeset, on a grey
+desk photographed at an angle (a known map: `PhotoCorpus.Corners`) and two in an open book, their lines sagging and
+fanning towards the spine on the left (`PhotoCorpus.Sag`), writes them as PDFs and reads each as stage A and with the page
+straightened. Run it after changing `PageWarp.cs` or the order of the steps in `ScanCleanup.cs`; it exits 1 when
+straightening makes a file worse.
 
 Run `run` after changing `ScanCleanup.cs`, `Deskew` in `PageImage.cs`, `ScanText.cs`, `MissedLines.cs` or `WindowsRecognizer.cs`, and
 commit RESULTS.md. `--out dir` puts the corpus elsewhere; `--note text` adds a line to RESULTS.md. It exits 1 when stage A

@@ -26,6 +26,7 @@
     <Compile Include="..\..\tools\ocr-corpus\ScanCorpus.cs" Link="OcrCorpus\ScanCorpus.cs" />
     <Compile Include="..\..\tools\ocr-corpus\WordErrorRate.cs" Link="OcrCorpus\WordErrorRate.cs" />
     <Compile Include="..\..\tools\ocr-corpus\CleanupCorpus.cs" Link="OcrCorpus\CleanupCorpus.cs" />
+    <Compile Include="..\..\tools\ocr-corpus\PhotoCorpus.cs" Link="OcrCorpus\PhotoCorpus.cs" />
   </ItemGroup>
   <ItemGroup>
     <!-- Time limits and cancellation for both test projects (CI's runners are slower) -->

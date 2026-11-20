@@ -91,6 +91,21 @@ public static class TextLayer
     public static byte[] Keep(byte[] data, string? password, int page, int index) =>
         Change(data, password, page, index, w => w with { Suspect = SuspectReasons.None });
 
+    /// <summary>
+    /// Takes a page's Inkvolt text layer out: its stream from /Contents and the fonts only it drew with (Make Text
+    /// Editable, <see cref="EditableText"/>, puts real text in its place). False when the page has none.
+    /// </summary>
+    internal static bool Remove(PdfDocument doc, PdfPage page)
+    {
+        if (FindLayer(page) is not { } layer) return false;
+        var fonts = FontDictionary(doc, page);
+        foreach (var key in fonts.Elements.Keys.Where(k => k.StartsWith(FontPrefix, StringComparison.Ordinal) && layer.Text.Contains(k + " ", StringComparison.Ordinal)).ToList())
+            fonts.Elements.Remove(key);
+        if (PdfObj.Resolve(page.Elements["/Contents"]) is PdfArray list) list.Elements.RemoveAt(layer.Index);
+        else page.Elements["/Contents"] = PdfObj.AddStream(doc, [], compress: false).Reference!;
+        return true;
+    }
+
     /// <summary>Whether MuPDF finds any text on the page (a page that already has text needs no OCR).</summary>
     public static bool HasText(PdfEngine engine, int page) => engine.GetText(page).Text.Any(c => !char.IsWhiteSpace(c));
 

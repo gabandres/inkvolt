@@ -11,6 +11,8 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - Páginas en dos idiomas: elige un segundo idioma en Reconocer texto. Cada línea se lee en el idioma que le corresponde, o los dos a la vez con Tesseract.
 - En lote, Escanear, las exportaciones, Comparar archivos y Eliminar por patrón leen ahora los escaneos en el idioma que elegiste por última vez en Reconocer texto.
 - Con Tesseract, una palabra de la que no estaba seguro aparece entre las palabras dudosas para revisar.
+- Reconocer texto endereza una página fotografiada en ángulo y aplana las líneas curvadas por el lomo de un libro antes de leerla, así que las fotos con el móvil y los libros abiertos se leen mucho mejor. Reemplaza los escaneos con las páginas limpias para conservarlas enderezadas. Las dos opciones vienen activadas y dejan como están las páginas que no las necesitan.
+- Hacer el texto editable (menú Revisar, y Escanear y OCR en la barra) convierte el texto reconocido de una página escaneada en texto de verdad, con la fuente instalada más parecida a la del escaneo, a su tamaño y en su sitio, para que puedas editar sus párrafos con Editar texto e imágenes. El escaneo se tapa detrás del texto con el color del propio papel, o queda a la vista si lo prefieres. Deshacer devuelve la página como estaba.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.

@@ -493,9 +493,50 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   "cigüeña"); the Store build (`pack-msix.ps1 -Architectures arm64 -SmokeSideBySide`, its smoke test passed, then
   the registered side-by-side layout driven the same way) downloads into its LocalCache and reads the Russian scan. Tests: `TesseractTests` (TSV,
   LZMA, the extraction, the pins, the download against a fake server, languages and plans, mixed lines, the pipeline,
-  the program's limits; the real engine opt-in with INKVOLTPDF_TESSERACT=folder or `download`). Still to do:
-  "make the text editable", straightened lines and trapezoid correction (ABBYY's); Tesseract on the Mac (Vision reads
-  its languages; a second engine there waits). Mac: stage A done with E14 (2026-11-02,
+  the program's limits; the real engine opt-in with INKVOLTPDF_TESSERACT=folder or `download`).
+  **Built (Windows, 2026-11-19): trapezoid correction, straightened lines and "make the text editable"** (the Mac half
+  waits). Two more cleaning options in Recognize Text, on by default, each acting only on a page that clearly needs it,
+  read by Batch, Scan and the exports too (`PageOcr.OptionsAsSet`), and written back with the cleaned page when the scans
+  are replaced. **Trapezoid** (shared `Imaging/PageWarp.cs`, `Trapezoid`): on a copy at most 800 px across, the page is
+  the light region the darker desk around it doesn't reach (Otsu's threshold, the two sides 50 levels apart or more), its
+  outline's convex hull cut to four corners, each side fitted as a line to the outline along its middle 80% (within 1.5 px,
+  followed over 17 of 20 stretches), the corners where they meet; only when the page is whole in the photo (no outline
+  pixel on its edge), the corners 50° to 130°, the page fills its four sides (95-104%), and it doesn't lie square (a
+  corner over 1.5° off, or opposite sides 1.5% apart: a square page is `Deskew`'s). A homography (`Homography`) maps it to
+  a rectangle of the proportions the photo shows (the mean of opposite sides), as large as fits, white around it.
+  **Straightened lines** (`CurvedLines`, `LineCurve`): at about 100 dpi the text is cut into strips a third of an inch
+  apart; each strip's ink per row is matched to its neighbour's by a shift and a stretch (searched within 45% of the line
+  step, so a line never matches the next; correlation 0.5 or more), chained out from the inkiest middle strip and smoothed
+  by polynomials (degree 4 at most) for the shift and the stretch along the lines, so lines can bow, sag towards the spine
+  and fan out; used when the curves stay within a third of a line step of the matches, the matched strips span 60% of the
+  text, and the lines are bent by 15% of a line step or more once one tilt of the page is taken out. A page tilted by up
+  to 3° is first looked at as it is: a bend found there is flattened without turning the page, so its margins stay
+  upright. Lines running down a sideways page are flattened along their own way. Not done: letters squeezed near a spine
+  aren't widened, a page with no visible desk around it isn't corrected for perspective (its text lines' fan is, in part),
+  and two facing pages in one photo aren't split. Words read on a warped page map back onto it through the warps
+  (`ScanFrame`: each word takes the length, height and slant its box has on the photo). Measured with Windows' recognizer
+  (`pdf/tools/ocr-corpus` `photos`, its RESULTS-photos.md, synthetic photos with known maps): at an angle 1.6% → 0.8% and
+  0.0% → 0.0%; a book's page 100% → 1.7% and 99.5% → 1.6% (the bend made stage A turn the page over). Bounded: images over
+  80 million pixels or under 64 a side aren't warped, the measuring copies are small, everything cancels.
+  **Make Text Editable** (Review and Scan & OCR's menu; free, as all of 2.2): a page's recognized text (its Inkvolt text
+  layer) becomes real visible text (`EditableText`). Words are put in lines by angle and height (a gap over 2.5 line
+  heights is a column's), lines in paragraphs as 2.1 joins them (same weight, size within 15%, a step of 0.9-2.5 sizes and
+  steady, left edges or a first-line indent lined up), and a paragraph's lines are given one size, an even step and one
+  left edge so the paragraph editor reads them as one. The font is matched: families whose glyphs' width-to-height fits
+  the words' boxes (eight common Windows families) are tried by setting 40 of the page's words in each where the scan has
+  them, drawing that at 150 dpi and correlating it with the scan (less for another stroke weight); a heading (a line on
+  its own, a sixth bigger or more) picks among every face, bold ones too. Each line's size is the median of its words'
+  (by width, unless a word's height disagrees), its baseline where its words' ink puts it, each word starts where the scan
+  has it (a space between words, narrowed when the words are close). The scan is covered behind each line in the paper's
+  own colour (the lightest 15% of what is under it), or kept showing on request; the invisible layer goes. One undo step
+  (the edit transaction). Corpus pages typeset in Times and Helvetica come out in Times New Roman and Arial, the
+  Helvetica-Bold heading in Arial Bold, each word within 1.5 pt of its place; their paragraphs edit as paragraphs. Not
+  done: italics and colours of the scan aren't matched (black, regular or bold), and a font that isn't one of the eight
+  families comes out as the closest of them. Tests: `PageWarpTests` (15), `EditableTextTests` (7). Checked in the app
+  (`--script`, a throwaway data folder): a book's page and a photo at an angle recognized with the scans replaced (pages
+  straight, margins upright), made editable (9-10 paragraphs a page, lines of a paragraph joined), a paragraph edited,
+  both undone. Still to do: Tesseract on the Mac (Vision reads its languages; a second engine there waits); the Mac half
+  of part B. Mac: stage A done with E14 (2026-11-02,
   `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
   Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there. Suspect
   words for Batch, Scan and export on the Mac too (2026-11-04, E14a): Batch (window, watched folders, `--batch`) and
