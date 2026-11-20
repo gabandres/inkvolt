@@ -428,7 +428,7 @@ If `install.ps1`'s copy is installed too, both appear under "Open with"; uninsta
   the alias is also the command line (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`: README's "Command line"), so after a
   package change check `inkvoltpdf --help | Out-Default` prints the usage and `$LASTEXITCODE` is 0;
   nothing writes registry associations. Settings' "Open Default apps" opens the package's own Default apps page.
-- Settings and logs stay at `%LOCALAPPDATA%\InkvoltPdf`; Windows redirects that into the package's private folder, so a
+- Settings and logs stay at `%LOCALAPPDATA%\InkvoltPdf`; Windows redirects that into the package's private folder (`%LOCALAPPDATA%\Packages\<family>\LocalCache\Local\InkvoltPdf`, the log in its `logs`; not when that folder already exists), so a
   packaged and an unpackaged copy keep separate settings. Uninstalling the package removes them.
 - Single instance, file forwarding (named pipe) and everything else behave the same. Updates come from the Store, and
   only the packaged app checks for them in the app: ~30 s after startup (Settings › "Check for updates when Inkvolt PDF

@@ -395,7 +395,9 @@ If an unpackaged Inkvolt Print is installed too, both appear under "Open with"; 
 - HP clean-up is hidden unless built with `-IncludeHpCleanup` (above).
 - Settings, remembered printers and logs stay at `%LOCALAPPDATA%\InkvoltPrint`; Windows redirects a packaged app's writes
   there into `%LOCALAPPDATA%\Packages\<family>\LocalCache\Local\InkvoltPrint`, so a packaged and an unpackaged copy keep
-  separate state. Uninstalling the package removes it. Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
+  separate state (the log: `…\LocalCache\Local\InkvoltPrint\logs\inkvoltprint.log`). Uninstalling the package removes it.
+  Except when `%LOCALAPPDATA%\InkvoltPrint` already exists (an unpackaged copy ran here): Windows doesn't redirect that
+  folder, and the packaged copy reads and writes it too (seen 2026-11-08 on 1.5.0.0's side-by-side copy, whose log went there). Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
   copy was written last (`InkvoltPaths.StateFiles` in `../shared/InkvoltPrint.Core/Suite/InkvoltPaths.cs`). Saved printer passwords
   live in Windows Credential Manager, which isn't redirected.
 - `InkvoltApps.Find` (`../shared/InkvoltPrint.Windows/Suite/InkvoltApps.cs`) finds the other Inkvolt app through its execution alias
