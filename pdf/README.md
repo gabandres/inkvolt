@@ -175,11 +175,18 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   and, live, when it would run into the text or picture below; then Enter asks before writing it there. A bar above
   the editor gives a stretch another font (any installed on the PC), size, color, bold or italic; the paragraph keeps
   those looks the next time it is edited, and a bold or italic word uses the PDF's own bold or italic face when it has
-  one. A single piece of text on one line is edited as above, without wrapping. Text inside a form XObject (a drawing the page
+  one. A paragraph that mixes sizes or colors (a bigger word, a word in red, a subscript) rewraps as one, each stretch
+  keeping its size, color and height, a color set again as the PDF set it (CMYK stays CMYK). In text the PDF kerned, new
+  letter pairs get the font's own kerning (its embedded table, or the installed font of its family when its widths
+  match). A picture on a paragraph's line between its words (an icon) is part of its text, shown in the editor as ￼:
+  it moves with its words (cut and paste the mark to move it elsewhere in the text), and deleting the mark takes the
+  picture off. Picture… on the editor's bar puts a new picture (an image file) where the cursor is: as tall as the
+  capitals, on the baseline, in the flow like the others. A single piece of text on one line is edited as above, without wrapping. Text inside a form XObject (a drawing the page
   reuses: stamped or flattened pages, some generators' every block) edits the same way, in the drawing itself; a
   drawing the page shows more than once, or that other pages share, is copied for the place you clicked first, so the
   other places stay as they were. Pictures show a frame: click one to select it, drag to move it, drag a
-  handle to resize it (Shift keeps its proportions), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
+  handle to resize it (Shift keeps its proportions), Crop Picture (or C) makes the handles cut its edges instead (what is
+  cut off is removed from the file, not just hidden; Esc ends), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
   Replace Picture… (or a double-click) puts another picture file in its box, upright and in its own proportions; other
   places that show the same picture don't change. Tab goes through the page's text and pictures (Enter edits the text).
   Each change is one undo step; a signed file gets it appended (with the usual warning), a protected one keeps its
@@ -899,12 +906,18 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   Scripts that open URLs, submit, print or mail are ignored. XFA-only forms can't be filled.
 - Right-to-left text with explicit bidi controls (embeddings, overrides, isolates) isn't laid out in new annotations,
   stamps and fields.
-- Edit Text & Images: a paragraph that mixes font families, sizes or colors (a bold or italic word in another face of
-  the same family is fine: it is a stretch with that look, written back in the PDF's own face), turned text, and a single
-  piece of text on one line are edited one text operator at a time (often a line, sometimes a word or a letter), without
-  reflow. A look in a family that isn't installed, or isn't TrueType, is drawn in the closest installed font. A rewritten
-  paragraph keeps the kerning its text carried for each pair of letters that is still there (new pairs get none,
-  and a font's own kerning table isn't read); a line break typed into it starts a new paragraph for the next edit; a word hyphenated
+- Edit Text & Images: a paragraph with bigger text set off its line (a raised word that isn't a superscript), text
+  painted with a pattern, right-to-left text, or other text on its lines that isn't part of it (a footnote mark raised
+  past a quarter of the line), and a single piece of text on one line are edited one text operator at a time (often a
+  line, sometimes a word or a letter), without reflow. A look in a family that isn't installed, or isn't TrueType, is
+  drawn in the closest installed font. New letter pairs get the font's own kerning only in text the PDF kerned (text set
+  without kerning stays without), from a TrueType table or an installed font of the family with the same widths: a CFF
+  or Type 1 font without an installed twin gets none. A picture is part of a paragraph's flow only when the page itself
+  draws it upright on one of its lines, no taller than two and a half lines and with no text over it; a picture can't
+  be added to turned text or text inside a reused drawing. A cropped picture is stored again losslessly as RGB, from
+  its own pixels (a JPEG photo's crop can be larger than the photo was; CMYK and spot colors become RGB); turned pictures
+  (other than a quarter turn), stencils, pictures masked by a color and pictures whose transparency is inside JPEG 2000
+  data or blended with a matte color can't be cropped. A line break typed into a paragraph starts a new paragraph for the next edit; a word hyphenated
   at a line end keeps its hyphen as typed ("respon-sible" stays one word; a soft hyphen the line break added is
   dropped). Pictures inside form XObjects (reused
   drawings, common in some generators and in stamped or flattened pages) are framed but can't be edited; nor can text
@@ -1056,8 +1069,6 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 ## Backlog
 
 - The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
-- Edit Text & Images: reflow paragraphs that mix font families or sizes, and turned text; kern new letter pairs from
-  the font's own table; add pictures inline (today: Add Image places a stamp); crop pictures.
 
 - Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement
   summary to export (CSV), geospatial (GEO) scales.

@@ -242,4 +242,128 @@ public class AutoTagRowSpanTests
         Assert.Equal(2, table.Rows[1][0].RowSpan);
         Assert.True(table.HeaderColumn);
     }
+
+    // ---- Tables without lines ----
+
+    /// <summary>
+    /// A table drawn with no lines at all, three columns under a heading and a sentence: each cell's text at (row, column),
+    /// the first row bold (a row of 1.5 sits halfway between rows 1 and 2, as a label centered on them).
+    /// </summary>
+    private static byte[] Unruled((string Text, double Row, int Col)[] cells)
+    {
+        TestPdf.UseFonts();
+        using var doc = new PdfDocument();
+        var body = new XFont("Arial", 11);
+        var bold = new XFont("Arial", 11, XFontStyleEx.Bold);
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(612);
+        page.Height = XUnit.FromPoint(792);
+        using (var gfx = XGraphics.FromPdfPage(page))
+        {
+            gfx.DrawString("Crates sold", new XFont("Arial", 16, XFontStyleEx.Bold), XBrushes.Black, new XPoint(72, 80));
+            gfx.DrawString("The table below gives the crates sold in each country, grouped by region.", body, XBrushes.Black, new XPoint(72, 110));
+            double[] cols = [72, 222, 372];
+            foreach (var (text, r, c) in cells)
+                gfx.DrawString(text, r == 0 ? bold : body, XBrushes.Black, new XPoint(cols[c], 150 + r * 18));
+            gfx.DrawString("Figures are rounded to the nearest crate and cover the whole year.", body, XBrushes.Black, new XPoint(72, 150 + 18 * (cells.Max(c => c.Row) + 3)));
+        }
+        using var ms = new MemoryStream();
+        doc.Save(ms, false);
+        return ms.ToArray();
+    }
+
+    private static readonly (string, double, int)[] Header = [("Region", 0, 0), ("Country", 0, 1), ("Crates", 0, 2)];
+
+    [Fact]
+    public void A_table_without_lines_has_its_group_labels_span_the_rows_under_them()
+    {
+        // "Europe" heads France, Spain and Italy; "Asia" Japan and Korea: each label at the top of its group.
+        var pdf = Unruled([.. Header,
+            ("Europe", 1, 0), ("France", 1, 1), ("40", 1, 2), ("Spain", 2, 1), ("52", 2, 2), ("Italy", 3, 1), ("31", 3, 2),
+            ("Asia", 4, 0), ("Japan", 4, 1), ("12", 4, 2), ("Korea", 5, 1), ("13", 5, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(6, table.Rows.Count);
+        Assert.Equal(1, table.HeaderRows);
+        Assert.Equal(("Europe", 3), (table.Rows[1][0].Text, table.Rows[1][0].RowSpan));
+        Assert.True(table.Rows[2][0].Covered && table.Rows[3][0].Covered);
+        Assert.Equal(("Asia", 2), (table.Rows[4][0].Text, table.Rows[4][0].RowSpan));
+        Assert.True(table.Rows[5][0].Covered);
+        var tagged = AutoTag.Write(pdf, null, Plan(pdf));
+        var rows = WrittenRows(tagged);
+        Assert.Equal([3, 3, 2, 2, 3, 2], rows.Select(r => r.Count));
+        Assert.Equal(3, rows[1][0].RowSpan);
+        Assert.Equal(2, rows[4][0].RowSpan);
+        var report = AccessibilityCheck.Run(tagged, null);
+        Assert.True(report.Passed, string.Join("\n", report.Failures.Select(f => $"{f.Condition}: {f.Problem}")));
+
+        // Export is as before: the rows as drawn, the empty cells empty.
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        var exported = DocLayout.Analyze([engine.GetExportPage(0, images: true)]).SelectMany(p => p.Blocks).OfType<DocTable>().Single();
+        Assert.Equal(6, exported.Rows.Count);
+        Assert.All(exported.Rows.SelectMany(r => r), c => Assert.Equal(1, c.RowSpan));
+    }
+
+    [Fact]
+    public void Group_labels_centered_on_their_rows_span_them()
+    {
+        // "Europe" sits between France and Spain (a row of its own, which goes); "Asia" in the middle of its three rows.
+        var pdf = Unruled([.. Header,
+            ("France", 1, 1), ("40", 1, 2), ("Europe", 1.5, 0), ("Spain", 2, 1), ("52", 2, 2),
+            ("Japan", 3, 1), ("12", 3, 2), ("Asia", 4, 0), ("Korea", 4, 1), ("13", 4, 2), ("India", 5, 1), ("9", 5, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(6, table.Rows.Count);
+        Assert.Equal(("Europe", 2), (table.Rows[1][0].Text, table.Rows[1][0].RowSpan));
+        Assert.True(table.Rows[2][0].Covered);
+        Assert.Equal(("Asia", 3), (table.Rows[3][0].Text, table.Rows[3][0].RowSpan));
+        Assert.True(table.Rows[4][0].Covered && table.Rows[5][0].Covered);
+        Assert.Equal("France", table.Rows[1][1].Text);
+        var tagged = AutoTag.Write(pdf, null, Plan(pdf));
+        Assert.Equal([3, 3, 2, 3, 2, 2], WrittenRows(tagged).Select(r => r.Count));
+        var report = AccessibilityCheck.Run(tagged, null);
+        Assert.True(report.Passed, string.Join("\n", report.Failures.Select(f => $"{f.Condition}: {f.Problem}")));
+    }
+
+    [Fact]
+    public void An_empty_cell_that_follows_no_group_pattern_spans_nothing()
+    {
+        // A missing value in the middle column, and a first column with every label: no spans.
+        var pdf = Unruled([.. Header,
+            ("Europe", 1, 0), ("France", 1, 1), ("40", 1, 2), ("Europe", 2, 0), ("52", 2, 2), ("Asia", 3, 0), ("Japan", 3, 1), ("12", 3, 2),
+            ("Asia", 4, 0), ("Korea", 4, 1), ("13", 4, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.All(table.Rows.SelectMany(r => r), c => Assert.True(c.RowSpan == 1 && !c.Covered));
+    }
+
+    [Fact]
+    public void One_missing_name_in_the_first_column_is_no_group()
+    {
+        // Alice, (nothing), Carol, Dan: one empty first cell under a name is a value missing, not a group of two.
+        var pdf = Unruled([("Name", 0, 0), ("Visits", 0, 1), ("Orders", 0, 2),
+            ("Alice", 1, 0), ("1", 1, 1), ("2", 1, 2), ("3", 2, 1), ("4", 2, 2), ("Carol", 3, 0), ("5", 3, 1), ("6", 3, 2),
+            ("Dan", 4, 0), ("7", 4, 1), ("8", 4, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(5, table.Rows.Count);
+        Assert.All(table.Rows.SelectMany(r => r), c => Assert.True(c.RowSpan == 1 && !c.Covered));
+    }
+
+    [Fact]
+    public void Labels_in_rows_of_their_own_above_their_groups_head_the_rows_under_them()
+    {
+        // "Europe" alone in its row over France and Germany, "Asia" over Japan and Korea: each heads the two rows below it.
+        var pdf = Unruled([.. Header,
+            ("Europe", 1, 0), ("France", 2, 1), ("40", 2, 2), ("Germany", 3, 1), ("52", 3, 2),
+            ("Asia", 4, 0), ("Japan", 5, 1), ("12", 5, 2), ("Korea", 6, 1), ("13", 6, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(5, table.Rows.Count); // the labels' own rows went
+        Assert.Equal(("Europe", 2), (table.Rows[1][0].Text, table.Rows[1][0].RowSpan));
+        Assert.Equal("France", table.Rows[1][1].Text);
+        Assert.True(table.Rows[2][0].Covered);
+        Assert.Equal(("Asia", 2), (table.Rows[3][0].Text, table.Rows[3][0].RowSpan));
+        Assert.Equal("Japan", table.Rows[3][1].Text);
+        Assert.True(table.Rows[4][0].Covered);
+        var tagged = AutoTag.Write(pdf, null, Plan(pdf));
+        Assert.Equal([3, 3, 2, 3, 2], WrittenRows(tagged).Select(r => r.Count));
+        var report = AccessibilityCheck.Run(tagged, null);
+        Assert.True(report.Passed, string.Join("\n", report.Failures.Select(f => $"{f.Condition}: {f.Problem}")));
+    }
 }

@@ -23,6 +23,11 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
 - Accessibility Check compares the widths a PDF gives its characters with the font's own for every kind of embedded font, not just TrueType: CFF and Type 1 fonts too (most PDFs from InDesign, LaTeX and Acrobat).
 - Batch runs a small file that unpacks to far more than its size (a 200 KB file holding 200 MB) on its own, so it no longer takes memory from the files beside it.
+- Edit Text & Images rewraps a paragraph that mixes sizes or colors (a bigger word, a word in red, a subscript) as one paragraph: each part keeps its size, color and height, and a color stays exactly as the PDF had it.
+- New letter pairs typed into kerned text get the font's own kerning ("To", "AV"), so edited lines are set as tightly as the lines around them.
+- A small picture on a paragraph's line, between its words, now moves with its words when you edit the paragraph. It shows as ￼ in the editor; delete the mark to take the picture off. Picture… on the editor's bar adds a new one where the cursor is.
+- Crop a picture: select it, choose Crop Picture (or press C) and drag its handles in. What you cut off is removed from the file, not just hidden, so nobody can bring it back from the PDF; Undo takes the crop back while you work.
+- Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.
 
 ## 1.15.0
 - Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.

@@ -3805,6 +3805,27 @@
   <data name="Edit_PictureTooSmall" xml:space="preserve">
     <value>A picture can't be made that small.</value>
   </data>
+  <data name="Edit_CropTurned" xml:space="preserve">
+    <value>Only an upright picture, or one turned a quarter, can be cropped.</value>
+  </data>
+  <data name="Edit_PictureCantGoHere" xml:space="preserve">
+    <value>A picture can't be added to this text: it is turned, or inside a drawing the page reuses.</value>
+  </data>
+  <data name="Edit_CropStencil" xml:space="preserve">
+    <value>This picture is one color painted through a stencil (or masked by a color), so it can't be cropped.</value>
+  </data>
+  <data name="Edit_CropTransparency" xml:space="preserve">
+    <value>This picture keeps its transparency in a way a crop can't keep (inside its JPEG 2000 data, or blended with a background color), so it can't be cropped.</value>
+  </data>
+  <data name="Edit_CropFailed" xml:space="preserve">
+    <value>The picture couldn't be cropped: its image couldn't be read.</value>
+  </data>
+  <data name="Edit_CropTooLarge" xml:space="preserve">
+    <value>The part of the picture to keep is too large to crop (more than 50 million pixels).</value>
+  </data>
+  <data name="Edit_PictureTyped" xml:space="preserve">
+    <value>A picture can't be typed or pasted into a paragraph: the mark ￼ stands for a picture already in it. Add one with Insert Picture on the editor's bar.</value>
+  </data>
   <data name="Edit_PageSizeUnreadable" xml:space="preserve">
     <value>This page's size can't be read.</value>
   </data>
@@ -3869,7 +3890,7 @@
     <comment>{0} = count, {1} = the characters</comment>
   </data>
   <data name="Edit_BlockedMixedLooks" xml:space="preserve">
-    <value>it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only</value>
+    <value>it has text of another size set off its line, or painted with a pattern, that can't be rewrapped with the rest</value>
     <comment>Why a paragraph can't be rewritten: ends a sentence</comment>
   </data>
   <data name="Edit_BlockedPartUnreadable" xml:space="preserve">

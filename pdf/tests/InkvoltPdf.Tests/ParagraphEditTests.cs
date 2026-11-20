@@ -521,9 +521,9 @@ public partial class ParagraphEditTests(ITestOutputHelper output)
     [Fact]
     public void ClickingBetweenTheLinesOfABlockedParagraphFindsNothing()
     {
-        // A bigger word on its third line: it is edited line by line.
+        // A bigger word on its third line, set a little above the line: it is edited line by line.
         var word = Wrap(Body, Width)[2].Split(' ')[1];
-        var pdf = WithFace(word, "FA", size: 14);
+        var pdf = WithFace(word, "FA", size: 14, rise: 1.5);
         var content = ContentEditor.Read(pdf, null, 0);
         var p = content.Paragraphs.Single(q => q.Text.Contains(word, StringComparison.Ordinal));
         Assert.True(p.Lines.Count > 1);
