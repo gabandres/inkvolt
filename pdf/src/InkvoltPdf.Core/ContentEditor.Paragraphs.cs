@@ -39,11 +39,43 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// <summary>Runs of spaces only drawn on its lines (some generators draw each space on its own): they go with its text.</summary>
     internal IReadOnlyList<TextRun> Spaces { get; init; } = [];
 
-    /// <summary>Its type size on the page (points).</summary>
-    public double FontSize => Runs.Count > 0 ? Runs[0].FontSize : 0;
+    /// <summary>Its type size on the page (points): its own text's (<see cref="Lead"/>), not a bigger word's.</summary>
+    public double FontSize => Runs.Count > 0 ? Lead.FontSize : 0;
 
-    /// <summary>Its run in its own font and look (see <see cref="ContentEditor.PlainRun"/>): its font, style and color.</summary>
-    public TextRun Lead => ContentEditor.PlainRun(Runs);
+    /// <summary>Its run in its own font and look (see <see cref="ContentEditor.PlainRun"/>): its font, style, size and color.</summary>
+    public TextRun Lead
+    {
+        get
+        {
+            if (_lead.Value is { } l && ReferenceEquals(l.Of, Runs)) return l.Run;
+            var run = ContentEditor.PlainRun(Runs);
+            _lead.Value = new LeadOf(Runs, run);
+            return run;
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Lead"/> worked out once for the runs it was worked out from (a copy with other runs works it out again):
+    /// one reference written whole, so two threads reading it at once see one or the other; never part of the record's
+    /// equality.
+    /// </summary>
+    private sealed class LeadCache
+    {
+        public volatile LeadOf? Value;
+        public override bool Equals(object? obj) => obj is LeadCache;
+        public override int GetHashCode() => 0;
+    }
+    private sealed record LeadOf(IReadOnlyList<TextRun> Of, TextRun Run);
+    private readonly LeadCache _lead = new();
+
+    /// <summary>The character that stands for a picture in its text (see <see cref="InlinePicture"/>).</summary>
+    public const char PictureMark = '\uFFFC';
+
+    /// <summary>The pictures in its flow, in the order their marks are in <see cref="Text"/>.</summary>
+    public IReadOnlyList<InlinePicture> Pictures { get; init; } = [];
+
+    /// <summary>The top of its text (<see cref="Box"/> takes in its pictures too): where its first line is laid out from. Null: the box's top.</summary>
+    internal double? TextTop { get; init; }
 
     /// <summary>The stretches of <see cref="Text"/> an earlier edit gave a look of their own (font, size, color, bold, italic).</summary>
     public IReadOnlyList<TextSpan> Spans { get; init; } = [];
@@ -54,19 +86,46 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// </summary>
     internal double Left, Right, Center, Ascent, Descent;
 
-    /// <summary>The kerning its own text carried, by pair of codes (see <see cref="ContentEditor.Kerning"/>): rewritten lines keep it where the pair survives.</summary>
-    internal IReadOnlyDictionary<(int, int), double>? Kerning { get; init; }
+    /// <summary>
+    /// The kerning its own text carried, by pair of codes (see <see cref="ContentEditor.Kerning"/>): rewritten lines keep
+    /// it where the pair survives, and new pairs get the font's own (see <see cref="ContentEditor.Kerns"/>).
+    /// </summary>
+    internal ContentEditor.Kerns? Kerning { get; init; }
 
     /// <summary>
     /// What <paramref name="text"/> would look like here, its stretches with the looks <paramref name="spans"/> give them:
     /// its box, line count, missing characters and what it would run into.
     /// </summary>
-    public ParagraphCheck Check(string text, IReadOnlyList<TextSpan>? spans = null)
+    /// <param name="added">New pictures for marks typed into the text, in order (see <see cref="NewPicture"/>).</param>
+    public ParagraphCheck Check(string text, IReadOnlyList<TextSpan>? spans = null, IReadOnlyList<NewPicture>? added = null)
     {
         if (Blocked is not null) return new ParagraphCheck(Box, Lines.Count, [], null);
-        var layout = ContentEditor.LayOut(this, Runs, ContentEditor.ParagraphText(text), spans);
+        var layout = ContentEditor.LayOut(this, Runs, ContentEditor.ParagraphText(text), spans, added: ContentEditor.NewPictureSizes(this, added));
         return layout.Check;
     }
+}
+
+/// <summary>
+/// A picture in a paragraph's flow (an icon or a small image set on one of its lines, between its words): it stands in
+/// the paragraph's text as U+FFFC (<see cref="TextParagraph.PictureMark"/>) and moves with its place in the text when the
+/// paragraph is rewritten; taking the mark out takes the picture off the page.
+/// </summary>
+/// <param name="Drop">How far its foot sits below its line's baseline (points; above: negative).</param>
+public sealed record InlinePicture(PageImage Image, double Drop)
+{
+    /// <summary>Where its mark is in the paragraph's text (a U+FFFC the page's own text has is no picture's).</summary>
+    public int Mark { get; init; } = -1;
+}
+
+/// <summary>
+/// A picture to add to a paragraph's flow where a mark (U+FFFC) is typed for it (Insert Picture in the editor): an image
+/// file (JPEG, PNG, BMP, GIF, TIFF) and its name. It is set on the line as tall as the paragraph's capitals reach, its foot
+/// on the baseline, no wider than half the paragraph; once written it is one of the paragraph's pictures (<see cref="InlinePicture"/>).
+/// </summary>
+public sealed record NewPicture(byte[] File, string Name)
+{
+    /// <summary>Where its mark is in the new text (the editor knows where it put it); -1: the next mark typed in that is no one's.</summary>
+    public int Mark { get; init; } = -1;
 }
 
 /// <summary>
@@ -119,6 +178,8 @@ public static partial class ContentEditor
         public bool Marked;
         /// <summary>For a translated copy: a short mark or symbol started it and stays where it is (see <see cref="Marked"/> for one that surely starts an item).</summary>
         public bool MarkStart;
+        /// <summary>How far a picture in the flow that starts it reaches left of its first run (its box includes it): 0 for none.</summary>
+        public double PictureRoom;
         public double Size => Lead.FontSize;
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
@@ -154,7 +215,8 @@ public static partial class ContentEditor
     {
         public readonly List<PLine> Lines = [first];
         public bool CanLeft = true, CanCenter = true, CanRight = true;
-        public double Step;
+        /// <summary>From its first line's baseline to the second's: as the paragraph's own (<see cref="PlainStep"/>), and as drawn.</summary>
+        public double Step, DrawnStep;
     }
 
     /// <summary>
@@ -168,7 +230,7 @@ public static partial class ContentEditor
     /// </summary>
     internal static IReadOnlyList<TextParagraph> GroupParagraphs(PageContent content)
     {
-        var result = new List<TextParagraph>(GroupUpright(content));
+        var result = new List<TextParagraph>(GroupUpright(content, pictures: true));
         foreach (var (angle, mine) in Directions(content))
         {
             var (framed, page) = Framed(content, angle, mine);
@@ -178,14 +240,21 @@ public static partial class ContentEditor
     }
 
     /// <summary>The upright text runs of <paramref name="content"/> as paragraphs (see <see cref="GroupParagraphs"/>).</summary>
-    private static List<TextParagraph> GroupUpright(PageContent content)
+    /// <param name="pictures">Pictures on its lines are part of a paragraph's flow (upright text, as the page has it).</param>
+    private static List<TextParagraph> GroupUpright(PageContent content, bool pictures = false)
     {
         var runs = content.Runs.Where(r => Math.Abs(r.Angle) < 0.5 && r.Text.Trim().Length > 0 && r.FontSize > 0.5 && r.Box.Width > 0).ToList();
         if (runs.Count == 0) return [];
         var result = new List<TextParagraph>();
-        foreach (var stack in Stacks(LinesOf(runs)))
+        var lines = LinesOf(runs);
+        if (pictures)
+        {
+            lines = JoinAcrossPictures(content, lines);
+            foreach (var l in lines) WidenForPicture(content, l, lines);
+        }
+        foreach (var stack in Stacks(lines))
             foreach (var part in SplitShort(stack))
-                result.Add(Paragraph(content, part));
+                result.Add(Paragraph(content, part, pictures: pictures));
         return result;
     }
 
@@ -243,7 +312,11 @@ public static partial class ContentEditor
             best.CanLeft = l;
             best.CanCenter = c;
             best.CanRight = r;
-            if (best.Lines.Count == 1) best.Step = PlainStep(best.Lines[0], line, line.Baseline - best.Lines[0].Baseline);
+            if (best.Lines.Count == 1)
+            {
+                best.DrawnStep = line.Baseline - best.Lines[0].Baseline;
+                best.Step = PlainStep(best.Lines[0], line, best.DrawnStep);
+            }
             best.Lines.Add(line);
         }
         return stacks;
@@ -272,8 +345,10 @@ public static partial class ContentEditor
 
     /// <summary>
     /// A paragraph's own font among its runs: of those in a page font (not a stand-in, not a look an edit gave), the
-    /// font with the most text, a regular face before a bold or italic one on a tie, as its first run in content order;
-    /// else the first run that isn't a stand-in, else the first.
+    /// font with the most text, a regular face before a bold or italic one on a tie; of its runs, those of the size and
+    /// color most of its text has, by the room it takes (characters times size squared: a bigger or colored word is a
+    /// stretch of its own, and a long superscript after a short line isn't taken for the line), the first in
+    /// content order; else the first run that isn't a stand-in, else the first.
     /// </summary>
     internal static TextRun PlainRun(IReadOnlyList<TextRun> runs) =>
         runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null)
@@ -281,7 +356,10 @@ public static partial class ContentEditor
             .OrderByDescending(g => g.Sum(r => r.Text.Trim().Length))
             .ThenBy(g => g.Key.Bold || g.Key.Italic ? 1 : 0)
             .ThenBy(g => g.Min(r => Order(r.Id)))
-            .Select(g => g.MinBy(r => Order(r.Id))!)
+            .Select(g => g.GroupBy(r => (Math.Round(r.FontSize, 1), r.Color))
+                .OrderByDescending(s => s.Sum(r => r.Text.Trim().Length * r.FontSize * r.FontSize))
+                .ThenBy(s => s.Min(r => Order(r.Id)))
+                .First().MinBy(r => Order(r.Id))!)
             .FirstOrDefault()
         ?? runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? runs.FirstOrDefault(r => !r.StandIn) ?? runs[0];
 
@@ -310,7 +388,10 @@ public static partial class ContentEditor
         if (step < 0.6 * size) return null;
         var gap = line.Box.Y - last.Box.Bottom;
         if (gap > 0.65 * size) return null;
-        if (s.Lines.Count >= 2 && Math.Abs(step - s.Step) > Math.Max(0.5, 0.1 * size)) return null;
+        // The same step as the lines before: as the paragraph's own (bigger text widened it), or as drawn (a generator
+        // that keeps its leading whatever the size of a word on the line).
+        var tol = Math.Max(0.5, 0.1 * size);
+        if (s.Lines.Count >= 2 && Math.Abs(step - s.Step) > tol && Math.Abs(line.Baseline - last.Baseline - s.DrawnStep) > tol) return null;
         if (line.Box.X >= last.Box.Right || line.Box.Right <= last.Box.X) return null;
         var (l, c, r) = Fits(s, line);
         return l || c || r ? Math.Max(0, gap) : null;
@@ -349,7 +430,9 @@ public static partial class ContentEditor
             var line = s.Lines[i];
             var room = i == 1 && indented ? right - prev.Box.X : width;
             var word = line.Text.TrimStart().Split(' ')[0];
-            var need = prev.Box.Width + WidthOf(line.Lead, " " + word, line);
+            // A line that starts with a picture: the picture is its first "word"; a line of one word: all of it (a picture glued to it too).
+            var need = prev.Box.Width + (line.PictureRoom > 0 ? line.PictureRoom + WidthOf(line.Lead, " ", line)
+                : !line.Text.Trim().Contains(' ') ? WidthOf(line.Lead, " ", line) + line.Box.Width : WidthOf(line.Lead, " " + word, line));
             if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && (Labels(prev.Text, line.Text) || line.Marked || line.MarkStart && EndsSentence(prev.Text))))
             {
                 parts.Add(cur);
@@ -395,16 +478,36 @@ public static partial class ContentEditor
     }
 
     /// <summary>Codes as parts (a gap as an adjustment), with the kerning <paramref name="kerning"/> gives each pair of neighbors.</summary>
-    private static List<Part> Parts(TextRun run, IReadOnlyList<int> codes, IReadOnlyDictionary<(int, int), double>? kerning = null, PartLook? look = null)
+    private static List<Part> Parts(TextRun run, IReadOnlyList<int> codes, Kerns? kerning = null, PartLook? look = null)
     {
         var parts = new List<Part>(codes.Count * 2);
         for (var i = 0; i < codes.Count; i++)
         {
             var c = codes[i];
-            if (i > 0 && kerning is not null && kerning.TryGetValue((codes[i - 1], c), out var k)) parts.Add(new Part(null, k, null, look));
+            if (i > 0 && kerning is not null && kerning.TryGet(codes[i - 1], c, out var k)) parts.Add(new Part(null, k, null, look));
             parts.Add(c == TextFont.Gap ? new Part(null, -run.GapEms * 1000, null, look) : new Part(c, 0, null, look));
         }
         return parts;
+    }
+
+    /// <summary>
+    /// The kerning new text gets between two codes of a font: the adjustment the original text carried for the pair
+    /// (<see cref="Kerning"/>), else, when that text was kerned at all, the font's own (<see cref="FontKerning"/>: its
+    /// GPOS or kern table, or its installed twin's). Text a generator set without kerning gets none, so edited lines
+    /// look like the lines around them.
+    /// </summary>
+    internal sealed class Kerns(IReadOnlyDictionary<(int, int), double> seen, Lazy<FontKerning?>? font)
+    {
+        /// <summary>The font's table (and an installed twin) is found only when a new pair first asks for it, not while a page's paragraphs are read.</summary>
+        public static Kerns For(IReadOnlyDictionary<(int, int), double> seen, TextFont? font) =>
+            new(seen, seen.Count > 0 && font is not null ? new Lazy<FontKerning?>(() => FontKerning.Of(font)) : null);
+
+        public bool TryGet(int left, int right, out double k)
+        {
+            if (seen.TryGetValue((left, right), out k)) return true;
+            k = font?.Value?.Pair(left, right) ?? 0;
+            return k != 0;
+        }
     }
 
     /// <summary>
@@ -432,7 +535,8 @@ public static partial class ContentEditor
 
     /// <param name="translating">For a translated copy (see <c>ContentEditor.Translate.cs</c>): every run of it goes and new text takes its place in
     /// its own font, so mixed looks, right-to-left text and marks on its lines don't stop it, and a hanging first line stays where it hangs.</param>
-    private static TextParagraph Paragraph(PageContent content, List<PLine> lines, bool translating = false)
+    /// <param name="pictures">Pictures sitting on its lines between its words go in its flow (see <see cref="InlinePictures"/>).</param>
+    private static TextParagraph Paragraph(PageContent content, List<PLine> lines, bool translating = false, bool pictures = false)
     {
         lines = [.. lines.Select(InReadingOrder)];
         var first = lines[0];
@@ -478,8 +582,36 @@ public static partial class ContentEditor
         // another family, is a stretch with a look of its own); else (an edit gave all of it another look) its first
         // run's. Another size or color on its lines can't be rewrapped with it.
         var own = PlainRun(runs);
-        if (blocked is null && !translating && runs.Any(r => !SameSizeAndColor(own, r)))
-            blocked = PdfStrings.Edit_BlockedMixedLooks;
+        // Another size or color on its lines is a stretch with a look of its own (as a bold word is); a smaller run set
+        // above or below its line's baseline a superscript or subscript. Text of another size set off its line otherwise,
+        // or another color that is a pattern's, can't be rewrapped with it.
+        var scripts = new Dictionary<TextRun, (TextScript Script, double Size, double Rise)>(ReferenceEqualityComparer.Instance);
+        if (blocked is null && !translating)
+            foreach (var l in lines)
+            {
+                var line = LineBaseline(l);
+                foreach (var r in l.Runs)
+                {
+                    if (r.Styled || SameSizeAndColor(own, r) || r.Text.Trim().Length == 0) continue;
+                    if (r.Color != own.Color && r.Info is { FillOp: null })
+                    {
+                        blocked = PdfStrings.Edit_BlockedMixedLooks;
+                        break;
+                    }
+                    if (Math.Abs(r.FontSize - own.FontSize) <= Math.Max(0.3, 0.05 * own.FontSize) || line.Size <= 0 || own.FontSize <= 0) continue;
+                    var drop = r.Origin.Y - line.Y; // page space: down is positive
+                    if (Math.Abs(drop) <= 0.05 * line.Size) continue;
+                    TextScript? script = r.FontSize > 0.85 * line.Size ? null : drop >= 0.08 * line.Size ? TextScript.Sub : drop <= -0.12 * line.Size ? TextScript.Super : null;
+                    if (script is not { } sc)
+                    {
+                        blocked = PdfStrings.Edit_BlockedMixedLooks;
+                        break;
+                    }
+                    var ratio = Math.Clamp(r.FontSize / own.FontSize, 0.4, 0.85);
+                    scripts[r] = (sc, Math.Round(ratio * own.FontSize / ScriptScale, 1), ScriptRise(sc, -drop / own.FontSize));
+                }
+                if (blocked is not null) break;
+            }
         // A run whose font can't be used (none was read for it): its words couldn't be written in it again.
         if (blocked is null && !translating && runs.Any(r => r.Font is null)) blocked = PdfStrings.Edit_BlockedNoFont;
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = PdfStrings.Edit_BlockedPartUnreadable;
@@ -494,6 +626,8 @@ public static partial class ContentEditor
         var at = new List<(TextRun Run, int Start, int Length)>(); // where each run's text is in the paragraph's
         var looks = translating ? new List<TextSpan>() : null;
         var soft = false; // the line before ended with a soft hyphen
+        var inline = pictures && !translating && own.Info is { Form: null } ? InlinePictures(content, lines) : [];
+        var placedPictures = new List<(int At, InlinePicture Picture)>();
         foreach (var l in lines)
         {
             var t = l.Text.Trim();
@@ -515,12 +649,35 @@ public static partial class ContentEditor
             if (soft) t = t[..^1];
             var lead = l.Text.Length - l.Text.TrimStart().Length;
             var baseline = looks is not null ? LineBaseline(l) : default;
+            // Its pictures' marks, each between the runs it sits between, a space apart where the picture stands apart.
+            var shift = new int[l.Runs.Count + 1]; // marks (and their spaces) put in before each run's text
+            var groups = inline.Where(x => ReferenceEquals(x.Line, l)).GroupBy(x => x.After).OrderBy(g => g.Key).ToList();
+            var added = 0;
+            foreach (var g in groups)
+            {
+                var k = g.Key;
+                var pos = k == 0 ? 0 : Math.Clamp(l.Starts[k - 1] + l.Runs[k - 1].Text.Length - lead, 0, t.Length - added) + added;
+                var items = g.OrderBy(x => x.Picture.Image.Box.X).ToList();
+                var apart = 0.15 * l.Size;
+                var sb = new StringBuilder();
+                if (pos > 0 && t[pos - 1] != ' ' && k > 0 && (items[0].Picture.Image.Box.X - l.Runs[k - 1].Box.Right > apart || l.Runs[k - 1].Text.EndsWith(' '))) sb.Append(' ');
+                for (var j = 0; j < items.Count; j++)
+                {
+                    if (j > 0 && items[j].Picture.Image.Box.X - items[j - 1].Picture.Image.Box.Right > apart) sb.Append(' ');
+                    placedPictures.Add((text.Length + pos + sb.Length, items[j].Picture));
+                    sb.Append(TextParagraph.PictureMark);
+                }
+                if (pos < t.Length && t[pos] != ' ' && k < l.Runs.Count && (l.Runs[k].Box.X - items[^1].Picture.Image.Box.Right > apart || l.Runs[k].Text.StartsWith(' '))) sb.Append(' ');
+                t = t.Insert(pos, sb.ToString());
+                added += sb.Length;
+                for (var i = k; i <= l.Runs.Count; i++) shift[i] += sb.Length;
+            }
             for (var i = 0; i < l.Runs.Count; i++)
             {
-                var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
-                var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
+                var from = Math.Clamp(l.Starts[i] - lead + shift[i], 0, t.Length);
+                var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead + shift[i], 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
-                if (looks is not null && to > from && TranslationLook(own, runs[0].FontSize, baseline, l.Runs[i], content.UnderlinedRuns.Contains(l.Runs[i])) is { } look)
+                if (looks is not null && to > from && TranslationLook(own, own.FontSize, baseline, l.Runs[i], content.UnderlinedRuns.Contains(l.Runs[i])) is { } look)
                 {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
                     var start = text.Length + from;
@@ -532,6 +689,8 @@ public static partial class ContentEditor
             text.Append(t);
         }
         var box = lines.Select(l => l.Box).Aggregate((a, b) => a.Union(b));
+        var textBox = runs.Select(r => r.Box).Aggregate((a, b) => a.Union(b)); // where its text is (lines may reach to a picture in the flow)
+        foreach (var (_, pic) in placedPictures) box = box.Union(pic.Image.Box);
         // Other text on its lines (a raised footnote mark, a symbol in another font): rewrapping would leave it behind.
         // Spaces drawn on their own on its lines go with it.
         var spaces = new List<TextRun>();
@@ -548,13 +707,17 @@ public static partial class ContentEditor
             }
             else if (r.Info is not null && Math.Abs(r.Angle) < 0.5) spaces.Add(r);
         }
-        // The line step as the paragraph's own: bigger text an edit gave part of it widened the steps around it.
-        var step = n > 1 ? Enumerable.Range(1, n - 1).Average(i => PlainStep(lines[i - 1], lines[i], lines[i].Baseline - lines[i - 1].Baseline)) : 1.2 * size;
+        // The line step as the paragraph's own: between lines of its own size when it has two, else as bigger text (an
+        // edit's, or a bigger word the page has) widened the steps around it.
+        var plainSteps = Enumerable.Range(1, Math.Max(0, n - 1)).Where(i => lines[i - 1].Scale <= 1.02 && lines[i].Scale <= 1.02).Select(i => lines[i].Baseline - lines[i - 1].Baseline).ToList();
+        var step = plainSteps.Count > 0 ? plainSteps.Average()
+            : n > 1 ? Enumerable.Range(1, n - 1).Average(i => PlainStep(lines[i - 1], lines[i], lines[i].Baseline - lines[i - 1].Baseline)) : 1.2 * size;
         var plain = own;
 
         // What follows below: the nearest other text or picture across the paragraph's width.
         RectD? below = null;
-        foreach (var b in translating ? Enumerable.Empty<RectD>() : content.Runs.Where(r => !mine.Contains(r) && r.Text.Trim().Length > 0).Select(r => r.Box).Concat(content.Images.Select(i => i.Box)))
+        var inFlow = placedPictures.Select(x => x.Picture.Image).ToHashSet();
+        foreach (var b in translating ? Enumerable.Empty<RectD>() : content.Runs.Where(r => !mine.Contains(r) && r.Text.Trim().Length > 0).Select(r => r.Box).Concat(content.Images.Where(i => !inFlow.Contains(i)).Select(i => i.Box)))
         {
             if (b.Y < box.Bottom - 1 || b.Right <= box.X + 1 || b.X >= box.Right - 1) continue;
             if (below is null || b.Y < below.Value.Y) below = b;
@@ -564,14 +727,156 @@ public static partial class ContentEditor
         {
             Below = below,
             Spaces = spaces,
-            Spans = looks ?? SpansOf(plain, text.ToString(), at),
-            Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
+            Pictures = [.. placedPictures.OrderBy(x => x.At).Select(x => x.Picture with { Mark = x.At })],
+            TextTop = textBox.Y,
+            Spans = looks ?? SpansOf(plain, text.ToString(), at, scripts),
+            Kerning = blocked is null ? Kerns.For(Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)), own.Font) : null,
             Left = left,
             Right = right,
             Center = center,
             Ascent = plain.Origin.Y - plain.Box.Y,
             Descent = plain.Box.Bottom - plain.Origin.Y,
         };
+    }
+
+    /// <summary>
+    /// The pictures sitting on a paragraph's lines between its words (or just before or after them): drawn by the page's
+    /// own content, upright, not over any of the line's text, no taller than two and a half times its type and no wider
+    /// than half the paragraph, their middle within the line's height and their foot near its baseline. Each with its line,
+    /// the number of the line's runs before it, and how far its foot is below the baseline. A picture goes to one line.
+    /// </summary>
+    private static List<(PLine Line, int After, InlinePicture Picture)> InlinePictures(PageContent content, List<PLine> lines)
+    {
+        var found = new List<(PLine, int, InlinePicture)>();
+        if (content.Images.Count == 0) return found;
+        double left = lines.Min(l => l.Box.X), right = lines.Max(l => l.Box.Right);
+        var taken = new HashSet<PageImage>(ReferenceEqualityComparer.Instance);
+        foreach (var l in lines)
+        {
+            var size = l.Size;
+            var baseline = LineBaseline(l).Y;
+            foreach (var img in content.Images)
+            {
+                var b = img.Box;
+                if (taken.Contains(img) || !FitsLine(img, l, baseline, right - left)) continue;
+                if (b.X < left - 2 * size || b.Right > right + 2 * size) continue;
+                if (b.X > l.Box.Right + 2 * size || b.Right < l.Box.X - 2 * size) continue;
+                taken.Add(img);
+                found.Add((l, l.Runs.Count(r => r.Box.CenterX < b.CenterX), new InlinePicture(img, b.Bottom - baseline)));
+            }
+        }
+        return found;
+    }
+
+    /// <summary>
+    /// A picture that can sit in a line's flow: drawn by the page's own content, upright, no taller than two and a half
+    /// times the line's type, no wider than half of <paramref name="width"/>, its middle within the line's height and its
+    /// foot near its baseline, with none of the line's text over it.
+    /// </summary>
+    private static bool FitsLine(PageImage img, PLine l, double baseline, double width)
+    {
+        var b = img.Box;
+        var size = l.Size;
+        if (img.Blocked is not null || img.Turned || img.Id < 0 || !double.IsFinite(b.X + b.Y + b.Width + b.Height)) return false;
+        if (b.Height > 2.5 * size || b.Width > 0.5 * width || b.Width < 0.5 || b.Height < 0.5) return false;
+        if (b.CenterY < l.Box.Y - 0.25 * size || b.CenterY > l.Box.Bottom + 0.25 * size || Math.Abs(b.Bottom - baseline) > 0.5 * size) return false;
+        return !l.Runs.Any(r => r.Box.Right > b.X + 1 && r.Box.X < b.Right - 1); // text over it: not in the flow
+    }
+
+    /// <summary>
+    /// A line that starts with a picture in the flow (one <see cref="FitsLine"/> takes, just left of its first run, within
+    /// an em; the line drawn by the page's own content) reaches to the picture's left edge when the line above starts
+    /// there too (an edit wrapped the picture to the start of the line), so it lines up with the paragraph's other lines.
+    /// A picture before a line the line above doesn't line up with (a list's bullet) leaves it as it is.
+    /// </summary>
+    private static void WidenForPicture(PageContent content, PLine l, List<PLine> lines)
+    {
+        if (content.Images.Count == 0 || l.Lead.Info is not { Form: null }) return;
+        var size = l.Size;
+        var first = l.Box.X;
+        var box = l.Box;
+        var baseline = LineBaseline(l).Y;
+        var widest = l.Box.Width;
+        for (var guard = 0; guard < 4; guard++)
+        {
+            var x = box.X;
+            var next = content.Images.Where(img => img.Box.Right <= x + 1 && x - img.Box.Right <= size && FitsLine(img, l, baseline, double.MaxValue))
+                .MaxBy(img => img.Box.Right);
+            if (next is null) break;
+            box = box.Union(next.Box);
+            widest = Math.Max(widest, 2 * next.Box.Width);
+        }
+        WidenRight(content, l, baseline);
+        if (box.X >= first - 0.01) return;
+        var above = lines.Where(o => o != l && o.Baseline < l.Baseline && l.Baseline - o.Baseline <= 2.5 * size && o.Box.Right > first && o.Box.X < l.Box.Right)
+            .MaxBy(o => o.Baseline);
+        // As InlinePictures will take it: no wider than half the paragraph (this line or the one above).
+        if (above is null || Math.Abs(box.X - above.Box.X) > Tolerance(size) || widest > Math.Max(l.Box.Right, above.Box.Right) - box.X) return;
+        l.Box = box.Union(l.Box);
+        l.PictureRoom = first - box.X;
+    }
+
+    /// <summary>
+    /// Pieces of one line that a picture in the flow stands between (a gap wider than the 2.5 ems that end a line, the
+    /// picture filling it within an em on each side) are one line again.
+    /// </summary>
+    private static List<PLine> JoinAcrossPictures(PageContent content, List<PLine> lines)
+    {
+        if (content.Images.Count == 0) return lines;
+        var result = new List<PLine>(lines.Count);
+        foreach (var band in Bands(lines))
+        {
+            var cur = band[0];
+            for (var i = 1; i < band.Count; i++)
+            {
+                var next = band[i];
+                var size = Math.Max(cur.Size, next.Size);
+                var baseline = LineBaseline(cur).Y;
+                var bridge = Math.Abs(next.Baseline - cur.Baseline) <= 0.25 * size && cur.Lead.Info is { Form: null } && next.Lead.Info is { Form: null }
+                             && content.Images.Any(img => img.Box.X >= cur.Box.Right - 1 && img.Box.X - cur.Box.Right <= size && img.Box.Right <= next.Box.X + 1
+                                                          && next.Box.X - img.Box.Right <= size && FitsLine(img, cur, baseline, next.Box.Right - cur.Box.X));
+                if (!bridge)
+                {
+                    result.Add(cur);
+                    cur = next;
+                    continue;
+                }
+                foreach (var r in next.Runs) cur.Add(r);
+            }
+            result.Add(cur);
+        }
+        return result;
+    }
+
+    /// <summary>Lines on one baseline (within a quarter of their type size, as <see cref="LinesOf"/> bands runs), left to right.</summary>
+    private static IEnumerable<List<PLine>> Bands(List<PLine> lines)
+    {
+        var sorted = lines.OrderBy(l => l.Baseline).ToList();
+        for (var i = 0; i < sorted.Count;)
+        {
+            var j = i + 1;
+            while (j < sorted.Count && sorted[j].Baseline - sorted[i].Baseline <= 0.25 * Math.Max(sorted[i].Size, sorted[j].Size)) j++;
+            yield return [.. sorted.Skip(i).Take(j - i).OrderBy(l => l.Box.X)];
+            i = j;
+        }
+    }
+
+    /// <summary>
+    /// A line that ends with a picture in the flow (one <see cref="FitsLine"/> takes, within an em after its last run)
+    /// reaches to its right edge: the line is as long as it shows, so it isn't read as ending short of the paragraph.
+    /// </summary>
+    private static void WidenRight(PageContent content, PLine l, double baseline)
+    {
+        var text = l.Box.Width;
+        for (var guard = 0; guard < 4; guard++)
+        {
+            var x = l.Box.Right;
+            // No wider than half the line's text: InlinePictures (half the paragraph, at least as wide) takes it too.
+            var next = content.Images.Where(img => img.Box.X >= x - 1 && img.Box.X - x <= l.Size && FitsLine(img, l, baseline, text))
+                .MinBy(img => img.Box.X);
+            if (next is null) return;
+            l.Box = l.Box.Union(next.Box);
+        }
     }
 
     // ---- Laying out new text ----
@@ -583,6 +888,8 @@ public static partial class ContentEditor
     /// <summary>The lines placed; the check; for each page font written, its codes and the text they stand for (for <see cref="TextFont.Prepare"/>).</summary>
     internal sealed record ParagraphLayout(List<(PointD Origin, List<Part> Parts)> Lines, ParagraphCheck Check, IReadOnlyList<(TextFont Font, IReadOnlyList<int> Codes, string Text)> Fonts)
     {
+        /// <summary>Where each of the paragraph's pictures kept in the flow lands (page space), by its index in <see cref="TextParagraph.Pictures"/>.</summary>
+        public IReadOnlyList<(int Picture, RectD Box)> Pictures { get; init; } = [];
         /// <summary>For a translated copy: where its underlined stretches are (page as shown, from their first glyph's start to their last one's ink), on which baseline.</summary>
         public IReadOnlyList<(double Left, double Right, double Baseline)> Underlined { get; init; } = [];
     }
@@ -621,9 +928,11 @@ public static partial class ContentEditor
     /// text moves down as far as it needs); another color.
     /// </summary>
     /// <param name="fit">For a translated copy: the text's size against the paragraph's own; it always wraps, wherever it can (<see cref="FitLines"/>), in one font (<see cref="MixedText"/>). Null: as typed in the editor.</param>
-    internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null, double? fit = null)
+    /// <param name="added">New pictures for the marks typed into the text (<c>NewPicture</c>): each mark that is none of the paragraph's pictures, in order, takes the next; their size on the page.</param>
+    internal static ParagraphLayout LayOut(TextParagraph p, IReadOnlyList<TextRun> runs, string text, IReadOnlyList<TextSpan>? spans = null, double? fit = null,
+        IReadOnlyList<(double Width, double Height, int Mark)>? added = null)
     {
-        if (p.Upright is { } upright) return OnPage(LayOut(upright, runs, text, spans, fit), p);
+        if (p.Upright is { } upright) return OnPage(LayOut(upright, runs, text, spans, fit, added), p);
         var anchor = Anchor(runs);
         var plain = PlainRun(runs);
         var font = plain.Font!;
@@ -633,7 +942,7 @@ public static partial class ContentEditor
         m.Size *= shrink;
         var looks = LooksOf(text, spans ?? Carry(p.Text, text, p.Spans));
         if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink, looks, anchor.Info?.FillOp is not null);
-        var enc = new MixedText(p, font, m, text, looks, oneFace: fit is not null);
+        var enc = new MixedText(p, font, m, text, looks, oneFace: fit is not null, added: added);
         if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), []);
 
         double W(List<Part> parts) => parts.Count == 0 ? 0 : m.Width(parts) * m.Scale;
@@ -687,6 +996,7 @@ public static partial class ContentEditor
         if (lines.Count == 1 && lines[0].Parts.Count == 0) lines.Clear(); // no text: the paragraph goes
 
         var placed = new List<(PointD, List<Part>)>();
+        var pictures = new List<(int, RectD)>();
         var maxRight = p.Box.Right;
         var minLeft = p.Box.X;
         double baseline = 0, scale = 1, below = 0;
@@ -700,15 +1010,25 @@ public static partial class ContentEditor
             // as much as they reach past the room the leading leaves, so they don't run into the line above or below (a
             // footnote mark that fits in that room changes nothing).
             var depth = below; // the line above's: its subscripts' foot
-            double above = 0;
+            double above = 0, scriptAbove = 0, pictureAbove = 0;
             below = 0;
             foreach (var q in parts)
                 if ((q.Code is not null || q.StandIn is not null) && q.Look is { Rise: not 0 } look)
                 {
                     above = Math.Max(above, (look.Rise * p.FontSize + look.Scale * p.Ascent) * shrink);
+                    scriptAbove = Math.Max(scriptAbove, above);
                     below = Math.Max(below, (-look.Rise * p.FontSize + look.Scale * p.Descent) * shrink);
                 }
-            if (i == 0) baseline = p.Box.Y + Math.Max(p.Ascent * shrink * s, above);
+                else if (q.Picture is >= 0 and var pic && PictureSize(p, pic, added) is var (pw, ph, drop))
+                {
+                    // A picture in the flow reaches above and below the baseline as it did on its line.
+                    above = Math.Max(above, ph - drop);
+                    pictureAbove = Math.Max(pictureAbove, ph - drop);
+                    below = Math.Max(below, drop);
+                }
+            // The first line from the text's own top; a picture on it as high as the paragraph's pictures reached (a tall
+            // one that was on the first line keeps the line where it was; one taken off or wrapped away lifts nothing).
+            if (i == 0) baseline = Math.Max((p.TextTop ?? p.Box.Y) + Math.Max(p.Ascent * shrink * s, scriptAbove), p.Box.Y + pictureAbove);
             else
             {
                 var step = p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
@@ -738,6 +1058,14 @@ public static partial class ContentEditor
                 parts = spread;
                 w = W(parts);
             }
+            for (var k = 0; k < parts.Count; k++)
+                if (parts[k].Picture is >= 0 and var pic)
+                {
+                    // Where the pen is when the picture's room starts: its left edge; its foot as far from the baseline as before.
+                    var px = x + W([.. parts.Take(k), new Part(null, 0, null, null, -1)]);
+                    var (pw, ph, drop) = PictureSize(p, pic, added);
+                    pictures.Add((pic, new RectD(px, baseline + drop - ph, pw, ph)));
+                }
             placed.Add((new PointD(x, baseline), Merged(parts)));
             maxRight = Math.Max(maxRight, x + w);
             minLeft = Math.Min(minLeft, x);
@@ -751,8 +1079,20 @@ public static partial class ContentEditor
         var check = new ParagraphCheck(box, placed.Count, [], overlaps) { Borrowed = enc.Borrowed, StandIns = enc.Names, Faces = enc.Faces, LookProblem = problem };
         return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))])
         {
+            Pictures = pictures,
             Underlined = enc.Underlined ? [.. placed.SelectMany(l => UnderlinedIn(m, l.Item1, l.Item2))] : [],
         };
+    }
+
+    /// <summary>
+    /// A picture in a paragraph's flow, by its number: one of its own as large as it is and as far below the baseline as
+    /// it sat, else a new one (<paramref name="added"/>) at its size, its foot on the baseline.
+    /// </summary>
+    private static (double Width, double Height, double Drop) PictureSize(TextParagraph p, int picture, IReadOnlyList<(double Width, double Height, int Mark)>? added)
+    {
+        if (picture < p.Pictures.Count) return (p.Pictures[picture].Image.Box.Width, p.Pictures[picture].Image.Box.Height, p.Pictures[picture].Drop);
+        var k = picture - p.Pictures.Count;
+        return added is not null && k < added.Count ? (added[k].Width, added[k].Height, 0) : (0, 0, 0);
     }
 
     /// <summary>
@@ -779,7 +1119,7 @@ public static partial class ContentEditor
                 // Adjustments of the same look in between become room, then the next stretch of the same look follows.
                 var k = j;
                 double room = 0;
-                while (k < parts.Count && parts[k] is { Code: null, StandIn: null } adj && ReferenceEquals(adj.Look, look))
+                while (k < parts.Count && parts[k] is { Code: null, StandIn: null, Picture: null } adj && ReferenceEquals(adj.Look, look))
                 {
                     room -= adj.Number / 1000;
                     k++;
@@ -810,9 +1150,16 @@ public static partial class ContentEditor
         return (scale, rise, color);
     }
 
-    /// <summary>Where a paragraph's new text is written: its first run in content order in its own font and look.</summary>
-    private static TextRun Anchor(IReadOnlyList<TextRun> runs) =>
-        runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => Order(r.Id)) ?? runs.Where(r => !r.StandIn).MinBy(r => Order(r.Id)) ?? runs.MinBy(r => Order(r.Id))!;
+    /// <summary>
+    /// Where a paragraph's new text is written: its first run in content order in its own font and look, of its own size
+    /// and color (the color its lines go back to after a colored stretch).
+    /// </summary>
+    private static TextRun Anchor(IReadOnlyList<TextRun> runs)
+    {
+        var plain = PlainRun(runs);
+        return runs.Where(r => !r.StandIn && !r.Styled && SameSizeAndColor(plain, r)).MinBy(r => Order(r.Id))
+               ?? runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => Order(r.Id)) ?? runs.Where(r => !r.StandIn).MinBy(r => Order(r.Id)) ?? runs.MinBy(r => Order(r.Id))!;
+    }
 
     /// <summary>
     /// A paragraph's new text in its own font's codes (a stretch in another face the page has, in that face's); the
@@ -840,22 +1187,48 @@ public static partial class ContentEditor
         public readonly List<string> Faces = [];
         /// <summary>A look asks for another color.</summary>
         public bool Colored;
+        /// <summary>Where each picture mark is in the text, and the paragraph's picture it stands for (past its pictures: a new one; -1: none).</summary>
+        private readonly Dictionary<int, int> _pictureAt = [];
+        private readonly IReadOnlyList<(double Width, double Height, int Mark)>? _added;
+
+        /// <summary>Some mark in the text stands for no picture of the paragraph's (typed or pasted in).</summary>
+        public bool TypedPicture => _pictureAt.ContainsValue(-1);
         /// <summary>A look is underlined (<see cref="ParagraphLayout.Underlined"/>).</summary>
         public bool Underlined;
 
         /// <param name="oneFace">When the font lacks any character, the whole text, its spaces too, is drawn from one installed font, not a letter here and there: a translation shares few letters with the subset a page's font holds.</param>
-        public MixedText(TextParagraph p, TextFont font, TextRun run, string text, TextLook?[] looks, bool oneFace = false)
+        public MixedText(TextParagraph p, TextFont font, TextRun run, string text, TextLook?[] looks, bool oneFace = false,
+            IReadOnlyList<(double Width, double Height, int Mark)>? added = null)
         {
+            _added = added;
             _p = p;
             _font = font;
             _run = run;
             _text = text;
             _looks = looks;
+            // Picture marks: each the paragraph's picture it stands for (a mark typed in stands for none: it can't be drawn).
+            // The new pictures' own marks (where the editor put them) are theirs, before a picture whose mark was cut and
+            // pasted could take one.
+            var inserted = new HashSet<int>(added?.Where(a => a.Mark >= 0 && a.Mark < text.Length && text[a.Mark] == TextParagraph.PictureMark).Select(a => a.Mark) ?? []);
+            var marks = PictureMarks(p.Text, text, p.Pictures, inserted);
+            for (int i = 0, k = 0; i < text.Length; i++)
+                if (text[i] == TextParagraph.PictureMark && marks[k++] is var m && m != TextMark) _pictureAt[i] = inserted.Contains(i) ? -1 : m;
+            var unplaced = new Queue<int>();
+            for (var j = 0; j < (added?.Count ?? 0); j++)
+            {
+                if (added![j].Mark >= 0 && inserted.Contains(added[j].Mark) && _pictureAt.TryGetValue(added[j].Mark, out var v) && v == -1) _pictureAt[added[j].Mark] = p.Pictures.Count + j;
+                else unplaced.Enqueue(j);
+            }
+            // Other marks typed in take the new pictures left, in order; one past them stands for nothing and can't be drawn.
+            foreach (var at in _pictureAt.Keys.Order().ToList())
+                if (_pictureAt[at] == -1 && unplaced.Count > 0) _pictureAt[at] = p.Pictures.Count + unplaced.Dequeue();
+            if (_pictureAt.ContainsValue(-1)) Missing.Add(TextParagraph.PictureMark.ToString());
             var lacking = new Dictionary<TextFont, List<string>>();
             // For one face: the page's other faces a look draws in (a bold word in the page's bold), with the elements each draws.
             var faces = new Dictionary<TextFont, HashSet<string>>();
             foreach (var (el, at) in Elements(0, text.Length))
             {
+                if (_pictureAt.ContainsKey(at)) continue;
                 if (oneFace && el != "\n" && Resolve(at) is { Face: null, Page.Font: { } other } && !ReferenceEquals(other, font))
                 {
                     if (!faces.TryGetValue(other, out var set)) faces[other] = set = [];
@@ -937,7 +1310,10 @@ public static partial class ContentEditor
             Colored |= color is not null;
             var under = look.Underline == true;
             Underlined |= under;
-            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null && !under ? null : new PartLook(scale, color, face, look, page, rise);
+            // A color the paragraph's own text is drawn in (a red word as the page has it) is set again as the page set it
+            // (its gray, CMYK or named color space), not as RGB.
+            var fill = color is { } cc ? _p.Runs.FirstOrDefault(r => r.Color == cc && r.Info?.FillOp is not null)?.Info!.FillOp : null;
+            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null && !under ? null : new PartLook(scale, color, face, look, page, rise) { Fill = fill };
             _resolved[look] = resolved;
             return resolved;
         }
@@ -968,6 +1344,16 @@ public static partial class ContentEditor
             }
             foreach (var (el, at) in Elements(start, end))
             {
+                if (_pictureAt.TryGetValue(at, out var picture))
+                {
+                    // Room as wide as the picture (in the paragraph's own size, whatever look is around it).
+                    Flush();
+                    cur = default;
+                    var width = picture >= 0 ? PictureSize(_p, picture, _added).Width : 0;
+                    var k = _run.Size * _run.HScale * _run.Scale;
+                    parts.Add(new Part(null, Math.Abs(k) < 1e-9 ? 0 : -width * 1000 / k, null, null, picture));
+                    continue;
+                }
                 var look = Resolve(at);
                 var pageFont = look?.Page?.Font ?? _font;
                 var face = look?.Face ?? (_lacking.Contains((pageFont, el)) ? _standIns[pageFont][TrueTypeFont.CodePoints(el).First()] : null);
@@ -990,10 +1376,16 @@ public static partial class ContentEditor
     /// </summary>
     /// <exception cref="ContentEditException">The font can't draw the text (the message names the missing characters), the
     /// new text would run into what follows (<see cref="ContentEditException.Overlaps"/>), the paragraph can't be edited, or the page changed.</exception>
+    /// <param name="added">New pictures for the marks typed into <paramref name="text"/>, in order (see <see cref="NewPicture"/>).</param>
     public static byte[] ReplaceParagraph(byte[] data, string? password, TextParagraph paragraph, string text, bool allowOverlap = false,
-        IReadOnlyList<TextSpan>? spans = null)
+        IReadOnlyList<TextSpan>? spans = null, IReadOnlyList<NewPicture>? added = null)
     {
         if (paragraph.Blocked is { } why0) throw new ContentEditException(Loc.Format(PdfStrings.Edit_ParagraphCantBeEdited, why0));
+        added ??= [];
+        if (added.Count > 0 && paragraph.Upright is not null) throw new ContentEditException(PdfStrings.Edit_PictureCantGoHere);
+        foreach (var np in added)
+            if (ImageImport.PixelSize(np.File, np.Name) is not (> 0, > 0))
+                throw new ContentEditException(Loc.Format(PdfStrings.Doc_NotAnImage, np.Name));
         text = ParagraphText(text);
         spans ??= Carry(paragraph.Text, text, paragraph.Spans);
         if (text == paragraph.Text && SameSpans(text, spans, paragraph.Spans)) return data;
@@ -1021,7 +1413,8 @@ public static partial class ContentEditor
             .Select(s => walk.Content.Runs.FirstOrDefault(r => r.Id == s.Id && r.Text == s.Text && r.Info is not null))
             .Where(r => r is not null && now.All(n => n.Id != r.Id) && FormPlace.SameDrawing(r.Info!.Form, anchor.Info!.Form)).Select(r => r!).ToList();
         var target = TargetOf(doc, page, streams, ops, walk, anchor);
-        var layout = LayOut(paragraph, now, text, spans);
+        var layout = LayOut(paragraph, now, text, spans, added: NewPictureSizes(paragraph, added));
+        if (layout.Check.Missing.Contains(TextParagraph.PictureMark.ToString())) throw new ContentEditException(PdfStrings.Edit_PictureTyped);
         if (layout.Check.Missing.Count > 0)
         {
             var list = string.Join(", ", layout.Check.Missing.Take(12).Select(c => char.IsControl(c[0]) || char.GetUnicodeCategory(c, 0) is System.Globalization.UnicodeCategory.PrivateUse or System.Globalization.UnicodeCategory.Surrogate
@@ -1050,9 +1443,86 @@ public static partial class ContentEditor
             var op = target.OpOf(run);
             edits.Add((op.Start, op.End, Removed(op, run)));
         }
+        if (paragraph.Pictures.Count > 0 || layout.Pictures.Count > 0)
+            edits.AddRange(PictureEdits(doc, page, ops, streams.Bytes, walk, paragraph, layout, target, anchor, added));
         WriteTarget(doc, page, target, edits);
         SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
         return PdfObj.Save(doc);
+    }
+
+    /// <summary>
+    /// The paragraph's pictures moved to where its new text puts them (see <see cref="InlinePicture"/>); one whose mark
+    /// was taken out comes off the page. They are the page's own content, as the paragraph is.
+    /// </summary>
+    private static List<(int Start, int End, string Text)> PictureEdits(PdfDocument doc, PdfPage page, List<COp> ops, byte[] content, Walked walk,
+        TextParagraph paragraph, ParagraphLayout layout, Target target, TextRun anchor, IReadOnlyList<NewPicture> added)
+    {
+        if (target.Form is not null) throw new ContentEditException(added.Count > 0 ? PdfStrings.Edit_PictureCantGoHere : PdfStrings.Edit_PageChangedParagraph);
+        var edits = new List<(int Start, int End, string Text)>();
+        var moved = layout.Pictures.ToDictionary(x => x.Picture, x => x.Box);
+        for (var i = 0; i < paragraph.Pictures.Count; i++)
+        {
+            var old = paragraph.Pictures[i].Image;
+            var now = walk.Content.Images.FirstOrDefault(im => im.Id == old.Id && Near(im.Box, old.Box));
+            if (now is null || now.Blocked is not null || !walk.ImageCtm.TryGetValue(now.Id, out var ctm) || now.Id < 0 || now.Id >= ops.Count)
+                throw new ContentEditException(PdfStrings.Edit_PageChangedParagraph);
+            var op = ops[now.Id];
+            if (!moved.TryGetValue(i, out var box))
+            {
+                SignedEdits.NoteRemoval();
+                edits.Add(Placed(ops, now.Id) is { } at ? (ops[at.Q].Start, ops[at.End].End, " ") : (op.Start, op.End, " "));
+                continue;
+            }
+            if (Near(box, now.Box) && Math.Abs(box.X - now.Box.X) < 0.01 && Math.Abs(box.Y - now.Box.Y) < 0.01) continue;
+            edits.Add(Placing(ops, op, MoveMatrix(page, ctm, now.Box, box), content));
+        }
+        // New pictures: stored, and drawn just before the text object the paragraph is written in (a picture can't be
+        // drawn inside one), where the layout put them.
+        var bt = ops.FindLastIndex(Math.Clamp(target.OpOf(anchor) is var a ? ops.IndexOf(a) : 0, 0, Math.Max(0, ops.Count - 1)), o => o.Name == "BT");
+        var before = bt >= 0 ? ops[bt].Start : target.OpOf(anchor).Start;
+        foreach (var (k, box) in layout.Pictures.Where(x => x.Picture >= paragraph.Pictures.Count).OrderBy(x => x.Picture))
+        {
+            var np = added[k - paragraph.Pictures.Count];
+            PdfDictionary xobject;
+            int orientation;
+            try
+            {
+                (xobject, _, _, _, _, orientation) = ImageImport.StoreImage(doc, np.File, np.Name);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException and not ContentEditException or MuPDFCore.MuPDFException)
+            {
+                throw new ContentEditException(Loc.Format(PdfStrings.Doc_NotAnImage, np.Name));
+            }
+            var name = AddXObject(doc, page, xobject);
+            // As Replace Picture places one: in "page space flipped" (Y' = -Y), then to page space and on to user space.
+            var place = ImageImport.Placement(orientation, box.X, -(box.Y + box.Height), box.Width, box.Height);
+            var total = new Mat(place[0], place[1], place[2], place[3], place[4], place[5]).Times(new Mat(1, 0, 0, -1, 0, 0)).Times(PageToUser(page));
+            // Drawn where the text is, under the CTM the content set for it (a generator's own scale or flip): undone first.
+            var inv = anchor.Info!.Ctm.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PictureSquashed);
+            var m = total.Times(inv);
+            edits.Add((before, before, $"q {m.Write()} cm /{name} Do Q"));
+        }
+        return edits;
+    }
+
+    /// <summary>
+    /// New pictures' sizes on the page in a paragraph's flow: as tall as its capitals reach (its ascent), as wide as the
+    /// image's own proportions say (EXIF turns counted), no wider than half the paragraph; an image that can't be read: none.
+    /// </summary>
+    internal static IReadOnlyList<(double Width, double Height, int Mark)>? NewPictureSizes(TextParagraph p, IReadOnlyList<NewPicture>? added)
+    {
+        if (added is not { Count: > 0 }) return null;
+        var sizes = new List<(double, double, int)>(added.Count);
+        foreach (var np in added)
+        {
+            var (w, h) = ImageImport.PixelSize(np.File, np.Name);
+            var height = Math.Max(1, p.Ascent);
+            var width = w > 0 && h > 0 ? height * w / h : 0;
+            var most = Math.Max(1, 0.5 * (p.Right - p.Left));
+            if (width > most) (width, height) = (most, height * most / width);
+            sizes.Add((width, width > 0 ? height : 0, np.Mark));
+        }
+        return sizes;
     }
 
     /// <summary>A name prefix for stand-in fonts that no font of the content's resources has yet.</summary>
@@ -1185,7 +1655,7 @@ public static partial class ContentEditor
             if (look?.Color != color)
             {
                 Close();
-                sb.Append(look?.Color is { } c ? RgbOp(c) : info.FillOp + " ");
+                sb.Append(look?.Color is { } c ? look.Fill is { } fill ? fill + " " : RgbOp(c) : info.FillOp + " ");
                 color = look?.Color;
             }
         }
@@ -1207,6 +1677,15 @@ public static partial class ContentEditor
         }
         foreach (var part in parts)
         {
+            if (part.Picture is not null)
+            {
+                // A picture's room: an operator of its own at the paragraph's size, so the text on either side reads back as
+                // two runs with the picture between them (not one run drawn over it).
+                Use(plain, ReferenceEquals(plain.Font, run.Font) ? hex : true, plain.Size);
+                Close();
+                if (Math.Abs(part.Number) > 1e-9) sb.Append('[').Append(ContentLexer.Number(part.Number)).Append("] TJ ");
+                continue;
+            }
             Look(part.Look);
             var s = part.Look?.Scale ?? 1;
             // A subscript or superscript: its baseline moved by the text rise, in ems of the paragraph's text.

@@ -88,6 +88,13 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
                 yield return (start, w, true);
                 continue;
             }
+            if (p.Picture is not null)
+            {
+                // A picture in the flow: room, and where it ends counts as ink.
+                w -= p.Number / 1000 * size * HScale;
+                yield return (start, w, true);
+                continue;
+            }
             if (p.Code is not { } c)
             {
                 w -= p.Number / 1000 * size * HScale;
@@ -120,6 +127,12 @@ public sealed record PageImage(int PageIndex, int Id, RectD Box, bool Inline, st
 {
     /// <summary>Turned by other than a quarter turn, or skewed: resizing scales its bounding box.</summary>
     public bool Turned { get; init; }
+
+    /// <summary>
+    /// Cropped (a clip rectangle drawn right before it, in its own space, as <see cref="ContentEditor.CropImage"/> writes
+    /// one): the whole picture's box, of which <see cref="Box"/> is the part that shows. Null: it shows whole.
+    /// </summary>
+    public RectD? Uncropped { get; init; }
 }
 
 /// <summary>The text runs and pictures of a page, for Edit Text &amp; Images.</summary>
@@ -314,7 +327,7 @@ public static partial class ContentEditor
         var ownText = middle;
         IReadOnlyList<string> missing = enc.Missing;
         List<string> borrowed = [], names = [];
-        var kerning = Kerning([info]); // the run's own pairs, kept where they survive in the new text
+        var kerning = Kerns.For(Kerning([info]), font); // the run's own pairs, kept where they survive in the new text; new pairs the font's own
         if (enc.Missing.Count == 0) parts.AddRange(Parts(run, enc.Codes, kerning));
         else
         {
@@ -375,7 +388,8 @@ public static partial class ContentEditor
     }
 
     /// <summary>A glyph code, or (with no code) a TJ adjustment, of rewritten text; or characters drawn in stand-in fonts (<see cref="StandIn"/>).</summary>
-    internal readonly record struct Part(int? Code, double Number, ShapedLine? StandIn = null, PartLook? Look = null);
+    /// <param name="Picture">A paragraph's picture in its flow (its index in <see cref="TextParagraph.Pictures"/>): room as wide as it is, made by the adjustment <paramref name="Number"/>.</param>
+    internal readonly record struct Part(int? Code, double Number, ShapedLine? StandIn = null, PartLook? Look = null, int? Picture = null);
 
     internal static string OneLine(string text) => text.Replace("\r\n", " ").Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' ');
 
@@ -402,7 +416,7 @@ public static partial class ContentEditor
             tokens.Add(info.Hex ? ContentLexer.HexString(bytes) : ContentLexer.Literal(bytes));
             codes.Clear();
         }
-        foreach (var (c, n, _, _) in parts)
+        foreach (var (c, n, _, _, _) in parts)
         {
             if (c is { } code) codes.Add(code);
             else if (Math.Abs(n) > 1e-9)
@@ -432,24 +446,70 @@ public static partial class ContentEditor
     public static byte[] MoveImage(byte[] data, string? password, PageImage image, RectD box)
     {
         if (box.Width < 1 || box.Height < 1) throw new ContentEditException(PdfStrings.Edit_PictureTooSmall);
-        return EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
+        return EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) => [Placing(ops, op, MoveMatrix(page, ctm, found.Box, box), content)]);
+    }
+
+    /// <summary>
+    /// The matrix that, put before a picture drawn at <paramref name="ctm"/>, takes its box from <paramref name="old"/>
+    /// to <paramref name="box"/> (page space).
+    /// </summary>
+    private static Mat MoveMatrix(PdfPage page, Mat ctm, RectD old, RectD box)
+    {
+        if (old.Width <= 0 || old.Height <= 0) throw new ContentEditException(PdfStrings.Edit_PictureSquashed);
+        var p2u = PageToUser(page);
+        var u2p = p2u.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PageSizeUnreadable);
+        var d = new Mat(box.Width / old.Width, 0, 0, box.Height / old.Height, box.X - old.X * box.Width / old.Width, box.Y - old.Y * box.Height / old.Height);
+        var dUser = u2p.Times(d).Times(p2u);
+        var inv = ctm.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PictureSquashed);
+        return ctm.Times(dUser).Times(inv); // inserted before the Do, the image lands on CTM × D
+    }
+
+    /// <summary>
+    /// The edit that puts <paramref name="m"/> (in the space the picture is drawn in) in front of a picture's own
+    /// placement: "q [cm] [crop] /Im Do Q" gets its cm changed, or one after its q, so a crop moves with the picture;
+    /// a picture drawn otherwise is wrapped.
+    /// </summary>
+    private static (int Start, int End, string Text) Placing(List<COp> ops, COp op, Mat m, byte[] content)
+    {
+        if (Placed(ops, ops.IndexOf(op)) is { } at)
         {
-            var p2u = PageToUser(page);
-            var u2p = p2u.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PageSizeUnreadable);
-            var old = found.Box;
-            var d = new Mat(box.Width / old.Width, 0, 0, box.Height / old.Height, box.X - old.X * box.Width / old.Width, box.Y - old.Y * box.Height / old.Height);
-            var dUser = u2p.Times(d).Times(p2u);
-            var inv = ctm.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PictureSquashed);
-            var m = ctm.Times(dUser).Times(inv); // inserted before the Do, the image lands on CTM × D
-            var at = ops.IndexOf(op);
-            // "q a b c d e f cm /Im Do Q": change that cm; otherwise wrap the Do.
-            if (at >= 2 && at + 1 < ops.Count && ops[at - 2].Name == "q" && ops[at - 1] is { Name: "cm", Operands.Count: 6 } cm && ops[at + 1].Name == "Q")
-            {
-                var c = new Mat(cm.N(0), cm.N(1), cm.N(2), cm.N(3), cm.N(4), cm.N(5));
-                return [(cm.Start, cm.End, m.Times(c).Write() + " cm")];
-            }
-            return [(op.Start, op.End, $"q {m.Write()} cm {Slice(op, content)} Q")];
-        });
+            if (at.Cm < 0) return (ops[at.Q].End, ops[at.Q].End, $"{m.Write()} cm");
+            var cm = ops[at.Cm];
+            var c = new Mat(cm.N(0), cm.N(1), cm.N(2), cm.N(3), cm.N(4), cm.N(5));
+            return (cm.Start, cm.End, m.Times(c).Write() + " cm");
+        }
+        return (op.Start, op.End, $"q {m.Write()} cm {Slice(op, content)} Q");
+    }
+
+    /// <summary>
+    /// A picture drawn as "q [a b c d e f cm] [x y w h re W n] /Im Do Q" (or an inline image so): where its q, cm (-1:
+    /// none), crop's re (-1: none) and Q are. Null when it isn't drawn so.
+    /// </summary>
+    private static (int Q, int Cm, int Clip, int End)? Placed(List<COp> ops, int at)
+    {
+        if (at < 1 || at + 1 >= ops.Count || ops[at + 1].Name != "Q") return null;
+        var k = at - 1;
+        var clip = CropBefore(ops, at) is null ? -1 : at - 3;
+        if (clip >= 0) k = at - 4;
+        var cm = -1;
+        if (k >= 0 && ops[k] is { Name: "cm", Operands.Count: 6 })
+        {
+            cm = k;
+            k--;
+        }
+        return k >= 0 && ops[k].Name == "q" ? (k, cm, clip, at + 1) : null;
+    }
+
+    /// <summary>The crop drawn right before a picture: "x y w h re W n" in its own space (the unit square), held to it; null: none.</summary>
+    private static (double X0, double Y0, double X1, double Y1)? CropBefore(List<COp> ops, int at)
+    {
+        if (at < 3 || ops[at - 1].Name != "n" || ops[at - 2].Name != "W" || ops[at - 3] is not { Name: "re", Operands.Count: 4 } re) return null;
+        double x = re.N(0), y = re.N(1), w = re.N(2), h = re.N(3);
+        if (!double.IsFinite(x + y + w + h)) return null;
+        if (w < 0) (x, w) = (x + w, -w);
+        if (h < 0) (y, h) = (y + h, -h);
+        double x0 = Math.Clamp(x, 0, 1), y0 = Math.Clamp(y, 0, 1), x1 = Math.Clamp(x + w, 0, 1), y1 = Math.Clamp(y + h, 0, 1);
+        return x1 - x0 > 1e-6 && y1 - y0 > 1e-6 && (x0 > 0 || y0 > 0 || x1 < 1 || y1 < 1) ? (x0, y0, x1, y1) : null;
     }
 
     /// <summary>Removes a picture from the page.</summary>
@@ -457,9 +517,7 @@ public static partial class ContentEditor
         EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
         {
             SignedEdits.NoteRemoval();
-            var at = ops.IndexOf(op);
-            if (at >= 2 && at + 1 < ops.Count && ops[at - 2].Name == "q" && ops[at - 1].Name == "cm" && ops[at + 1].Name == "Q")
-                return [(ops[at - 2].Start, ops[at + 1].End, " ")];
+            if (Placed(ops, ops.IndexOf(op)) is { } at) return [(ops[at.Q].Start, ops[at.End].End, " ")];
             return [(op.Start, op.End, " ")];
         }, dropName: true);
 
@@ -483,7 +541,10 @@ public static partial class ContentEditor
             var inv = ctm.Invert() ?? new Mat(1, 0, 0, 1, 0, 0);
             var m = total.Times(inv);
             SignedEdits.NoteRemoval();
-            return [(op.Start, op.End, $"q {m.Write()} cm /{name} Do Q")];
+            // A crop of the old picture would cut the new one: it goes.
+            var at = ops.IndexOf(op);
+            var from = CropBefore(ops, at) is null ? op.Start : ops[at - 3].Start;
+            return [(from, op.End, $"q {m.Write()} cm /{name} Do Q")];
         }, dropName: true);
 
     private delegate List<(int Start, int End, string Text)> ImageEdit(PdfDocument doc, PdfPage page, PageImage image, COp op, Mat ctm, List<COp> ops, byte[] content);
@@ -1012,8 +1073,8 @@ public static partial class ContentEditor
                     var sub = PdfObj.NameOf(xobj, "/Subtype");
                     if (sub == "/Image")
                     {
-                        AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked));
-                        Painted(BoxOf(page, gs.Ctm, 0, 0, 1, 1), i, false, null);
+                        var shown = AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked), CropBefore(ops, i));
+                        Painted(shown, i, false, null);
                     }
                     else if (sub == "/Form" && depth < MaxDepth)
                     {
@@ -1044,8 +1105,8 @@ public static partial class ContentEditor
                     break;
                 }
                 case "BI":
-                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? PdfStrings.Edit_BlockedDataEnd : null));
-                    Painted(BoxOf(page, gs.Ctm, 0, 0, 1, 1), i, false, null);
+                    var inlineShown = AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? PdfStrings.Edit_BlockedDataEnd : null), CropBefore(ops, i));
+                    Painted(inlineShown, i, false, null);
                     break;
             }
         }
@@ -1088,13 +1149,16 @@ public static partial class ContentEditor
         return Off(PdfObj.Dict(oc.Elements["/OCGs"]));
     }
 
-    private static void AddImage(Walked w, PdfPage page, int pageIndex, int id, Mat ctm, bool inline, string? blocked)
+    /// <returns>Where it shows (a crop's box when it is cropped).</returns>
+    private static RectD AddImage(Walked w, PdfPage page, int pageIndex, int id, Mat ctm, bool inline, string? blocked, (double X0, double Y0, double X1, double Y1)? crop = null)
     {
         var box = BoxOf(page, ctm, 0, 0, 1, 1);
-        if (box.Width <= 0 && box.Height <= 0) return;
+        if (box.Width <= 0 && box.Height <= 0) return box;
         var turned = Math.Abs(ctm.B) > 1e-6 && Math.Abs(ctm.A) > 1e-6 || Math.Abs(ctm.C) > 1e-6 && Math.Abs(ctm.D) > 1e-6;
-        w.Images.Add(new PageImage(pageIndex, id, box, inline, blocked) { Turned = turned });
+        var shown = crop is { } c ? BoxOf(page, ctm, c.X0, c.Y0, c.X1, c.Y1) : box;
+        w.Images.Add(new PageImage(pageIndex, id, shown, inline, blocked) { Turned = turned, Uncropped = crop is null ? null : box });
         if (blocked is null) w.ImageCtm[id] = ctm;
+        return shown;
     }
 
     /// <summary>The page-space bounding box of a rectangle in a coordinate system.</summary>

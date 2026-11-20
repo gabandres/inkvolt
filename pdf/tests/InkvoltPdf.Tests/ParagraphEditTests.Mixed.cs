@@ -7,17 +7,23 @@ namespace InkvoltPdf.Tests;
 /// <summary>Roadmap 2.1: paragraphs from other software that mix faces of one family (a bold word in Word's PDFs) edit as one.</summary>
 public partial class ParagraphEditTests
 {
-    /// <summary>Body as a left-aligned paragraph in /FA with <paramref name="word"/> drawn in <paramref name="face"/> ("FB": Arial Bold, "FT": Times, "FA" itself) at <paramref name="size"/> (default the paragraph's), a line under it.</summary>
-    private static byte[] WithFace(string word, string face, double size = Size, string? standard = null)
+    /// <summary>
+    /// Body as a left-aligned paragraph in /FA with <paramref name="word"/> drawn in <paramref name="face"/> ("FB": Arial
+    /// Bold, "FT": Times, "FA" itself) at <paramref name="size"/> (default the paragraph's), raised by <paramref name="rise"/>
+    /// (Ts), in the fill operator <paramref name="fill"/> (null: the paragraph's black), a line under it.
+    /// </summary>
+    private static byte[] WithFace(string word, string face, double size = Size, string? standard = null, double rise = 0, string? fill = null)
     {
         var lines = Wrap(Body, Width);
         var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td");
+        var (raise, lower) = rise == 0 ? ("", "") : ($" {N(rise)} Ts", " 0 Ts");
+        var (paint, back) = fill is null ? ("", "") : ($" {fill}", " 0 g");
         for (var i = 0; i < lines.Count; i++)
         {
             if (i > 0) sb.Append(" T*");
             var at = lines[i].IndexOf(word, StringComparison.Ordinal);
             if (at < 0) sb.Append($" ({lines[i]}) Tj");
-            else sb.Append($" ({lines[i][..at]}) Tj /{face} {N(size)} Tf ({word}) Tj /FA {N(Size)} Tf ({lines[i][(at + word.Length)..]}) Tj");
+            else sb.Append($" ({lines[i][..at]}) Tj /{face} {N(size)} Tf{raise}{paint} ({word}) Tj{lower}{back} /FA {N(Size)} Tf ({lines[i][(at + word.Length)..]}) Tj");
         }
         sb.Append(" 0 -60 Td (Next block starts here) Tj ET");
         return ContentEditPdf.Make(sb.ToString(), fontText: Chars, faces: true, standard: standard);
@@ -141,14 +147,102 @@ public partial class ParagraphEditTests
     }
 
     [Fact]
-    public void AnotherSizeOnALineStillEditsLineByLine()
+    public void ABiggerWordInTheParagraphsOwnFontIsAStretchOfItsSize()
     {
-        // Two sizes on one baseline: the paragraph's lines group, but rewrapped the bigger word couldn't keep its place.
+        var pdf = WithFace("boxing", "FA", size: 14);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        Assert.Equal(Body, p.Text);
+        Assert.Equal(Size, p.FontSize, 2); // its own size, not the bigger word's
+        Assert.Equal(Step, p.LineStep, 0); // the line with the bigger word read as the paragraph's own step
+        AssertSpans([Span(Body, "boxing", new TextLook(Size: 14))], p.Spans);
+        var next = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "Next block starts here");
+
+        // Rewritten with words in front, the word moves along at its size; the rest stays at the paragraph's.
+        var text = "Now then " + Body;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited, "Now then");
+        Assert.Null(q.Blocked);
+        Assert.Equal(text, q.Text);
+        AssertSpans([Span(text, "boxing", new TextLook(Size: 14))], q.Spans);
+        Assert.Equal(14, q.Runs.Single(r => r.Text.Trim() == "boxing").FontSize, 1);
+        Assert.All(q.Runs.Where(r => r.Text.Trim() != "boxing"), r => Assert.Equal(Size, r.FontSize, 1));
+        Assert.Equal(p.Lead.FontName, q.Runs.Single(r => r.Text.Trim() == "boxing").FontName);
+        for (var i = 1; i < q.Lines.Count; i++) Assert.True(q.Lines[i].Y >= q.Lines[i - 1].Bottom - 1, $"line {i}");
+        Assert.Contains(Words(text), Words(Regex.Replace(ContentEditPdf.Text(edited), "Next block starts here", "")));
+        var next2 = ContentEditor.Read(edited, null, 0).Runs.Single(r => r.Text == "Next block starts here");
+        Assert.Equal(next.Box.Y, next2.Box.Y, 2);
+        Assert.Equal(Size, next2.FontSize, 2);
+    }
+
+    [Fact]
+    public void AWordInAnotherFamilyAndSizeKeepsBoth()
+    {
         var pdf = WithFace("sphinx", "FT", size: 14);
+        var times = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "sphinx");
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        AssertSpans([Span(Body, "sphinx", new TextLook(Font: "Times New Roman", Size: 14))], p.Spans);
+        var text = Body + " " + Twenty;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text, allowOverlap: true);
+        var q = Body0(edited);
+        var word = q.Runs.Single(r => r.Text.Trim() == "sphinx");
+        Assert.Equal(times.FontName, word.FontName);
+        Assert.Equal(14, word.FontSize, 1);
+        AssertSpans([Span(text, "sphinx", new TextLook(Font: "Times New Roman", Size: 14))], q.Spans);
+    }
+
+    [Fact]
+    public void AColoredWordKeepsItsColorAsThePageSetIt()
+    {
+        // "quartz" in CMYK red: a stretch of that color, written again with the page's own CMYK operator, not as RGB.
+        var pdf = WithFace("quartz", "FA", fill: "0 1 1 0 k");
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        Assert.Equal(0, p.Lead.Color);
+        var red = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "quartz").Color;
+        Assert.NotEqual(0, red);
+        AssertSpans([Span(Body, "quartz", new TextLook(Color: red))], p.Spans);
+        // Letters typed onto the word take its color; words in front move it along.
+        var text = "Now then " + Body.Replace("quartz", "quartzite", StringComparison.Ordinal);
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var content = ContentEditPdf.Content(edited);
+        Assert.Contains("0 1 1 0 k", content);
+        Assert.DoesNotContain(" rg ", content);
+        var q = Body0(edited, "Now then");
+        AssertSpans([Span(text, "quartzite", new TextLook(Color: red))], q.Spans);
+        Assert.All(q.Runs.Where(r => r.Text.Trim() != "quartzite"), r => Assert.Equal(0, r.Color));
+        Assert.Equal(0, ContentEditor.Read(edited, null, 0).Runs.Single(r => r.Text == "Next block starts here").Color);
+    }
+
+    [Fact]
+    public void ASmallerWordSetBelowTheLineIsASubscript()
+    {
+        var pdf = WithFace("quartz", "FA", size: 7, rise: -2);
+        var p = Body0(pdf);
+        Assert.Null(p.Blocked);
+        var span = Assert.Single(p.Spans);
+        Assert.Equal("quartz", Body.Substring(span.Start, span.Length));
+        Assert.Equal(TextScript.Sub, span.Look.Script);
+        Assert.Equal(-2.0 / Size, span.Look.Rise!.Value, 2);
+        var text = "Now then " + Body;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text);
+        var q = Body0(edited, "Now then");
+        var sub = q.Runs.Single(r => r.Text.Trim() == "quartz");
+        Assert.Equal(7, sub.FontSize, 0);
+        var line = q.Runs.Where(r => Math.Abs(r.Box.CenterY - sub.Box.CenterY) < Size && r != sub).First();
+        Assert.Equal(line.Origin.Y + 2, sub.Origin.Y, 0); // still 2 points below its line
+        Assert.Equal(TextScript.Sub, Assert.Single(q.Spans).Look.Script);
+    }
+
+    [Fact]
+    public void ABiggerWordSetOffItsLineStillEditsLineByLine()
+    {
+        var pdf = WithFace("sphinx", "FT", size: 14, rise: 1.5);
         var p = ContentEditor.Read(pdf, null, 0).Paragraphs.Single(q => q.Text.Contains("sphinx", StringComparison.Ordinal));
         Assert.True(p.Lines.Count > 1);
         Assert.NotNull(p.Blocked);
-        Assert.Contains("mixes fonts", p.Blocked);
+        Assert.Contains("off its line", p.Blocked);
         Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, "anything"));
     }
 

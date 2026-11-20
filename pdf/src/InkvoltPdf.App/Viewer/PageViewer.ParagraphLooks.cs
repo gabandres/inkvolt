@@ -108,10 +108,12 @@ public sealed partial class PageViewer
     }
 
     /// <summary>The editor's text (line breaks as "\n") and the stretches whose look differs from the paragraph's own.</summary>
-    private (string Text, List<TextSpan> Spans) ParagraphContent(RichTextBox box, TextParagraph p)
+    /// <returns>Its text and looks, and the pictures Insert Picture put in it, in the order their marks are in.</returns>
+    private (string Text, List<TextSpan> Spans, List<NewPicture> Added) ParagraphContent(RichTextBox box, TextParagraph p)
     {
         var sb = new System.Text.StringBuilder();
         var spans = new List<TextSpan>();
+        var added = new List<NewPicture>();
         var lead = p.Lead;
         var family = BaseFamily(p);
         var shown = ShownColor(lead);
@@ -135,6 +137,11 @@ public sealed partial class PageViewer
                             bold != lead.Bold ? bold : null,
                             italic != lead.Italic ? italic : null);
                         var text = r.Text.Replace("\r\n", "\n").Replace('\r', '\n');
+                        // A mark Insert Picture put in stands for its picture (one per mark still there).
+                        // A mark Insert Picture put in stands for its picture (one per mark still there), at its place in the text.
+                        if (r.Tag is NewPicture np)
+                            for (var i = 0; i < text.Length; i++)
+                                if (text[i] == TextParagraph.PictureMark) added.Add(np with { Mark = sb.Length + i });
                         if (!look.IsPlain && text.Length > 0)
                         {
                             if (spans.Count > 0 && spans[^1].End == sb.Length && spans[^1].Look == look) spans[^1] = spans[^1] with { Length = spans[^1].Length + text.Length };
@@ -159,7 +166,7 @@ public sealed partial class PageViewer
         }
         var all = sb.ToString();
         var trimmed = all.TrimEnd();
-        return (trimmed, [.. spans.Where(s => s.Start < trimmed.Length).Select(s => s with { Length = Math.Min(s.Length, trimmed.Length - s.Start) })]);
+        return (trimmed, [.. spans.Where(s => s.Start < trimmed.Length).Select(s => s with { Length = Math.Min(s.Length, trimmed.Length - s.Start) })], added);
     }
 
     /// <summary>Sets the editor's sizes at a zoom: its own size, and each run given a size of its own scaled with it.</summary>
@@ -226,6 +233,14 @@ public sealed partial class PageViewer
         bar.Children.Add(Btn("A+", Strings.Viewer_Larger, () => Resize(box, p, +1)));
         bar.Children.Add(Btn("B", Strings.Viewer_Bold, () => Toggle(box, TextElement.FontWeightProperty, FontWeights.Bold, FontWeights.Normal), FontWeights.Bold));
         bar.Children.Add(Btn("I", Strings.Viewer_Italic, () => Toggle(box, TextElement.FontStyleProperty, FontStyles.Italic, FontStyles.Normal), style: FontStyles.Italic));
+        if (p.Upright is null && p.Runs.All(r => r.Info?.Form is null))
+            bar.Children.Add(Btn(Strings.Viewer_InsertPictureButton, Strings.Viewer_InsertPicture, () =>
+            {
+                _pictureCaret = box.CaretPosition.GetInsertionPosition(LogicalDirection.Forward);
+                // The file dialog takes the focus: the editor stays open (and isn't written) until it is back.
+                _pictureAsked = true;
+                ParagraphPictureRequested?.Invoke(this, EventArgs.Empty);
+            }));
         void Swatch(string name, int rgb)
         {
             var b = Btn("", Loc.Format(Strings.Viewer_ColorTip, name), () =>
@@ -341,9 +356,35 @@ public sealed partial class PageViewer
         return null;
     }
 
+    private TextPointer? _pictureCaret;
+    private bool _pictureAsked;
+
+    /// <summary>The host is done asking for Insert Picture's file (chosen or not): the editor takes the focus back.</summary>
+    public void EndParagraphPictureRequest()
+    {
+        _pictureAsked = false;
+        if (_editor is RichTextBox box) box.Focus();
+    }
+
+    /// <summary>
+    /// Puts a picture (an image file) into the open paragraph editor where the caret was when Insert Picture was chosen: a
+    /// mark (U+FFFC) that stands for it, written into the paragraph's flow with the rest.
+    /// </summary>
+    public void InsertParagraphPicture(byte[] file, string name)
+    {
+        if (_editor is not RichTextBox box || _editorParagraph is null) return;
+        var at = _pictureCaret is { } c && c.IsInSameDocument(box.Document.ContentStart) ? c : box.CaretPosition.GetInsertionPosition(LogicalDirection.Forward);
+        var mark = new Run(TextParagraph.PictureMark.ToString(), at) { Tag = new NewPicture(file, name) };
+        box.CaretPosition = mark.ElementEnd;
+        _pictureCaret = null;
+        _pictureAsked = false;
+        box.Focus();
+        UpdateRunInfo();
+    }
+
     /// <summary>The paragraph editor's text and looks (dev script).</summary>
     internal string? DevParagraphLooks() =>
-        _editor is RichTextBox box && _editorParagraph is { } p && ParagraphContent(box, p) is var (text, spans)
+        _editor is RichTextBox box && _editorParagraph is { } p && ParagraphContent(box, p) is var (text, spans, _)
             ? string.Join("; ", spans.Select(s => $"'{text.Substring(s.Start, s.Length)}' {s.Look}"))
             : null;
 }
