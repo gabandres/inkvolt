@@ -151,11 +151,7 @@ public static class PhotoPrinting
     {
         if (target is PrintTarget.Queue q) return await Task.Run(() => ReadOptions(q.Name));
         var caps = await DirectPrinter.ReadCapsAsync((PrintTarget.Direct)target);
-        var papers = caps.Papers.GroupBy(p => p.Name)
-            .Select(g => g.FirstOrDefault(p => !p.Borderless) ?? g.First())
-            .Select(p => new PaperChoice(p.Name, PhotoPaperText.Paper(null, p.WidthInches, p.HeightInches), p.WidthInches, p.HeightInches, null))
-            .DistinctBy(p => p.Label)
-            .ToList();
+        var papers = caps.PaperChoices().Select(p => new PaperChoice(p.Paper.Name, p.Label, p.Paper.WidthInches, p.Paper.HeightInches, null)).ToList();
         var types = caps.MediaTypes.Select(IppPhotoNames.MediaTypeName).OfType<string>().Distinct()
             .Select(n => new Option<string>(n, PhotoPaperText.MediaType(n))).ToList();
         var qualities = caps.Qualities.Select(IppPhotoNames.QualityName).Distinct().Select(n => new Option<string>(n, PhotoPaperText.Quality(n))).ToList();

@@ -128,7 +128,7 @@ public sealed partial class AlertTracker
             {
                 t.Due = AlertKind.JobFailed;
                 // Compared with the word Status gives a plain error, so it holds in any language.
-                t.Reason = QueueJobText.Status(job.Status) is var said && said == QueueJobText.Status(JobStatus.Error) ? CoreStrings.Alert_JobErrorReason : said;
+                t.Reason = job.Problem ?? (QueueJobText.Status(job.Status) is var said && said == QueueJobText.Status(JobStatus.Error) ? CoreStrings.Alert_JobErrorReason : said);
             }
         }
 

@@ -4230,6 +4230,15 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>The printer didn't take the cancel, so the job may still print. Cancel it on the printer's control panel.</value>
   </data>
+  <data name="Direct_NotAnswering" xml:space="preserve">
+    <value>The printer doesn't answer. Nothing was sent.</value>
+  </data>
+  <data name="Direct_NotDrawn" xml:space="preserve">
+    <value>Its pages couldn't be made ready on this PC. Nothing was sent.</value>
+  </data>
+  <data name="Direct_NotAccepting" xml:space="preserve">
+    <value>The printer isn't taking jobs now.</value>
+  </data>
   <data name="Wia_InUse" xml:space="preserve">
     <value>The scanner is busy with another scan, from this PC or a device scanning through it on the network. Try again when it's done.</value>
   </data>

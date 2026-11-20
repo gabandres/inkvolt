@@ -46,6 +46,12 @@ public sealed class InkvoltPrinters
     /// <summary>The Pro key kept in the state file, when it couldn't be moved to the file both apps share (<see cref="ProKeyFile"/>).</summary>
     public string? ProKey { get; init; }
 
+    /// <summary>UUIDs of the printers the person set to print straight to the printer (Print › Print straight to the printer).</summary>
+    public IReadOnlyList<string> PrintDirect { get; init; } = [];
+
+    /// <summary>The printers' certificate fingerprints, by <see cref="Net.CertificatePinKey"/>: read only here, as Inkvolt Print keeps them.</summary>
+    public IReadOnlyDictionary<string, string> CertificatePins { get; init; } = new Dictionary<string, string>();
+
     /// <summary>
     /// Reads <paramref name="path"/>, or by default Inkvolt Print's current state file wherever it is installed: unpackaged
     /// (<see cref="DefaultPath"/>) or packaged, whose writes Windows keeps in the package's folder
@@ -99,12 +105,23 @@ public sealed class InkvoltPrinters
             {
                 Forgotten = Strings(doc.RootElement, "ForgottenUuids"),
                 ProKey = Str(doc.RootElement, "ProKey") is { Length: > 0 } key ? key : null,
+                PrintDirect = Strings(doc.RootElement, "DirectPrinters"),
+                CertificatePins = Map(doc.RootElement, "CertificatePins"),
             };
         }
         catch (JsonException)
         {
             return Empty;
         }
+    }
+
+    private static IReadOnlyDictionary<string, string> Map(JsonElement e, string name)
+    {
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        if (e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Object)
+            foreach (var kv in v.EnumerateObject())
+                if (kv.Value.ValueKind == JsonValueKind.String && kv.Value.GetString() is { Length: > 0 } s) map[kv.Name] = s;
+        return map;
     }
 
     private static IReadOnlyList<string> Accepted(JsonElement root, string uuid) =>

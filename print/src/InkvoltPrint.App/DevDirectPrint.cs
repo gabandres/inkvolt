@@ -17,6 +17,9 @@ namespace InkvoltPrint.App;
 /// <c>--photos</c> (the demo's sample pictures on a contact sheet), and <c>--format pwg|urf|pclm</c>, <c>--copies n</c>,
 /// <c>--two-sided</c>, <c>--keep folder</c> (each raster is copied there before it's sent, to compare with what the printer
 /// kept) and <c>--report file</c> (what happened, line by line). No window; exits 0 when the printer took the job.
+/// <c>--batch file… [--copies n] [--two-sided] [--stop-after-seconds s]</c> runs Batch print's command line with the files going
+/// straight to the printer (the report has its lines and exit code); <c>--watch-jobs n</c> reads the printer's job list n times,
+/// 3 s apart, through job alerts' rules on a clock a minute on at each read (the report lists the jobs and the alerts raised).
 /// <c>--direct-print --read-pclm file.pclm [--keep folder]</c> opens a kept PCLm file with Windows' own PDF engine instead.
 /// </summary>
 internal static class DevDirectPrint
@@ -60,7 +63,45 @@ internal static class DevDirectPrint
             var copies = int.TryParse(Value(args, "--copies"), out var c) ? c : 1;
             var twoSided = args.Contains("--two-sided");
             var progress = new Progress<string>(m => report.Add($"progress: {m}"));
-            if (args.Contains("--copy"))
+            if (args.Contains("--batch"))
+            {
+                // Batch print's command line as `inkvoltprint print … --printer <ipp-url>` runs it: straight to the printer (DirectBatchQueue).
+                var rest = args.SkipWhile(a => a != "--batch").Skip(1).ToList();
+                // This aid's own options, wherever they are, aren't the command line's.
+                void Drop(string option)
+                {
+                    var at = rest.IndexOf(option);
+                    if (at >= 0) rest.RemoveRange(at, Math.Min(2, rest.Count - at));
+                }
+                Drop("--report");
+                using var stop = new CancellationTokenSource();
+                if (double.TryParse(Value(args, "--stop-after-seconds"), System.Globalization.CultureInfo.InvariantCulture, out var seconds))
+                    stop.CancelAfter(TimeSpan.FromSeconds(seconds));
+                Drop("--stop-after-seconds");
+                var output = new StringWriter();
+                var exit = await BatchPrintCommandLine.RunAsync(["print", .. rest, "--printer", args[1]], output, output, new BatchPrintHost(), stop.Token);
+                report.AddRange(output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Select(l => $"batch: {l}"));
+                report.Add($"exit: {exit}");
+            }
+            else if (args.Contains("--watch-jobs"))
+            {
+                // Job alerts on the printer's own job list: a real read every few seconds, the rules' clock a minute on at each.
+                var reads = int.TryParse(Value(args, "--watch-jobs"), out var n) ? n : 20;
+                var tracker = new Core.Alerts.AlertTracker(new Core.Alerts.AlertRules { Jobs = true });
+                var watch = new Core.Printing.Direct.DirectJobWatch();
+                var clock = DateTimeOffset.Now;
+                for (var i = 0; i < reads; i++, clock = clock.AddMinutes(1))
+                {
+                    var printer = await target.Ipp.GetPrinterAttributesAsync();
+                    tracker.Observe(new Core.Alerts.PrinterSnapshot("test", "Test printer", true, IppClient.ToStatus(printer), []), clock);
+                    var queue = await watch.ReadAsync(target.Ipp, target.User);
+                    report.Add($"read {i}: {string.Join("; ", queue.Jobs.Select(j => $"job {j.Id} {j.Status} {j.PagesPrinted}/{j.Pages} {j.Owner} {j.Problem}"))}");
+                    foreach (var notice in tracker.ObserveJobs("test", "Test printer", queue, Core.Alerts.JobOwner.Current, clock))
+                        report.Add($"alert: {notice.Kind}: {notice.Title} | {notice.Body}");
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+                }
+            }
+            else if (args.Contains("--copy"))
             {
                 // Two "scans": a made-up PDF's pages drawn at 300 dpi, as a scanner's JPEGs would come in.
                 var scans = await PdfSource.OpenAsync(BatchPrintSamples.Pdf(2, "Scanned"));
