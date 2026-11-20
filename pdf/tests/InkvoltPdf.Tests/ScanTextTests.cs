@@ -63,6 +63,22 @@ public class ScanTextTests
         Assert.Equal(73, y0, 1.0);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(90)]
+    [InlineData(180)]
+    [InlineData(270)]
+    public void APageWithALargeShadedPictureIsTurnedTheRightWayUp(int turned)
+    {
+        // The export test page: headings, a list, a ruled table and a large shaded picture. The picture, as a "line" of its
+        // own, outweighed the text and the page was read upside down, and sure of it.
+        using var pdf = PdfEngine.Open(ExportTestPdf.Make(), InputFileTypes.PDF, null);
+        var scan = pdf.Render(0, 300.0 / 72).Rotated(turned);
+        var cleaned = ScanCleanup.Clean(scan.Pixels, scan.Width, scan.Height, 3, 300);
+        Assert.Equal(0, (turned / 90 + cleaned.QuarterTurns) % 4);
+        Assert.True(cleaned.UprightSure);
+    }
+
     [Fact]
     public void AnUpsideDownSkewedScanIsReadUprightAndItsWordsLandWhereTheyAre()
     {

@@ -523,7 +523,7 @@ directly in `/Annots`. Inkvolt PDF for Mac 1.4.0 ships it. First thing when the 
 - 3.5 Folder search: 10,000 generated PDFs, a word in 3-114 ms, a changed file found in 3.4 s. Not checked: real PDFs at that scale, a
   hostile PDF, an MSIX install, network drives, OneDrive placeholders. The slow index runs (569 s once) are Windows Defender
   scanning each file a worker opens while it is busy (pdf/ROADMAP.md 3.5, 2026-11-20, with numbers); a two-word phrase now lists
-  500 pages in 0.6-1.2 s on a quiet PC (was 3-5 s; processor 7-8 s → 2-3 s), inflating each page being most of what is left.
+  500 pages in 0.45-0.84 s on the bench (was 3-5 s; processor 7-8 s → 2-3 s; all processors but two, ROADMAP 3.5 has each case).
 
 **Print wave 2 on master, not released.** 2.6 Fleet page, 2.4 Batch print, 2.3 Scan cleanup and Unicode OCR layer. Each has its checks and
 limits in `print/ROADMAP.md`.
@@ -673,12 +673,9 @@ ratings); publish releases without asking; every new agent on Opus 5.5 (PPE inst
 
 - PDF 2.2 Better OCR (deskew, cleanup, optional Tesseract, correction of low-confidence words).
 - PDF 2.1 leftovers: paragraphs in turned text, paragraphs mixing font families (edit line by line today).
-- Scan cleanup's which-way-up test (`Upright.UpsideDown`, shared/InkvoltPrint.Core, used by Recognize Text and Compare):
-  `ExportTestPdf`'s page 1 rendered at 300 dpi (headings, a list, a ruled table and a large shaded picture) comes out
-  upside down and "sure" (turns 2), so OCR reads it upside down and the dictionary never gets a say; its text-only page 2
-  reads right. Likely the picture counted as one tall "line" whose ink above and below its band outweighs the text;
-  leaving runs far taller than the page's text lines out is the first thing to try (found 2026-11-20 with Compare's
-  quarter-turn alignment; not fixed: shared with Inkvolt Print, which is on hold).
+- Mac: port the scan cleanup's which-way-up fix (`Upright.MaxLineRatio`, 2026-11-20: a page with a large shaded picture
+  was read upside down) to `ScanCleanup.swift`, with the folder-search and export-link changes (mac/docs/PLAN.md, "Windows
+  ahead, to port").
 - PDF 3.6 misses: Find 9.7 s (worker processes, see decision 8), drawing-set scroll 848 ms/sheet, first Find on the
   drawing set 164 s; re-run `pdf/tools/bench` on a quiet PC before the next release and commit RESULTS.md.
 - PDF wave 3: 3.1 translate, 3.2 PowerPoint/HTML export, 3.3 compare Office files and scans, 3.4 LTV signatures,

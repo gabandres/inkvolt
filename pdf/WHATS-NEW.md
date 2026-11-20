@@ -21,7 +21,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Batch runs a small file that unpacks to far more than its size (a 200 KB file holding 200 MB) on its own, so it no longer takes memory from the files beside it.
 - Export to PowerPoint and HTML keeps the PDF's links: web and email links still open, and a link to another page goes to that slide or that part of the page. Only the words the link covers are linked.
 - Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.
-- Search Folders finds a phrase of common words several times faster: one that had to look through every page of 10,000 files took 3 to 5 seconds and now takes about a second or less.
+- Search Folders finds a phrase of common words several times faster: one that had to look through every page of 10,000 files took 3 to 5 seconds and now takes under a second.
+- Recognize Text and Compare Files no longer read a scanned page upside down because of a large picture or shaded box on it.
 
 ## 1.15.0
 - Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.

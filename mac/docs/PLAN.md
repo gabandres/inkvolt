@@ -1375,7 +1375,11 @@ and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 f
 (`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests). Folder search's phrase reading (2026-11-20): a file's
 pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
 `SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
-`Pages_of_many_files_and_long_pages_read_back_in_order`).
+`Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
+(`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
+(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). The scan cleanup's which-way-up test leaves
+out a run of ink rows over 3 times the middle one's height (`Upright.MaxLineRatio`; PrintTests' `UprightTests`, ScanTextTests'
+`APageWithALargeShadedPictureIsTurnedTheRightWayUp`): `ScanCleanup.swift` has the old reading.
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`

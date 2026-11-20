@@ -438,6 +438,9 @@ public static class Upright
     /// <summary>Clear when one side has at least this much more ink than the other.</summary>
     public const double ClearRatio = 1.4;
 
+    /// <summary>A run of inked rows taller than this many times the middle one is left out (a picture, a shaded box; a heading twice the body's size stays).</summary>
+    public const double MaxLineRatio = 3;
+
     /// <summary>Whether the page is upside down, and whether its lines said so clearly (not for a page with almost no text).</summary>
     public static (bool UpsideDown, bool Sure) UpsideDown(GrayImage horizontal)
     {
@@ -448,7 +451,8 @@ public static class Upright
 
     /// <summary>
     /// Ink above and below the middle band of each text line, summed over the page. A line is a run of rows with ink, its
-    /// middle band the rows at least half as inked as its fullest.
+    /// middle band the rows at least half as inked as its fullest; a run more than <see cref="MaxLineRatio"/> times as tall
+    /// as the middle one isn't a line.
     /// </summary>
     public static (double Above, double Below) AboveBelow(GrayImage img)
     {
@@ -462,7 +466,7 @@ public static class Upright
 
         var max = profile.Length == 0 ? 0 : profile.Max();
         var floor = Math.Max(1, max * 0.03);
-        double above = 0, below = 0;
+        var runs = new List<(int Start, int End)>();
         for (var i = 0; i < profile.Length;)
         {
             if (profile[i] < floor)
@@ -472,8 +476,16 @@ public static class Upright
             }
             var start = i;
             while (i < profile.Length && profile[i] >= floor) i++;
-            var end = i; // exclusive
-            if (end - start < 4) continue;
+            if (i - start >= 4) runs.Add((start, i)); // end exclusive
+        }
+        // A run far taller than the page's lines is a picture or a shaded box, not a line of text: its ink says nothing of
+        // which way is up (a shading darker at one end outweighed a whole page of text).
+        var heights = runs.Select(r => r.End - r.Start).Order().ToList();
+        var tallest = heights.Count == 0 ? 0 : MaxLineRatio * heights[heights.Count / 2];
+        double above = 0, below = 0;
+        foreach (var (start, end) in runs)
+        {
+            if (end - start > tallest) continue;
             var peak = 0;
             for (var j = start; j < end; j++) peak = Math.Max(peak, profile[j]);
             var bandTop = start;
