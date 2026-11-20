@@ -185,68 +185,108 @@ public partial class ParagraphEditTests
 
     // ---- Cropping ----
 
-    [Fact]
-    public void ACropShowsPartOfThePictureAndMovesWithIt()
+    /// <summary>A page drawing /Im1 as given, its 4 x 2 pixels one color a column: red, green, blue, white.</summary>
+    private static byte[] Columns(string content)
     {
-        var pdf = ContentEditPdf.Make("q 100 0 0 50 72 600 cm /Im1 Do Q");
+        var pdf = ContentEditPdf.Make(content);
+        using var d = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify);
+        var im = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(d.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!.Elements["/Im1"])!;
+        byte[] row = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 255];
+        im.Stream!.Value = [.. row, .. row];
+        im.Elements.Remove("/Filter");
+        im.Elements["/Length"] = new PdfSharp.Pdf.PdfInteger(24);
+        using var ms = new MemoryStream();
+        d.Save(ms, false);
+        return ms.ToArray();
+    }
+
+    /// <summary>Every picture the file holds, as its pixel size and samples (RGB triples).</summary>
+    private static List<(int W, int H, byte[] Samples)> PicturesIn(byte[] pdf)
+    {
+        using var d = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(pdf), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        return [.. d.Internals.GetAllObjects().OfType<PdfSharp.Pdf.PdfDictionary>()
+            .Where(o => o.Elements.GetName("/Subtype") == "/Image" && o.Elements.GetName("/ColorSpace") == "/DeviceRGB")
+            .Select(o => (o.Elements.GetInteger("/Width"), o.Elements.GetInteger("/Height"), PdfObj.StreamBytes(o)))];
+    }
+
+    private static bool Holds(byte[] samples, byte r, byte g, byte b)
+    {
+        for (var i = 0; i + 2 < samples.Length; i += 3)
+            if (samples[i] == r && samples[i + 1] == g && samples[i + 2] == b) return true;
+        return false;
+    }
+
+    [Fact]
+    public void ACropKeepsOnlyThePixelsItShows()
+    {
+        // 100 x 50 points, 25 points a pixel: the right half (blue and white) kept, out to whole pixels.
+        var pdf = Columns("q 100 0 0 50 72 600 cm /Im1 Do Q");
         var image = ContentEditor.Read(pdf, null, 0).Images.Single();
-        var whole = new RectD(72, 792 - 650, 100, 50);
-        Near(whole, image.Box);
-        Assert.Null(image.Uncropped);
-
-        // Its right half, the bottom 10 points off.
-        var cropped = ContentEditor.CropImage(pdf, null, image, new RectD(122, 142, 50, 40));
-        Assert.Contains("0.5 0.2 0.5 0.8 re W n", ContentEditPdf.Content(cropped));
+        Near(new RectD(72, 142, 100, 50), image.Box);
+        var cropped = ContentEditor.CropImage(pdf, null, image, new RectD(123, 150, 48, 30));
         var c = ContentEditor.Read(cropped, null, 0).Images.Single();
-        Near(new RectD(122, 142, 50, 40), c.Box);
-        Near(whole, c.Uncropped!.Value);
+        Near(new RectD(122, 142, 50, 50), c.Box);
+        Assert.Null(c.Uncropped); // nothing cut off left to show again
+        Assert.DoesNotContain("re W n", ContentEditPdf.Content(cropped));
+        var pictures = PicturesIn(cropped);
+        var kept = Assert.Single(pictures);
+        Assert.Equal((2, 2), (kept.W, kept.H));
+        Assert.True(Holds(kept.Samples, 0, 0, 255) && Holds(kept.Samples, 255, 255, 255));
+        // The red and green columns are nowhere in the file.
+        Assert.DoesNotContain(pictures, p => Holds(p.Samples, 255, 0, 0) || Holds(p.Samples, 0, 255, 0));
 
-        // Moved and made twice the size, the crop goes with it.
-        var moved = ContentEditor.MoveImage(cropped, null, c, new RectD(200, 300, 100, 80));
+        // Moved and resized as any picture; cropped again; deleted.
+        var moved = ContentEditor.MoveImage(cropped, null, c, new RectD(200, 300, 100, 100));
         var m = ContentEditor.Read(moved, null, 0).Images.Single();
-        Near(new RectD(200, 300, 100, 80), m.Box);
-        Near(new RectD(100, 300, 200, 100), m.Uncropped!.Value);
-
-        // Cropped again, from what is left to more of it; then all of it: the crop goes.
-        var again = ContentEditor.CropImage(moved, null, m, new RectD(150, 300, 150, 80));
-        Near(new RectD(150, 300, 150, 80), ContentEditor.Read(again, null, 0).Images.Single().Box);
-        var whole2 = ContentEditor.Read(again, null, 0).Images.Single();
-        var uncropped = ContentEditor.CropImage(again, null, whole2, whole2.Uncropped!.Value);
-        var u = ContentEditor.Read(uncropped, null, 0).Images.Single();
-        Assert.Null(u.Uncropped);
-        Near(new RectD(100, 300, 200, 100), u.Box);
-        Assert.DoesNotContain(" W n", ContentEditPdf.Content(uncropped));
-
-        // Deleted, the crop goes with it.
-        var deleted = ContentEditor.DeleteImage(cropped, null, c);
-        Assert.Empty(ContentEditor.Read(deleted, null, 0).Images);
-        Assert.DoesNotContain("re W n", ContentEditPdf.Content(deleted));
+        Near(new RectD(200, 300, 100, 100), m.Box);
+        var again = ContentEditor.CropImage(moved, null, m, new RectD(250, 300, 50, 100));
+        var a = ContentEditor.Read(again, null, 0).Images.Single();
+        Near(new RectD(250, 300, 50, 100), a.Box);
+        Assert.DoesNotContain(PicturesIn(again), p => Holds(p.Samples, 0, 0, 255));
+        Assert.Empty(ContentEditor.Read(ContentEditor.DeleteImage(cropped, null, c), null, 0).Images);
     }
 
     [Fact]
     public void APictureDrawnWithoutItsOwnSaveIsCroppedInOne()
     {
-        var pdf = ContentEditPdf.Make("100 0 0 50 72 600 cm /Im1 Do");
+        var pdf = Columns("100 0 0 50 72 600 cm /Im1 Do");
         var image = ContentEditor.Read(pdf, null, 0).Images.Single();
         var cropped = ContentEditor.CropImage(pdf, null, image, new RectD(72, 142, 50, 50));
         var c = ContentEditor.Read(cropped, null, 0).Images.Single();
         Near(new RectD(72, 142, 50, 50), c.Box);
+        var kept = Assert.Single(PicturesIn(cropped));
+        Assert.True(Holds(kept.Samples, 255, 0, 0) && !Holds(kept.Samples, 0, 0, 255));
         var moved = ContentEditor.MoveImage(cropped, null, c, new RectD(300, 300, 50, 50));
-        var m = ContentEditor.Read(moved, null, 0).Images.Single();
-        Near(new RectD(300, 300, 50, 50), m.Box);
-        Near(new RectD(300, 300, 100, 50), m.Uncropped!.Value);
+        Near(new RectD(300, 300, 50, 50), ContentEditor.Read(moved, null, 0).Images.Single().Box);
     }
 
     [Fact]
     public void ACropOfAQuarterTurnedPictureFollowsItsTurn()
     {
-        // Turned a quarter: 50 wide and 100 tall on the page.
-        var pdf = ContentEditPdf.Make("q 0 100 -50 0 200 500 cm /Im1 Do Q");
+        // Turned a quarter: 50 wide and 100 tall on the page, its columns running down it.
+        var pdf = Columns("q 0 100 -50 0 200 500 cm /Im1 Do Q");
         var image = ContentEditor.Read(pdf, null, 0).Images.Single();
         Assert.False(image.Turned);
         var crop = new RectD(image.Box.X, image.Box.Y, image.Box.Width, image.Box.Height / 2);
-        var c = ContentEditor.Read(ContentEditor.CropImage(pdf, null, image, crop), null, 0).Images.Single();
-        Near(crop, c.Box);
+        var cropped = ContentEditor.CropImage(pdf, null, image, crop);
+        Near(crop, ContentEditor.Read(cropped, null, 0).Images.Single().Box);
+        Assert.Equal((2, 2), Assert.Single(PicturesIn(cropped)) is var k ? (k.W, k.H) : default);
+    }
+
+    [Fact]
+    public void ACropMadeByAClipOnThePageIsMadeReal()
+    {
+        // Another program's crop (a clip before the picture): cropping again keeps the pixels asked for, the clip goes.
+        var pdf = Columns("q 100 0 0 50 72 600 cm 0 0 0.5 1 re W n /Im1 Do Q");
+        var image = ContentEditor.Read(pdf, null, 0).Images.Single();
+        Near(new RectD(72, 142, 50, 50), image.Box);
+        Near(new RectD(72, 142, 100, 50), image.Uncropped!.Value);
+        var cropped = ContentEditor.CropImage(pdf, null, image, image.Box);
+        Assert.DoesNotContain("re W n", ContentEditPdf.Content(cropped));
+        var kept = Assert.Single(PicturesIn(cropped));
+        Assert.Equal(2, kept.W);
+        Assert.False(Holds(kept.Samples, 0, 0, 255));
+        Near(new RectD(72, 142, 50, 50), ContentEditor.Read(cropped, null, 0).Images.Single().Box);
     }
 
     [Fact]
@@ -261,6 +301,11 @@ public partial class ParagraphEditTests
         Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(pdf, null, image, new RectD(double.NaN, 0, 10, 10)));
         Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(pdf, null, image, new RectD(400, 400, 50, 50))); // outside it
         Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(pdf, null, image, new RectD(72, 142, 0.5, 50)));
+        // A stencil (an inline image mask): one color painted through it.
+        var stencil = ContentEditPdf.Make("q 100 0 0 50 72 600 cm BI /W 8 /H 2 /IM true ID ðð EI Q");
+        var s = ContentEditor.Read(stencil, null, 0).Images.Single();
+        var ex = Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(stencil, null, s, new RectD(72, 142, 50, 50)));
+        Assert.Contains("stencil", ex.Message);
     }
 
     [Fact]
@@ -274,5 +319,9 @@ public partial class ParagraphEditTests
             Assert.Null(image.Uncropped);
             Near(new RectD(72, 142, 100, 50), image.Box);
         }
+        // A picture claiming a size past any page's: refused before anything is drawn.
+        var huge = ContentEditPdf.Make("q 100 0 0 50 72 600 cm BI /W 9000000 /H 2 /CS /G /BPC 8 ID \u0000\u0000 EI Q");
+        if (ContentEditor.Read(huge, null, 0).Images.SingleOrDefault() is { Blocked: null } h)
+            Assert.Throws<ContentEditException>(() => ContentEditor.CropImage(huge, null, h, new RectD(72, 142, 50, 50)));
     }
 }

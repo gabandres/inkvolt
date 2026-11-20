@@ -2245,7 +2245,7 @@
     <value>Recortar imagen</value>
   </data>
   <data name="Tab_CropPictureTip" xml:space="preserve">
-    <value>Recorta los bordes de la imagen seleccionada: arrastra sus controladores hacia dentro, o de nuevo hacia fuera para mostrar más (C). Esc termina el recorte.</value>
+    <value>Recorta los bordes de la imagen seleccionada: arrastra sus controladores hacia dentro (C). Lo que recortas se quita del archivo; Deshacer lo recupera. Esc termina el recorte.</value>
   </data>
   <data name="Tab_LeaveEditTextImagesTip" xml:space="preserve">
     <value>Salir de Editar texto e imágenes (Esc)</value>
@@ -4470,7 +4470,7 @@ Modificado {1:g}</value>
     <value>Recortar imagen</value>
   </data>
   <data name="EditContent_CropHint" xml:space="preserve">
-    <value>Arrastra un controlador para recortar la imagen; arrástralo de nuevo hacia fuera para mostrar más. Pulsa Esc o C al terminar.</value>
+    <value>Arrastra un controlador para recortar la imagen: lo que recortas se quita del archivo (Deshacer lo recupera). Pulsa Esc o C al terminar.</value>
   </data>
   <data name="EditContent_ReplaceTitle" xml:space="preserve">
     <value>Reemplazar imagen</value>

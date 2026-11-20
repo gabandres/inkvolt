@@ -455,11 +455,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   paragraph (`TextParagraph.Pictures`): U+FFFC stands for it in the text, the layout gives it room as wide as it is
   (an operator of its own, so the words around it read back as two runs) and its reach above and below the line, and
   the same edit moves it there (`PictureEdits`); its mark taken out takes it off, a mark typed in is refused. Crop
-  (`ContentEditor.CropImage`; Crop Picture or C in Edit Text & Images, the handles cut the edges, Esc ends): a clip
-  rectangle in the picture's own space drawn right before it, so a move, resize or delete takes it along (`Placed`:
-  q [cm] [crop] Do Q); cropping out to the whole picture takes the clip away, Replace drops it; `PageImage.Box` is what
-  shows, `Uncropped` the whole. Turned pictures (past a quarter turn) aren't cropped; the cut pixels stay in the file
-  (applying a crop to the image data is still to do), and a new picture can't be added into a paragraph's flow. A mark
+  (`ContentEditor.CropImage`, `ContentEditor.Crop.cs`; Crop Picture or C in Edit Text & Images, the handles cut the
+  edges, Esc ends): the part kept, out to whole pixels, is drawn by MuPDF from a copy of the page that shows only it
+  (any filter, color space, decode array; its soft or stencil mask drawn apart as its alpha) and stored as a new picture
+  (Flate RGB, an /SMask when it had a mask) where that part was; the old picture leaves the page and, unused, the file,
+  so the pixels cut off are gone (a signed file's earlier revision keeps them, as for any removal). A clip another
+  program cropped with (`PageImage.Uncropped`) is made real the same way. Stencils, pictures masked by a color, turned
+  pictures (past a quarter turn) and a kept part over 50 million pixels are refused; colors are drawn as RGB. A mark
   cut and pasted elsewhere moves its picture; a picture an edit wraps to a line's start keeps the paragraph one
   (`WidenForPicture`, when the line above starts there too). Dev script (`cropimage`, `editpara`; Helvetica with a
   bigger red word and a picture between two words): the picture cropped to its middle; the paragraph edited so the

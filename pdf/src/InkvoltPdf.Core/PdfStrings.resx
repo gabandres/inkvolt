@@ -3808,6 +3808,15 @@
   <data name="Edit_CropTurned" xml:space="preserve">
     <value>Only an upright picture, or one turned a quarter, can be cropped.</value>
   </data>
+  <data name="Edit_CropStencil" xml:space="preserve">
+    <value>This picture is one color painted through a stencil (or masked by a color), so it can't be cropped.</value>
+  </data>
+  <data name="Edit_CropFailed" xml:space="preserve">
+    <value>The picture couldn't be cropped: its image couldn't be read.</value>
+  </data>
+  <data name="Edit_CropTooLarge" xml:space="preserve">
+    <value>The part of the picture to keep is too large to crop (more than 50 million pixels).</value>
+  </data>
   <data name="Edit_PictureTyped" xml:space="preserve">
     <value>A picture can't be typed or pasted into a paragraph: the mark ￼ stands for a picture already in it. Add a picture with Add Image.</value>
   </data>

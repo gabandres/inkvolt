@@ -22,7 +22,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Edit Text & Images rewraps a paragraph that mixes sizes or colors (a bigger word, a word in red, a subscript) as one paragraph: each part keeps its size, color and height, and a color stays exactly as the PDF had it.
 - New letter pairs typed into kerned text get the font's own kerning ("To", "AV"), so edited lines are set as tightly as the lines around them.
 - A small picture on a paragraph's line, between its words, now moves with its words when you edit the paragraph. It shows as ￼ in the editor; delete the mark to take the picture off.
-- Crop a picture: select it, choose Crop Picture (or press C) and drag its handles in; drag them back out to show more. It stays cropped when you move or resize it, and Undo takes the crop back.
+- Crop a picture: select it, choose Crop Picture (or press C) and drag its handles in. What you cut off is removed from the file, not just hidden, so nobody can bring it back from the PDF; Undo takes the crop back while you work.
 - Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.
 
 ## 1.15.0

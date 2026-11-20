@@ -3808,6 +3808,15 @@
   <data name="Edit_CropTurned" xml:space="preserve">
     <value>Solo se puede recortar una imagen derecha o girada un cuarto de vuelta.</value>
   </data>
+  <data name="Edit_CropStencil" xml:space="preserve">
+    <value>Esta imagen es un solo color pintado a través de una plantilla (o enmascarado por un color), así que no se puede recortar.</value>
+  </data>
+  <data name="Edit_CropFailed" xml:space="preserve">
+    <value>No se pudo recortar la imagen: no se pudo leer su contenido.</value>
+  </data>
+  <data name="Edit_CropTooLarge" xml:space="preserve">
+    <value>La parte de la imagen que se conserva es demasiado grande para recortarla (más de 50 millones de píxeles).</value>
+  </data>
   <data name="Edit_PictureTyped" xml:space="preserve">
     <value>No se puede escribir ni pegar una imagen en un párrafo: la marca ￼ representa una imagen que ya está en él. Agrega una imagen con Agregar imagen.</value>
   </data>

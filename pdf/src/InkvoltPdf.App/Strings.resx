@@ -2246,7 +2246,7 @@
     <value>Crop Picture</value>
   </data>
   <data name="Tab_CropPictureTip" xml:space="preserve">
-    <value>Cut the selected picture's edges off: drag its handles in, or back out to show more (C). Esc ends cropping.</value>
+    <value>Cut the selected picture's edges off: drag its handles in (C). What you cut off is removed from the file; Undo brings it back. Esc ends cropping.</value>
   </data>
   <data name="Tab_LeaveEditTextImagesTip" xml:space="preserve">
     <value>Leave Edit Text &amp; Images (Esc)</value>
@@ -4471,7 +4471,7 @@ Modified {1:g}</value>
     <value>Crop picture</value>
   </data>
   <data name="EditContent_CropHint" xml:space="preserve">
-    <value>Drag a handle to crop the picture; drag it back out to show more. Press Esc or C when done.</value>
+    <value>Drag a handle to crop the picture: what you cut off is removed from the file (Undo brings it back). Press Esc or C when done.</value>
   </data>
   <data name="EditContent_ReplaceTitle" xml:space="preserve">
     <value>Replace Picture</value>

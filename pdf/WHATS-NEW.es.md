@@ -22,7 +22,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - Editar texto e imágenes reacomoda como un solo párrafo uno que mezcla tamaños o colores (una palabra más grande, una palabra en rojo, un subíndice): cada parte conserva su tamaño, su color y su altura, y un color queda exactamente como lo tenía el PDF.
 - Los pares de letras nuevos que escribes en un texto con interletraje reciben el interletraje propio de la fuente ("To", "AV"), así que las líneas editadas quedan tan ajustadas como las de alrededor.
 - Una imagen pequeña en la línea de un párrafo, entre sus palabras, ahora se mueve con sus palabras al editar el párrafo. En el editor aparece como ￼; borra la marca para quitar la imagen.
-- Recorta una imagen: selecciónala, elige Recortar imagen (o pulsa C) y arrastra sus controladores hacia dentro; arrástralos de nuevo hacia fuera para mostrar más. Sigue recortada al moverla o cambiar su tamaño, y Deshacer quita el recorte.
+- Recorta una imagen: selecciónala, elige Recortar imagen (o pulsa C) y arrastra sus controladores hacia dentro. Lo que recortas se quita del archivo, no solo se oculta, así que nadie puede recuperarlo del PDF; Deshacer quita el recorte mientras trabajas.
 - Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.
 
 ## 1.15.0

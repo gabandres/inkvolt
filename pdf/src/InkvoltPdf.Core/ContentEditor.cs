@@ -481,39 +481,6 @@ public static partial class ContentEditor
         return x1 - x0 > 1e-6 && y1 - y0 > 1e-6 && (x0 > 0 || y0 > 0 || x1 < 1 || y1 < 1) ? (x0, y0, x1, y1) : null;
     }
 
-    /// <summary>
-    /// Crops a picture to <paramref name="crop"/> (page space; held to the whole picture): a clip rectangle in its own
-    /// space drawn right before it, so it moves and resizes with it; a crop of all of it takes the clip away. The pixels
-    /// cut off stay in the file. Upright pictures and quarter turns only.
-    /// </summary>
-    public static byte[] CropImage(byte[] data, string? password, PageImage image, RectD crop)
-    {
-        if (image.Turned) throw new ContentEditException(PdfStrings.Edit_CropTurned);
-        if (!double.IsFinite(crop.X + crop.Y + crop.Width + crop.Height)) throw new ContentEditException(PdfStrings.Edit_PictureTooSmall);
-        return EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
-        {
-            var whole = found.Uncropped ?? found.Box;
-            var c = crop.Intersect(whole);
-            if (c.Width < 1 || c.Height < 1) throw new ContentEditException(PdfStrings.Edit_PictureTooSmall);
-            var toUnit = PageToUser(page).Times(ctm.Invert() ?? throw new ContentEditException(PdfStrings.Edit_PictureSquashed));
-            var (ax, ay) = toUnit.Apply(c.X, c.Y);
-            var (bx, by) = toUnit.Apply(c.Right, c.Bottom);
-            double x0 = Math.Clamp(Math.Min(ax, bx), 0, 1), x1 = Math.Clamp(Math.Max(ax, bx), 0, 1);
-            double y0 = Math.Clamp(Math.Min(ay, by), 0, 1), y1 = Math.Clamp(Math.Max(ay, by), 0, 1);
-            const double All = 1e-4;
-            var clip = x0 <= All && y0 <= All && x1 >= 1 - All && y1 >= 1 - All ? ""
-                : $"{ContentLexer.Number(x0)} {ContentLexer.Number(y0)} {ContentLexer.Number(x1 - x0)} {ContentLexer.Number(y1 - y0)} re W n";
-            var at = ops.IndexOf(op);
-            if (Placed(ops, at) is { } placed)
-            {
-                if (placed.Clip >= 0) return [(ops[placed.Clip].Start, ops[placed.Clip + 2].End, clip)];
-                return clip.Length == 0 ? [] : [(op.Start, op.Start, clip)];
-            }
-            if (CropBefore(ops, at) is not null) return [(ops[at - 3].Start, ops[at - 1].End, clip)];
-            return clip.Length == 0 ? [] : [(op.Start, op.End, $"q {clip} {Slice(op, content)} Q")];
-        });
-    }
-
     /// <summary>Removes a picture from the page.</summary>
     public static byte[] DeleteImage(byte[] data, string? password, PageImage image) =>
         EditImage(data, password, image, (doc, page, found, op, ctm, ops, content) =>
