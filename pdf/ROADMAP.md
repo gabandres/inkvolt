@@ -1056,8 +1056,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (`INKVOLTPDF_WORD` makes them again). The app compared the two .docx files through Word and listed the same 30. The edited
   PDF against a synthetic scan of itself (200 dpi, turned 1.3°, shifted) found 1.3° and the shift to a tenth of a point.
   **Not checked:** a real scan. **Known:** on that synthetic scan Windows' recognizer skipped a whole line, listed as removed and
-  marked as maybe misread, and lost one "."; re-reading the bands with ink but no words is queued in `docs/HANDOFF.md`. A scan
-  isn't lined up when scanned at another size or a quarter turn off.
+  marked as maybe misread, and lost one "."; re-reading the bands with ink but no words is queued in `docs/HANDOFF.md`.
+  **Another size or a quarter turn** (2026-11-20): `CompareAlign` also brings the new page to the old one's size and way up
+  before the shift and skew: each quarter turn whose ink box has the old one's proportions is tried coarsely, the best
+  sized to the pixel pair (±5%), then lined up as before; kept only when the ink agrees better. `CompareAlignTests`: turned
+  90/180/270°, at 0.8, 0.85, 1.2 and 1.3 times, crooked and shifted, each found to the degree and 1.5% and lined up to 2
+  points, a stamp still showing. The app (`--script compare`) lined a 300 dpi scan up with one turned 90° on a landscape page
+  (90°, ×0.998), the overlay all grey, no text changes. Compare's recognition reads with the language's dictionary now, as
+  Recognize Text does. **Known:** the scan cleanup's which-way-up test (`Upright`, shared with Inkvolt Print) takes the
+  export test page with its large shaded picture for upside down, and sure of it (a text-only page reads right): both sides
+  then read upside down and the words compare as misread; queued in `docs/HANDOFF.md`.
 - **Mac (2026-11-07):** File › Compare Files… takes a Word, Excel or PowerPoint file (made into a PDF by LibreOffice, with the
   same checks as opening one: Word for Mac can't be driven yet) or a picture of a scanned page on either side; a page whose
   pictures cover 70% of it is a scan, and one with no text is recognized first with Vision on this Mac (Compare Without

@@ -921,9 +921,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   text: boxes with text in them, vertical rules, curves and scanned pages without OCR text find nothing; a table of
   empty cells becomes a field per cell.
 - Compare: text is matched in the order the pages store it (multi-column layouts can show reordered text as changes),
-  and Thai, Lao or Khmer text (no spaces between words) is compared in long runs. Visual compare lines up scans for shift and
-  skew, not for a page scanned at another size or turned a quarter turn, and pages made by a program aren't lined up, so a page
-  shifted by a few points looks different all over. Windows' recognizer now and then skips a whole line that is on the page:
+  and Thai, Lao or Khmer text (no spaces between words) is compared in long runs. Visual compare lines up scans for shift,
+  skew, another size (a third to three times) and a quarter turn, the last two from where most of each page's ink lies: a
+  page with ink in a band under a twenty-fifth of the page either way, or whose ink is cut differently (a margin note on one
+  scan only), stays at its size and way up. Pages made by a program aren't lined up, so a page shifted by a few points looks
+  different all over. Windows' recognizer now and then skips a whole line that is on the page:
   it is listed as removed, marked as maybe misread. A scan against a page made by a program isn't checked visually (they differ
   all over), only by its words. The annotated copy needs the permissions password of a
   protected changed file. XPS, EPUB and the other formats Inkvolt PDF opens aren't taken.

@@ -672,6 +672,12 @@ ratings); publish releases without asking; every new agent on Opus 5.5 (PPE inst
 
 - PDF 2.2 Better OCR (deskew, cleanup, optional Tesseract, correction of low-confidence words).
 - PDF 2.1 leftovers: paragraphs in turned text, paragraphs mixing font families (edit line by line today).
+- Scan cleanup's which-way-up test (`Upright.UpsideDown`, shared/InkvoltPrint.Core, used by Recognize Text and Compare):
+  `ExportTestPdf`'s page 1 rendered at 300 dpi (headings, a list, a ruled table and a large shaded picture) comes out
+  upside down and "sure" (turns 2), so OCR reads it upside down and the dictionary never gets a say; its text-only page 2
+  reads right. Likely the picture counted as one tall "line" whose ink above and below its band outweighs the text;
+  leaving runs far taller than the page's text lines out is the first thing to try (found 2026-11-20 with Compare's
+  quarter-turn alignment; not fixed: shared with Inkvolt Print, which is on hold).
 - PDF 3.6 misses: Find 9.7 s (worker processes, see decision 8), drawing-set scroll 848 ms/sheet, first Find on the
   drawing set 164 s; re-run `pdf/tools/bench` on a quiet PC before the next release and commit RESULTS.md.
 - PDF wave 3: 3.1 translate, 3.2 PowerPoint/HTML export, 3.3 compare Office files and scans, 3.4 LTV signatures,

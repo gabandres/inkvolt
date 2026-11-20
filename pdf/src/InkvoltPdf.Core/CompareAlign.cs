@@ -4,27 +4,32 @@ namespace InkvoltPdf.Core;
 
 /// <summary>
 /// Where the old page's points are on the new page: turned <see cref="Angle"/> degrees clockwise about
-/// (<see cref="CenterX"/>, <see cref="CenterY"/>), then shifted by (<see cref="Dx"/>, <see cref="Dy"/>) points.
+/// (<see cref="CenterX"/>, <see cref="CenterY"/>) and made <see cref="Scale"/> times as large there, then shifted by
+/// (<see cref="Dx"/>, <see cref="Dy"/>) points. A page scanned a quarter turn off has an angle near 90, 180 or 270; one
+/// scanned at another size, a scale other than 1.
 /// </summary>
-public readonly record struct PageAlignment(double Dx, double Dy, double Angle, double CenterX, double CenterY)
+public readonly record struct PageAlignment(double Dx, double Dy, double Angle, double CenterX, double CenterY, double Scale = 1)
 {
     public static PageAlignment None { get; } = new(0, 0, 0, 0, 0);
 
-    public bool IsNone => Dx == 0 && Dy == 0 && Angle == 0;
+    public bool IsNone => Dx == 0 && Dy == 0 && Angle == 0 && S == 1;
+
+    /// <summary>The scale, 1 for a default value.</summary>
+    private double S => Scale > 0 && double.IsFinite(Scale) ? Scale : 1;
 
     /// <summary>A point of the old page, on the new page.</summary>
     public (double X, double Y) ToNew(double x, double y)
     {
         var (sin, cos) = Math.SinCos(Angle * Math.PI / 180);
         var (rx, ry) = (x - CenterX, y - CenterY);
-        return (CenterX + rx * cos - ry * sin + Dx, CenterY + rx * sin + ry * cos + Dy);
+        return (CenterX + S * (rx * cos - ry * sin) + Dx, CenterY + S * (rx * sin + ry * cos) + Dy);
     }
 
     /// <summary>A point of the new page, on the old page.</summary>
     public (double X, double Y) ToOld(double x, double y)
     {
         var (sin, cos) = Math.SinCos(Angle * Math.PI / 180);
-        var (rx, ry) = (x - Dx - CenterX, y - Dy - CenterY);
+        var (rx, ry) = ((x - Dx - CenterX) / S, (y - Dy - CenterY) / S);
         return (CenterX + rx * cos + ry * sin, CenterY - rx * sin + ry * cos);
     }
 
@@ -41,7 +46,9 @@ public readonly record struct PageAlignment(double Dx, double Dy, double Angle, 
 /// <summary>
 /// Lines up two scans of a page before they are overlaid: a page fed a little crooked or a few millimetres off shouldn't
 /// read as different all over. The turn comes from each page's own lines of text (<see cref="ScanCleanup.SkewOf"/>), the
-/// shift from where the ink of the two pages falls; an alignment that doesn't make the ink agree better isn't used.
+/// shift from where the ink of the two pages falls; a page scanned at another size or a quarter turn off is first brought
+/// to the other's size and way up, from where most of each page's ink lies. An alignment that doesn't make the ink agree
+/// better isn't used.
 /// </summary>
 public static class CompareAlign
 {
@@ -60,13 +67,166 @@ public static class CompareAlign
     public static PageAlignment Find(PdfEngine oldPdf, int oldPage, PdfEngine newPdf, int newPage, CancellationToken cancel = default) =>
         Find(oldPdf.Render(oldPage, WorkScale, null, cancel), newPdf.Render(newPage, WorkScale, null, cancel), WorkScale, cancel);
 
+    /// <summary>
+    /// Finds the alignment of two pages rendered at <paramref name="scale"/>: first as they lie (turned a little, shifted);
+    /// then, for a page scanned at another size or a quarter turn off, the new page brought to the old one's frame (each
+    /// quarter turn, at the size that makes the two pages' ink as large) and lined up the same way. The one whose ink agrees
+    /// best is kept, if it agrees better than the pages as they lie.
+    /// </summary>
     /// <param name="scale">Pixels per point of both images.</param>
     public static PageAlignment Find(RenderedImage oldImage, RenderedImage newImage, double scale, CancellationToken cancel = default)
     {
         var (w, h) = (Math.Max(oldImage.Width, newImage.Width), Math.Max(oldImage.Height, newImage.Height));
-        if (w < 16 || h < 16) return PageAlignment.None;
+        if (w < 16 || h < 16 || Math.Min(oldImage.Width, oldImage.Height) < 16 || Math.Min(newImage.Width, newImage.Height) < 16) return PageAlignment.None;
         var oldGray = Gray(oldImage, w, h);
-        var newGray = Gray(newImage, w, h);
+        var asLaid = Lined(oldGray, Gray(newImage, w, h), w, h, scale, cancel);
+        var best = asLaid;
+
+        // Another size or a quarter turn: the new page's ink framed like the old page's, tried coarsely for each turn.
+        var (ow, oh) = (oldImage.Width, oldImage.Height);
+        var oldOwn = Gray(oldImage, ow, oh);
+        var newOwn = Gray(newImage, newImage.Width, newImage.Height);
+        if (InkBox(oldOwn, ow, oh) is { } oldBox && InkBox(newOwn, newImage.Width, newImage.Height) is { } newBox)
+        {
+            var oldInk = Mask(oldOwn);
+            var oldCoarse = Coarse(oldInk, ow, oh, CoarseCell);
+            double Agrees((bool[] Ink, int W, int H) old, Frame f, int cell) =>
+                ShiftFor(old.Ink, Coarse(Mask(Framed(newOwn, newImage.Width, newImage.Height, ow, oh, f)), ow, oh, cell).Ink, old.W, old.H, cancel).Agreement;
+            var plainCoarse = ShiftFor(oldCoarse.Ink, Coarse(Mask(Gray(newImage, ow, oh)), ow, oh, CoarseCell).Ink, oldCoarse.W, oldCoarse.H, cancel).Agreement;
+            var frames = Frames(oldBox, newBox).Select(f => (Frame: f, Agreement: Agrees(oldCoarse, f, CoarseCell)))
+                .Where(f => f.Agreement > plainCoarse + 0.02).OrderByDescending(f => f.Agreement).Take(1);
+            foreach (var (rough, _) in frames)
+            {
+                cancel.ThrowIfCancellationRequested();
+                // The ink boxes give the size to a percent or so (a stamp in the margin moves one, a few lines measure
+                // poorly), and at a page's edge a percent is several points: tried a little smaller and larger, at 2 pixels.
+                var fine = Coarse(oldInk, ow, oh, 2);
+                var sized = (Frame: rough, Agreement: Agrees(fine, rough, 2));
+                foreach (var (step, count) in new[] { (0.01, 5), (0.003, 2) })
+                {
+                    var around = sized.Frame.Scale;
+                    for (var k = -count; k <= count; k++)
+                    {
+                        cancel.ThrowIfCancellationRequested();
+                        if (k == 0 || around * (1 + k * step) is < MinScale or > MaxScale) continue;
+                        var f = sized.Frame with { Scale = around * (1 + k * step) };
+                        if (Agrees(fine, f, 2) is var a && a > sized.Agreement) sized = (f, a);
+                    }
+                }
+                var frame = sized.Frame;
+                var framed = Lined(oldOwn, Framed(newOwn, newImage.Width, newImage.Height, ow, oh, frame), ow, oh, scale, cancel);
+                if (framed.Agreement > best.Agreement) best = (Then(framed.Alignment, frame, scale), framed.Agreement, framed.AsIs);
+            }
+        }
+        // Only if it helps: pages unlike each other have no "right" place, and a chance overlap mustn't move one.
+        return best.Agreement <= asLaid.AsIs + 0.02 ? PageAlignment.None : best.Alignment;
+    }
+
+    /// <summary>
+    /// How the new page is laid in the old page's frame (pixels): a point m of the frame is the new page's point
+    /// <c>NewCenter + Scale · turn(m − OldCenter)</c>, turned <see cref="Quarter"/> quarter turns clockwise.
+    /// </summary>
+    private readonly record struct Frame(int Quarter, double Scale, double OldX, double OldY, double NewX, double NewY)
+    {
+        public (double X, double Y) ToNew(double x, double y)
+        {
+            var (rx, ry) = (x - OldX, y - OldY);
+            var (tx, ty) = Quarter switch { 1 => (-ry, rx), 2 => (-rx, -ry), 3 => (ry, -rx), _ => (rx, ry) };
+            return (NewX + Scale * tx, NewY + Scale * ty);
+        }
+    }
+
+    /// <summary>Smallest and largest size of one page's ink to the other's looked for.</summary>
+    private const double MinScale = 0.33, MaxScale = 3;
+
+    /// <summary>
+    /// The frames worth trying: each quarter turn whose ink box, turned, has the old box's proportions (within an eighth),
+    /// at the size that makes them as large; not the page as it lies (<see cref="Lined"/> has it).
+    /// </summary>
+    private static IEnumerable<Frame> Frames(RectD oldBox, RectD newBox)
+    {
+        for (var q = 0; q < 4; q++)
+        {
+            var (bw, bh) = q % 2 == 0 ? (newBox.Width, newBox.Height) : (newBox.Height, newBox.Width);
+            var (sx, sy) = (bw / oldBox.Width, bh / oldBox.Height);
+            if (Math.Max(sx, sy) / Math.Min(sx, sy) > 1.125) continue;
+            var s = Math.Sqrt(sx * sy);
+            if (s is < MinScale or > MaxScale || (q == 0 && Math.Abs(s - 1) < 0.02)) continue;
+            yield return new Frame(q, s, oldBox.CenterX, oldBox.CenterY, newBox.CenterX, newBox.CenterY);
+        }
+    }
+
+    /// <summary>The new page's gray laid in the old page's frame (<paramref name="w"/> × <paramref name="h"/>), white beyond it.</summary>
+    private static byte[] Framed(byte[] gray, int gw, int gh, int w, int h, Frame f)
+    {
+        var framed = new byte[w * h];
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                var (nx, ny) = f.ToNew(x + 0.5, y + 0.5);
+                var (sx, sy) = ((int)Math.Floor(nx), (int)Math.Floor(ny));
+                framed[y * w + x] = sx < 0 || sy < 0 || sx >= gw || sy >= gh ? (byte)255 : gray[sy * gw + sx];
+            }
+        return framed;
+    }
+
+    /// <summary>
+    /// The alignment of the old page with the new one, from <paramref name="a"/> (old page to the framed new page) and the
+    /// frame (framed to new): <c>new = NewCenter + s·Q·(C + R(old − C) + D − OldCenter)</c>, which is again a turn about C,
+    /// a scale and a shift.
+    /// </summary>
+    private static PageAlignment Then(PageAlignment a, Frame f, double scale)
+    {
+        var (cx, cy) = (a.IsNone ? 0 : a.CenterX, a.IsNone ? 0 : a.CenterY);
+        var (mx, my) = f.ToNew((cx + a.Dx) * scale, (cy + a.Dy) * scale);
+        return new PageAlignment(mx / scale - cx, my / scale - cy, a.Angle + 90 * f.Quarter, cx, cy, f.Scale);
+    }
+
+    /// <summary>
+    /// Where most of a page's ink is (pixels): the box between the 1st and 99th hundredth of it along each side, so a speck
+    /// at the edge doesn't move it; null for a page with too little ink or ink in too narrow a band to measure.
+    /// </summary>
+    private static RectD? InkBox(byte[] gray, int w, int h)
+    {
+        var ink = Mask(gray);
+        var (cols, rows) = (Profile(ink, w, h, alongX: true), Profile(ink, w, h, alongX: false));
+        long total = cols.Sum();
+        if (total < 200) return null;
+        var (x0, x1) = (Hundredth(cols, total, 0.01), Hundredth(cols, total, 0.99));
+        var (y0, y1) = (Hundredth(rows, total, 0.01), Hundredth(rows, total, 0.99));
+        if (x1 - x0 < w / 25 || y1 - y0 < h / 25) return null;
+        return RectD.FromEdges(x0, y0, x1 + 1, y1 + 1);
+
+        static int Hundredth(int[] profile, long total, double share)
+        {
+            var (sum, want) = (0L, (long)Math.Ceiling(total * share));
+            for (var i = 0; i < profile.Length; i++)
+                if ((sum += profile[i]) >= want) return i;
+            return profile.Length - 1;
+        }
+    }
+
+    /// <summary>Pixels a coarse ink cell is wide and high, to tell which way up the new page goes.</summary>
+    private const int CoarseCell = 4;
+
+    /// <summary>The ink in cells of <paramref name="cell"/> pixels (a cell with any ink is ink): quicker to try a frame on.</summary>
+    private static (bool[] Ink, int W, int H) Coarse(bool[] ink, int w, int h, int cell)
+    {
+        var (cw, ch) = ((w + cell - 1) / cell, (h + cell - 1) / cell);
+        var coarse = new bool[cw * ch];
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+                if (ink[y * w + x]) coarse[y / cell * cw + x / cell] = true;
+        return (coarse, cw, ch);
+    }
+
+    /// <summary>
+    /// The pages as they lie (both <paramref name="w"/> × <paramref name="h"/>): turned a little and shifted to make their ink
+    /// agree best. Agreement: of that alignment; AsIs: of the pages unmoved. The alignment is <see cref="PageAlignment.None"/>
+    /// when nothing beat unmoved.
+    /// </summary>
+    private static (PageAlignment Alignment, double Agreement, double AsIs) Lined(byte[] oldGray, byte[] newGray, int w, int h, double scale, CancellationToken cancel)
+    {
         var dpi = (int)Math.Round(scale * 72);
         var turn = ScanCleanup.SkewOf(new GrayImage(w, h, newGray), dpi) - ScanCleanup.SkewOf(new GrayImage(w, h, oldGray), dpi);
         if (Math.Abs(turn) > MaxAngle) turn = 0;
@@ -95,12 +255,12 @@ public static class CompareAlign
                 if (s.Agreement > best.Agreement) best = (angle, s.Dx, s.Dy, s.Agreement);
             }
 
-        // Only if it helps: pages unlike each other have no "right" place, and a chance overlap mustn't move one.
         var asIs = Agreement(oldInk, Mask(newGray), w, h, 0, 0);
-        if (best.Agreement <= asIs + 0.02) return PageAlignment.None;
+        if (best.Agreement <= asIs + 0.02) return (PageAlignment.None, asIs, asIs);
         // The shift was found on the turned page, so on the new page it is turned too.
         var (sin, cos) = Math.SinCos(best.Angle * Math.PI / 180);
-        return new PageAlignment((best.Dx * cos - best.Dy * sin) / scale, (best.Dx * sin + best.Dy * cos) / scale, best.Angle, cx / scale, cy / scale);
+        return (new PageAlignment((best.Dx * cos - best.Dy * sin) / scale, (best.Dx * sin + best.Dy * cos) / scale, best.Angle, cx / scale, cy / scale),
+            best.Agreement, asIs);
     }
 
     /// <summary>
@@ -145,13 +305,13 @@ public static class CompareAlign
     private static int Sample(byte[] px, int stride, int w, int h, int x, int y, int channel) =>
         x < 0 || y < 0 || x >= w || y >= h ? 255 : px[y * stride + x * 3 + channel];
 
-    /// <summary>Brightness, the image padded with white to the common size.</summary>
+    /// <summary>Brightness, the image padded with white (or cut) to <paramref name="w"/> × <paramref name="h"/>.</summary>
     private static byte[] Gray(RenderedImage img, int w, int h)
     {
         var gray = new byte[w * h];
         Array.Fill(gray, (byte)255);
-        for (var y = 0; y < img.Height; y++)
-            for (var x = 0; x < img.Width; x++)
+        for (var y = 0; y < Math.Min(img.Height, h); y++)
+            for (var x = 0; x < Math.Min(img.Width, w); x++)
             {
                 var i = y * img.Stride + x * 3;
                 gray[y * w + x] = (byte)((img.Pixels[i + 2] * 299 + img.Pixels[i + 1] * 587 + img.Pixels[i] * 114) / 1000);

@@ -1368,6 +1368,12 @@ CompareContractTests ported with their names (camelCase, as CompareTests), then 
 `VisualCompare` and `CompareReport`. The contract test reads Word's two PDFs in place from `pdf/tests/InkvoltPdf.Tests/Data`
 and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 formatting), none extra, as on Windows.
 
+**Windows ahead, to port (2026-11-20):** `CompareAlign` lines up a scan at another size or a quarter turn off
+(`PageAlignment.Scale`, the frames tried per quarter turn, the sizing at 2 pixels; CompareAlignTests'
+`AScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp`, `WhatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
+`AScaledAlignmentGoesThereAndBack`), and Compare reads scans with the language's dictionary. E15's exports carry links
+(`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests).
+
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`
   (its precheck, the question for a file from the internet, the converter's own process, time limit and Cancel) behind a

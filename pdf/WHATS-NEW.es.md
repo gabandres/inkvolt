@@ -20,6 +20,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - La comprobación de accesibilidad compara los anchos que un PDF da a sus caracteres con los de la propia fuente en todo tipo de fuente incrustada, no solo TrueType: también las fuentes CFF y Type 1 (la mayoría de los PDF de InDesign, LaTeX y Acrobat).
 - En lote, un archivo pequeño que al descomprimirse ocupa mucho más que su tamaño (uno de 200 KB que guarda 200 MB) se procesa solo, para que ya no les quite memoria a los archivos que se procesan a la vez.
 - Exportar a PowerPoint y HTML conserva los vínculos del PDF: los vínculos a páginas web y a correos siguen abriéndose, y un vínculo a otra página lleva a esa diapositiva o a esa parte de la página. Solo quedan vinculadas las palabras que cubre el vínculo.
+- Comparar archivos alinea una página escaneada a otro tamaño o girada un cuarto de vuelta (de lado o boca abajo) con la otra versión antes de mostrar lo que se ve distinto, así que la misma página ya no parece distinta por todas partes.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.

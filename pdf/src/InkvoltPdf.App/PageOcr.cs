@@ -379,8 +379,9 @@ internal static class PageOcr
 
     /// <summary>
     /// The words on a page (page space: points, top-left of the displayed page), the page cleaned first, no suspect words
-    /// marked, nothing written back (Compare).
+    /// marked, nothing written back (Compare). The language's dictionary says which way up a page scanned upside down or a
+    /// quarter turn off reads (without it, words read upside down pass for words).
     /// </summary>
     public static List<OcrWord> Recognize(ITextRecognizer engine, PdfEngine pdf, int page, CancellationToken cancel) =>
-        [.. ScanText.Recognize(pdf, page, engine, new RecognizeOptions(CheckWords: false), null, cancel).Words];
+        [.. ScanText.Recognize(pdf, page, engine, new RecognizeOptions(CheckWords: false), SpellingFor(engine), cancel).Words];
 }
