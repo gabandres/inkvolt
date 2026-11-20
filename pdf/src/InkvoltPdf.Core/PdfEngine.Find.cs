@@ -524,7 +524,7 @@ public sealed partial class PdfEngine
         private readonly CancellationTokenSource _ended = new();
         private readonly Lock _gate = new();
         private Process? _process;
-        private NamedPipeServerStream? _pipe;
+        private WorkerPipe? _pipe;
         private bool _disposed;         // under _gate
         private long _waitingSince;     // timestamp of the question or last answer; 0 when none is awaited
 

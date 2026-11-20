@@ -175,6 +175,23 @@ public sealed class SingleInstance : IDisposable
     // A standalone conversion copy's claim (LaunchHandoff): held for the process's life.
     private Mutex? _convertSlot;
 
+    /// <summary>Where a conversion launch that gave up leaves its files (<see cref="Core.LaunchDropBox"/>): per user and session, as the pipe.</summary>
+    public static string DroppedLaunches { get; } = Path.Combine(AppPaths.DataDirectory, "dropped-launches", Process.GetCurrentProcess().SessionId.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    /// <summary>
+    /// The launches left there by conversion launches that gave up, each handed to <paramref name="onArgs"/> as a forwarded
+    /// one. Every copy that runs takes them: the owner once it answers again, or the one converting on its own.
+    /// </summary>
+    /// <returns>Whether any was taken.</returns>
+    public static bool TakeDropped(Action<string[]> onArgs)
+    {
+        var taken = Core.LaunchDropBox.TakeConversions(DroppedLaunches);
+        if (taken.Count == 0) return false;
+        Log.Write($"Convert from Explorer: took {taken.Count} launch(es) left while no copy answered.");
+        foreach (var launch in taken) onArgs(launch);
+        return true;
+    }
+
     /// <summary>
     /// Returns the owner instance, or null after forwarding <paramref name="args"/> to the running one; for a conversion
     /// launch (<paramref name="convert"/>) also null when it gives up (<see cref="Core.LaunchHandoff"/>).
@@ -203,7 +220,14 @@ public sealed class SingleInstance : IDisposable
             case Core.LaunchHandoff.Way.Standalone:
                 return new SingleInstance(null) { _convertSlot = slot };
             case Core.LaunchHandoff.Way.Dropped:
-                Log.Write("Convert from Explorer: the running Inkvolt PDF didn't answer for a minute and another copy converts on its own; this launch's files were left out.");
+                // No message (hundreds of launches would each show one): the files wait for the copy that converts.
+                Log.Write("Convert from Explorer: the running Inkvolt PDF didn't answer; " + Core.LaunchDropBox.Leave(DroppedLaunches, [.. args.Select(Absolute)]) switch
+                {
+                    Core.LaunchDropBox.Left.Waiting => "this launch's files were left for the copy that converts.",
+                    Core.LaunchDropBox.Left.Full => "the dropped launches' folder is full; this launch's files were left out.",
+                    Core.LaunchDropBox.Left.TooLong => "this launch's arguments are too long to leave; its files were left out.",
+                    _ => "the dropped launches' folder couldn't be written; this launch's files were left out.",
+                });
                 return null;
             default:
                 return null;

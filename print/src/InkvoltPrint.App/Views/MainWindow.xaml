@@ -247,7 +247,8 @@
                                     <!-- Its SNMPv3 agent refused the login: SNMP access… is the fix, not another address -->
                                     <Button Content="{x:Static loc:Strings.Main_MenuSnmpAccess}" Command="{Binding SetSnmpLoginCommand}" Style="{DynamicResource AccentButtonStyle}"
                                             Margin="0,0,8,0" Visibility="{Binding IsRefused, Converter={StaticResource VisibleWhen}}" />
-                                    <Button Content="{x:Static loc:Strings.Overview_TryAgainNow}" Command="{Binding ReconnectCommand}" />
+                                    <Button Content="{x:Static loc:Strings.Overview_TryAgainNow}" Command="{Binding ReconnectCommand}"
+                                            Visibility="{Binding IsDeclinedScanner, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                                     <Button Content="{x:Static loc:Strings.Overview_ThisIsMyPrinter}" Command="{Binding AcceptDeviceCommand}" Margin="8,0,0,0"
                                             AutomationProperties.HelpText="{x:Static loc:Strings.Overview_ThisIsMyPrinterHelp}"
                                             Visibility="{Binding IsElsewhere, Converter={StaticResource VisibleWhen}}" />

@@ -96,6 +96,14 @@ public partial class App : Application
         ExplorerConvert.ChangeOptions = ChangeOptions;
         ExplorerConvert.MainFor = () => _ready;
         ExplorerConvert.Quiet = () => Dispatcher.BeginInvoke(MaybeExit);
+        // Conversion launches that gave up on this copy while it didn't answer left their files: converted here.
+        var dropped = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        dropped.Tick += (_, _) =>
+        {
+            SingleInstance.TakeDropped(OnForwarded);
+            if (_main is null && _exitRetry is null) MaybeExit(); // one already put off tries again on its own
+        };
+        dropped.Start();
 
         base.OnStartup(e);
         ApplyTheme();
@@ -130,6 +138,7 @@ public partial class App : Application
     /// </summary>
     private void MaybeExit()
     {
+        SingleInstance.TakeDropped(OnForwarded); // left meanwhile: this copy's to convert before it goes
         bool Done() => Core.ConvertCommand.MayExit(_main is not null, ExplorerConvert.ListOpen, ExplorerConvert.Converting,
             Volatile.Read(ref _forwardsQueued));
         if (!Done()) return;
@@ -138,22 +147,33 @@ public partial class App : Application
         {
             ListenForLaunches();
             // The listening didn't end in time: a launch may be connecting unseen. Try again shortly rather than exit on it.
-            if (!stopped)
+            // One retry at a time: each stop waits up to 2 s on this thread.
+            if (!stopped && _exitRetry is null)
             {
                 Log.Write("Exit put off: the launch listener didn't stop in time");
-                var retry = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                var retry = _exitRetry = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
                 retry.Tick += (_, _) =>
                 {
                     retry.Stop();
+                    _exitRetry = null;
                     MaybeExit();
                 };
                 retry.Start();
             }
             return;
         }
+        // A launch left while the listening stopped is this copy's, not a later start's: converted, and the exit waits.
+        if (SingleInstance.TakeDropped(OnForwarded) && !Done())
+        {
+            ListenForLaunches();
+            return;
+        }
         Log.Write("Exiting: no window and no conversions left");
         Shutdown();
     }
+
+    // The exit put off by a listener that didn't stop in time, waiting to try again (MaybeExit).
+    private System.Windows.Threading.DispatcherTimer? _exitRetry;
 
     /// <summary>The main window closed: the app exits, unless Explorer's conversions go on (their window shows them).</summary>
     private void OnMainClosed(MainWindow window)

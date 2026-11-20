@@ -49,7 +49,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 2.2 Scan from the printer's button | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 2.3 Scan cleanup, Unicode OCR | All of it | |
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
-| 2.5 TWAIN | All of it (Windows done 2026-11-05, but 32-bit sources) | |
+| 2.5 TWAIN | All of it (Windows done 2026-11-05; 32-bit-only sources named and declined 2026-11-20) | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
 | 3.1 Share a scanner on the network | | All of it (Windows built 2026-11-19; the Mac half waits) |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
@@ -157,7 +157,11 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   settings ask PDF at the resolution; JPEG still asked where offered; a PDF-only glass; neither format said in words; pictures
   taken out byte for byte, a hand-written page tree with inherited resources and indirect lengths; turned pages, other
   encodings, masks and non-PDFs left to the renderer; rendering, no renderer and a failing one; keeping the scanner's PDF and
-  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only. Mac: done (2026-11-04, mac/docs/PLAN.md
+  when not). WIA drivers that offer only PDF (2026-11-20, Windows): a driver whose formats are `WiaImgFmt_PDFA` and no
+  picture is asked for PDF (`WiaScannerInfo.PdfOnly`, per source with WIA 2.0's items) and each transfer's pages taken out
+  by the same `ScannerPdf.PagesAsync`, a PDF a page or the whole run in one (`WiaPdfTests`, 5, with the fake WIA scanner:
+  the six pages byte for byte its JPEG run, the run in one PDF kept as sent, a PDF-only glass, a broken PDF said in words).
+  Pending: a real PDF-only scanner, eSCL or WIA. Mac: done (2026-11-04, mac/docs/PLAN.md
   P12): PrintCore (2026-11-02: the eSCL request, taking pages out, keeping the scanner's PDF, ScannerPdfTests on the PC);
   PrintMac's `ScannedPdfPages` (PDFKit) set at start-up, the Scan tab's status line and its PDF saves keeping the scanner's
   own PDF or saying why not, demo mode's PDF-only feeder (`Demo.feederPdfOnly`) with `--report --demo --scan` checking an
@@ -360,8 +364,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   characters out, right-to-left words in visual order; a Text language choice per scan and preset when more than one OCR
   language is installed. **Measured** (`ocr-corpus cleanup`, [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md),
   today → cleaned, this PC's en-US and es-MX): skewed on a lid 5.9 → 5.7 %, grey 20.2 → 19.7 and 20.6 → 18.8, halftoned
-  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.4 and **2.7 → 3.0 (not lower, two words)**, so the roadmap's "every file" isn't met
-  on that one. Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
+  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.3 and 2.7 → 2.3, so every file measured is lower (2026-11-20: the faded file rose,
+  2.7 → 3.0, because whitening a page Restore faded colors had already taken to white evened out paper clipped at 255 and
+  lightened the type's edges; paper white all over now only loses its specks, `PageBackground.AlreadyWhite`). Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
   Hebrew, Japanese, Chinese, Korean, Devanagari, Thai and beyond the first plane, found by Inkvolt PDF's search and pdf.js; the
   layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`; `ocr-corpus layer` goes the whole way with
   Latin text (a cleaned page's JPEG, Windows' recognizer, this writer, every word read found again by MuPDF). veraPDF's PDF/A-2b font rules (6.2.11) pass; the
@@ -370,8 +375,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   for those scripts' word boxes is unseen; no scanner was used, only synthetic pages and the demo; Undo in the review was
   checked by snapshot, not a test (the view models have no test project). **Known limits:** a white sheet under a white lid
   shows no edge and stays whole, and a dark lid isn't cropped; pdf.js finds each word of a right-to-left line but not a phrase across two (it drops the
-  space); MuPDF finds a word mixing right-to-left letters and digits only in parts; Inkvolt PDF's Scan dialog ignores a
-  preset's clean up. Mac: PrintCore done 2026-11-05 on the PC (the filters, their decisions and the text layer ported as is, `PageCleanupTests` and `OcrLayerTests` with the same names; `mac/docs/PLAN.md` P12); the filters' pixels are PrintCore's, not Core Image's, so both apps clean a page alike, and `ScanImaging` decodes, hands them over and encodes. Mac done 2026-11-06 (`mac/docs/PLAN.md` P12): `ScanImaging` decodes, cleans through PrintCore and encodes once; `ScanPdf` writes through `PdfWriter` with Vision's words in the Text language chosen per scan and preset; Scan settings › Clean up, the preset editor's, the review's Clean up view with Undo and the scan's summary; PDFKit finds all 19 planted words (a right-to-left phrase across two words not, as pdf.js).
+  space); MuPDF finds a word mixing right-to-left letters and digits only in parts. Inkvolt PDF's Scan dialog follows a
+  preset's clean up since 2026-11-20 (`ScanRun.Clean`: the crop and filters on each kept page, as the Scan tab does). Mac: PrintCore done 2026-11-05 on the PC (the filters, their decisions and the text layer ported as is, `PageCleanupTests` and `OcrLayerTests` with the same names; `mac/docs/PLAN.md` P12); the filters' pixels are PrintCore's, not Core Image's, so both apps clean a page alike, and `ScanImaging` decodes, hands them over and encodes. Mac done 2026-11-06 (`mac/docs/PLAN.md` P12): `ScanImaging` decodes, cleans through PrintCore and encodes once; `ScanPdf` writes through `PdfWriter` with Vision's words in the Text language chosen per scan and preset; Scan settings › Clean up, the preset editor's, the review's Clean up view with Undo and the scan's summary; PDFKit finds all 19 planted words (a right-to-left phrase across two words not, as pdf.js).
 - **Beat it when:** per scan and per preset: crop to the paper's edge (the lid level the glass-photos code finds),
   whiten the background and remove specks, descreen printed pictures, restore faded prints' colors, each shown in the
   review with Undo; the OCR layer is a CID font with a ToUnicode map, so Greek, Cyrillic, Arabic and CJK text is found
@@ -441,8 +446,10 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   color, grey, black and white, resolution from the capabilities, a hung source contained as a hung WIA driver is). The Scan
   tab's Color choice offers black and white wherever the source does (eSCL, WIA, TWAIN; `ScanChoices.Pick`, as presets).
   Tested with `FakeTwain` (the FakeWiaSystem's twin: capabilities, a feeder run, an empty feeder, cancel, a hang;
-  `TwainTests`); checked with `--demo --twain` (a made-up TWAIN-only document scanner). Not yet: 32-bit-only sources named
-  and declined. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC (ARM64); on hardware, a TWAIN-only
+  `TwainTests`); checked with `--demo --twain` (a made-up TWAIN-only document scanner). 32-bit-only sources (2026-11-20): a
+  data source in Windows' `twain_32` folder with no twin in `twain_64` (Windows' own `wiatwain.ds` left out) is listed by
+  its version resource's name (`Twain32Sources`; id `twain32:`, *Driver: TWAIN, 32-bit only*), never loaded, and declined in
+  words that say why and what to install (`WiaErrors.Only32Bit`); one with a 64-bit twin or a WIA driver is listed once. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC (ARM64); on hardware, a TWAIN-only
   flatbed at each resolution, a feeder run, both sides, black and white, Cancel. Mac: ICA, not started.
 - **Effort** M. Windows; the Mac has ICA (parity check: the same flatbed through ICA).
 

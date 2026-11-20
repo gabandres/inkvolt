@@ -1044,7 +1044,7 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
     {
         private readonly Lock _processGate = new();
         private Process? _process;              // under _processGate
-        private NamedPipeServerStream? _pipe;
+        private WorkerPipe? _pipe;
         private bool _killed;                   // under _processGate
 
         /// <summary>The request it is checking (under the plan's lock).</summary>
@@ -1304,15 +1304,8 @@ internal sealed class PageCheckPlan(string exe, IReadOnlyList<string> args) : ID
 
         /// <summary>Fills <paramref name="buffer"/> from the process, within <paramref name="limit"/>.</summary>
         /// <exception cref="TimeoutException">It didn't come in time.</exception>
-        private void ReadExactly(byte[] buffer, TimeSpan limit)
-        {
-            var read = _pipe!.ReadExactlyAsync(buffer).AsTask();
-            if (!read.Wait(limit))
-            {
-                _ = read.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted); // observed, when the end of the process ends it
-                throw new TimeoutException();
-            }
-        }
+        /// <remarks>Waited for without the thread pool (<see cref="WorkerPipe"/>): a busy pool doesn't make a page too slow.</remarks>
+        private void ReadExactly(byte[] buffer, TimeSpan limit) => _pipe!.ReadExactly(buffer, limit);
 
         /// <summary>Ends the process and waits for it, so its hold on the document's file is gone too. Any number of times.</summary>
         public void Kill()

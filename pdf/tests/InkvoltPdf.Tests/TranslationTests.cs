@@ -1995,7 +1995,7 @@ public class TranslationCopyTests
     {
         // A matrix and size so large the arithmetic overflows into infinity.
         var pdf = Page("BT /FA 1e300 Tf 1e300 0 0 1e300 1e300 1e300 Tm (Hello World) Tj ET " + Lines(72, 700, 12, 14, "2024 draft!"), fontText: Letters);
-        var (_, r) = await Task.Run(() => Translate(pdf, _ => "THE DOG")).WaitAsync(TimeSpan.FromSeconds(30));
+        var (_, r) = await Timing.Within(() => Translate(pdf, _ => "THE DOG"), TimeSpan.FromSeconds(30));
         Assert.NotNull(r);
     }
 
@@ -2028,9 +2028,11 @@ public class TranslationCopyTests
         var sb = new StringBuilder("BT /FA 3 Tf ");
         for (var i = 0; i < 19_000; i++) sb.Append($"1 0 0 1 {10 + i * 37 % 580} {10 + (i * 13 % 770)} Tm (ab) Tj ");
         var pdf = Page(sb + "ET", fontText: Letters);
-        var sw = Stopwatch.StartNew();
+        // This thread's processor time (seconds alone): with two suites running, the wall's went past four minutes.
+        var sw = new ThreadClock.Stopwatch();
+        sw.Start();
         var plan = Translation.MakePlan(pdf, null, [0]);
-        Assert.True(sw.Elapsed < TimeSpan.FromMinutes(4), sw.Elapsed.ToString()); // seconds alone; much longer with every other test running
+        Assert.True(sw.Elapsed < Timing.Limit(TimeSpan.FromMinutes(1)), sw.Elapsed.ToString());
         using var cts = new CancellationTokenSource();
         cts.Cancel();
         Assert.Throws<OperationCanceledException>(() => Translation.MakePlan(pdf, null, [0], null, cts.Token));
