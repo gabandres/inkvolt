@@ -50,6 +50,14 @@ public sealed class WindowsJobQueueReader(Func<Task<string?>> findQueue) : IJobQ
     }
 }
 
+/// <summary>Job alerts for a printer that may print without its Windows queue (roadmap 2.1): <see cref="Core.Printing.Direct.RoutedJobQueue"/> decides.</summary>
+public sealed class RoutedJobQueueReader(IJobQueueReader queue, Core.Printing.Direct.PrintRouter router, string user) : IJobQueueReader
+{
+    private readonly Core.Printing.Direct.RoutedJobQueue _routed = new(queue.ReadAsync, router, user);
+
+    public Task<Core.Alerts.JobQueueState?> ReadAsync() => _routed.ReadAsync();
+}
+
 /// <summary>
 /// The print queue card of a printer that may print without its Windows queue (roadmap 2.1): while jobs go straight to the
 /// printer, the jobs the printer holds (Get-Jobs, Cancel-Job: <see cref="Core.Printing.Direct.PrinterJobs"/>); else the

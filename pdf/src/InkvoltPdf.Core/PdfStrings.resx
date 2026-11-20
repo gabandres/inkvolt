@@ -6932,6 +6932,10 @@
     <value>Make scanned pages searchable</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_MakeEditableDesc" xml:space="preserve">
+    <value>Turn recognized text into text you can edit</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
   <data name="Bar_ScanDesc" xml:space="preserve">
     <value>A new PDF from your scanner</value>
     <comment>Line under a command in the bar's menu</comment>

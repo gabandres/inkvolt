@@ -187,7 +187,7 @@ public static class ScanCorpus
     /// The clean text pages: a heading in Helvetica-Bold, then paragraphs in the file's font, wrapped by an estimated
     /// glyph width (on the wide side, so no line runs off the page); with each page's lines.
     /// </summary>
-    private static (byte[] Pdf, List<List<string>> Lines) TextPdf(CorpusFile file)
+    internal static (byte[] Pdf, List<List<string>> Lines) TextPdf(CorpusFile file)
     {
         var seed = Seed(file.Name);
         var lines = new List<List<string>>();
@@ -268,7 +268,8 @@ public static class ScanCorpus
         return ms.ToArray();
     }
 
-    private static byte[] ScanPdf(CorpusFile file, List<(byte[] Jpeg, int Width, int Height)> pages)
+    /// <summary>Grey JPEG pages at <see cref="Dpi"/>, one image filling each page (also <see cref="PhotoCorpus"/>'s).</summary>
+    internal static byte[] ScanPdf(CorpusFile file, List<(byte[] Jpeg, int Width, int Height)> pages)
     {
         using var ms = new MemoryStream();
         var w = new PdfFileWriter(ms);

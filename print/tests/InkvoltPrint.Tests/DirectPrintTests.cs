@@ -419,7 +419,7 @@ internal static class SpecDecoder
     }
 }
 
-public class DirectPrintTests
+public partial class DirectPrintTests
 {
     // ---- IPP: requests, collections, hostile replies ----
 

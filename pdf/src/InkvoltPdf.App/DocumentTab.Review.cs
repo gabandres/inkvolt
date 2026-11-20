@@ -1554,7 +1554,7 @@ public partial class DocumentTab
             PageOcr.Choose(asked.Plan);
         }
         if (ocr is null) return false;
-        var reader = PageOcr.Pages(ocr, new RecognizeOptions(Clean: settings.OcrClean, CheckWords: settings.OcrSuspects, KeepCleanedImage: keepCleaned));
+        var reader = PageOcr.Pages(ocr, PageOcr.OptionsAsSet(keepCleaned));
         return await Recognize(owner, pages, reader);
     }
 
@@ -1582,13 +1582,23 @@ public partial class DocumentTab
         System.Windows.Automation.AutomationProperties.SetHelpText(second, Strings.Review_OcrSecondLanguageHelp);
         var clean = dlg.AddCheck(Strings.Review_OcrClean, settings.OcrClean);
         System.Windows.Automation.AutomationProperties.SetHelpText(clean, Strings.Review_OcrCleanHelp);
+        // The cleaning's further steps (roadmap 2.2): only with cleaning, each acting only on a page that clearly needs it.
+        var trapezoid = dlg.AddCheck(Strings.Review_OcrTrapezoid, settings.OcrTrapezoid);
+        System.Windows.Automation.AutomationProperties.SetHelpText(trapezoid, Strings.Review_OcrTrapezoidHelp);
+        var curved = dlg.AddCheck(Strings.Review_OcrCurvedLines, settings.OcrCurvedLines);
+        System.Windows.Automation.AutomationProperties.SetHelpText(curved, Strings.Review_OcrCurvedLinesHelp);
         var suspects = dlg.AddCheck(Strings.Review_OcrSuspects, settings.OcrSuspects);
         System.Windows.Automation.AutomationProperties.SetHelpText(suspects, Strings.Review_OcrSuspectsHelp);
         var writeBack = dlg.AddCheck(Strings.Review_OcrWriteBack, false);
         System.Windows.Automation.AutomationProperties.SetHelpText(writeBack, Strings.Review_OcrWriteBackHelp);
-        writeBack.IsEnabled = clean.IsChecked == true;
-        clean.Checked += (_, _) => writeBack.IsEnabled = true;
-        clean.Unchecked += (_, _) => { writeBack.IsEnabled = false; writeBack.IsChecked = false; };
+        void Cleaning(bool on)
+        {
+            writeBack.IsEnabled = trapezoid.IsEnabled = curved.IsEnabled = on;
+            if (!on) writeBack.IsChecked = false;
+        }
+        Cleaning(clean.IsChecked == true);
+        clean.Checked += (_, _) => Cleaning(true);
+        clean.Unchecked += (_, _) => Cleaning(false);
         dlg.AddNote(Strings.Review_OcrNote);
         int[] pages = [];
         dlg.Validate(() =>
@@ -1611,6 +1621,8 @@ public partial class DocumentTab
         var also = second.SelectedIndex > 0 && second.SelectedIndex <= offer.Count ? offer[second.SelectedIndex - 1] : null;
         // The languages are saved by RecognizeText once they can be read (PageOcr.Choose), not before their download.
         settings.OcrClean = clean.IsChecked == true;
+        settings.OcrTrapezoid = trapezoid.IsChecked == true;
+        settings.OcrCurvedLines = curved.IsChecked == true;
         settings.OcrSuspects = suspects.IsChecked == true;
         settings.Save();
         return (pages, writeBack.IsChecked == true, PageOcr.Plan(first, also));
@@ -1671,6 +1683,92 @@ public partial class DocumentTab
                 return false;
             case EditOutcome.Declined:
                 Notify(Strings.Review_OcrCancelled);
+                return false;
+            default:
+                return false;
+        }
+    }
+
+    /// <summary>
+    /// Make Text Editable (roadmap 2.2, for 2.1): the recognized text of the chosen pages becomes real text in the
+    /// installed font closest to the scan's, at its size and place (<see cref="EditableText"/>), the scan covered behind it
+    /// unless the person keeps it showing; one undo step. With no recognized text, offers Recognize Text.
+    /// </summary>
+    public async Task<bool> MakeTextEditable()
+    {
+        if (!Session.IsPdf || IsBusy || Window.GetWindow(this) is not { } owner) return false;
+        var data = Session.Data;
+        var password = Session.Password;
+        IReadOnlyList<int> recognized;
+        try
+        {
+            recognized = await Task.Run(() => EditableText.Pages(data, password));
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or PasswordRequiredException or PdfSharp.Pdf.IO.PdfReaderException)
+        {
+            Log.Write($"Make Text Editable couldn't read the text layers: {ex.Message}");
+            recognized = [];
+        }
+        if (recognized.Count == 0)
+        {
+            if (Prompt.Confirm(owner, Strings.Editable_NoneTitle, Strings.Editable_None, Strings.Editable_RecognizeAction)) return await RecognizeText();
+            return false;
+        }
+
+        var settings = AppSettings.Current;
+        var count = Viewer.PageCount;
+        var current = Viewer.CurrentPage;
+        var dlg = new FormDialog(owner, Strings.Editable_Title, Strings.Editable_Button, 480);
+        var which = dlg.AddChoice(Strings.Common_Pages, [Strings.Editable_AllPages, Loc.Format(Strings.Review_OcrCurrentPage, PageLabel(current)), Strings.Review_OcrPageRange]);
+        var range = dlg.Add(Strings.Review_OcrPageRange, new TextBox { Text = Core.PageRange.Format(SelectedPages.Length > 1 ? SelectedPages : [current]) });
+        range.GotKeyboardFocus += (_, _) => which.SelectedIndex = 2;
+        var keep = dlg.AddCheck(Strings.Editable_KeepScan, settings.EditableKeepScan);
+        System.Windows.Automation.AutomationProperties.SetHelpText(keep, Strings.Editable_KeepScanHelp);
+        dlg.AddNote(Strings.Editable_Note);
+        int[] pages = [];
+        dlg.Validate(() =>
+        {
+            switch (which.SelectedIndex)
+            {
+                case 0:
+                    pages = [.. recognized];
+                    return null;
+                case 1:
+                    pages = [current];
+                    return null;
+                default:
+                    return Core.PageRange.TryParse(range.Text, count, out pages, out var err) ? null : err;
+            }
+        });
+        if (!dlg.ShowModal()) return false;
+        settings.EditableKeepScan = keep.IsChecked == true;
+        settings.Save();
+        var keepScan = settings.EditableKeepScan;
+        var chosen = pages;
+
+        EditableTextResult? made = null;
+        var outcome = await TryEdit(Strings.Review_UndoMakeEditable, (d, pw) =>
+        {
+            var progress = Dispatcher.Invoke(() => new ProgressPrompt(owner, Strings.Editable_Working, Strings.Review_Starting));
+            try
+            {
+                made = EditableText.Make(d, pw, chosen, keepScan, progress.Token, PageProgress(progress, Strings.Editable_Working));
+                return made.Data;
+            }
+            finally
+            {
+                Dispatcher.Invoke(progress.Dispose);
+            }
+        }, quiet: true);
+        switch (outcome)
+        {
+            case EditOutcome.Done when made is { Pages: > 0 } m:
+                Notify(Loc.Format(Strings.Editable_Done, Loc.Plural(m.Words, Strings.Editable_Words_One, Strings.Editable_Words_Many),
+                        Loc.Plural(m.Pages, Strings.Editable_Pages_One, Strings.Editable_Pages_Many), string.Join(", ", m.Fonts)),
+                    Strings.Editable_EditAction, () => { if (!IsEditingContent) SetEditContent(true); });
+                return true;
+            case EditOutcome.Done or EditOutcome.NoChange:
+                Prompt.Info(owner, Strings.Editable_NoneTitle, Strings.Editable_None);
                 return false;
             default:
                 return false;

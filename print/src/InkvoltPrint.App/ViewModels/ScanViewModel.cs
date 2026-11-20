@@ -55,7 +55,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private readonly ScannerCapabilities _caps;
     private readonly ScanPresetLibrary _presets;
     private readonly string _printerName;
-    private readonly Func<Task<string?>> _findQueue;
+    private readonly Func<Task<PrintTarget?>> _findTarget;
     private readonly PcEnvironment _pc;
 
     // Built when asked for, not once: the labels are in the interface's language.
@@ -63,14 +63,14 @@ public sealed partial class ScanViewModel : ObservableObject
         [.. ScanChoices.PageSizes.Select(p => new Option<ScanArea>(new(p.Key, p.Width, p.Height), p.Label))];
 
     public ScanViewModel(IScanner client, ScannerCapabilities caps, AppState state, ScanPresetLibrary presets, string printerName,
-        Func<Task<string?>> findQueue, PcEnvironment pc)
+        Func<Task<PrintTarget?>> findTarget, PcEnvironment pc)
     {
         _client = client;
         _state = state;
         _caps = caps;
         _presets = presets;
         _printerName = printerName;
-        _findQueue = findQueue;
+        _findTarget = findTarget;
         _pc = pc;
         Sources = caps.Sources.Select(s => new Option<ScanSource>(s, ScanChoices.SourceLabel(s))).ToList();
         Source = Sources.FirstOrDefault();
@@ -1618,7 +1618,10 @@ public sealed partial class ScanViewModel : ObservableObject
         }
     }
 
-    /// <summary>Prints the saved pages through this printer's Windows queue at actual size (like a copy).</summary>
+    /// <summary>
+    /// Prints the saved pages at actual size (like a copy) where this printer's other prints go: its Windows queue, or straight to
+    /// the printer (roadmap 2.1), which is then followed to the job's end and a job it stopped is said after the copy's note.
+    /// </summary>
     private async Task PrintCopyAsync(string file, List<ScanPageViewModel> kept)
     {
         var name = Path.GetFileName(file);
@@ -1628,9 +1631,18 @@ public sealed partial class ScanViewModel : ObservableObject
             Message += " " + Strings.Scan_DemoPrinted;
             return;
         }
+        string? said = null; // the message once the printer has the copy
+        void Fail(string why)
+        {
+            var note = " " + string.Format(Strings.Scan_PrintFailed, why);
+            // The tab may have moved on (another scan) while the printer worked: don't write over that.
+            if (said is null) Message += note;
+            else if (Message == said) Message = said + note;
+        }
+        PrintTarget? target = null;
         try
         {
-            if (await _findQueue() is not { } queue)
+            if ((target = await _findTarget()) is null)
             {
                 Message += " " + Strings.Scan_PrintNotSetUp;
                 return;
@@ -1643,13 +1655,24 @@ public sealed partial class ScanViewModel : ObservableObject
                     var (wIn, hIn) = CopyLayout.Inches(w, h, p.Dpi);
                     pages.Add(new RenderedPage(jpeg, wIn, hIn));
                 }
-            await QueuePrinter.PrintPagesAsync(queue, pages, copies: 1, twoSided: false, name);
-            Message += " " + Strings.Scan_CopyPrinting;
+            await PrintTargets.PrintPagesAsync(target, pages, copies: 1, twoSided: false, name, PageSizing.ActualSize,
+                onSent: () => said = Message += " " + Strings.Scan_CopyPrinting);
+        }
+        catch (Core.Printing.Direct.DirectPrintException ex)
+        {
+            Log.Write($"Preset print, straight to the printer: {ex.Message} (may have printed: {ex.MayHavePrinted})");
+            Fail(ex.Message);
+        }
+        catch (Exception ex) when (target is PrintTarget.Direct && ex is IOException or UnauthorizedAccessException or FormatException)
+        {
+            // Straight to the printer, the printer's silence is a DirectPrintException (above): this is this PC's disk or a page's drawing.
+            Log.Write($"Preset print: {ex}");
+            Fail(Core.CoreStrings.Direct_NotDrawn);
         }
         catch (Exception ex)
         {
             Log.Write($"Preset print failed: {ex}");
-            Message += " " + string.Format(Strings.Scan_PrintFailed, ex.Message);
+            Fail(ex.Message);
         }
     }
 }

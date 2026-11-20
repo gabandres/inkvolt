@@ -178,6 +178,18 @@ public interface IBatchQueue
     /// <exception cref="BatchQueueException">The queue failed.</exception>
     /// <exception cref="BatchFileException">A page couldn't be drawn: nothing was sent.</exception>
     Task<BatchReceipt> SendAsync(IBatchDocument document, BatchPrintJob job, IProgress<string>? progress, Action? onSpooling, CancellationToken ct);
+
+    /// <summary>What a batch says when this queue didn't say in time whether it's ready (a Windows queue: Windows doesn't answer).</summary>
+    string NoAnswer => CoreStrings.Batch_WindowsNoAnswer;
+
+    /// <summary>How long a job has to be drawn and handed over before the batch gives up on it.</summary>
+    TimeSpan SendLimit(BatchPrintJob job, BatchPrintOptions options) => options.SendTimeout + options.SendTimePerPage * job.Pages.Count;
+
+    /// <summary>
+    /// Past the point of no return the job ends by itself, within limits of its own (a printer's job followed until it ends or
+    /// goes quiet): the batch waits for it however long it takes, rather than call it failed.
+    /// </summary>
+    bool EndsOnItsOwnOnceSpooling => false;
 }
 
 /// <summary>What a driver's validated print ticket kept of what was asked, compared before anything prints.</summary>
@@ -632,7 +644,7 @@ public static class BatchPrintRunner
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                problem = ex is TimeoutException ? CoreStrings.Batch_WindowsNoAnswer : ex.Message;
+                problem = ex is TimeoutException ? queue.NoAnswer : ex.Message;
             }
             if (problem is not null) return (BatchPrintState.Stopped, NotSent, 0, problem, false);
 
@@ -658,16 +670,21 @@ public static class BatchPrintRunner
                         : CoreStrings.Batch_Changed, 0, null, false);
 
                 var job = new BatchPrintJob(line.Name, line.Pages, line.Settings.Copies, line.Settings.TwoSided, line.Settings.Paper, line.Sheets);
-                var limit = options.SendTimeout + options.SendTimePerPage * line.Pages.Count;
                 var spooling = false;
                 var report = progress is null ? null : new Relay(m => progress.Report(new BatchPrintProgress(index, BatchPrintState.Sending, m)));
                 // The wait isn't cancelled by the token: the queue takes it up to the point of no return, and a job past it has to finish.
                 using var sendCancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 var sending = queue.SendAsync(document, job, report, () => spooling = true, sendCancel.Token);
+                // A queue that routes each call (RoutedBatchQueue) answers for the route of this file's ready check, just before.
+                var limit = queue.SendLimit(job, options);
                 BatchReceipt receipt;
                 try
                 {
                     receipt = await sending.WaitAsync(limit, CancellationToken.None).ConfigureAwait(false);
+                }
+                catch (TimeoutException) when (spooling && queue.EndsOnItsOwnOnceSpooling)
+                {
+                    receipt = await sending.ConfigureAwait(false);
                 }
                 catch (TimeoutException)
                 {

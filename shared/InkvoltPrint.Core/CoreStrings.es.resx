@@ -3514,6 +3514,15 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora.</value>
   </data>
+  <data name="Direct_NotAnswering" xml:space="preserve">
+    <value>La impresora no responde. No se envió nada.</value>
+  </data>
+  <data name="Direct_NotDrawn" xml:space="preserve">
+    <value>No se pudieron preparar sus páginas en este PC. No se envió nada.</value>
+  </data>
+  <data name="Direct_NotAccepting" xml:space="preserve">
+    <value>La impresora no está aceptando trabajos ahora.</value>
+  </data>
   <data name="Wia_InUse" xml:space="preserve">
     <value>El escáner está ocupado con otro escaneo, de este PC o de un dispositivo que escanea con él desde la red. Vuelve a intentarlo cuando termine.</value>
   </data>

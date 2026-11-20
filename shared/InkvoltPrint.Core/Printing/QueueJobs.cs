@@ -31,6 +31,9 @@ public sealed record QueueJob(int Id, string Name, int Pages, int PagesPrinted, 
 
     /// <summary>The job's size in bytes as spooled so far, where the reader gets it (JOB_INFO_2); 0: not known. It grows while the job is written.</summary>
     public long Bytes { get; init; }
+
+    /// <summary>Why it failed in the app's words, where the reader knows better than the status bits (a job the printer itself gave up on); null: the bits say it.</summary>
+    public string? Problem { get; init; }
 }
 
 /// <summary>What the print queue card shows for a job: plain words for the spooler's status bits, pages, time, owner.</summary>

@@ -51,7 +51,8 @@ public static class DirectPrinter
 
     /// <summary>
     /// Draws, sends and follows one job. <paramref name="onSending"/> marks the point of no return (the document starts going
-    /// out); <paramref name="onSent"/> the printer has it, after which <paramref name="ct"/> cancels it at the printer (Cancel-Job).
+    /// out); <paramref name="onSent"/> the printer has it, after which <paramref name="ct"/> cancels it at the printer (Cancel-Job),
+    /// unless <paramref name="finishOnceSent"/> (a batch): then the job is followed to its end whatever <paramref name="ct"/> says.
     /// Returns true when the printer said the job was printed, false when it has it but didn't say yet.
     /// </summary>
     /// <exception cref="DirectPrintException">The printer can't take the request, refused it, or stopped it, or didn't take a
@@ -59,9 +60,14 @@ public static class DirectPrinter
     /// <exception cref="OperationCanceledException">Cancelled before sending, or cancelled at the printer after (it took the cancel).</exception>
     public static async Task<bool> PrintAsync(PrintTarget.Direct target, string jobName, DirectPrintRequest request,
         Func<Size, PrintImages, DocumentPaginator> paginator, IProgress<string>? progress, CancellationToken ct,
-        Action? onSending = null, Action? onSent = null)
+        Action? onSending = null, Action? onSent = null, bool finishOnceSent = false)
     {
-        var caps = await ReadCapsAsync(target, ct);
+        IppPrintCaps caps;
+        try { caps = await ReadCapsAsync(target, ct); }
+        catch (Exception ex) when (DirectJob.NoAnswer(ex))
+        {
+            throw DirectPrintException.NoAnswerBeforeSending(ex); // only the printer's silence: a disk or drawing error below is its own
+        }
         if (OnlyFormat is { } only)
         {
             request = request with { Format = only };
@@ -105,8 +111,9 @@ public static class DirectPrinter
         var impressions = plan.PagesPerCopy(pages) * plan.Repeat * plan.Copies;
         var watched = new Progress<DirectJobState>(s => progress?.Report(DirectJob.Describe(s, impressions)));
         if (state is not null) progress?.Report(DirectJob.Describe(state, impressions));
-        var last = await DirectJob.WatchAsync(target.Ipp, target.User, jobId, watched, WatchEvery, WatchQuiet, ct) ?? state;
-        if (ct.IsCancellationRequested) await DirectJob.StopAsync(target.Ipp, target.User, jobId, ct); // says whether the printer took it
+        var watching = finishOnceSent ? CancellationToken.None : ct;
+        var last = await DirectJob.WatchAsync(target.Ipp, target.User, jobId, watched, WatchEvery, WatchQuiet, watching) ?? state;
+        if (watching.IsCancellationRequested) await DirectJob.StopAsync(target.Ipp, target.User, jobId, ct); // says whether the printer took it
         if (last is { State: DirectJobState.Aborted or DirectJobState.Canceled })
             throw new DirectPrintException(DirectJob.Describe(last, impressions), mayHavePrinted: true);
         return last is { State: DirectJobState.Completed };
@@ -212,8 +219,29 @@ public static class PrintTargets
             progress.Report(string.Format(Strings.Print_PreparingPage, i + 1, options.Pages.Count));
             pages.Add(await pdf.RenderAsync(options.Pages[i], QueuePrinter.RenderDpi, ct: ct));
         }
-        return await DirectPrinter.PrintAsync((PrintTarget.Direct)target, options.JobName, new DirectPrintRequest(options.Copies, options.TwoSided),
-            (paper, images) => QueuePrinter.PagesPaginator.OnePerSheet(pages, paper, options.Sizing, images), progress, ct, onSpooling, onSent);
+        return await PrintPagesAsync(target, pages, options.Copies, options.TwoSided, options.JobName, options.Sizing, progress, ct, onSpooling, onSent);
+    }
+
+    /// <summary>
+    /// Pages already drawn, each on its own sheet (<see cref="QueuePrinter.PagesPaginator.OnePerSheet"/>): Print a PDF and a scan preset's
+    /// print step. Returns true when the printer said it printed the job (straight to the printer only).
+    /// </summary>
+    public static async Task<bool> PrintPagesAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName,
+        PageSizing sizing, IProgress<string>? progress = null, CancellationToken ct = default, Action? onSending = null, Action? onSent = null)
+    {
+        switch (target)
+        {
+            case PrintTarget.Queue q:
+                onSending?.Invoke();
+                await QueuePrinter.PrintPagesAsync(q.Name, pages, copies, twoSided, jobName, sizing);
+                onSent?.Invoke();
+                return false;
+            case PrintTarget.Direct d:
+                return await DirectPrinter.PrintAsync(d, jobName, new DirectPrintRequest(copies, twoSided),
+                    (paper, images) => QueuePrinter.PagesPaginator.OnePerSheet(pages, paper, sizing, images), progress, ct, onSending, onSent);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(target));
+        }
     }
 
     /// <summary>
