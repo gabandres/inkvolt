@@ -310,12 +310,21 @@ public static partial class ContentEditor
         var ordinal = new Dictionary<int, int>(); // a mark's place in now → its number among now's marks
         for (int i = 0, k = 0; i < now.Length; i++)
             if (now[i] == TextParagraph.PictureMark) ordinal[i] = k++;
+        var used = new bool[pictures];
         for (int i = 0, k = 0; i < old.Length; i++)
         {
             if (old[i] != TextParagraph.PictureMark) continue;
-            if (k < pictures && map[i] >= 0 && ordinal.TryGetValue(map[i], out var at)) result[at] = k;
+            if (k < pictures && map[i] >= 0 && ordinal.TryGetValue(map[i], out var at))
+            {
+                result[at] = k;
+                used[k] = true;
+            }
             k++;
         }
+        // A mark cut and pasted elsewhere (the text between can't keep both): the pictures whose marks went, in order.
+        var free = new Queue<int>(Enumerable.Range(0, pictures).Where(k => !used[k]));
+        for (var i = 0; i < marks && free.Count > 0; i++)
+            if (result[i] < 0) result[i] = free.Dequeue();
         return result;
     }
 

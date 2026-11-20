@@ -144,6 +144,8 @@ public static partial class ContentEditor
         public bool Marked;
         /// <summary>For a translated copy: a short mark or symbol started it and stays where it is (see <see cref="Marked"/> for one that surely starts an item).</summary>
         public bool MarkStart;
+        /// <summary>How far a picture in the flow that starts it reaches left of its first run (its box includes it): 0 for none.</summary>
+        public double PictureRoom;
         public double Size => Lead.FontSize;
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
@@ -196,7 +198,10 @@ public static partial class ContentEditor
         var runs = content.Runs.Where(r => Math.Abs(r.Angle) < 0.5 && r.Text.Trim().Length > 0 && r.FontSize > 0.5 && r.Box.Width > 0).ToList();
         if (runs.Count == 0) return [];
         var result = new List<TextParagraph>();
-        foreach (var stack in Stacks(LinesOf(runs)))
+        var lines = LinesOf(runs);
+        if (pictures)
+            foreach (var l in lines) WidenForPicture(content, l, lines);
+        foreach (var stack in Stacks(lines))
             foreach (var part in SplitShort(stack))
                 result.Add(Paragraph(content, part, pictures: pictures));
         return result;
@@ -373,7 +378,8 @@ public static partial class ContentEditor
             var line = s.Lines[i];
             var room = i == 1 && indented ? right - prev.Box.X : width;
             var word = line.Text.TrimStart().Split(' ')[0];
-            var need = prev.Box.Width + WidthOf(line.Lead, " " + word, line);
+            // A line that starts with a picture: the picture is its first "word".
+            var need = prev.Box.Width + (line.PictureRoom > 0 ? line.PictureRoom + WidthOf(line.Lead, " ", line) : WidthOf(line.Lead, " " + word, line));
             if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && (Labels(prev.Text, line.Text) || line.Marked || line.MarkStart && EndsSentence(prev.Text))))
             {
                 parts.Add(cur);
@@ -599,14 +605,14 @@ public static partial class ContentEditor
                 var items = g.OrderBy(x => x.Picture.Image.Box.X).ToList();
                 var apart = 0.15 * l.Size;
                 var sb = new StringBuilder();
-                if (pos > 0 && t[pos - 1] != ' ' && k > 0 && items[0].Picture.Image.Box.X - l.Runs[k - 1].Box.Right > apart) sb.Append(' ');
+                if (pos > 0 && t[pos - 1] != ' ' && k > 0 && (items[0].Picture.Image.Box.X - l.Runs[k - 1].Box.Right > apart || l.Runs[k - 1].Text.EndsWith(' '))) sb.Append(' ');
                 for (var j = 0; j < items.Count; j++)
                 {
                     if (j > 0 && items[j].Picture.Image.Box.X - items[j - 1].Picture.Image.Box.Right > apart) sb.Append(' ');
                     placedPictures.Add((text.Length + pos + sb.Length, items[j].Picture));
                     sb.Append(TextParagraph.PictureMark);
                 }
-                if (pos < t.Length && t[pos] != ' ' && k < l.Runs.Count && l.Runs[k].Box.X - items[^1].Picture.Image.Box.Right > apart) sb.Append(' ');
+                if (pos < t.Length && t[pos] != ' ' && k < l.Runs.Count && (l.Runs[k].Box.X - items[^1].Picture.Image.Box.Right > apart || l.Runs[k].Text.StartsWith(' '))) sb.Append(' ');
                 t = t.Insert(pos, sb.ToString());
                 added += sb.Length;
                 for (var i = k; i <= l.Runs.Count; i++) shift[i] += sb.Length;
@@ -706,6 +712,33 @@ public static partial class ContentEditor
             }
         }
         return found;
+    }
+
+    /// <summary>
+    /// A line that starts with a picture in the flow (one the page draws upright just left of its first run, within an em,
+    /// on its height, no taller than 2.5 times its type) reaches to the picture's left edge when the line above starts
+    /// there too (an edit wrapped the picture to the start of the line), so it lines up with the paragraph's other lines.
+    /// A picture before a line the line above doesn't line up with (a list's bullet) leaves it as it is.
+    /// </summary>
+    private static void WidenForPicture(PageContent content, PLine l, List<PLine> lines)
+    {
+        var size = l.Size;
+        var first = l.Box.X;
+        var above = lines.Where(o => o != l && o.Baseline < l.Baseline && l.Baseline - o.Baseline <= 2.5 * size && o.Box.Right > first && o.Box.X < l.Box.Right)
+            .MaxBy(o => o.Baseline);
+        if (above is null || above.Box.X >= first - 0.5 * size) return;
+        for (var guard = 0; guard < 4; guard++)
+        {
+            var x = l.Box.X;
+            var next = content.Images.Where(img => img.Blocked is null && !img.Turned && img.Id >= 0 && double.IsFinite(img.Box.X + img.Box.Y + img.Box.Width + img.Box.Height)
+                                                   && img.Box.Height <= 2.5 * size && img.Box.Height >= 0.5 && img.Box.Right <= x + 1 && x - img.Box.Right <= size
+                                                   && img.Box.CenterY >= l.Box.Y - 0.25 * size && img.Box.CenterY <= l.Box.Bottom + 0.25 * size)
+                .MaxBy(img => img.Box.Right);
+            if (next is null) break;
+            l.Box = l.Box.Union(next.Box);
+        }
+        if (Math.Abs(l.Box.X - above.Box.X) > Tolerance(size)) l.Box = l.Box with { X = first, Width = l.Box.Right - first };
+        else l.PictureRoom = first - l.Box.X;
     }
 
     // ---- Laying out new text ----

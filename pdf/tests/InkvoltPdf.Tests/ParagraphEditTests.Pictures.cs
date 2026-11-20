@@ -72,6 +72,28 @@ public partial class ParagraphEditTests
     }
 
     [Fact]
+    public void APictureWrappedToTheStartOfALineIsStillInTheSameParagraph()
+    {
+        // The picture moved to the front, after a word that grows until the picture no longer fits beside it and starts
+        // the second line: read again, it is one paragraph with the same text.
+        var (pdf, _) = WithPicture();
+        var p = Body0(pdf);
+        var rest = p.Text.Replace(" ￼", "", StringComparison.Ordinal);
+        for (var n = 60; n <= 160; n++)
+        {
+            var text = "Now" + new string('i', n) + " ￼ " + rest;
+            var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text, allowOverlap: true);
+            var image = ContentEditor.Read(edited, null, 0).Images.Single();
+            if (Math.Abs(image.Box.X - Left) > 1) continue;
+            var q = Body0(edited, "Now");
+            Assert.Equal(text, q.Text);
+            Assert.Equal(1, Assert.Single(q.Pictures).Drop, 1);
+            return;
+        }
+        Assert.Fail("the picture never started a line");
+    }
+
+    [Fact]
     public void TakingThePicturesMarkOutTakesThePictureOff()
     {
         var (pdf, _) = WithPicture();
