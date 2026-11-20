@@ -5,38 +5,99 @@ namespace InkvoltPrint.Core.Imaging;
 /// (<see cref="QuarterTurns"/> quarters clockwise after straightening), noise smoothed, the paper evened out to white and
 /// lone specks removed. <see cref="Gray"/> is what a recognizer reads; <see cref="Bgr"/> (when asked for) is the same page
 /// in colour, to keep in the document. <see cref="UprightSure"/> is false when the page's lines didn't say which way up it
-/// is (the caller may try the other way with its recognizer).
+/// is (the caller may try the other way with its recognizer). <see cref="Perspective"/> and <see cref="Curve"/>: the page
+/// photographed at an angle was straightened first, and its bent lines flattened (after straightening, or in its place for a
+/// page tilted only by its bend; in the frame before the quarter turns), when those steps were asked for and found
+/// something sure.
 /// </summary>
-public sealed record CleanedScan(GrayImage Gray, double Skew, int QuarterTurns, bool UprightSure, byte[]? Bgr, int SpecksRemoved);
+public sealed record CleanedScan(GrayImage Gray, double Skew, int QuarterTurns, bool UprightSure, byte[]? Bgr, int SpecksRemoved)
+{
+    public Perspective? Perspective { get; init; }
+
+    public LineCurve? Curve { get; init; }
+}
 
 /// <summary>
 /// Cleans a scanned page before text recognition (Inkvolt PDF's Recognize Text, roadmap 2.2). Platform-neutral pixels in,
-/// pixels out; each step is its own class so it can be tested and ported alone: <see cref="Deskew"/> (up to ±15° here),
-/// <see cref="PageRotate"/>, <see cref="Upright"/>, <see cref="Smooth"/>, <see cref="PaperLevel"/>, <see cref="Despeckle"/>.
+/// pixels out; each step is its own class so it can be tested and ported alone: <see cref="Trapezoid"/> (when asked),
+/// <see cref="Deskew"/> (up to ±15° here), <see cref="PageRotate"/>, <see cref="Smooth"/>, <see cref="PaperLevel"/>,
+/// <see cref="Despeckle"/>, <see cref="CurvedLines"/> (when asked), <see cref="Upright"/>.
 /// </summary>
 public static class ScanCleanup
 {
     /// <summary>The largest skew straightened (a sheet laid on the glass by hand, a feeder that grabbed it crooked).</summary>
     public const double MaxSkew = 15;
 
+    /// <summary>A page tilted by up to this (degrees) is first looked at for bent lines as it is (a book's page), before it is straightened.</summary>
+    public const double MaxTiltOfBentLines = 3;
+
     /// <summary>
     /// <paramref name="pixels"/> (rows of <paramref name="width"/> × <paramref name="channels"/> bytes, 1 = grey, 3 = BGR) at
     /// <paramref name="dpi"/>. <paramref name="keepColor"/> also returns the cleaned page in colour (BGR input only).
+    /// <paramref name="steps"/>: the further steps to try (a photographed page's trapezoid, bent lines); each changes the
+    /// page only when it finds something sure.
     /// </summary>
-    public static CleanedScan Clean(byte[] pixels, int width, int height, int channels, int dpi, bool keepColor = false, CancellationToken cancel = default)
+    public static CleanedScan Clean(byte[] pixels, int width, int height, int channels, int dpi, bool keepColor = false, CancellationToken cancel = default,
+        CleanupSteps steps = CleanupSteps.None)
     {
         var gray = channels == 1 ? pixels : ToGray(pixels, width, height);
+        var color = keepColor && channels == 3 ? pixels : null;
+
+        // A page photographed at an angle: warped to a rectangle first, so the rest sees a page lying flat.
+        Perspective? perspective = null;
+        if (steps.HasFlag(CleanupSteps.Trapezoid) && Trapezoid.Find(new GrayImage(width, height, gray), cancel) is { } found)
+        {
+            perspective = found;
+            gray = found.Apply(gray, width, height, 1, cancel);
+            if (color is not null) color = found.Apply(color, width, height, 3, cancel);
+        }
+
         var factor = Math.Max(1, (int)Math.Round(dpi / 100.0));
         var (skew, sideways, axisSure) = Lines(Downscale(new GrayImage(width, height, gray), factor));
         cancel.ThrowIfCancellationRequested();
 
+        // A book's bent lines look tilted on the whole: looked for on the page as it is (smoothed and whitened, so a desk,
+        // a shadow or grey paper isn't ink), and when found, flattened without turning the page, so its margins stay
+        // upright (turned, then flattened, the margins would lean by the tilt). Not found there, it isn't looked for again.
+        LineCurve? curve = null;
+        byte[]? smooth = null;
+        PaperLevel.Map? paper = null;
+        var bendLooked = false;
+        if (steps.HasFlag(CleanupSteps.CurvedLines) && skew != 0 && Math.Abs(skew) <= MaxTiltOfBentLines)
+        {
+            bendLooked = true;
+            var asIs = Smooth.Median3(gray, width, height, cancel);
+            var level = PaperLevel.Estimate(asIs, width, height, dpi);
+            PaperLevel.Whiten(asIs, level);
+            if (CurvedLines.Find(new GrayImage(width, height, asIs), dpi, sideways, cancel) is { } tilted)
+                (curve, skew, smooth, paper) = (tilted, 0, asIs, level);
+        }
+
         if (skew != 0) gray = PageRotate.Rotate(gray, width, height, width, 1, -skew);
-        var smooth = Smooth.Median3(gray, width, height);
+        if (smooth is null || paper is null)
+        {
+            smooth = Smooth.Median3(gray, width, height, cancel);
+            paper = PaperLevel.Estimate(smooth, width, height, dpi);
+            PaperLevel.Whiten(smooth, paper);
+        }
         cancel.ThrowIfCancellationRequested();
-        var paper = PaperLevel.Estimate(smooth, width, height, dpi);
-        PaperLevel.Whiten(smooth, paper);
         var specks = Despeckle.Remove(smooth, width, height, dpi);
         cancel.ThrowIfCancellationRequested();
+
+        byte[]? bgr = null;
+        if (color is not null)
+        {
+            bgr = skew != 0 ? PageRotate.Rotate(color, width, height, width * 3, 3, -skew) : (byte[])color.Clone();
+            PaperLevel.WhitenColor(bgr, smooth, paper);
+        }
+
+        // Lines bent by a book's spine: flattened along the way they run, before telling which way up the page is.
+        if (steps.HasFlag(CleanupSteps.CurvedLines) && curve is null && !bendLooked) curve = CurvedLines.Find(new GrayImage(width, height, smooth), dpi, sideways, cancel);
+        if (curve is not null)
+        {
+            smooth = curve.Apply(smooth, width, height, 1, cancel);
+            if (bgr is not null) bgr = curve.Apply(bgr, width, height, 3, cancel);
+        }
 
         // Lines that run down the page are turned a quarter to run across; then which way up is told by the letters.
         var small = Downscale(new GrayImage(width, height, smooth), factor);
@@ -44,15 +105,13 @@ public static class ScanCleanup
         var (flipped, waySure) = Upright.UpsideDown(small);
         var turns = (sideways ? 1 : 0) + (flipped ? 2 : 0);
 
-        byte[]? bgr = null;
-        if (keepColor && channels == 3)
-        {
-            bgr = skew != 0 ? PageRotate.Rotate(pixels, width, height, width * 3, 3, -skew) : (byte[])pixels.Clone();
-            PaperLevel.WhitenColor(bgr, smooth, paper);
-            bgr = Turn(bgr, width, height, 3, turns);
-        }
+        if (bgr is not null) bgr = Turn(bgr, width, height, 3, turns);
         var (w, h) = turns % 2 == 0 ? (width, height) : (height, width);
-        return new CleanedScan(new GrayImage(w, h, Turn(smooth, width, height, 1, turns)), skew, turns, axisSure && waySure, bgr, specks);
+        return new CleanedScan(new GrayImage(w, h, Turn(smooth, width, height, 1, turns)), skew, turns, axisSure && waySure, bgr, specks)
+        {
+            Perspective = perspective,
+            Curve = curve,
+        };
     }
 
     /// <summary>

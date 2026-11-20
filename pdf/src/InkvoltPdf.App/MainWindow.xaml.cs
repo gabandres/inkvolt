@@ -1968,6 +1968,7 @@ public partial class MainWindow : Window
         Bind(Cmd.ApplyRedactions, t => _ = t.ApplyRedactions(), t => t.Session.IsPdf && !t.IsOrganizing && t.PageView.Redactions.Count > 0);
         BindAtOnce(Cmd.RecognizeText, (t, now) => _ = t.RecognizeText(atOnce: now), (t, _) => t.Session.IsPdf);
         Bind(Cmd.ReviewSuspectWords, t => _ = t.ShowSuspectWordsAsync(), t => t.Session.IsPdf);
+        Bind(Cmd.MakeTextEditable, t => _ = t.MakeTextEditable(), t => t.Session.IsPdf && !t.IsBusy);
     }
 
     /// <summary>File › Printer Settings (Inkvolt Print): shown only when Inkvolt Print is installed (checked off the UI thread).</summary>

@@ -8,7 +8,7 @@ using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Windows.Ocr;
 using MuPDFCore;
 
-// dotnet run --project pdf/tools/ocr-corpus -c Release -- make|run|report|cleanup|layer [--out dir] [--note text] [--only name]
+// dotnet run --project pdf/tools/ocr-corpus -c Release -- make|run|report|cleanup|layer|probe|photos [--out dir] [--note text] [--only name]
 CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
 var command = args.FirstOrDefault() ?? "run";
 string Option(string name, string fallback) => args.SkipWhile(a => a != name).Skip(1).FirstOrDefault() ?? fallback;
@@ -45,8 +45,10 @@ switch (command)
         return Layer();
     case "probe":
         return Probe();
+    case "photos":
+        return Photos();
     default:
-        Console.Error.WriteLine("Usage: make | run | report | cleanup | layer [--out dir] [--note text] [--only name]");
+        Console.Error.WriteLine("Usage: make | run | report | cleanup | layer | probe | photos [--out dir] [--note text] [--only name]");
         return 2;
 }
 return 0;
@@ -139,6 +141,47 @@ int Probe()
     }
     Console.WriteLine($"All pages: {allWords} words; cleaned {(double)plainEdits / allWords:P2} ({plainEdits} edits), re-read {(double)rereadEdits / allWords:P2} ({rereadEdits}); {worse} page(s) worse");
     return worse == 0 ? 0 : 1;
+}
+
+// Photographed pages (PhotoCorpus): cleaned as stage A, then with the trapezoid and bent lines straightened (roadmap 2.2).
+int Photos()
+{
+    Directory.CreateDirectory(dir);
+    var sb = new StringBuilder();
+    sb.AppendLine("# OCR corpus: photographed pages");
+    sb.AppendLine();
+    sb.AppendLine($"Made by `dotnet run --project pdf/tools/ocr-corpus -c Release -- photos` on {DateTime.Now:yyyy-MM-dd}, Windows {Environment.OSVersion.Version}, " +
+                  $"{System.Runtime.InteropServices.RuntimeInformation.OSArchitecture}, Windows' recognizer. See [README.md](README.md).");
+    if (note.Length > 0) sb.AppendLine().AppendLine(note);
+    sb.AppendLine();
+    sb.AppendLine("| File | What | Words | Stage A (cleaned) | Straightened (trapezoid, bent lines) | ms a page, stage A → straightened |");
+    sb.AppendLine("|---|---|---:|---:|---:|---:|");
+    var better = true;
+    foreach (var file in PhotoCorpus.Files)
+    {
+        var pdf = PhotoCorpus.Pdf(file);
+        File.WriteAllBytes(Path.Combine(dir, file.Name + ".pdf"), pdf);
+        var expected = PhotoCorpus.Photo(file).Words;
+        var own = WindowsRecognizer.Create(file.Page.Language == "es" ? "es-MX" : "en-US") ?? WindowsRecognizer.Create()!;
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        (double Wer, double Ms) Measure(RecognizeOptions options)
+        {
+            var sw = Stopwatch.StartNew();
+            var words = ScanText.Recognize(engine, 0, own, options).Words.Select(w => w.Text).ToList();
+            return (WordErrorRate.Of(expected, words), sw.Elapsed.TotalMilliseconds);
+        }
+        var stageA = Measure(new RecognizeOptions(CheckWords: false));
+        var straightened = Measure(new RecognizeOptions(CheckWords: false, Trapezoid: true, CurvedLines: true));
+        better &= straightened.Wer <= stageA.Wer;
+        Console.WriteLine($"{file.Name}: {expected.Count} words; stage A {stageA.Wer:P1}, straightened {straightened.Wer:P1}; {stageA.Ms:0} → {straightened.Ms:0} ms");
+        sb.AppendLine($"| `{file.Name}` | {file.Describe()} | {expected.Count} | {stageA.Wer:P1} | **{straightened.Wer:P1}** | {stageA.Ms:0} → {straightened.Ms:0} |");
+    }
+    sb.AppendLine();
+    sb.AppendLine($"No worse with the page straightened on any file: **{(better ? "yes" : "no")}**. Stage A reads a bent page's lines crooked or not at all (100%: the bend made the page look upside down, and it was read turned over).");
+    var path = Path.Combine(toolDir, "RESULTS-photos.md");
+    File.WriteAllText(path, sb.ToString());
+    Console.WriteLine($"Wrote {path}; the photos are in {dir}");
+    return better ? 0 : 1;
 }
 
 void Make()

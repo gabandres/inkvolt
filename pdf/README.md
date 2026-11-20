@@ -778,10 +778,10 @@ scanners and choices, with `later`), `scanselect text` and `scanchoose glass|fee
 `comparegroup wording|moved|formatting|visual on|off`, `comparelist n`, `comparetext old|new page`, `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
 Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
-Recognize Text: `dialogok RecognizeText combo1=N check2=on` (combo0 the pages, combo1 the language in Windows' order,
-check0 clean first, check1 suspect words, check2 replace the scans), then `suspects` (the Suspect words pane: opens it,
+Recognize Text: `dialogok RecognizeText combo1=N check4=on` (combo0 the pages, combo1 the language in Windows' order,
+check0 clean first, check1 a photographed page straightened, check2 bent lines flattened, check3 suspect words, check4 replace the scans), then `suspects` (the Suspect words pane: opens it,
 logs its words), `suspectsel i`, `suspectfix text|keep`, `findcount word` (how often search finds it); scans to try it on:
-`pdf/tools/ocr-corpus` (`make`). Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`, `ExportPowerPoint`, `ExportHtml`; `check0` is OCR,
+`pdf/tools/ocr-corpus` (`make`; `photos` for photographed and bent pages). Make Text Editable: `dialogok MakeTextEditable [combo0=N] [check0=on]` (combo0 the pages, check0 keep the scan showing), then `paragraphs 1` and `editpara`. Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`, `ExportPowerPoint`, `ExportHtml`; `check0` is OCR,
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
 `key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
 from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); Split view: `split h|v|off`, `switchpane`, `splitstate` (`page`, `zoom` and `scroll` act on the active pane).

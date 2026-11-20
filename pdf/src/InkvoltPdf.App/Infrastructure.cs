@@ -533,6 +533,11 @@ public sealed class AppSettings
     public string OcrSecondLanguage { get; set; } = "";
     public bool OcrClean { get; set; } = true;
     public bool OcrSuspects { get; set; } = true;
+    /// <summary>Recognize Text's cleaning also straightens a page photographed at an angle, and flattens a book's bent lines (each only when sure).</summary>
+    public bool OcrTrapezoid { get; set; } = true;
+    public bool OcrCurvedLines { get; set; } = true;
+    /// <summary>Make Text Editable: keep the scan showing behind the new text (off: covered where the text is).</summary>
+    public bool EditableKeepScan { get; set; }
     /// <summary>Export to Word / Excel / text: recognize scanned pages, open the file when done.</summary>
     public bool ExportOcr { get; set; } = true;
     public bool ExportOpen { get; set; } = true;

@@ -11,6 +11,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Pages in two languages: choose a second language in Recognize Text. Each line is read in the language that fits it, or both at once with Tesseract.
 - Batch, Scan, the exports, Compare Files and Redact by Pattern now read scans in the language you last chose in Recognize Text.
 - With Tesseract, a word it wasn't sure of is listed among the suspect words to check.
+- Recognize Text straightens a page photographed at an angle and flattens lines bent by a book's spine before reading it, so phone photos and open books read much better. Replace the scans with the cleaned pages to keep them straightened. Both are on by default and leave pages that don't need them as they are.
+- Make Text Editable (Review menu, and Scan & OCR on the bar) turns a scanned page's recognized text into real text, in the installed font closest to the scan's (italic, bold and coloured text too) and at its size and place, so you can edit its paragraphs with Edit Text & Images. The scan is covered behind the text in the paper's own colour, or left showing if you prefer. Undo puts the page back.
 - The command line (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`) typed in a terminal works: it ended at once without printing anything. Sent to a file or another program, its lines no longer have an extra line break after each (a blank line between lines in PowerShell, a stray character at the end of each in a script), and its lines and errors sent to the same file (`> log.txt 2>&1`) all stay there. Errors sent to a file of their own (`2> errors.txt`) go there.
 
 ## 1.15.0

@@ -370,6 +370,27 @@ internal static class SystemFonts
         }
     });
 
+    /// <summary>Whether a font file is installed (without reading it).</summary>
+    public static bool Exists(string file) => Size(file) is not null;
+
+    /// <summary>A font file's size in bytes, or null when it isn't installed (a per-user font is listed by its full path).</summary>
+    public static long? Size(string file)
+    {
+        foreach (var dir in FontDirs())
+        {
+            var path = Path.Combine(dir, file);
+            try
+            {
+                if (File.Exists(path)) return new FileInfo(path).Length;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+        return null;
+    }
+
     private static byte[]? Read(string file)
     {
         foreach (var dir in FontDirs())
