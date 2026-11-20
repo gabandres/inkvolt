@@ -164,13 +164,12 @@ public static class FolderIndexBench
             var indexer = new FolderIndexer(dir, basePath, new FolderIndexerOptions { WorkerExe = exe, MaxWorkers = int.TryParse(Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_WORKERS"), out var workers) ? workers : new FolderIndexerOptions().MaxWorkers });
             var peak = 0L;
             using var done = new ManualResetEventSlim();
-            var looked = false;
+            var pdfs = Directory.EnumerateFiles(dir, "*.pdf", SearchOption.AllDirectories).Count();
             var lastLog = Stopwatch.StartNew();
             indexer.Changed += () =>
             {
-                // Up to date once it has looked: before its first look a folder of one file can say so too.
-                if (indexer.Status.Phase is IndexerPhase.Scanning or IndexerPhase.Indexing) looked = true;
-                if ((looked || sw.Elapsed.TotalSeconds > 10) && indexer.Status.Phase == IndexerPhase.UpToDate) done.Set();
+                // Up to date with every file in: a look ends up to date with files just written still to come (they are read once quiet).
+                if (indexer.Status.Phase == IndexerPhase.UpToDate && (indexer.Index?.Files.Count ?? 0) >= pdfs) done.Set();
                 if (lastLog.Elapsed.TotalSeconds > 10)
                 {
                     lastLog.Restart();

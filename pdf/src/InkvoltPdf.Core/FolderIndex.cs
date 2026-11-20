@@ -713,11 +713,13 @@ public sealed partial class FolderIndex : IDisposable
         private long _start = long.MinValue / 2;
         private int _length;
 
-        public ReadOnlySpan<byte> Read(long offset, int count)
+        /// <param name="reach">Bytes to read from <paramref name="offset"/> on a miss, when the caller knows (a file's text to its end); else the cursor's own.</param>
+        public ReadOnlySpan<byte> Read(long offset, int count, int? reach = null)
         {
             if (offset >= _start && offset + count <= _start + _length) return _buffer.AsSpan((int)(offset - _start), count);
-            if (count > _buffer.Length) _buffer = new byte[count];
-            var want = Math.Max(count, Math.Min(ahead, _buffer.Length));
+            var size = Math.Max(count, reach ?? 0);
+            if (size > _buffer.Length) _buffer = new byte[size];
+            var want = Math.Max(count, reach ?? Math.Min(ahead, _buffer.Length));
             var read = 0;
             while (read < want)
             {

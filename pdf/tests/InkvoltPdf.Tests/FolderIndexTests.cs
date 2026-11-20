@@ -115,6 +115,9 @@ public sealed class FolderIndexTests : IDisposable
         Assert.Equal([0, 2, 3, 6], starts);
         FolderIndex.Chunks([.. Enumerable.Range(0, 20).Select(p => (0, p))], starts, 10);
         Assert.Equal([0, 4, 8, 12, 16, 20], starts); // 4 pages at least: a thread's work is worth handing out
+        // As many files as threads or more: a file a chunk, as long as it is no longer than ConfirmChunk.
+        FolderIndex.Chunks([.. Enumerable.Range(0, 12).SelectMany(f => Enumerable.Range(0, 20).Select(p => (f, p)))], starts, 10);
+        Assert.Equal([.. Enumerable.Range(0, 13).Select(f => f * 20)], starts);
         FolderIndex.Chunks([], starts, 10);
         Assert.Equal([0], starts);
     }

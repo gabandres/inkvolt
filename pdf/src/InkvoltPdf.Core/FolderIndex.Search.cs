@@ -155,18 +155,23 @@ public sealed partial class FolderIndex
     internal const int ConfirmChunkMin = 4;
 
     /// <summary>
-    /// Where each chunk of a round starts, and the round's end last: a chunk is pages of one file, its pages in the round
-    /// shared among <paramref name="threads"/> (each at least <see cref="ConfirmChunkMin"/>, at most <see cref="ConfirmChunk"/>),
-    /// so a round of one big PDF keeps every thread at work.
+    /// Where each chunk of a round starts, and the round's end last: a chunk is pages of one file, at most
+    /// <see cref="ConfirmChunk"/>. In a round of fewer files than <paramref name="threads"/>, a file's pages are shared among
+    /// them (at least <see cref="ConfirmChunkMin"/> each), so a round of one big PDF keeps every thread at work.
     /// </summary>
     internal static void Chunks(IReadOnlyList<(int File, int Page)> round, List<int> starts, int threads)
     {
         starts.Clear();
+        // A round of as many files as threads keeps them at work file by file: a file is cut only into ConfirmChunk pages.
+        var files = 0;
+        for (var i = 0; i < round.Count; i++)
+            if (i == 0 || round[i].File != round[i - 1].File) files++;
         for (var i = 0; i < round.Count;)
         {
             var end = i + 1;
             while (end < round.Count && round[end].File == round[i].File) end++;
-            var size = Math.Clamp((end - i + threads - 1) / Math.Max(1, threads), ConfirmChunkMin, ConfirmChunk);
+            var size = files >= threads ? ConfirmChunk
+                : Math.Clamp((end - i + threads - 1) / Math.Max(1, threads), ConfirmChunkMin, ConfirmChunk);
             for (var at = i; at < end; at += size) starts.Add(at);
             i = end;
         }
@@ -378,12 +383,9 @@ public sealed partial class FolderIndex
     private sealed record PageDirectory(long[] Offsets, int[] Lengths)
     {
         /// <summary>The list of page lengths at the start of a file's text: a count and a length a page, five bytes each at most.</summary>
-        public static PageDirectory Read(Microsoft.Win32.SafeHandles.SafeFileHandle file, IndexedFile f)
+        public static PageDirectory Read(ReadOnlySpan<byte> head, IndexedFile f)
         {
-            var head = new byte[(int)Math.Min(f.TextLength, 5L * (f.Pages + 1))];
-            var got = 0;
-            while (got < head.Length && RandomAccess.Read(file, head.AsSpan(got), f.TextOffset + got) is var n and > 0) got += n;
-            var r = new VarReader(head.AsSpan(0, got));
+            var r = new VarReader(head);
             var pages = r.Int();
             if (pages != f.Pages) throw new FolderIndexDamagedException("A file's pages out of range.");
             var lengths = new int[pages];
@@ -409,12 +411,12 @@ public sealed partial class FolderIndex
 
     /// <summary>
     /// Reads pages' kept text. A file's list of pages is read once a round, whichever thread asks first
-    /// (<paramref name="directories"/>, shared); its pages are read where they are, a little ahead, as a thread's next page
-    /// is mostly the next one.
+    /// (<paramref name="directories"/>, shared); a thread reads a file's text from where it starts, 256 KB at a time, as its
+    /// pages of a file come one after another.
     /// </summary>
     private sealed class PageReader(Microsoft.Win32.SafeHandles.SafeFileHandle file, System.Collections.Concurrent.ConcurrentDictionary<int, PageDirectory> directories)
     {
-        private readonly Cursor _cursor = new(file, ahead: 64 << 10);
+        private readonly Cursor _cursor = new(file, ahead: 0);
 
         private const int MaxPageBytes = 3 * 32 * 1048576;
         private byte[] _text = new byte[16 << 10];
@@ -426,10 +428,17 @@ public sealed partial class FolderIndex
         public ReadOnlySpan<byte> PageBytes(IndexedFile f, int page)
         {
             if (f.TextLength == 0) return [];
-            var directory = directories.GetOrAdd(f.Id, _ => PageDirectory.Read(file, f));
+            if (!directories.TryGetValue(f.Id, out var directory))
+            {
+                // Read with the file's text after it (256 KB at most): this thread's pages of the file are then in hand.
+                var head = _cursor.Read(f.TextOffset, (int)Math.Min(f.TextLength, 5L * (f.Pages + 1)), (int)Math.Min(f.TextLength, 256 << 10));
+                directory = directories.GetOrAdd(f.Id, PageDirectory.Read(head, f));
+            }
             if (page >= directory.Lengths.Length) throw new FolderIndexDamagedException("A page out of range.");
             if (directory.Lengths[page] == 0) return [];
-            var packed = _cursor.Read(directory.Offsets[page], directory.Lengths[page]).ToArray();
+            // On a miss, the rest of the file's text, 256 KB at most: a chunk's pages are mostly read in one go.
+            var offset = directory.Offsets[page];
+            var packed = _cursor.Read(offset, directory.Lengths[page], (int)Math.Clamp(f.TextOffset + f.TextLength - offset, 0, 256 << 10)).ToArray();
             try
             {
                 using var zip = new ZLibStream(new MemoryStream(packed), CompressionMode.Decompress);
