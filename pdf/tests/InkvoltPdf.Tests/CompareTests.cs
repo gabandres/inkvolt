@@ -124,16 +124,18 @@ public class CompareTests
     {
         var a = Enumerable.Range(0, 60_000).Select(i => $"a{i}").ToArray();
         var b = Enumerable.Range(0, 60_000).Select(i => $"a{59_999 - i}").ToArray(); // reversed: unique anchors everywhere
-        var sw = System.Diagnostics.Stopwatch.StartNew();
+        // This thread's processor time: two suites at once took the wall's past the limit.
+        var sw = new ThreadClock.Stopwatch();
+        sw.Start();
         var ops = WordDiff.Diff(a, b);
-        Assert.True(sw.ElapsedMilliseconds < 5000, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.True(sw.Elapsed < Timing.Limit(TimeSpan.FromSeconds(5)), $"took {sw.ElapsedMilliseconds} ms");
         AssertCovers(a, b, ops);
 
         var c = Enumerable.Range(0, 40_000).Select(i => i % 3 == 0 ? "x" : "y").ToArray();
         var d = Enumerable.Range(0, 40_000).Select(i => i % 5 == 0 ? "x" : "y").ToArray(); // no unique words at all
         sw.Restart();
         ops = WordDiff.Diff(c, d);
-        Assert.True(sw.ElapsedMilliseconds < 5000, $"took {sw.ElapsedMilliseconds} ms");
+        Assert.True(sw.Elapsed < Timing.Limit(TimeSpan.FromSeconds(5)), $"took {sw.ElapsedMilliseconds} ms");
         AssertCovers(c, d, ops);
     }
 

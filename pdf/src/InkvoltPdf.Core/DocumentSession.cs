@@ -518,7 +518,10 @@ public sealed partial class DocumentSession : IDisposable
 
     /// <param name="open">Opens the engine on bytes (tests: one that refuses the repaired copy).</param>
     internal static (byte[] Data, PdfEngine Engine, long RepairedLength) OpenReadable(byte[] data, InputFileTypes type, string? password, Func<byte[], PdfEngine> open) =>
-        OpenReadable(data, type, password, open, () => Task.Run(() => PdfRepair.Normalize(data, password)), NormalizeTime);
+        OpenReadable(data, type, password, open,
+            // A thread of its own, not the pool's: with the pool busy, the check didn't start within its 20 s.
+            () => Task.Factory.StartNew(() => PdfRepair.Normalize(data, password), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default),
+            NormalizeTime);
 
     /// <summary>
     /// How long the first page waits for the check of a file's bytes. PDFsharp reads a 256 MB file in seconds; should some

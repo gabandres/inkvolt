@@ -93,7 +93,7 @@ if (args is ["page-check-out-of-memory", .. var memoryArgs] && PageChecks.IsComm
 }
 
 if (IndexWorkers.IsCommand(args)) return IndexWorkers.Run(args);
-// A test's index worker with a file it can't get through (FolderIndexerTests): "die" ends the process on it, "hang" never answers, "spin" keeps a processor busy, "eat" takes memory without end.
+// A test's index worker with a file it can't get through (FolderIndexerTests): "die" ends the process on it, "hang" never answers, "spin" keeps a processor busy, "work" keeps one busy for a while and then reads it, "eat" takes memory without end.
 if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerArgs] && IndexWorkers.IsCommand(indexWorkerArgs))
 {
     IndexWorkers.TestFileFault = path =>
@@ -101,16 +101,20 @@ if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerA
         if (!path.EndsWith(badFile, StringComparison.OrdinalIgnoreCase)) return;
         if (fileHow == "die") System.Diagnostics.Process.GetCurrentProcess().Kill();
         while (fileHow == "spin") { }
+        if (fileHow == "work")
+        {
+            // Busy for 15 s without a word, then read as any file.
+            var busy = System.Diagnostics.Stopwatch.StartNew();
+            while (busy.Elapsed < TimeSpan.FromSeconds(15)) { }
+            return;
+        }
         if (fileHow == "eat")
         {
             // Memory until the job's limit stops it, up to three times that limit (past there the limit isn't working, and this hangs).
+            // Committed, not written: the limit counts what is committed, and writing 2 GB on a PC already paging for other
+            // work took past the test's four minutes.
             var kept = new List<byte[]>();
-            for (var i = 0; i < 96; i++)
-            {
-                var block = new byte[64 * 1048576];
-                Array.Fill(block, (byte)1);
-                kept.Add(block);
-            }
+            for (var i = 0; i < 96; i++) kept.Add(GC.AllocateUninitializedArray<byte>(64 * 1048576));
         }
         Thread.Sleep(Timeout.Infinite);
     };

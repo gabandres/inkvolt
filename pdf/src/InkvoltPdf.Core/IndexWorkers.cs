@@ -177,7 +177,7 @@ public static class IndexWorkers
     {
         private readonly Lock _gate = new();
         private readonly CancellationTokenSource _ended = new();
-        private readonly NamedPipeServerStream _pipe;
+        private readonly WorkerPipe _pipe;
         private Stream? _input; // a page's answer is several small reads, each a trip to the system on its own
         private Process? _process;
         private int _signs;              // grows with everything the worker says about the file
@@ -185,6 +185,7 @@ public static class IndexWorkers
         private int _seenSigns;          // for Watch, on the watchdog's thread
         private TimeSpan _quiet;
         private TimeSpan _cpuAtStart;
+        private TimeSpan _cpuSeen;       // the worker's processor time at Watch's last look
 
         /// <summary>Why this link was ended from outside (the watchdog); null: it wasn't.</summary>
         public volatile string? EndedFor;
@@ -214,7 +215,7 @@ public static class IndexWorkers
 
         /// <summary>
         /// For the watchdog, about every tick of <paramref name="tick"/>: the processor time this file has taken, and how long the worker has said nothing
-        /// while the PC was awake; null while it isn't reading. Not the clock on the wall: at low priority on a busy PC a file may take
+        /// and used no processor time while the PC was awake; null while it isn't reading. Not the clock on the wall: at low priority on a busy PC a file may take
         /// a long time without being any trouble, and nothing counts while a laptop sleeps.
         /// </summary>
         public (TimeSpan Cpu, TimeSpan Quiet)? Watch(TimeSpan tick)
@@ -225,25 +226,31 @@ public static class IndexWorkers
                 return null;
             }
             var signs = Volatile.Read(ref _signs);
-            _quiet = signs == _seenSigns ? _quiet + tick : TimeSpan.Zero;
-            _seenSigns = signs;
             Process? process;
             lock (_gate) process = _process;
+            TimeSpan? cpu;
             try
             {
-                return (process is null ? TimeSpan.Zero : process.TotalProcessorTime - _cpuAtStart, _quiet);
+                cpu = process?.TotalProcessorTime;
             }
             catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
             {
-                return (TimeSpan.Zero, _quiet); // just ended: the read says so
+                cpu = null; // just ended: the read says so
             }
+            // Processor time used since the last look is a sign of life too: a worker at low priority on a busy PC can go
+            // long without a page to say (starting up, a big first page), and isn't stuck while it works.
+            var working = cpu is { } now && now != _cpuSeen;
+            if (cpu is { } seen) _cpuSeen = seen;
+            _quiet = signs == _seenSigns && !working ? _quiet + tick : TimeSpan.Zero;
+            _seenSigns = signs;
+            return (cpu is { } used ? used - _cpuAtStart : TimeSpan.Zero, _quiet);
         }
 
         /// <summary>The worker reads the file; each page with text goes to <paramref name="pages"/> as it comes. Throws when the worker dies or says something wrong.</summary>
         public (WorkerEnd End, int Pages, int Failed) Read(string path, IndexLimits limits, Dictionary<int, string> pages)
         {
             ReadingPath = path;
-            lock (_gate) _cpuAtStart = _process?.TotalProcessorTime ?? TimeSpan.Zero;
+            lock (_gate) _cpuSeen = _cpuAtStart = _process?.TotalProcessorTime ?? TimeSpan.Zero;
             Interlocked.Increment(ref _signs);
             Volatile.Write(ref _reading, 1);
             try

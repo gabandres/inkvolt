@@ -808,28 +808,47 @@ public sealed class PageCheckTests : IDisposable
     {
         // The limit stands for what drawing the page costs here, smoothed: a page that takes some one and a half to three
         // times the limit drawn so is refused, however much faster MuPDF would draw it without anti-aliasing. One path of
-        // 100,000 edges, each across the whole page: its check took some 15 times as long smoothed as without (3 s against
-        // 0.2 s; a check process draws it in 0.6 to 1.3 times what this process takes, with the PC's load).
+        // 100,000 edges, each across the whole page: it takes some 15 times as long smoothed as without.
         var zigzag = new StringBuilder("0 0 m ");
         for (var i = 1; i <= 100_000; i++) zigzag.Append(FormattableString.Invariant($"{i * 612.0 / 100_000:0.####} {(i % 2 == 0 ? 0 : 792)} l "));
         zigzag.Append("f");
         var file = ThreePages(Zlib(Encoding.ASCII.GetBytes(zigzag.ToString()), 0), "/Filter /FlateDecode");
         var small = 64 / 792.0; // as the check draws it
-        var smoothed = TimeSpan.MaxValue;
-        for (var i = 0; i < 3; i++)
+
+        // Both drawings timed here by this thread's processor time, best of two each, taken in turn: the full run's load
+        // stretches neither (the wall clock once made the limit four times what the check took), and only lengthens the
+        // check's wait, towards a refusal. The limit sits between them (their geometric mean, some four times each): a
+        // check drawn smoothed is refused, one drawn without smoothing would pass it.
+        var (smoothed, unsmoothed) = (TimeSpan.MaxValue, TimeSpan.MaxValue);
+        for (var i = 0; i < 2; i++)
         {
-            using var here = PdfEngine.Open(file, InputFileTypes.PDF, null);
-            var time = Stopwatch.StartNew();
-            here.Render(1, small);
-            if (time.Elapsed < smoothed) smoothed = time.Elapsed;
+            smoothed = Min(smoothed, DrawTime(file, small, smooth: true));
+            unsmoothed = Min(unsmoothed, DrawTime(file, small, smooth: false));
         }
-        using var plan = new PageCheckPlan(CheckExe, []) { Limit = smoothed / 2.5, Workers = 1 };
+        var about = $"{smoothed.TotalMilliseconds:0} ms smoothed, {unsmoothed.TotalMilliseconds:0} ms without";
+        Assert.True(smoothed > unsmoothed * 6, $"The page no longer tells them apart: {about}.");
+        var limit = TimeSpan.FromTicks((long)Math.Sqrt((double)smoothed.Ticks * unsmoothed.Ticks));
+        using var plan = new PageCheckPlan(CheckExe, []) { Limit = limit, Workers = 1 };
         using var engine = PdfEngine.Open(file, InputFileTypes.PDF, null);
         engine.CheckPlan = plan;
         Assert.Contains("Visit notes", engine.GetText(0).Text); // the process started and the document open
         var checking = Stopwatch.StartNew();
         var refused = Record.Exception(() => engine.GetText(1));
-        Assert.True(refused is PageRefusedException { TooSlow: true }, $"{smoothed.TotalMilliseconds:0} ms drawn here, {checking.Elapsed.TotalMilliseconds:0} ms to {refused?.GetType().Name ?? "fine"}");
+        Assert.True(refused is PageRefusedException { TooSlow: true }, $"{about}, limit {limit.TotalMilliseconds:0} ms: {checking.Elapsed.TotalMilliseconds:0} ms to {refused?.GetType().Name ?? "fine"}");
+    }
+
+    private static TimeSpan Min(TimeSpan a, TimeSpan b) => a < b ? a : b;
+
+    /// <summary>This thread's processor time to draw page 2 of <paramref name="file"/>, with or without anti-aliasing (MuPDF's own default: smoothed).</summary>
+    private static TimeSpan DrawTime(byte[] file, double scale, bool smooth)
+    {
+        using var context = new MuPDFContext();
+        if (!smooth) (context.GraphicsAntiAliasing, context.TextAntiAliasing) = (0, 0);
+        using var document = new MuPDFDocument(context, file, InputFileTypes.PDF);
+        var clock = new ThreadClock.Stopwatch();
+        clock.Start();
+        document.Render(1, scale, PixelFormats.RGB);
+        return clock.Elapsed;
     }
 
     [Fact]

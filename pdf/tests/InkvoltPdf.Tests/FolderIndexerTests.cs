@@ -271,6 +271,19 @@ public sealed class FolderIndexerTests : IDisposable
     }
 
     [Fact]
+    public void A_worker_busy_without_a_word_isnt_taken_for_stuck()
+    {
+        // Fifteen seconds of work with nothing to say, past a six-second stall but well within the file's processor time: the
+        // work is the sign of life (a healthy file's first read under the full run's load went quiet that long).
+        Put("worker.pdf", "workword");
+        var options = Quick() with { WorkerArgs = ["index-worker-fault", "work", "worker.pdf"], MaxWorkers = 1, Stall = TimeSpan.FromSeconds(6) }; // a starved low-priority worker went 4 s without a turn
+        using var indexer = TakeOwnership(Start(options));
+        WaitUntil(() => indexer.Status.Phase == IndexerPhase.UpToDate && indexer.Index?.Files.ContainsKey("worker.pdf") == true, "the file read or given up", about: indexer);
+        Assert.Equal(IndexedState.Indexed, indexer.Index!.Files["worker.pdf"].State);
+        Assert.Single(Search(indexer, "workword"));
+    }
+
+    [Fact]
     public void A_file_that_keeps_the_processor_busy_is_given_up_by_the_time_it_took()
     {
         Put("a.pdf", "aword");

@@ -464,11 +464,20 @@ public sealed class ReleaseBugHuntTests(ITestOutputHelper output) : IDisposable
         var plan = Translation.MakePlan(pdf, null, [0]);
         var answers = new TranslationAnswers();
         foreach (var (text, _) in plan.Texts) answers.Done[text] = new string('ب', length);
+        // The layout's processor time on its own thread (some 11 s alone in Debug), not the wall's: the full run's load
+        // stretched the wall's past two minutes. Measured whole for every line it breaks into, the word took far longer.
+        // The wall's wait only keeps a hang from blocking the run.
         var clock = Stopwatch.StartNew();
-        var run = Task.Run(() => Translation.Apply(plan, answers, "ar"));
-        var finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(120))) == run;
-        output.WriteLine($"{length} chars: {clock.Elapsed.TotalSeconds:F1} s, finished {finished}, texts {plan.Texts.Count}");
-        Assert.True(finished);
+        var cpu = TimeSpan.Zero;
+        await Timing.Within(() =>
+        {
+            var own = new ThreadClock.Stopwatch();
+            own.Start();
+            try { return Translation.Apply(plan, answers, "ar"); }
+            finally { cpu = own.Elapsed; }
+        }, TimeSpan.FromMinutes(10));
+        output.WriteLine($"{length} chars: {clock.Elapsed.TotalSeconds:F1} s ({cpu.TotalSeconds:F1} s of processor), texts {plan.Texts.Count}");
+        Assert.True(cpu < Timing.Limit(TimeSpan.FromSeconds(60)), $"{cpu}");
 
     }
 }

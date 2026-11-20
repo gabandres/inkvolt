@@ -202,7 +202,7 @@ public class CompareChangesTests
             Changes = [],
         };
         var moves = Enumerable.Range(0, count).Select(i => new CompareChange(ChangeKind.Moved, 0, [new WordSpan(i, 0, 1)], [new WordSpan(i, 0, 1)], "a", "a")).ToList();
-        var oneRow = await Task.Run(() => moves.Count(m => r.PlaceOf(m) is { OnOnePage: true })).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(20)));
+        var oneRow = await Timing.Within(() => moves.Count(m => r.PlaceOf(m) is { OnOnePage: true }), TimeSpan.FromSeconds(20));
         Assert.Equal(0, oneRow);
     }
 
