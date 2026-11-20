@@ -96,10 +96,11 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// What <paramref name="text"/> would look like here, its stretches with the looks <paramref name="spans"/> give them:
     /// its box, line count, missing characters and what it would run into.
     /// </summary>
-    public ParagraphCheck Check(string text, IReadOnlyList<TextSpan>? spans = null)
+    /// <param name="added">New pictures for marks typed into the text, in order (see <see cref="NewPicture"/>).</param>
+    public ParagraphCheck Check(string text, IReadOnlyList<TextSpan>? spans = null, IReadOnlyList<NewPicture>? added = null)
     {
         if (Blocked is not null) return new ParagraphCheck(Box, Lines.Count, [], null);
-        var layout = ContentEditor.LayOut(this, Runs, ContentEditor.ParagraphText(text), spans);
+        var layout = ContentEditor.LayOut(this, Runs, ContentEditor.ParagraphText(text), spans, added: ContentEditor.NewPictureSizes(this, added));
         return layout.Check;
     }
 }
@@ -115,6 +116,13 @@ public sealed record InlinePicture(PageImage Image, double Drop)
     /// <summary>Where its mark is in the paragraph's text (a U+FFFC the page's own text has is no picture's).</summary>
     public int Mark { get; init; } = -1;
 }
+
+/// <summary>
+/// A picture to add to a paragraph's flow where a mark (U+FFFC) is typed for it (Insert Picture in the editor): an image
+/// file (JPEG, PNG, BMP, GIF, TIFF) and its name. It is set on the line as tall as the paragraph's capitals reach, its foot
+/// on the baseline, no wider than half the paragraph; once written it is one of the paragraph's pictures (<see cref="InlinePicture"/>).
+/// </summary>
+public sealed record NewPicture(byte[] File, string Name);
 
 /// <summary>
 /// New text for a paragraph: the box it would take, its line count, characters no font here can draw, and what it
@@ -220,7 +228,10 @@ public static partial class ContentEditor
         var result = new List<TextParagraph>();
         var lines = LinesOf(runs);
         if (pictures)
+        {
+            lines = JoinAcrossPictures(content, lines);
             foreach (var l in lines) WidenForPicture(content, l, lines);
+        }
         foreach (var stack in Stacks(lines))
             foreach (var part in SplitShort(stack))
                 result.Add(Paragraph(content, part, pictures: pictures));
@@ -398,8 +409,9 @@ public static partial class ContentEditor
             var line = s.Lines[i];
             var room = i == 1 && indented ? right - prev.Box.X : width;
             var word = line.Text.TrimStart().Split(' ')[0];
-            // A line that starts with a picture: the picture is its first "word".
-            var need = prev.Box.Width + (line.PictureRoom > 0 ? line.PictureRoom + WidthOf(line.Lead, " ", line) : WidthOf(line.Lead, " " + word, line));
+            // A line that starts with a picture: the picture is its first "word"; a line of one word: all of it (a picture glued to it too).
+            var need = prev.Box.Width + (line.PictureRoom > 0 ? line.PictureRoom + WidthOf(line.Lead, " ", line)
+                : !line.Text.Trim().Contains(' ') ? WidthOf(line.Lead, " ", line) + line.Box.Width : WidthOf(line.Lead, " " + word, line));
             if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && (Labels(prev.Text, line.Text) || line.Marked || line.MarkStart && EndsSentence(prev.Text))))
             {
                 parts.Add(cur);
@@ -772,13 +784,62 @@ public static partial class ContentEditor
             box = box.Union(next.Box);
             widest = Math.Max(widest, 2 * next.Box.Width);
         }
+        WidenRight(content, l, baseline);
         if (box.X >= first - 0.01) return;
         var above = lines.Where(o => o != l && o.Baseline < l.Baseline && l.Baseline - o.Baseline <= 2.5 * size && o.Box.Right > first && o.Box.X < l.Box.Right)
             .MaxBy(o => o.Baseline);
         // As InlinePictures will take it: no wider than half the paragraph (this line or the one above).
         if (above is null || Math.Abs(box.X - above.Box.X) > Tolerance(size) || widest > Math.Max(l.Box.Right, above.Box.Right) - box.X) return;
-        l.Box = box;
+        l.Box = box.Union(l.Box);
         l.PictureRoom = first - box.X;
+    }
+
+    /// <summary>
+    /// Pieces of one line that a picture in the flow stands between (a gap wider than the 2.5 ems that end a line, the
+    /// picture filling it within an em on each side) are one line again.
+    /// </summary>
+    private static List<PLine> JoinAcrossPictures(PageContent content, List<PLine> lines)
+    {
+        if (content.Images.Count == 0) return lines;
+        var result = new List<PLine>(lines.Count);
+        foreach (var band in lines.GroupBy(l => Math.Round(l.Baseline, 1)).Select(g => g.OrderBy(l => l.Box.X).ToList()))
+        {
+            var cur = band[0];
+            for (var i = 1; i < band.Count; i++)
+            {
+                var next = band[i];
+                var size = Math.Max(cur.Size, next.Size);
+                var baseline = LineBaseline(cur).Y;
+                var bridge = Math.Abs(next.Baseline - cur.Baseline) <= 0.25 * size && cur.Lead.Info is { Form: null } && next.Lead.Info is { Form: null }
+                             && content.Images.Any(img => img.Box.X >= cur.Box.Right - 1 && img.Box.X - cur.Box.Right <= size && img.Box.Right <= next.Box.X + 1
+                                                          && next.Box.X - img.Box.Right <= size && FitsLine(img, cur, baseline, double.MaxValue));
+                if (!bridge)
+                {
+                    result.Add(cur);
+                    cur = next;
+                    continue;
+                }
+                foreach (var r in next.Runs) cur.Add(r);
+            }
+            result.Add(cur);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// A line that ends with a picture in the flow (one <see cref="FitsLine"/> takes, within an em after its last run)
+    /// reaches to its right edge: the line is as long as it shows, so it isn't read as ending short of the paragraph.
+    /// </summary>
+    private static void WidenRight(PageContent content, PLine l, double baseline)
+    {
+        for (var guard = 0; guard < 4; guard++)
+        {
+            var x = l.Box.Right;
+            var next = content.Images.Where(img => img.Box.X >= x - 1 && img.Box.X - x <= l.Size && FitsLine(img, l, baseline, 2 * Math.Max(l.Box.Width, img.Box.Width)))
+                .MinBy(img => img.Box.X);
+            if (next is null) return;
+            l.Box = l.Box.Union(next.Box);
+        }
     }
 
     // ---- Laying out new text ----
@@ -1225,10 +1286,16 @@ public static partial class ContentEditor
     /// </summary>
     /// <exception cref="ContentEditException">The font can't draw the text (the message names the missing characters), the
     /// new text would run into what follows (<see cref="ContentEditException.Overlaps"/>), the paragraph can't be edited, or the page changed.</exception>
+    /// <param name="added">New pictures for the marks typed into <paramref name="text"/>, in order (see <see cref="NewPicture"/>).</param>
     public static byte[] ReplaceParagraph(byte[] data, string? password, TextParagraph paragraph, string text, bool allowOverlap = false,
-        IReadOnlyList<TextSpan>? spans = null)
+        IReadOnlyList<TextSpan>? spans = null, IReadOnlyList<NewPicture>? added = null)
     {
         if (paragraph.Blocked is { } why0) throw new ContentEditException(Loc.Format(PdfStrings.Edit_ParagraphCantBeEdited, why0));
+        added ??= [];
+        if (added.Count > 0 && paragraph.Upright is not null) throw new ContentEditException(PdfStrings.Edit_PictureCantGoHere);
+        foreach (var np in added)
+            if (ImageImport.PixelSize(np.File, np.Name) is not (> 0, > 0))
+                throw new ContentEditException(Loc.Format(PdfStrings.Doc_NotAnImage, np.Name));
         text = ParagraphText(text);
         spans ??= Carry(paragraph.Text, text, paragraph.Spans);
         if (text == paragraph.Text && SameSpans(text, spans, paragraph.Spans)) return data;
@@ -1256,7 +1323,7 @@ public static partial class ContentEditor
             .Select(s => walk.Content.Runs.FirstOrDefault(r => r.Id == s.Id && r.Text == s.Text && r.Info is not null))
             .Where(r => r is not null && now.All(n => n.Id != r.Id) && FormPlace.SameDrawing(r.Info!.Form, anchor.Info!.Form)).Select(r => r!).ToList();
         var target = TargetOf(doc, page, streams, ops, walk, anchor);
-        var layout = LayOut(paragraph, now, text, spans);
+        var layout = LayOut(paragraph, now, text, spans, added: NewPictureSizes(paragraph, added));
         if (layout.Check.Missing.Contains(TextParagraph.PictureMark.ToString())) throw new ContentEditException(PdfStrings.Edit_PictureTyped);
         if (layout.Check.Missing.Count > 0)
         {
@@ -1286,7 +1353,8 @@ public static partial class ContentEditor
             var op = target.OpOf(run);
             edits.Add((op.Start, op.End, Removed(op, run)));
         }
-        if (paragraph.Pictures.Count > 0) edits.AddRange(PictureEdits(page, ops, streams.Bytes, walk, paragraph, layout, target));
+        if (paragraph.Pictures.Count > 0 || layout.Pictures.Count > 0)
+            edits.AddRange(PictureEdits(doc, page, ops, streams.Bytes, walk, paragraph, layout, target, anchor, added));
         WriteTarget(doc, page, target, edits);
         SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
         return PdfObj.Save(doc);
@@ -1296,9 +1364,10 @@ public static partial class ContentEditor
     /// The paragraph's pictures moved to where its new text puts them (see <see cref="InlinePicture"/>); one whose mark
     /// was taken out comes off the page. They are the page's own content, as the paragraph is.
     /// </summary>
-    private static List<(int Start, int End, string Text)> PictureEdits(PdfPage page, List<COp> ops, byte[] content, Walked walk, TextParagraph paragraph, ParagraphLayout layout, Target target)
+    private static List<(int Start, int End, string Text)> PictureEdits(PdfDocument doc, PdfPage page, List<COp> ops, byte[] content, Walked walk,
+        TextParagraph paragraph, ParagraphLayout layout, Target target, TextRun anchor, IReadOnlyList<NewPicture> added)
     {
-        if (target.Form is not null) throw new ContentEditException(PdfStrings.Edit_PageChangedParagraph);
+        if (target.Form is not null) throw new ContentEditException(added.Count > 0 ? PdfStrings.Edit_PictureCantGoHere : PdfStrings.Edit_PageChangedParagraph);
         var edits = new List<(int Start, int End, string Text)>();
         var moved = layout.Pictures.ToDictionary(x => x.Picture, x => x.Box);
         for (var i = 0; i < paragraph.Pictures.Count; i++)
@@ -1317,7 +1386,50 @@ public static partial class ContentEditor
             if (Near(box, now.Box) && Math.Abs(box.X - now.Box.X) < 0.01 && Math.Abs(box.Y - now.Box.Y) < 0.01) continue;
             edits.Add(Placing(ops, op, MoveMatrix(page, ctm, now.Box, box), content));
         }
+        // New pictures: stored, and drawn just before the text object the paragraph is written in (a picture can't be
+        // drawn inside one), where the layout put them.
+        var bt = ops.FindLastIndex(Math.Clamp(target.OpOf(anchor) is var a ? ops.IndexOf(a) : 0, 0, Math.Max(0, ops.Count - 1)), o => o.Name == "BT");
+        var before = bt >= 0 ? ops[bt].Start : target.OpOf(anchor).Start;
+        foreach (var (k, box) in layout.Pictures.Where(x => x.Picture >= paragraph.Pictures.Count).OrderBy(x => x.Picture))
+        {
+            var np = added[k - paragraph.Pictures.Count];
+            PdfDictionary xobject;
+            int orientation;
+            try
+            {
+                (xobject, _, _, _, _, orientation) = ImageImport.StoreImage(doc, np.File, np.Name);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException and not ContentEditException or MuPDFCore.MuPDFException)
+            {
+                throw new ContentEditException(Loc.Format(PdfStrings.Doc_NotAnImage, np.Name));
+            }
+            var name = AddXObject(doc, page, xobject);
+            // As Replace Picture places one: in "page space flipped" (Y' = -Y), then to page space and on to user space.
+            var place = ImageImport.Placement(orientation, box.X, -(box.Y + box.Height), box.Width, box.Height);
+            var m = new Mat(place[0], place[1], place[2], place[3], place[4], place[5]).Times(new Mat(1, 0, 0, -1, 0, 0)).Times(PageToUser(page));
+            edits.Add((before, before, $"q {m.Write()} cm /{name} Do Q"));
+        }
         return edits;
+    }
+
+    /// <summary>
+    /// New pictures' sizes on the page in a paragraph's flow: as tall as its capitals reach (its ascent), as wide as the
+    /// image's own proportions say (EXIF turns counted), no wider than half the paragraph; an image that can't be read: none.
+    /// </summary>
+    internal static IReadOnlyList<(double Width, double Height)>? NewPictureSizes(TextParagraph p, IReadOnlyList<NewPicture>? added)
+    {
+        if (added is not { Count: > 0 }) return null;
+        var sizes = new List<(double, double)>(added.Count);
+        foreach (var np in added)
+        {
+            var (w, h) = ImageImport.PixelSize(np.File, np.Name);
+            var height = Math.Max(1, p.Ascent);
+            var width = w > 0 && h > 0 ? height * w / h : 0;
+            var most = Math.Max(1, 0.5 * (p.Right - p.Left));
+            if (width > most) (width, height) = (most, height * most / width);
+            sizes.Add((width, width > 0 ? height : 0));
+        }
+        return sizes;
     }
 
     /// <summary>A name prefix for stand-in fonts that no font of the content's resources has yet.</summary>

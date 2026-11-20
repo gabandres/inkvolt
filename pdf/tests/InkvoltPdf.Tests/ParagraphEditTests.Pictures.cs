@@ -183,6 +183,58 @@ public partial class ParagraphEditTests
         Assert.Equal(Body, p.Text);
     }
 
+    // ---- New pictures in the flow ----
+
+    /// <summary>A 30 x 10 pixel PNG, orange.</summary>
+    private static NewPicture Orange() =>
+        new(PngEncoder.Encode(30, 10, [.. Enumerable.Repeat(new byte[] { 255, 140, 0 }, 300).SelectMany(x => x)], false), "orange.png");
+
+    [Fact]
+    public void ANewPictureGoesIntoTheFlowWhereItsMarkIs()
+    {
+        var (pdf, _) = Page(ParagraphAlign.Left, gap: 120);
+        var p = Body0(pdf);
+        Assert.Empty(p.Pictures);
+        var text = p.Text.Replace("boxing", "boxing ￼", StringComparison.Ordinal);
+        // The editor's note: the mark stands for the picture, nothing missing.
+        Assert.Empty(p.Check(text, added: [Orange()]).Missing);
+        Assert.Contains("￼", p.Check(text).Missing); // without the picture: a mark for nothing
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text, added: [Orange()]);
+        var image = ContentEditor.Read(edited, null, 0).Images.Single();
+        // As tall as the capitals reach, three times as wide, its foot on the baseline, after "boxing".
+        Assert.Equal(3 * image.Box.Height, image.Box.Width, 1);
+        Assert.True(image.Box.Height > 0.6 * Size && image.Box.Height < 1.1 * Size);
+        var q = Body0(edited);
+        Assert.Equal(text, q.Text);
+        var pic = Assert.Single(q.Pictures);
+        Assert.Equal(0, pic.Drop, 1);
+        var boxing = q.Runs.Single(r => r.Text.TrimEnd().EndsWith("boxing", StringComparison.Ordinal));
+        Assert.True(image.Box.X >= boxing.Box.Right - 0.5 && image.Box.X - boxing.Box.Right < 0.5 * Size); // its run ends with the space before it
+        // Its pixels are the file's: orange.
+        Assert.Contains(PicturesIn(edited), x => (x.W, x.H) == (30, 10) && Holds(x.Samples, 255, 140, 0));
+        // Edited again, it is one of the paragraph's pictures and moves with its words.
+        var again = ContentEditor.ReplaceParagraph(edited, null, q, "Now then " + q.Text);
+        Assert.Equal("Now then " + text, Body0(again, "Now then").Text);
+    }
+
+    [Fact]
+    public void NewPicturesTakeTheTypedMarksInOrderAndNoMore()
+    {
+        var (pdf, _) = Page(ParagraphAlign.Left, gap: 120);
+        var p = Body0(pdf);
+        var wide = new NewPicture(PngEncoder.Encode(10, 10, new byte[300], false), "black.png");
+        var text = "￼ " + p.Text + " ￼";
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, text, added: [Orange(), wide]);
+        var images = ContentEditor.Read(edited, null, 0).Images.OrderBy(i => i.Box.Y).ThenBy(i => i.Box.X).ToList();
+        Assert.Equal(2, images.Count);
+        Assert.Equal(3, images[0].Box.Width / images[0].Box.Height, 1); // the first mark: the orange one
+        Assert.Equal(1, images[1].Box.Width / images[1].Box.Height, 1);
+        // Three marks for two pictures: the last stands for nothing.
+        Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, text + " ￼", added: [Orange(), wide]));
+        // Not an image: refused, nothing written.
+        Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, text, added: [Orange(), new NewPicture([1, 2, 3], "x.png")]));
+    }
+
     // ---- Cropping ----
 
     /// <summary>A page drawing /Im1 as given, its 4 x 2 pixels one color a column: red, green, blue, white.</summary>

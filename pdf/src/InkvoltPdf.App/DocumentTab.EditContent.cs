@@ -27,6 +27,7 @@ public partial class DocumentTab
         Viewer.ContentNeeded += (_, page) => RequestContent(page);
         Viewer.RunEdited += (_, e) => _ = EditRun(e);
         Viewer.ParagraphEdited += (_, e) => _ = EditParagraph(e);
+        Viewer.ParagraphPictureRequested += (_, _) => _ = InsertParagraphPicture();
         Viewer.ImageMoved += (_, m) => _ = MoveImage(m);
         Viewer.ImageCropped += (_, m) => _ = CropImage(m);
         Viewer.ContentActionRequested += (_, a) => _ = OnContentAction(a);
@@ -161,7 +162,7 @@ public partial class DocumentTab
     /// </summary>
     private async Task EditParagraph(ParagraphEdit e)
     {
-        var check = e.Paragraph.Check(e.Text, e.Spans);
+        var check = e.Paragraph.Check(e.Text, e.Spans, e.Added);
         if (check.LookProblem is { } lp)
         {
             Notify(Loc.Format(Strings.EditContent_NotChangedBecause, lp), error: true);
@@ -185,8 +186,26 @@ public partial class DocumentTab
             }
             allow = true;
         }
-        var outcome = await TryEdit(Strings.EditContent_EditParagraph, (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans), veil: false);
+        var outcome = await TryEdit(Strings.EditContent_EditParagraph, (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans, e.Added), veil: false);
         if (outcome == EditOutcome.Busy) Notify(Strings.EditContent_StillApplying, error: true);
+    }
+
+    /// <summary>Insert Picture in the paragraph editor: an image file, put where the caret was.</summary>
+    private async Task InsertParagraphPicture()
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog { Title = Strings.EditContent_InsertPictureTitle, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
+        if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+        byte[] file;
+        try
+        {
+            file = await File.ReadAllBytesAsync(dlg.FileName);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Prompt.Error(Window.GetWindow(this), Strings.EditContent_InsertPictureFailed, ex.Message);
+            return;
+        }
+        Viewer.InsertParagraphPicture(file, Path.GetFileName(dlg.FileName));
     }
 
     private async Task MoveImage(ImageMove m)

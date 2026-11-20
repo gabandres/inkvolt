@@ -306,6 +306,18 @@ public static class ImageImport
         return type is InputFileTypes.PNG or InputFileTypes.JPEG or InputFileTypes.BMP or InputFileTypes.GIF or InputFileTypes.TIFF ? type : null;
     }
 
+    /// <summary>
+    /// An image file's pixel size as it shows (a JPEG turned by its EXIF orientation counted), from its header; (0, 0) when
+    /// it isn't an image this reads.
+    /// </summary>
+    internal static (int Width, int Height) PixelSize(byte[] bytes, string name)
+    {
+        if (Sniff(bytes, name) is not { } type) return (0, 0);
+        var (w, h, _, _) = Header(bytes, type);
+        if (w <= 0 || h <= 0 || w > 1_000_000 || h > 1_000_000) return (0, 0);
+        return type == InputFileTypes.JPEG && ReadJpeg(bytes)?.Orientation is >= 5 and <= 8 ? (h, w) : (w, h);
+    }
+
     /// <summary>Pixel size and resolution from the file header (0 / null where it doesn't say or can't be read).</summary>
     private static (int Width, int Height, double? DpiX, double? DpiY) Header(byte[] b, InputFileTypes type)
     {

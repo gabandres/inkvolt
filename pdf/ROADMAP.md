@@ -461,7 +461,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (Flate RGB, an /SMask when it had a mask) where that part was; the old picture leaves the page and, unused, the file,
   so the pixels cut off are gone (a signed file's earlier revision keeps them, as for any removal). A clip another
   program cropped with (`PageImage.Uncropped`) is made real the same way. Stencils, pictures masked by a color, turned
-  pictures (past a quarter turn) and a kept part over 50 million pixels are refused; colors are drawn as RGB. A mark
+  pictures (past a quarter turn) and a kept part over 50 million pixels are refused; colors are drawn as RGB. New
+  pictures in the flow (2026-11-20): Picture… on the paragraph editor's bar puts a mark at the caret for an image file
+  (`NewPicture`; `ReplaceParagraph`'s and `Check`'s `added`): marks that are none of the paragraph's pictures take the
+  new ones in order (one past them is refused), each as tall as the paragraph's ascent and as wide as its proportions,
+  no wider than half the paragraph, its foot on the baseline (`NewPictureSizes`); stored as Add Image stores a file and
+  drawn just before the paragraph's text object, in the same edit; read again it is one of the paragraph's pictures
+  (`JoinAcrossPictures`: a line a wide picture splits is one line; `WidenRight`, and a lone word with a picture glued
+  to it measured whole, so the paragraph stays one). Not for turned text or text inside a reused drawing
+  (`Edit_PictureCantGoHere`). Dev script `parapicture`: a picture put at the end of a paragraph, read back as one
+  paragraph of 3 lines. A mark
   cut and pasted elsewhere moves its picture; a picture an edit wraps to a line's start keeps the paragraph one
   (`WidenForPicture`, when the line above starts there too). Dev script (`cropimage`, `editpara`; Helvetica with a
   bigger red word and a picture between two words): the picture cropped to its middle; the paragraph edited so the

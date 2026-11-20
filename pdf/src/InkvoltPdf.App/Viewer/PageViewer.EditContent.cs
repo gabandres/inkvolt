@@ -18,7 +18,11 @@ public sealed record RunEdit(TextRun Run, string Text);
 /// A paragraph's new text (committed with Enter or by clicking elsewhere; Shift+Enter is a line break in it) and the
 /// stretches of it with a look of their own.
 /// </summary>
-public sealed record ParagraphEdit(TextParagraph Paragraph, string Text, IReadOnlyList<TextSpan> Spans);
+public sealed record ParagraphEdit(TextParagraph Paragraph, string Text, IReadOnlyList<TextSpan> Spans)
+{
+    /// <summary>New pictures for the marks inserted into the text, in the order the marks are in (Insert Picture).</summary>
+    public IReadOnlyList<NewPicture> Added { get; init; } = [];
+}
 
 /// <summary>A picture dragged or nudged to a new box (page space).</summary>
 public sealed record ImageMove(PageImage Image, RectD Box);
@@ -56,6 +60,8 @@ public sealed partial class PageViewer
     public event EventHandler<int>? ContentNeeded;
     public event EventHandler<RunEdit>? RunEdited;
     public event EventHandler<ParagraphEdit>? ParagraphEdited;
+    /// <summary>The paragraph editor's Insert Picture: the host asks for the file and gives it to <see cref="InsertParagraphPicture"/>.</summary>
+    public event EventHandler? ParagraphPictureRequested;
     public event EventHandler<ImageMove>? ImageMoved;
     /// <summary>The selected picture cropped to a box (page space), by dragging a handle while cropping.</summary>
     public event EventHandler<ImageMove>? ImageCropped;
@@ -414,8 +420,8 @@ public sealed partial class PageViewer
     {
         if (_editorParagraph is { } p && _editor is RichTextBox rb && _runInfoText is not null && _runInfo is not null)
         {
-            var (text, spans) = ParagraphContent(rb, p);
-            UpdateParagraphInfo(p, text, spans);
+            var (text, spans, added) = ParagraphContent(rb, p);
+            UpdateParagraphInfo(p, text, spans, added);
             return;
         }
         if (_editorRun is not { } run || _editor is not TextBox tb || _runInfoText is null || _runInfo is null) return;
@@ -447,9 +453,9 @@ public sealed partial class PageViewer
         System.Windows.Automation.AutomationProperties.SetName(_runInfoText, note);
     }
 
-    private void UpdateParagraphInfo(TextParagraph p, string text, IReadOnlyList<TextSpan> spans)
+    private void UpdateParagraphInfo(TextParagraph p, string text, IReadOnlyList<TextSpan> spans, IReadOnlyList<NewPicture> added)
     {
-        var check = p.Check(text, spans);
+        var check = p.Check(text, spans, added);
         string note;
         string? brush = null;
         if (check.Missing.Contains(TextParagraph.PictureMark.ToString()))
@@ -482,7 +488,7 @@ public sealed partial class PageViewer
                 note += "\n" + Loc.Plural(check.Borrowed.Count, Strings.Viewer_Borrowed_One, Strings.Viewer_Borrowed_Many, CharList(check.Borrowed), p.Lead.FontName, string.Join(Strings.Viewer_ListAnd, check.StandIns));
             if (check.Faces.Count > 0) note += "\n" + Loc.Format(Strings.Viewer_DrawnInFaces, string.Join(", ", check.Faces));
         }
-        if (p.Pictures.Count > 0) note += "\n" + Strings.Viewer_ParagraphPictures;
+        if (p.Pictures.Count > 0 || added.Count > 0) note += "\n" + Strings.Viewer_ParagraphPictures;
         _runInfoText!.Text = note;
         _runInfoText.SetResourceReference(TextBlock.ForegroundProperty, brush ?? "TextFillColorSecondaryBrush");
         if (_highContrast) _runInfoText.Foreground = SystemColors.WindowTextBrush;
@@ -611,9 +617,9 @@ public sealed partial class PageViewer
     /// <summary>A paragraph's text and looks, when either changed.</summary>
     private void CommitParagraph(TextParagraph p, RichTextBox box)
     {
-        var (text, spans) = ParagraphContent(box, p);
-        var same = text == p.Text && spans.Count == p.Spans.Count && spans.Zip(p.Spans).All(x => x.First == x.Second);
-        if (!same) ParagraphEdited?.Invoke(this, new ParagraphEdit(p, text, spans));
+        var (text, spans, added) = ParagraphContent(box, p);
+        var same = text == p.Text && added.Count == 0 && spans.Count == p.Spans.Count && spans.Zip(p.Spans).All(x => x.First == x.Second);
+        if (!same) ParagraphEdited?.Invoke(this, new ParagraphEdit(p, text, spans) { Added = added });
     }
 
     private void CloseRunInfo()
