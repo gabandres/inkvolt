@@ -8,14 +8,15 @@ namespace InkvoltPdf.Core;
 /// family ("Georgia"), its size on the page (points), its color (0xRRGGBB), bold, italic. Null keeps the paragraph's own.
 /// </summary>
 /// <param name="Script">A subscript or superscript: smaller, below or above the line's baseline (a translated copy's "d_model", "2^10").</param>
-public sealed record TextLook(string? Font = null, double? Size = null, int? Color = null, bool? Bold = null, bool? Italic = null, TextScript? Script = null)
+/// <param name="Rise">A script's baseline above the line's (below: negative), in ems of the paragraph's text; null: the usual for a script (<see cref="ContentEditor.SuperRise"/>, <see cref="ContentEditor.SubRise"/>).</param>
+public sealed record TextLook(string? Font = null, double? Size = null, int? Color = null, bool? Bold = null, bool? Italic = null, TextScript? Script = null, double? Rise = null)
 {
     public static readonly TextLook Plain = new();
 
-    public bool IsPlain => Font is null && Size is null && Color is null && Bold is null && Italic is null && Script is null;
+    public bool IsPlain => Font is null && Size is null && Color is null && Bold is null && Italic is null && Script is null && Rise is null;
 
     /// <summary>This look with what <paramref name="other"/> sets laid over it.</summary>
-    public TextLook With(TextLook other) => new(other.Font ?? Font, other.Size ?? Size, other.Color ?? Color, other.Bold ?? Bold, other.Italic ?? Italic, other.Script ?? Script);
+    public TextLook With(TextLook other) => new(other.Font ?? Font, other.Size ?? Size, other.Color ?? Color, other.Bold ?? Bold, other.Italic ?? Italic, other.Script ?? Script, other.Rise ?? Rise);
 }
 
 /// <summary>Text set below or above its line's baseline, smaller.</summary>
@@ -39,14 +40,16 @@ public static partial class ContentEditor
     /// What the tag around styled text says: the font family, bold, italic and subscript or superscript that were asked
     /// for (size and color are read from the text: a script's size is <see cref="ScriptScale"/> of its look's).
     /// </summary>
-    internal sealed record LookTag(string? Font, bool? Bold, bool? Italic, TextScript? Script = null)
+    internal sealed record LookTag(string? Font, bool? Bold, bool? Italic, TextScript? Script = null, double? Rise = null)
     {
         public static LookTag Read(CObj props)
         {
             var font = props["Font"] is { Kind: CKind.String } f ? Encoding.UTF8.GetString(f.Bytes) : null;
             bool? Flag(string key) => props[key] is { Kind: CKind.Bool } b ? b.Name == "true" : null;
             var script = props["Script"] is { Kind: CKind.Name } s ? s.Name switch { "Sub" => TextScript.Sub, "Super" => TextScript.Super, _ => (TextScript?)null } : null;
-            return new LookTag(font, Flag("Bold"), Flag("Italic"), script);
+            // A script's own rise, held to what a script's can be (the tag is the page's: anything can be in it).
+            double? rise = script is { } sc && props["Rise"] is { Kind: CKind.Number } n && double.IsFinite(n.Num) ? ScriptRise(sc, n.Num) : null;
+            return new LookTag(font, Flag("Bold"), Flag("Italic"), script, rise);
         }
 
         public static string Write(TextLook look)
@@ -56,6 +59,7 @@ public static partial class ContentEditor
             if (look.Bold is { } b) sb.Append(" /Bold ").Append(b ? "true" : "false");
             if (look.Italic is { } i) sb.Append(" /Italic ").Append(i ? "true" : "false");
             if (look.Script is { } s) sb.Append(" /Script ").Append(s == TextScript.Sub ? "/Sub" : "/Super");
+            if (look.Script is not null && look.Rise is { } rise) sb.Append(" /Rise ").Append(ContentLexer.Number(rise));
             return sb.Append(" >> BDC ").ToString();
         }
     }
@@ -70,6 +74,10 @@ public static partial class ContentEditor
 
     /// <summary>A subscript's or superscript's size against its line's text, and how far its baseline moves (ems of the line's text, up positive).</summary>
     internal const double ScriptScale = 0.7, SubRise = -0.15, SuperRise = 0.35;
+
+    /// <summary>A script's rise as read from a page or a tag, held to what a script's can be (ems, rounded to a hundredth).</summary>
+    internal static double ScriptRise(TextScript script, double rise) =>
+        Math.Round(script == TextScript.Sub ? Math.Clamp(rise, -0.6, -0.08) : Math.Clamp(rise, 0.12, 0.9), 2);
 
     /// <summary>The look of each UTF-16 unit of <paramref name="text"/> (null: the paragraph's own), later spans over earlier ones.</summary>
     private static TextLook?[] LooksOf(string text, IReadOnlyList<TextSpan>? spans)
@@ -99,7 +107,7 @@ public static partial class ContentEditor
             var drawn = r.Tag?.Script is not null ? r.FontSize / ScriptScale : r.FontSize;
             var size = Math.Abs(drawn - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(drawn, 1) : (double?)null;
             TextLook look;
-            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic, tag.Script);
+            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic, tag.Script, tag.Rise);
             else if (!r.StandIn && r.Font is not null && !SameFamily(r, lead))
                 look = new TextLook(FontNames.Family(r.FontName), size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else if (!r.StandIn && !ReferenceEquals(r.Font, lead.Font) && (r.Bold != lead.Bold || r.Italic != lead.Italic))
@@ -140,28 +148,63 @@ public static partial class ContentEditor
 
     /// <summary>
     /// For a translated copy, the look a run of a paragraph's line has that its translation keeps (<see cref="TranslationMarkup"/>):
-    /// bold or italic where the paragraph's own text (<paramref name="own"/>) isn't (with its family when that is another,
-    /// so the page's face for it is found again: LaTeX's bold and italic are families of their own); a subscript or a
-    /// superscript where it is smaller than its line's text and below or above its baseline (<see cref="LineBaseline"/>).
-    /// Null: the paragraph's own.
+    /// bold or italic where the paragraph's own text (<paramref name="own"/>) isn't, and regular where it is bold or
+    /// italic (a plain word in a bold paragraph), with its family when that is another, so the page's face for it is
+    /// found again (LaTeX's bold and italic are families of their own); a subscript or a superscript where it is smaller
+    /// than its line's text and below or above its baseline (<see cref="LineBaseline"/>), at its size and rise on the
+    /// page; another color, or a family of another class (a name in Times among Arial, code in a monospace font) where
+    /// neither bold nor italic says so (<see cref="OtherLook"/>). Null: the paragraph's own.
     /// </summary>
-    private static TextLook? TranslationLook(TextRun own, (double Y, double Size) line, TextRun r)
+    /// <param name="size">The paragraph's type size (<see cref="TextParagraph.FontSize"/>): a script's size is kept against it.</param>
+    private static TextLook? TranslationLook(TextRun own, double size, (double Y, double Size) line, TextRun r)
     {
         if (r.Text.Trim().Length == 0) return null;
         TextScript? script = null;
+        double? scriptSize = null, rise = null;
         if (line.Size > 0 && r.FontSize <= 0.85 * line.Size)
         {
             var drop = r.Origin.Y - line.Y; // page space: down is positive
             if (drop >= 0.08 * line.Size) script = TextScript.Sub;
             else if (drop <= -0.12 * line.Size) script = TextScript.Super;
+            if (script is not null && size > 0)
+            {
+                // The page's own size and rise, within what a script can be (a crafted rise of a thousand ems is held to one).
+                var ratio = Math.Clamp(r.FontSize / line.Size, 0.4, 0.85);
+                scriptSize = Math.Round(ratio * size / ScriptScale, 2);
+                rise = ScriptRise(script.Value, -drop / line.Size);
+            }
         }
         // A stand-in an earlier edit drew says its look only by its tag.
         bool bold = r.Tag?.Bold ?? (r.StandIn ? own.Bold : r.Bold), italic = r.Tag?.Italic ?? (r.StandIn ? own.Italic : r.Italic);
-        var b = bold && !own.Bold;
-        var i = italic && !own.Italic;
-        if (!b && !i && script is null) return null;
-        var family = (b || i) && !r.StandIn && r.Tag is null && r.Font is not null && !SameFamily(r, own) ? FontNames.Family(r.FontName) : null;
-        return new TextLook(family, Bold: b ? true : null, Italic: i ? true : null, Script: script);
+        bool? b = bold != own.Bold ? bold : null, i = italic != own.Italic ? italic : null;
+        var pageFace = !r.StandIn && r.Tag is null && r.Font is not null;
+        var family = (b is not null || i is not null) && pageFace && !SameFamily(r, own) ? FontNames.Family(r.FontName) : null;
+        var (otherFamily, color) = b is null && i is null ? OtherLook(own, r) : (null, OtherColor(own, r));
+        family ??= otherFamily;
+        if (b is null && i is null && script is null && family is null && color is null) return null;
+        return new TextLook(family, scriptSize, color, b, i, script, rise);
+    }
+
+    /// <summary>
+    /// What else sets a run of letters apart from its paragraph's own text when bold and italic don't: a family of
+    /// another class (serif, sans, monospace; not a symbol font, and TeX's roman beside a Times is the same class), its color.
+    /// </summary>
+    private static (string? Family, int? Color) OtherLook(TextRun own, TextRun r)
+    {
+        var color = OtherColor(own, r);
+        if (r.StandIn || r.Tag is not null || r.Font is not { } font || own.Font is not { } ownFont || SameFamily(r, own)) return (null, color);
+        if (r.Text.Count(char.IsLetter) < 2 || (font.Flags & 4) != 0 && (font.Flags & 32) == 0) return (null, color);
+        return StandInFonts.KindOf(font.Name, font.Flags) != StandInFonts.KindOf(ownFont.Name, ownFont.Flags) ? (FontNames.Family(r.FontName), color) : (null, color);
+    }
+
+    /// <summary>A run's color where it is clearly another than its paragraph's (letters in it; a channel apart by more than 24 of 255).</summary>
+    private static int? OtherColor(TextRun own, TextRun r)
+    {
+        if (!r.Text.Any(char.IsLetter)) return null;
+        int a = own.Color, c = r.Color;
+        for (var shift = 0; shift <= 16; shift += 8)
+            if (Math.Abs((a >> shift & 0xFF) - (c >> shift & 0xFF)) > 24) return c & 0xFFFFFF;
+        return null;
     }
 
     /// <summary>

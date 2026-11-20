@@ -286,28 +286,40 @@ public static partial class ContentEditor
         return sb.Append("] TJ").ToString();
     }
 
-    /// <summary>A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its place from left to right.</summary>
+    /// <summary>The longest script on a band of its own that joins the line it sits on.</summary>
+    private const int MaxScriptLength = 12;
+
+    /// <summary>
+    /// A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its
+    /// place from left to right; so does a longer script up to <see cref="MaxScriptLength"/> characters that is smaller than
+    /// the line ("[12-15]", "a,b,c" raised after a name).
+    /// </summary>
     private static List<PLine> WithMarksInLine(List<PLine> lines)
     {
         var byBaseline = lines.OrderBy(l => l.Baseline).ToList();
         var result = new HashSet<PLine>(lines);
         var joined = new Dictionary<PLine, List<PLine>>();
-        for (var i = 0; i < byBaseline.Count; i++)
+        // Longer scripts first: one is joined to its line before a mark set on it looks for a line of its own to join.
+        foreach (var i in Enumerable.Range(0, byBaseline.Count).OrderByDescending(k => Math.Min(byBaseline[k].Text.Trim().Length, MaxScriptLength + 1)))
         {
             var mark = byBaseline[i];
-            if (mark.Text.Trim().Length > 4) continue;
+            var length = mark.Text.Trim().Length;
+            if (length > MaxScriptLength) continue;
             var reach = 1.2 * Math.Max(mark.Size, 1);
             PLine? host = null;
             void Consider(PLine m)
             {
-                if (m == mark || m.Text.Trim().Length <= 4 || m.Size < mark.Size) return;
+                if (m == mark || m.Text.Trim().Length <= Math.Max(4, length) || m.Size < mark.Size) return;
+                if (length > 4 && mark.Size > 0.85 * m.Size) return; // longer: only a script, smaller than its line
+                if (!result.Contains(m)) return; // already joined to a line as a script itself
                 if (mark.Box.CenterY <= m.Box.Y || mark.Box.CenterY >= m.Box.Bottom) return;
-                if (mark.Box.Right <= m.Box.X || mark.Box.X >= m.Box.Right + 0.5 * m.Size) return;
+                // Across the line, right after its end, or right before its start (a footnote's own mark: "†Work performed…").
+                if (mark.Box.Right <= m.Box.X - 0.5 * m.Size || mark.Box.X >= m.Box.Right + 0.5 * m.Size) return;
                 host ??= m;
             }
             for (var k = i - 1; k >= 0 && mark.Baseline - byBaseline[k].Baseline <= reach * 2; k--) Consider(byBaseline[k]);
             for (var k = i + 1; k < byBaseline.Count && byBaseline[k].Baseline - mark.Baseline <= reach * 2; k++) Consider(byBaseline[k]);
-            if (host is null) continue;
+            if (host is null || joined.ContainsKey(mark)) continue; // a line with scripts of its own stays a line
             if (!joined.TryGetValue(host, out var marks)) joined[host] = marks = [];
             marks.Add(mark);
             result.Remove(mark);
@@ -339,7 +351,7 @@ public static partial class ContentEditor
             var marker = first.Text.Trim() is { Length: > 0 and <= 2 } m && !m.Any(char.IsLetterOrDigit) && !m.Any(Opens);
             if (l.Runs.Count > 1 && (note || marker))
             {
-                var line = new PLine(l.Runs[1]);
+                var line = new PLine(l.Runs[1]) { Marked = true };
                 foreach (var r in l.Runs.Skip(2)) line.Add(r);
                 result.Add(line);
             }
@@ -884,7 +896,8 @@ public static partial class ContentEditor
 
     /// <summary>
     /// For each of a paragraph's old lines, the run a new line there is written at: its last one in the paragraph's color
-    /// (what the line draws last has nothing of the line painted over it); a line with none takes the one above's.
+    /// (what the line draws last has nothing of the line painted over it) with a letter or digit in it, not a hyphen drawn
+    /// on its own after it; a line with none takes the one above's.
     /// </summary>
     private static TextRun[] LineRuns(TextParagraph p, TextRun plain)
     {
@@ -896,8 +909,12 @@ public static partial class ContentEditor
             var at = 0;
             for (var k = 1; k < p.Lines.Count; k++)
                 if (Math.Abs(run.Box.CenterY - p.Lines[k].CenterY) < Math.Abs(run.Box.CenterY - p.Lines[at].CenterY)) at = k;
-            if (run.Color == color && run.Info is not null && (chosen[at] is not { } had || DrawOrder(run) > DrawOrder(had))) chosen[at] = run;
+            if (run.Color != color || run.Info is null) continue;
+            if (chosen[at] is not { } had || Wordy(run) && !Wordy(had) || Wordy(run) == Wordy(had) && DrawOrder(run) > DrawOrder(had)) chosen[at] = run;
         }
+        // A line-end hyphen drawn on its own is often a tagged piece of its own whose /ActualText (a soft hyphen) readers
+        // show in place of whatever is drawn there: a new line written in it read as "­" (census-p60 p. 7 with a real model).
+        static bool Wordy(TextRun r) => r.Text.Any(char.IsLetterOrDigit);
         var result = new TextRun[chosen.Length];
         var fallback = chosen.FirstOrDefault(r => r is not null) ?? Anchor(p.Runs);
         for (var k = 0; k < chosen.Length; k++) result[k] = fallback = chosen[k] ?? fallback;

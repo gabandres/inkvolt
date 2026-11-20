@@ -14,6 +14,9 @@ namespace InkvoltPdf.Tests;
 /// </summary>
 public class TranslationRealModelTests(ITestOutputHelper output)
 {
+    /// <summary>Marked texts over all pages: all tags kept, some dropped, all dropped, not trusted.</summary>
+    private readonly int[] _totals = new int[5];
+
     [Fact]
     public async Task A_real_models_answers_leave_nothing_of_its_own_in_the_copy()
     {
@@ -45,6 +48,21 @@ public class TranslationRealModelTests(ITestOutputHelper output)
             foreach (var (source, why) in answers.Failed) output.WriteLine($"  not used: \"{source}\": {why}; said \"{(raw.TryGetValue(source, out var said) ? AiProtocol.Shorten(said, 200) : "")}\"");
             foreach (var (source, reply) in raw.Where(kv => TranslationText.CleanReply(kv.Value, kv.Key, plan.Marked.Contains(kv.Key)).Text != kv.Value.Trim()))
                 output.WriteLine($"  cleaned: \"{AiProtocol.Shorten(reply, 120)}\"");
+            // How often the model kept the looks' tags: every stretch back and trusted, some dropped, none, or not trusted.
+            int marked = 0, all = 0, some = 0, none = 0, untrusted = 0;
+            foreach (var (sent, answer) in answers.Done.Where(a => plan.Marked.Contains(a.Key)))
+            {
+                marked++;
+                var (had, back, trusted) = TranslationMarkup.Kept(answer, sent);
+                if (trusted is null) none++;
+                else if (trusted == false) untrusted++;
+                else if (back >= had) all++;
+                else some++;
+                if (trusted != true || back < had) output.WriteLine($"  tags {(trusted is null ? "dropped" : trusted == false ? "not trusted" : $"{back} of {had}")}: \"{AiProtocol.Shorten(sent, 100)}\" => \"{AiProtocol.Shorten(answer, 100)}\"");
+            }
+            output.WriteLine($"  marked {marked}: all tags kept {all}, some dropped {some}, all dropped {none}, not trusted {untrusted}");
+            _totals[0] += marked; _totals[1] += all; _totals[2] += some; _totals[3] += none; _totals[4] += untrusted;
+            output.WriteLine($"  so far: marked {_totals[0]}, all kept {_totals[1]}, some dropped {_totals[2]}, all dropped {_totals[3]}, not trusted {_totals[4]}");
             foreach (var text in answers.Done.Values)
             {
                 Assert.DoesNotMatch(new Regex("</?think>|<\\|", RegexOptions.IgnoreCase), text);
@@ -61,8 +79,12 @@ public class TranslationRealModelTests(ITestOutputHelper output)
             if (result.Data is not { } data) continue;
             using var engine = PdfEngine.Open(data, MuPDFCore.InputFileTypes.PDF, null);
             var shown = TranslationInk.Solid(engine.GetText(page, cache: false).Text);
-            foreach (var (source, text) in answers.Done.Where(a => a.Value != a.Key).Take(200))
-                Assert.Contains(TranslationInk.Solid(text)[..Math.Min(40, TranslationInk.Solid(text).Length)], shown, StringComparison.Ordinal);
+            foreach (var (source, answer) in answers.Done.Where(a => a.Value != a.Key).Take(200))
+            {
+                // A marked answer's words, as the copy has them (its tags are looks, not text).
+                var text = TranslationInk.Solid(plan.Marked.Contains(source) ? TranslationMarkup.Plain(answer) : answer);
+                Assert.Contains(text[..Math.Min(40, text.Length)], shown, StringComparison.Ordinal);
+            }
             var problems = TranslationInk.Problems(engine, page);
             foreach (var problem in problems) output.WriteLine($"  doesn't show: {problem}");
             Assert.True(problems.Count <= r.DoNotFit, string.Join("; ", problems));

@@ -16,14 +16,18 @@ public class TranslationMarkupHostileTests
     private static readonly TextLook I = new(Italic: true);
     private static readonly TextLook Sub = new(Script: TextScript.Sub);
 
-    private static readonly Regex OurTag = new(@"<\s*/?\s*(?:b|i|sub|sup)\s*>", RegexOptions.IgnoreCase);
+    private static readonly Regex OurTag = new(@"<\s*/?\s*(?:b|i|span|sub|sup)\s*>", RegexOptions.IgnoreCase);
 
-    [Fact]
-    public void Random_replies_never_leave_a_tag_of_ours_in_the_text()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Random_replies_never_leave_a_tag_of_ours_in_the_text(bool boldParagraph)
     {
         const string text = "The quick brown fox jumps over d model and the lazy dog.";
-        TextSpan[] spans = [new(10, 5, B), new(33, 5, Sub), new(43, 3, I)];
-        string[] bits = ["<", ">", "/", "b", "i", "sub", "sup", " ", "x", "<b>", "</b>", "<i>", "</i>", "<sub>", "</sub>", "<sup>", "</sup>", "B", "!", "=", "1"];
+        // A regular word in a bold paragraph is marked the other way round: its bold around the rest.
+        var face = boldParagraph ? new TextLook(Bold: false) : B;
+        TextSpan[] spans = [new(10, 5, face), new(33, 5, Sub), new(43, 3, I), new(20, 5, new TextLook(Color: 0xFF0000))];
+        string[] bits = ["<", ">", "/", "b", "i", "sub", "sup", "span", " ", "x", "<b>", "</b>", "<i>", "</i>", "<sub>", "</sub>", "<sup>", "</sup>", "<span>", "</span>", "B", "!", "=", "1"];
         var random = new Random(1234);
         for (var n = 0; n < 50_000; n++)
         {
@@ -34,6 +38,31 @@ public class TranslationMarkupHostileTests
             var (got, _) = TranslationMarkup.Read(reply, text, spans);
             Assert.False(OurTag.IsMatch(got), $"{reply} -> {got}");
         }
+    }
+
+    [Fact]
+    public void A_huge_paragraph_with_brackets_of_its_own_is_checked_quickly()
+    {
+        // Whether its own brackets could be read as tags is one pass over it, however many there are.
+        var text = string.Concat(Enumerable.Repeat("a < 0.5 -> c ", 150_000));
+        var watch = new ThreadClock.Stopwatch();
+        watch.Start();
+        var marked = TranslationMarkup.Mark(text, [new TextSpan(0, 1, B)]);
+        Assert.True(watch.Elapsed < TimeSpan.FromMilliseconds(1500), $"{watch.Elapsed.TotalMilliseconds:F0} ms");
+        Assert.StartsWith("<b>a</b> < 0.5", marked, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Pieces_of_marked_text_each_close_their_tags_and_a_cut_inside_a_tag_gives_none()
+    {
+        var text = string.Join(' ', Enumerable.Repeat("A <b>long bold stretch of words</b> and <sup>2</sup> more.", 60));
+        var pieces = TranslationMarkup.Pieces(text, 60)!;
+        Assert.True(pieces.Count > 3);
+        // Each piece is markup of its own, and the pieces together say what the whole did.
+        Assert.All(pieces, p => Assert.Equal(Regex.Matches(p, "<b>").Count, Regex.Matches(p, "</b>").Count));
+        Assert.Equal(TranslationMarkup.Plain(text), TranslationMarkup.Plain(string.Join(' ', pieces)));
+        // No space to cut at: a cut lands inside a tag, and the text goes in plain pieces instead.
+        Assert.Null(TranslationMarkup.Pieces(string.Concat(Enumerable.Repeat("<b>x</b><sub>y</sub>", 200)), 20));
     }
 
     [Fact]
@@ -67,17 +96,17 @@ public class TranslationMarkupHostileTests
     /// <summary>The spans' looks laid over each other character by character, as disjoint spans.</summary>
     private static List<TextSpan> OneByOne(int length, List<TextSpan> spans)
     {
-        var at = new (bool Bold, bool Italic, TextScript? Script)[length];
+        var at = new (bool Bold, bool Italic, bool Other, TextScript? Script)[length];
         foreach (var s in spans)
             for (var i = Math.Max(0, s.Start); i < Math.Min(length, s.End); i++)
-                at[i] = (at[i].Bold || s.Look.Bold == true, at[i].Italic || s.Look.Italic == true, s.Look.Script ?? at[i].Script);
+                at[i] = (at[i].Bold || s.Look.Bold == true, at[i].Italic || s.Look.Italic == true, at[i].Other || s.Look.Color is not null, s.Look.Script ?? at[i].Script);
         var result = new List<TextSpan>();
         for (var i = 0; i < length;)
         {
             var j = i + 1;
             while (j < length && at[j] == at[i]) j++;
-            if (at[i] is var (b, it, script) && (b || it || script is not null))
-                result.Add(new TextSpan(i, j - i, new TextLook(Bold: b ? true : null, Italic: it ? true : null, Script: script)));
+            if (at[i] is var (b, it, other, script) && (b || it || other || script is not null))
+                result.Add(new TextSpan(i, j - i, new TextLook(Bold: b ? true : null, Italic: it ? true : null, Color: other ? 0xFF0000 : null, Script: script)));
             i = j;
         }
         return result;

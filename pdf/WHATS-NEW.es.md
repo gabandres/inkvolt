@@ -5,6 +5,8 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 `docs/SPANISH-REVIEW.md`'s.
 
 ## Next
+- Traducir con IA conserva más del aspecto de un párrafo: una palabra normal en un párrafo en negrita, una palabra en otro color o en otro tipo de letra (un nombre en Times entre Arial, código en letra de máquina de escribir), los subíndices y superíndices con su propio tamaño y altura, y un superíndice más largo que una llamada de nota. Un párrafo largo enviado por partes también conserva su aspecto, igual que un texto con su propio "<" o ">" (p < 0,05). Una línea con un superíndice o un subíndice recibe el espacio que necesita, para que no choque con la línea de arriba o de abajo. Las notas al pie que empiezan cada una con su llamada se traducen por separado, sin juntarse.
+- Los títulos en la Times negrita de URW (NimbusRomNo9L-Medi, como en muchos artículos hechos con LaTeX) siguen en negrita al traducirlos o convertirlos a Word, y las letras matemáticas de LaTeX salen en cursiva.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.

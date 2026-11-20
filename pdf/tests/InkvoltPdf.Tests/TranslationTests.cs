@@ -263,8 +263,11 @@ internal static class TranslationInk
         return problems;
     }
 
-    /// <summary>Whitespace out, so a line break anywhere doesn't matter when comparing words in order.</summary>
-    public static string Solid(string s) => new([.. s.Where(c => !char.IsWhiteSpace(c))]);
+    /// <summary>
+    /// Whitespace out, so a line break anywhere doesn't matter when comparing words in order; soft hyphens too (a page's
+    /// tagged line-end hyphen keeps its /ActualText after the hyphen is gone, and readers show it there).
+    /// </summary>
+    public static string Solid(string s) => new([.. s.Where(c => !char.IsWhiteSpace(c) && c != '­')]);
 }
 
 public class TranslationSampleFile
