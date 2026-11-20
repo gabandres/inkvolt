@@ -33,7 +33,7 @@ internal static class ExportActions
     {
         if (!await tab.SettleAsync()) return;
         var kind = Describe(format);
-        var ocr = PageOcr.Engine;
+        var ocr = PageOcr.ChosenName; // who reads, cheaply (null: nothing can now; Unavailable says why)
         var dlg = new FormDialog(owner, kind.Title, Strings.Export_ExportButton, 480);
         var range = dlg.AddRange(tab, preferSelection: false);
         var useOcr = dlg.AddCheck(Strings.Export_UseOcr, ocr is not null && AppSettings.Current.ExportOcr);
@@ -45,7 +45,7 @@ internal static class ExportActions
             dlg.AddNote(PageOcr.Unavailable);
         }
         var open = dlg.AddCheck(Strings.Export_OpenWhenDone, AppSettings.Current.ExportOpen);
-        dlg.AddNote(kind.Note + (ocr is null ? "" : " " + Loc.Format(Strings.Export_OcrNote, ocr.LanguageName)));
+        dlg.AddNote(kind.Note + (ocr is null ? "" : " " + Loc.Format(Strings.Export_OcrNote, ocr)));
         int[] pages = [];
         dlg.Validate(() => range.TryGet(out pages, out var err) ? null : err);
         if (!dlg.ShowModal() || !await tab.SettleAsync()) return;
@@ -275,7 +275,7 @@ internal static class ExportActions
         ExportFormat format, int[] pages, bool recognize, string path, CancellationToken cancel = default, bool detached = false)
     {
         var kind = Describe(format);
-        var ocr = PageOcr.Engine;
+        var ocr = recognize ? await PageOcr.ChosenAsync() : null;
         recognize &= ocr is not null;
         using var progress = new ProgressPrompt(owner, kind.Title, Strings.Access_ReadingPages, detached);
         using var both = CancellationTokenSource.CreateLinkedTokenSource(progress.Token, cancel);

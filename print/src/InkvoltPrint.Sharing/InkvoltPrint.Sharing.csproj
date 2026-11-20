@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The shared scanner's HTTPS server (print/ROADMAP.md 3.1): Kestrel from ASP.NET Core's shared framework, a framework reference
+       and not a NuGet package (the owner's decision, 2026-11-18: about 10 MB more in the self-contained app). What it serves and
+       who may connect is decided in InkvoltPrint.Core/Sharing; this only carries the requests. Not referenced by Inkvolt PDF. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\..\..\shared\InkvoltPrint.Core\InkvoltPrint.Core.csproj" />
+  </ItemGroup>
+</Project>

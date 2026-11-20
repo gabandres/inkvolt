@@ -91,7 +91,7 @@ public static class WatchedFolder
         if (Validate(folder, plan.OutputFolder) is { } folderError) throw new ArgumentException(folderError, nameof(folder));
         plan = plan with { Passwords = PasswordPolicy.Skip, KeepSubfolders = false };
         host = new BatchHost { Ocr = host.Ocr }; // no prompts: nobody may be there to answer
-        if (plan.Validate(host.Ocr is not null) is { } planError) throw new ArgumentException(planError, nameof(plan));
+        if (plan.Validate(host.Ocr is not null, host.OcrUnavailable) is { } planError) throw new ArgumentException(planError, nameof(plan));
 
         using var held = DropFolder.Lock(folder, LockName) ?? throw new FolderWatchedException(folder);
         var working = Directory.CreateDirectory(Path.Combine(folder, WorkingFolder)).FullName;

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Demo mode only: written by hand, never captured (see WalkupScanToComp_WalkupScanToCompManifest.xml next to it). What was last
+     done on the panel; FakeScanToComputer.Press sets it (ScanRequested: scan now). HostSelected, choosing the computer alone, starts nothing. -->
+<wus:WalkupScanToCompEvent xmlns:wus="http://www.hp.com/schemas/imaging/con/ledm/walkupscan/2010/09/28" xmlns:dd="http://www.hp.com/schemas/imaging/con/dictionaries/1.0/">
+	<dd:Version>
+		<dd:Revision>demo</dd:Revision>
+	</dd:Version>
+	<wus:WalkupScanToCompEventType>HostSelected</wus:WalkupScanToCompEventType>
+</wus:WalkupScanToCompEvent>

@@ -4173,6 +4173,51 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
     <value>The printer didn't answer, so it may already be copying. Check its control panel before copying again.</value>
   </data>
+  <data name="ScanButton_NoPreset" xml:space="preserve">
+    <value>no preset yet (make one with Manage presets…)</value>
+  </data>
+  <data name="ScanButton_None" xml:space="preserve">
+    <value>This printer's own Scan button can't send scans here: it offers neither HP's Scan to Computer nor a scan button Windows can report.</value>
+  </data>
+  <data name="ScanButton_PanelOff" xml:space="preserve">
+    <value>Turn this on to add this PC ({0}) to the printer's panel under Scan to Computer. Choosing it there then scans here.</value>
+  </data>
+  <data name="ScanButton_Listed" xml:space="preserve">
+    <value>On the printer's panel: Scan to Computer › {0}. Pressing Scan there runs {1} here while Inkvolt Print or its icon in the notification area is running.</value>
+  </data>
+  <data name="ScanButton_ListedByOther" xml:space="preserve">
+    <value>A computer named {0} is already on the printer's panel, put there by other software (HP's, perhaps), so Inkvolt Print doesn't add it twice. Close that software or restart the printer, then turn this off and on.</value>
+  </data>
+  <data name="ScanButton_NeedsPassword" xml:space="preserve">
+    <value>The printer asks for its admin password before it adds this PC. Enter it in Printer settings, then turn this off and on.</value>
+  </data>
+  <data name="ScanButton_Refused" xml:space="preserve">
+    <value>The printer didn't add this PC to its panel. It may not take computers added this way; scan from this tab instead.</value>
+  </data>
+  <data name="ScanButton_NotReached" xml:space="preserve">
+    <value>The printer isn't answering, or answered with an error. Inkvolt Print tries again and puts this PC back on its panel when it can.</value>
+  </data>
+  <data name="ScanButton_Adding" xml:space="preserve">
+    <value>Adding this PC to the printer's panel…</value>
+  </data>
+  <data name="ScanButton_DriverOff" xml:space="preserve">
+    <value>Turn this on to scan here when the scanner's button sends a scan to this PC (Scan to Computer on the printer's panel, through Windows).</value>
+  </data>
+  <data name="ScanButton_DriverOn" xml:space="preserve">
+    <value>When the scanner's button sends a scan to this PC, {0} runs here while Inkvolt Print or its icon in the notification area is running.</value>
+  </data>
+  <data name="ScanButton_DriverFailed" xml:space="preserve">
+    <value>Windows didn't let Inkvolt Print hear this scanner's button. Scan from this tab instead, or turn this off and on to try again.</value>
+  </data>
+  <data name="ScanButton_PanelSwitch" xml:space="preserve">
+    <value>Show this PC on the printer's panel</value>
+  </data>
+  <data name="ScanButton_DriverSwitch" xml:space="preserve">
+    <value>Scan here when the scanner's button is pressed</value>
+  </data>
+  <data name="ScanButton_Failed" xml:space="preserve">
+    <value>Something went wrong while adding this PC to the printer's panel. Turn this off and on to try again, or scan from this tab.</value>
+  </data>
   <data name="Direct_RefusedTooLarge" xml:space="preserve">
     <value>The printer can't take a job this large. Print fewer pages at a time.</value>
   </data>
@@ -4184,5 +4229,42 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>The printer didn't take the cancel, so the job may still print. Cancel it on the printer's control panel.</value>
+  </data>
+  <data name="Wia_InUse" xml:space="preserve">
+    <value>The scanner is busy with another scan, from this PC or a device scanning through it on the network. Try again when it's done.</value>
+  </data>
+  <data name="Share_InstanceName" xml:space="preserve">
+    <value>{0} on {1}</value>
+    <comment>The shared scanner's name as phones and Macs list it: {0} the scanner, {1} this PC's name</comment>
+  </data>
+  <data name="Share_Off" xml:space="preserve">
+    <value>Off. Turned on, phones, Macs and other computers on a private network can scan with this scanner while Inkvolt Print runs here.</value>
+  </data>
+  <data name="Share_OtherShared" xml:space="preserve">
+    <value>{0} is shared now. Turning this on shares this scanner instead: one scanner is shared at a time.</value>
+  </data>
+  <data name="Share_WaitingForScanner" xml:space="preserve">
+    <value>Shared once the scanner answers. Check that it's on and plugged in.</value>
+  </data>
+  <data name="Share_NoPrivateNetwork" xml:space="preserve">
+    <value>Not shared: this PC isn't on a private network. If you trust this network, set it to Private in Windows Settings › Network &amp; internet, and the scanner is shared at once.</value>
+  </data>
+  <data name="Share_Starting" xml:space="preserve">
+    <value>Starting…</value>
+  </data>
+  <data name="Share_On" xml:space="preserve">
+    <value>Shared as "{0}" on port {1}. Phones, Macs and other computers on this private network can scan with it while Inkvolt Print runs here.</value>
+  </data>
+  <data name="Share_OnThisPc" xml:space="preserve">
+    <value>Demo: shared as "{0}" on port {1}, for this PC only.</value>
+  </data>
+  <data name="Share_PortInUse" xml:space="preserve">
+    <value>Not shared: another program uses port {0}. Close it, then turn sharing off and on again.</value>
+  </data>
+  <data name="Share_Failed" xml:space="preserve">
+    <value>Not shared: sharing couldn't start. Turn it off and on again; if it still doesn't start, Help › Report a problem sends the details.</value>
+  </data>
+  <data name="Share_NotAnnounced" xml:space="preserve">
+    <value>It couldn't be announced, so devices may not list it on their own: add it by this PC's address.</value>
   </data>
 </root>

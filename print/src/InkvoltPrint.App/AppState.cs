@@ -196,7 +196,41 @@ public sealed class AppState
         {
             Printers.RemoveAll(k => string.Equals(k.Uuid, id, StringComparison.OrdinalIgnoreCase));
             Firmware.Remove(id);
+            ScanButtons.Remove(id);
         }
+    }
+
+    /// <summary>Printer id → its scan button (roadmap 2.2): on or off, the preset a press runs, this PC's place on the printer's panel.</summary>
+    public Dictionary<string, Core.Presets.ScanButtonChoice> ScanButtons { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Core.Presets.ScanButtonChoice? GetScanButton(string printerId)
+    {
+        lock (_gate) return ScanButtons.GetValueOrDefault(printerId);
+    }
+
+    /// <summary>Keeps the choice and saves.</summary>
+    public void SetScanButton(string printerId, Core.Presets.ScanButtonChoice choice)
+    {
+        lock (_gate)
+        {
+            if (ScanButtons.GetValueOrDefault(printerId) == choice) return;
+            ScanButtons[printerId] = choice;
+        }
+        Save();
+    }
+
+    /// <summary>The scanner shared on the network (roadmap 3.1): none by default; the UUID it's announced with is kept once made.</summary>
+    public Core.Sharing.ScannerShareChoice? ScannerShare { get; set; }
+
+    /// <summary>Keeps the choice and saves.</summary>
+    public void SetScannerShare(Core.Sharing.ScannerShareChoice choice)
+    {
+        lock (_gate)
+        {
+            if (ScannerShare == choice) return;
+            ScannerShare = choice;
+        }
+        Save();
     }
 
     /// <summary>Printer id → its firmware version, the day first seen and the last change (roadmap 1.5, Core.History.FirmwareWatch).</summary>
@@ -376,6 +410,7 @@ public sealed class AppState
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
+            state.ScanButtons = new((state.ScanButtons ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.Firmware = new((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }), StringComparer.OrdinalIgnoreCase);
             state.Tray?.Repair();
             return state;

@@ -212,7 +212,7 @@ public static class BatchCommandLine
         }
         outFolder = Path.GetFullPath(outFolder);
         var plan = preset.ToPlan(outFolder) with { Passwords = PasswordPolicy.Skip };
-        if (plan.Validate(host.Ocr is not null) is { } planError)
+        if (plan.Validate(host.Ocr is not null, host.OcrUnavailable) is { } planError)
         {
             error.WriteLine($"The preset can't run: {planError}");
             return Wrong;

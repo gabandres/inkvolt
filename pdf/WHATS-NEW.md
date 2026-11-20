@@ -7,6 +7,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 ## Next
 - Translate with AI keeps more of a paragraph's look: a regular word in a bold paragraph, a word in another color or another kind of font (a name in Times among Arial, code in a typewriter font), subscripts and superscripts at their own size and height, and a superscript longer than a footnote mark. A long paragraph sent in parts keeps its look too, and so does text with a "<" or ">" of its own (p < 0.05). A line with a superscript or subscript gets the room it needs, so it doesn't run into the line above or below. Footnotes that each start with their own mark are translated apart, not run together.
 - Titles in URW's bold Times (NimbusRomNo9L-Medi, as in many LaTeX papers) stay bold when translated or converted to Word, and LaTeX's math letters come out in italic.
+- Recognize Text reads more than 100 more languages with Tesseract, a free recognizer, for the ones Windows doesn't have (Hindi, Thai, Hebrew, Ukrainian, Vietnamese and many more). Choose one and Inkvolt PDF offers to download it (about 30 MB the first time); nothing is downloaded until you say so, and it stays on your PC.
+- Pages in two languages: choose a second language in Recognize Text. Each line is read in the language that fits it, or both at once with Tesseract.
+- Batch, Scan, the exports, Compare Files and Redact by Pattern now read scans in the language you last chose in Recognize Text.
+- With Tesseract, a word it wasn't sure of is listed among the suspect words to check.
 
 ## 1.15.0
 - Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.

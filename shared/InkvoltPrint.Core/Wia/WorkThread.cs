@@ -25,6 +25,9 @@ public sealed class WorkThread
         thread.Start();
     }
 
+    /// <summary>No more calls: the thread ends once the queued ones have run (later calls fail with <see cref="InvalidOperationException"/>).</summary>
+    public void Finish() => _work.CompleteAdding();
+
     /// <summary>A call is running that its caller stopped waiting for.</summary>
     public bool IsStuck
     {

@@ -4464,4 +4464,27 @@ Start over</value>
   <data name="Copy_PrinterFailed" xml:space="preserve">
     <value>Something went wrong while asking the printer to copy, and it may already be copying. Check its control panel before copying again.</value>
   </data>
+  <data name="ScanTab_Button" xml:space="preserve">
+    <value>Scan from the printer's button</value>
+  </data>
+  <data name="ScanTab_ButtonRuns" xml:space="preserve">
+    <value>Runs</value>
+  </data>
+  <data name="ScanTab_ButtonPreset" xml:space="preserve">
+    <value>The scan preset a press of the printer's button runs</value>
+  </data>
+  <data name="ScanTab_Share" xml:space="preserve">
+    <value>Share on the network</value>
+    <comment>Scan tab card title (roadmap 3.1, scanner sharing)</comment>
+  </data>
+  <data name="ScanTab_ShareSwitch" xml:space="preserve">
+    <value>Share this scanner on the network (Inkvolt Pro)</value>
+  </data>
+  <data name="ScanTab_ShareFingerprint" xml:space="preserve">
+    <value>Certificate fingerprint (SHA-256), to compare where a device shows it:</value>
+  </data>
+  <data name="Tray_ShareScanner" xml:space="preserve">
+    <value>Share a scanner on the _network</value>
+    <comment>menu item; _ marks the access key</comment>
+  </data>
 </root>

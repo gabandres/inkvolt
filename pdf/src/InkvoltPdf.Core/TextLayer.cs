@@ -230,7 +230,7 @@ public static class TextLayer
 
         var words = all.Where(Usable).ToList();
         var ops = new StringBuilder(Marker);
-        if (language is { Length: > 0 } && language.All(c => char.IsAsciiLetterOrDigit(c) || c == '-')) ops.Append(' ').Append(language);
+        if (language is { Length: > 0 } && language.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '+')) ops.Append(' ').Append(language);
         ops.Append('\n');
         // The page's frame, so the boxes follow the page when it is turned or cropped later (FrameOf).
         var (fx1, fy1, fx2, fy2) = PdfObj.VisibleBox(page);

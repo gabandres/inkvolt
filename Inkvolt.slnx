@@ -13,6 +13,7 @@
   <Folder Name="/print/">
     <Project Path="print/src/InkvoltPrint.App/InkvoltPrint.App.csproj" />
     <Project Path="print/src/InkvoltPrint.Cli/InkvoltPrint.Cli.csproj" />
+    <Project Path="print/src/InkvoltPrint.Sharing/InkvoltPrint.Sharing.csproj" />
     <Project Path="print/tests/InkvoltPrint.Tests/InkvoltPrint.Tests.csproj" />
   </Folder>
   <Folder Name="/shared/">

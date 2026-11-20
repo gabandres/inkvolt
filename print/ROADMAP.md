@@ -46,12 +46,12 @@ would do and where to get Pro, and never takes away a result already made.
 | 1.5 Firmware watch | All of it (the cartridge promise) | |
 | 1.6 The Pro key | | The seam itself |
 | 2.1 Print straight to the printer | All of it | |
-| 2.2 Scan from the printer's button | All of it | |
+| 2.2 Scan from the printer's button | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 2.3 Scan cleanup, Unicode OCR | All of it | |
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
 | 2.5 TWAIN | All of it (Windows done 2026-11-05, but 32-bit sources) | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
-| 3.1 Share a scanner on the network | | All of it |
+| 3.1 Share a scanner on the network | | All of it (Windows built 2026-11-19; the Mac half waits) |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
 | 3.3 The printer's own copier | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 3.4 Job notifications | All of it | |
@@ -305,6 +305,36 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   destination list shows the PC after connect and not after exit; a simulated walk-up event runs the preset and
   saves its file; the FakeWiaSystem's button event does the same. On hardware: an HP all-in-one that lists the
   walk-up interface (the M234dw's `DiscoveryTree.xml` doesn't: one that does, recorded with 1.2).
+- **Built (Windows, 2026-11-19).** Scan tab › *Scan from the printer's button*, per printer, **off by default** (on an HP panel
+  it changes the printer's list), with the preset a press runs; a press brings the printer's Scan tab up (from the notification
+  area too) and runs that preset as its one-click scan does, saving its file. **HP's Scan to Computer:** `Core/Ledm/LedmWalkupScan`
+  (the documents) and `ScanToComputer` (one connection): found by reading only (the DiscoveryTree's walk-up `SupportedIfc`, its
+  manifest, the destination list; the tree must list the EventTable); turned on, this PC (`LedmWalkupScan.PanelName`: the
+  computer's name, plain letters, at most 32) is added with one POST over HTTPS, never resent (`LedmClient.PostPathAsync`), kept
+  while the app or its tray icon runs (the window hidden stops the status loop, not this) and added again after the printer's
+  `PowerUpEvent` or a lost connection. Presses come through the connection's one EventTable long poll, shared with the status (`LedmEventFeed`)
+  (`DelayedReplyResponse`, captured in the M234dw's EventCapabilities): **no listener and no port on this PC**. A press counts
+  once (category and `AgingStamp`), only after the app started, only when the event names this PC's destination and the event
+  document says `ScanRequested` (choosing the PC alone doesn't). Removed with one DELETE when turned off, on exit
+  (`MainViewModel.Dispose` waits up to 4 s) and when the printer is forgotten; only a path below the printer's list is ever
+  deleted (`LedmWalkupScan.OwnPath`), and nothing goes to another device found at the address. A computer by this PC's name that
+  the app didn't add (HP's software) is left alone and said; this app's destination is known by a marker in its host name (a tag
+  kept in `state.json`), so a run after a crash or a lost answer adopts it rather than adding a second, and removes it. 401/403, refusals and silence are told in words. **A Windows scanner's button:**
+  `WiaScannerInfo.Buttons` (the scan-button events among the driver's `Device.Events`; their GUIDs read from wiaaut.dll's type
+  library) and `IWiaSystem.WatchButtonsAsync` (`WindowsWia`: `DeviceManager.RegisterEvent` with `OnEvent` through
+  `ComEventsHelper`, on an STA thread of its own, for this run only, no administrator rights); the WSD scan driver raises these
+  for `ScanAvailableEvent`. The panel comes first when both exist; a printer with neither says so. `Core/Presets/ScanButton`
+  decides it all; the app shows it (`ScanButtonViewModel`). **Unconfirmed:** no walk-up document has been captured (the M234dw
+  doesn't list the interface), so every name is an assumption in one table (`LedmWalkupScan.Names`); a printer whose documents
+  don't match offers nothing and nothing is POSTed on a guess. Record a printer saves the walk-up manifest and every document it
+  lists. The demo HP laser's walk-up documents are written by hand (`Fixtures/hp-demo`) and `FakeScanToComputer` plays its
+  panel; the demo USB laser's made-up scanner has a Scan button (`--demo --scan-button press`). Tests: `ScanButtonTests` (the
+  list shows the PC after connect and not after exit, a simulated press runs the preset and saves its file, only this PC's
+  `ScanRequested` counts, old presses don't, a restart adds it again, HP's own entry is left alone, refusals, no Location, another
+  device, the recording, hostile lists and paths; the FakeWiaSystem's button event, neither, the panel before the driver). **On
+  hardware, not tried:** an HP all-in-one that lists the interface (and a recording of it); a WSD or USB scanner's button
+  through WIA. **Mac half waits** (ICA's button events; the HP part would be PrintCore's port of `LedmWalkupScan` and
+  `ScanToComputer`).
 - **Effort** M. Windows and Mac (the HP part shared; WSD is Windows', ICA's button events the Mac's).
 
 ### 2.3 Scan cleanup and a Unicode OCR layer
@@ -441,6 +471,55 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   networks only; an iPhone, Image Capture and another Inkvolt Print scan from it with the driver's capabilities. Test:
   our own eSCL client scans a page through the shared endpoint identical to the direct scan. Mac: an ICA scanner
   shared the same way.
+- **Built (Windows, 2026-11-19).** Scan tab › **Share on the network** for an entry's WIA or TWAIN scanner (not one Windows reaches
+  over eSCL itself), and the notification-area menu's *Share a scanner on the network* (each Windows scanner, ticked when shared):
+  **off by default**, one scanner at a time, kept on across restarts, through `Pro.Allows(ProFeature.ScannerSharing)` (a key entered
+  or removed asks again). `Core/Sharing/ScannerShare` decides it all: it listens only once the scanner is connected, Pro allows it
+  and Windows calls a network **Private** (the Network List Manager, `InkvoltPrint.Windows/Sharing/WindowsNetworks`; an interface
+  with an IPv4 subnet of its own: a VPN's /32 or a public or domain network isn't served), and stops the moment any of those goes,
+  it's turned off, or the app exits (`MainViewModel.Dispose` closes it first; the choice stays). **Server:** Kestrel
+  (`print/src/InkvoltPrint.Sharing`, ASP.NET Core's shared framework, the owner's decision of 2026-11-18; no NuGet package) on
+  **TCP 9780, HTTPS only** (TLS 1.2/1.3, HTTP/1.1), dual-stack; a connection from anything but this PC or a device on a served
+  subnet that came in on that private interface (`SharePeers`: the address of this PC it reached must be one of the interface's,
+  so a public network using the same subnet stays out; IPv6 link-local only on its own interface) is closed before TLS. **eSCL** (`SharedScanner`, `ShareXml`):
+  ScannerCapabilities from the driver's own (`WiaCapabilities.From`: glass, feeder, both sides, sizes, color, grey, black and
+  white, resolutions; JPEG and PDF), ScannerStatus (the feeder's state while idle, each device's own jobs), ScanJobs, NextDocument
+  (a long poll, 503 to ask again), ScanImageInfo, DELETE. A region's offset reaches the driver now (`ScanRequest.XOffset`, WIA's
+  `XPosition`, TWAIN's frame), for Image Capture's overview. **Hostile input:** ScanSettings without DTD, at most 16 KB, 200
+  elements, 8 deep, 128 characters a value, every number in range, units checked, unknown sources, modes and formats refused
+  (409), only an advertised resolution (300 dpi for a driver that lists none), the region kept inside the source and at most
+  65,000 pixels a side before anything is planned; nothing in a request names a file, a path or another device; request line, headers and body bounded; 32 connections,
+  8 per device; one scan at a time, two waiting, two per device (503); a job reachable only from the device that started it
+  (its address kept in memory, never logged), cancelled after 60 s with no request for it (a NextDocument long poll under way, or the device's status polls, keep it) or
+  30 min in all, forgotten 5 min after it ends; the
+  scanner held against a scan from this PC meanwhile and the other way round (`WiaScanner`'s one job per device: "busy with
+  another scan"). **Certificate:** self-signed ECDSA P-256 for this PC's `.local` name, 825 days, renewed 30 days before; its key
+  made in the user's CNG key store, not exportable (`ShareCertificateStore`), the public certificate a file in the app's data
+  folder; the card shows its SHA-256 fingerprint. **DNS-SD:** `_uscans._tcp`, "<scanner> on <PC>", rs=eSCL, the UUID kept in
+  the choice, cs, is, duplex, pdl, through Windows' own responder (`DnsServiceRegister`, per private interface; taken back on
+  stop). **Firewall:** the package declares `privateNetworkClientServer` and its one inbound rule (desktop2 `windows.firewallRules`:
+  TCP 9780, private profile), so the Store copy isn't asked; no `internetClientServer` (nothing serves the internet, and a full-
+  trust app's outgoing connections need none). An unpackaged copy gets Windows Firewall's question the first time it listens.
+  **No PIN or allow-list:** eSCL clients send none (Apple's, Mopria's and sane-airscan's have no field for one), so the private
+  network and the subnet are the gate. **Demo:** `--demo` shares a made-up scanner for real, to this PC only (127.0.0.1, any
+  port, a certificate per run, nothing announced); `--share` turns it on, `--snapshot` shows the card. **Checked:**
+  `ScannerSharingTests` (82 cases; the review of 4bf7e6c0 added the card, forgetting, Pro, network watching, closing, a scanner
+  changing, resolutions and the slow-page cases): the documents round-trip through our parser; our client's ScanSettings read back as the same
+  driver settings; hostile and unoffered settings (DTD, entities, depth, count, length, numbers, units, sources, modes,
+  formats); jobs, queue, per-device limits, expiry, DELETE, a failed scan, a scan from this PC holding the scanner, closing;
+  who may connect; the certificate, fingerprint and DNS-SD record (read back by `DnssdJoin`); the switch with fakes (off by
+  default, Pro, no private network, a network coming and going, one scanner at a time, a taken port, the app closing); and
+  through the real Kestrel server on loopback: our `EsclClient` scans glass, feeder, both sides and a region identical to the
+  direct scan, page for page and driver call for driver call; the certificate a client sees is the card's; PDF pages; 413,
+  400, 404; a refused device gets no TLS; too many connections are cut; the port refuses connections once closed. The manifest's
+  capability and rule against `ScannerShare.DefaultPort`. On this PC: the running demo app scanned through by curl (glass to
+  JPEG and PDF, ScanImageInfo, DTD 400, path 404, plain HTTP refused); the Windows adapters in a scratch program: the Network
+  List Manager's categories, the CNG key kept across runs and serving TLS, `DnsServiceRegister`'s record answered by Windows'
+  responder to a raw mDNS query for `_uscans._tcp.local` (Windows' own DNS-SD browse on the same PC doesn't list it). The MSIX
+  packed (x64, ARM64; MakeAppx took the package-level firewall rule) and smoke-tested side by side. **Not checked:** an iPhone scan app, a Mac's Image Capture, sane-airscan or another
+  Inkvolt Print over a real network (this PC's LAN is Public, so nothing was served on it), a real USB scanner behind it, the
+  announcement seen from another device, the Store copy's firewall rule installed. The Mac half (an ICA scanner shared the
+  same way) waits.
 - **Effort** M. Windows and Mac. Pro.
 
 ### 3.2 SNMPv3 and a community per printer

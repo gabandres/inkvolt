@@ -80,6 +80,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
             canElevate: Features.ElevatedRepairs);
         Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, pc);
+        ScanButton = new ScanButtonViewModel(
+            new ScanButton(Core.Ledm.LedmWalkupScan.PanelName(pc.ComputerName), state.GetScanButton(uuid), choice => state.SetScanButton(uuid, choice),
+                () => System.Windows.Application.Current?.Dispatcher.InvokeAsync(ButtonPressed), line => Log.Write($"[{Name}] {line}")),
+            presets, line => Log.Write($"[{Name}] {line}"));
         Copy.PropertyChanged += (_, e) =>
         {
             if (e.PropertyName == nameof(CopyViewModel.HasScanner)) OnPropertyChanged(nameof(ShowCopy));
@@ -235,6 +239,29 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Maintenance.FocusRequested = true; // the card takes it when it's (re)loaded, or right away below
         MaintenanceRequested?.Invoke(this);
     }
+
+    /// <summary>Scan from the printer's button (roadmap 2.2): the Scan tab's card, HP's Scan to Computer or the scanner's button through Windows.</summary>
+    public ScanButtonViewModel ScanButton { get; }
+
+    /// <summary>The printer's button was pressed for this PC: show this printer and run the preset (App: the window comes up, from the notification area too).</summary>
+    public static event Action<PrinterViewModel, ScanPreset>? ScanButtonPressed;
+
+    private void ButtonPressed()
+    {
+        if (ScanButton.Preset is not { } preset)
+        {
+            Log.Write($"[{Name}] The printer's button was pressed, but there's no scan preset to run.");
+            return;
+        }
+        Log.Write($"[{Name}] The printer's button was pressed: running a preset.");
+        ScanButtonPressed?.Invoke(this, preset);
+    }
+
+    /// <summary>Taking this PC off the printer's panel when it closes (<see cref="Dispose"/>); done at once when there's nothing to take off.</summary>
+    public Task Closing { get; private set; } = Task.CompletedTask;
+
+    /// <summary>The longest closing waits for the printer to take this PC off its panel.</summary>
+    public static readonly TimeSpan CloseLimit = TimeSpan.FromSeconds(3);
 
     /// <summary>"Printer offline? Fix it": the troubleshooter panel on the Overview.</summary>
     public OfflineFixerViewModel Fixer { get; }
@@ -901,6 +928,69 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Scan?.Detach(blocked);
         Copy.Detach(blocked);
         Settings = null;
+        _ = UseButtonPrinterAsync(null); // nothing goes to that device: not even taking this PC off a panel
+    }
+
+    /// <summary>The scan button looks for HP's Scan to Computer on this connection (reads only; it adds this PC only when turned on).</summary>
+    private async Task UseButtonPrinterAsync(PrinterConnection? conn)
+    {
+        try
+        {
+            await ScanButton.Button.UsePrinterAsync(conn);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Scan button not bound: {ex.Message}");
+        }
+    }
+
+    /// <summary>The scan button hears this Windows scanner's buttons (null: none).</summary>
+    private async Task UseButtonDriverAsync(IWiaSystem? system, WiaScanner? scanner)
+    {
+        try
+        {
+            await ScanButton.Button.UseDriverAsync(scanner is null ? null : system, scanner?.Device.Id, scanner?.Info.Buttons);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Scanner's button not bound: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Scanner sharing (roadmap 3.1): the Scan tab's card for this entry's Windows scanner; null until the app hands over the share
+    /// (<see cref="UseShare"/>, when the entry is listed).
+    /// </summary>
+    public ScannerShareViewModel? Sharing { get; private set; }
+
+    private Core.Sharing.ScannerShare? _share;
+
+    /// <summary>The app's one scanner share: this entry's card shows it, and the share gets this entry's scanner when it connects.</summary>
+    public void UseShare(Core.Sharing.ScannerShare share)
+    {
+        if (_share is not null) return;
+        _share = share;
+        Sharing = new ScannerShareViewModel(share, () => _wia, () => _wiaDevice ?? ScannerDevice, line => Log.Write($"[{Name}] {line}"));
+        OnPropertyChanged(nameof(Sharing));
+        if (_wia is { } connected) _ = OfferToShareAsync(connected.Device.Id, connected);
+    }
+
+    /// <summary>Every Windows scanner this entry is known by (connected or not): a share of one stops when the entry is forgotten.</summary>
+    public IEnumerable<string?> WindowsScannerIds => [_wia?.Device.Id, _wiaDevice?.Id, ScannerDevice?.Id];
+
+    /// <summary>The share gets this entry's Windows scanner (null: it's gone); only the shared one starts or stops anything.</summary>
+    private async Task OfferToShareAsync(string deviceId, WiaScanner? scanner)
+    {
+        Sharing?.Refresh();
+        if (_share is not { } share) return;
+        try
+        {
+            await share.OfferAsync(deviceId, scanner);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Scanner sharing not updated: {ex.Message}");
+        }
     }
 
     /// <summary>"This is my printer": the device at the address is accepted as this printer from now on (its UUIDs remembered).</summary>
@@ -943,6 +1033,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
         BindScanner();
         _ = FindPrinterCopyAsync(conn);
+        _ = UseButtonPrinterAsync(conn);
         if (conn.Probe.HasHpInterfaces) // settings are LEDM's
         {
             if (Settings is null) Settings = new SettingsViewModel(conn, Uuid, Name, _state, _pc.Passwords, _pc.Browser is null ? null : OpenWebPage);
@@ -1007,13 +1098,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (device is null)
         {
-            if (_wiaDevice is null) return;
+            if (_wiaDevice is not { } gone) return;
             _wiaDevice = null;
             _wia = null;
             BindScanner();
+            _ = UseButtonDriverAsync(null, null);
+            _ = OfferToShareAsync(gone.Id, null);
             return;
         }
         if (_wiaConnecting || (_wia is not null && string.Equals(_wia.Device.Id, device.Id, StringComparison.OrdinalIgnoreCase))) return;
+        // Another scanner than before (A, now B): the share is told A is gone, so it never serves A's scanner object again.
+        if (_wiaDevice is { } before && !string.Equals(before.Id, device.Id, StringComparison.OrdinalIgnoreCase)) _ = OfferToShareAsync(before.Id, null);
         _wiaDevice = device;
         _wiaConnecting = true;
         try
@@ -1023,6 +1118,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             if (!string.Equals(_wiaDevice?.Id, device.Id, StringComparison.OrdinalIgnoreCase)) return; // let go meanwhile
             _wia = scanner;
             BindScanner();
+            _ = UseButtonDriverAsync(system, scanner);
+            _ = OfferToShareAsync(device.Id, scanner);
             if (IsScannerOnly)
             {
                 IsConnecting = false;
@@ -1390,6 +1487,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void GoToPhotos() => SelectedSection = PhotosSection;
 
+    /// <summary>
+    /// Stops everything. This PC comes off the printer's panel first (<see cref="Closing"/>, within <see cref="CloseLimit"/>), so the
+    /// printer's connection is let go only after that.
+    /// </summary>
     public void Dispose()
     {
         Print.Batch?.Stopped();
@@ -1399,7 +1500,27 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _watch?.Cancel();
         _watch = null;
         Fixer.CloseCommand.Execute(null);
-        _monitor?.Dispose();
+        ScanButton.Dispose();
+        Sharing?.Dispose();
+        // The entry goes (its scanner unplugged, or forgotten): a share of its scanner stops listening until it's back. At exit the
+        // share has closed first, and this does nothing.
+        if (_wia is { } scanner) _ = OfferToShareAsync(scanner.Device.Id, null);
+        var limit = new CancellationTokenSource(CloseLimit);
+        Closing = ScanButton.Button.CloseAsync(limit.Token); // at once when there's nothing to take off (its awaits don't need this thread)
+        var monitor = _monitor;
+        if (Closing.IsCompleted)
+        {
+            limit.Dispose();
+            monitor?.Dispose();
+            return;
+        }
+        var ui = System.Windows.Application.Current?.Dispatcher;
+        _ = Closing.ContinueWith(_ =>
+        {
+            limit.Dispose();
+            if (ui is null) monitor?.Dispose();
+            else ui.InvokeAsync(() => monitor?.Dispose()); // the monitor is used from the dispatcher only
+        }, TaskScheduler.Default);
     }
 
     /// <summary>Certificate fingerprint remembered per printer UUID in the app state.</summary>

@@ -8,6 +8,7 @@ read from each NuGet package's metadata).
 |---|---|---|---|---|
 | CommunityToolkit.Mvvm | 8.4.2 | MIT | (c) .NET Foundation and Contributors | https://github.com/CommunityToolkit/dotnet |
 | .NET runtime and WPF (self-contained) | 10.0 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime, https://github.com/dotnet/wpf |
+| ASP.NET Core shared framework (Kestrel, self-contained; scanner sharing) | 10.0 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/aspnetcore |
 | Windows SDK projection (Microsoft.Windows.SDK.NET) | 10.0.22621 | Microsoft Windows SDK license | Microsoft Corporation | https://aka.ms/WinSDKLicenseURL |
 
 Inkvolt Print uses Windows' own components for discovery, printer setup, PDF rendering and OCR (Windows.Devices,

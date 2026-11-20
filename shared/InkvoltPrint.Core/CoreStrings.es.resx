@@ -3457,6 +3457,51 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="PrinterCopy_MayHaveStarted" xml:space="preserve">
     <value>La impresora no respondió, así que puede que ya esté copiando. Revisa su panel de control antes de volver a copiar.</value>
   </data>
+  <data name="ScanButton_NoPreset" xml:space="preserve">
+    <value>ningún ajuste todavía (crea uno con Administrar ajustes…)</value>
+  </data>
+  <data name="ScanButton_None" xml:space="preserve">
+    <value>El botón Escanear de la impresora no puede enviar escaneos aquí: no ofrece Escanear a computadora de HP ni un botón de escaneo que Windows pueda informar.</value>
+  </data>
+  <data name="ScanButton_PanelOff" xml:space="preserve">
+    <value>Actívalo para agregar este PC ({0}) al panel de la impresora en Escanear a computadora. Al elegirlo allí, se escanea aquí.</value>
+  </data>
+  <data name="ScanButton_Listed" xml:space="preserve">
+    <value>En el panel de la impresora: Escanear a computadora › {0}. Al pulsar Escanear allí, se ejecuta {1} aquí mientras Inkvolt Print o su icono en el área de notificación estén abiertos.</value>
+  </data>
+  <data name="ScanButton_ListedByOther" xml:space="preserve">
+    <value>Ya hay una computadora llamada {0} en el panel de la impresora, agregada por otro programa (quizá el de HP), así que Inkvolt Print no la agrega dos veces. Cierra ese programa o reinicia la impresora y luego desactiva y vuelve a activar esta opción.</value>
+  </data>
+  <data name="ScanButton_NeedsPassword" xml:space="preserve">
+    <value>La impresora pide su contraseña de administrador antes de agregar este PC. Escríbela en Configuración de la impresora y luego desactiva y vuelve a activar esta opción.</value>
+  </data>
+  <data name="ScanButton_Refused" xml:space="preserve">
+    <value>La impresora no agregó este PC a su panel. Puede que no acepte computadoras agregadas de esta forma; escanea desde esta pestaña.</value>
+  </data>
+  <data name="ScanButton_NotReached" xml:space="preserve">
+    <value>La impresora no responde o respondió con un error. Inkvolt Print lo vuelve a intentar y pondrá este PC en su panel en cuanto pueda.</value>
+  </data>
+  <data name="ScanButton_Adding" xml:space="preserve">
+    <value>Agregando este PC al panel de la impresora…</value>
+  </data>
+  <data name="ScanButton_DriverOff" xml:space="preserve">
+    <value>Actívalo para escanear aquí cuando el botón del escáner envíe un escaneo a este PC (Escanear a computadora en el panel de la impresora, a través de Windows).</value>
+  </data>
+  <data name="ScanButton_DriverOn" xml:space="preserve">
+    <value>Cuando el botón del escáner envíe un escaneo a este PC, se ejecuta {0} aquí mientras Inkvolt Print o su icono en el área de notificación estén abiertos.</value>
+  </data>
+  <data name="ScanButton_DriverFailed" xml:space="preserve">
+    <value>Windows no dejó que Inkvolt Print escuchara el botón de este escáner. Escanea desde esta pestaña o desactiva y vuelve a activar esta opción para intentarlo de nuevo.</value>
+  </data>
+  <data name="ScanButton_PanelSwitch" xml:space="preserve">
+    <value>Mostrar este PC en el panel de la impresora</value>
+  </data>
+  <data name="ScanButton_DriverSwitch" xml:space="preserve">
+    <value>Escanear aquí al pulsar el botón del escáner</value>
+  </data>
+  <data name="ScanButton_Failed" xml:space="preserve">
+    <value>Algo salió mal al agregar este PC al panel de la impresora. Desactiva y vuelve a activar esta opción para intentarlo de nuevo, o escanea desde esta pestaña.</value>
+  </data>
   <data name="Direct_RefusedTooLarge" xml:space="preserve">
     <value>La impresora no acepta un trabajo tan grande. Imprime menos páginas cada vez.</value>
   </data>
@@ -3468,5 +3513,41 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora.</value>
+  </data>
+  <data name="Wia_InUse" xml:space="preserve">
+    <value>El escáner está ocupado con otro escaneo, de este PC o de un dispositivo que escanea con él desde la red. Vuelve a intentarlo cuando termine.</value>
+  </data>
+  <data name="Share_InstanceName" xml:space="preserve">
+    <value>{0} en {1}</value>
+  </data>
+  <data name="Share_Off" xml:space="preserve">
+    <value>Desactivado. Si lo activas, los teléfonos, Mac y otros equipos de una red privada pueden escanear con este escáner mientras Inkvolt Print esté abierto aquí.</value>
+  </data>
+  <data name="Share_OtherShared" xml:space="preserve">
+    <value>Ahora se comparte {0}. Si activas esto, se comparte este escáner en su lugar: se comparte un escáner a la vez.</value>
+  </data>
+  <data name="Share_WaitingForScanner" xml:space="preserve">
+    <value>Se compartirá cuando el escáner responda. Comprueba que esté encendido y conectado.</value>
+  </data>
+  <data name="Share_NoPrivateNetwork" xml:space="preserve">
+    <value>No se comparte: este PC no está en una red privada. Si confías en esta red, cámbiala a Privada en Configuración de Windows › Red e Internet, y el escáner se comparte al instante.</value>
+  </data>
+  <data name="Share_Starting" xml:space="preserve">
+    <value>Iniciando…</value>
+  </data>
+  <data name="Share_On" xml:space="preserve">
+    <value>Se comparte como "{0}" en el puerto {1}. Los teléfonos, Mac y otros equipos de esta red privada pueden escanear con él mientras Inkvolt Print esté abierto aquí.</value>
+  </data>
+  <data name="Share_OnThisPc" xml:space="preserve">
+    <value>Demostración: se comparte como "{0}" en el puerto {1}, solo para este PC.</value>
+  </data>
+  <data name="Share_PortInUse" xml:space="preserve">
+    <value>No se comparte: otro programa usa el puerto {0}. Ciérralo y luego desactiva y vuelve a activar el uso compartido.</value>
+  </data>
+  <data name="Share_Failed" xml:space="preserve">
+    <value>No se comparte: el uso compartido no pudo iniciarse. Desactívalo y vuelve a activarlo; si sigue sin iniciarse, Ayuda › Informar un problema envía los detalles.</value>
+  </data>
+  <data name="Share_NotAnnounced" xml:space="preserve">
+    <value>No se pudo anunciar, así que puede que los dispositivos no lo muestren solos: agrégalo con la dirección de este PC.</value>
   </data>
 </root>

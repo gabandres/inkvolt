@@ -43,6 +43,15 @@ MuPDFWrapper.dll statically links MuPDF and its third-party libraries. Those fou
 
 The complete list and license texts are in the MuPDF 1.25.2 source distribution (`thirdparty/` and `COPYING`).
 
+Not shipped, downloaded from its project only when the person asks (Recognize Text, a language Windows has no
+recognizer for), and run as a separate program:
+
+| Component | Version | License | Source |
+|---|---|---|---|
+| Tesseract OCR (tesseract.exe, libtesseract; UB Mannheim's Windows build, published in the project's GitHub release) | 5.5.3.20260724 | Apache-2.0 | https://github.com/tesseract-ocr/tesseract |
+| The libraries of that build that tesseract.exe loads | as built | Leptonica BSD-2-Clause; libarchive, libb2, zstd, lz4, libssh2 BSD; curl's license; brotli, libdeflate, libpsl, expat, giflib, winpthreads MIT; xz 0BSD; bzip2, libpng, libtiff, zlib their own permissive licenses; libjpeg-turbo IJG and BSD-3-Clause; libwebp, OpenJPEG BSD; LERC Apache-2.0; libiconv, libintl, libunistring, libidn2 LGPL; libgcc, libstdc++ GPL-3.0 with the GCC Runtime Library Exception; JBIG-KIT GPL-2.0-or-later | https://github.com/UB-Mannheim/tesseract |
+| Tesseract language data (tessdata_fast) | commit 8741641 | Apache-2.0 | https://github.com/tesseract-ocr/tessdata_fast |
+
 Not shipped, used when present on the PC: the Microsoft Edge WebView2 Runtime (part of Windows 11; renders web pages
 for Create PDF from Web Page) and Microsoft Office (Word, Excel, PowerPoint: Create PDF from Office File), each under
 its own Microsoft license.

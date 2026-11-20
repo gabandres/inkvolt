@@ -123,6 +123,8 @@ public partial class App : Application
                 peer.RaiseNotificationEvent(System.Windows.Automation.AutomationNotificationKind.Other,
                     System.Windows.Automation.AutomationNotificationProcessing.ImportantMostRecent, message, "InkvoltPrint.Announce");
         };
+        // The printer's button (roadmap 2.2): its printer comes up, from the notification area too, and its Scan tab runs the preset.
+        PrinterViewModel.ScanButtonPressed += (printer, preset) => _ = RunFromButtonAsync(printer, preset);
 
         var pc = !demo ? PcEnvironment.Real : args.Contains("--no-printers") ? Demo.EmptyPc : args.Contains("--twain") ? Demo.TwainPc : Demo.Pc; // chosen once: every view model takes its adapters from it
         var loaded = pc.LoadState();
@@ -222,6 +224,8 @@ public partial class App : Application
             _ = DevSnapshot.SimulateAlertsAsync(Tray);
         if (args.Contains("--simulate-jobs") && demo && !args.Contains("--snapshot"))
             _ = DevSnapshot.SimulateJobsAsync(Tray);
+        if (args.Contains("--share") && demo && !args.Contains("--snapshot"))
+            _ = DevSnapshot.ShareAsync(_vm);
         if (Array.IndexOf(args, "--snapshot") is var i and >= 0 && i + 1 < args.Length)
             _ = DevSnapshot.RunAsync((MainWindow)MainWindow, args[i + 1], args); // it reads its own flags
         _started = true;
@@ -275,6 +279,27 @@ public partial class App : Application
     private static List<string> Pictures(string[] args) =>
         args.Where((a, i) => !a.StartsWith("--", StringComparison.Ordinal) && (i == 0 || args[i - 1] is not ("--snapshot" or "--autoprint" or "--photo-sheets"))
                              && (Printing.PhotoFiles.IsPicture(a) || Printing.PhotoFiles.MissingCodec(a) is not null) && File.Exists(a)).ToList();
+
+    /// <summary>A press of the printer's button for this PC: the printer on screen (the window back from the notification area), then the preset.</summary>
+    private async Task RunFromButtonAsync(PrinterViewModel printer, Core.Presets.ScanPreset preset)
+    {
+        try
+        {
+            if (Tray is { } tray) tray.OpenPrinter(printer.Uuid);
+            else if (MainWindow is { } w && _vm is { } vm)
+            {
+                if (w.WindowState == WindowState.Minimized) w.WindowState = WindowState.Normal;
+                w.Show();
+                w.Activate();
+                vm.ShowPrinter(printer);
+            }
+            await printer.RunPresetAsync(preset);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"A scan from the printer's button failed: {ex}");
+        }
+    }
 
     /// <summary>Quit (tray menu): closes the window for real; unsaved scans are asked about first, with the window shown.</summary>
     public void Quit()
