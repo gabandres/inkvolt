@@ -157,7 +157,11 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   settings ask PDF at the resolution; JPEG still asked where offered; a PDF-only glass; neither format said in words; pictures
   taken out byte for byte, a hand-written page tree with inherited resources and indirect lengths; turned pages, other
   encodings, masks and non-PDFs left to the renderer; rendering, no renderer and a failing one; keeping the scanner's PDF and
-  when not). Pending: a real PDF-only scanner; WIA devices that offer PDF only. Mac: done (2026-11-04, mac/docs/PLAN.md
+  when not). WIA drivers that offer only PDF (2026-11-20, Windows): a driver whose formats are `WiaImgFmt_PDFA` and no
+  picture is asked for PDF (`WiaScannerInfo.PdfOnly`, per source with WIA 2.0's items) and each transfer's pages taken out
+  by the same `ScannerPdf.PagesAsync`, a PDF a page or the whole run in one (`WiaPdfTests`, 5, with the fake WIA scanner:
+  the six pages byte for byte its JPEG run, the run in one PDF kept as sent, a PDF-only glass, a broken PDF said in words).
+  Pending: a real PDF-only scanner, eSCL or WIA. Mac: done (2026-11-04, mac/docs/PLAN.md
   P12): PrintCore (2026-11-02: the eSCL request, taking pages out, keeping the scanner's PDF, ScannerPdfTests on the PC);
   PrintMac's `ScannedPdfPages` (PDFKit) set at start-up, the Scan tab's status line and its PDF saves keeping the scanner's
   own PDF or saying why not, demo mode's PDF-only feeder (`Demo.feederPdfOnly`) with `--report --demo --scan` checking an

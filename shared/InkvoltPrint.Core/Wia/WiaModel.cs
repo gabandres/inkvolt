@@ -34,7 +34,17 @@ public static class WiaIds
     public const int DataThreshold = 0, DataGrayscale = 2, DataColor = 3;
 
     public const string FormatBmp = "{B96B3CAB-0728-11D3-9D7B-0000F81EF32E}", FormatJpeg = "{B96B3CAE-0728-11D3-9D7B-0000F81EF32E}",
-        FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}";
+        FormatPng = "{B96B3CAF-0728-11D3-9D7B-0000F81EF32E}", FormatMemoryBmp = "{B96B3CAA-0728-11D3-9D7B-0000F81EF32E}",
+        FormatTiff = "{B96B3CB1-0728-11D3-9D7B-0000F81EF32E}";
+
+    /// <summary><c>WiaImgFmt_PDFA</c> (WiaDef.h): a PDF/A document, the one PDF format WIA defines.</summary>
+    public const string FormatPdf = "{9980BD5B-3463-43C7-BDCA-3CAA146F229F}";
+
+    /// <summary>The picture formats a page can come in (one of them is all a scan needs to come as JPEG).</summary>
+    public static readonly IReadOnlyList<string> PictureFormats = [FormatBmp, FormatMemoryBmp, FormatJpeg, FormatPng, FormatTiff];
+
+    /// <summary>Two format GUID strings are the same format (any case, braces or none).</summary>
+    public static bool SameFormat(string? a, string b) => Guid.TryParse(a, out var x) && Guid.TryParse(b, out var y) && x == y;
 
     /// <summary>
     /// The scan-button events a driver may list (wiaaut.dll's <c>EventID</c> constants, read from its type library: Scan, Scan to
@@ -103,7 +113,15 @@ public sealed record WiaScannerInfo(
     WiaValues Resolutions,
     IReadOnlyList<int> DataTypes,
     IReadOnlyList<string> Formats,
-    IReadOnlyList<string>? Buttons = null);
+    IReadOnlyList<string>? Buttons = null)
+{
+    /// <summary>
+    /// The driver offers PDF and no picture format (print/ROADMAP.md 1.3, as some eSCL feeders do): pages are asked as PDF and
+    /// taken out of it as JPEG (<see cref="Escl.ScannerPdf"/>). An empty list says nothing, so a page is asked as a picture.
+    /// </summary>
+    public bool PdfOnly => Formats.Any(f => WiaIds.SameFormat(f, WiaIds.FormatPdf))
+        && !Formats.Any(f => WiaIds.PictureFormats.Any(p => WiaIds.SameFormat(f, p)));
+}
 
 /// <summary>What one scan sets on the device and item before transferring pages.</summary>
 /// <param name="Handling">Document handling select: glass, feeder, or feeder with both sides (front first); null for a glass-only driver (left alone).</param>
@@ -112,8 +130,9 @@ public sealed record WiaScannerInfo(
 /// since a sheet is two pages then and 1 would give the front only; null for the glass (left alone).</param>
 /// <param name="X">Where the area starts, in pixels at <paramref name="Resolution"/> from the left (0: the edge).</param>
 /// <param name="Y">Where the area starts, in pixels from the top.</param>
+/// <param name="Pdf">Pages are transferred as PDF (<see cref="WiaScannerInfo.PdfOnly"/>), each transfer a PDF of one page or more.</param>
 public sealed record WiaScanSettings(int? Handling, bool Feeder, int DataType, int Depth, int Resolution, int Width, int Height, int? Pages = null,
-    int X = 0, int Y = 0)
+    int X = 0, int Y = 0, bool Pdf = false)
 {
     /// <summary>Both sides of each sheet: two pages per sheet, front first.</summary>
     public bool Duplex => Feeder && Handling is { } h && (h & WiaIds.SelectDuplex) != 0;

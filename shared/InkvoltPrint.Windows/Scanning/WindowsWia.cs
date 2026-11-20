@@ -527,15 +527,18 @@ public sealed class WindowsWia : IWiaSystem
         public byte[]? TransferPage(WiaScanSettings s)
         {
             // JPEG straight from the driver when it offers it; otherwise BMP (every driver has it), turned into JPEG here. Black and
-            // white (1 bit) is always BMP: drivers list JPEG for their color and grey types, and refuse it for the threshold one.
-            var format = s.Depth > 1 && Info.Formats.Contains(WiaIds.FormatJpeg, StringComparer.OrdinalIgnoreCase) ? WiaIds.FormatJpeg : WiaIds.FormatBmp;
+            // white (1 bit) is always BMP: drivers list JPEG for their color and grey types, and refuse it for the threshold one. A
+            // driver that offers only PDF sends its PDF, handed over as it is (WiaScanner takes the pages out).
+            var format = s.Pdf ? WiaIds.FormatPdf
+                : s.Depth > 1 && Info.Formats.Contains(WiaIds.FormatJpeg, StringComparer.OrdinalIgnoreCase) ? WiaIds.FormatJpeg : WiaIds.FormatBmp;
             object? image = null, jpeg = null, data = null;
             try
             {
                 image = _item.Transfer(format);
                 if (image is null) return null;
                 var file = image;
-                if (!string.Equals((string)((dynamic)image).FormatID, WiaIds.FormatJpeg, StringComparison.OrdinalIgnoreCase)) file = jpeg = ToJpeg(image);
+                string sent = ((dynamic)image).FormatID;
+                if (!WiaIds.SameFormat(sent, WiaIds.FormatJpeg) && !WiaIds.SameFormat(sent, WiaIds.FormatPdf)) file = jpeg = ToJpeg(image);
                 data = ((dynamic)file).FileData;
                 byte[]? bytes = ((dynamic)data!).BinaryData as byte[];
                 return bytes is { Length: > 0 } ? bytes : null;

@@ -254,8 +254,8 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   those of its JPEG run), PDFs written by hand (a nested page tree, inherited resources, indirect lengths) and a fake renderer;
   the Windows render path tried on a vector PDF (`inkvoltprint scanpdf`). Never run against a real PDF-only scanner. To confirm
   on hardware: whether such feeders send one PDF per page or one per run (both handled), and the resolution their PDFs really
-  have (the page is saved at the resolution asked for). A scanner through Windows (WIA) that offers PDF only isn't handled yet
-  (WIA transfers stay JPEG). On the Mac, PrintCore has it (roadmap 1.3); PrintMac's PDFKit renderer and the Scan tab's parts wait.
+  have (the page is saved at the resolution asked for). A scanner through Windows (WIA) that offers PDF only is asked for PDF and
+  its pages taken out the same way (2026-11-20; the fake WIA scanner only, `WiaPdfTests`). On the Mac, PrintCore has it (roadmap 1.3); PrintMac's PDFKit renderer and the Scan tab's parts wait.
 - Recording a printer (`inkvoltprint record`): built and tested on the demo printers through the fixture transport (each
   recording served again reads the same) and on replies with identifiers planted in them (none survive); never run against a
   real printer during development, and no recording from real hardware is in the repository yet. To do on hardware: one

@@ -21,8 +21,9 @@ public interface IWiaDevice
     int? Apply(WiaScanSettings settings);
 
     /// <summary>
-    /// Scans one page as JPEG with the settings applied: the next page from the feeder, or the glass. Null when the driver gave
-    /// no image (some say "no more pages" that way).
+    /// Scans one page as JPEG with the settings applied: the next page from the feeder, or the glass. With
+    /// <see cref="WiaScanSettings.Pdf"/>, the driver's PDF as it sent it (one page, or every page of the run). Null when the driver
+    /// gave no image (some say "no more pages" that way).
     /// </summary>
     byte[]? TransferPage(WiaScanSettings settings);
 }
@@ -133,11 +134,18 @@ public sealed class WiaScanner : IScanner
             for (var page = 0; page < (settings.Feeder ? MaxFeederPages : 1); page++)
             {
                 ct.ThrowIfCancellationRequested();
-                var (jpeg, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
+                var (data, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
                 if (end) yield break;
-                if (WiaFeeder.Repeats(last, jpeg!)) yield break; // the glass scanned again, not a new sheet
-                last = jpeg;
-                yield return jpeg!;
+                if (WiaFeeder.Repeats(last, data!)) yield break; // the glass scanned again, not a new sheet
+                last = data;
+                if (!ScannerPdf.IsPdf(data!))
+                {
+                    yield return data!;
+                    continue;
+                }
+                // A PDF-only driver's transfer: one page or the whole run, its pages taken out as JPEG as an eSCL scanner's are.
+                foreach (var jpeg in await ScannerPdf.PagesAsync(data!, settings.Resolution, ct).ConfigureAwait(false))
+                    yield return jpeg;
             }
         }
         finally
@@ -237,7 +245,8 @@ public static class WiaCapabilities
     /// The scanner as the Scan tab sees it: glass and feeder from the document handling capabilities (glass only when the driver
     /// has none), their sizes (the feeder's from the sheet feed size, else the glass's; a feeder of any length gets Legal), color
     /// and grey as offered (black and white too when the driver offers its threshold type), resolutions from the driver's list or
-    /// range (as eSCL ranges are turned into choices). Pages always arrive as JPEG (converted when the driver sends another format).
+    /// range (as eSCL ranges are turned into choices). Pages always arrive as JPEG (converted when the driver sends another format,
+    /// taken out of the PDF a PDF-only driver sends).
     /// </summary>
     public static ScannerCapabilities From(WiaScannerInfo info, string name)
     {
@@ -302,7 +311,7 @@ public static class WiaCapabilities
         int? pages = !feeder ? null : source == ScanSource.AdfDuplex ? 0 : 1;
         var (dataType, depth) = bw ? (WiaIds.DataThreshold, 1) : grey ? (WiaIds.DataGrayscale, 8) : (WiaIds.DataColor, 24);
         return new WiaScanSettings(handling, feeder, dataType, depth, res, Pixels(width, res), Pixels(height, res), pages,
-            Offset(x, res), Offset(y, res));
+            Offset(x, res), Offset(y, res), info.PdfOnly);
     }
 
     private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, Offset(threeHundredths, dpi));

@@ -146,6 +146,19 @@ public sealed class FakeWiaScanner(WiaDeviceInfo device, WiaScannerInfo info, Fu
             throw new WiaException(WiaErrors.PaperEmpty, "Feeder empty.");
         }
         _sides++;
-        return draw(settings, _page++);
+        if (!settings.Pdf) return draw(settings, _page++);
+        // A PDF-only driver: the page in a PDF, or with PdfWholeRun every page left in the feeder in one.
+        var pages = new List<byte[]> { draw(settings, _page++) };
+        while (PdfWholeRun && settings.Feeder && _left-- > 0)
+        {
+            _sides++;
+            pages.Add(draw(settings, _page++));
+        }
+        using var pdf = new MemoryStream();
+        Pdf.PdfWriter.Write(pdf, [.. pages.Select(p => new Pdf.PdfPage(p, settings.Resolution))], "Scan");
+        return pdf.ToArray();
     }
+
+    /// <summary>A PDF-only driver (<see cref="WiaScannerInfo.PdfOnly"/>) that sends a feeder's whole run as one PDF in the first transfer.</summary>
+    public bool PdfWholeRun { get; set; }
 }
