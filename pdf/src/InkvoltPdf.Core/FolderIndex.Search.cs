@@ -358,8 +358,6 @@ public sealed partial class FolderIndex
         /// <summary>Lowercase ASCII of the page last read, for <see cref="SideBySideAscii"/>; as long as the page.</summary>
         public byte[] Lowered = new byte[16 << 10];
 
-        public string Page(IndexedFile f, int page) => Encoding.UTF8.GetString(PageBytes(f, page));
-
         /// <summary>A page's kept text as UTF-8, in a buffer of this reader's that the next page reuses.</summary>
         public ReadOnlySpan<byte> PageBytes(IndexedFile f, int page)
         {
