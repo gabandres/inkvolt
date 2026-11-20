@@ -10,6 +10,7 @@ namespace InkvoltPrint.Core.Drivers;
 /// downloads for each system, "win-11" or "win-10", with the file on origin.pfultd.com). The driver is PaperStream IP (TWAIN), the
 /// 64-bit one first (what Inkvolt Print scans through), its ARM build on ARM64; then its ISIS one. ScanSnap models have no page
 /// there (their software comes through ScanSnap's own account site and has no driver Inkvolt Print could use): none is found.
+/// Each download is accepted under PFU's licence, named on the download's own page: shown before downloading.
 /// </summary>
 public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
 {
@@ -33,7 +34,7 @@ public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
             if (ModelPage(index, query.Model) is not { } page) return DriverLookup.None(NoOffer.NotFound);
             var html = await http.GetTextAsync(page, Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
             return DriverPages.ForThisPc(Ranked(ParsePage(html, OsId(query.Windows, query.Arch))), query.Arch, out var why) is { } pick
-                ? DriverPages.Offer(pick, pick.Link, page, Source)
+                ? DriverPages.Offer(pick, pick.Link, page, Source, pick.Licence)
                 : DriverLookup.None(why, page);
         }
         catch (FetchException ex)
@@ -79,7 +80,7 @@ public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
                     || FileUrl().Match(onclick) is not { Success: true } url || !Uri.TryCreate(url.Value, UriKind.Absolute, out var file)) continue;
                 list.Add(new MakerDownload(DriverPages.Plain(title, 160), DriverPages.Plain(Text(d, "description", 2000) ?? "", 600),
                     Regex.Match(title, @"(\d{1,3}(?:\.\d{1,4}){1,3})\s*(?:\(|$)") is { Success: true } v ? v.Groups[1].Value : null,
-                    Text(d, "fileSize", 20) is { } size ? DriverPages.Size(size) : null, file, Text(d, "fileName", 120)));
+                    Text(d, "fileSize", 20) is { } size ? DriverPages.Size(size) : null, file, Text(d, "fileName", 120), LicencePage(Text(d, "moreHref", 300))));
             }
         }
         catch (JsonException)
@@ -88,6 +89,16 @@ public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
         }
         return list;
     }
+
+    [GeneratedRegex(@"^/global/scanners/fisp/dl/[A-Za-z0-9/_\-]{1,200}\.html$")]
+    private static partial Regex MorePath();
+
+    /// <summary>
+    /// The download's own page on PFU's site (its "more" link: target systems, readme and the terms of PFU's END-USER LICENSE
+    /// AGREEMENT for the driver), the licence the download is accepted under; null for anything but a page of PFU's download pages.
+    /// </summary>
+    public static Uri? LicencePage(string? moreHref) =>
+        moreHref is not null && MorePath().IsMatch(moreHref) ? new Uri("https://www.pfu.ricoh.com" + moreHref) : null;
 
     private static string? Text(JsonElement e, string name, int max = 400) =>
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } s

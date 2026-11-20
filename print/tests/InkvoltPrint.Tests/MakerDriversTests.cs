@@ -404,6 +404,36 @@ public sealed class MakerDriversTests
         Assert.False(string.IsNullOrWhiteSpace(DriverText.LicenceNote(HlL2350)));
     }
 
+    [Theory]
+    [InlineData(PcArch.X64, "https://www.pfu.ricoh.com/global/scanners/fisp/dl/win/psip-twain64-3402.html")]
+    [InlineData(PcArch.Arm64, "https://www.pfu.ricoh.com/global/scanners/fisp/dl/win/psip-twain32-arm-3403.html")]
+    public async Task PFUs_offer_carries_its_downloads_own_page_as_the_licence(PcArch arch, string licence)
+    {
+        var web = new FakeWeb();
+        web.Text("https://www.pfu.ricoh.com/global/scanners/fisp/dl/", Fixture("pfu-models.html"));
+        web.Text("https://www.pfu.ricoh.com/global/scanners/fisp/dl/fi-8170.html", Fixture("pfu-fi8170.html"));
+        var offer = (await new PfuDrivers(new BoundedHttp(web)).FindAsync(Query(Fi8170, arch), CancellationToken.None)).Offer!;
+
+        Assert.Equal(licence, offer.Licence!.AbsoluteUri);
+        // A Store copy opens that page; the app stops at Accept and download (Licence set), as for Brother and Canon.
+        var flow = new DriverFlow(new MakerCatalogs(), new BoundedHttp(web), new NoSignatures(), new NoPc(), Path.GetTempPath(), arch, PcWindows.Windows11, DriverMode.OpenLink);
+        Assert.Equal(offer.Licence, flow.LinkFor(offer, Fi8170));
+    }
+
+    [Theory]
+    [InlineData("https://eula.example/agree.html")]
+    [InlineData("//eula.example/global/scanners/fisp/dl/x.html")]
+    [InlineData("/global/scanners/fisp/dl/../../../evil.html")]
+    [InlineData("/global/scanners/other/x.html")]
+    [InlineData("javascript:void(0)")]
+    public void A_PFU_more_link_off_its_download_pages_is_no_licence(string moreHref)
+    {
+        Assert.Null(PfuDrivers.LicencePage(moreHref));
+        var page = Fixture("pfu-fi8170.html").Replace("/global/scanners/fisp/dl/win/psip-twain64-3402.html", moreHref.Replace("\"", ""), StringComparison.Ordinal);
+        var pick = PfuDrivers.Ranked(PfuDrivers.ParsePage(page, "win-11"))[0];
+        Assert.Null(pick.Licence);
+    }
+
     private sealed class NoSignatures : ISignatureCheck
     {
         public SignatureFacts Check(string path) => new(SignatureState.NotSigned, null);

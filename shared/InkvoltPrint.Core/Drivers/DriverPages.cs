@@ -6,8 +6,9 @@ namespace InkvoltPrint.Core.Drivers;
 /// <summary>
 /// One download a maker's page lists, as read (all of it untrusted): its title and description, version and size as the page says
 /// them, and <paramref name="Link"/>: the file itself, or the maker's page that names it (Brother's and Canon's).
+/// <paramref name="Licence"/>: the maker's page with the licence the download is under, when the list gives one (PFU's).
 /// </summary>
-public sealed record MakerDownload(string Title, string Description, string? Version, string? SizeText, Uri Link, string? FileName = null);
+public sealed record MakerDownload(string Title, string Description, string? Version, string? SizeText, Uri Link, string? FileName = null, Uri? Licence = null);
 
 /// <summary>
 /// What every maker's lookup does the same way (<see cref="EpsonDrivers"/>, <see cref="CanonDrivers"/>, <see cref="HpDrivers"/>,
