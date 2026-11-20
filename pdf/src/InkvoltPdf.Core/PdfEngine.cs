@@ -798,10 +798,7 @@ public sealed partial class PdfEngine : IDisposable
     private const int MaxRulePaths = 4000;
 
     /// <summary>Most links of a page an export carries (each character is checked against each).</summary>
-    private const int MaxExportLinks = 500;
-
-    /// <summary>Most boxes a link's /QuadPoints may have to be carried (a line each; a hostile file lists thousands).</summary>
-    private const int MaxLinkQuads = 64;
+    private const int MaxExportLinks = Links.MaxPerPage;
 
     /// <summary>
     /// Two runs of text are on the same line: across the lines' direction (<paramref name="turn"/>: up and down for text
@@ -831,7 +828,7 @@ public sealed partial class PdfEngine : IDisposable
     /// <param name="links">
     /// What each of the page's links becomes on the text it covers (<see cref="ExportSpan.Link"/>; null drops one), with
     /// its /QuadPoints' boxes when it has them (<see cref="LinkInfo.Quads"/>); null reads no links. A character is linked
-    /// when its middle lies in one of the link's boxes. A link without boxes covers its area only when that holds one line
+    /// when its middle lies in one of the link's boxes. A link without boxes (or with more than <see cref="Links.MaxQuads"/>) covers its area only when that holds one line
     /// of text: an area over two lines also covers the words before the link and after it.
     /// </param>
     /// <exception cref="PageRefusedException">The page's check refused it.</exception>
@@ -853,8 +850,9 @@ public sealed partial class PdfEngine : IDisposable
                 if (areas.Count >= MaxExportLinks) break;
                 if (l.Area.Width <= 0 || l.Area.Height <= 0 || links(l) is not { } to) continue;
                 var quads = to.Quads.Where(q => q.Width > 0 && q.Height > 0).ToList();
-                if (quads.Count is > 0 and <= MaxLinkQuads) areas.Add((quads, to.To, false));
-                else if (quads.Count == 0) areas.Add(([l.Area], to.To, true));
+                // Boxes when it has a few; when it has none, or more than are read, its area (one line's only).
+                if (quads.Count is > 0 and <= Links.MaxQuads) areas.Add((quads, to.To, false));
+                else areas.Add(([l.Area], to.To, true));
             }
         }
         var lines = new List<ExportLine>();

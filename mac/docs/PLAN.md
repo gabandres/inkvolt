@@ -1378,7 +1378,8 @@ pages read together from its text read once (Windows' search cursor filled a meg
 `Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
 (`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
 (`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). The scan cleanup's which-way-up test leaves
-out a run of ink rows over 3 times the middle one's height (`Upright.MaxLineRatio`; PrintTests' `UprightTests`, ScanTextTests'
+out a run of ink rows over 3 times the page's lines' height (the lower middle of runs of 6 rows or more, a tight run cut
+between its bands first), then reads the lines again without it (`Upright.MaxLineRatio`, `MinLineRows`; PrintTests' `UprightTests`, ScanTextTests'
 `APageWithALargeShadedPictureIsTurnedTheRightWayUp`): `ScanCleanup.swift` has the old reading.
 
 **Mac differences.**

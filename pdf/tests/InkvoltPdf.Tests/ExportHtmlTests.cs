@@ -407,6 +407,45 @@ public class ExportHtmlTests
         Assert.Empty(All(Dom(Html(ExportTestPdf.TwoLineLink(quads: true))), "a"));
     }
 
+    /// <summary>"Visit the site" linked to https://example.com/ by <paramref name="links"/> links sharing one /QuadPoints of <paramref name="quads"/> boxes, each over the whole line.</summary>
+    private static byte[] SharedQuads(int links, int quads)
+    {
+        var box = string.Concat(Enumerable.Repeat("70 714 200 714 70 694 200 694 ", quads));
+        var refs = string.Join(' ', Enumerable.Range(0, links).Select(i => $"{7 + i} 0 R"));
+        return Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [{refs}] >>",
+            Core2Pdf.Stream("BT /F1 12 Tf 72 700 Td (Visit the site) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            $"[{box}]",
+            .. Enumerable.Range(0, links).Select(_ => "<< /Type /Annot /Subtype /Link /Rect [70 694 200 714] /QuadPoints 6 0 R /A << /S /URI /URI (https://example.com/) >> >>"),
+        ]);
+    }
+
+    [Fact]
+    public void A_link_with_more_boxes_than_are_read_goes_by_its_area()
+    {
+        var pdf = SharedQuads(1, Links.MaxQuads + 6);
+        Assert.Equal(Links.MaxQuads + 1, Links.ReadForExport(pdf, null).Single().Quads.Count);
+        var root = Dom(Html(pdf, options: new ExportOptions { Source = pdf }));
+        Assert.Equal(["Visit the site"], All(root, "a").Select(TextOf));
+    }
+
+    [Fact]
+    public void Links_sharing_a_huge_list_of_boxes_are_read_a_few_boxes_each()
+    {
+        // 2,000 links, one list of 20,000 boxes: read in full for each, about 1.3 GB.
+        var pdf = SharedQuads(2_000, 20_000);
+        var read = Links.ReadForExport(pdf, null);
+        Assert.Equal(Links.MaxPerPage, read.Count);
+        Assert.All(read, l => Assert.Equal(Links.MaxQuads + 1, l.Quads.Count));
+        Assert.DoesNotContain(Links.Read(pdf, null), l => l.Quads.Count > 0); // the Link tool doesn't read them at all
+        var root = Dom(Html(pdf, options: new ExportOptions { Source = pdf }));
+        Assert.Equal("Visit the site", TextOf(All(root, "a").Single()));
+    }
+
     [Fact]
     public void Links_that_are_dropped_dont_count_against_a_pages_cap()
     {

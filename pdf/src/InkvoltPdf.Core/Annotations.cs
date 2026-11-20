@@ -114,7 +114,7 @@ public static partial class Annotations
                 }
             }
             return new PageAnnotations(Part("comments", Read), Part("attachments", Attachments.List), Part("signature stamps", SignatureStamps.Read),
-                Part("links", Links.Read));
+                Part("links", d => Links.Read(d)));
         }
     }
 
@@ -157,14 +157,14 @@ public static partial class Annotations
 
     /// <summary>
     /// A text mark's marked line boxes (from /QuadPoints) in page space; empty for other kinds. At most one more than
-    /// <see cref="MaxQuads"/> (a hostile file lists millions, or has hundreds of marks share one huge list): enough for
-    /// a caller to see the mark has too many to draw or select.
+    /// <paramref name="max"/> (<see cref="MaxQuads"/>; a hostile file lists millions, or has hundreds of marks share one huge
+    /// list): enough for a caller to see the mark has too many to draw or select.
     /// </summary>
-    internal static List<RectD> QuadRectsOf(PdfPage page, PdfDictionary a)
+    internal static List<RectD> QuadRectsOf(PdfPage page, PdfDictionary a, int max = MaxQuads)
     {
         var quads = new List<RectD>();
         if (PdfObj.Array(a.Elements["/QuadPoints"]) is { } qp)
-            for (var k = 0; k + 7 < qp.Elements.Count && quads.Count <= MaxQuads; k += 8)
+            for (var k = 0; k + 7 < qp.Elements.Count && quads.Count <= max; k += 8)
             {
                 var xs = new[] { PdfObj.Num(qp, k), PdfObj.Num(qp, k + 2), PdfObj.Num(qp, k + 4), PdfObj.Num(qp, k + 6) };
                 var ys = new[] { PdfObj.Num(qp, k + 1), PdfObj.Num(qp, k + 3), PdfObj.Num(qp, k + 5), PdfObj.Num(qp, k + 7) };

@@ -165,7 +165,7 @@ public static class DocumentExport
         if (source is null) return [];
         try
         {
-            return Links.Read(source, password).Where(l => l.Quads.Count > 0).GroupBy(l => l.PageIndex).ToDictionary(g => g.Key, g => g.ToList());
+            return Links.ReadForExport(source, password).Where(l => l.Quads.Count > 0).GroupBy(l => l.PageIndex).ToDictionary(g => g.Key, g => g.ToList());
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

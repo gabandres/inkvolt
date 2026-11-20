@@ -438,7 +438,7 @@ public static class Upright
     /// <summary>Clear when one side has at least this much more ink than the other.</summary>
     public const double ClearRatio = 1.4;
 
-    /// <summary>A run of inked rows taller than this many times the middle one is left out (a picture, a shaded box; a heading twice the body's size stays).</summary>
+    /// <summary>A run of inked rows taller than this many times the page's lines is left out (a picture, a shaded box; a heading twice the body's size stays).</summary>
     public const double MaxLineRatio = 3;
 
     /// <summary>Whether the page is upside down, and whether its lines said so clearly (not for a page with almost no text).</summary>
@@ -449,10 +449,15 @@ public static class Upright
         return (ratio < 1, above + below > 100 && (ratio >= ClearRatio || ratio <= 1 / ClearRatio));
     }
 
+    /// <summary>Fewer rows than this aren't a line of text: a rule, an underline, a speck (about 100 dpi: 4 pt).</summary>
+    public const int MinLineRows = 6;
+
     /// <summary>
     /// Ink above and below the middle band of each text line, summed over the page. A line is a run of rows with ink, its
-    /// middle band the rows at least half as inked as its fullest; a run more than <see cref="MaxLineRatio"/> times as tall
-    /// as the middle one isn't a line.
+    /// middle band the rows at least half as inked as its fullest. A run of lines set tight (no white between) is cut at the
+    /// troughs between their bands; a run shorter than <see cref="MinLineRows"/> isn't a line, nor one more than
+    /// <see cref="MaxLineRatio"/> times as tall as the page's lines (a picture, a shaded box), which are then left out and
+    /// the lines read again without them (a wide picture's rows mustn't set how faint a narrow line's ink may be).
     /// </summary>
     public static (double Above, double Below) AboveBelow(GrayImage img)
     {
@@ -464,9 +469,38 @@ public static class Upright
             for (var x = 0; x < img.Width; x++)
                 if (img.Pixels[y * img.Width + x] < ink) profile[y]++;
 
+        var (lines, tall) = Lines(profile);
+        if (tall.Count > 0)
+        {
+            // Without the pictures' rows: what is faint beside them is ink again.
+            foreach (var (start, end) in tall)
+                Array.Clear(profile, start, end - start);
+            (lines, _) = Lines(profile);
+        }
+        double above = 0, below = 0;
+        foreach (var (start, end) in lines)
+        {
+            var peak = Peak(profile, start, end);
+            var bandTop = start;
+            while (profile[bandTop] < peak * 0.5) bandTop++;
+            var bandBottom = end - 1;
+            while (profile[bandBottom] < peak * 0.5) bandBottom--;
+            for (var j = start; j < bandTop; j++) above += profile[j];
+            for (var j = bandBottom + 1; j < end; j++) below += profile[j];
+        }
+        return (above, below);
+    }
+
+    /// <summary>
+    /// The profile's lines of text, and its runs far taller than them (pictures). A run is rows at least 3% as inked as the
+    /// fullest; one holding several bands (rows at least half its fullest) is cut where they meet, a line each. The
+    /// lines' height is the lower middle of the pieces' heights: on a page of a picture and its caption, the caption's.
+    /// </summary>
+    private static (List<(int Start, int End)> Lines, List<(int Start, int End)> Tall) Lines(int[] profile)
+    {
         var max = profile.Length == 0 ? 0 : profile.Max();
         var floor = Math.Max(1, max * 0.03);
-        var runs = new List<(int Start, int End)>();
+        var pieces = new List<(int Start, int End)>();
         for (var i = 0; i < profile.Length;)
         {
             if (profile[i] < floor)
@@ -476,25 +510,55 @@ public static class Upright
             }
             var start = i;
             while (i < profile.Length && profile[i] >= floor) i++;
-            if (i - start >= 4) runs.Add((start, i)); // end exclusive
+            if (i - start < MinLineRows) continue; // a rule, an underline, a speck
+            pieces.AddRange(Split(profile, start, i));
         }
-        // A run far taller than the page's lines is a picture or a shaded box, not a line of text: its ink says nothing of
-        // which way is up (a shading darker at one end outweighed a whole page of text).
-        var heights = runs.Select(r => r.End - r.Start).Order().ToList();
-        var tallest = heights.Count == 0 ? 0 : MaxLineRatio * heights[heights.Count / 2];
-        double above = 0, below = 0;
-        foreach (var (start, end) in runs)
+        var lines = new List<(int, int)>();
+        var tall = new List<(int, int)>();
+        var heights = pieces.Select(p => p.End - p.Start).Where(h => h >= MinLineRows).Order().ToList();
+        if (heights.Count == 0) return (lines, tall);
+        var limit = MaxLineRatio * heights[(heights.Count - 1) / 2];
+        foreach (var p in pieces)
         {
-            if (end - start > tallest) continue;
-            var peak = 0;
-            for (var j = start; j < end; j++) peak = Math.Max(peak, profile[j]);
-            var bandTop = start;
-            while (profile[bandTop] < peak * 0.5) bandTop++;
-            var bandBottom = end - 1;
-            while (profile[bandBottom] < peak * 0.5) bandBottom--;
-            for (var j = start; j < bandTop; j++) above += profile[j];
-            for (var j = bandBottom + 1; j < end; j++) below += profile[j];
+            if (p.End - p.Start < MinLineRows) continue;
+            (p.End - p.Start > limit ? tall : lines).Add(p);
         }
-        return (above, below);
+        return (lines, tall);
+    }
+
+    /// <summary>A run cut between its bands (rows at least half its fullest) at the faintest row, one piece a band.</summary>
+    private static IEnumerable<(int Start, int End)> Split(int[] profile, int start, int end)
+    {
+        var half = Peak(profile, start, end) * 0.5;
+        var bands = new List<(int Start, int End)>();
+        for (var j = start; j < end;)
+        {
+            if (profile[j] < half)
+            {
+                j++;
+                continue;
+            }
+            var b = j;
+            while (j < end && profile[j] >= half) j++;
+            bands.Add((b, j));
+        }
+        var from = start;
+        for (var k = 0; k + 1 < bands.Count; k++)
+        {
+            // Where the lines meet: after the faintest row between their bands (the last, if several are as faint).
+            var cut = bands[k].End;
+            for (var j = bands[k].End; j < bands[k + 1].Start; j++)
+                if (profile[j] <= profile[cut]) cut = j;
+            yield return (from, cut + 1);
+            from = cut + 1;
+        }
+        yield return (from, end);
+    }
+
+    private static int Peak(int[] profile, int start, int end)
+    {
+        var peak = 0;
+        for (var j = start; j < end; j++) peak = Math.Max(peak, profile[j]);
+        return peak;
     }
 }

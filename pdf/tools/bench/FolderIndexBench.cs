@@ -164,10 +164,13 @@ public static class FolderIndexBench
             var indexer = new FolderIndexer(dir, basePath, new FolderIndexerOptions { WorkerExe = exe, MaxWorkers = int.TryParse(Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_WORKERS"), out var workers) ? workers : new FolderIndexerOptions().MaxWorkers });
             var peak = 0L;
             using var done = new ManualResetEventSlim();
+            var looked = false;
             var lastLog = Stopwatch.StartNew();
             indexer.Changed += () =>
             {
-                if (indexer.Status.Phase == IndexerPhase.UpToDate) done.Set();
+                // Up to date once it has looked: before its first look a folder of one file can say so too.
+                if (indexer.Status.Phase is IndexerPhase.Scanning or IndexerPhase.Indexing) looked = true;
+                if ((looked || sw.Elapsed.TotalSeconds > 10) && indexer.Status.Phase == IndexerPhase.UpToDate) done.Set();
                 if (lastLog.Elapsed.TotalSeconds > 10)
                 {
                     lastLog.Restart();
@@ -195,8 +198,9 @@ public static class FolderIndexBench
 
             // A changed file: its old text goes out, a new word comes in, through the same path a save takes.
             var target = Path.Combine(dir, "box42", "file000042.pdf");
-            var backup = File.ReadAllBytes(target);
-            for (var round = 0; round < 3; round++)
+            var backup = File.Exists(target) ? File.ReadAllBytes(target) : [];
+            if (backup.Length == 0) log("No box42 file000042.pdf to change (not an index-make corpus): skipped.");
+            for (var round = 0; round < (backup.Length > 0 ? 3 : 0); round++)
             {
                 var word = $"changedword{Environment.TickCount64}";
                 WriteChanged(target, word);
@@ -207,7 +211,7 @@ public static class FolderIndexBench
                 missed |= found == 0 || changed.Elapsed.TotalSeconds > 60;
                 Thread.Sleep(1000);
             }
-            File.WriteAllBytes(target, backup);
+            if (backup.Length > 0) File.WriteAllBytes(target, backup);
 
             // Opening again from the file, the way a restart does.
             var stopped = Stopwatch.StartNew();
@@ -327,9 +331,15 @@ public static class FolderIndexBench
     public static int Query(string indexDir, string query, int times, Action<string> log)
     {
         var basePath = Path.Combine(indexDir, "bench");
-        if (!Directory.Exists(indexDir))
+        // Opening makes an index where there is none: only one index-run left is opened.
+        if (!Directory.Exists(indexDir) || !Directory.EnumerateFiles(indexDir, "bench.*").Any(f => !f.EndsWith(".lock", StringComparison.OrdinalIgnoreCase)))
         {
             log($"No index at {indexDir}: index-run with INKVOLTPDF_BENCH_INDEX={indexDir} first.");
+            return 2;
+        }
+        if (times < 1)
+        {
+            log("Times a query is run: a whole number, 1 or more.");
             return 2;
         }
         using var index = FolderIndex.Open(basePath);

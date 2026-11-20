@@ -101,13 +101,21 @@ public sealed class FolderIndexTests : IDisposable
     [Fact]
     public void A_big_files_pages_are_shared_among_the_threads_in_chunks()
     {
-        // One PDF's 256 pages in a round: 8 chunks for the threads, not one; small files a chunk each.
+        // One PDF's 256 pages in a round: a chunk for each of the threads, not one; small files a chunk each.
         var starts = new List<int>();
-        FolderIndex.Chunks([.. Enumerable.Range(0, 256).Select(p => (0, p))], starts);
-        Assert.Equal([0, 32, 64, 96, 128, 160, 192, 224, 256], starts);
-        FolderIndex.Chunks([(0, 0), (0, 1), (1, 0), (2, 0), (2, 1), (2, 2)], starts);
+        List<(int, int)> big = [.. Enumerable.Range(0, 256).Select(p => (0, p))];
+        foreach (var threads in new[] { 1, 6, 10, 12 })
+        {
+            FolderIndex.Chunks(big, starts, threads);
+            Assert.Equal(Math.Max(threads, 256 / FolderIndex.ConfirmChunk), starts.Count - 1);
+            Assert.Equal(256, starts[^1]);
+            Assert.All(starts.Zip(starts.Skip(1)), s => Assert.InRange(s.Second - s.First, FolderIndex.ConfirmChunkMin, FolderIndex.ConfirmChunk));
+        }
+        FolderIndex.Chunks([(0, 0), (0, 1), (1, 0), (2, 0), (2, 1), (2, 2)], starts, 10);
         Assert.Equal([0, 2, 3, 6], starts);
-        FolderIndex.Chunks([], starts);
+        FolderIndex.Chunks([.. Enumerable.Range(0, 20).Select(p => (0, p))], starts, 10);
+        Assert.Equal([0, 4, 8, 12, 16, 20], starts); // 4 pages at least: a thread's work is worth handing out
+        FolderIndex.Chunks([], starts, 10);
         Assert.Equal([0], starts);
     }
 

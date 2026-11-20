@@ -11,7 +11,7 @@ public sealed record LinkInfo(string Id, int PageIndex, RectD Rect, string? Uri,
 {
     /// <summary>
     /// The boxes it covers, from its /QuadPoints (page space, a line of text each), when it has them; empty when only its
-    /// /Rect says where it is. At most one more than <see cref="Annotations.MaxQuads"/>.
+    /// /Rect says where it is. Read only by <see cref="Links.ReadForExport"/>, at most one more than <see cref="Links.MaxQuads"/>.
     /// </summary>
     public IReadOnlyList<RectD> Quads { get; init; } = [];
 
@@ -38,19 +38,41 @@ public static class Links
         return Read(doc);
     }
 
-    internal static IReadOnlyList<LinkInfo> Read(PdfDocument doc)
+    /// <summary>Most boxes of a link's /QuadPoints an export uses (a line each); one with more goes by its area.</summary>
+    public const int MaxQuads = 64;
+
+    /// <summary>Most links of a page an export reads the boxes of (and carries; see <see cref="PdfEngine.GetExportPage"/>).</summary>
+    public const int MaxPerPage = 500;
+
+    /// <summary>
+    /// The links an export carries, with their /QuadPoints' boxes (<see cref="LinkInfo.Quads"/>): at most
+    /// <see cref="MaxQuads"/> + 1 boxes a link and <see cref="MaxPerPage"/> links a page, whatever the file lists (2,000
+    /// links sharing one list of 20,000 boxes would otherwise be read box by box for each).
+    /// </summary>
+    public static IReadOnlyList<LinkInfo> ReadForExport(byte[] data, string? password)
+    {
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Link_CantRead);
+        return Read(doc, quads: true);
+    }
+
+    internal static IReadOnlyList<LinkInfo> Read(PdfDocument doc, bool quads = false)
     {
         var list = new List<LinkInfo>();
         for (var p = 0; p < doc.PageCount; p++)
         {
             var page = doc.Pages[p];
             if (PdfObj.Array(page.Elements["/Annots"]) is not { } annots) continue;
+            var onPage = 0;
             for (var i = 0; i < annots.Elements.Count; i++)
             {
                 if (PdfObj.Dict(annots.Elements[i]) is not { } a || PdfObj.NameOf(a, "/Subtype") != "/Link") continue;
                 if (PdfObj.Array(a.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) continue;
+                if (quads && ++onPage > MaxPerPage) break;
                 var (uri, target) = Target(doc, a);
-                list.Add(new LinkInfo(Annotations.IdOf(a, p, i), p, PdfObj.RectToPage(page, r), uri, target) { Quads = Annotations.QuadRectsOf(page, a) });
+                list.Add(new LinkInfo(Annotations.IdOf(a, p, i), p, PdfObj.RectToPage(page, r), uri, target)
+                {
+                    Quads = quads ? Annotations.QuadRectsOf(page, a, MaxQuads) : [],
+                });
             }
         }
         return list;
