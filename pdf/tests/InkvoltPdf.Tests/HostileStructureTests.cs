@@ -13,7 +13,7 @@ public class HostileStructureTests
 {
     /// <summary>Work that must end, not hang: the limit is far past what it takes (20 s was overrun on a loaded PC), and longer on CI.</summary>
     private static async Task<T> Within<T>(Func<T> work, int seconds = 60) =>
-        await Task.Run(work).WaitAsync(Timing.Limit(TimeSpan.FromSeconds(seconds)));
+        await Timing.Within(work, TimeSpan.FromSeconds(seconds)); // a thread of its own: a starved pool once kept it from starting
 
     private const string Widget = "/Type /Annot /Subtype /Widget /F 4 /P 3 0 R";
 

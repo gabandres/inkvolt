@@ -286,9 +286,11 @@ public class DamagedFileTests
         var sb = new StringBuilder("%PDF-1.7\n");
         for (var i = 1; i <= 300_000; i++) sb.Append($"{i} 0 obj << /Length 999999 /Type /strea >> stream\n");
         var data = Bytes(sb.ToString());
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        // This thread's processor time (1 s alone): the full run's load stretches the wall's past any fair limit.
+        var clock = new ThreadClock.Stopwatch();
+        clock.Start();
         PdfRepair.Rebuild(data);
-        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms"); // quadratic, it would take hours
+        Assert.True(clock.Elapsed < Timing.Limit(TimeSpan.FromSeconds(30)), $"{clock.Elapsed}"); // quadratic, it would take hours
     }
 
     /// <summary>The file cut off before its cross-reference table, with <paramref name="objects"/> in place of the usual ones.</summary>
@@ -331,9 +333,10 @@ public class DamagedFileTests
         for (var i = 1; i <= 300_000; i++) sb.Append($"{i} 0 obj << /A 1 >> endstream\nendobj\n");
         sb.Append("300001 0 obj << /Type /Catalog /Pages 300002 0 R >> endobj\n300002 0 obj << /Type /Pages /Kids [] /Count 0 >> endobj\n");
         var data = Bytes(sb.ToString());
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var clock = new ThreadClock.Stopwatch(); // this thread's processor time: the PC's load stretches the wall's
+        clock.Start();
         Assert.NotNull(PdfRepair.Rebuild(data));
-        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms");
+        Assert.True(clock.Elapsed < Timing.Limit(TimeSpan.FromSeconds(30)), $"{clock.Elapsed}");
     }
 
     [Fact]
@@ -344,9 +347,10 @@ public class DamagedFileTests
         var sb = new StringBuilder("%PDF-1.7\n");
         for (var i = 1; i <= 300_000; i++) sb.Append($"{i} 0 obj << /A (\n");
         var data = Bytes(sb.ToString());
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var clock = new ThreadClock.Stopwatch(); // this thread's processor time: the PC's load stretches the wall's
+        clock.Start();
         PdfRepair.Rebuild(data);
-        Assert.True(clock.ElapsedMilliseconds < 30_000, $"{clock.ElapsedMilliseconds} ms");
+        Assert.True(clock.Elapsed < Timing.Limit(TimeSpan.FromSeconds(30)), $"{clock.Elapsed}");
     }
 
     [Fact]
@@ -512,7 +516,8 @@ public sealed class DamagedFileTimingTests
         using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true)) z.Write(content);
         var data = (byte[])[.. Encoding.Latin1.GetBytes($"%PDF-1.7\n3 0 obj\n<< /Type /ObjStm /N 2147483647 /First {pairs * 4} /Filter /FlateDecode /Length {packed.Length} >>\nstream\n"),
             .. packed.ToArray(), .. Encoding.Latin1.GetBytes("\nendstream\nendobj\n2 0 obj\n<< /Type /Pages /Kids [] /Count 0 >>\nendobj\n")];
-        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var clock = new ThreadClock.Stopwatch(); // this thread's processor time
+        clock.Start();
         var allocated = GC.GetAllocatedBytesForCurrentThread();
         PdfRepair.Rebuild(data);
         allocated = GC.GetAllocatedBytesForCurrentThread() - allocated;

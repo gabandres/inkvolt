@@ -435,9 +435,12 @@ public class TranslationLooksTests
             1 => string.Concat(Enumerable.Repeat("<b>x</b> ", 200_000)),
             _ => string.Concat(Enumerable.Repeat("<b", 400_000)) + string.Concat(Enumerable.Repeat("</sub>", 100_000)),
         };
-        var clock = Stopwatch.StartNew();
+        // This thread's processor time, not the wall's: under the full run's load a linear read took 5 s of the wall
+        // (0.2 s alone). Quadratic, it would take hours of processor time.
+        var clock = new ThreadClock.Stopwatch();
+        clock.Start();
         var (text, spans) = TranslationMarkup.Read(reply, Text, Looks);
-        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(2), $"{clock.Elapsed}");
+        Assert.True(clock.Elapsed < Timing.Limit(TimeSpan.FromSeconds(2)), $"{clock.Elapsed}");
         Assert.Empty(spans);
         Assert.DoesNotContain("<", text, StringComparison.Ordinal);
     }

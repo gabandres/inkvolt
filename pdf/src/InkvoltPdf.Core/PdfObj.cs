@@ -147,7 +147,7 @@ internal static class PdfObj
     private static PdfDocument Parse(byte[] data, string? password, PdfDocumentOpenMode mode, int maxBytes) =>
         BoundedFilters.Within(maxBytes, maxBytes, () =>
         {
-            var stream = new PdfShapeGuard.GuardedFile(data);
+            var stream = new PdfShapeGuard.GuardedFile(data) { Password = password };
             return string.IsNullOrEmpty(password) ? PdfReader.Open(stream, mode) : PdfReader.Open(stream, password, mode);
         }, parsing: true);
 
