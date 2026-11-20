@@ -3664,4 +3664,7 @@ Empezar de nuevo</value>
   <data name="Printer_SourceTwain32Scanner" xml:space="preserve">
     <value>Aparece en la lista para que no falte: Inkvolt Print escanea con él cuando se instale un controlador que pueda cargar.</value>
   </data>
+  <data name="Scan_PageProgress" xml:space="preserve">
+    <value>Escaneando la página {0}… {1} %</value>
+  </data>
 </root>

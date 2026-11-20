@@ -26,6 +26,14 @@ public interface IWiaDevice
     /// gave no image (some say "no more pages" that way).
     /// </summary>
     byte[]? TransferPage(WiaScanSettings settings);
+
+    /// <summary>
+    /// <see cref="TransferPage(WiaScanSettings)"/> through WIA 2.0's own transfer (<see cref="WiaScannerInfo.CancelsPage"/>): the
+    /// page's progress (0-100) goes to <paramref name="progress"/> as the driver reports it, and <paramref name="cancel"/> stops the
+    /// page in the driver (<see cref="OperationCanceledException"/>), so the scanner is free at once. A driver reached through WIA
+    /// 1's scripting layer can do neither: its page runs to its end.
+    /// </summary>
+    byte[]? TransferPage(WiaScanSettings settings, Action<int>? progress, CancellationToken cancel) => TransferPage(settings);
 }
 
 /// <summary>
@@ -100,6 +108,12 @@ public sealed class WiaScanner : IScanner
     public WiaScannerInfo Info { get; }
     public ScannerCapabilities Capabilities { get; }
 
+    /// <summary>
+    /// Told each page's progress as a WIA 2.0 driver reports it (<see cref="WiaScannerInfo.CancelsPage"/>): the page's number in the
+    /// job (from 1) and its percent. Called on the scanner's thread; a WIA 1 driver never calls it.
+    /// </summary>
+    public Action<int, int>? Progress { get; set; }
+
     /// <summary>The longest one page may take (a slow scanner at its highest resolution); past it the driver is taken as hung.</summary>
     public TimeSpan PageTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -170,7 +184,9 @@ public sealed class WiaScanner : IScanner
                 if (first) throw new ScanException(WiaErrors.Message(WiaErrors.PaperEmpty, true)); // load the pages first (some drivers would scan the glass)
                 return (null, true);
             }
-            jpeg = await _host.UseAsync(d => d.TransferPage(settings), limit.Token).ConfigureAwait(false);
+            var progress = Progress is { } report ? percent => report(page + 1, Math.Clamp(percent, 0, 100)) : (Action<int>?)null;
+            var token = limit.Token;
+            jpeg = await _host.UseAsync(d => d.TransferPage(settings, progress, token), token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -261,10 +277,11 @@ public static class WiaCapabilities
         if (colors.Count == 0) colors.Add("RGB24"); // black and white only: asked for color, the driver gives what it has
         if (info.DataTypes.Contains(WiaIds.DataThreshold)) colors.Add("BlackAndWhite1");
         var resolutions = Resolutions(info.Resolutions);
-        InputCaps Input(int w, int h) => new(0, w, 0, h, colors, ["image/jpeg"], resolutions, []);
+        InputCaps Input(int w, int h, IReadOnlyList<int> dpi) => new(0, w, 0, h, colors, ["image/jpeg"], dpi, []);
         return new ScannerCapabilities("WIA", name, null,
-            hasFlat ? Input(bedW, bedH) : null,
-            hasFeed ? Input(Size(info.FeederWidth, bedW), Size(info.FeederHeight, hasFlat ? Math.Max(bedH, LegalHeight) : LegalHeight)) : null,
+            hasFlat ? Input(bedW, bedH, resolutions) : null,
+            hasFeed ? Input(Size(info.FeederWidth, bedW), Size(info.FeederHeight, hasFlat ? Math.Max(bedH, LegalHeight) : LegalHeight),
+                info.FeederResolutions is { } own ? Resolutions(own) : resolutions) : null,
             hasFeed && (handling & WiaIds.CapDuplex) != 0);
     }
 
@@ -311,7 +328,7 @@ public static class WiaCapabilities
         int? pages = !feeder ? null : source == ScanSource.AdfDuplex ? 0 : 1;
         var (dataType, depth) = bw ? (WiaIds.DataThreshold, 1) : grey ? (WiaIds.DataGrayscale, 8) : (WiaIds.DataColor, 24);
         return new WiaScanSettings(handling, feeder, dataType, depth, res, Pixels(width, res), Pixels(height, res), pages,
-            Offset(x, res), Offset(y, res), info.PdfOnly);
+            Offset(x, res), Offset(y, res), info.PdfOnlyFor(feeder));
     }
 
     private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, Offset(threeHundredths, dpi));

@@ -4499,4 +4499,8 @@ Start over</value>
     <value>Listed so it isn't missing: Inkvolt Print scans with it once a driver it can load is installed.</value>
     <comment>status card note</comment>
   </data>
+  <data name="Scan_PageProgress" xml:space="preserve">
+    <value>Scanning page {0}… {1}%</value>
+    <comment>{0} = page number, {1} = percent of that page done (from the scanner's driver)</comment>
+  </data>
 </root>

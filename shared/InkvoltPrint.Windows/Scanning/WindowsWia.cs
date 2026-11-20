@@ -212,7 +212,7 @@ public sealed class WindowsWia : IWiaSystem
     private sealed class Slot(string id, int number) : IWiaDeviceHost
     {
         private readonly WorkThread _thread = new($"Inkvolt WIA {number}", true);
-        private ComDevice? _device;
+        private IWiaDevice? _device;
 
         public async Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct)
         {
@@ -230,13 +230,14 @@ public sealed class WindowsWia : IWiaSystem
         {
             try
             {
-                _device ??= Wrap(() => Connect(id));
+                // A WIA 2.0 driver through WIA 2.0's own interface (its items, progress, a page stopped in the driver), else WIA 1.0's.
+                _device ??= Wrap(() => (IWiaDevice?)Wia2Device.TryConnect(id) ?? Connect(id));
                 return Wrap(() => work(_device));
             }
             catch (WiaException ex) when (WiaErrors.NeedsReconnect(ex.Code))
             {
                 // Connect again next time: the scanner was off or unplugged, its driver or the WIA service restarted (RPC errors).
-                _device?.Dispose();
+                (_device as IDisposable)?.Dispose();
                 _device = null;
                 throw;
             }

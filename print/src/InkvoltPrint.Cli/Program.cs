@@ -176,7 +176,7 @@ switch (cmd)
                 var c = w.Capabilities;
                 Console.WriteLine($"  sources: {string.Join(", ", c.Sources)}; colors: {string.Join(", ", (c.Platen ?? c.Adf)!.ColorModes)}; " +
                                   $"resolutions: {string.Join(", ", (c.Platen ?? c.Adf)!.Resolutions)}; formats: {string.Join(", ", w.Info.Formats)}");
-                Console.WriteLine($"  handling=0x{w.Info.Handling ?? 0:X} glass={w.Info.BedWidth}x{w.Info.BedHeight} feeder={w.Info.FeederWidth}x{w.Info.FeederHeight} (1/1000 in)");
+                Console.WriteLine($"  handling=0x{w.Info.Handling ?? 0:X} glass={w.Info.BedWidth}x{w.Info.BedHeight} feeder={w.Info.FeederWidth}x{w.Info.FeederHeight} (1/1000 in){(w.Info.CancelsPage ? $"; WIA 2.0 items, feeder resolutions: {string.Join(", ", c.Adf?.Resolutions ?? [])}" : "")}");
             }
             catch (InkvoltPrint.Core.Wia.WiaException ex)
             {

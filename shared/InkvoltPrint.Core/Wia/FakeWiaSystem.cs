@@ -161,4 +161,31 @@ public sealed class FakeWiaScanner(WiaDeviceInfo device, WiaScannerInfo info, Fu
 
     /// <summary>A PDF-only driver (<see cref="WiaScannerInfo.PdfOnly"/>) that sends a feeder's whole run as one PDF in the first transfer.</summary>
     public bool PdfWholeRun { get; set; }
+
+    /// <summary>A WIA 2.0 driver's page (<see cref="WiaScannerInfo.CancelsPage"/>) takes this long, in four steps, each reported as progress.</summary>
+    public TimeSpan SlowPage { get; set; }
+
+    /// <summary>Pages stopped in the driver by a cancel while under way (WIA 2.0 only: a WIA 1.0 page runs to its end).</summary>
+    public int StoppedPages { get; private set; }
+
+    /// <summary>
+    /// WIA 2.0's transfer when the driver is one (<see cref="WiaScannerInfo.CancelsPage"/>): 0, 25, 50, 75 and 100% reported over
+    /// <see cref="SlowPage"/>, and a cancel stops the page at once; else as WIA 1.0's, neither.
+    /// </summary>
+    public byte[]? TransferPage(WiaScanSettings settings, Action<int>? progress, CancellationToken cancel)
+    {
+        if (!Info.CancelsPage || settings.Feeder && _left <= 0) return TransferPage(settings); // no page coming: nothing to report
+        for (var step = 0; step < 4; step++)
+        {
+            progress?.Invoke(step * 25);
+            if (cancel.WaitHandle.WaitOne(SlowPage / 4) || cancel.IsCancellationRequested)
+            {
+                StoppedPages++;
+                throw new OperationCanceledException(cancel);
+            }
+        }
+        var page = TransferPage(settings);
+        if (page is not null) progress?.Invoke(100);
+        return page;
+    }
 }

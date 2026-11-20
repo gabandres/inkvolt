@@ -118,6 +118,11 @@ public sealed record WiaValues(int Current, IReadOnlyList<int> List, int? Min = 
 /// <param name="DataTypes">Data types the item offers (<see cref="WiaIds.DataColor"/>, <see cref="WiaIds.DataGrayscale"/>…); empty when not said.</param>
 /// <param name="Formats">Transfer formats (GUID strings) the item offers.</param>
 /// <param name="Buttons">The scan-button events the driver lists (<see cref="WiaIds.ScanButtonsIn"/>); null or empty: none.</param>
+/// <param name="FeederResolutions">The feeder's own resolutions when its driver defines them apart from the glass's (a WIA 2.0
+/// driver's feeder item: <see cref="Wia2Items"/>); null: <paramref name="Resolutions"/> for both.</param>
+/// <param name="FeederFormats">The feeder's own transfer formats, likewise; null: <paramref name="Formats"/>.</param>
+/// <param name="CancelsPage">Reached through WIA 2.0's own interface: a page under way can be stopped in the driver and reports its
+/// progress (<see cref="IWiaDevice.TransferPage(WiaScanSettings, Action{int}?, CancellationToken)"/>).</param>
 public sealed record WiaScannerInfo(
     int? Handling,
     int? BedWidth, int? BedHeight,
@@ -125,14 +130,22 @@ public sealed record WiaScannerInfo(
     WiaValues Resolutions,
     IReadOnlyList<int> DataTypes,
     IReadOnlyList<string> Formats,
-    IReadOnlyList<string>? Buttons = null)
+    IReadOnlyList<string>? Buttons = null,
+    WiaValues? FeederResolutions = null,
+    IReadOnlyList<string>? FeederFormats = null,
+    bool CancelsPage = false)
 {
     /// <summary>
     /// The driver offers PDF and no picture format (print/ROADMAP.md 1.3, as some eSCL feeders do): pages are asked as PDF and
     /// taken out of it as JPEG (<see cref="Escl.ScannerPdf"/>). An empty list says nothing, so a page is asked as a picture.
     /// </summary>
-    public bool PdfOnly => Formats.Any(f => WiaIds.SameFormat(f, WiaIds.FormatPdf))
-        && !Formats.Any(f => WiaIds.PictureFormats.Any(p => WiaIds.SameFormat(f, p)));
+    public bool PdfOnly => OnlyPdf(Formats);
+
+    /// <summary><see cref="PdfOnly"/> for the source a job scans from: the feeder's own formats when its driver lists them apart.</summary>
+    public bool PdfOnlyFor(bool feeder) => OnlyPdf(feeder && FeederFormats is { Count: > 0 } own ? own : Formats);
+
+    private static bool OnlyPdf(IReadOnlyList<string> formats) => formats.Any(f => WiaIds.SameFormat(f, WiaIds.FormatPdf))
+        && !formats.Any(f => WiaIds.PictureFormats.Any(p => WiaIds.SameFormat(f, p)));
 }
 
 /// <summary>What one scan sets on the device and item before transferring pages.</summary>
