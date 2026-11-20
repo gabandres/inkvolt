@@ -18,6 +18,11 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - Comprobar eliminación también encuentra recuadros negros dibujados dentro de la imagen de una página (por programas que convierten las páginas en imágenes, o en un escaneo) con texto al lado que puede revelar el ancho oculto.
 - La comprobación de accesibilidad compara los anchos que un PDF da a sus caracteres con los de la propia fuente en todo tipo de fuente incrustada, no solo TrueType: también las fuentes CFF y Type 1 (la mayoría de los PDF de InDesign, LaTeX y Acrobat).
 - En lote, un archivo pequeño que al descomprimirse ocupa mucho más que su tamaño (uno de 200 KB que guarda 200 MB) se procesa solo, para que ya no les quite memoria a los archivos que se procesan a la vez.
+- Editar texto e imágenes reacomoda como un solo párrafo uno que mezcla tamaños o colores (una palabra más grande, una palabra en rojo, un subíndice): cada parte conserva su tamaño, su color y su altura, y un color queda exactamente como lo tenía el PDF.
+- Los pares de letras nuevos que escribes en un texto con interletraje reciben el interletraje propio de la fuente ("To", "AV"), así que las líneas editadas quedan tan ajustadas como las de alrededor.
+- Una imagen pequeña en la línea de un párrafo, entre sus palabras, ahora se mueve con sus palabras al editar el párrafo. En el editor aparece como ￼; borra la marca para quitar la imagen.
+- Recorta una imagen: selecciónala, elige Recortar imagen (o pulsa C) y arrastra sus controladores hacia dentro; arrástralos de nuevo hacia fuera para mostrar más. Sigue recortada al moverla o cambiar su tamaño, y Deshacer quita el recorte.
+- Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.
