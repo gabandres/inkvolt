@@ -119,6 +119,50 @@ internal static class Bidi
     /// <summary>Whether the text starts (first strong character) right-to-left.</summary>
     public static bool IsRtl(string text) => Levels(text).Paragraph == 1;
 
+    /// <summary>
+    /// A line's characters as drawn left to right (visual order, as Word and a translated copy write right-to-left text) put
+    /// in reading order: rule L2's reversals, which undo themselves, with the line's direction that of most of its letters
+    /// (a right-to-left line's English word at its left end doesn't make it left to right). Character by character, as MuPDF
+    /// and pdf.js read it: a glyph standing for several characters holds them backwards (<see cref="TextShaper.Shape(string, TrueTypeFont?, bool)"/>).
+    /// </summary>
+    public static string ToReadingOrder(string text)
+    {
+        var glyphs = TrueTypeFont.CodePoints(text).Select(char.ConvertFromUtf32).ToList();
+        int rtl = 0, ltr = 0;
+        foreach (var cp in TrueTypeFont.CodePoints(text))
+            switch (Classify(cp))
+            {
+                case Cls.R or Cls.AL: rtl++; break;
+                case Cls.L: ltr++; break;
+            }
+        if (rtl == 0) return text;
+        var (levels, _) = Levels(text, rtl > ltr ? 1 : 0);
+        var units = new List<(string Text, byte Level)>(glyphs.Count);
+        var at = 0;
+        foreach (var g in glyphs)
+        {
+            if (g.Length > 0) units.Add((g, levels[at]));
+            at += g.Length;
+        }
+        if (units.Count == 0) return text;
+        var max = units.Max(u => u.Level);
+        var minOdd = units.Where(u => u.Level % 2 == 1).Select(u => (int)u.Level).DefaultIfEmpty(int.MaxValue).Min();
+        for (var level = (int)max; level >= minOdd; level--)
+            for (var i = 0; i < units.Count;)
+            {
+                if (units[i].Level < level)
+                {
+                    i++;
+                    continue;
+                }
+                var j = i;
+                while (j < units.Count && units[j].Level >= level) j++;
+                units.Reverse(i, j - i);
+                i = j;
+            }
+        return string.Concat(units.Select(u => u.Text));
+    }
+
     internal static Cls Classify(int cp)
     {
         switch (cp)

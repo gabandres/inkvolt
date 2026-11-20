@@ -700,15 +700,19 @@ public static partial class TranslationText
 
     private const string Firm = " Your last answer couldn't be used. Give only the translation of this one paragraph, as one paragraph.";
 
-    private const string Tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <span> (another font or color), <sub> (subscript) " +
-        "and <sup> (superscript): put each pair of tags around the words of your translation that translate the words it marks, and add no other tags or markup.";
+    private const string Tagged = " The text marks some words with the tags {0}: put each pair of tags around the words of your translation that " +
+        "translate the words it marks, and add no other tags or markup.";
 
-    /// <summary>The request for a paragraph or a piece of one. Nothing else about the document goes with it.</summary>
+    /// <summary>
+    /// The request for a paragraph or a piece of one. Nothing else about the document goes with it. A marked text's request
+    /// names the tags it has, and only those: a model told of a &lt;font&gt; it wasn't sent wrote one with a color in it.
+    /// </summary>
     /// <param name="firm">It asks again, more firmly, after an answer that couldn't be used.</param>
     /// <param name="marked">The text carries its paragraph's looks as markup (<see cref="TranslationJob.Marked"/>).</param>
     public static IReadOnlyList<AiMessage> Request(string text, string language, bool firm = false, bool marked = false) =>
         [AiMessage.System(string.Format(global::System.Globalization.CultureInfo.InvariantCulture, System, Sanitized(language))
-            + (marked ? Tagged : "") + (firm ? Firm : "")), AiMessage.User(text)];
+            + (marked && TranslationMarkup.TagsNamed(text) is { Length: > 0 } tags ? string.Format(global::System.Globalization.CultureInfo.InvariantCulture, Tagged, tags) : "")
+            + (firm ? Firm : "")), AiMessage.User(text)];
 
     /// <summary>The language as typed, one short line: it goes into a prompt.</summary>
     private static string Sanitized(string language)
@@ -791,7 +795,7 @@ public static partial class TranslationText
         text = Characters(text);
         // Text sent with markup (TranslationMarkup) keeps its tags, read when the copy is written; any other tag goes.
         if (marked) text = TranslationMarkup.WithoutOtherTags(text, source);
-        else if (!source.Contains('<')) text = Tags().Replace(text, "");
+        else if (!source.Contains('<')) text = Tags().Replace(text, m => TranslationMarkup.Unwrapped(text, m));
         if (!own.Contains('&')) text = global::System.Net.WebUtility.HtmlDecode(text);
         if (!own.Contains("**", StringComparison.Ordinal)) text = text.Replace("**", "", StringComparison.Ordinal);
         if (!own.Contains("__", StringComparison.Ordinal)) text = text.Replace("__", "", StringComparison.Ordinal);

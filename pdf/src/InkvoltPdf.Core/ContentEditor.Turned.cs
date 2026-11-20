@@ -135,6 +135,7 @@ public static partial class ContentEditor
         {
             Lines = [.. layout.Lines.Select(l => (FromFrame(l.Origin, p.Angle), l.Parts))],
             Check = check,
+            Underlined = [], // turned text's underlines aren't looked for
         };
     }
 

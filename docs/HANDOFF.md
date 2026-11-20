@@ -1,3 +1,18 @@
+# 2026-11-20: Translate's leftovers closed (Windows; branch worktree-agent-a11e03ded4fac60e7, not merged)
+
+Six commits and a review-fix commit, `pdf/ROADMAP.md` 3.1 has each: plain underlines as a look (`<u>`, the rule redrawn
+under the translation); looks in right-to-left text; up to three other looks a paragraph (`<span>`, `<font>`, `<mark>`);
+scripts longer than 12 characters; pdf.js reads a copy (`TranslationPdfJsTests`, opt-in); a real model in five languages.
+**Real model run** (Qwen3 4B Instruct 2507 Q4_0 on our own llama-server, port 8123, never the knowledge base's 8091): NIST
+p. 1, attn-v7 p. 3, fw9 p. 1 into Spanish, French, German, Arabic, Japanese, 30-155 s a page; every answer's words in every
+copy; tags kept whole in 11/11/12/5/6 of 16 marked texts (es/fr/de/ar/ja). Fixed from it: the prompt names only the tags a
+text has (a model told of `<font>` wrote `<font color=…>`), `<bold>`/`<strong>`/`<em>` read as ours, words a model put in
+angle brackets kept, a ligature's letters in a right-to-left run drawn left to right read in order, and (after review)
+two Arabic values on NIST p. 1 MuPDF read backwards: Calibri's Arabic lowers joined letters and MuPDF reads such lines
+backwards, so right-to-left lines take the closest font whose letters stay on the line (Segoe UI there). Review's 10
+findings fixed. pdf.js reads right-to-left lines without their spaces (written left to right for it, MuPDF read figures
+and brackets backwards); a known limit. For a person: a translated Arabic and Japanese copy on screen and in Acrobat; Make
+Text Editable on an Arabic scan (the editor now reads right-to-left text drawn left to right in reading order).
 # 2026-11-19: concluding the roadmaps on Windows (owner: "do all for Windows"; Mac halves wait for a new Mac)
 
 **Merged and pushed** (each reviewed with `/code-review` high, all findings fixed, `tools/test.ps1` green in its worktree):
@@ -377,8 +392,8 @@ expressions the Mac compiles (split them), and its runner is slow (heavy tests s
    printer settings when printing, the Snapshot tool. UX: the renames proposed in `mac/docs/UX-REVIEW.md` (owner decides).
 
 **Inkvolt PDF for Windows.**
-1. Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), rows drawn by one operator first. Run a real model (llama.cpp,
-   `Z:\tools\llama.cpp\models`, on a port other than the knowledge base's) before trusting Translate again.
+1. ~~Translate's "Still wrong" list (`pdf/ROADMAP.md` 3.1), and a real model~~: done 2026-11-20 (top of this file); left: the
+   model's own faults.
 2. 2.1 and 2.4: done 2026-11-04 but for a standard Symbol/ZapfDingbats font that isn't embedded (still blocks a
    paragraph) and the Acrobat and PAC checks (tools not installed). Still for a person: a real scanner's pages through
    Scan with OCR, then Review Suspect Words.

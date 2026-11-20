@@ -120,55 +120,8 @@ public class OcrLayerSearchTests
 
     // ---- pdf.js ----
 
-    private static string? PdfJsTool()
-    {
-        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, "tools", "pdfjs-check", "index.mjs"))) return Path.Combine(dir.FullName, "tools", "pdfjs-check");
-        return null;
-    }
-
-    private static string? OnPath(string name)
-    {
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-            foreach (var ext in new[] { ".cmd", ".exe", "" }) // npm is also a shell script here, which can't be started
-                if (Path.Combine(dir.Trim('"'), name + ext) is var path && File.Exists(path)) return path;
-        return null;
-    }
-
-    private static string Run(string exe, string args, string workDir)
-    {
-        var psi = new ProcessStartInfo(exe, args)
-        {
-            WorkingDirectory = workDir, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
-            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
-        };
-        using var p = Process.Start(psi)!;
-        var stdout = p.StandardOutput.ReadToEndAsync();
-        var stderr = p.StandardError.ReadToEndAsync();
-        p.WaitForExit();
-        if (p.ExitCode != 0) throw new InvalidOperationException($"{Path.GetFileName(exe)} {args}: exit {p.ExitCode}\n{stderr.Result}");
-        return stdout.Result;
-    }
-
     /// <summary>The page's text as pdf.js reads it, or null when the check is off (no INKVOLTPDF_PDFJS, no Node).</summary>
-    private static string? PdfJsText(byte[] pdf)
-    {
-        if (Environment.GetEnvironmentVariable("INKVOLTPDF_PDFJS") is not { Length: > 0 } || OnPath("node") is not { } node || OnPath("npm") is not { } npm) return null;
-        var tool = PdfJsTool();
-        Assert.NotNull(tool);
-        if (!Directory.Exists(Path.Combine(tool, "node_modules"))) Run(npm, "ci --no-audit --no-fund", tool);
-        var file = Path.Combine(Path.GetTempPath(), $"inkvolt-ocr-layer-{Guid.NewGuid():N}.pdf");
-        File.WriteAllBytes(file, pdf);
-        try
-        {
-            using var doc = JsonDocument.Parse(Run(node, $"index.mjs \"{file}\" 1 1", tool));
-            return doc.RootElement.GetProperty("pages")[0].GetProperty("text").GetString() ?? "";
-        }
-        finally
-        {
-            File.Delete(file);
-        }
-    }
+    private static string? PdfJsText(byte[] pdf) => PdfJs.Ready().Node is { } node ? PdfJs.Text(node, pdf, 0) : null;
 
     [Fact]
     public void PdfJsFindsEveryPlantedWord()

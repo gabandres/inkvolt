@@ -6,8 +6,16 @@ using PdfSharp.Pdf;
 namespace InkvoltPdf.Core;
 
 /// <summary>A glyph placed on a line: origin (offsets applied) in ems from the line's start, the text it stands for, and
-/// whether it belongs to a right-to-left run (odd bidi level).</summary>
-internal readonly record struct PlacedGlyph(TrueTypeFont Font, int Glyph, double X, double Y, string Text, bool Rtl = false);
+/// whether it belongs to a right-to-left run (odd bidi level); a styled line's glyph also its size against the line's
+/// (<paramref name="Scale"/>) and its color (null: the text's own).</summary>
+internal readonly record struct PlacedGlyph(TrueTypeFont Font, int Glyph, double X, double Y, string Text, bool Rtl = false, double Scale = 1, int? Color = null);
+
+/// <summary>
+/// How a stretch of a styled line is drawn (<see cref="TextShaper.Shape(string, TrueTypeFont?, IReadOnlyList{GlyphStyle}, int[])"/>): the
+/// font it asks for (null: the line's), its size against the line's, how far its baseline rises (ems of the line's
+/// size, down negative), its color (null: the text's own).
+/// </summary>
+internal readonly record struct GlyphStyle(TrueTypeFont? Font, double Scale = 1, double Rise = 0, int? Color = null);
 
 /// <summary>A shaped line: glyphs in the order they are written to the content stream (logical order), and the advance width in ems.</summary>
 internal sealed class ShapedLine(string text, List<PlacedGlyph> glyphs, double width, bool rtl, bool mixed = false)
@@ -19,6 +27,8 @@ internal sealed class ShapedLine(string text, List<PlacedGlyph> glyphs, double w
     public double Width { get; } = width;
     /// <summary>The paragraph direction is right-to-left (first strong character).</summary>
     public bool Rtl { get; } = rtl;
+    /// <summary>A styled line's runs left to right: the style each is in (its index) and where it starts and ends, in ems from the line's start.</summary>
+    public IReadOnlyList<(int Style, double Start, double End)> Runs { get; init; } = [];
 }
 
 /// <summary>
@@ -34,30 +44,43 @@ internal static class TextShaper
     /// <param name="visualOrder">Write the glyphs left to right (visual order) instead of in logical order. MuPDF turns
     /// right-to-left runs written that way back into logical order itself; it is the sturdier choice for stretched
     /// (Tz) text, where MuPDF would see gaps inside a right-to-left word written last glyph first.</param>
-    public static ShapedLine Shape(string text, TrueTypeFont? primary, bool visualOrder = false)
+    public static ShapedLine Shape(string text, TrueTypeFont? primary, bool visualOrder = false) => Shape(text, primary, null, null, visualOrder);
+
+    /// <summary>
+    /// A line whose stretches are drawn in styles of their own (<paramref name="styles"/>; <paramref name="styleAt"/> gives
+    /// each UTF-16 unit's): its runs are split where the style changes too, each shaped in its style's font (characters it
+    /// lacks from the fallbacks), at its size and rise, in its color, and the line's bidi order is kept across them, so a
+    /// bold or red word inside right-to-left text sits where it reads.
+    /// </summary>
+    public static ShapedLine Shape(string text, TrueTypeFont? primary, IReadOnlyList<GlyphStyle>? styles, int[]? styleAt, bool visualOrder = false)
     {
         if (text.Length == 0) return new ShapedLine(text, [], 0, false);
         var (levels, para) = Bidi.Levels(text);
+        int StyleOf(int i) => styles is null || styleAt is null || i >= styleAt.Length || styleAt[i] < 0 || styleAt[i] >= styles.Count ? -1 : styleAt[i];
 
-        // Itemize: maximal runs of one font at one level.
-        var runs = new List<(int Start, int Length, int Level, TrueTypeFont Font)>();
+        // Itemize: maximal runs of one font at one level, in one style.
+        var runs = new List<(int Start, int Length, int Level, TrueTypeFont Font, int Style)>();
         TrueTypeFont? cur = null;
-        int runStart = 0, runLevel = -1;
+        int runStart = 0, runLevel = -1, runStyle = -1;
         for (var i = 0; i < text.Length;)
         {
             var len = char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]) ? 2 : 1;
             var cp = len == 2 ? char.ConvertToUtf32(text[i], text[i + 1]) : text[i];
-            var font = PickFont(cp, cur, primary) ?? throw new InvalidOperationException(PdfStrings.Font_NoneForText);
-            if (cur is null || font != cur || levels[i] != runLevel)
+            var style = StyleOf(i);
+            // A new style starts afresh: its spaces and punctuation in its own font, not the one before it.
+            var font = PickFont(cp, style == runStyle ? cur : null, style >= 0 ? styles![style].Font ?? primary : primary) ?? throw new InvalidOperationException(PdfStrings.Font_NoneForText);
+            if (cur is null || font != cur || levels[i] != runLevel || style != runStyle)
             {
-                if (cur is not null && i > runStart) runs.Add((runStart, i - runStart, runLevel, cur));
+                if (cur is not null && i > runStart) runs.Add((runStart, i - runStart, runLevel, cur, runStyle));
                 runStart = i;
                 cur = font;
                 runLevel = levels[i];
+                runStyle = style;
             }
             i += len;
         }
-        runs.Add((runStart, text.Length - runStart, runLevel, cur!));
+        runs.Add((runStart, text.Length - runStart, runLevel, cur!, runStyle));
+        var placedRuns = new List<(int Style, double Start, double End)>(runs.Count);
 
         // L2 on runs: reverse every maximal sequence at or above each level, from the highest down to the lowest odd one.
         var order = Enumerable.Range(0, runs.Count).ToList();
@@ -90,6 +113,10 @@ internal static class TextShaper
             var glyphs = byRun[runIndex] = [];
             var rtl = r.Level % 2 == 1;
             var upem = r.Font.UnitsPerEm;
+            var look = r.Style >= 0 ? styles![r.Style] : new GlyphStyle(null);
+            var scale = look.Scale > 0 && double.IsFinite(look.Scale) ? look.Scale : 1;
+            var rise = double.IsFinite(look.Rise) ? look.Rise : 0;
+            var runFrom = pen;
             using var buffer = new HarfBuzzSharp.Buffer();
             buffer.AddUtf16(text, r.Start, r.Length);
             buffer.Direction = rtl ? HarfBuzzSharp.Direction.RightToLeft : HarfBuzzSharp.Direction.LeftToRight;
@@ -102,9 +129,10 @@ internal static class TextShaper
             var placed = new List<(int Glyph, double X, double Y, int Cluster)>(infos.Length);
             for (var g = 0; g < infos.Length; g++)
             {
-                placed.Add(((int)infos[g].Codepoint, pen + positions[g].XOffset / upem, positions[g].YOffset / upem, (int)infos[g].Cluster));
-                pen += positions[g].XAdvance / upem;
+                placed.Add(((int)infos[g].Codepoint, pen + positions[g].XOffset * scale / upem, positions[g].YOffset * scale / upem + rise, (int)infos[g].Cluster));
+                pen += positions[g].XAdvance * scale / upem;
             }
+            placedRuns.Add((r.Style, runFrom, pen));
 
             // Logical order (what copy/search should read): right-to-left runs are written last glyph first.
             if (rtl) placed.Reverse();
@@ -126,16 +154,27 @@ internal static class TextShaper
                 var parts = texts[p.Cluster];
                 var n = count[p.Cluster];
                 var t = k < n - 1 ? (k < parts.Count ? parts[k] : "") : string.Concat(parts.Skip(k));
-                glyphs.Add(new PlacedGlyph(r.Font, p.Glyph, p.X, p.Y, t, rtl));
+                glyphs.Add(new PlacedGlyph(r.Font, p.Glyph, p.X, p.Y, t, rtl, scale, look.Color));
             }
         }
         if (visualOrder)
         {
-            foreach (var k in order.Where(k => runs[k].Level % 2 == 1)) byRun[k].Reverse();
-            return new ShapedLine(text, [.. order.SelectMany(k => byRun[k])], pen, para == 1);
+            // A right-to-left run's glyphs go left to right, and a glyph standing for several characters (a ligature's "لى", a
+            // letter and its mark) holds them backwards too: readers reverse the run character by character (MuPDF, pdf.js,
+            // Bidi.ToReadingOrder), which then gives them back in reading order.
+            foreach (var k in order.Where(k => runs[k].Level % 2 == 1))
+            {
+                byRun[k].Reverse();
+                for (var g = 0; g < byRun[k].Count; g++)
+                    if (byRun[k][g].Text.Length > 1) byRun[k][g] = byRun[k][g] with { Text = Backwards(byRun[k][g].Text) };
+            }
+            return new ShapedLine(text, [.. order.SelectMany(k => byRun[k])], pen, para == 1) { Runs = placedRuns };
         }
-        return new ShapedLine(text, [.. byRun.SelectMany(g => g)], pen, para == 1, runs.Any(r => r.Level % 2 == 0) && runs.Any(r => r.Level % 2 == 1));
+        return new ShapedLine(text, [.. byRun.SelectMany(g => g)], pen, para == 1, runs.Any(r => r.Level % 2 == 0) && runs.Any(r => r.Level % 2 == 1)) { Runs = placedRuns };
     }
+
+    /// <summary><paramref name="s"/>'s code points in the other order (surrogate pairs kept together).</summary>
+    private static string Backwards(string s) => string.Concat(Graphemes(s).Reverse());
 
     /// <summary>Code points of <paramref name="s"/> (surrogate pairs kept together).</summary>
     private static IEnumerable<string> Graphemes(string s)
@@ -224,7 +263,8 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
     /// </para>
     /// </summary>
     /// <param name="baseRise">The text rise in effect (a subscript's or a superscript's): glyphs' own offsets go on top of it, and it is set back after.</param>
-    public void Emit(StringBuilder sb, ShapedLine line, double size, double baseRise = 0)
+    /// <param name="ownFill">The fill operator the text is in ("0 g"), set back after a styled glyph's own color; null: colors aren't changed.</param>
+    public void Emit(StringBuilder sb, ShapedLine line, double size, double baseRise = 0, string? ownFill = null)
     {
         // A cluster drawn with more glyphs than it has characters leaves glyphs with no text of their own: the line's
         // /ActualText then gives extraction the exact string.
@@ -236,7 +276,8 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
             sb.Append(">>> BDC ");
         }
         Used? cur = null;
-        double pen = 0, rise = baseRise;
+        double pen = 0, rise = baseRise, scale = 1; // pen: thousandths of the line's size; scale: the size set against it
+        int? color = null;
         var open = false;
         void Close()
         {
@@ -247,11 +288,19 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
         foreach (var g in line.Glyphs)
         {
             var u = For(g.Font);
-            if (u != cur)
+            if (u != cur || Math.Abs(g.Scale - scale) > 1e-9)
             {
                 Close();
-                sb.Append(CultureInfo.InvariantCulture, $"{u.Name} {PdfObj.F(size)} Tf ");
+                sb.Append(CultureInfo.InvariantCulture, $"{u.Name} {PdfObj.F(size * g.Scale)} Tf ");
                 cur = u;
+                scale = g.Scale;
+            }
+            var want = ownFill is null ? null : g.Color;
+            if (want != color)
+            {
+                Close();
+                sb.Append(want is { } c ? ContentEditor.RgbOp(c) : ownFill + " ");
+                color = want;
             }
             if (line.Mixed && direction != g.Rtl)
             {
@@ -271,12 +320,14 @@ internal sealed class CidFontWriter(string namePrefix = "/PdU")
             if (!open) sb.Append('[');
             open = true;
             var target = g.X * 1000;
-            var adjust = pen - target;
+            var adjust = (pen - target) / scale; // in thousandths of the size set
             if (Math.Abs(adjust) >= 0.001) sb.Append(PdfObj.F(adjust)).Append(' ');
             sb.Append('<').Append(cid.ToString("X4", CultureInfo.InvariantCulture)).Append('>');
-            pen = target + Width(g.Font, g.Glyph);
+            pen = target + Width(g.Font, g.Glyph) * scale;
         }
         Close();
+        if (color is not null) sb.Append(ownFill).Append(' ');
+        if (Math.Abs(scale - 1) > 1e-9 && cur is not null) sb.Append(CultureInfo.InvariantCulture, $"{cur.Name} {PdfObj.F(size)} Tf ");
         if (Math.Abs(rise - baseRise) > 0.001) sb.Append(CultureInfo.InvariantCulture, $"{PdfObj.F(baseRise)} Ts ");
         if (actual) sb.Append("EMC ");
     }

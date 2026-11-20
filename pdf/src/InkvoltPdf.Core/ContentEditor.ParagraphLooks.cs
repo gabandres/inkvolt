@@ -9,14 +9,17 @@ namespace InkvoltPdf.Core;
 /// </summary>
 /// <param name="Script">A subscript or superscript: smaller, below or above the line's baseline (a translated copy's "d_model", "2^10").</param>
 /// <param name="Rise">A script's baseline above the line's (below: negative), in ems of the paragraph's text; null: the usual for a script (<see cref="ContentEditor.SuperRise"/>, <see cref="ContentEditor.SubRise"/>).</param>
-public sealed record TextLook(string? Font = null, double? Size = null, int? Color = null, bool? Bold = null, bool? Italic = null, TextScript? Script = null, double? Rise = null)
+/// <param name="Underline">Underlined by a rule the page draws under the words (a translated copy draws it again under their translation; the paragraph editor doesn't draw one).</param>
+public sealed record TextLook(string? Font = null, double? Size = null, int? Color = null, bool? Bold = null, bool? Italic = null, TextScript? Script = null, double? Rise = null,
+    bool? Underline = null)
 {
     public static readonly TextLook Plain = new();
 
-    public bool IsPlain => Font is null && Size is null && Color is null && Bold is null && Italic is null && Script is null && Rise is null;
+    public bool IsPlain => Font is null && Size is null && Color is null && Bold is null && Italic is null && Script is null && Rise is null && Underline is null;
 
     /// <summary>This look with what <paramref name="other"/> sets laid over it.</summary>
-    public TextLook With(TextLook other) => new(other.Font ?? Font, other.Size ?? Size, other.Color ?? Color, other.Bold ?? Bold, other.Italic ?? Italic, other.Script ?? Script, other.Rise ?? Rise);
+    public TextLook With(TextLook other) => new(other.Font ?? Font, other.Size ?? Size, other.Color ?? Color, other.Bold ?? Bold, other.Italic ?? Italic, other.Script ?? Script, other.Rise ?? Rise,
+        other.Underline ?? Underline);
 }
 
 /// <summary>Text set below or above its line's baseline, smaller.</summary>
@@ -130,6 +133,7 @@ public static partial class ContentEditor
     /// <summary>A line's own baseline and size, as most of its characters sit on it (not a big name set higher, nor a script).</summary>
     private static (double Y, double Size) LineBaseline(PLine line)
     {
+        if (line.Own is { } own) return own;
         var chars = new Dictionary<double, (int Count, Dictionary<double, int> Sizes)>();
         foreach (var r in line.Runs)
         {
@@ -153,10 +157,11 @@ public static partial class ContentEditor
     /// found again (LaTeX's bold and italic are families of their own); a subscript or a superscript where it is smaller
     /// than its line's text and below or above its baseline (<see cref="LineBaseline"/>), at its size and rise on the
     /// page; another color, or a family of another class (a name in Times among Arial, code in a monospace font) where
-    /// neither bold nor italic says so (<see cref="OtherLook"/>). Null: the paragraph's own.
+    /// neither bold nor italic says so (<see cref="OtherLook"/>); underlined where the page draws a rule under it
+    /// (<paramref name="underlined"/>, <see cref="PlainUnderlines"/>). Null: the paragraph's own.
     /// </summary>
     /// <param name="size">The paragraph's type size (<see cref="TextParagraph.FontSize"/>): a script's size is kept against it.</param>
-    private static TextLook? TranslationLook(TextRun own, double size, (double Y, double Size) line, TextRun r)
+    private static TextLook? TranslationLook(TextRun own, double size, (double Y, double Size) line, TextRun r, bool underlined = false)
     {
         if (r.Text.Trim().Length == 0) return null;
         TextScript? script = null;
@@ -182,8 +187,9 @@ public static partial class ContentEditor
         var family = (b is not null || i is not null) && pageFace && !SameFamily(r, own) ? FontNames.Family(r.FontName) : null;
         var (otherFamily, color) = b is null && i is null ? OtherLook(own, r) : (null, OtherColor(own, r));
         family ??= otherFamily;
-        if (b is null && i is null && script is null && family is null && color is null) return null;
-        return new TextLook(family, scriptSize, color, b, i, script, rise);
+        bool? under = underlined && r.Text.Any(char.IsLetterOrDigit) ? true : null;
+        if (b is null && i is null && script is null && family is null && color is null && under is null) return null;
+        return new TextLook(family, scriptSize, color, b, i, script, rise, under);
     }
 
     /// <summary>
@@ -275,7 +281,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>A color as an RGB fill operator.</summary>
-    private static string RgbOp(int color) =>
+    internal static string RgbOp(int color) =>
         string.Create(CultureInfo.InvariantCulture,
             $"{ContentLexer.Number((color >> 16 & 0xFF) / 255.0)} {ContentLexer.Number((color >> 8 & 0xFF) / 255.0)} {ContentLexer.Number((color & 0xFF) / 255.0)} rg ");
 }
