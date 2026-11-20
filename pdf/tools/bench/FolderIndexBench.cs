@@ -239,7 +239,17 @@ public static class FolderIndexBench
     /// </summary>
     public static int ReadAll(string dir, int threads, Action<string> log)
     {
+        if (!Directory.Exists(dir))
+        {
+            log($"No folder at {dir}.");
+            return 2;
+        }
         var files = Directory.EnumerateFiles(dir, "*.pdf", SearchOption.AllDirectories).Where(f => new FileInfo(f).Length < 64 << 20).ToList();
+        if (files.Count == 0)
+        {
+            log($"No PDFs under {dir} (a corpus: index-make {dir} 10000).");
+            return 2;
+        }
         var times = new double[files.Count];
         var sw = Stopwatch.StartNew();
         Parallel.For(0, files.Count, new ParallelOptions { MaxDegreeOfParallelism = threads }, i =>
