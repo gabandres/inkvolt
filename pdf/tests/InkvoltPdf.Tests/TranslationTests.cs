@@ -914,8 +914,9 @@ public class TranslationCopyTests
         const string ar = "نظرت اللجنة في النتائج الفصلية ووجدت أن الإيرادات نمت في كل منطقة خلال الفترة";
         var (_, r) = Translate(pdf, _ => ar, "ar");
         Assert.Equal(1, r.Report.Translated);
-        // Copied out, it reads as typed.
+        // Copied out, it reads as typed; its lines are drawn left to right (pdf.js reads their spaces so), and read back in reading order.
         Assert.Contains(Plain(ar)[..10], Plain(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+        Assert.Contains(ContentEditor.Read(r.Data!, null, 0).Paragraphs, q => q.Text == ar);
         var p = ContentEditor.Read(pdf, null, 0).Paragraphs[^1];
         var laid = ContentEditor.LayOut(p, p.Runs, ar, [], 1.0);
         Assert.True(laid.Lines.Count >= 1);
@@ -925,6 +926,19 @@ public class TranslationCopyTests
             Assert.Equal(p.Box.Right, origin.X + shaped.Width * p.FontSize, 0);
             Assert.True(shaped.Rtl);
         }
+    }
+
+    [Theory]
+    [InlineData("في عام 2024 والكلب")] // figures stay left to right inside it
+    [InlineData("الثعلب يقفز فوق fox الكلب")] // an English word inside
+    [InlineData("الثعلب الكلب fox")] // an English word at its left end: still a right-to-left line
+    [InlineData("The dog שלום עולם jumps")] // a Hebrew phrase in an English line
+    [InlineData("plain English, 2024")]
+    [InlineData("لا إله إلا الله")] // lam-alef ligatures: a glyph standing for two letters
+    public void A_line_drawn_left_to_right_reads_back_in_reading_order(string line)
+    {
+        var shaped = TextShaper.Shape(line, null, visualOrder: true);
+        Assert.Equal(line, Bidi.ToReadingOrder([.. shaped.Glyphs.Select(g => g.Text)]));
     }
 
     [Fact]

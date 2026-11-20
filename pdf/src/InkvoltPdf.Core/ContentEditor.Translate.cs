@@ -793,8 +793,7 @@ public static partial class ContentEditor
             styleAt[i] = k;
         }
         var styled = styles.Count > 0;
-        ShapedLine ShapeOf(int start, int end) =>
-            styled ? TextShaper.Shape(text[start..end], primary, styles, styleAt[start..end]) : TextShaper.Shape(text[start..end], primary);
+        ShapedLine ShapeOf(int start, int end, bool visual = false) => TextShaper.Shape(text[start..end], primary, styled ? styles : null, styled ? styleAt[start..end] : null, visual);
         var em = m.Size * m.HScale * m.Scale;
         double W(int start, int end) => ShapeOf(start, end).Width * em;
 
@@ -836,7 +835,9 @@ public static partial class ContentEditor
         var (minLeft, maxRight) = (p.Box.X, p.Box.Right);
         foreach (var (start, end) in lines)
         {
-            var shaped = ShapeOf(start, end);
+            // Written left to right (visual order): pdf.js reads a line written in logical order, jumping back along it, without
+            // its spaces, and MuPDF puts right-to-left runs written this way back in reading order itself.
+            var shaped = ShapeOf(start, end, visual: true);
             foreach (var g in shaped.Glyphs)
                 Name(ReferenceEquals(g.Font, primary) ? ranked!.Name : styles.FindIndex(s => ReferenceEquals(s.Font, g.Font)) is >= 0 and var k && styleNames[k] is { } n ? n : StandInFonts.Pretty(g.Font.Family));
             var w = shaped.Width * em;

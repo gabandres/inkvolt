@@ -984,6 +984,20 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   text set beside a line stays apart); its line may be shorter than it. The joined line keeps its own baseline and size
   (PLine.Own): counted by characters, a long script would have been taken for the line. Each script looks at the 128
   nearest lines each way, by baseline, for its line. TranslationLooksTests (+3).
+  **pdf.js reads a copy (2026-11-20).** `TranslationPdfJsTests` (opt-in, `INKVOLTPDF_PDFJS`; with `INKVOLTPDF_CORPUS`
+  the corpus's first two pages of each file) translates with stand-in answers and has pdf.js (`pdf/tools/pdfjs-check`)
+  read each paragraph's new words: in order word by word, or letter by letter where only spaces differ. What it showed:
+  pdf.js read right-to-left lines without their spaces ("الثعلبالبني…"). It makes spaces only from gaps as the glyphs go
+  right, and a line written in reading order goes back for each glyph; so right-to-left lines are now written left to
+  right (visual order, `TextShaper.Shape`'s `visualOrder`), which MuPDF also reads back in order, and the editor's own
+  reading puts an operator's right-to-left letters drawn left to right back in reading order (`Bidi.ToReadingOrder`,
+  each glyph's text whole, the line's direction that of most of its letters; `DrawnLeftToRight`), as Word's Arabic PDFs
+  draw them too. pdf.js doesn't reorder the items of a right-to-left line drawn in two fonts (a bold word): their words
+  are each read whole, the items left to right (a viewer's limit). Result: the test's 6 pages (looks, Arabic with and
+  without looks, Hebrew, Japanese) 45 of 45 texts in order; the corpus 334 of 335 the original reads in order (f1040
+  p. 2's "b Routing number d Account number", a paragraph across two rows of a form, among "c Type"'s fields), 37 that
+  pdf.js doesn't read in order in the original either (line-end hyphens, drop capitals, form rows) not counted.
+  `ParagraphEditTests`' and `OcrLayerSearchTests`' pdf.js helpers are one (`PdfJs`).
   **Still wrong, and why.** The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
@@ -1009,7 +1023,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   is sent (the reading window used to come up over that question and take the keyboard; it now waits), the copy opened beside it.
   **Not checked.** Any other model, a cloud endpoint, or a language but Spanish with a real model; a model's refusal in words,
   or an answer to the text in place of its translation, can't be told from a translation. A screen
-  reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat and pdf.js on a copy. Long runs over
+  reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat on a copy. Long runs over
   sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a
   real sleep). The interface is in English or Spanish (3.7).
 - **Beat it when:** translation runs through the user's endpoint (Ollama, LM Studio, or their key), paragraph by

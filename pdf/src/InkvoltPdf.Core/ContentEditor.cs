@@ -1111,6 +1111,29 @@ public static partial class ContentEditor
         return RectD.FromEdges(minX, minY, maxX, maxY);
     }
 
+    /// <summary>Whether an operator's text has right-to-left letters and its glyphs go left to right, never back (visual order).</summary>
+    private static bool DrawnLeftToRight(List<RunItem> items, string text)
+    {
+        var rtl = false;
+        foreach (var c in text)
+            if (c is >= '֐' and <= 'ࣿ' or >= 'יִ' and <= '﷿' or >= 'ﹰ' and <= '﻿')
+            {
+                rtl = true;
+                break;
+            }
+        if (!rtl) return false;
+        var last = double.MinValue;
+        var glyphs = 0;
+        foreach (var item in items)
+        {
+            if (item.IsNumber || item.Text.Length == 0) continue;
+            if (item.At < last - 1e-6) return false;
+            last = item.At;
+            glyphs++;
+        }
+        return glyphs > 1;
+    }
+
     /// <summary>
     /// Records a text-showing operator as a run (for a translated copy, as a run for each column it draws) and returns the
     /// text matrix after it.
@@ -1169,6 +1192,9 @@ public static partial class ContentEditor
         var angle = Math.Atan2(by1 - by0, bx1 - bx0) * 180 / Math.PI;
         var upright = Upright(bx1 - bx0, by1 - by0, vx0 - bx0, vy0 - by0);
         var text = string.Concat(items.Select(i => i.Text));
+        // Right-to-left letters an operator draws left to right (visual order: Word's PDFs, a translated copy's lines) are read
+        // in reading order, as MuPDF reads them; drawn in reading order (moving back as it goes), they are read as they are.
+        if (DrawnLeftToRight(items, text)) text = Bidi.ToReadingOrder([.. items.Select(i => i.Text)]);
 
         var why = blocked;
         if (why is null)
