@@ -24,7 +24,7 @@ public sealed partial class ScanButtonViewModel : ObservableObject, IDisposable
         Refresh();
     }
 
-    private void OnChanged() => Ui(Refresh);
+    private void OnChanged() => UiThread.Run(Refresh);
 
     /// <summary>The printer is gone: the presets (which outlive it) no longer hold on to this, nor through it the printer.</summary>
     public void Dispose()
@@ -103,12 +103,5 @@ public sealed partial class ScanButtonViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(SwitchText));
         OnPropertyChanged(nameof(IsOn));
         OnPropertyChanged(nameof(PresetId));
-    }
-
-    private static void Ui(Action action)
-    {
-        if (Application.Current?.Dispatcher is not { } ui) return;
-        if (ui.CheckAccess()) action();
-        else ui.InvokeAsync(action);
     }
 }

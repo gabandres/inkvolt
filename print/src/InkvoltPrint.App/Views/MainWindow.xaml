@@ -627,6 +627,25 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+            <!-- Share on the network (roadmap 3.1, Inkvolt Pro): a WIA or TWAIN scanner as an eSCL scanner for phones, Macs and other PCs -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12"
+                    DataContext="{Binding DataContext.Selected.Sharing, RelativeSource={RelativeSource AncestorType=Window}}"
+                    Visibility="{Binding IsShown, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE968;" FontSize="16" Margin="0,2,12,0" VerticalAlignment="Top" />
+                    <StackPanel>
+                        <TextBlock Text="{x:Static loc:Strings.ScanTab_Share}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Text}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,2,0,0" AutomationProperties.LiveSetting="Polite" />
+                        <CheckBox Content="{x:Static loc:Strings.ScanTab_ShareSwitch}" IsChecked="{Binding IsOn}" Margin="0,8,0,0" HorizontalAlignment="Left"
+                                  AutomationProperties.Name="{x:Static loc:Strings.ScanTab_ShareSwitch}" AutomationProperties.HelpText="{Binding Text}" />
+                        <StackPanel Margin="0,8,0,0" Visibility="{Binding HasFingerprint, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Text="{x:Static loc:Strings.ScanTab_ShareFingerprint}" Style="{StaticResource Caption}" />
+                            <TextBox Text="{Binding Fingerprint, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0" TextWrapping="Wrap"
+                                     FontFamily="Cascadia Mono, Consolas" MinHeight="24" MaxWidth="520" HorizontalAlignment="Left" AutomationProperties.Name="{x:Static loc:Strings.ScanTab_ShareFingerprint}" />
+                        </StackPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <Grid Margin="0,0,16,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />

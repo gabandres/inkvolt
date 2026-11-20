@@ -36,6 +36,9 @@ public sealed class ProWindow : Window
     private readonly ProFeature? _feature;
     private readonly Style _caption;
 
+    /// <summary>A key was entered or removed here (on the dispatcher): a Pro feature that runs on its own, scanner sharing, asks again.</summary>
+    public static event Action? LicenceChanged;
+
     public static ProWindow Open(Window? owner, ProFeature? feature = null)
     {
         if (_open is { } existing)
@@ -108,6 +111,7 @@ public sealed class ProWindow : Window
                 if (!ConfirmDialog.Ask(this, Strings.Pro_RemoveQuestion, Strings.Common_Remove)) return;
                 Pro.Remove();
                 Log.Write("Inkvolt Pro licence removed");
+                LicenceChanged?.Invoke();
                 Refresh();
             };
             _body.Children.Add(remove);
@@ -151,6 +155,7 @@ public sealed class ProWindow : Window
         {
             var licence = Pro.Install(key);
             Log.Write($"Inkvolt Pro licence entered (issued {licence.Issued:yyyy-MM-dd})");
+            LicenceChanged?.Invoke();
             _error.Visibility = Visibility.Collapsed;
             _key.Clear();
             Refresh();

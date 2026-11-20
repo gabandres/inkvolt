@@ -186,7 +186,10 @@ public sealed record ScanRequest(
     string Intent = "Document",
     /// <summary>Region in 1/300 inch. Null = the source's full area, clamped to device max.</summary>
     int? Width = null,
-    int? Height = null);
+    int? Height = null,
+    /// <summary>Where the region starts, in 1/300 inch from the source's top left (an eSCL client's ScanRegion); null = 0.</summary>
+    int? XOffset = null,
+    int? YOffset = null);
 
 public static class EsclXml
 {

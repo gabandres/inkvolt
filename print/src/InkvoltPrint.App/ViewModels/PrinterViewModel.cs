@@ -957,6 +957,42 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Scanner sharing (roadmap 3.1): the Scan tab's card for this entry's Windows scanner; null until the app hands over the share
+    /// (<see cref="UseShare"/>, when the entry is listed).
+    /// </summary>
+    public ScannerShareViewModel? Sharing { get; private set; }
+
+    private Core.Sharing.ScannerShare? _share;
+
+    /// <summary>The app's one scanner share: this entry's card shows it, and the share gets this entry's scanner when it connects.</summary>
+    public void UseShare(Core.Sharing.ScannerShare share)
+    {
+        if (_share is not null) return;
+        _share = share;
+        Sharing = new ScannerShareViewModel(share, () => _wia, () => _wiaDevice ?? ScannerDevice, line => Log.Write($"[{Name}] {line}"));
+        OnPropertyChanged(nameof(Sharing));
+        if (_wia is { } connected) _ = OfferToShareAsync(connected.Device.Id, connected);
+    }
+
+    /// <summary>Every Windows scanner this entry is known by (connected or not): a share of one stops when the entry is forgotten.</summary>
+    public IEnumerable<string?> WindowsScannerIds => [_wia?.Device.Id, _wiaDevice?.Id, ScannerDevice?.Id];
+
+    /// <summary>The share gets this entry's Windows scanner (null: it's gone); only the shared one starts or stops anything.</summary>
+    private async Task OfferToShareAsync(string deviceId, WiaScanner? scanner)
+    {
+        Sharing?.Refresh();
+        if (_share is not { } share) return;
+        try
+        {
+            await share.OfferAsync(deviceId, scanner);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"[{Name}] Scanner sharing not updated: {ex.Message}");
+        }
+    }
+
     /// <summary>"This is my printer": the device at the address is accepted as this printer from now on (its UUIDs remembered).</summary>
     [RelayCommand]
     private void AcceptDevice()
@@ -1062,14 +1098,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (device is null)
         {
-            if (_wiaDevice is null) return;
+            if (_wiaDevice is not { } gone) return;
             _wiaDevice = null;
             _wia = null;
             BindScanner();
             _ = UseButtonDriverAsync(null, null);
+            _ = OfferToShareAsync(gone.Id, null);
             return;
         }
         if (_wiaConnecting || (_wia is not null && string.Equals(_wia.Device.Id, device.Id, StringComparison.OrdinalIgnoreCase))) return;
+        // Another scanner than before (A, now B): the share is told A is gone, so it never serves A's scanner object again.
+        if (_wiaDevice is { } before && !string.Equals(before.Id, device.Id, StringComparison.OrdinalIgnoreCase)) _ = OfferToShareAsync(before.Id, null);
         _wiaDevice = device;
         _wiaConnecting = true;
         try
@@ -1080,6 +1119,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             _wia = scanner;
             BindScanner();
             _ = UseButtonDriverAsync(system, scanner);
+            _ = OfferToShareAsync(device.Id, scanner);
             if (IsScannerOnly)
             {
                 IsConnecting = false;
@@ -1461,6 +1501,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _watch = null;
         Fixer.CloseCommand.Execute(null);
         ScanButton.Dispose();
+        Sharing?.Dispose();
+        // The entry goes (its scanner unplugged, or forgotten): a share of its scanner stops listening until it's back. At exit the
+        // share has closed first, and this does nothing.
+        if (_wia is { } scanner) _ = OfferToShareAsync(scanner.Device.Id, null);
         var limit = new CancellationTokenSource(CloseLimit);
         Closing = ScanButton.Button.CloseAsync(limit.Token); // at once when there's nothing to take off (its awaits don't need this thread)
         var monitor = _monitor;

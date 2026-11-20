@@ -219,6 +219,20 @@ public sealed class AppState
         Save();
     }
 
+    /// <summary>The scanner shared on the network (roadmap 3.1): none by default; the UUID it's announced with is kept once made.</summary>
+    public Core.Sharing.ScannerShareChoice? ScannerShare { get; set; }
+
+    /// <summary>Keeps the choice and saves.</summary>
+    public void SetScannerShare(Core.Sharing.ScannerShareChoice choice)
+    {
+        lock (_gate)
+        {
+            if (ScannerShare == choice) return;
+            ScannerShare = choice;
+        }
+        Save();
+    }
+
     /// <summary>Printer id → its firmware version, the day first seen and the last change (roadmap 1.5, Core.History.FirmwareWatch).</summary>
     public Dictionary<string, Core.History.FirmwareRecord> Firmware { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 

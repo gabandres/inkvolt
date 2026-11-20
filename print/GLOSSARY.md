@@ -44,6 +44,11 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   `shared/InkvoltPrint.Core/Presets`): **Scan to Computer** on an HP panel, where this PC is a **destination** on the printer's
   list, added by this app and taken off again (`ScanToComputer`, `LedmWalkupScan`), or the **driver's button**, the
   scan-button events a Windows scanner's driver raises (`WiaScannerInfo.Buttons`). A **press** counts once, for this PC only.
+- **Scanner sharing** (roadmap 3.1, Inkvolt Pro): one of this PC's Windows scanners offered to other devices as an eSCL
+  scanner, the **shared scanner** (`ScannerShare` in `shared/InkvoltPrint.Core/Sharing`: the switch, when it may listen, the
+  certificate and the announcement; `SharedScanner`: the eSCL documents and **jobs** a device starts, one scanning at a time,
+  each its device's alone). It listens only on networks Windows calls Private, to **served** devices on their subnets
+  (`SharePeers`), and is **announced** over DNS-SD as `_uscans._tcp` (`ShareDnssd`).
 - **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
   queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight

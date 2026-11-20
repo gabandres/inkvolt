@@ -45,6 +45,8 @@
   </Target>
   <ItemGroup>
     <ProjectReference Include="..\..\..\shared\InkvoltPrint.Windows\InkvoltPrint.Windows.csproj" />
+    <!-- Scanner sharing's HTTPS server (roadmap 3.1): brings ASP.NET Core's shared framework into the self-contained app -->
+    <ProjectReference Include="..\InkvoltPrint.Sharing\InkvoltPrint.Sharing.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />

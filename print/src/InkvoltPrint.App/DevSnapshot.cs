@@ -35,6 +35,7 @@ namespace InkvoltPrint.App;
 /// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
 /// command palette with the words typed, and <c>--run-palette</c> then runs its first entry. <c>--scan-button [press]</c> (demo only)
 /// turns the shown printer's scan button on and with <c>press</c> presses it on the made-up panel or scanner (roadmap 2.2).
+/// <c>--share</c> (demo only) shares the shown entry's made-up Windows scanner on the network, to this PC only (roadmap 3.1).
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -49,6 +50,26 @@ internal static class DevSnapshot
         && double.TryParse(args[i + 1], System.Globalization.CultureInfo.InvariantCulture, out var w)
         && double.TryParse(args[i + 2], System.Globalization.CultureInfo.InvariantCulture, out var h) && w > 0 && h > 0
             ? (w, h) : null;
+
+    /// <summary>
+    /// <c>--demo --share</c>: shares the selected entry's made-up Windows scanner, to this PC only, once it's connected (without
+    /// <c>--snapshot</c> the app stays open, for an eSCL client on this PC to scan through it, and the first entry with one is shared;
+    /// the port is in the log and on the card).
+    /// </summary>
+    public static async Task ShareAsync(ViewModels.MainViewModel main, bool wait = true)
+    {
+        for (var tries = wait ? 30 : 1; tries > 0; tries--)
+        {
+            var entry = main.Selected is { Sharing.IsShown: true } selected ? selected : main.Printers.FirstOrDefault(p => p.Sharing is { IsShown: true });
+            if (entry is { Pc.IsDemo: true, Sharing: { } sharing })
+            {
+                sharing.IsOn = true;
+                break;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        await Task.Delay(TimeSpan.FromSeconds(2));
+    }
 
     /// <summary>Renders <paramref name="window"/> to <paramref name="path"/> as the flags in <paramref name="args"/> (above) say, then exits.</summary>
     public static async Task RunAsync(MainWindow window, string path, string[] args)
@@ -99,6 +120,8 @@ internal static class DevSnapshot
                 await Task.Delay(TimeSpan.FromSeconds(6));
             }
         }
+        // --share (demo only): shares the shown entry's Windows scanner (the USB laser's, the photo flatbed), to this PC only.
+        if (args.Contains("--share") && window.DataContext is ViewModels.MainViewModel main0) await ShareAsync(main0, wait: false);
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
             // --source glass|feeder|duplex, --split none|patch|blank|either and --keep-separators set the tab first.

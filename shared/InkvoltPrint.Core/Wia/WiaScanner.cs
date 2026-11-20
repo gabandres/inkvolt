@@ -74,14 +74,26 @@ public sealed class WiaScanner : IScanner
     public const int MaxFeederPages = 500;
 
     private readonly IWiaDeviceHost _host;
+    private readonly SemaphoreSlim _job;
 
-    private WiaScanner(IWiaDeviceHost host, WiaDeviceInfo device, WiaScannerInfo info)
+    /// <summary>
+    /// One job at a time per scanner of a system, whoever started it: the Scan and Copy tabs, a preset, the scan button and a device
+    /// scanning through the shared scanner (roadmap 3.1) each hold their own <see cref="WiaScanner"/> of the same device, and two jobs'
+    /// settings and pages must never interleave on it.
+    /// </summary>
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IWiaSystem, System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim>> Jobs = new();
+
+    private WiaScanner(IWiaSystem system, IWiaDeviceHost host, WiaDeviceInfo device, WiaScannerInfo info)
     {
         _host = host;
+        _job = Jobs.GetValue(system, _ => new(StringComparer.OrdinalIgnoreCase)).GetOrAdd(device.Id, _ => new SemaphoreSlim(1, 1));
         Device = device;
         Info = info;
         Capabilities = WiaCapabilities.From(info, device.Name);
     }
+
+    /// <summary>A job is running on this scanner now (from this app: any tab, or a device scanning through the shared scanner).</summary>
+    public bool IsBusy => _job.CurrentCount == 0;
 
     public WiaDeviceInfo Device { get; }
     public WiaScannerInfo Info { get; }
@@ -95,7 +107,7 @@ public sealed class WiaScanner : IScanner
     {
         var host = system.Device(device.Id);
         var info = await host.UseAsync(d => d.Info, ct).ConfigureAwait(false);
-        return new WiaScanner(host, device, info);
+        return new WiaScanner(system, host, device, info);
     }
 
     public async Task<ScannerStatus> GetStatusAsync(CancellationToken ct = default)
@@ -108,20 +120,29 @@ public sealed class WiaScanner : IScanner
     /// The pages of one job. A feeder job takes pages until the driver says the feeder is empty, and also stops (see
     /// <see cref="WiaFeeder"/>) when the driver didn't take the feeder (scans nothing), when it says no paper is ready before the
     /// next sheet, when a page is byte for byte the one before (a driver scanning the glass again), and at
-    /// <see cref="MaxFeederPages"/>. A page that takes longer than <see cref="PageTimeout"/> ends the job (the driver hung).
+    /// <see cref="MaxFeederPages"/>. A page that takes longer than <see cref="PageTimeout"/> ends the job (the driver hung). A job
+    /// already running on the scanner (<see cref="IsBusy"/>) refuses this one at once with <see cref="ScanException"/>.
     /// </summary>
     public async IAsyncEnumerable<byte[]> ScanAsync(ScanRequest request, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var settings = WiaCapabilities.Plan(request, Capabilities, Info);
-        byte[]? last = null;
-        for (var page = 0; page < (settings.Feeder ? MaxFeederPages : 1); page++)
+        if (!_job.Wait(0, CancellationToken.None)) throw new ScanException(CoreStrings.Wia_InUse);
+        try
         {
-            ct.ThrowIfCancellationRequested();
-            var (jpeg, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
-            if (end) yield break;
-            if (WiaFeeder.Repeats(last, jpeg!)) yield break; // the glass scanned again, not a new sheet
-            last = jpeg;
-            yield return jpeg!;
+            byte[]? last = null;
+            for (var page = 0; page < (settings.Feeder ? MaxFeederPages : 1); page++)
+            {
+                ct.ThrowIfCancellationRequested();
+                var (jpeg, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
+                if (end) yield break;
+                if (WiaFeeder.Repeats(last, jpeg!)) yield break; // the glass scanned again, not a new sheet
+                last = jpeg;
+                yield return jpeg!;
+            }
+        }
+        finally
+        {
+            _job.Release();
         }
     }
 
@@ -264,8 +285,13 @@ public static class WiaCapabilities
         var bw = request.Color == ScanColor.BlackAndWhite && input.ColorModes.Contains("BlackAndWhite1");
         var grey = !bw && (request.Color is ScanColor.Grayscale or ScanColor.BlackAndWhite
             ? input.ColorModes.Contains("Grayscale8") : !input.ColorModes.Contains("RGB24"));
-        var width = Math.Clamp(request.Width ?? input.MaxWidth, Math.Max(input.MinWidth, 1), input.MaxWidth);
-        var height = Math.Clamp(request.Height ?? input.MaxHeight, Math.Max(input.MinHeight, 1), input.MaxHeight);
+        // The area: from its offset (inside the source), as wide and long as asked and the source allows from there.
+        var x = Math.Clamp(request.XOffset ?? 0, 0, Math.Max(input.MaxWidth - 1, 0));
+        var y = Math.Clamp(request.YOffset ?? 0, 0, Math.Max(input.MaxHeight - 1, 0));
+        var maxWidth = Math.Max(input.MaxWidth - x, 1);
+        var maxHeight = Math.Max(input.MaxHeight - y, 1);
+        var width = Math.Clamp(request.Width ?? maxWidth, Math.Min(Math.Max(input.MinWidth, 1), maxWidth), maxWidth);
+        var height = Math.Clamp(request.Height ?? maxHeight, Math.Min(Math.Max(input.MinHeight, 1), maxHeight), maxHeight);
         int? handling = info.Handling is null ? null
             : source switch
             {
@@ -275,10 +301,13 @@ public static class WiaCapabilities
             };
         int? pages = !feeder ? null : source == ScanSource.AdfDuplex ? 0 : 1;
         var (dataType, depth) = bw ? (WiaIds.DataThreshold, 1) : grey ? (WiaIds.DataGrayscale, 8) : (WiaIds.DataColor, 24);
-        return new WiaScanSettings(handling, feeder, dataType, depth, res, Pixels(width, res), Pixels(height, res), pages);
+        return new WiaScanSettings(handling, feeder, dataType, depth, res, Pixels(width, res), Pixels(height, res), pages,
+            Offset(x, res), Offset(y, res));
     }
 
-    private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, (int)((long)threeHundredths * dpi / 300));
+    private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, Offset(threeHundredths, dpi));
+
+    private static int Offset(int threeHundredths, int dpi) => (int)((long)threeHundredths * dpi / 300);
 
     /// <summary>
     /// The scanner's state as eSCL words, so the Scan tab's checks (a preset choosing the feeder when it's loaded) work the same:

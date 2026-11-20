@@ -86,6 +86,9 @@ internal static class Demo
         public override Core.Wia.DriverScanners Wia => _wia ??= Scanners(twain);
         private Core.Wia.DriverScanners? _wia;
         public override bool HasWindowsQueues => false;
+
+        // A made-up scanner shared for real, but to this PC only: 127.0.0.1, any free port, nothing announced, no key kept.
+        public override Core.Sharing.ShareEnvironment ScannerSharing { get; } = Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost());
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
         protected override IReadOnlyList<Core.Queues.IQueueDeviceReader> DeviceReaders(Core.Queues.SpoolerQueue q) => Core.Fleet.DemoFleet.DeviceReaders(q);
