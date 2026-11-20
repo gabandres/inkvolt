@@ -100,6 +100,8 @@ if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerA
     {
         if (!path.EndsWith(badFile, StringComparison.OrdinalIgnoreCase)) return;
         if (fileHow == "die") System.Diagnostics.Process.GetCurrentProcess().Kill();
+        // At normal priority: starved below it on a loaded PC, it took past the test's four minutes to use its one second.
+        if (fileHow == "spin") System.Diagnostics.Process.GetCurrentProcess().PriorityClass = System.Diagnostics.ProcessPriorityClass.Normal;
         while (fileHow == "spin") { }
         // Stuck, but with a little processor time now and then, as an idle process's runtime threads take.
         while (fileHow == "tick")
