@@ -61,6 +61,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _state = state;
         _remember = remember;
         _pc = pc;
+        _router = new Core.Printing.Direct.PrintRouter(FindQueueAsync, () => DirectIpp, () => Print?.PrintDirect ?? false);
         if (host is not null)
             _monitor = new PrinterMonitor(uuid, () => Name, new PrinterWhere(host, esclRoot),
                 new PrinterRecipe(pc.DeviceTransport, pc.Snmp, new PinStore(state, uuid), SnmpLogin: () => pc.SnmpLogins.Usable(uuid)),
@@ -70,13 +71,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Print = new PrintViewModel(PrintTargetAsync, state)
         {
             Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
-                : new Printing.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), PrintTargetAsync, () => Name), Printing.WindowsBatchDocuments.Instance, state),
+                : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), _router,
+                    ipp => Printing.DirectBatchJobs.For(Name, new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp)))),
+                Printing.WindowsBatchDocuments.Instance, state),
             PrintDirect = state.GetPrintDirect(uuid),
             DirectChosen = ChooseDirect,
         };
         Jobs = new PrintJobsViewModel(pc.IsDemo ? pc.PrintJobs(FindQueueAsync) : new Printing.RoutedPrintJobs(pc.PrintJobs(FindQueueAsync), PrintTargetAsync));
         _jobQueue = pc.IsDemo ? pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync)
-            : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), DirectTargetNow);
+            : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), _router, pc.UserName);
         Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
         Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid));
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
@@ -311,24 +314,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task<Printing.PrintTarget?> PrintTargetAsync()
     {
-        var queue = await FindQueueAsync();
-        var ipp = DirectIpp;
-        return Core.Printing.Direct.PrintRoutes.Choose(queue is not null, ipp is not null, Print.PrintDirect) switch
+        var choice = await _router.ChooseAsync();
+        return choice switch
         {
-            Core.Printing.Direct.PrintRoute.Direct => new Printing.PrintTarget.Direct(ipp!, _pc.UserName, CapsFor(ipp!), _pc.MadeUpPrint),
-            Core.Printing.Direct.PrintRoute.Queue => new Printing.PrintTarget.Queue(queue!),
+            { Route: Core.Printing.Direct.PrintRoute.Direct, Ipp: { } ipp } => new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp), _pc.MadeUpPrint),
+            { Route: Core.Printing.Direct.PrintRoute.Queue, Queue: { } queue } => new Printing.PrintTarget.Queue(queue),
             _ => null,
         };
     }
 
-    /// <summary>
-    /// Where jobs go straight to the printer now, for job alerts (asked every minute, also with the window closed): decided as
-    /// <see cref="PrintTargetAsync"/> decides, with the Windows queue as last looked up instead of looking again; null: the Windows queue.
-    /// </summary>
-    private Printing.PrintTarget.Direct? DirectTargetNow() =>
-        DirectIpp is { } ipp && Core.Printing.Direct.PrintRoutes.Choose(QueueInstalled, true, Print.PrintDirect) == Core.Printing.Direct.PrintRoute.Direct
-            ? new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp))
-            : null;
+    /// <summary>Where this printer's jobs go, decided in one place for prints, batches and job alerts (<see cref="Core.Printing.Direct.PrintRouter"/>).</summary>
+    private readonly Core.Printing.Direct.PrintRouter _router;
 
     private (Core.Ipp.IppClient Client, Core.Printing.Direct.IppCapsCache Caps)? _directCaps;
 
@@ -344,20 +340,24 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The Print tab's choice and note, and whether Copy has somewhere to print, after a connection or a queue change.</summary>
     private void UpdatePrintRoute() => _ = UpdatePrintRouteAsync();
 
-    /// <summary>The queue is looked up as a print does (<see cref="PrintTargetAsync"/>), so the note says where the next job goes.</summary>
+    /// <summary>
+    /// Decided as a print decides (<see cref="PrintTargetAsync"/>), so the note says where the next job goes and job alerts watch
+    /// where the jobs go (the router keeps this decision).
+    /// </summary>
     private async Task UpdatePrintRouteAsync()
     {
         var direct = DirectIpp is not null;
         Copy.HasQueue = QueueInstalled || direct;
-        bool queue;
-        try { queue = await FindQueueAsync() is not null; }
+        Core.Printing.Direct.RouteChoice choice;
+        try { choice = await _router.ChooseAsync(); }
         catch (Exception ex)
         {
             Log.Write($"Print route: {ex.Message}");
-            queue = QueueInstalled;
+            return; // the note stays as it was; the next print decides again
         }
+        var queue = choice.Queue is not null;
         Print.CanChooseDirect = direct && queue;
-        Print.RouteNote = Core.Printing.Direct.PrintRoutes.Choose(queue, direct, Print.PrintDirect) == Core.Printing.Direct.PrintRoute.Direct
+        Print.RouteNote = choice.Route == Core.Printing.Direct.PrintRoute.Direct
             ? (queue ? Strings.Print_RouteDirectChosen : Strings.Print_RouteDirect)
             : null;
     }

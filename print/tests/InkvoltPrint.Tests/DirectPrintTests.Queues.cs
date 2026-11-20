@@ -5,6 +5,7 @@ using InkvoltPrint.Core.Model;
 using InkvoltPrint.Core.Net;
 using InkvoltPrint.Core.Printing;
 using InkvoltPrint.Core.Printing.Direct;
+using InkvoltPrint.Core.Suite;
 
 namespace InkvoltPrint.Tests;
 
@@ -399,5 +400,269 @@ public partial class DirectPrintTests
         var ended = PrinterJobs.GetJobsRequest("ipp://x/", "ana", which: PrinterJobs.Completed);
         Assert.True(ended.AsSpan().IndexOf("completed"u8) >= 0 && ended.AsSpan().IndexOf("not-completed"u8) < 0);
         Assert.True(PrinterJobs.GetJobsRequest("ipp://x/", "ana").AsSpan().IndexOf("not-completed"u8) >= 0); // the card's, as before
+    }
+
+    // ---- review: limits, wording, this PC's errors, the job list's memory, a stopped printer ----
+
+    [Fact]
+    public async Task A_long_direct_job_is_waited_for_once_sent_but_a_drawing_that_hangs_isnt()
+    {
+        using var folder = new BatchFolder();
+        // A tiny limit stands for 20 pages × 10 copies printing for longer than any limit by pages: once sent, it's the printer's.
+        var options = new BatchPrintOptions { SendTimeout = TimeSpan.FromMilliseconds(50), SendTimePerPage = TimeSpan.Zero };
+        var (slow, _) = DirectBatch(async (name, send, _) =>
+        {
+            send();
+            await Task.Delay(400);
+        });
+        var lines = await Lines(folder, slow, ("a.pdf", "pages=1", new()), ("b.pdf", "pages=1", new()));
+        var summary = await BatchPrintRunner.RunAsync(lines, slow, new FakeDocuments(), options, null, default);
+        Assert.Equal([BatchPrintState.Sent, BatchPrintState.Sent], summary.Items.Select(i => i.State));
+
+        // Before the point of no return the limit holds: a drawing that never ends fails that file, and says nothing of Windows.
+        var (hung, sent) = DirectBatch(async (_, _, ct) => await Task.Delay(Timeout.Infinite, ct));
+        summary = await BatchPrintRunner.RunAsync(lines, hung, new FakeDocuments(), options, null, default);
+        Assert.Equal(BatchPrintState.Failed, summary.Items[0].State);
+        Assert.Equal(Core.CoreStrings.Batch_DrawTimeout, summary.Items[0].Message);
+        Assert.DoesNotContain("Windows", string.Join(" ", summary.Items.Select(i => i.Message)));
+
+        // The drawing's limit counts the copies (each copy the printer doesn't make is drawn again); a Windows queue's doesn't.
+        var job = new BatchPrintJob("x.pdf", [.. Enumerable.Range(1, 20)], 10, false, null, 200);
+        var defaults = new BatchPrintOptions();
+        Assert.Equal(defaults.SendTimeout + defaults.SendTimePerPage * 200, slow.SendLimit(job, defaults));
+        Assert.Equal(defaults.SendTimeout + defaults.SendTimePerPage * 20, ((IBatchQueue)new FakeQueue()).SendLimit(job, defaults));
+        Assert.True(slow.EndsOnItsOwnOnceSpooling);
+        Assert.False(((IBatchQueue)new FakeQueue()).EndsOnItsOwnOnceSpooling);
+    }
+
+    /// <summary>Answers after a while: a printer slower than the batch's patience.</summary>
+    private sealed class Slow(TimeSpan delay, Func<byte[], byte[]> answer) : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
+        {
+            await Task.Delay(delay, ct);
+            var body = await request.Content!.ReadAsByteArrayAsync(ct);
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new ByteArrayContent(answer(body)), RequestMessage = request };
+        }
+    }
+
+    [Fact]
+    public async Task A_printer_slow_to_say_whether_its_ready_is_said_as_the_printer_not_windows()
+    {
+        using var folder = new BatchFolder();
+        var http = new DeviceHttp("192.0.2.11", new Slow(TimeSpan.FromSeconds(3), _ => Printer(b => b.Enums("printer-state", 3))));
+        var queue = new DirectBatchQueue("Office inkjet", new IppClient(http), new IppCapsCache(_ => Task.FromResult(Caps())), (_, _, _, _, onSending, _) =>
+        {
+            onSending();
+            return Task.CompletedTask;
+        });
+        var lines = await Lines(folder, queue, ("a.pdf", "pages=1", new()));
+        var summary = await BatchPrintRunner.RunAsync(lines, queue, new FakeDocuments(), new BatchPrintOptions { QueueTimeout = TimeSpan.FromMilliseconds(100) }, null, default);
+        Assert.Equal(Core.CoreStrings.Direct_NotAnswering, summary.StopReason);
+        Assert.Equal(Core.CoreStrings.Batch_WindowsNoAnswer, ((IBatchQueue)new FakeQueue()).NoAnswer); // a Windows queue's words stay its own
+    }
+
+    [Fact]
+    public async Task This_pcs_disk_or_drawing_failing_fails_that_file_and_only_the_printers_silence_stops_the_batch()
+    {
+        using var folder = new BatchFolder();
+        var (disk, _) = DirectBatch((name, send, _) => name switch
+        {
+            "a.pdf" => throw new IOException("There is not enough space on the disk."),
+            "b.pdf" => throw new FormatException("A page's picture is damaged."),
+            _ => Task.Run(send),
+        });
+        var lines = await Lines(folder, disk, ("a.pdf", "pages=1", new()), ("b.pdf", "pages=1", new()), ("c.pdf", "pages=1", new()));
+        var summary = await BatchPrintRunner.RunAsync(lines, disk, new FakeDocuments(), null, null, default);
+        Assert.Equal([BatchPrintState.Failed, BatchPrintState.Failed, BatchPrintState.Sent], summary.Items.Select(i => i.State));
+        Assert.All(summary.Items.Take(2), i => Assert.Contains(Core.CoreStrings.Direct_NotDrawn, i.Message));
+        Assert.All(summary.Items.Take(2), i => Assert.False(i.MayHaveSent));
+        Assert.DoesNotContain("disk", string.Join(" ", summary.Items.Select(i => i.Message))); // no exception text
+        Assert.Null(summary.StoppedAt);
+
+        // The printer not answering before anything went (its attributes read again): the batch stops, the file still to send.
+        var (silent, _) = DirectBatch((name, _, _) => name == "b.pdf" ? throw DirectPrintException.NoAnswerBeforeSending() : Task.CompletedTask);
+        summary = await BatchPrintRunner.RunAsync(lines, silent, new FakeDocuments(), null, null, default);
+        Assert.Equal(BatchPrintState.Stopped, summary.Items[1].State);
+        Assert.True(summary.Items[1].StillToSend);
+        Assert.Equal(Core.CoreStrings.Direct_NotAnswering, summary.StopReason);
+    }
+
+    [Fact]
+    public void A_job_id_the_printer_uses_again_is_a_new_job_with_its_own_time()
+    {
+        var now = Now0;
+        var watch = new DirectJobWatch(() => now);
+        Assert.Equal(Now0, watch.Read(Jobs((5, 5, "job-printing", null)), NoJobs).Jobs.Single().Submitted);
+        now = Now0.AddMinutes(1);
+        Assert.Empty(watch.Read(NoJobs, NoJobs).Jobs); // printed: it left
+        now = Now0.AddMinutes(6);
+        var again = watch.Read(Jobs((5, 3, "none", null)), NoJobs).Jobs.Single();
+        Assert.Equal(Now0.AddMinutes(6), again.Submitted); // not the old job's: its stuck wait and its alerts are its own
+
+        // A list cut at the limit doesn't say which jobs left: none is forgotten.
+        byte[] Waiting(int from) => Jobs([.. Enumerable.Range(from, PrinterJobs.MaxJobs + 5).Select(id => (id, 3, "none", (Action<B>?)null))]);
+        now = Now0.AddMinutes(7);
+        Assert.Equal(Now0.AddMinutes(7), watch.Read(Waiting(10), NoJobs).Jobs.Single(j => j.Id == 10).Submitted);
+        now = Now0.AddMinutes(8);
+        Assert.DoesNotContain(watch.Read(Waiting(500), NoJobs).Jobs, j => j.Id == 10); // cut at the limit: job 10 may still be there
+        now = Now0.AddMinutes(9);
+        Assert.Equal(Now0.AddMinutes(7), watch.Read(Waiting(10), NoJobs).Jobs.Single(j => j.Id == 10).Submitted);
+    }
+
+    [Fact]
+    public async Task A_first_read_without_the_ended_list_doesnt_make_old_failures_new()
+    {
+        var calls = 0;
+        var http = new DeviceHttp("192.0.2.11", new Answering(request =>
+        {
+            var ended = Encoding.ASCII.GetString(request).Contains("not-completed") ? false : true;
+            if (ended && Interlocked.Increment(ref calls) == 1) return [1, 2]; // the first ended list: unreadable
+            return ended ? Jobs((3, 8, "aborted-by-system", null)) : NoJobs; // given up on, no time: from before the watch
+        }));
+        var watch = new DirectJobWatch();
+        var ipp = new IppClient(http);
+        Assert.Empty((await watch.ReadAsync(ipp, "ana")).Jobs);
+        Assert.Empty((await watch.ReadAsync(ipp, "ana")).Jobs); // the first ended list read: still old
+        Assert.Empty((await watch.ReadAsync(ipp, "ana")).Jobs);
+    }
+
+    [Fact]
+    public async Task A_stopped_printer_is_a_problem_even_with_only_warnings()
+    {
+        async Task<string?> Problem(Func<byte[], byte[]> answer) => await DirectBatch(printer: answer).Queue.ProblemAsync(default);
+
+        Assert.NotNull(await Problem(_ => Printer(b => b.Enums("printer-state", 5).Kw("printer-state-reasons", "moving-to-paused-warning"))));
+        Assert.Equal(Core.CoreStrings.Status_Stopped + ".", await Problem(_ => Printer(b => b.Enums("printer-state", 5).Kw("printer-state-reasons", "toner-low-warning"))));
+        Assert.NotNull(await Problem(_ => Printer(b => b.Enums("printer-state", 5).Kw("printer-state-reasons", "none"))));
+        Assert.NotNull(await Problem(_ => Printer(b => b.Enums("printer-state", 3).Kw("printer-state-reasons", "paused"))));
+        Assert.Null(await Problem(_ => Printer(b => b.Enums("printer-state", 3).Kw("printer-state-reasons", "moving-to-paused"))));
+        Assert.Equal(Severity.Error, IppStatusText.DefaultSeverity("paused"));
+        Assert.Equal(Severity.Error, IppStatusText.DefaultSeverity("printer-stopped"));
+        Assert.Equal(Severity.Warning, IppStatusText.DefaultSeverity("moving-to-paused"));
+    }
+
+    // ---- one route decision ----
+
+    private static IppClient Client(Func<byte[], byte[]>? answer = null) => new(new DeviceHttp("192.0.2.11", new Answering(answer ?? (_ => NoJobs))));
+
+    [Fact]
+    public async Task Job_alerts_watch_where_the_last_print_went_without_looking_the_queue_up_again()
+    {
+        var lookups = 0;
+        string? queueName = null;
+        var chose = false;
+        var ipp = Client();
+        var router = new PrintRouter(() => { lookups++; return Task.FromResult<string?>(queueName); }, () => ipp, () => chose);
+        Assert.Null(router.Last);
+        Assert.Equal(PrintRoute.Direct, (await router.ForWatchingAsync()).Route); // none chosen yet: decided once
+        Assert.Equal(1, lookups);
+
+        // A queue appears (set up in Windows) after the last print went straight: alerts keep watching the printer until the next decision.
+        queueName = "Office inkjet";
+        Assert.Equal(PrintRoute.Direct, (await router.ForWatchingAsync()).Route);
+        Assert.Equal(1, lookups);
+        var print = await router.ChooseAsync(); // the next print (or the queue's change) decides again
+        Assert.Equal((PrintRoute.Queue, "Office inkjet"), (print.Route, print.Queue));
+        Assert.Equal(PrintRoute.Queue, (await router.ForWatchingAsync()).Route);
+        chose = true;
+        Assert.Equal(PrintRoute.Direct, (await router.ChooseAsync()).Route);
+
+        // A reconnect makes a new client: alerts read through it.
+        var reconnected = Client();
+        ipp = reconnected;
+        Assert.Same(reconnected, (await router.ForWatchingAsync()).Ipp);
+
+        // The alerts' reader reads the printer's list or the queue, as decided.
+        var queueReads = 0;
+        var jobs = new RoutedJobQueue(() => { queueReads++; return Task.FromResult<JobQueueState?>(new JobQueueState(false, false, [])); }, router, "ana");
+        ipp = Client(request => Encoding.ASCII.GetString(request).Contains("not-completed") ? Jobs((4, 5, "job-printing", null)) : NoJobs);
+        Assert.Equal([4], (await jobs.ReadAsync())!.Jobs.Select(j => j.Id));
+        chose = false;
+        await router.ChooseAsync();
+        Assert.Empty((await jobs.ReadAsync())!.Jobs);
+        Assert.Equal(1, queueReads);
+    }
+
+    [Fact]
+    public async Task A_batch_goes_where_the_router_decides_and_answers_for_that_route()
+    {
+        using var folder = new BatchFolder();
+        string? queueName = "Office inkjet";
+        var ipp = Client();
+        var windows = new FakeQueue();
+        var made = 0;
+        var (direct, sentDirect) = DirectBatch();
+        var router = new PrintRouter(() => Task.FromResult<string?>(queueName), () => ipp, () => false);
+        var routed = new RoutedBatchQueue(windows, router, _ =>
+        {
+            made++;
+            return direct;
+        });
+        var lines = await Lines(folder, routed, ("a.pdf", "pages=1", new()));
+        await BatchPrintRunner.RunAsync(lines, routed, new FakeDocuments(), null, null, default);
+        Assert.Single(windows.Sent);
+        Assert.Equal(Core.CoreStrings.Batch_WindowsNoAnswer, routed.NoAnswer);
+        Assert.False(routed.EndsOnItsOwnOnceSpooling);
+
+        queueName = null; // the queue was removed: straight to the printer
+        await BatchPrintRunner.RunAsync(lines, routed, new FakeDocuments(), null, null, default);
+        Assert.Single(sentDirect);
+        Assert.Single(windows.Sent);
+        Assert.Equal(Core.CoreStrings.Direct_NotAnswering, routed.NoAnswer);
+        Assert.True(routed.EndsOnItsOwnOnceSpooling);
+        Assert.True(made > 0);
+    }
+
+    // ---- the command line's printer ----
+
+    private static readonly InkvoltPrinter Inkjet = new("uuid-inkjet", "Office inkjet", "Inkjet 5000", "192.0.2.20", null)
+    {
+        IppUri = new Uri("http://192.0.2.20:631/ipp/print"),
+    };
+
+    [Fact]
+    public void The_command_line_prints_straight_to_a_printer_with_no_queue_or_set_to_print_straight()
+    {
+        var known = new Core.Suite.InkvoltPrinters([Inkjet], new Dictionary<string, string>());
+        var ownQueue = new Core.Queues.SpoolerQueue("Inkjet queue", "IP_192.0.2.20", "Microsoft IPP Class Driver", 0, 0, 0);
+        var pdf = new Core.Queues.SpoolerQueue("Microsoft Print to PDF", "PORTPROMPT:", "Microsoft Print To PDF", 0, 0, 0);
+
+        // No queue for it: straight, with the pins Inkvolt Print keeps for it.
+        var direct = Assert.IsType<BatchPrinterChoice.Direct>(BatchPrinterLookup.Find("office INKJET", [pdf], known));
+        Assert.Equal((Inkjet.IppUri, "Office inkjet", Inkjet), (direct.Endpoint, direct.Name, direct.Printer));
+        // Its queue: the queue, as the window does; set to print straight: straight.
+        Assert.Equal(new BatchPrinterChoice.Queue("Inkjet queue"), BatchPrinterLookup.Find("Office inkjet", [ownQueue, pdf], known));
+        Assert.IsType<BatchPrinterChoice.Direct>(BatchPrinterLookup.Find("Office inkjet", [ownQueue], new Core.Suite.InkvoltPrinters([Inkjet], new Dictionary<string, string>()) { PrintDirect = ["UUID-INKJET"] }));
+        // Never reached over IPP and no queue: nothing to print through, said before anything is read.
+        var never = new Core.Suite.InkvoltPrinters([Inkjet with { IppUri = null }], new Dictionary<string, string>());
+        Assert.Contains("hasn't reached it over IPP", Assert.Throws<BatchCommandException>(() => BatchPrinterLookup.Find("Office inkjet", [], never)).Message);
+        Assert.Throws<BatchCommandException>(() => BatchPrinterLookup.Find("Microsoft Print to PDF", [pdf], known)); // virtual, as before
+
+        // An address: that printer, straight; ipp is IPP over http on 631, ipps over https.
+        var typed = Assert.IsType<BatchPrinterChoice.Direct>(BatchPrinterLookup.Find("ipp://192.0.2.20/ipp/print", [], known));
+        Assert.Equal(new Uri("http://192.0.2.20:631/ipp/print"), typed.Endpoint);
+        Assert.Same(Inkjet, typed.Printer); // a printer it remembers: its pins
+        Assert.Equal(new Uri("https://192.0.2.30:8631/ipp/print"), Assert.IsType<BatchPrinterChoice.Direct>(BatchPrinterLookup.Find("ipps://192.0.2.30:8631/ipp/print", [], known)).Endpoint);
+        Assert.Null(Assert.IsType<BatchPrinterChoice.Direct>(BatchPrinterLookup.Find("ipp://192.0.2.31/ipp/print", [], known)).Printer);
+        foreach (var hostile in new[] { "http://192.0.2.20/", "ipp://user:secret@192.0.2.20/ipp/print", "ipp://192.0.2.20/ipp/print?x=1", "ipp://", "file://c:/x", "ipp://192.0.2.20/#a" })
+            Assert.Throws<BatchCommandException>(() => BatchPrinterLookup.Find(hostile, [], known));
+    }
+
+    [Fact]
+    public void The_state_file_gives_the_command_line_the_print_straight_choice_and_pins_read_only()
+    {
+        var known = Core.Suite.InkvoltPrinters.Parse("""
+            { "Printers": [ { "Uuid": "uuid-inkjet", "Name": "Office inkjet", "Host": "192.0.2.20", "IppUri": "https://192.0.2.20:631/ipp/print" } ],
+              "DirectPrinters": [ "uuid-inkjet", 7, null ],
+              "CertificatePins": { "uuid-inkjet:631": "AB12", "uuid-inkjet": "CD34", "other": 5 } }
+            """);
+        Assert.Equal(["uuid-inkjet"], known.PrintDirect);
+        var pins = new ReadOnlyPins(known, "uuid-inkjet");
+        Assert.Equal(("AB12", "CD34"), (pins.Get(631), pins.Get(443)));
+        Assert.Equal("AB12", pins.SetIfAbsent(631, "FFFF")); // a pin that's there must match
+        Assert.Equal("EEEE", pins.SetIfAbsent(8631, "EEEE")); // none: taken this once
+        Assert.Null(pins.Get(8631)); // and not kept: the command line writes nothing
+        Assert.Empty(Core.Suite.InkvoltPrinters.Parse("""{ "DirectPrinters": "x", "CertificatePins": [] }""").CertificatePins);
     }
 }

@@ -59,7 +59,9 @@ public static class BatchPrintCommandLine
           --allow-network    a list may open files on other computers (it's refused otherwise)
           --quiet            only problems, and the last line
 
-        --printer is a queue's name in Windows (inkvoltprint queues lists them) or a printer's name in Inkvolt Print.
+        --printer is a queue's name in Windows (inkvoltprint queues lists them), a printer's name in Inkvolt Print (its queue,
+        or straight to it when it has none or Print straight to the printer is chosen for it), or a printer's address,
+        ipp://host/ipp/print or ipps://host/ipp/print, to print straight to it with no Windows queue.
         A file that needs a password gets the one in the environment variable {PasswordVariable}, once, and is otherwise skipped.
         "Sent" means Windows' print queue has it.
 
@@ -170,7 +172,7 @@ public static class BatchPrintCommandLine
         {
             queue = await host.FindPrinterAsync(request.Printer!, cancel).ConfigureAwait(false);
             if (await queue.ReadAsync(cancel).ConfigureAwait(false) is not { } read)
-                throw new BatchCommandException($"\"{BatchPrintText.Clean(request.Printer!)}\" has no Windows queue to print through.");
+                throw new BatchCommandException($"\"{BatchPrintText.Clean(request.Printer!)}\" has nothing to print through: no Windows queue, and none of the formats Inkvolt Print sends without one.");
             info = read;
         }
         catch (BatchCommandException ex)

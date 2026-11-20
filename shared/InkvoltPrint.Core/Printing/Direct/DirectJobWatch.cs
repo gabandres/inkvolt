@@ -8,8 +8,8 @@ namespace InkvoltPrint.Core.Printing.Direct;
 /// <see cref="AlertTracker.ObserveJobs"/>. The jobs still to print are Get-Jobs' not-completed ones; of the ended ones only those
 /// the printer gave up on (aborted) are added, for <see cref="EndedKept"/> after they ended, so a job that fails between two reads
 /// is still told and one that ended before the watch began isn't. A printer that gives no creation time gets the moment a job
-/// was first seen, kept per job id, so a job keeps one key (<see cref="JobRules.Key"/>) for as long as it's listed. One instance
-/// per printer, read once a minute.
+/// was first seen, kept per job id while it's listed (and for the read it leaves, so it keeps its key, <see cref="JobRules.Key"/>,
+/// when it shows up ended), so an id the printer uses again for a new job is a new job. One instance per printer, read once a minute.
 /// </summary>
 public sealed class DirectJobWatch(Func<DateTime>? clock = null)
 {
@@ -22,8 +22,18 @@ public sealed class DirectJobWatch(Func<DateTime>? clock = null)
     private const int MaxRemembered = 4 * PrinterJobs.MaxJobs;
 
     private readonly Func<DateTime> _now = clock ?? (() => DateTime.Now);
-    private readonly Dictionary<int, (DateTime First, DateTime Last)> _open = [], _ended = [];
-    private bool _started;
+
+    /// <summary>Jobs listed waiting or printing, by id: when first seen, when last seen.</summary>
+    private readonly Dictionary<int, (DateTime First, DateTime Last)> _open = [];
+
+    /// <summary>Jobs that left the open list, by id: when first seen open (their key), when they left.</summary>
+    private readonly Dictionary<int, (DateTime First, DateTime Last)> _left = [];
+
+    /// <summary>Aborted jobs seen in the ended list, by id: when they ended as far as known, when last listed.</summary>
+    private readonly Dictionary<int, (DateTime First, DateTime Last)> _ended = [];
+
+    /// <summary>An ended list has been read: from then on, a job given up on that wasn't there before is new.</summary>
+    private bool _endedRead;
 
     /// <summary>
     /// Asks the printer for its jobs and its ended jobs. Throws when the jobs to print can't be read (an unread queue says nothing
@@ -50,36 +60,52 @@ public sealed class DirectJobWatch(Func<DateTime>? clock = null)
         var now = _now();
         var jobs = new List<QueueJob>();
         var ids = new HashSet<int>();
-        foreach (var l in PrinterJobs.Read(notCompleted))
+        var open = PrinterJobs.Read(notCompleted);
+        foreach (var l in open)
         {
             if (!ids.Add(l.Job.Id)) continue;
-            // An id seen ended and now waiting again is a new job (a printer that restarted counts from 1 again).
+            // An id seen given up on and now waiting again is a new job (a printer that restarted counts from 1 again).
             if (_ended.Remove(l.Job.Id)) _open.Remove(l.Job.Id);
+            _left.Remove(l.Job.Id);
             jobs.Add(Keyed(l, _open, now));
         }
+        // A complete list (not cut at the limit) says which jobs left: their first sight moves aside, so a new job under the
+        // same id isn't given the old one's time, and the old one keeps its key if it shows up ended.
+        if (open.Count < PrinterJobs.MaxJobs)
+            foreach (var (id, seen) in _open.Where(x => !ids.Contains(x.Key)).ToList())
+            {
+                _open.Remove(id);
+                _left[id] = (seen.First, now);
+            }
 
-        IReadOnlyList<PrinterJobs.Listed> done = [];
+        IReadOnlyList<PrinterJobs.Listed>? done = null;
         if (completed is not null)
         {
             try { done = PrinterJobs.Read(completed); }
             catch (Exception ex) when (ex is DirectPrintException or FormatException) { } // which-jobs "completed" not offered: the open ones still count
         }
-        foreach (var l in done)
+        foreach (var l in done ?? [])
         {
             if (l.State.State != DirectJobState.Aborted || !ids.Add(l.Job.Id)) continue; // printed and cancelled jobs have left the queue
+            var watched = _left.TryGetValue(l.Job.Id, out var left);
             if (!_ended.TryGetValue(l.Job.Id, out var seen))
             {
-                // First seen ended: when the printer says it ended, before the first read (it may be days old); else now.
-                var at = !_started ? l.Ended ?? DateTime.MinValue : _open.ContainsKey(l.Job.Id) ? now : l.Ended ?? now;
+                // Seen waiting or printing, it ended since; before the first ended list, when the printer says (it may be days
+                // old; no time: old); after it, when the printer says, else now.
+                var at = watched ? now : !_endedRead ? l.Ended ?? DateTime.MinValue : l.Ended ?? now;
                 seen = (at, now);
             }
             _ended[l.Job.Id] = (seen.First, now);
+            if (watched) _left[l.Job.Id] = (left.First, now);
             var age = now - seen.First;
             if (age > EndedKept || age < -EndedKept) continue; // a printer's clock far off says nothing either
-            jobs.Add(Keyed(l, _open, now) with { Problem = DirectJob.Describe(l.State, 0) });
+            // Its key: when first seen open, else when it ended (kept above): the same at every read.
+            var job = l.Created is null ? l.Job with { Submitted = watched ? left.First : seen.First } : l.Job;
+            jobs.Add(job with { Problem = DirectJob.Describe(l.State, 0) });
         }
-        _started = true;
+        if (done is not null) _endedRead = true;
         Prune(_open, now);
+        Prune(_left, now);
         Prune(_ended, now);
         return new JobQueueState(Paused: false, WorkOffline: false, QueueJobText.Order(jobs));
     }

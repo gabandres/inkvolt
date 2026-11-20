@@ -65,18 +65,21 @@ internal static class DevDirectPrint
             var progress = new Progress<string>(m => report.Add($"progress: {m}"));
             if (args.Contains("--batch"))
             {
-                // Batch print's command line, its files sent straight to the printer (RoutedBatchQueue, DirectBatchQueue).
+                // Batch print's command line as `inkvoltprint print … --printer <ipp-url>` runs it: straight to the printer (DirectBatchQueue).
                 var rest = args.SkipWhile(a => a != "--batch").Skip(1).ToList();
-                var cut = rest.IndexOf("--report");
-                if (cut >= 0) rest.RemoveRange(cut, Math.Min(2, rest.Count - cut));
+                // This aid's own options, wherever they are, aren't the command line's.
+                void Drop(string option)
+                {
+                    var at = rest.IndexOf(option);
+                    if (at >= 0) rest.RemoveRange(at, Math.Min(2, rest.Count - at));
+                }
+                Drop("--report");
                 using var stop = new CancellationTokenSource();
                 if (double.TryParse(Value(args, "--stop-after-seconds"), System.Globalization.CultureInfo.InvariantCulture, out var seconds))
-                {
                     stop.CancelAfter(TimeSpan.FromSeconds(seconds));
-                    rest.RemoveRange(rest.IndexOf("--stop-after-seconds"), 2);
-                }
+                Drop("--stop-after-seconds");
                 var output = new StringWriter();
-                var exit = await BatchPrintCommandLine.RunAsync(["print", .. rest, "--printer", "direct"], output, output, new DirectHost(target), stop.Token);
+                var exit = await BatchPrintCommandLine.RunAsync(["print", .. rest, "--printer", args[1]], output, output, new BatchPrintHost(), stop.Token);
                 report.AddRange(output.ToString().Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).Select(l => $"batch: {l}"));
                 report.Add($"exit: {exit}");
             }
@@ -137,16 +140,6 @@ internal static class DevDirectPrint
             if (Value(args, "--report") is { } file) await File.WriteAllLinesAsync(file, report);
         }
         return code;
-    }
-
-    /// <summary>The command line's printer, whatever its name: the test printer, straight.</summary>
-    private sealed class DirectHost(PrintTarget.Direct target) : IBatchPrintHost
-    {
-        public IBatchDocuments Documents => WindowsBatchDocuments.Instance;
-
-        public Task<IBatchQueue> FindPrinterAsync(string name, CancellationToken ct) =>
-            Task.FromResult<IBatchQueue>(new RoutedBatchQueue(new WindowsBatchQueue(() => Task.FromResult<string?>(null)),
-                () => Task.FromResult<PrintTarget?>(target), () => "Test printer"));
     }
 
     private static string? Value(string[] args, string name) =>

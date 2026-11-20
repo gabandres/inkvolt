@@ -1663,11 +1663,11 @@ public sealed partial class ScanViewModel : ObservableObject
             Log.Write($"Preset print, straight to the printer: {ex.Message} (may have printed: {ex.MayHavePrinted})");
             Fail(ex.Message);
         }
-        catch (Exception ex) when (target is PrintTarget.Direct && Core.Printing.Direct.DirectJob.NoAnswer(ex))
+        catch (Exception ex) when (target is PrintTarget.Direct && ex is IOException or UnauthorizedAccessException or FormatException)
         {
-            // Only before the job went: once it's sent, the printer not answering is a DirectPrintException that says so.
+            // Straight to the printer, the printer's silence is a DirectPrintException (above): this is this PC's disk or a page's drawing.
             Log.Write($"Preset print: {ex}");
-            Fail(Core.CoreStrings.Direct_NotAnswering);
+            Fail(Core.CoreStrings.Direct_NotDrawn);
         }
         catch (Exception ex)
         {

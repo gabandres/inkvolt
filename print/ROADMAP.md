@@ -291,8 +291,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   may have printed offers no Print again, Copy and Photos get progress and Cancel, the attributes are read once per
   connection a while (`IppCapsCache`), the printer's clock out of range is left out. **Batch print, the scan presets' print step and job alerts
   (2026-11-19):** a batch (2.4) sends each file as one direct job, the scan preset's print step goes the same way, and job alerts
-  (3.4) follow the printer's own job list while its jobs go straight (details under 2.4 and 3.4). Still on a Windows queue only:
-  `inkvoltprint print` (no printer connection on the command line). Pending on hardware: the M234dw printing a page from a PC with no
+  (3.4) follow the printer's own job list while its jobs go straight (details under 2.4 and 3.4); `inkvoltprint print` too. One
+  route decision per printer for all of it (`PrintRouter`: prints decide afresh, alerts follow the last decision). Pending on hardware: the M234dw printing a page from a PC with no
   queue for it. **Mac: waits** (no Mac now); PrintCore would carry the same encoders and plan.
 - **Effort** M. Windows; Mac the same code in PrintCore (today it prints through the CUPS queue).
 
@@ -396,7 +396,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   BatchPrintCommandLineTests ported), PDFKit and Image I/O pages, the CUPS queue with each job held, read back and only then released;
   the sandboxed `print` reaches what the window was given. Proved on demo mode's queues and a test queue (held, cancelled): no paper.
 - **Straight to the printer (2.1; Windows, 2026-11-19).** A printer with no Windows queue, or one set to print straight, gets the
-  batch as a Print-Job per file (`Core/Printing/Direct/DirectBatchQueue`, routed by `App/Printing/RoutedBatchQueue`; the pages drawn
+  batch as a Print-Job per file (`Core/Printing/Direct/DirectBatchQueue`, routed by `RoutedBatchQueue` on the printer's one
+  `PrintRouter`; the pages drawn
   to disk as for the queue, then laid out and rasterized as Print a PDF's). Papers and two-sided from the printer's attributes; before
   each file the printer's state (stopped, an error such as a jam, not accepting jobs, not answering) stops the batch; a setting the
   printer can't keep fails that file with nothing drawn; each job is followed (Get-Job-Attributes) to its end before the next goes;
@@ -408,7 +409,16 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   command line's code): two 5-page PDFs and a PNG, 2 copies, in order as three jobs, each sent after the previous one completed,
   10, 10 and 2 PWG pages at 2550 × 3300, exit 0; to a printer whose every job aborts (`-c` a command that fails): the first file
   Failed ("Sending failed part-way: check the queue…"), the other two not sent, "Stopped at file 1 of 3 (…): The printer stopped
-  the job.", exit 3. Not done: `inkvoltprint print` to a printer with no queue (the command line has no printer connection).
+  the job.", exit 3. **After review (2026-11-20):** once a direct job is sent the batch waits for it however long it prints (the
+  printer's job is followed until it ends or is quiet two minutes; `IBatchQueue.EndsOnItsOwnOnceSpooling`), while the drawing's
+  limit counts the copies drawn (`SendLimit`); a printer slow to say it's ready is "The printer doesn't answer", not Windows
+  (`IBatchQueue.NoAnswer`); only the printer's silence stops the batch, this PC's disk or drawing failing fails that file
+  ("Its pages couldn't be made ready on this PC"); a stopped printer stops it even with warnings alone. **The command line**
+  (`inkvoltprint print`): `--printer` takes an `ipp://` or `ipps://` address, straight to that printer, and a printer Inkvolt Print
+  remembers goes straight (its last IPP address, its certificate pins read from `state.json`, nothing written) when it has no queue
+  or *Print straight* is chosen for it, decided as the window decides (`Core/Printing/BatchPrinterLookup`, tested). Checked with
+  `ippeveprinter` through the real command line host: the 3-file batch (exit 0), the aborting printer (exit 3), a port with no
+  printer ("The printer can't be read: The printer doesn't answer. Nothing was sent.", exit 2).
 - **Effort** S-M. Windows and Mac.
 
 ### 2.5 TWAIN
@@ -681,7 +691,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
 - **Mac, done (2026-11-05, on ignia-mac; mac/docs/PLAN.md P12):** each printer's queue read once a minute while alerts and the Settings switch are on, through IPP Get-Jobs over cupsd's socket (not `cupsGetJobs2`: only Get-Jobs says a job came from this Mac); one notification per job naming the document and the printer, with Open the Queue and Pause Alerts, more than three from one printer sharing one; `--report --jobs` and demo mode's made-up jobs. Found on the Mac: a job on a dead address stays printing while CUPS retries (so it's "may be stuck" after 15 minutes), a filter failure stops the job and leaves the queue running (failed). Not seen: a notification on screen, a real printer failing a job.
 - **Straight to the printer (2.1; Windows, 2026-11-19).** While a printer's jobs go straight to it (no Windows queue, or *Print
   straight* chosen), the tray reads its own job list instead of the spooler (`Core/Printing/Direct/DirectJobWatch`, routed by
-  `App/Printing/RoutedJobQueueReader` with the queue as last looked up, as it's asked every minute): Get-Jobs not-completed, plus
+  `RoutedJobQueue` on the last route the printer's `PrintRouter` chose for a print, as it's asked every minute): Get-Jobs not-completed, plus
   completed for the jobs the printer gave up on (aborted), kept 15 minutes after they ended so a job that fails between two reads is
   told, and not told when it ended before the watch began (its `date-time-at-completed` older than that, or none). As bits: held is
   paused, processing printing, stopped blocked (failed, with paper-out from `media-*`/`resources-are-not-ready`), aborted error with
@@ -693,7 +703,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   failed, owners, reused ids, a printer refusing the ended list). Against `ippeveprinter` with `--watch-jobs n` (real reads, the rules'
   clock a minute on at each): a job aborted by the printer's command raised one `JobFailed` ("Test printer: The printer stopped the
   job.") a minute after it was first seen, and left the list 15 minutes after it ended; a job held processing by a command that
-  sleeps, the printer saying it's printing, raised one `JobStuck` ("may be stuck", 15 minutes) and no more. Not checked: a real printer's job
+  sleeps, the printer saying it's printing, raised one `JobStuck` ("may be stuck", 15 minutes) and no more. After review: a job that
+  left a complete open list gives its id back (a new job under it has its own time), and the first ended list read, not the first
+  read, starts the "new failure" clock. Not checked: a real printer's job
   list (owners, what a jam looks like there), the toast on screen.
 - **Beat it when:** with alerts on, your own job's failure or stuck state (no progress for 5 minutes while the
   printer is ready) is one notification per job, naming the document and the printer, with Open the queue; off by

@@ -62,7 +62,12 @@ public static class DirectPrinter
         Func<Size, PrintImages, DocumentPaginator> paginator, IProgress<string>? progress, CancellationToken ct,
         Action? onSending = null, Action? onSent = null, bool finishOnceSent = false)
     {
-        var caps = await ReadCapsAsync(target, ct);
+        IppPrintCaps caps;
+        try { caps = await ReadCapsAsync(target, ct); }
+        catch (Exception ex) when (DirectJob.NoAnswer(ex))
+        {
+            throw DirectPrintException.NoAnswerBeforeSending(ex); // only the printer's silence: a disk or drawing error below is its own
+        }
         if (OnlyFormat is { } only)
         {
             request = request with { Format = only };

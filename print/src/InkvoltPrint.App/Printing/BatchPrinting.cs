@@ -343,25 +343,16 @@ internal sealed class DiskPages : IReadOnlyList<RenderedPage>, IDisposable
 }
 
 /// <summary>
-/// A printer's batch jobs where its other prints go (<see cref="PrintTargets"/>): its Windows queue (<paramref name="queue"/>), or
-/// straight to the printer (<see cref="Core.Printing.Direct.DirectBatchQueue"/>, roadmap 2.1) when it has none or the person chose
-/// that. Asked again for each call, as the Windows queue is looked up for each.
+/// A batch straight to the printer (roadmap 2.1; what decides it: <see cref="Core.Printing.Direct.DirectBatchQueue"/>, and where
+/// it goes: <see cref="Core.Printing.Direct.RoutedBatchQueue"/>): this side draws each file's pages to disk as for a Windows queue,
+/// then lays each on its sheet as Print a PDF does and sends it, followed to the job's end.
 /// </summary>
-public sealed class RoutedBatchQueue(IBatchQueue queue, Func<Task<PrintTarget?>> findTarget, Func<string> printerName) : IBatchQueue
+public static class DirectBatchJobs
 {
-    private async Task<IBatchQueue> RouteAsync() =>
-        await findTarget().ConfigureAwait(false) is PrintTarget.Direct d
-            ? new Core.Printing.Direct.DirectBatchQueue(printerName(), d.Ipp, d.Caps, (document, job, request, progress, onSending, ct) => SendAsync(d, document, job, request, progress, onSending, ct))
-            : queue;
+    public static IBatchQueue For(string printerName, PrintTarget.Direct target) =>
+        new Core.Printing.Direct.DirectBatchQueue(printerName, target.Ipp, target.Caps,
+            (document, job, request, progress, onSending, ct) => SendAsync(target, document, job, request, progress, onSending, ct));
 
-    public async Task<BatchQueueInfo?> ReadAsync(CancellationToken ct) => await (await RouteAsync().ConfigureAwait(false)).ReadAsync(ct).ConfigureAwait(false);
-
-    public async Task<string?> ProblemAsync(CancellationToken ct) => await (await RouteAsync().ConfigureAwait(false)).ProblemAsync(ct).ConfigureAwait(false);
-
-    public async Task<BatchReceipt> SendAsync(IBatchDocument document, BatchPrintJob job, IProgress<string>? progress, Action? onSpooling, CancellationToken ct) =>
-        await (await RouteAsync().ConfigureAwait(false)).SendAsync(document, job, progress, onSpooling, ct).ConfigureAwait(false);
-
-    /// <summary>The file's pages drawn to disk as for a Windows queue, then each on its sheet as Print a PDF lays it out, followed to the job's end.</summary>
     private static async Task SendAsync(PrintTarget.Direct target, IBatchDocument document, BatchPrintJob job, Core.Printing.Direct.DirectPrintRequest request,
         IProgress<string>? progress, Action onSending, CancellationToken ct)
     {
@@ -371,41 +362,29 @@ public sealed class RoutedBatchQueue(IBatchQueue queue, Func<Task<PrintTarget?>>
     }
 }
 
-/// <summary>This PC's side of <c>inkvoltprint print</c>: the real files, and the queue a name stands for.</summary>
+/// <summary>
+/// This PC's side of <c>inkvoltprint print</c>: the real files, and the printer a name stands for (<see cref="BatchPrinterLookup"/>
+/// decides): its Windows queue, or straight to it over IPP with the certificate pins Inkvolt Print keeps for it, read only.
+/// </summary>
 public sealed class BatchPrintHost : IBatchPrintHost
 {
     public IBatchDocuments Documents => WindowsBatchDocuments.Instance;
 
     public async Task<IBatchQueue> FindPrinterAsync(string name, CancellationToken ct)
     {
-        var queues = await InstalledQueues.ListAsync().ConfigureAwait(false);
-        SpoolerQueue? Named(string wanted) => queues.FirstOrDefault(q => string.Equals(q.Name, wanted, StringComparison.OrdinalIgnoreCase));
-
-        var queue = Named(name);
-        if (queue is null)
+        var known = Core.Suite.InkvoltPrinters.Load();
+        // An address given needs no queue list (and a PC whose spooler is off can still print straight).
+        IReadOnlyList<SpoolerQueue> queues = name.Contains("://", StringComparison.Ordinal) ? [] : await InstalledQueues.ListAsync().ConfigureAwait(false);
+        switch (BatchPrinterLookup.Find(name, queues, known))
         {
-            // A printer's name in Inkvolt Print: the queue set up for it, or the one that stands for it, when there is just one.
-            var known = Core.Suite.InkvoltPrinters.Load();
-            var matches = known.Printers.Where(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (matches.Count > 1) throw new BatchCommandException($"More than one printer is called \"{BatchPrintText.Clean(name)}\": use its queue's name.");
-            if (matches.Count == 1)
-            {
-                var printer = matches[0];
-                var byName = known.QueueNames.TryGetValue(printer.Uuid, out var stored) ? Named(stored) : null;
-                var candidates = byName is not null ? [byName] : queues.Where(q => !QueueKinds.IsVirtual(q) && QueueKinds.Unclaimed([q], new Core.Suite.InkvoltPrinters([printer], known.QueueNames)).Count == 0).ToList();
-                if (candidates.Count > 1) throw new BatchCommandException($"\"{BatchPrintText.Clean(name)}\" has several Windows queues: use one's name ({string.Join(", ", candidates.Select(q => BatchPrintText.Clean(q.Name)))}).");
-                queue = candidates.FirstOrDefault();
-                if (queue is null) throw new BatchCommandException($"\"{BatchPrintText.Clean(name)}\" isn't set up in Windows: press Set up on its page in Inkvolt Print, or use a queue's name.");
-            }
+            case BatchPrinterChoice.Direct direct:
+                // Lives as long as the command: the process ends with the batch.
+                var http = new Core.Net.DeviceHttp(direct.Endpoint.Host, pin: direct.Printer is { } p ? new ReadOnlyPins(known, p.Uuid) : null);
+                return DirectBatchJobs.For(direct.Name, PrintTarget.Direct.For(new Core.Ipp.IppClient(http, direct.Endpoint), Environment.UserName));
+            case BatchPrinterChoice.Queue { Name: var queueName }:
+                return new WindowsBatchQueue(() => Task.FromResult<string?>(queueName));
+            default:
+                throw new BatchCommandException($"There is no printer \"{BatchPrintText.Clean(name)}\".");
         }
-        if (queue is null)
-        {
-            var names = queues.Where(q => !QueueKinds.IsVirtual(q)).Select(q => BatchPrintText.Clean(q.Name)).ToList();
-            throw new BatchCommandException($"There is no printer \"{BatchPrintText.Clean(name)}\".{(names.Count > 0 ? $" Windows has: {string.Join(", ", names)}." : "")}");
-        }
-        // Print to PDF and the like would open a Save window nobody is there to answer, and no paper would come out.
-        if (QueueKinds.IsVirtual(queue)) throw new BatchCommandException($"\"{BatchPrintText.Clean(queue.Name)}\" isn't a printer but a virtual one (it would ask where to save): choose a real one.");
-        var queueName = queue.Name;
-        return new WindowsBatchQueue(() => Task.FromResult<string?>(queueName));
     }
 }

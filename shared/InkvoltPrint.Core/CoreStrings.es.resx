@@ -3517,6 +3517,9 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Direct_NotAnswering" xml:space="preserve">
     <value>La impresora no responde. No se envió nada.</value>
   </data>
+  <data name="Direct_NotDrawn" xml:space="preserve">
+    <value>No se pudieron preparar sus páginas en este PC. No se envió nada.</value>
+  </data>
   <data name="Direct_NotAccepting" xml:space="preserve">
     <value>La impresora no está aceptando trabajos ahora.</value>
   </data>
