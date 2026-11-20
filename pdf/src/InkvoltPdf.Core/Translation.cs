@@ -700,7 +700,7 @@ public static partial class TranslationText
 
     private const string Firm = " Your last answer couldn't be used. Give only the translation of this one paragraph, as one paragraph.";
 
-    private const string Tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <u> (underlined), <span> (another font or color), <sub> (subscript) " +
+    private const string Tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <u> (underlined), <span>, <font> and <mark> (each another font or color), <sub> (subscript) " +
         "and <sup> (superscript): put each pair of tags around the words of your translation that translate the words it marks, and add no other tags or markup.";
 
     /// <summary>The request for a paragraph or a piece of one. Nothing else about the document goes with it.</summary>

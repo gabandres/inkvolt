@@ -973,8 +973,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Wrapping measures each candidate line styled. A script in right-to-left text doesn't widen the step to its line, as
   it does in left-to-right text. `TranslationTests.Arabic_keeps_a_bold_and_a_red_word_where_they_read`,
   `Hebrew_keeps_an_underline_and_a_superscript_in_its_line`.
-  **Still wrong, and why.** Two other looks in one paragraph (a red
-  word and a word in Courier): the second is written in the paragraph's own. A script longer than 12 characters on its
+  **Two or three other looks (2026-11-20).** A paragraph's first three other looks (a red word, a word in Courier, a
+  blue one) go as `<span>`, `<font>` and `<mark>`, one tag each (`TranslationMarkup.OthersOf`, in the order they first
+  come; the prompt names all three), and each comes back as its own family and color; a fourth keeps only its bold,
+  italic, underline or script. A character has one of them at most (a later span's replaces an earlier one's, as
+  scripts do), and a reply that nests one inside another, or names one the paragraph didn't have, is written plain.
+  `TranslationLooksTests` (+5: bold, red and Times on one page; three marked and a fourth demoted; garbled replies).
+  **Still wrong, and why.** A script longer than 12 characters on its
   own band stays a paragraph of its own. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads

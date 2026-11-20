@@ -855,13 +855,57 @@ public class TranslationLooksTests
     }
 
     [Fact]
-    public void Of_two_other_looks_only_the_first_is_marked()
+    public void Two_other_looks_are_marked_apart_and_each_comes_back_as_its_own()
     {
         const string text = "A red word and a blue one.";
         List<TextSpan> spans = [Span(text, "red", new TextLook(Color: 0xFF0000)), Span(text, "blue", new TextLook(Color: 0x0000FF)), Span(text, "one", new TextLook(Color: 0x0000FF, Bold: true))];
-        Assert.Equal("A <span>red</span> word and a blue <b>one</b>.", TranslationMarkup.Mark(text, spans));
-        var (now, looks) = TranslationMarkup.Read("Una palabra <span>roja</span> y una azul.", text, spans);
-        Assert.Equal([Span(now, "roja", new TextLook(Color: 0xFF0000))], looks);
+        Assert.Equal("A <span>red</span> word and a <font>blue</font> <b><font>one</font></b>.", TranslationMarkup.Mark(text, spans)); // "one" is blue too
+        var (now, looks) = TranslationMarkup.Read("Una palabra <span>roja</span> y una <font>azul</font>.", text, spans);
+        Assert.Equal([Span(now, "roja", new TextLook(Color: 0xFF0000)), Span(now, "azul", new TextLook(Color: 0x0000FF))], looks);
+    }
+
+    [Fact]
+    public void Three_other_looks_are_marked_and_a_fourth_keeps_only_its_bold()
+    {
+        const string text = "A red, a green, a blue and a gray word.";
+        List<TextSpan> spans =
+        [
+            Span(text, "red", new TextLook(Color: 0xFF0000)), Span(text, "green", new TextLook(Font: "Courier New")),
+            Span(text, "blue", new TextLook(Color: 0x0000FF)), Span(text, "gray", new TextLook(Color: 0x808080, Bold: true)),
+        ];
+        Assert.Equal("A <span>red</span>, a <font>green</font>, a <mark>blue</mark> and a <b>gray</b> word.", TranslationMarkup.Mark(text, spans));
+        var (now, looks) = TranslationMarkup.Read("Un <mark>azul</mark>, un <span>rojo</span> y un <font>verde</font>.", text, spans);
+        Assert.Equal([Span(now, "azul", new TextLook(Color: 0x0000FF)), Span(now, "rojo", new TextLook(Color: 0xFF0000)), Span(now, "verde", new TextLook(Font: "Courier New"))], looks);
+    }
+
+    [Theory]
+    [InlineData("Una <span>roja <font>y</font></span> azul.")] // one other look inside another
+    [InlineData("Una <font>roja</font> y <font>azul</font> y <font>gris</font> y <font>verde</font>.")] // far more than it had
+    [InlineData("Una <mark>roja</mark>.")] // one it didn't have
+    public void Other_looks_a_reply_garbles_leave_it_plain(string reply)
+    {
+        const string text = "A red word and a blue one.";
+        List<TextSpan> spans = [Span(text, "red", new TextLook(Color: 0xFF0000)), Span(text, "blue", new TextLook(Color: 0x0000FF))];
+        var (now, looks) = TranslationMarkup.Read(reply, text, spans);
+        Assert.Empty(looks);
+        Assert.DoesNotContain("<", now, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_bold_word_a_red_word_and_a_word_in_another_font_keep_all_three_looks_on_the_page()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (brown) Tj /FA 12 Tf ( fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and named ) Tj /FT 12 Tf (Newton) Tj /FA 12 Tf ( over the lazy dog.) Tj ET",
+            faces: true, fontText: Letters + "N");
+        var (plan, r) = Translate(pdf, _ => "El <b>zorro</b> es <span>rojo</span> y se llama <font>Newton</font> sobre el perro.");
+        Assert.Equal("The quick <b>brown</b> fox is <span>red</span> and named <font>Newton</font> over the lazy dog.", Assert.Single(plan.Texts).Text);
+        var runs = Runs(r.Data!);
+        Assert.True(Assert.Single(runs, q => q.Text.Contains("zorro", StringComparison.Ordinal)).Bold);
+        Assert.Equal("rojo", Assert.Single(runs, q => q.Color == 0xFF0000).Text.Trim());
+        var name = Assert.Single(runs, q => q.Text.Contains("Newton", StringComparison.Ordinal));
+        Assert.Contains("Times", name.FontName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, name.Color);
+        Assert.All(runs.Where(q => q != name), q => Assert.DoesNotContain("Times", q.FontName, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
