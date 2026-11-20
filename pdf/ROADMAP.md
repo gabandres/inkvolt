@@ -986,18 +986,41 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   nearest lines each way, by baseline, for its line. TranslationLooksTests (+3).
   **pdf.js reads a copy (2026-11-20).** `TranslationPdfJsTests` (opt-in, `INKVOLTPDF_PDFJS`; with `INKVOLTPDF_CORPUS`
   the corpus's first two pages of each file) translates with stand-in answers and has pdf.js (`pdf/tools/pdfjs-check`)
-  read each paragraph's new words: in order word by word, or letter by letter where only spaces differ. What it showed:
-  pdf.js read right-to-left lines without their spaces ("الثعلبالبني…"). It makes spaces only from gaps as the glyphs go
-  right, and a line written in reading order goes back for each glyph; so right-to-left lines are now written left to
-  right (visual order, `TextShaper.Shape`'s `visualOrder`), which MuPDF also reads back in order, and the editor's own
-  reading puts an operator's right-to-left letters drawn left to right back in reading order (`Bidi.ToReadingOrder`,
-  each glyph's text whole, the line's direction that of most of its letters; `DrawnLeftToRight`), as Word's Arabic PDFs
-  draw them too. pdf.js doesn't reorder the items of a right-to-left line drawn in two fonts (a bold word): their words
-  are each read whole, the items left to right (a viewer's limit). Result: the test's 6 pages (looks, Arabic with and
-  without looks, Hebrew, Japanese) 45 of 45 texts in order; the corpus 334 of 335 the original reads in order (f1040
-  p. 2's "b Routing number d Account number", a paragraph across two rows of a form, among "c Type"'s fields), 37 that
-  pdf.js doesn't read in order in the original either (line-end hyphens, drop capitals, form rows) not counted.
-  `ParagraphEditTests`' and `OcrLayerSearchTests`' pdf.js helpers are one (`PdfJs`).
+  read each paragraph's new words: in order word by word, or letter by letter where only spaces differ. Result: the
+  test's 6 pages (looks, Arabic with and without looks, Hebrew, Japanese) 45 of 45 texts in order; the corpus 334 of 335
+  the original reads in order (f1040 p. 2's "b Routing number d Account number", a paragraph across two rows of a form,
+  among "c Type"'s fields), 37 that pdf.js doesn't read in order in the original either (line-end hyphens, drop
+  capitals, form rows) not counted. What it showed: pdf.js reads right-to-left lines without their spaces
+  ("الثعلبالبني…"), their letters in order. It makes spaces only from gaps as the glyphs go right, and a line written in
+  reading order goes back for each glyph. Writing such lines left to right (visual order) was tried: pdf.js then read
+  the spaces, but MuPDF, the app's own reading (search, copy, export), read a real model's Arabic lines with figures
+  backwards ("5202"), a line with brackets turned back, and a label run into the value beside it, so the lines stay in
+  reading order with their directions marked, and pdf.js's missing spaces in right-to-left text are a known limit. Kept
+  from it: the editor's reading puts right-to-left letters an operator draws left to right (Word's Arabic PDFs, Make Text
+  Editable's and the OCR layer's lines) back in reading order, as MuPDF does (`Bidi.ToReadingOrder`, the line's
+  direction that of most of its letters; `DrawnLeftToRight`), and a glyph standing for several letters of a run written
+  left to right holds them backwards, so a reader reversing the run character by character gets "لى" right (MuPDF read
+  "إىل" for "إلى"). `ParagraphEditTests`' and `OcrLayerSearchTests`' pdf.js helpers are one (`PdfJs`).
+  **Real model, five languages (2026-11-20).** Qwen3 4B Instruct 2507 (Q4_0), llama.cpp's llama-server on this PC's GPU
+  (8,192 tokens), `TranslationRealModelTests` (now runs every page and names each failure at the end; saves each language's
+  copy apart): NIST p. 1, attn-v7 p. 3 and fw9 p. 1 into Spanish, French, German, Arabic and Japanese, 30 to 155 s a page.
+  Every answer's words show in every copy but two Arabic ones (below); nothing of the model's own reached a copy; 0 to 5
+  paragraphs a page don't fit (fw9's form boxes). Tags, 16 marked texts a language: kept whole 11 (es), 11 (fr), 12 (de),
+  5 (ar), 6 (ja); the small model drops them most in Arabic and Japanese, where the words are plain but right. Looked at
+  on screen: attn p. 3 in Arabic (bold heading, italic N, the d_model subscript, right-aligned, figure in place), NIST p. 1
+  in Arabic (the table's labels and values in their cells), fw9 p. 1 in Japanese (every box filled, a flag where it
+  doesn't fit). What broke, fixed: the prompt named every tag, and a model told of a `<font>` it wasn't sent wrote
+  `<font color="#0000FF">` around a bold label: a request now names only the tags its text has (`TranslationMarkup.TagsNamed`);
+  then Spanish, French and German on NIST p. 1 and attn p. 3 kept every tag in 23 of 30 marked texts, against 18 of 30
+  before. A model's own `<bold>`, `<strong>`, `<em>` for bold and italic are read as ours (`WithoutOtherTags`; 7 such in the
+  runs). A label or name the model put in angle brackets ("<Décodage :>", the earlier run's "<Aidan N. Gomez>") was taken
+  out as a tag with its words: only what is shaped as a tag goes now, other brackets leave their words
+  (`TranslationMarkup.Unwrapped`). A ligature's "لى" of a right-to-left run written left to right read "ىل" in MuPDF (above).
+  Not fixed: on NIST p. 1's table MuPDF reads two Arabic values backwards ("القسم المطبّق…", "النسخة الأخيرة…"), each on a row
+  with its label: on screen they read right, and the same lines on a page of their own read right in MuPDF; it is MuPDF's
+  joining of a label and a value into one line, to look at. The model's: Russian "номер" in a Japanese label, English left
+  inside Arabic ("تاريخ ال-withdrawal", "Guidelines"), Vietnamese "mới" in Arabic; `SlipsIntoAnotherScript` judges only
+  Latin-letter languages.
   **Still wrong, and why.** The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
@@ -1021,7 +1044,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   tenth of paragraphs) say little about a real translation; the ink check's few lines it still names are at the size floor or in a chart.
   The real app driven again on an AES-256 file opened with its permissions password: the open password asked before anything
   is sent (the reading window used to come up over that question and take the keyboard; it now waits), the copy opened beside it.
-  **Not checked.** Any other model, a cloud endpoint, or a language but Spanish with a real model; a model's refusal in words,
+  **Not checked.** Any other model, a cloud endpoint, or a real model in languages beyond the five above; a model's refusal in words,
   or an answer to the text in place of its translation, can't be told from a translation. A screen
   reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat on a copy. Long runs over
   sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a

@@ -175,6 +175,19 @@ public class TranslationLooksTests
         Assert.DoesNotContain("<b>", TranslationText.Request("The quick brown fox.", "Spanish")[0].Content, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("The <b>quick</b> fox.", "<b> (bold)")]
+    [InlineData("The <span>red</span> fox and <b>d<sub>model</sub></b>.", "<b> (bold), <span> (another font or color) and <sub> (subscript)")]
+    [InlineData("A <font>blue</font>, a <span>red</span> and an <u>underlined</u> word.", "<u> (underlined) and <span>, <font> (each another font or color)")]
+    public void A_marked_texts_request_names_only_the_tags_it_has(string text, string named)
+    {
+        // A real model told of a <font> it wasn't sent wrote <font color="#0000FF"> around a bold label.
+        Assert.Equal(named, TranslationMarkup.TagsNamed(text));
+        var system = TranslationText.Request(text, "French", marked: true)[0].Content;
+        Assert.Contains(named + ":", system, StringComparison.Ordinal);
+        foreach (var other in new[] { "<i>", "<mark>", "<sup>" }) Assert.DoesNotContain(other, system, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void A_marked_paragraph_too_long_for_one_request_goes_in_marked_pieces_each_closing_its_tags()
     {
@@ -186,7 +199,7 @@ public class TranslationLooksTests
         Assert.Equal(text, job.Text);
         Assert.All(job.Pieces, p => Assert.Equal(p.Split("<b>").Length, p.Split("</b>").Length));
         Assert.Equal(TranslationMarkup.Plain(text), TranslationMarkup.Plain(string.Join(' ', job.Pieces)));
-        Assert.All(Translation.Requests([job], "Spanish"), r => Assert.Contains("<sup>", r[0].Content, StringComparison.Ordinal));
+        Assert.All(Translation.Requests([job], "Spanish"), r => Assert.Contains("<b> (bold)", r[0].Content, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -285,14 +298,40 @@ public class TranslationLooksTests
     }
 
     [Theory]
-    [InlineData("<Aidan N. Gomez></sup>∗ †", true)] // a real model's: the name in brackets, taken out as a tag
     [InlineData("∗ †", false)]
+    [InlineData("<b></b><sup>∗ †</sup>", true)]
     public void A_reply_whose_words_are_all_gone_is_not_used(string reply, bool marked)
     {
         var source = marked ? "<b>Aidan N. Gomez</b><sup>∗ †</sup>" : "Aidan N. Gomez ∗ †";
         var (text, problem) = TranslationText.CleanReply(reply, source, marked);
         Assert.Null(text);
         Assert.NotNull(problem);
+    }
+
+    [Theory]
+    [InlineData("<bold>Información adicional</bold><i>(si aplica)</i>", "<b>Información adicional</b><i>(si aplica)</i>")] // a real model's, Spanish
+    [InlineData("<strong>Información</strong> <em>adicional</em>", "<b>Información</b> <i>adicional</i>")]
+    [InlineData("Información <em>adicional</em> <sup>2</sup>", "Información <i>adicional</i> 2")] // no <sup> was sent
+    public void A_models_own_names_for_bold_and_italic_are_read_as_ours(string reply, string cleaned)
+    {
+        var (text, problem) = TranslationText.CleanReply(reply, "<b>Additional Information </b><i>(if applicable)</i>", marked: true);
+        Assert.Null(problem);
+        Assert.Equal(cleaned, text);
+    }
+
+    [Theory]
+    [InlineData("<Aidan N. Gomez></sup>∗ †", "<b>Aidan N. Gomez</b><sup>∗ †</sup>", "Aidan N. Gomez ∗ †")] // a real model's bold name in brackets
+    [InlineData("<Décodage :> Le décodeur est composé.", "<b>Decoder:</b> The decoder is composed.", "Décodage : Le décodeur est composé.")]
+    [InlineData("<Décodage :> Le décodeur est composé.", "Decoder: The decoder is composed.", "Décodage : Le décodeur est composé.")] // sent without markup
+    [InlineData("<font color=\"#0000FF\">Informations</font> <bold>en plus</bold><br/>", "<b>More</b> information", "Informations en plus")] // tag-shaped: only the tags go
+    public void Words_a_model_put_in_angle_brackets_stay_and_only_tags_go(string reply, string source, string written)
+    {
+        var marked = source.Contains("<b>", StringComparison.Ordinal);
+        var (text, problem) = TranslationText.CleanReply(reply, source, marked);
+        Assert.Null(problem);
+        var plain = marked ? TranslationMarkup.Plain(source) : source;
+        var spans = marked ? new List<TextSpan> { new(0, plain.IndexOf(' ', StringComparison.Ordinal), B) } : [];
+        Assert.Equal(written, TranslationMarkup.Read(text!, plain, spans).Text);
     }
 
     [Fact]

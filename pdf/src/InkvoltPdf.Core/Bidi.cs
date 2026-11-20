@@ -122,12 +122,12 @@ internal static class Bidi
     /// <summary>
     /// A line's characters as drawn left to right (visual order, as Word and a translated copy write right-to-left text) put
     /// in reading order: rule L2's reversals, which undo themselves, with the line's direction that of most of its letters
-    /// (a right-to-left line's English word at its left end doesn't make it left to right). Each of <paramref name="glyphs"/>
-    /// (the text each glyph stands for, left to right) moves whole: a ligature's "لا" stays as it reads.
+    /// (a right-to-left line's English word at its left end doesn't make it left to right). Character by character, as MuPDF
+    /// and pdf.js read it: a glyph standing for several characters holds them backwards (<see cref="TextShaper.Shape(string, TrueTypeFont?, bool)"/>).
     /// </summary>
-    public static string ToReadingOrder(IReadOnlyList<string> glyphs)
+    public static string ToReadingOrder(string text)
     {
-        var text = string.Concat(glyphs);
+        var glyphs = TrueTypeFont.CodePoints(text).Select(char.ConvertFromUtf32).ToList();
         int rtl = 0, ltr = 0;
         foreach (var cp in TrueTypeFont.CodePoints(text))
             switch (Classify(cp))

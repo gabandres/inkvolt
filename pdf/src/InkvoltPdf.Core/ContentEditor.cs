@@ -1111,7 +1111,10 @@ public static partial class ContentEditor
         return RectD.FromEdges(minX, minY, maxX, maxY);
     }
 
-    /// <summary>Whether an operator's text has right-to-left letters and its glyphs go left to right, never back (visual order).</summary>
+    /// <summary>
+    /// Whether an operator's text has right-to-left letters and its glyphs go left to right, never back (visual order), most
+    /// of them clear of the one before: a letter and the mark on it drawn in reading order also go right, but over each other.
+    /// </summary>
     private static bool DrawnLeftToRight(List<RunItem> items, string text)
     {
         var rtl = false;
@@ -1122,16 +1125,20 @@ public static partial class ContentEditor
                 break;
             }
         if (!rtl) return false;
-        var last = double.MinValue;
-        var glyphs = 0;
+        RunItem? last = null;
+        int pairs = 0, clear = 0;
         foreach (var item in items)
         {
             if (item.IsNumber || item.Text.Length == 0) continue;
-            if (item.At < last - 1e-6) return false;
-            last = item.At;
-            glyphs++;
+            if (last is not null)
+            {
+                if (item.At < last.At - 1e-6) return false;
+                pairs++;
+                if (item.At >= last.InkEnd - 0.1 * (last.InkEnd - last.At)) clear++;
+            }
+            last = item;
         }
-        return glyphs > 1;
+        return pairs > 0 && 2 * clear > pairs;
     }
 
     /// <summary>
@@ -1194,7 +1201,7 @@ public static partial class ContentEditor
         var text = string.Concat(items.Select(i => i.Text));
         // Right-to-left letters an operator draws left to right (visual order: Word's PDFs, a translated copy's lines) are read
         // in reading order, as MuPDF reads them; drawn in reading order (moving back as it goes), they are read as they are.
-        if (DrawnLeftToRight(items, text)) text = Bidi.ToReadingOrder([.. items.Select(i => i.Text)]);
+        if (DrawnLeftToRight(items, text)) text = Bidi.ToReadingOrder(text);
 
         var why = blocked;
         if (why is null)

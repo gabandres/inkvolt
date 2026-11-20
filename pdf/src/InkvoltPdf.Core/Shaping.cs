@@ -159,11 +159,22 @@ internal static class TextShaper
         }
         if (visualOrder)
         {
-            foreach (var k in order.Where(k => runs[k].Level % 2 == 1)) byRun[k].Reverse();
+            // A right-to-left run's glyphs go left to right, and a glyph standing for several characters (a ligature's "لى", a
+            // letter and its mark) holds them backwards too: readers reverse the run character by character (MuPDF, pdf.js,
+            // Bidi.ToReadingOrder), which then gives them back in reading order.
+            foreach (var k in order.Where(k => runs[k].Level % 2 == 1))
+            {
+                byRun[k].Reverse();
+                for (var g = 0; g < byRun[k].Count; g++)
+                    if (byRun[k][g].Text.Length > 1) byRun[k][g] = byRun[k][g] with { Text = Backwards(byRun[k][g].Text) };
+            }
             return new ShapedLine(text, [.. order.SelectMany(k => byRun[k])], pen, para == 1) { Runs = placedRuns };
         }
         return new ShapedLine(text, [.. byRun.SelectMany(g => g)], pen, para == 1, runs.Any(r => r.Level % 2 == 0) && runs.Any(r => r.Level % 2 == 1)) { Runs = placedRuns };
     }
+
+    /// <summary><paramref name="s"/>'s code points in the other order (surrogate pairs kept together).</summary>
+    private static string Backwards(string s) => string.Concat(Graphemes(s).Reverse());
 
     /// <summary>Code points of <paramref name="s"/> (surrogate pairs kept together).</summary>
     private static IEnumerable<string> Graphemes(string s)

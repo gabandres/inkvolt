@@ -294,15 +294,47 @@ internal static partial class TranslationMarkup
 
     private static string Collapsed(string s) => string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
-    /// <summary>A reply with every tag taken out but ours of the looks <paramref name="sent"/> (the marked text) has.</summary>
+    /// <summary>
+    /// A reply with every tag taken out but ours of the looks <paramref name="sent"/> (the marked text) has; a model's own
+    /// name for one of them ("&lt;bold&gt;", "&lt;strong&gt;", "&lt;em&gt;": a real model wrote them for &lt;b&gt; and &lt;i&gt;) read as ours.
+    /// </summary>
     public static string WithoutOtherTags(string reply, string sent)
     {
         var had = Kind.None;
         foreach (Match m in AnyTag().Matches(sent))
             if (IsOurs(m.ValueSpan)) had |= KindNamed(m.ValueSpan[1..^1]);
-        return AnyTag().Replace(reply, m => IsOurs(m.ValueSpan) && (KindNamed(m.ValueSpan[1..^1]) & had) != 0 ? m.Value : "");
+        if ((had & Faces) != 0)
+            reply = Synonym().Replace(reply, m =>
+            {
+                var bold = m.Groups["name"].Value.ToLowerInvariant() is "bold" or "strong" or "bf";
+                return (had & (bold ? Kind.Bold : Kind.Italic)) == 0 ? m.Value : (m.Groups["close"].Length > 0 ? "</" : "<") + (bold ? "b" : "i") + ">";
+            });
+        return AnyTag().Replace(reply, m => IsOurs(m.ValueSpan) && (KindNamed(m.ValueSpan[1..^1]) & had) != 0 ? m.Value : Unwrapped(m.Value));
     }
 
+    [GeneratedRegex(@"<(?<close>/)?(?<name>bold|strong|bf|em|italic)>", RegexOptions.IgnoreCase)]
+    private static partial Regex Synonym();
+
+    /// <summary>
+    /// What a bracketed stretch of a reply that isn't kept as one of our tags leaves: nothing when it is shaped as a tag
+    /// ("&lt;br/&gt;", "&lt;font color="#00F"&gt;", "&lt;bold&gt;"), its words when it isn't ("&lt;Décodage :&gt;",
+    /// "&lt;Aidan N. Gomez&gt;": how a real model marked a label or a name it was sent in bold, which taking out as a tag lost).
+    /// </summary>
+    internal static string Unwrapped(string bracketed)
+    {
+        if (bracketed.Length < 3 || bracketed[1] is '!' or '?') return "";
+        // The usual tag, a name alone ("<b>", "</bold>"), without a regex: a crafted reply has hundreds of thousands.
+        var name = bracketed.AsSpan(bracketed[1] == '/' ? 2 : 1, bracketed.Length - (bracketed[1] == '/' ? 3 : 2));
+        if (name.Length > 0 && !name.ContainsAnyExcept(AsciiLettersAndDigits)) return "";
+        return TagShaped().IsMatch(bracketed) ? "" : " " + bracketed[1..^1].TrimStart('/').Trim() + " ";
+    }
+
+    private static readonly System.Buffers.SearchValues<char> AsciiLettersAndDigits =
+        System.Buffers.SearchValues.Create("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789");
+
+    // A tag's shape: a name of ASCII letters and digits, then nothing or attributes with '=', an optional '/'.
+    [GeneratedRegex(@"^</?[A-Za-z][A-Za-z0-9]*(?:\s+[A-Za-z_:][^<>=]*=[^<>]*)?\s*/?>$")]
+    private static partial Regex TagShaped();
     /// <summary>Whether a whole tag ("&lt;b&gt;", "&lt;/SUB&gt;") is one of ours.</summary>
     private static bool IsOurs(ReadOnlySpan<char> tag) => tag.Length >= 3 && tag[0] == '<' && tag[^1] == '>' && KindNamed(tag[1..^1]) != Kind.None;
 
@@ -413,6 +445,38 @@ internal static partial class TranslationMarkup
         var had = judged.Source?.Stretches.Values.Sum(l => l.Count) ?? 0;
         if (!answer.Contains('<', StringComparison.Ordinal)) return (had, 0, null);
         return (had, judged.Reply?.Stretches.Values.Sum(l => l.Count) ?? 0, judged.Plain is null);
+    }
+
+    /// <summary>
+    /// The tags marked text has, as a request names them ("&lt;b&gt; (bold) and &lt;sub&gt; (subscript)"), in one order; empty
+    /// when it has none.
+    /// </summary>
+    public static string TagsNamed(string marked)
+    {
+        var had = Kind.None;
+        foreach (Match m in TagNames().Matches(marked)) had |= KindNamed(m.Groups[1].ValueSpan);
+        var parts = new List<string>();
+        foreach (var (kind, _) in Names)
+        {
+            if ((had & kind) == 0) continue;
+            if ((kind & Others) != 0)
+            {
+                // The other looks once, together, where the first of them nests.
+                if (kind != OtherKinds.First(k => (had & k) != 0)) continue;
+                var others = OtherKinds.Where(k => (had & k) != 0).Select(k => $"<{NameOf(k)}>").ToList();
+                parts.Add(others.Count == 1 ? $"{others[0]} (another font or color)" : $"{string.Join(", ", others)} (each another font or color)");
+                continue;
+            }
+            parts.Add(kind switch
+            {
+                Kind.Bold => "<b> (bold)",
+                Kind.Italic => "<i> (italic)",
+                Kind.Underline => "<u> (underlined)",
+                Kind.Sub => "<sub> (subscript)",
+                _ => "<sup> (superscript)",
+            });
+        }
+        return parts.Count <= 1 ? string.Concat(parts) : string.Join(", ", parts.Take(parts.Count - 1)) + " and " + parts[^1];
     }
 
     /// <summary>
@@ -542,7 +606,7 @@ internal static partial class TranslationMarkup
     /// </summary>
     private static string Stripped(string reply)
     {
-        var s = AnyTag().Replace(reply, "");
+        var s = AnyTag().Replace(reply, m => Unwrapped(m.Value));
         s = TagPiece().Replace(s, "");
         s = TagOpening().Replace(s, "");
         return Collapsed(s);

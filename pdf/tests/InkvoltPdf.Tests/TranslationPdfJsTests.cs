@@ -45,7 +45,7 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
                 "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (brown) Tj /FA 12 Tf ( fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and jumps over the lazy dog.) Tj ET",
                 faces: true, fontText: Letters), 0, "ar", _ => "الثعلب <b>البني</b> السريع <span>أحمر</span> ويقفز فوق الكلب الكسول."),
             ("arabic plain", ContentEditPdf.Make("BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the 2024 dog.) Tj ET", fontText: Letters), 0, "ar",
-                _ => "الثعلب البني السريع يقفز فوق الكلب الكسول في عام 2024 والكلب."),
+                _ => "الثعلب البني السريع يقفز فوق الكلب الكسول في عام 2024 والكلب (الكسول)."),
             ("hebrew", TranslationPdf.Report(1), 0, "he", _ => "השועל החום המהיר <b>קופץ</b> מעל הכלב העצלן."),
             ("japanese", TranslationPdf.Report(1), 0, "ja", t => "素早い茶色の狐が怠惰な犬を飛び越えた。" + TranslationMarkup.Plain(t).Length),
         };
@@ -92,15 +92,10 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
                 var want = Shown(answers.Done[sent]);
                 // Word by word in order; where only the spaces differ (a bold "risk—" drawn apart from "About"), letter by letter
                 // (Japanese has no spaces to read by: its characters in order, whatever pdf.js puts between its items).
-                // Right-to-left text word by word only: its spaces are what pdf.js lost when its lines were written in reading
-                // order. A right-to-left line with a word in another font (bold) is several items to pdf.js, and it orders
-                // each item's letters but not the items (a viewer's limit; Word's own Arabic PDFs read so too): its words
-                // must each be there, whole.
-                var rtl = want.Any(c => c is >= '֐' and <= 'ࣿ');
-                var gotWords = got.Split(' ');
-                var miss = !rtl && solid.Contains(Solid(want), StringComparison.Ordinal) ? null
-                    : rtl && plan.Marked.Contains(sent) ? want.Split(' ').FirstOrDefault(w => !gotWords.Contains(w)) is { } lost ? $"“{lost}” not read whole" : null
-                    : want.Contains(' ', StringComparison.Ordinal) ? PdfJs.FirstMiss(want, got) : $"“{want}” not read whole";
+                // Right-to-left text letter by letter: its lines are written in reading order, as MuPDF reads them, and pdf.js,
+                // which makes spaces only from gaps as the glyphs go right, reads their words in order without the spaces.
+                var miss = solid.Contains(Solid(want), StringComparison.Ordinal) ? null
+                    : want.Contains(' ', StringComparison.Ordinal) && !want.Any(c => c is >= '֐' and <= 'ࣿ') ? PdfJs.FirstMiss(want, got) : $"“{want}” not read whole";
                 if (miss is null) read++;
                 else
                 {

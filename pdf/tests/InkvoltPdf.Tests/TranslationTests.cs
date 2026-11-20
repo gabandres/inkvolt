@@ -935,10 +935,11 @@ public class TranslationCopyTests
     [InlineData("The dog שלום עולם jumps")] // a Hebrew phrase in an English line
     [InlineData("plain English, 2024")]
     [InlineData("لا إله إلا الله")] // lam-alef ligatures: a glyph standing for two letters
+    [InlineData("مُنسوب إلى نشرة")] // a mark on its letter, and "لى" (a real model's copy read "إىل" in MuPDF)
     public void A_line_drawn_left_to_right_reads_back_in_reading_order(string line)
     {
         var shaped = TextShaper.Shape(line, null, visualOrder: true);
-        Assert.Equal(line, Bidi.ToReadingOrder([.. shaped.Glyphs.Select(g => g.Text)]));
+        Assert.Equal(line, Bidi.ToReadingOrder(string.Concat(shaped.Glyphs.Select(g => g.Text))));
     }
 
     [Fact]
