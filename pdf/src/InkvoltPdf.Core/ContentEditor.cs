@@ -64,35 +64,48 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
     /// <summary>To the end of the last glyph's ink, in text space (as <see cref="OldWidth"/> measures the run).</summary>
     internal double Width(IEnumerable<ContentEditor.Part> parts)
     {
-        double w = 0, end = 0;
+        double end = 0;
+        foreach (var (_, e, ink) in Extents(parts))
+            if (ink) end = e;
+        return end;
+    }
+
+    /// <summary>
+    /// Where each part reaches along the line from its start (text space, as <see cref="Width"/> measures): a glyph or a
+    /// stand-in's stretch from its start to the end of its ink (<c>Ink</c>), an adjustment the room it moves the next one by.
+    /// </summary>
+    internal IEnumerable<(double Start, double End, bool Ink)> Extents(IEnumerable<ContentEditor.Part> parts)
+    {
+        double w = 0;
         foreach (var p in parts)
         {
             var size = Size * (p.Look?.Scale ?? 1); // a part of another size is written at its own font size
+            var start = w;
             if (p.StandIn is { } s)
             {
                 // Drawn in a stand-in font, with no character spacing (see ContentEditor.WriteLine).
                 w += s.Width * size * HScale;
-                end = w;
+                yield return (start, w, true);
                 continue;
             }
             if (p.Picture is not null)
             {
                 // A picture in the flow: room, and where it ends counts as ink.
                 w -= p.Number / 1000 * size * HScale;
-                end = w;
+                yield return (start, w, true);
                 continue;
             }
             if (p.Code is not { } c)
             {
                 w -= p.Number / 1000 * size * HScale;
+                yield return (start, w, false);
                 continue;
             }
             var font = p.Look?.Page?.Font ?? Font!; // a stretch in another face of the page's family is measured in it
             var glyph = font.WidthOf(c) / 1000 * size * HScale;
-            end = w + glyph;
             w += glyph + (CharSpacing + (!font.TwoByte && c == 32 ? WordSpacing : 0)) * HScale;
+            yield return (start, start + glyph, true);
         }
-        return end;
     }
 }
 
@@ -129,6 +142,22 @@ public sealed record PageContent(IReadOnlyList<TextRun> Runs, IReadOnlyList<Page
 
     /// <summary>The page's text runs grouped into paragraphs (see <see cref="ContentEditor.GroupParagraphs"/>), turned text in its own direction.</summary>
     public IReadOnlyList<TextParagraph> Paragraphs { get; init; } = [];
+
+    /// <summary>For a translated copy: the rules the page draws under its words that are no link's (<see cref="ContentEditor.PlainUnderlines"/>).</summary>
+    internal IReadOnlyList<ContentEditor.Underline> Underlines
+    {
+        get => _underlines;
+        init
+        {
+            _underlines = value;
+            UnderlinedRuns = new HashSet<TextRun>(value.SelectMany(u => u.Runs), ReferenceEqualityComparer.Instance);
+        }
+    }
+
+    private readonly IReadOnlyList<ContentEditor.Underline> _underlines = [];
+
+    /// <summary>The runs <see cref="Underlines"/> underline (the same objects as in <see cref="Runs"/>).</summary>
+    internal IReadOnlySet<TextRun> UnderlinedRuns { get; private init; } = new HashSet<TextRun>();
 
     /// <summary>The paragraph a run belongs to, or null (only spaces).</summary>
     public TextParagraph? ParagraphOf(TextRun run) => Paragraphs.FirstOrDefault(p => p.Runs.Contains(run));
@@ -228,6 +257,8 @@ public static partial class ContentEditor
         if (now is { Blocked: { } why }) throw new ContentEditException(Loc.Format(PdfStrings.Edit_TextCantBeEdited, why));
         if (now is null || !walk.Runs.TryGetValue(now.Id, out var info))
             throw new ContentEditException(PdfStrings.Edit_PageChangedText);
+        // Right-to-left letters drawn left to right are read in reading order; written back from the edit as drawn, they would come out mirrored.
+        if (info.Columns == 1 && Reordered(info, now)) throw new ContentEditException(Loc.Format(PdfStrings.Edit_TextCantBeEdited, PdfStrings.Edit_BlockedRightToLeft));
         var font = now.Font!;
 
         var plan = Plan(info, now, text);
@@ -1146,6 +1177,46 @@ public static partial class ContentEditor
         return RectD.FromEdges(minX, minY, maxX, maxY);
     }
 
+    /// <summary>The text of an operator's items (or a column's), right-to-left letters drawn left to right put in reading order (<see cref="DrawnLeftToRight"/>).</summary>
+    private static string InReadingOrder(List<RunItem> items)
+    {
+        var text = string.Concat(items.Select(i => i.Text));
+        return DrawnLeftToRight(items, text) ? Bidi.ToReadingOrder(text) : text;
+    }
+
+    /// <summary>Whether an operator's text was put in reading order: the single-run editor writes its items as drawn, so it can't edit such a run.</summary>
+    internal static bool Reordered(RunInfo info, TextRun run) => !string.Equals(run.Text, string.Concat(info.Items.Select(i => i.Text)), StringComparison.Ordinal);
+
+    /// <summary>
+    /// Whether an operator's text has right-to-left letters and its glyphs go left to right, never back (visual order), most
+    /// of them clear of the one before: a letter and the mark on it drawn in reading order also go right, but over each other.
+    /// </summary>
+    private static bool DrawnLeftToRight(List<RunItem> items, string text)
+    {
+        var rtl = false;
+        foreach (var c in text)
+            if (c is >= '֐' and <= 'ࣿ' or >= 'יִ' and <= '﷿' or >= 'ﹰ' and <= '﻿')
+            {
+                rtl = true;
+                break;
+            }
+        if (!rtl) return false;
+        RunItem? last = null;
+        int pairs = 0, clear = 0;
+        foreach (var item in items)
+        {
+            if (item.IsNumber || item.Text.Length == 0) continue;
+            if (last is not null)
+            {
+                if (item.At < last.At - 1e-6) return false;
+                pairs++;
+                if (item.At >= last.InkEnd - 0.1 * (last.InkEnd - last.At)) clear++;
+            }
+            last = item;
+        }
+        return pairs > 0 && 2 * clear > pairs;
+    }
+
     /// <summary>
     /// Records a text-showing operator as a run (for a translated copy, as a run for each column it draws) and returns the
     /// text matrix after it.
@@ -1203,7 +1274,10 @@ public static partial class ContentEditor
         var vscale = Math.Sqrt((vx0 - bx0) * (vx0 - bx0) + (vy0 - by0) * (vy0 - by0));
         var angle = Math.Atan2(by1 - by0, bx1 - bx0) * 180 / Math.PI;
         var upright = Upright(bx1 - bx0, by1 - by0, vx0 - bx0, vy0 - by0);
-        var text = string.Concat(items.Select(i => i.Text));
+        // Right-to-left letters an operator draws left to right (visual order: Word's PDFs, a translated copy's lines) are read
+        // in reading order, as MuPDF reads them; drawn in reading order (moving back as it goes), they are read as they are.
+        // A column of an operator drawing several is read so on its own (InReadingOrder in Make).
+        var text = InReadingOrder(items);
 
         var why = blocked;
         if (why is null)
@@ -1245,7 +1319,7 @@ public static partial class ContentEditor
             }
             var (ox, oy) = Project(page, place, 0, 0);
             var mine = from == 0 && to == items.Count ? items : items.GetRange(from, to - from);
-            return new TextRun(pageIndex, id, columns == 1 ? text : string.Concat(mine.Select(i => i.Text)), BoxOf(page, place, low, desc, Math.Max(end, high), asc),
+            return new TextRun(pageIndex, id, columns == 1 ? text : InReadingOrder(mine), BoxOf(page, place, low, desc, Math.Max(end, high), asc),
                 Math.Abs(fs) * vscale, font?.Name ?? gs.FontKey, font?.Bold ?? false, font?.Italic ?? false, gs.Fill, angle, why)
             {
                 Font = font,

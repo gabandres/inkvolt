@@ -121,6 +121,20 @@ public class TranslationLooksTests
         Assert.Equal("An <i>x</i><sup>2</sup> and a <b>bold <i>italic</i></b> word, H<sub>2</sub>O and e=mc<i><sup>2</sup></i>.", TranslationMarkup.Mark(text, spans));
     }
 
+    [Fact]
+    public void Every_look_at_once_nests_five_deep_and_comes_back()
+    {
+        const string text = "A word in all of them.";
+        var all = new TextLook(Color: 0xFF0000, Bold: true, Italic: true, Script: TextScript.Super, Underline: true);
+        List<TextSpan> spans = [Span(text, "word", all)];
+        const string marked = "A <b><i><u><span><sup>word</sup></span></u></i></b> in all of them.";
+        Assert.Equal(marked, TranslationMarkup.Mark(text, spans));
+        var (now, looks) = TranslationMarkup.Read("Una <b><i><u><span><sup>palabra</sup></span></u></i></b> en todas.", text, spans);
+        var look = Assert.Single(looks);
+        Assert.Equal("palabra", now.Substring(look.Start, look.Length));
+        Assert.Equal((true, true, true, TextScript.Super, 0xFF0000), (look.Look.Bold, look.Look.Italic, look.Look.Underline, look.Look.Script, look.Look.Color));
+    }
+
     [Theory]
     [InlineData("a < b and c")] // "< b" would be taken for a piece of a tag
     [InlineData("x <html> and c")]
@@ -161,6 +175,19 @@ public class TranslationLooksTests
         Assert.DoesNotContain("<b>", TranslationText.Request("The quick brown fox.", "Spanish")[0].Content, StringComparison.Ordinal);
     }
 
+    [Theory]
+    [InlineData("The <b>quick</b> fox.", "<b> (bold)")]
+    [InlineData("The <span>red</span> fox and <b>d<sub>model</sub></b>.", "<b> (bold), <span> (another font or color) and <sub> (subscript)")]
+    [InlineData("A <font>blue</font>, a <span>red</span> and an <u>underlined</u> word.", "<u> (underlined) and <span>, <font> (each another font or color)")]
+    public void A_marked_texts_request_names_only_the_tags_it_has(string text, string named)
+    {
+        // A real model told of a <font> it wasn't sent wrote <font color="#0000FF"> around a bold label.
+        Assert.Equal(named, TranslationMarkup.TagsNamed(text));
+        var system = TranslationText.Request(text, "French", marked: true)[0].Content;
+        Assert.Contains(named + ":", system, StringComparison.Ordinal);
+        foreach (var other in new[] { "<i>", "<mark>", "<sup>" }) Assert.DoesNotContain(other, system, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void A_marked_paragraph_too_long_for_one_request_goes_in_marked_pieces_each_closing_its_tags()
     {
@@ -172,7 +199,7 @@ public class TranslationLooksTests
         Assert.Equal(text, job.Text);
         Assert.All(job.Pieces, p => Assert.Equal(p.Split("<b>").Length, p.Split("</b>").Length));
         Assert.Equal(TranslationMarkup.Plain(text), TranslationMarkup.Plain(string.Join(' ', job.Pieces)));
-        Assert.All(Translation.Requests([job], "Spanish"), r => Assert.Contains("<sup>", r[0].Content, StringComparison.Ordinal));
+        Assert.All(Translation.Requests([job], "Spanish"), r => Assert.Contains("<b> (bold)", r[0].Content, StringComparison.Ordinal));
     }
 
     [Fact]
@@ -271,14 +298,42 @@ public class TranslationLooksTests
     }
 
     [Theory]
-    [InlineData("<Aidan N. Gomez></sup>∗ †", true)] // a real model's: the name in brackets, taken out as a tag
     [InlineData("∗ †", false)]
+    [InlineData("<b></b><sup>∗ †</sup>", true)]
     public void A_reply_whose_words_are_all_gone_is_not_used(string reply, bool marked)
     {
         var source = marked ? "<b>Aidan N. Gomez</b><sup>∗ †</sup>" : "Aidan N. Gomez ∗ †";
         var (text, problem) = TranslationText.CleanReply(reply, source, marked);
         Assert.Null(text);
         Assert.NotNull(problem);
+    }
+
+    [Theory]
+    [InlineData("<bold>Información adicional</bold><i>(si aplica)</i>", "<b>Información adicional</b><i>(si aplica)</i>")] // a real model's, Spanish
+    [InlineData("<strong>Información</strong> <em>adicional</em>", "<b>Información</b> <i>adicional</i>")]
+    [InlineData("Información <em>adicional</em> <sup>2</sup>", "Información <i>adicional</i> 2")] // no <sup> was sent
+    public void A_models_own_names_for_bold_and_italic_are_read_as_ours(string reply, string cleaned)
+    {
+        var (text, problem) = TranslationText.CleanReply(reply, "<b>Additional Information </b><i>(if applicable)</i>", marked: true);
+        Assert.Null(problem);
+        Assert.Equal(cleaned, text);
+    }
+
+    [Theory]
+    [InlineData("<Aidan N. Gomez></sup>∗ †", "<b>Aidan N. Gomez</b><sup>∗ †</sup>", "Aidan N. Gomez∗ †")] // a real model's bold name in brackets
+    [InlineData("<Décodage :> Le décodeur est composé.", "<b>Decoder:</b> The decoder is composed.", "Décodage : Le décodeur est composé.")]
+    [InlineData("<Décodage :> Le décodeur est composé.", "Decoder: The decoder is composed.", "Décodage : Le décodeur est composé.")] // sent without markup
+    [InlineData("Voir <Annexe A>, page 3.", "See <b>Annex</b> A, page 3.", "Voir Annexe A, page 3.")] // no space before its comma
+    [InlineData("Voir<Annexe A>page 3.", "See <b>Annex</b> A, page 3.", "Voir Annexe A page 3.")] // a space from the letters beside it
+    [InlineData("<font color=\"#0000FF\">Informations</font> <bold>en plus</bold><br/>", "<b>More</b> information", "Informations en plus")] // tag-shaped: only the tags go
+    public void Words_a_model_put_in_angle_brackets_stay_and_only_tags_go(string reply, string source, string written)
+    {
+        var marked = source.Contains("<b>", StringComparison.Ordinal);
+        var (text, problem) = TranslationText.CleanReply(reply, source, marked);
+        Assert.Null(problem);
+        var plain = marked ? TranslationMarkup.Plain(source) : source;
+        var spans = marked ? new List<TextSpan> { new(0, plain.IndexOf(' ', StringComparison.Ordinal), B) } : [];
+        Assert.Equal(written, TranslationMarkup.Read(text!, plain, spans).Text);
     }
 
     [Fact]
@@ -694,6 +749,19 @@ public class TranslationLooksTests
     }
 
     [Fact]
+    public void Arabic_for_a_paragraph_in_Calibri_is_drawn_in_a_font_MuPDF_reads_in_order()
+    {
+        // Calibri's Arabic lowers letters it joins; MuPDF read such lines on NIST p. 1 backwards. The closest font whose letters stay on the line is taken.
+        if (SystemFonts.Get("calibri.ttf") is null) return;
+        var pdf = WithTimesNamed(ContentEditPdf.Make("BT /FT 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the dog) Tj ET", faces: true, fontText: Letters), "Calibri");
+        const string ar = "القسم المُطبّق للهندسة الأمنية (مختبر التكنولوجيا المعلوماتية)";
+        var (_, r) = Translate(pdf, _ => ar);
+        Assert.Equal(1, r.Report.Translated);
+        static string Solid(string s) => new([.. s.Where(c => !char.IsWhiteSpace(c))]);
+        Assert.Contains(Solid(ar), Solid(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_regular_word_in_a_bold_paragraph_goes_with_the_bold_around_it_and_comes_back_regular()
     {
         var pdf = ContentEditPdf.Make(
@@ -750,14 +818,151 @@ public class TranslationLooksTests
         Assert.All(runs.Where(q => q != red), q => Assert.Equal(0, q.Color));
     }
 
+    // ---- Plain underlines ----
+
+    private const string UnderlinedLine = "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj (brown fox) Tj ( jumps over the lazy dog.) Tj ET";
+
+    /// <summary>The line above with a rule drawn as <paramref name="rule"/> places it: (left, right) of "brown fox", page points; its operators.</summary>
+    private static byte[] WithRule(Func<double, double, string> rule)
+    {
+        var words = Assert.Single(Runs(ContentEditPdf.Make(UnderlinedLine, fontText: Letters)), q => q.Text == "brown fox").Box;
+        return ContentEditPdf.Make(UnderlinedLine + " " + rule(words.X, words.Right), fontText: Letters);
+    }
+
+    /// <summary>"brown fox" underlined 2 points below the baseline, 0.8 thick, in red.</summary>
+    private static byte[] Underlined() => WithRule((l, r) => $"1 0 0 rg {l:0.###} 697.2 {r - l:0.###} 0.8 re f 0 g");
+
+    /// <summary>Each rectangle the page's content fills: x, y (PDF space), width, height.</summary>
+    private static List<(double X, double Y, double W, double H)> Filled(byte[] pdf) =>
+        [.. System.Text.RegularExpressions.Regex.Matches(ContentEditPdf.Content(pdf), @"(-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) re\s+f")
+            .Select(m => (double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture), double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
+                double.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture), double.Parse(m.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture)))];
+
     [Fact]
-    public void Of_two_other_looks_only_the_first_is_marked()
+    public void An_underline_drawn_under_some_words_goes_to_the_model_as_markup()
+    {
+        var (plan, _) = Translate(Underlined(), t => t);
+        Assert.Equal("The quick <u>brown fox</u> jumps over the lazy dog.", Assert.Single(plan.Texts).Text);
+    }
+
+    [Fact]
+    public void An_underline_is_drawn_again_under_the_words_the_answer_underlines_and_the_old_one_goes()
+    {
+        var (_, r) = Translate(Underlined(), _ => "El zorro <u>marron rapido</u> salta sobre el perro.");
+        Assert.Equal(1, r.Report.Translated);
+        var words = Assert.Single(Runs(r.Data!), q => q.Text.Contains("marron", StringComparison.Ordinal));
+        Assert.Equal("marron rapido", words.Text.Trim());
+        var (x, y, w, h) = Assert.Single(Filled(r.Data!)); // the old rule's operator paints nothing now
+        Assert.Equal(words.Box.X, x, 0.5);
+        Assert.Equal(words.Box.Right, x + w, 1.0);
+        Assert.Equal(0.8, h, 0.01);
+        Assert.Equal(792 - words.Origin.Y - 2, y + h, 0.05); // 2 points below the baseline, as it was
+        Assert.Contains("1 0 0 rg", ContentEditPdf.Content(r.Data!)[^80..], StringComparison.Ordinal); // in its red
+        Assert.DoesNotContain("<u>", ContentEditPdf.Text(r.Data!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_underline_the_answer_dropped_is_taken_off_and_not_drawn_again()
+    {
+        var (_, r) = Translate(Underlined(), _ => "El zorro marron rapido salta sobre el perro.");
+        Assert.Equal(1, r.Report.Translated);
+        Assert.Empty(Filled(r.Data!));
+    }
+
+    [Theory]
+    [InlineData("strike")] // through the words
+    [InlineData("field")] // a line running on past the words, to be written on
+    [InlineData("rule")] // a table's rule, much wider than the words over it
+    [InlineData("thick")] // a band, not a line
+    public void A_rule_that_isnt_an_underline_is_no_look_and_stays(string kind)
+    {
+        var pdf = WithRule((l, r) => kind switch
+        {
+            "strike" => $"{l:0.###} 703 {r - l:0.###} 0.8 re f",
+            "field" => $"{l:0.###} 697.2 {r - l + 400:0.###} 0.8 re f",
+            "rule" => $"40 697.2 520 0.8 re f",
+            _ => $"{l:0.###} 690 {r - l:0.###} 8 re f",
+        });
+        var (plan, r) = Translate(pdf, _ => "El zorro <u>marron rapido</u> salta sobre el perro.");
+        Assert.DoesNotContain("<u>", Assert.Single(plan.Texts).Text, StringComparison.Ordinal);
+        Assert.Single(Filled(r.Data!)); // as it was
+    }
+
+    [Fact]
+    public void A_links_underline_is_the_links_not_a_plain_one()
+    {
+        var pdf = Underlined();
+        var words = Assert.Single(Runs(pdf), q => q.Text == "brown fox").Box;
+        using (var d = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify))
+        {
+            var link = new PdfSharp.Pdf.PdfDictionary(d);
+            link.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/Annot");
+            link.Elements["/Subtype"] = new PdfSharp.Pdf.PdfName("/Link");
+            link.Elements["/Rect"] = PdfObj.Reals(d, words.X, 792 - words.Bottom - 3, words.Right, 792 - words.Y);
+            d.Internals.AddObject(link);
+            var annots = new PdfSharp.Pdf.PdfArray(d);
+            annots.Elements.Add(link.Reference!);
+            d.Pages[0].Elements["/Annots"] = annots;
+            using var ms = new MemoryStream();
+            d.Save(ms, false);
+            pdf = ms.ToArray();
+        }
+        var (plan, _) = Translate(pdf, t => t);
+        Assert.Equal("The quick brown fox jumps over the lazy dog.", Assert.Single(plan.Texts).Text);
+    }
+
+    [Fact]
+    public void Two_other_looks_are_marked_apart_and_each_comes_back_as_its_own()
     {
         const string text = "A red word and a blue one.";
         List<TextSpan> spans = [Span(text, "red", new TextLook(Color: 0xFF0000)), Span(text, "blue", new TextLook(Color: 0x0000FF)), Span(text, "one", new TextLook(Color: 0x0000FF, Bold: true))];
-        Assert.Equal("A <span>red</span> word and a blue <b>one</b>.", TranslationMarkup.Mark(text, spans));
-        var (now, looks) = TranslationMarkup.Read("Una palabra <span>roja</span> y una azul.", text, spans);
-        Assert.Equal([Span(now, "roja", new TextLook(Color: 0xFF0000))], looks);
+        Assert.Equal("A <span>red</span> word and a <font>blue</font> <b><font>one</font></b>.", TranslationMarkup.Mark(text, spans)); // "one" is blue too
+        var (now, looks) = TranslationMarkup.Read("Una palabra <span>roja</span> y una <font>azul</font>.", text, spans);
+        Assert.Equal([Span(now, "roja", new TextLook(Color: 0xFF0000)), Span(now, "azul", new TextLook(Color: 0x0000FF))], looks);
+    }
+
+    [Fact]
+    public void Three_other_looks_are_marked_and_a_fourth_keeps_only_its_bold()
+    {
+        const string text = "A red, a green, a blue and a gray word.";
+        List<TextSpan> spans =
+        [
+            Span(text, "red", new TextLook(Color: 0xFF0000)), Span(text, "green", new TextLook(Font: "Courier New")),
+            Span(text, "blue", new TextLook(Color: 0x0000FF)), Span(text, "gray", new TextLook(Color: 0x808080, Bold: true)),
+        ];
+        Assert.Equal("A <span>red</span>, a <font>green</font>, a <mark>blue</mark> and a <b>gray</b> word.", TranslationMarkup.Mark(text, spans));
+        var (now, looks) = TranslationMarkup.Read("Un <mark>azul</mark>, un <span>rojo</span> y un <font>verde</font>.", text, spans);
+        Assert.Equal([Span(now, "azul", new TextLook(Color: 0x0000FF)), Span(now, "rojo", new TextLook(Color: 0xFF0000)), Span(now, "verde", new TextLook(Font: "Courier New"))], looks);
+    }
+
+    [Theory]
+    [InlineData("Una <span>roja <font>y</font></span> azul.")] // one other look inside another
+    [InlineData("Una <font>roja</font> y <font>azul</font> y <font>gris</font> y <font>verde</font>.")] // far more than it had
+    [InlineData("Una <mark>roja</mark>.")] // one it didn't have
+    public void Other_looks_a_reply_garbles_leave_it_plain(string reply)
+    {
+        const string text = "A red word and a blue one.";
+        List<TextSpan> spans = [Span(text, "red", new TextLook(Color: 0xFF0000)), Span(text, "blue", new TextLook(Color: 0x0000FF))];
+        var (now, looks) = TranslationMarkup.Read(reply, text, spans);
+        Assert.Empty(looks);
+        Assert.DoesNotContain("<", now, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_bold_word_a_red_word_and_a_word_in_another_font_keep_all_three_looks_on_the_page()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (brown) Tj /FA 12 Tf ( fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and named ) Tj /FT 12 Tf (Newton) Tj /FA 12 Tf ( over the lazy dog.) Tj ET",
+            faces: true, fontText: Letters + "N");
+        var (plan, r) = Translate(pdf, _ => "El <b>zorro</b> es <span>rojo</span> y se llama <font>Newton</font> sobre el perro.");
+        Assert.Equal("The quick <b>brown</b> fox is <span>red</span> and named <font>Newton</font> over the lazy dog.", Assert.Single(plan.Texts).Text);
+        var runs = Runs(r.Data!);
+        Assert.True(Assert.Single(runs, q => q.Text.Contains("zorro", StringComparison.Ordinal)).Bold);
+        Assert.Equal("rojo", Assert.Single(runs, q => q.Color == 0xFF0000).Text.Trim());
+        var name = Assert.Single(runs, q => q.Text.Contains("Newton", StringComparison.Ordinal));
+        Assert.Contains("Times", name.FontName, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(0, name.Color);
+        Assert.All(runs.Where(q => q != name), q => Assert.DoesNotContain("Times", q.FontName, StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -789,6 +994,84 @@ public class TranslationLooksTests
         var plain = runs.First(q => q.Text.Contains("perro", StringComparison.Ordinal));
         Assert.Equal(8, mark.FontSize, 1);
         Assert.True(mark.Origin.Y < plain.Origin.Y - 2, $"{mark.Origin.Y} {plain.Origin.Y}");
+    }
+
+    [Theory]
+    [InlineData("The quick brown fox jumps over the lazy dog")]
+    [InlineData("The lazy dog")] // a line shorter than its script
+    public void A_script_longer_than_twelve_characters_joins_the_line_it_sits_on_whole(string words)
+    {
+        const string script = "[3, 7, 12, 18-24, 31, 40]";
+        var line = $"BT /FA 12 Tf 1 0 0 1 72 700 Tm ({words}) Tj ET";
+        var right = Assert.Single(ContentEditor.Read(ContentEditPdf.Make(line, fontText: Letters + "[]-"), null, 0).Paragraphs).Box.Right;
+        var pdf = ContentEditPdf.Make(line + $" BT /FA 7 Tf 1 0 0 1 {right + 0.5:0.##} 704.5 Tm ({script}) Tj ET", fontText: Letters + "[]-");
+        var (plan, r) = Translate(pdf, _ => $"El perro <sup>{script}</sup>");
+        Assert.Equal($"{words}<sup>{script}</sup>", Assert.Single(plan.Texts).Text);
+        var runs = Runs(r.Data!);
+        var mark = Assert.Single(runs, q => q.Text.Contains("[3", StringComparison.Ordinal));
+        Assert.Equal(script, mark.Text.Trim()); // whole
+        Assert.Equal(7, mark.FontSize, 1);
+        var plain = runs.First(q => q.Text.Contains("perro", StringComparison.Ordinal));
+        Assert.True(mark.Origin.Y < plain.Origin.Y - 3, $"{mark.Origin.Y} {plain.Origin.Y}");
+    }
+
+    [Fact]
+    public void A_line_hosting_a_long_script_is_not_also_joined_to_another_line_as_one()
+    {
+        // A big line, a smaller one raised after its end, and a long script raised after that one: the middle line hosts the
+        // script and could itself be the big line's script; joined both ways, its words would be sent and written twice.
+        const string big = "BT /FA 20 Tf 1 0 0 1 72 700 Tm (THE QUICK BROWN FOX) Tj ET";
+        var right = Assert.Single(ContentEditor.Read(ContentEditPdf.Make(big, fontText: Letters + "[]-"), null, 0).Paragraphs).Box.Right;
+        var middle = $"BT /FA 12 Tf 1 0 0 1 {right + 2:0.##} 706 Tm (The lazy dog) Tj ET";
+        var middleRight = ContentEditor.Read(ContentEditPdf.Make(big + " " + middle, fontText: Letters + "[]-"), null, 0).Runs.Single(r => r.Text == "The lazy dog").Box.Right;
+        var pdf = ContentEditPdf.Make(big + " " + middle + $" BT /FA 7 Tf 1 0 0 1 {middleRight + 0.5:0.##} 710 Tm ([3, 7, 12, 18-24, 31, 40]) Tj ET", fontText: Letters + "[]-");
+        var all = string.Concat(Translation.MakePlan(pdf, null, [0]).Texts.Select(t => t.Text));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(all, "lazy dog"));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(all, @"\[3, 7"));
+    }
+
+    [Fact]
+    public void Thousands_of_rules_under_a_crowded_baseline_are_looked_at_quickly()
+    {
+        // 4,000 thin rectangles, each under 20,000 runs on one baseline: the look for underlines gives up, it doesn't compare them all.
+        var content = new System.Text.StringBuilder("BT /FA 1 Tf 1 0 0 1 10 700 Tm ");
+        for (var i = 0; i < 20_000; i++) content.Append("(ab) Tj ");
+        content.Append("ET 0 g ");
+        for (var i = 0; i < 4_000; i++) content.Append(System.FormattableString.Invariant($"{10 + i * 0.1} 699.8 5 0.1 re f "));
+        var pdf = ContentEditPdf.Make(content.ToString(), fontText: Letters);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
+        var clock = Stopwatch.StartNew();
+        ContentEditor.ReadRaw(doc.Pages[0], 0, default);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"{clock.Elapsed}");
+    }
+
+    [Fact]
+    public void A_rule_under_two_paragraphs_stays_under_the_one_not_written()
+    {
+        // "The quick brown fox" and, a column's gap on, "jumps over the dog", one rule under both; only the first is translated.
+        const string line = "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox) Tj 1 0 0 1 200 700 Tm (jumps over the dog) Tj ET";
+        var runs = Runs(ContentEditPdf.Make(line, fontText: Letters));
+        var second = Assert.Single(runs, q => q.Text.StartsWith("jumps", StringComparison.Ordinal)).Box;
+        var pdf = ContentEditPdf.Make(line + System.FormattableString.Invariant($" 0 0 1 rg 72 697.2 {second.Right - 72:0.###} 0.8 re f 0 g"), fontText: Letters);
+        var (plan, r) = Translate(pdf, t => t.Contains("quick", StringComparison.Ordinal) ? "<u>El zorro marron rapido</u>" : t);
+        Assert.Equal(2, plan.Texts.Count);
+        Assert.All(plan.Texts, t => Assert.StartsWith("<u>", t.Text, StringComparison.Ordinal));
+        Assert.Equal(1, r.Report.Translated);
+        var rules = Filled(r.Data!);
+        Assert.Equal(2, rules.Count); // the one under the translation and what is left of the old one
+        Assert.Contains(rules, q => Math.Abs(q.X - second.X) < 1 && Math.Abs(q.X + q.W - second.Right) < 1 && Math.Abs(q.Y - 697.2) < 0.01);
+        var words = Assert.Single(Runs(r.Data!), q => q.Text.Contains("marron", StringComparison.Ordinal));
+        Assert.Contains(rules, q => Math.Abs(q.X - words.Box.X) < 1);
+    }
+
+    [Fact]
+    public void Long_small_text_over_a_lines_words_is_not_taken_for_its_script()
+    {
+        // Smaller and raised, but across the line's words: a note set beside it, not a script.
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog) Tj ET BT /FA 7 Tf 1 0 0 1 120 704.5 Tm (until the 0123456789 and the dog) Tj ET",
+            fontText: Letters);
+        Assert.DoesNotContain(Translation.MakePlan(pdf, null, [0]).Texts, t => t.Text.Contains("<sup>", StringComparison.Ordinal));
     }
 
     [Fact]

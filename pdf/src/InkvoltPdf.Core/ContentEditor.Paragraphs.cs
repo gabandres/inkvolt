@@ -159,6 +159,8 @@ public static partial class ContentEditor
         public readonly List<TextRun> Runs = [first];
         public RectD Box = first.Box;
         public double Baseline = first.Origin.Y;
+        /// <summary>For a translated copy: a line scripts were joined to, its own baseline and size as it was before (<see cref="LineBaseline"/>: a long script mustn't count as the line).</summary>
+        public (double Y, double Size)? Own;
         public string Text = first.Text;
         /// <summary>Where each run's text starts in <see cref="Text"/>.</summary>
         public readonly List<int> Starts = [0];
@@ -182,9 +184,10 @@ public static partial class ContentEditor
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
 
-        public void Add(TextRun r)
+        /// <param name="leftward">The run is left of the line (a right-to-left line joined in reading order, <see cref="InReadingOrder(PLine)"/>).</param>
+        public void Add(TextRun r, bool leftward = false)
         {
-            var gap = r.Box.X - Box.Right;
+            var gap = leftward ? Box.X - r.Box.Right : r.Box.X - Box.Right;
             if (gap > 0.15 * Size && !Text.EndsWith(' ') && !r.Text.StartsWith(' ')) Text += " ";
             Starts.Add(Text.Length);
             Text += r.Text;
@@ -192,6 +195,19 @@ public static partial class ContentEditor
             _lead = null;
             Box = Box.Union(r.Box);
         }
+    }
+
+    /// <summary>
+    /// A line most of whose letters read right to left with its runs joined right to left, so its words (each run read in
+    /// reading order already) come in the order they read; else the line as it is.
+    /// </summary>
+    private static PLine InReadingOrder(PLine l)
+    {
+        if (l.Runs.Count < 2 || !MostlyRightToLeft(l.Text)) return l;
+        var runs = l.Runs.OrderByDescending(r => r.Box.Right).ToList();
+        var line = new PLine(runs[0]) { Baseline = l.Baseline, Own = l.Own, Main = l.Main, Marked = l.Marked, MarkStart = l.MarkStart };
+        foreach (var r in runs.Skip(1)) line.Add(r, leftward: true);
+        return line;
     }
 
     /// <summary>Lines stacked one under the other, and which alignments they still allow.</summary>
@@ -330,7 +346,8 @@ public static partial class ContentEditor
     /// <summary>
     /// A paragraph's own font among its runs: of those in a page font (not a stand-in, not a look an edit gave), the
     /// font with the most text, a regular face before a bold or italic one on a tie; of its runs, those of the size and
-    /// color most of its text has (a bigger or colored word in the same font is a stretch of its own), the first in
+    /// color most of its text has, by the room it takes (characters times size squared: a bigger or colored word is a
+    /// stretch of its own, and a long superscript after a short line isn't taken for the line), the first in
     /// content order; else the first run that isn't a stand-in, else the first.
     /// </summary>
     internal static TextRun PlainRun(IReadOnlyList<TextRun> runs) =>
@@ -340,7 +357,7 @@ public static partial class ContentEditor
             .ThenBy(g => g.Key.Bold || g.Key.Italic ? 1 : 0)
             .ThenBy(g => g.Min(r => Order(r.Id)))
             .Select(g => g.GroupBy(r => (Math.Round(r.FontSize, 1), r.Color))
-                .OrderByDescending(s => s.Sum(r => r.Text.Trim().Length))
+                .OrderByDescending(s => s.Sum(r => r.Text.Trim().Length * r.FontSize * r.FontSize))
                 .ThenBy(s => s.Min(r => Order(r.Id)))
                 .First().MinBy(r => Order(r.Id))!)
             .FirstOrDefault()
@@ -521,6 +538,7 @@ public static partial class ContentEditor
     /// <param name="pictures">Pictures sitting on its lines between its words go in its flow (see <see cref="InlinePictures"/>).</param>
     private static TextParagraph Paragraph(PageContent content, List<PLine> lines, bool translating = false, bool pictures = false)
     {
+        lines = [.. lines.Select(InReadingOrder)];
         var first = lines[0];
         var size = first.Size;
         var tol = Tolerance(size);
@@ -659,7 +677,7 @@ public static partial class ContentEditor
                 var from = Math.Clamp(l.Starts[i] - lead + shift[i], 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead + shift[i], 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
-                if (looks is not null && to > from && TranslationLook(own, own.FontSize, baseline, l.Runs[i]) is { } look)
+                if (looks is not null && to > from && TranslationLook(own, own.FontSize, baseline, l.Runs[i], content.UnderlinedRuns.Contains(l.Runs[i])) is { } look)
                 {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
                     var start = text.Length + from;
@@ -872,6 +890,33 @@ public static partial class ContentEditor
     {
         /// <summary>Where each of the paragraph's pictures kept in the flow lands (page space), by its index in <see cref="TextParagraph.Pictures"/>.</summary>
         public IReadOnlyList<(int Picture, RectD Box)> Pictures { get; init; } = [];
+        /// <summary>For a translated copy: where its underlined stretches are (page as shown, from their first glyph's start to their last one's ink), on which baseline.</summary>
+        public IReadOnlyList<(double Left, double Right, double Baseline)> Underlined { get; init; } = [];
+    }
+
+    /// <summary>
+    /// The underlined stretches of a laid line (parts with a look that is <see cref="TextLook.Underline"/>, the
+    /// adjustments between them included): from the first one's start to the last one's ink, page as shown.
+    /// </summary>
+    private static IEnumerable<(double Left, double Right, double Baseline)> UnderlinedIn(TextRun m, PointD origin, List<Part> parts)
+    {
+        double? from = null, to = null;
+        var k = 0;
+        foreach (var (start, end, ink) in m.Extents(parts))
+        {
+            var under = parts[k++].Look?.Asked.Underline == true;
+            if (under && ink)
+            {
+                from ??= start;
+                to = end;
+            }
+            else if (!under && from is not null)
+            {
+                yield return (origin.X + from.Value * m.Scale, origin.X + to!.Value * m.Scale, origin.Y);
+                from = to = null;
+            }
+        }
+        if (from is not null) yield return (origin.X + from.Value * m.Scale, origin.X + to!.Value * m.Scale, origin.Y);
     }
 
     /// <summary>
@@ -895,8 +940,9 @@ public static partial class ContentEditor
         m.WordSpacing = 0; // the lines are written with Tw 0 (justification goes into adjustments)
         var shrink = fit ?? 1;
         m.Size *= shrink;
-        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink);
-        var enc = new MixedText(p, font, m, text, LooksOf(text, spans ?? Carry(p.Text, text, p.Spans)), oneFace: fit is not null, added: added);
+        var looks = LooksOf(text, spans ?? Carry(p.Text, text, p.Spans));
+        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink, looks, anchor.Info?.FillOp is not null);
+        var enc = new MixedText(p, font, m, text, looks, oneFace: fit is not null, added: added);
         if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), []);
 
         double W(List<Part> parts) => parts.Count == 0 ? 0 : m.Width(parts) * m.Scale;
@@ -1031,7 +1077,11 @@ public static partial class ContentEditor
             ? PdfStrings.Edit_SpecialInkColor
             : null;
         var check = new ParagraphCheck(box, placed.Count, [], overlaps) { Borrowed = enc.Borrowed, StandIns = enc.Names, Faces = enc.Faces, LookProblem = problem };
-        return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))]) { Pictures = pictures };
+        return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))])
+        {
+            Pictures = pictures,
+            Underlined = enc.Underlined ? [.. placed.SelectMany(l => UnderlinedIn(m, l.Item1, l.Item2))] : [],
+        };
     }
 
     /// <summary>
@@ -1088,6 +1138,19 @@ public static partial class ContentEditor
     }
 
     /// <summary>
+    /// A look's size against the paragraph's text, how far its baseline rises (ems of the paragraph's text: a script at the
+    /// page's own rise when it was read from the page, else the usual one), and its color where it isn't the paragraph's.
+    /// </summary>
+    private static (double Scale, double Rise, int? Color) LookMetrics(TextParagraph p, TextLook look)
+    {
+        var scale = look.Size is > 0 and var size && Math.Abs(size - p.FontSize) > 0.01 ? size / p.FontSize : 1;
+        var rise = look.Script is { } script ? look.Rise is { } own && double.IsFinite(own) ? ScriptRise(script, own) : script == TextScript.Sub ? SubRise : SuperRise : 0;
+        if (look.Script is not null) scale *= ScriptScale;
+        int? color = look.Color is { } c && c != p.Lead.Color ? c : null;
+        return (scale, rise, color);
+    }
+
+    /// <summary>
     /// Where a paragraph's new text is written: its first run in content order in its own font and look, of its own size
     /// and color (the color its lines go back to after a colored stretch).
     /// </summary>
@@ -1130,6 +1193,8 @@ public static partial class ContentEditor
 
         /// <summary>Some mark in the text stands for no picture of the paragraph's (typed or pasted in).</summary>
         public bool TypedPicture => _pictureAt.ContainsValue(-1);
+        /// <summary>A look is underlined (<see cref="ParagraphLayout.Underlined"/>).</summary>
+        public bool Underlined;
 
         /// <param name="oneFace">When the font lacks any character, the whole text, its spaces too, is drawn from one installed font, not a letter here and there: a translation shares few letters with the subset a page's font holds.</param>
         public MixedText(TextParagraph p, TextFont font, TextRun run, string text, TextLook?[] looks, bool oneFace = false,
@@ -1220,11 +1285,7 @@ public static partial class ContentEditor
             if (_looks[at] is not { IsPlain: false } look) return null;
             if (_resolved.TryGetValue(look, out var known)) return known;
             var lead = _p.Lead;
-            var scale = look.Size is > 0 and var size && Math.Abs(size - _p.FontSize) > 0.01 ? size / _p.FontSize : 1;
-            // A script at the page's own rise when it was read from the page, else the usual one.
-            var rise = look.Script is { } script ? look.Rise is { } own && double.IsFinite(own) ? ScriptRise(script, own) : script == TextScript.Sub ? SubRise : SuperRise : 0;
-            if (look.Script is not null) scale *= ScriptScale;
-            int? color = look.Color is { } c && c != lead.Color ? c : null;
+            var (scale, rise, color) = LookMetrics(_p, look);
             var bold = look.Bold ?? lead.Bold;
             var italic = look.Italic ?? lead.Italic;
             StandInFont? face = null;
@@ -1247,10 +1308,12 @@ public static partial class ContentEditor
                 if (!Faces.Contains(face.Name)) Faces.Add(face.Name);
             }
             Colored |= color is not null;
+            var under = look.Underline == true;
+            Underlined |= under;
             // A color the paragraph's own text is drawn in (a red word as the page has it) is set again as the page set it
             // (its gray, CMYK or named color space), not as RGB.
             var fill = color is { } cc ? _p.Runs.FirstOrDefault(r => r.Color == cc && r.Info?.FillOp is not null)?.Info!.FillOp : null;
-            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page, rise) { Fill = fill };
+            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null && !under ? null : new PartLook(scale, color, face, look, page, rise) { Fill = fill };
             _resolved[look] = resolved;
             return resolved;
         }
@@ -1561,6 +1624,7 @@ public static partial class ContentEditor
         var tokens = new List<string>();
         var codes = new List<int>();
         PartLook? tag = null;
+        var tagged = false; // the look's tag is open (an underline alone has none: the rule is drawn apart from the text)
         int? color = null; // null: the run's own
         // The page font and size in effect: the operator's own to begin with; false once a stand-in's Tf replaced it.
         (TextFont Font, bool Hex, double Size) cur = (run.Font!, hex, run.Size);
@@ -1583,8 +1647,9 @@ public static partial class ContentEditor
             if (!ReferenceEquals(look, tag))
             {
                 Close();
-                if (tag is not null) sb.Append("EMC ");
-                if (look is not null) sb.Append(LookTag.Write(look.Asked));
+                if (tagged) sb.Append("EMC ");
+                tagged = look is not null && !(look.Asked with { Underline = null }).IsPlain;
+                if (tagged) sb.Append(LookTag.Write(look!.Asked));
                 tag = look;
             }
             if (look?.Color != color)
@@ -1630,7 +1695,8 @@ public static partial class ContentEditor
                 Close();
                 var tc = Math.Abs(run.CharSpacing) > 1e-9;
                 if (tc) sb.Append("0 Tc ");
-                writer.Emit(sb, standIn, plain.Size * s, ts);
+                // (A right-to-left line's styled glyphs set their own colors and go back to the run's: WriteLine's own color is the run's here.)
+                writer.Emit(sb, standIn, plain.Size * s, ts, part.Look?.Color is null ? info.FillOp : null);
                 ownFont = false;
                 if (tc) sb.Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc ");
                 continue;

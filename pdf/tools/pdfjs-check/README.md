@@ -24,5 +24,12 @@ dotnet test pdf/tests/InkvoltPdf.Tests --filter FullyQualifiedName~ReadTheSameIn
 ```
 
 `OcrLayerSearchTests` (with the same variable) reads Inkvolt Print's scan PDFs with it: every planted non-Latin word found.
+`TranslationPdfJsTests` (the same variables) reads translated copies with it: the test's own pages (looks, Arabic, Hebrew,
+Japanese) and the corpus's first two pages of each file, each paragraph's new words in order:
+
+```powershell
+$env:INKVOLTPDF_PDFJS = '1'; $env:INKVOLTPDF_CORPUS = 'Z:\PdfDesk\pdf\tools\export-corpus\.cache'
+dotnet test pdf/tests/InkvoltPdf.Tests --filter FullyQualifiedName~TranslationPdfJsTests
+```
 
 Needs Node 20 or later. The edited PDFs are written to a temporary folder and deleted; results go to the test output.
