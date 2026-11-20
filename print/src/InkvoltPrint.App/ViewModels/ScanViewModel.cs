@@ -549,7 +549,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     public IReadOnlyList<Option<SplitAt>> SplitChoices { get; } = [.. Enum.GetValues<SplitAt>().Select(s => new Option<SplitAt>(s, Separators.Label(s)))];
 
-    /// <summary>What starts a new file: nothing, patch code sheets, blank pages, or either.</summary>
+    /// <summary>What starts a new file: nothing, patch code (or PATCHT code) sheets, blank pages, or either.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(Splits))]
     public partial Option<SplitAt>? SplitMode { get; set; }
@@ -824,12 +824,12 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>
-    /// Two-sided scans: the other side of a patch code sheet is part of the sheet (<see cref="BatchSplit.DuplexSeparatorBacks"/>),
+    /// Two-sided scans: the other side of a patch code (or PATCHT code) sheet is part of the sheet (<see cref="BatchSplit.DuplexSeparatorBacks"/>),
     /// so it neither starts the next file nor ends up in it.
     /// </summary>
     private static void SeparatorBacks(List<ScanPageViewModel> added)
     {
-        var backs = BatchSplit.DuplexSeparatorBacks([.. added.Select(p => p.Separator.Kind == SeparatorKind.PatchCode)], [.. added.Select(p => p.LooksBlank)]);
+        var backs = BatchSplit.DuplexSeparatorBacks([.. added.Select(p => p.Separator.IsSheet)], [.. added.Select(p => p.LooksBlank)]);
         foreach (var back in backs.Select(i => added[i]).Where(p => !p.IsSeparator))
         {
             back.IsSkipped = false;

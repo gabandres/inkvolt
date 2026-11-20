@@ -18,9 +18,10 @@ pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print                    # St
 pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0   # a later submission: higher than 1.6.0.0, the last submitted
 ```
 
-Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`): the app's
-What's New shows that entry once after the update, and its lines are the Store's "What's new in this version". The script
-warns when the heading is missing.
+Before packing a release, rename `## Next` in `print/WHATS-NEW.md` to the version (three numbers, `## 1.1.0`), and the same in
+`print/WHATS-NEW.es.md`: the app's What's New shows that entry once after the update (the Spanish one when the interface is
+Spanish), and their lines are the Store's "What's new in this version" in English and Spanish. The script warns when either
+heading is missing.
 
 The defaults are the app's Partner Center identity (below); pass `-IdentityName`, `-Publisher` and
 `-PublisherDisplayName` only to build under another one.
@@ -137,8 +138,8 @@ click. Read against Microsoft Store Policies **7.20** (2026-09-14), that would *
 **What each build does** (`Features.DriverMode`, decided by `DriverModes.For`, gated like the HP clean-up):
 
 - **Store package (default):** the app never downloads or runs anything. *Get the driver* finds the model's driver on the
-  maker's site and shows its title, version, size and host; **Download it from Epson** opens that file's own https address
-  (Epson's hosts only) in the browser, and the person runs Epson's installer themselves. The page then watches for the device
+  maker's site and shows its title, version, size and host; **Download it from Epson** (or Canon, HP, Brother, PFU) opens that file's own https address
+  (the maker's hosts only) in the browser, and the person runs the maker's installer themselves. The page then watches for the device
   (each read of the list after the PnP watcher or the 30 s timer: WIA for a scanner, the USB read for a printer) and says
   *Found it*, selecting a scanner in the Scan tab; **Look again** asks Windows to look for devices as the user (never elevated).
   In the certification notes: "the app opens the printer or scanner maker's own driver download page in the browser; it
@@ -394,7 +395,9 @@ If an unpackaged Inkvolt Print is installed too, both appear under "Open with"; 
 - HP clean-up is hidden unless built with `-IncludeHpCleanup` (above).
 - Settings, remembered printers and logs stay at `%LOCALAPPDATA%\InkvoltPrint`; Windows redirects a packaged app's writes
   there into `%LOCALAPPDATA%\Packages\<family>\LocalCache\Local\InkvoltPrint`, so a packaged and an unpackaged copy keep
-  separate state. Uninstalling the package removes it. Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
+  separate state (the log: `…\LocalCache\Local\InkvoltPrint\logs\inkvoltprint.log`). Uninstalling the package removes it.
+  Except when `%LOCALAPPDATA%\InkvoltPrint` already exists (an unpackaged copy ran here): Windows doesn't redirect that
+  folder, and the packaged copy reads and writes it too (seen 2026-11-08 on 1.5.0.0's side-by-side copy, whose log went there). Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
   copy was written last (`InkvoltPaths.StateFiles` in `../shared/InkvoltPrint.Core/Suite/InkvoltPaths.cs`). Saved printer passwords
   live in Windows Credential Manager, which isn't redirected.
 - `InkvoltApps.Find` (`../shared/InkvoltPrint.Windows/Suite/InkvoltApps.cs`) finds the other Inkvolt app through its execution alias

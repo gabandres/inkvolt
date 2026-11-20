@@ -60,6 +60,8 @@
     <Resource Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" />
     <!-- What's New (AppHelp) -->
     <Resource Include="..\..\WHATS-NEW.md" Link="WHATS-NEW.md" />
+    <!-- Its Spanish, shown when the interface is Spanish (ReleaseNotes.For) -->
+    <Resource Include="..\..\WHATS-NEW.es.md" Link="WHATS-NEW.es.md" />
   </ItemGroup>
   <ItemGroup>
     <!-- Demo mode (Demo.cs): the scrubbed test fixtures, served by FixtureHandler -->

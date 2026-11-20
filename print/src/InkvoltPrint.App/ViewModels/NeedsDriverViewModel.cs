@@ -130,7 +130,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
 
     // ---------------------------------------------------------------- get the driver
 
-    /// <summary>The button shows for a device with no driver whose maker's downloads Inkvolt Print looks up (Epson).</summary>
+    /// <summary>The button shows for a device with no driver whose maker's downloads Inkvolt Print looks up (Epson, Canon, HP, Brother, PFU).</summary>
     public bool CanGetDriver => IsNoDriver && _pc.Drivers.LooksUp(Printer);
 
     public string GetDriverButton => DriverText.Button;
@@ -142,7 +142,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     /// <summary>What it's doing now ("Looking on Epson's website…", "Downloading… 12.3 MB"); null when idle.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsGettingDriver))]
-    [NotifyCanExecuteChangedFor(nameof(GetDriverCommand), nameof(InstallDriverCommand), nameof(DiscardDriverCommand))]
+    [NotifyCanExecuteChangedFor(nameof(GetDriverCommand), nameof(InstallDriverCommand), nameof(DiscardDriverCommand), nameof(AcceptLicenceCommand))]
     public partial string? DriverProgress { get; set; }
 
     public bool IsGettingDriver => DriverProgress is not null;
@@ -155,7 +155,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
 
     public bool ShowConfirm => Ready is not null;
 
-    public bool ShowGetDriverButton => Ready is null && Offered is null;
+    public bool ShowGetDriverButton => Ready is null && Offered is null && Accepting is null;
     public string FoundTitle => DriverText.FoundTitle(Printer);
     public string Facts => Ready is { } r ? DriverText.Facts(r) : "";
 
@@ -169,7 +169,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
     /// <summary>The driver went in and Windows has the device: the list reads Windows again, a scanner is shown in the Scan tab.</summary>
     public event Action<NeedsDriverViewModel>? DriverInstalled;
 
-    private bool CanStartGetDriver() => DriverProgress is null && Ready is null && !IsWaitingForInstall;
+    private bool CanStartGetDriver() => DriverProgress is null && Ready is null && Accepting is null && !IsWaitingForInstall;
 
     /// <summary>A Store copy: it finds the download and opens the maker's link; it never downloads or runs anything itself.</summary>
     public bool OpensLink => _pc.Drivers.Mode == DriverMode.OpenLink;
@@ -197,17 +197,14 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
                 Offered = offer;
                 return;
             }
-            DriverProgress = DriverText.Downloading(0);
-            var progress = new Progress<long>(bytes => { if (DriverProgress is not null) DriverProgress = DriverText.Downloading(bytes); });
-            var got = await _pc.Drivers.DownloadAsync(offer, device, progress, CancellationToken.None);
-            if (got.Ready is not { } ready)
+            if (offer.Licence is not null)
             {
-                Log.Write($"[{device.Name}] get the driver from {offer.Download.Host}: {DriverText.EnglishRefused(got)}");
-                DriverResult = DriverText.Refused(device, got);
+                // The maker asks for its licence to be accepted first: shown, with its page, and downloaded only on Accept.
+                Log.Write($"[{device.Name}] driver found: {offer.Title} {offer.Version}; its licence shown before downloading ({offer.Licence.Host})");
+                Accepting = offer;
                 return;
             }
-            Log.Write($"[{device.Name}] driver found: {DriverText.EnglishFacts(ready)}");
-            Ready = ready;
+            await DownloadOfferAsync(device, offer);
         }
         catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException)
         {
@@ -218,6 +215,75 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
         {
             DriverProgress = null;
         }
+    }
+
+    // ---------------------------------------------------------------- a maker's licence, accepted before its download
+
+    /// <summary>A download whose maker asks for its licence to be accepted, waiting for Accept and download.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowAccept), nameof(AcceptFacts), nameof(ShowGetDriverButton))]
+    [NotifyCanExecuteChangedFor(nameof(GetDriverCommand), nameof(AcceptLicenceCommand))]
+    public partial DriverOffer? Accepting { get; set; }
+
+    public bool ShowAccept => Accepting is not null;
+    public string AcceptFacts => Accepting is { } o ? DriverText.OfferFacts(o) : "";
+    public string LicenceNote => DriverText.LicenceNote(Printer);
+    public string ReadLicenceLink => DriverText.ReadLicence(Printer);
+    public string AcceptButton => DriverText.AcceptButton;
+
+    /// <summary>A Store copy's offer under a licence: the maker's page opens, where it is accepted.</summary>
+    public bool ShowLicenceLinkNote => Offered?.Licence is not null;
+    public string LicenceLinkNote => DriverText.LicenceLinkNote(Printer);
+
+    [RelayCommand]
+    private void ReadLicence()
+    {
+        var licence = (Accepting ?? Offered)?.Licence;
+        // Only a page on the maker's own site is ever an offer's licence (DriverPages.Offer).
+        if (licence is not null && !_pc.Open(licence.AbsoluteUri)) DriverResult = NeedsDriverText.DemoFor(Printer);
+    }
+
+    private bool CanAccept() => Accepting is not null && DriverProgress is null;
+
+    [RelayCommand(CanExecute = nameof(CanAccept))]
+    private async Task AcceptLicenceAsync()
+    {
+        if (Accepting is not { } offer) return;
+        var device = Printer;
+        Accepting = null;
+        Log.Write($"[{device.Name}] {offer.Download.Host}: the maker's licence accepted ({offer.Licence?.AbsoluteUri})");
+        try
+        {
+            await DownloadOfferAsync(device, offer);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException or System.Net.Http.HttpRequestException)
+        {
+            Log.Write($"[{device.Name}] get the driver failed: {ex.Message}");
+            DriverResult = DriverText.Refused(device, new DriverDownload(null));
+        }
+        finally
+        {
+            DriverProgress = null;
+        }
+    }
+
+    [RelayCommand]
+    private void DeclineLicence() => Accepting = null;
+
+    /// <summary>Downloads and checks the offer; the checked file waits for Install (<see cref="Ready"/>), or the page says why not.</summary>
+    private async Task DownloadOfferAsync(NeedsDriverPrinter device, DriverOffer offer)
+    {
+        DriverProgress = DriverText.Downloading(0);
+        var progress = new Progress<long>(bytes => { if (DriverProgress is not null) DriverProgress = DriverText.Downloading(bytes); });
+        var got = await _pc.Drivers.DownloadAsync(offer, device, progress, CancellationToken.None);
+        if (got.Ready is not { } ready)
+        {
+            Log.Write($"[{device.Name}] get the driver from {offer.Download.Host}: {DriverText.EnglishRefused(got)}");
+            DriverResult = DriverText.Refused(device, got);
+            return;
+        }
+        Log.Write($"[{device.Name}] driver found: {DriverText.EnglishFacts(ready)}");
+        Ready = ready;
     }
 
     private bool HasReady() => Ready is not null && DriverProgress is null;
@@ -265,7 +331,7 @@ public sealed partial class NeedsDriverViewModel : ObservableObject
 
     /// <summary>The download found, shown with the maker's link (a Store copy).</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowOffered), nameof(OfferFacts), nameof(ShowGetDriverButton))]
+    [NotifyPropertyChangedFor(nameof(ShowOffered), nameof(OfferFacts), nameof(ShowGetDriverButton), nameof(ShowLicenceLinkNote))]
     [NotifyCanExecuteChangedFor(nameof(GetDriverCommand))]
     public partial DriverOffer? Offered { get; set; }
 

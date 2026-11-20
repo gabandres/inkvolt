@@ -61,6 +61,25 @@ public static class InkvoltPaths
         }).FirstOrDefault();
 
     /// <summary>
+    /// Where a file the app writes under <paramref name="localAppData"/> (its log) really is, to show it in Explorer, which runs
+    /// outside the package and sees only real paths. Unpackaged (<paramref name="packageFamily"/> null): <paramref name="path"/>.
+    /// Packaged: Windows redirects the write into <c>Packages\&lt;family&gt;\LocalCache\Local\…</c>, unless the plain folder already
+    /// existed (an unpackaged copy ran there), when it writes the plain one; so the plain path only when its file is there and newer
+    /// than a redirected one (inside the package a plain path can show the redirected file, which then reads the same: redirected),
+    /// else the redirected path, also when neither is written yet. <paramref name="lastWrite"/>: a file's last write, null when absent.
+    /// </summary>
+    public static string WrittenPath(string path, string localAppData, string? packageFamily, Func<string, DateTime?> lastWrite)
+    {
+        if (packageFamily is not { Length: > 0 } || packageFamily.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return path;
+        var relative = Path.GetRelativePath(localAppData, path);
+        if (relative == "." || relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)) return path;
+        var redirected = Path.Combine(localAppData, "Packages", packageFamily, "LocalCache", "Local", relative);
+        var plain = lastWrite(path);
+        var moved = lastWrite(redirected);
+        return plain is { } p && (moved is not { } r || p > r) ? path : redirected;
+    }
+
+    /// <summary>
     /// One-time move of an app's per-user data folder from its name before the Inkvolt rename (e.g.
     /// <c>%LOCALAPPDATA%\PrintDesk</c>) to <paramref name="folder"/>, so settings, saved IDs and recent files carry over.
     /// Acts only when <paramref name="folder"/> doesn't exist yet and <paramref name="legacyFolder"/> does. Renames the

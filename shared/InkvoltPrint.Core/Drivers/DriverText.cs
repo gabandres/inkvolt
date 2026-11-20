@@ -43,6 +43,15 @@ public static class DriverText
             F(CoreStrings.GetDriver_FactSize, o.SizeText ?? CoreStrings.GetDriver_NotSaid),
             F(CoreStrings.GetDriver_FactFrom, o.Download.IdnHost));
 
+    /// <summary>Before a download whose maker asks for its licence to be accepted (<see cref="DriverOffer.Licence"/>): the click accepts it.</summary>
+    public static string LicenceNote(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_LicenceNote, Maker(d));
+
+    public static string ReadLicence(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_ReadLicence, Maker(d));
+    public static string AcceptButton => CoreStrings.GetDriver_AcceptButton;
+
+    /// <summary>A Store copy, for an offer with a licence: the maker's page opens, not the file.</summary>
+    public static string LicenceLinkNote(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_LicenceLinkNote, Maker(d));
+
     public static string FoundTitleLink(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_FoundTitleLink, Maker(d));
     public static string OpenLinkButton(NeedsDriverPrinter d) => F(CoreStrings.GetDriver_OpenLinkButton, Maker(d));
     public static string OpenLinkNote(NeedsDriverPrinter d) => F(d.IsScanner ? CoreStrings.GetDriver_OpenLinkNoteScanner : CoreStrings.GetDriver_OpenLinkNotePrinter, Maker(d));

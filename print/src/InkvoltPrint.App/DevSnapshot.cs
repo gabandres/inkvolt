@@ -32,7 +32,7 @@ namespace InkvoltPrint.App;
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
-/// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
+/// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it; <c>--driver-licence</c>: a find under a licence to accept first); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
 /// command palette with the words typed, and <c>--run-palette</c> then runs its first entry. <c>--scan-button [press]</c> (demo only)
 /// turns the shown printer's scan button on and with <c>press</c> presses it on the made-up panel or scanner (roadmap 2.2).
 /// <c>--share</c> (demo only) shares the shown entry's made-up Windows scanner on the network, to this PC only (roadmap 3.1).
@@ -97,6 +97,7 @@ internal static class DevSnapshot
             var needing = Value(args, "--needs-driver") == "scanner" ? withUsb.NeedsDriver.FirstOrDefault(v => v.IsScanner) ?? first : first;
             withUsb.SelectedNeedsDriver = needing;
             if (args.Contains("--driver-link")) DemoDriverGetter.Forced = Core.Drivers.DriverMode.OpenLink; // the Store copy's flow
+            if (args.Contains("--driver-licence")) DemoDriverGetter.WithLicence = true; // a find under a licence to accept first
             if (args.Contains("--get-driver") && needing.CanGetDriver) await needing.GetDriverCommand.ExecuteAsync(null);
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
