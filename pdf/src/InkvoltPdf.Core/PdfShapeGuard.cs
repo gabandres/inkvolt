@@ -139,6 +139,76 @@ internal static class PdfShapeGuard
     }
 
 
+    /// <summary>
+    /// Refuses an unfiltered object stream of an encrypted file (object <paramref name="num"/> <paramref name="gen"/>, its
+    /// data <paramref name="cipher"/> as the file holds it) that, decrypted as PDFsharp decrypts it with
+    /// <paramref name="password"/>, nests past <see cref="MaxNesting"/>; and one that can't be decrypted so, as nothing then
+    /// says it is safe to parse. PDFsharp itself decrypts it, in a file of its own made for that: the encryption dictionary
+    /// (each one the file could mean), the /ID and this one stream. A filtered one is checked once decoded (BoundedFilters).
+    /// </summary>
+    /// <exception cref="PdfShapeException">It nests too deep, or it can't be read to tell.</exception>
+    internal static void CheckEncryptedObjectStream(PdfRepair.Encryption encryption, string? password, int num, int gen, ReadOnlySpan<byte> cipher)
+    {
+        var read = false;
+        foreach (var dict in encryption.Dictionaries)
+        {
+            if (Decrypted(encryption, dict, password, num, gen, cipher) is not { } plain) continue;
+            read = true;
+            var depth = new Nesting();
+            foreach (var b in plain) depth.Read(b);
+        }
+        if (!read) throw new PdfShapeException();
+    }
+
+    /// <summary>The data of the stream <paramref name="num"/> <paramref name="gen"/>, decrypted by PDFsharp with encryption dictionary <paramref name="dict"/>; null when it can't be.</summary>
+    private static byte[]? Decrypted(PdfRepair.Encryption encryption, string dict, string? password, int num, int gen, ReadOnlySpan<byte> cipher)
+    {
+        // What goes into that file is parsed too: its own nesting is bounded first.
+        foreach (var text in (string?[])[dict, encryption.Id])
+        {
+            var depth = new Nesting();
+            foreach (var c in text ?? "") depth.Read((byte)c);
+        }
+        if (encryption.Object is { } e && e.Num == num) return null;
+        var catalog = Math.Max(num, encryption.Object?.Num ?? 0) + 1;
+        if (catalog + 2 > Incremental.MaxObjectNumber) return null;
+        using var file = new MemoryStream(cipher.Length + 1024);
+        var offsets = new SortedDictionary<int, (long At, int Gen)>();
+        void Text(string s) => file.Write(System.Text.Encoding.Latin1.GetBytes(s));
+        void Object(int n, int g, string body)
+        {
+            offsets[n] = (file.Position, g);
+            Text(FormattableString.Invariant($"{n} {g} obj\n{body}\nendobj\n"));
+        }
+        Text("%PDF-1.7\n");
+        if (encryption.Object is { } o) Object(o.Num, o.Gen, dict);
+        offsets[num] = (file.Position, gen);
+        Text(FormattableString.Invariant($"{num} {gen} obj\n<< /Length {cipher.Length} >>\nstream\n"));
+        file.Write(cipher);
+        Text("\nendstream\nendobj\n");
+        Object(catalog, 0, FormattableString.Invariant($"<< /Type /Catalog /Pages {catalog + 1} 0 R >>"));
+        Object(catalog + 1, 0, FormattableString.Invariant($"<< /Type /Pages /Kids [{catalog + 2} 0 R] /Count 1 >>"));
+        Object(catalog + 2, 0, FormattableString.Invariant($"<< /Type /Page /Parent {catalog + 1} 0 R /MediaBox [0 0 1 1] >>"));
+        var xref = file.Position;
+        Text("xref\n0 1\n0000000000 65535 f \n");
+        foreach (var (n, (at, g)) in offsets) Text(FormattableString.Invariant($"{n} 1\n{at:D10} {g:D5} n \n"));
+        var encrypt = encryption.Object is { } r ? FormattableString.Invariant($"{r.Num} {r.Gen} R") : dict;
+        var id = encryption.Id is { } i ? " /ID " + i : "";
+        Text(FormattableString.Invariant($"trailer\n<< /Size {catalog + 3} /Root {catalog} 0 R /Encrypt {encrypt}{id} >>\nstartxref\n{xref}\n%%EOF\n"));
+        file.Position = 0;
+        try
+        {
+            using var doc = string.IsNullOrEmpty(password)
+                ? PdfSharp.Pdf.IO.PdfReader.Open(file, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import)
+                : PdfSharp.Pdf.IO.PdfReader.Open(file, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            return (doc.Internals.GetObject(new PdfObjectID(num, gen)) as PdfDictionary)?.Stream?.Value;
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return null;
+        }
+    }
+
     private static bool StartsWithTwoNumbers(ReadOnlySpan<byte> bytes)
     {
         var i = 0;
@@ -199,8 +269,12 @@ internal static class PdfShapeGuard
     /// and each object starts at no depth. An unfiltered object stream's data, which PDFsharp parses again, is counted as it
     /// is read (in one read or several), told by the tokens of its dictionary: /Type /ObjStm without /Filter.
     /// </summary>
-    public sealed class GuardedFile(byte[] data) : MemoryStream(data, writable: false)
+    public sealed class GuardedFile : MemoryStream
     {
+        private readonly byte[] _data;
+
+        public GuardedFile(byte[] data) : base(data, writable: false) => _data = data;
+
         private Nesting _nesting;      // the tokens read, since the last move to an object
         private Nesting _objectStream; // an unfiltered object stream's data, across the reads of it
         private bool _objStm, _filter; // the dictionary read since the last "obj" names /Type /ObjStm, a /Filter
@@ -209,12 +283,41 @@ internal static class PdfShapeGuard
         private readonly byte[] _token = new byte[MaxToken + 1];
         private int _tokenLength = -1; // -1: between tokens
         private bool _name;
+        private long _number = -1, _lastNumber = -1; // the last two numbers read, for an object's header ("12 0 obj")
+        private (int Num, int Gen)? _object;            // the object whose dictionary is being read
+
+        // An encrypted file's object stream is noise on disk: its data, where it lies in the file, is checked decrypted
+        // once PDFsharp has read all of it (it reads on, or moves elsewhere, before it parses it).
+        private PdfRepair.Encryption? _encryption;
+        private bool _encryptionRead;
+        private (int Num, int Gen)? _cipherObject;
+        private long _cipherStart = -1, _cipherEnd;
+
+        /// <summary>The password PDFsharp is given (null: none), which decrypts what it decrypts.</summary>
+        public string? Password { get; init; }
 
         /// <summary>The longest token looked at: what PDFsharp reads as /ObjStm, /Filter, obj or stream is shorter, escapes and all.</summary>
         private const int MaxToken = 32;
 
+        private PdfRepair.Encryption? Encryption()
+        {
+            if (!_encryptionRead) (_encryption, _encryptionRead) = (PdfRepair.EncryptionOf(_data), true);
+            return _encryption;
+        }
+
+        /// <summary>The encrypted object stream read last, checked now that PDFsharp has gone past its data.</summary>
+        private void CheckCipher()
+        {
+            if (_cipherStart < 0) return;
+            var (start, end, obj) = (_cipherStart, _cipherEnd, _cipherObject);
+            _cipherStart = -1;
+            if (obj is not { } o) throw new PdfShapeException(); // no header before it: nothing says how it is encrypted
+            CheckEncryptedObjectStream(_encryption!, Password, o.Num, o.Gen, _data.AsSpan((int)start, (int)(end - start)));
+        }
+
         public override int ReadByte()
         {
+            CheckCipher();
             var b = base.ReadByte();
             if (b >= 0)
             {
@@ -226,6 +329,7 @@ internal static class PdfShapeGuard
 
         public override int Read(byte[] buffer, int offset, int count)
         {
+            var from = Position;
             var n = base.Read(buffer, offset, count);
             // Only an object stream's own data is parsed again (a filtered one is checked once decoded, in BoundedFilters):
             // a content stream's or a picture's bytes are never nesting, whatever they hold. Which stream it is comes from
@@ -234,8 +338,10 @@ internal static class PdfShapeGuard
             {
                 (_nextIsObjectStream, _inObjectStream) = (false, true);
                 _objectStream.Reset();
+                if (Encryption() is not null) (_cipherObject, _cipherStart) = (_object, from);
             }
-            if (_inObjectStream)
+            if (_cipherStart >= 0) _cipherEnd = Position; // decrypted only once it is all read
+            else if (_inObjectStream)
                 foreach (var b in buffer.AsSpan(offset, n)) _objectStream.Read(b);
             return n;
         }
@@ -282,12 +388,20 @@ internal static class PdfShapeGuard
             {
                 // A new object: what follows is its dictionary. (An indirect /Length is read after the "stream" keyword.)
                 (_objStm, _filter, _inObjectStream) = (false, false, false);
+                _object = _lastNumber is >= 0 and <= int.MaxValue && _number is >= 0 and <= 65535 ? ((int)_lastNumber, (int)_number) : null;
+            }
+            else if (token.Length is > 0 and <= 10 && token.IndexOfAnyExceptInRange((byte)'0', (byte)'9') < 0)
+            {
+                _lastNumber = _number;
+                _number = long.Parse(token, provider: System.Globalization.CultureInfo.InvariantCulture);
+                return;
             }
             else if (token.SequenceEqual("stream"u8))
             {
                 _nextIsObjectStream = _objStm && !_filter;
                 _inObjectStream = false;
             }
+            (_number, _lastNumber) = (-1, -1); // a header's two numbers come just before its "obj"
         }
 
         public override long Position
@@ -295,17 +409,23 @@ internal static class PdfShapeGuard
             get => base.Position;
             set
             {
-                _nesting.Reset();
-                _tokenLength = -1;
+                Moved();
                 base.Position = value;
             }
         }
 
         public override long Seek(long offset, SeekOrigin loc)
         {
+            Moved();
+            return base.Seek(offset, loc);
+        }
+
+        private void Moved()
+        {
+            CheckCipher();
             _nesting.Reset();
             _tokenLength = -1;
-            return base.Seek(offset, loc);
+            (_number, _lastNumber) = (-1, -1);
         }
     }
 }

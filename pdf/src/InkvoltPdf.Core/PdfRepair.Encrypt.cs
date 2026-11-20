@@ -65,6 +65,50 @@ public static partial class PdfRepair
         }
     }
 
+    /// <summary>The most dictionaries <see cref="EncryptionOf"/> gives for one indirect /Encrypt: one in a sound file.</summary>
+    internal const int MaxEncryptCandidates = 8;
+
+    /// <summary>
+    /// How a file's objects are encrypted, as PDFsharp finds it: /Encrypt as written in the newest cross-reference section
+    /// that names it (followed through /Prev), with /ID from the newest that has one. When /Encrypt is a reference, every
+    /// dictionary written under that object's number and generation is a candidate (one in a sound file; which one PDFsharp
+    /// takes is the cross-reference's to say, so a caller checks them all).
+    /// </summary>
+    internal sealed record Encryption(string Encrypt, (int Num, int Gen)? Object, IReadOnlyList<string> Dictionaries, string? Id);
+
+    /// <summary>
+    /// The encryption of <paramref name="data"/> (<see cref="Encryption"/>); null when no section names /Encrypt, the sections
+    /// can't be read, or an indirect one has no dictionary or more than <see cref="MaxEncryptCandidates"/>.
+    /// </summary>
+    internal static Encryption? EncryptionOf(byte[] data)
+    {
+        if (data.AsSpan().IndexOf("/Encrypt"u8) < 0 || Incremental.StartXref(data) is not { } at) return null;
+        var work = new Work(4L * data.Length + 2L * MaxSections * MaxDictChars);
+        var seen = new HashSet<long>();
+        string? encrypt = null, id = null;
+        while (seen.Count < MaxSections && seen.Add(at))
+        {
+            if (SectionDict(data, at, work) is not { } dict || work.Spent) return null;
+            id ??= dict.Raw("/ID");
+            if ((encrypt = dict.Raw("/Encrypt")) is not null) break;
+            if (dict.Int("/Prev") is not { } prev || prev <= 0 || prev >= data.Length) return null;
+            at = prev;
+        }
+        if (encrypt is null) return null;
+        if (RefOf(encrypt) is not { } r) return new Encryption(encrypt, null, [encrypt], id);
+
+        var dicts = new List<string>();
+        var objKw = new Next(data, "obj"u8.ToArray());
+        for (var pos = 0; objKw.From(pos) is var i and >= 0; pos = i + 3)
+        {
+            if (Incremental.ObjectHeaderAt(data, i) is not { } header || header.Num != r.Num || header.Gen != r.Gen) continue;
+            var start = SkipWhite(data, i + 3, data.Length);
+            if (ReadDict(data, start, work) is { } d) dicts.Add(System.Text.Encoding.Latin1.GetString(data, start, d.End - start));
+            if (work.Spent || dicts.Count > MaxEncryptCandidates) return null;
+        }
+        return dicts.Count == 0 ? null : new Encryption(encrypt, r, dicts, id);
+    }
+
     /// <summary>
     /// The dictionary of the cross-reference section at <paramref name="at"/>: a table's trailer (the first "trailer" after
     /// it), or a cross-reference stream's dictionary; null when neither is there.
