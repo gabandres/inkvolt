@@ -333,6 +333,9 @@ public sealed class PageText
         return (s, e);
     }
 
+    /// <summary>Each line's characters [Start, End) and its baseline direction (unit vector: (1, 0) across the page, (0, 1) turned clockwise).</summary>
+    public IEnumerable<(int Start, int End, double Dx, double Dy)> Lines => _lines.Select(l => (l.Start, l.End, l.Dx, l.Dy));
+
     /// <summary>Expands a caret to its whole line (for triple-click).</summary>
     public (int Start, int End) LineAt(int caret)
     {

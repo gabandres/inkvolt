@@ -551,7 +551,8 @@ public sealed record BatchSummary(IReadOnlyList<BatchItemResult> Items)
 /// </summary>
 public static class BatchRunner
 {
-    /// <summary>Estimated working memory per byte of file (the bytes, PDFsharp's object tree, MuPDF, a copy per action).</summary>
+    /// <summary>Estimated working memory per byte of file, or of what its streams unpack to (the bytes, PDFsharp's object
+    /// tree, MuPDF, a copy per action: Reduce File Size took 1.6 GB for a 200 MB stream).</summary>
     private const int MemoryPerByte = 8;
 
     private const long MinWeight = 32L << 20;
@@ -574,6 +575,28 @@ public static class BatchRunner
         if (longTerm?.TimestampUrl is { } stampUrl && ltv?.Why(stampUrl, LtvAddressKind.Timestamp) is { } refused)
             throw new ArgumentException(Loc.Format(PdfStrings.Batch_LongTermServerRefused, refused), nameof(plan));
 
+        // What each file unpacks to, counted ahead of the files' admission on a thread of its own, in order.
+        var unpacked = files.Select(_ => new TaskCompletionSource<long>(TaskCreationOptions.RunContinuationsAsynchronously)).ToArray();
+        _ = Task.Run(() =>
+        {
+            for (var i = 0; i < files.Count; i++)
+            {
+                try
+                {
+                    unpacked[i].TrySetResult(files[i].IsImage ? 0 : Unpacked(files[i].Path, plan.MemoryBudget / MemoryPerByte, cancel));
+                }
+                catch (OperationCanceledException)
+                {
+                    foreach (var rest in unpacked) rest.TrySetCanceled(cancel);
+                    return;
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    unpacked[i].TrySetResult(0); // reading it will fail and say why
+                }
+            }
+        }, CancellationToken.None);
+
         for (var i = 0; i < files.Count; i++)
         {
             var index = i;
@@ -589,11 +612,17 @@ public static class BatchRunner
             long weight;
             try
             {
-                weight = Weight(new FileInfo(file.Path).Length, plan.RendersPages ? LargestPage(file) : null, plan);
+                var inflates = await unpacked[i].Task.WaitAsync(cancel).ConfigureAwait(false);
+                weight = Weight(new FileInfo(file.Path).Length, plan.RendersPages ? LargestPage(file) : null, plan, inflates);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 weight = MinWeight; // reading it will fail and say why
+            }
+            catch (OperationCanceledException)
+            {
+                slots.Release();
+                break;
             }
             try
             {
@@ -664,13 +693,15 @@ public static class BatchRunner
     private const double CheckDpi = 54;
 
     /// <summary>
-    /// Estimated working memory of a file: its bytes (and the copies its actions make), plus, when the plan renders pages
-    /// (page images, OCR), the largest page's pixels at the highest resolution asked, 4 bytes each.
+    /// Estimated working memory of a file: its bytes or what its streams unpack to, whichever is more (and the copies its
+    /// actions make), plus, when the plan renders pages (page images, OCR), the largest page's pixels at the highest
+    /// resolution asked, 4 bytes each.
     /// </summary>
     /// <param name="largestPage">The largest page in points (null: unknown, a Letter page is assumed).</param>
-    internal static long Weight(long fileSize, (double Width, double Height)? largestPage, BatchPlan plan)
+    /// <param name="unpacked">What the file's streams unpack to (<see cref="Unpacked"/>).</param>
+    internal static long Weight(long fileSize, (double Width, double Height)? largestPage, BatchPlan plan, long unpacked = 0)
     {
-        var weight = Math.Max(MinWeight, fileSize * MemoryPerByte);
+        var weight = Math.Max(MinWeight, Math.Max(fileSize, unpacked) * MemoryPerByte);
         if (!plan.RendersPages) return weight;
         var (w, h) = largestPage ?? (612, 792);
         double pixels = 0;
@@ -687,6 +718,97 @@ public static class BatchRunner
             pixels = Math.Max(pixels, Math.Min(max, w / 72 * dpi * (h / 72 * dpi)));
         }
         return weight + (long)(pixels * 4);
+    }
+
+    /// <summary>
+    /// What a file's streams unpack to, together, counted before the file is admitted: a 200 KB file can hold a stream that
+    /// unpacks to 200 MB (under <see cref="PdfObj.MaxStreamBytes"/>, so nothing refuses it), and Reduce File Size then takes
+    /// 1.6 GB. The file is read in place, not parsed: the data after each "stream" keyword and its end of line is inflated
+    /// as PDFsharp inflates it (two header bytes skipped) and counted a chunk at a time, kept nowhere
+    /// (<see cref="BoundedFilters.InflatedLength"/>); data that isn't Flate fails at once, having counted next to nothing.
+    /// A picture (its dictionary, read back from the keyword, says /Subtype /Image with its size) counts what it decodes
+    /// to, width × height × components × bits, and isn't inflated. Encrypted streams count nothing (the file is priced by
+    /// its size). Each stream counts up to <see cref="PdfObj.MaxStreamBytes"/>; counting stops past <paramref name="cap"/>
+    /// or after <see cref="MaxStreamsCounted"/> streams inflated (such a file runs alone anyway).
+    /// </summary>
+    internal static long Unpacked(string path, long cap, CancellationToken cancel = default)
+    {
+        const int Lookback = 4096; // a stream's dictionary, read back from its keyword
+        var keyword = "stream"u8;
+        using var scan = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.SequentialScan);
+        using var data = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1); // the inflater reads in blocks of its own
+        var buffer = new byte[1 << 20];
+        long total = 0, start = 0; // start: the file offset of buffer[0]
+        int filled = 0, from = 0, inflated = 0;
+        for (var end = false; !end;)
+        {
+            cancel.ThrowIfCancellationRequested();
+            var n = scan.Read(buffer, filled, buffer.Length - filled);
+            end = n == 0;
+            filled += n;
+            var at = from;
+            int? wait = null; // a keyword whose end of line may be in the next block
+            for (int i; (i = buffer.AsSpan(at, filled - at).IndexOf(keyword)) >= 0;)
+            {
+                i += at;
+                at = i + keyword.Length;
+                if (!end && at + 2 > filled)
+                {
+                    wait = i;
+                    break;
+                }
+                var p = at;
+                if (p < filled && buffer[p] == '\r') p++;
+                if (p < filled && buffer[p] == '\n') p++;
+                if (p == at || i >= 3 && buffer.AsSpan(i - 3, 3).SequenceEqual("end"u8)) continue; // "streams", "endstream"
+                var back = Math.Max(0, i - Lookback);
+                if (PictureBytes(System.Text.Encoding.Latin1.GetString(buffer, back, i - back)) is { } picture) total += picture;
+                else
+                {
+                    if (++inflated > MaxStreamsCounted) return cap + 1;
+                    data.Position = start + p + 2;
+                    total += BoundedFilters.InflatedLength(data, Math.Min(PdfObj.MaxStreamBytes, cap - total), cancel);
+                }
+                if (total > cap) return total;
+            }
+            // Keep what may be the start of a keyword split across blocks, and the dictionaries before what is still to read.
+            var next = wait ?? Math.Max(at, filled - keyword.Length + 1);
+            var keep = Math.Max(0, next - Lookback);
+            buffer.AsSpan(keep, filled - keep).CopyTo(buffer);
+            start += keep;
+            filled -= keep;
+            from = next - keep;
+        }
+        return total;
+    }
+
+    /// <summary>Most streams <see cref="Unpacked"/> inflates in one file.</summary>
+    internal const int MaxStreamsCounted = 50_000;
+
+    /// <summary>
+    /// What a picture decodes to, from the end of the text before its "stream" keyword (its dictionary, after "obj"):
+    /// width × height × components × bits per component, up to <see cref="PdfObj.MaxStreamBytes"/>. Null when it isn't a
+    /// picture or its size isn't written there (an indirect width).
+    /// </summary>
+    internal static long? PictureBytes(string before)
+    {
+        var obj = before.LastIndexOf("obj", StringComparison.Ordinal);
+        var dict = obj < 0 ? before : before[obj..];
+        if (!System.Text.RegularExpressions.Regex.IsMatch(dict, @"/Subtype\s*/Image\b")) return null;
+        static long? Number(string dict, string key) =>
+            System.Text.RegularExpressions.Regex.Match(dict, key + @"\s+(\d{1,9})\b(?!\s+\d+\s+R)") is { Success: true } m ? long.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : null;
+        if (Number(dict, "/Width") is not { } w || Number(dict, "/Height") is not { } h) return null;
+        var (width, height) = (Math.Min(w, 1_000_000), Math.Min(h, 1_000_000)); // no product past a long
+        var mask = System.Text.RegularExpressions.Regex.IsMatch(dict, @"/ImageMask\s+true");
+        var bits = mask ? 1 : Math.Clamp(Number(dict, "/BitsPerComponent") ?? 8, 1, 16);
+        var space = System.Text.RegularExpressions.Regex.Match(dict, @"/ColorSpace\s*(\[\s*)?/(\w+)");
+        var components = mask ? 1 : space.Success ? space.Groups[2].Value switch
+        {
+            "DeviceGray" or "CalGray" or "Indexed" or "Separation" => 1,
+            "DeviceCMYK" => 4,
+            _ => 3,
+        } : 3;
+        return Math.Min(PdfObj.MaxStreamBytes, (width * height * components * bits + 7) / 8);
     }
 
     /// <summary>The largest page of a file (points), read in place; null when it can't be told (encrypted, damaged).</summary>
@@ -1037,8 +1159,17 @@ public static class BatchRunner
                 result = await EditAsync(data, (d, pw) => run.Redact(d, pw, skipText: cancel).Data).ConfigureAwait(false);
                 _beforeRedaction ??= data;
                 _redactedValues.AddRange(RedactionSearch.SoughtValues(hits));
-                foreach (var (page, list) in areas)
-                    (_redactedAreas.TryGetValue(page, out var all) ? all : _redactedAreas[page] = []).AddRange(list);
+                // Where the boxes are now: an earlier step's moved with the lines this one laid out again (or went into its
+                // boxes), then this step's.
+                foreach (var (page, list) in run.Blacked)
+                {
+                    var all = _redactedAreas.TryGetValue(page, out var before) ? before : _redactedAreas[page] = [];
+                    var newAreas = areas.GetValueOrDefault(page) ?? [];
+                    var moved = all.Where(r => !newAreas.Any(a => !a.Intersect(r).IsEmpty)).Select(r => run.Moved.Now(page, r)).ToList();
+                    all.Clear();
+                    all.AddRange(moved);
+                    all.AddRange(list);
+                }
             }
             var outcome = await Task.Run(() => run.Verify(result, _password, data, Pages(PdfStrings.Batch_ReadingBack), cancel: cancel), cancel).ConfigureAwait(false);
             _redaction = Merge(earlier, outcome.Report);
