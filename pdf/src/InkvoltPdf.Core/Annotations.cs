@@ -160,7 +160,7 @@ public static partial class Annotations
     /// <see cref="MaxQuads"/> (a hostile file lists millions, or has hundreds of marks share one huge list): enough for
     /// a caller to see the mark has too many to draw or select.
     /// </summary>
-    private static List<RectD> QuadRectsOf(PdfPage page, PdfDictionary a)
+    internal static List<RectD> QuadRectsOf(PdfPage page, PdfDictionary a)
     {
         var quads = new List<RectD>();
         if (PdfObj.Array(a.Elements["/QuadPoints"]) is { } qp)

@@ -129,6 +129,26 @@ internal static class ExportTestPdf
         return y + 14;
     }
 
+    /// <summary>
+    /// "Read our full guide / to setup and more." on two lines, "guide to setup" linked to https://example.com/: the link's
+    /// /Rect covers both lines whole; with <paramref name="quads"/> its /QuadPoints cover only the linked words.
+    /// </summary>
+    public static byte[] TwoLineLink(bool quads)
+    {
+        static string Text(double x, double y, string s) => $"BT /F1 12 Tf {x} {y} Td ({s}) Tj ET";
+        var content = string.Join('\n', Text(72, 700, "Read our full"), Text(160, 700, "guide"), Text(72, 686, "to setup"), Text(130, 686, "and more."));
+        var quadPoints = quads ? "/QuadPoints [158 711 190 711 158 698 190 698 70 695 116 695 70 683 116 683]" : "";
+        return Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [6 0 R] >>",
+            Core2Pdf.Stream(content),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            $"<< /Type /Annot /Subtype /Link /Rect [70 682 200 714] {quadPoints} /Border [0 0 0] /A << /S /URI /URI (https://example.com/) >> >>",
+        ]);
+    }
+
     /// <summary>The address of <see cref="Linked"/>'s web link, and as an export writes it (escaped).</summary>
     public const string LinkUri = "https://example.com/guide?a=1&b=\"2\"", LinkUriEscaped = "https://example.com/guide?a=1&b=%222%22";
 

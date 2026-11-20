@@ -9,6 +9,12 @@ namespace InkvoltPdf.Core;
 /// <param name="Uri">The address of a URI link; null otherwise.</param>
 public sealed record LinkInfo(string Id, int PageIndex, RectD Rect, string? Uri, int TargetPage)
 {
+    /// <summary>
+    /// The boxes it covers, from its /QuadPoints (page space, a line of text each), when it has them; empty when only its
+    /// /Rect says where it is. At most one more than <see cref="Annotations.MaxQuads"/>.
+    /// </summary>
+    public IReadOnlyList<RectD> Quads { get; init; } = [];
+
     /// <summary>What it leads to, for lists and tooltips.</summary>
     public string Describe() => Uri ?? (TargetPage >= 0 ? Loc.Format(PdfStrings.Link_PageN, TargetPage + 1) : PdfStrings.Link_OtherAction);
 }
@@ -44,7 +50,7 @@ public static class Links
                 if (PdfObj.Dict(annots.Elements[i]) is not { } a || PdfObj.NameOf(a, "/Subtype") != "/Link") continue;
                 if (PdfObj.Array(a.Elements["/Rect"]) is not { Elements.Count: >= 4 } r) continue;
                 var (uri, target) = Target(doc, a);
-                list.Add(new LinkInfo(Annotations.IdOf(a, p, i), p, PdfObj.RectToPage(page, r), uri, target));
+                list.Add(new LinkInfo(Annotations.IdOf(a, p, i), p, PdfObj.RectToPage(page, r), uri, target) { Quads = Annotations.QuadRectsOf(page, a) });
             }
         }
         return list;

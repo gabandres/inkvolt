@@ -389,6 +389,25 @@ public class ExportHtmlTests
     }
 
     [Fact]
+    public void A_link_over_two_lines_covers_its_quads_words_only()
+    {
+        var pdf = ExportTestPdf.TwoLineLink(quads: true);
+        var root = Dom(Html(pdf, options: new ExportOptions { Source = pdf }));
+        AssertInert(root);
+        Assert.Equal(["guide", "to setup"], All(root, "a").Select(TextOf));
+        Assert.Equal("Read our full guide to setup and more.", string.Join(' ', All(root, "p").Select(p => TextOf(p).Trim())));
+    }
+
+    [Fact]
+    public void A_link_over_two_lines_without_quads_is_left_out()
+    {
+        // Its area alone would link "Read our full" and "and more." too; without the PDF's bytes the quads aren't read either.
+        var pdf = ExportTestPdf.TwoLineLink(quads: false);
+        Assert.Empty(All(Dom(Html(pdf, options: new ExportOptions { Source = pdf })), "a"));
+        Assert.Empty(All(Dom(Html(ExportTestPdf.TwoLineLink(quads: true))), "a"));
+    }
+
+    [Fact]
     public void Links_that_are_dropped_dont_count_against_a_pages_cap()
     {
         // 600 javascript: links before the page's one web link: the cap of 500 is for links carried.

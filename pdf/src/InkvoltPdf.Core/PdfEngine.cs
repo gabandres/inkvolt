@@ -800,6 +800,19 @@ public sealed partial class PdfEngine : IDisposable
     /// <summary>Most links of a page an export carries (each character is checked against each).</summary>
     private const int MaxExportLinks = 500;
 
+    /// <summary>Most boxes a link's /QuadPoints may have to be carried (a line each; a hostile file lists thousands).</summary>
+    private const int MaxLinkQuads = 64;
+
+    /// <summary>
+    /// Two runs of text are on the same line: across the lines' direction (<paramref name="turn"/>: up and down for text
+    /// that reads across) they overlap by half the smaller at least.
+    /// </summary>
+    private static bool SameLine(RectD a, RectD b, int turn)
+    {
+        var (a0, a1, b0, b1) = turn % 2 == 0 ? (a.Y, a.Bottom, b.Y, b.Bottom) : (a.X, a.Right, b.X, b.Right);
+        return Math.Min(a1, b1) - Math.Max(a0, b0) >= 0.5 * Math.Min(a1 - a0, b1 - b0);
+    }
+
     /// <summary>Pictures larger than this many pixels are exported as JPEG (scans, photos), smaller ones as PNG.</summary>
     private const long JpegAbovePixels = 1_500_000;
 
@@ -816,16 +829,19 @@ public sealed partial class PdfEngine : IDisposable
     /// <param name="shapes">Read the page's simple shapes too (<see cref="ExportShapes"/>); what is neither one nor text is added as a picture.</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
     /// <param name="links">
-    /// What each of the page's links becomes on the text it covers (<see cref="ExportSpan.Link"/>; null drops one); null
-    /// reads no links. A character is linked when its middle lies in the link's area.
+    /// What each of the page's links becomes on the text it covers (<see cref="ExportSpan.Link"/>; null drops one), with
+    /// its /QuadPoints' boxes when it has them (<see cref="LinkInfo.Quads"/>); null reads no links. A character is linked
+    /// when its middle lies in one of the link's boxes. A link without boxes covers its area only when that holds one line
+    /// of text: an area over two lines also covers the words before the link and after it.
     /// </param>
     /// <exception cref="PageRefusedException">The page's check refused it.</exception>
     public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false, bool shapes = false,
-        Func<PageLink, ExportLink?>? links = null)
+        Func<PageLink, (ExportLink To, IReadOnlyList<RectD> Quads)?>? links = null)
     {
         cancel.ThrowIfCancellationRequested();
         Vet(page, cancel);
-        var areas = new List<(RectD Area, ExportLink Link)>();
+        // Each link: its boxes (its quads, or its area), where it leads, and whether its area must hold one line to count.
+        var areas = new List<(IReadOnlyList<RectD> Boxes, ExportLink Link, bool OneLine)>();
         if (links is not null)
         {
             IReadOnlyList<PageLink> read;
@@ -835,7 +851,10 @@ public sealed partial class PdfEngine : IDisposable
             foreach (var l in read)
             {
                 if (areas.Count >= MaxExportLinks) break;
-                if (l.Area.Width > 0 && l.Area.Height > 0 && links(l) is { } to) areas.Add((l.Area, to));
+                if (l.Area.Width <= 0 || l.Area.Height <= 0 || links(l) is not { } to) continue;
+                var quads = to.Quads.Where(q => q.Width > 0 && q.Height > 0).ToList();
+                if (quads.Count is > 0 and <= MaxLinkQuads) areas.Add((quads, to.To, false));
+                else if (quads.Count == 0) areas.Add(([l.Area], to.To, true));
             }
         }
         var lines = new List<ExportLine>();
@@ -925,17 +944,52 @@ public sealed partial class PdfEngine : IDisposable
                 if (drawn is not null && !(drawn == "−" && glyphs[k].Text == "¯")) glyphs[k] = glyphs[k] with { Text = drawn };
             }
         if (areas.Count > 0)
-            foreach (var glyphs in composed)
-                for (var k = 0; k < glyphs.Count; k++)
+        {
+            static bool In(IReadOnlyList<RectD> boxes, ExportGlyph g) => boxes.Any(b => b.Contains(g.Rect.CenterX, g.Rect.CenterY));
+            // A link known only by its area counts when the text in it is one line: every line with a character there
+            // lies across the others (along the lines' own direction), not above or below them.
+            areas.RemoveAll(a =>
+            {
+                if (!a.OneLine) return false;
+                var held = new List<(RectD Box, int Turn)>();
+                for (var i = 0; i < composed.Count; i++)
                 {
-                    var (cx, cy) = (glyphs[k].Rect.CenterX, glyphs[k].Rect.CenterY);
-                    foreach (var (area, to) in areas)
-                        if (area.Contains(cx, cy))
+                    var inside = composed[i].Where(g => In(a.Boxes, g)).ToList();
+                    if (inside.Count > 0) held.Add((inside.Skip(1).Aggregate(inside[0].Rect, (u, g) => u.Union(g.Rect)), raw[i].Turn));
+                }
+                return !held.All(x => held.All(y => SameLine(x.Box, y.Box, x.Turn)));
+            });
+            foreach (var glyphs in composed)
+            {
+                for (var k = 0; k < glyphs.Count; k++)
+                    foreach (var (boxes, to, _) in areas)
+                        if (In(boxes, glyphs[k]))
                         {
                             glyphs[k] = glyphs[k] with { Look = glyphs[k].Look with { Link = to } };
                             break;
                         }
+                // A space is linked only between two characters of the same link: one at a link's edge stays outside it.
+                var next = new ExportLink?[glyphs.Count + 1]; // the link of the next character that isn't space (none past the end)
+                for (var k = glyphs.Count - 1; k >= 0; k--)
+                {
+                    var ink = !string.IsNullOrWhiteSpace(glyphs[k].Text);
+                    next[k] = ink ? glyphs[k].Look.Link : next[k + 1];
                 }
+                ExportLink? last = null;
+                var seenInk = false;
+                for (var k = 0; k < glyphs.Count; k++)
+                {
+                    if (!string.IsNullOrWhiteSpace(glyphs[k].Text))
+                    {
+                        (last, seenInk) = (glyphs[k].Look.Link, true);
+                        continue;
+                    }
+                    var link = glyphs[k].Look.Link;
+                    if (link is not null && (!seenInk || last != link || next[k + 1] != link))
+                        glyphs[k] = glyphs[k] with { Look = glyphs[k].Look with { Link = null } };
+                }
+            }
+        }
         var verticals = rules.Where(r => r.Width <= 3 && r.Height > 6).ToList();
         for (var i = 0; i < composed.Count; i++)
             if (composed[i].Count > 0) lines.AddRange(LinesOf(composed[i], raw[i].Turn, raw[i].Sideways, verticals));
