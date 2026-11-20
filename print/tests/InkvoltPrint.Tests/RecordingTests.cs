@@ -337,6 +337,181 @@ public sealed class RecordingTests : IDisposable
         Assert.Equal(values, again);
     }
 
+    /// <summary>Collections (one nested, a member with two values, two of one attribute, an empty one) and a dateTime.</summary>
+    private const string Collections = """
+        media-col-ready collection {
+          media-size collection {
+            x-dimension integer 21590
+            y-dimension integer 27940
+          }
+          media-source keyword main
+          media-type keyword stationery
+          media-type keyword plain
+        }
+        media-col-ready collection {
+          media-size collection {
+            x-dimension integer 21000
+            y-dimension integer 29700
+          }
+          media-source keyword by-pass-tray
+        }
+        printer-xri-supported collection {
+          xri-uri uri ipp://192.0.2.11/ipp/print
+          xri-security keyword none
+          xri-authentication keyword none
+        }
+        job-presets-supported collection {}
+        printer-current-time dateTime 2026-11-20T09:30:15.4-04:00
+        printer-config-change-date-time dateTime 2016-12-31T23:59:60.0+14:00
+        """;
+
+    [Fact]
+    public void IppText_keeps_collections_and_dates_as_the_printer_sent_them()
+    {
+        var values = IppText.Parse(Collections);
+        var wire = IppCodec.EncodeResponse(0, 7, values);
+        var text = IppText.FromResponse(wire);
+        Assert.DoesNotContain("Not kept", text);
+        Assert.Equal(values, IppText.Parse(text));
+        Assert.Equal(wire, IppCodec.EncodeResponse(0, 7, IppText.Parse(text))); // byte for byte
+
+        var r = IppCodec.Decode(wire);
+        var ready = r.Collections("media-col-ready").ToList();
+        Assert.Equal(2, ready.Count);
+        Assert.Equal(27940, ready[0].Collection("media-size")!.Int("y-dimension"));
+        Assert.Equal(["stationery", "plain"], ready[0].Members["media-type"]);
+        Assert.Equal("by-pass-tray", ready[1].Str("media-source"));
+        Assert.Empty(Assert.Single(r.Collections("job-presets-supported")).Members);
+        Assert.Equal(new DateTimeOffset(2026, 11, 20, 9, 30, 15, TimeSpan.FromHours(-4)), r.Attributes["printer-current-time"][0]);
+    }
+
+    [Theory]
+    [InlineData("media-col collection {\nmedia-source keyword main")] // not closed
+    [InlineData("}")] // closes nothing
+    [InlineData("media-col collection main")]
+    [InlineData("printer-current-time dateTime 2026-11-20T09:30:15-04:00")] // no deciseconds
+    [InlineData("printer-current-time dateTime 2026-13-20T09:30:15.0-04:00")]
+    [InlineData("printer-current-time dateTime 2026-11-20T09:30:15.0*04:00")]
+    [InlineData("printer-current-time dateTime 2026-11-20T09:30:15.0+15:00")]
+    [InlineData("printer-current-time dateTime ２026-11-20T09:30:15.0+01:00")] // a digit that isn't ASCII
+    public void IppText_refuses_broken_collections_and_dates(string text) => Assert.Throws<FormatException>(() => IppText.Parse(text));
+
+    [Fact]
+    public void IppText_refuses_collections_nested_past_the_codec_s_limit()
+    {
+        var deep = string.Concat(Enumerable.Repeat("c collection {\n", IppCodec.MaxCollectionDepth + 1)) + string.Concat(Enumerable.Repeat("}\n", IppCodec.MaxCollectionDepth + 1));
+        Assert.Throws<FormatException>(() => IppText.Parse(deep));
+        var deepest = string.Concat(Enumerable.Repeat("c collection {\n", IppCodec.MaxCollectionDepth)) + string.Concat(Enumerable.Repeat("}\n", IppCodec.MaxCollectionDepth));
+        Assert.Equal(deepest.Replace("\n", "").Replace(" ", ""), IppText.FromResponse(IppCodec.EncodeResponse(0, 1, IppText.Parse(deepest))).Replace("\n", "").Replace(" ", ""));
+    }
+
+    [Fact]
+    public void What_IppText_can_t_hold_is_named_and_the_rest_of_a_collection_kept()
+    {
+        // A dateTime no DateAndTime is (month 13), a member value of an unknown type (0x35, textWithLanguage), and a value with no member name.
+        var b = new List<byte> { 1, 1, 0, 0, 0, 0, 0, 7, 0x01, 0x04 };
+        void Attr(byte tag, string name, byte[] value)
+        {
+            b.Add(tag);
+            b.AddRange([(byte)(name.Length >> 8), (byte)name.Length, .. System.Text.Encoding.UTF8.GetBytes(name)]);
+            b.AddRange([(byte)(value.Length >> 8), (byte)value.Length, .. value]);
+        }
+        Attr(0x31, "printer-current-time", [0x07, 0xEA, 13, 20, 9, 30, 15, 0, (byte)'+', 0, 0]);
+        Attr(0x34, "media-col-ready", []);
+        Attr(0x34, "", []); // a nested collection before any member name: left out whole
+        Attr(0x21, "", [0, 0, 0, 1]);
+        Attr(0x37, "", []);
+        Attr(0x4A, "", "media-source"u8.ToArray());
+        Attr(0x44, "", "main"u8.ToArray());
+        Attr(0x4A, "", "media-info"u8.ToArray());
+        Attr(0x35, "", [0, 2, (byte)'e', (byte)'n', 0, 1, (byte)'x']);
+        Attr(0x37, "", []);
+        b.Add(0x03);
+
+        var text = IppText.FromResponse(b.ToArray());
+        Assert.StartsWith("# Not kept (no IppText form): media-col-ready (part), printer-current-time\n", text);
+        Assert.Contains("media-col-ready collection {\n  media-source keyword main\n}\n", text);
+        Assert.Single(IppText.Parse(text));
+    }
+
+    [Fact]
+    public async Task A_recording_keeps_the_printer_s_collections_and_dates()
+    {
+        const string host = "192.0.2.11";
+        static string WithCollections(string name, string text) => name == "ipp_print.ipp.txt" ? $"{text}\n{Collections}\n" : text;
+        await PrinterRecorder.RecordAsync(host, _dir,
+            new RecordOptions { Transport = At(host, Serve(FixtureDir("inkjet-demo"), WithCollections)), PlaceholderHost = host, Who = Me });
+
+        var recorded = File.ReadAllText(Path.Combine(_dir, "ipp_print.ipp.txt"));
+        Assert.DoesNotContain("Not kept", recorded);
+        Assert.Contains("printer-current-time dateTime 2026-11-20T09:30:15.4-04:00", recorded);
+        Assert.Contains("  xri-security keyword none", recorded);
+        Assert.Equal(await Seen(host, At(host, Serve(FixtureDir("inkjet-demo"), WithCollections))), await Seen(host, At(host, Serve(_dir))));
+    }
+
+    [Fact]
+    public async Task An_address_inside_a_collection_is_scrubbed_like_any_other()
+    {
+        const string host = "192.0.2.11";
+        static string Planted(string name, string text) =>
+            name == "ipp_print.ipp.txt" ? $"{text}\n{Collections.Replace("ipp://192.0.2.11/", $"ipp://{PlantedHost}/")}\n" : text;
+        await PrinterRecorder.RecordAsync(host, _dir,
+            new RecordOptions { Transport = At(host, Serve(FixtureDir("inkjet-demo"), Planted)), PlaceholderHost = host, Who = Me });
+
+        var recorded = File.ReadAllText(Path.Combine(_dir, "ipp_print.ipp.txt"));
+        Assert.DoesNotContain(PlantedHost, recorded);
+        Assert.Matches(@"\n  xri-uri uri ipp://[^/]+/ipp/print\n", recorded);
+    }
+
+    [Fact]
+    public void A_walk_keeps_Counter64_and_Opaque_values()
+    {
+        var walk = """
+            .1.3.6.1.2.1.31.1.1.1.6.1 = Counter64: 18446744073709551615
+            .1.3.6.1.2.1.31.1.1.1.10.1 = Counter64: 48213
+            .1.3.6.1.4.1.2021.10.1.6.1 = Opaque: 9F78043FC00000
+            .1.3.6.1.4.1.2021.10.1.6.2 = OPAQUE: 9F 78 04 00 00 00 00
+            .1.3.6.1.4.1.2021.10.1.6.3 = Opaque:
+            """;
+        var objects = SnmpAgent.ParseWalk(walk);
+        Assert.Equal(ulong.MaxValue, unchecked((ulong)objects[0].Value.Number));
+        Assert.Equal((Ber.Counter64, 48213), (objects[1].Value.Tag, objects[1].Value.Int));
+        Assert.Equal((Ber.Opaque, "9F78043FC00000"), (objects[2].Value.Tag, Convert.ToHexString(objects[2].Value.Bytes!)));
+        Assert.Empty(objects[4].Value.Bytes!);
+
+        var written = SnmpAgent.FormatWalk(objects);
+        Assert.DoesNotContain("not kept", written);
+        Assert.Contains(".1.3.6.1.2.1.31.1.1.1.6.1 = Counter64: 18446744073709551615", written);
+        Assert.Equal(objects.OrderBy(o => o.Name), SnmpAgent.ParseWalk(written));
+    }
+
+    [Fact]
+    public async Task The_made_up_agent_serves_Counter64_and_Opaque_as_the_printer_did()
+    {
+        var agent = Agent(".1.3.6.1.2.1.31.1.1.1.6.1 = Counter64: 18446744073709551615\n.1.3.6.1.4.1.2021.10.1.6.1 = Opaque: 9F78043FC00000\n");
+        var client = new SnmpClient(agent, "192.0.2.14", SnmpVersion.V2c, SnmpLogin.Public);
+        var got = await client.GetAsync([Oid.Parse("1.3.6.1.2.1.31.1.1.1.6.1"), Oid.Parse("1.3.6.1.4.1.2021.10.1.6.1")]);
+        Assert.Equal((Ber.Counter64, ulong.MaxValue), (got[0].Value.Tag, unchecked((ulong)got[0].Value.Number)));
+        Assert.Equal("Counter64: 18446744073709551615", got[0].Value.ToString());
+        Assert.Equal((Ber.Opaque, "9F78043FC00000"), (got[1].Value.Tag, Convert.ToHexString(got[1].Value.Bytes!)));
+    }
+
+    [Fact]
+    public async Task Recording_an_SNMP_printer_keeps_its_Counter64_and_Opaque_objects()
+    {
+        const string host = "192.0.2.14";
+        var walk = File.ReadAllText(Path.Combine(FixtureDir("snmp-demo"), "workgroup-laser.txt"))
+                   + ".1.3.6.1.2.1.43.10.2.1.5.1.1 = Counter64: 9223372036854775808\n.1.3.6.1.2.1.43.5.1.1.99.1 = Opaque: 9F78043FC00000\n";
+        await PrinterRecorder.RecordAsync(host, _dir, new RecordOptions
+        {
+            Transport = new HostRouter(new Dictionary<string, HttpMessageHandler>()), Snmp = Agent(walk), PlaceholderHost = host, Who = Me,
+        });
+        var recorded = File.ReadAllText(Path.Combine(_dir, PrinterRecorder.SnmpFile));
+        Assert.Contains(".1.3.6.1.2.1.43.10.2.1.5.1.1 = Counter64: 9223372036854775808", recorded);
+        Assert.Contains(".1.3.6.1.2.1.43.5.1.1.99.1 = Opaque: 9F78043FC00000", recorded);
+        Assert.DoesNotContain("not kept", recorded);
+    }
+
     [Fact]
     public void A_walk_reads_back_what_it_writes()
     {

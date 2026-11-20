@@ -124,7 +124,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   firmware, scanner, IPP attributes and reading; a recording sends only GETs and Get-Printer-Attributes; identifiers planted in
   LEDM, eSCL, IPP and SNMP replies, as Report a problem's tests use them, none left in any file, and the recording still one
   printer; versions, masks, models kept; an SNMP model line, a hex string or prtGeneralPrinterName carrying identifiers; a
-  reply that never ends stopping at 32 MB; `IppText` and the walk read back what they write). **Report a problem (built 2026-11-01):** the dialog
+  reply that never ends stopping at 32 MB; `IppText` and the walk read back what they write). **Kept whole since 2026-11-20:** IPP
+  collections (members nested under their attribute, to the codec's 8 levels) and dateTime values in `IppText`, served byte for byte
+  again; SNMP Counter64 (its unsigned value) and Opaque (its octets) in the walk; members are scrubbed as attributes are (RecordingTests +9). **Report a problem (built 2026-11-01):** the dialog
   has Record this printer, for the printer shown: `Core/Recording/ReportRecording` runs the same `PrinterRecorder`, so the same scrubbing and the same
   read-only rules, never scanned pages, into a new folder named by the clock (`Documents\Inkvolt Print recordings`) plus a .zip of it to attach; the details
   to copy get one scrubbed line (model, interfaces, the file's name); a failure's message is scrubbed; closing the window stops it and a failed or

@@ -218,19 +218,41 @@ public static class IppCodec
         string? previous = null;
         foreach (var a in printerAttributes)
         {
-            var name = a.Name == previous ? "" : a.Name;
+            WriteValue(ms, a.Name == previous ? "" : a.Name, a);
             previous = a.Name;
-            WriteAttr(ms, a.Tag, name, a.Tag switch
-            {
-                Integer or Enum => Int32(int.Parse(a.Value, System.Globalization.CultureInfo.InvariantCulture)),
-                Boolean => [a.Value == "true" ? (byte)1 : (byte)0],
-                Resolution when IppText.ParseResolution(a.Value) is { } r => [.. Int32(r.X), .. Int32(r.Y), r.Units],
-                RangeOfInteger when IppText.ParseRange(a.Value) is { } r => [.. Int32(r.Lower), .. Int32(r.Upper)],
-                _ => Encoding.UTF8.GetBytes(a.Value),
-            });
         }
         ms.WriteByte(EndTag);
         return ms.ToArray();
+    }
+
+    /// <summary>
+    /// One value; a collection as RFC 8010 §3.1.6 writes it: begCollection, each member's name (memberAttrName) before its
+    /// first value, the values with no name, endCollection.
+    /// </summary>
+    private static void WriteValue(Stream s, string name, IppValue a)
+    {
+        if (a.Tag == BegCollection)
+        {
+            WriteAttr(s, BegCollection, name, []);
+            string? member = null;
+            foreach (var m in a.Members ?? [])
+            {
+                if (m.Name != member) WriteAttr(s, MemberAttrName, "", Encoding.UTF8.GetBytes(m.Name));
+                member = m.Name;
+                WriteValue(s, "", m);
+            }
+            WriteAttr(s, EndCollection, "", []);
+            return;
+        }
+        WriteAttr(s, a.Tag, name, a.Tag switch
+        {
+            Integer or Enum => Int32(int.Parse(a.Value, System.Globalization.CultureInfo.InvariantCulture)),
+            Boolean => [a.Value == "true" ? (byte)1 : (byte)0],
+            Resolution when IppText.ParseResolution(a.Value) is { } r => [.. Int32(r.X), .. Int32(r.Y), r.Units],
+            RangeOfInteger when IppText.ParseRange(a.Value) is { } r => [.. Int32(r.Lower), .. Int32(r.Upper)],
+            DateTime when IppText.ParseDateTime(a.Value) is { } when => when,
+            _ => Encoding.UTF8.GetBytes(a.Value),
+        });
     }
 
     private static byte[] Int32(int v)

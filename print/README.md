@@ -261,9 +261,10 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   real printer during development, and no recording from real hardware is in the repository yet. To do on hardware: one
   Canon, one Epson, one Brother, one SNMP-only laser and one CDM-only HP, each dropped into `tests/InkvoltPrint.Tests/Fixtures`
   with the status, supplies and scan tests the demo fixtures have. Not kept: replies that aren't documents (a redirect, a
-  401, an error page: the notes list them), IPP collections, dateTime, resolution and range values (`IppText` has no form for
-  them; the first line of `ipp_print.ipp.txt` names them), SNMP Counter64 and Opaque values, multi-line SNMP strings (one line,
-  "; " between). On the Mac, PrintCore records and scrubs (roadmap 1.2); the command in the `--report` runner and Report a Problem's recording wait.
+  401, an error page: the notes list them), IPP's with-language strings and out-of-band values (`IppText` has no form for
+  them; the first line of `ipp_print.ipp.txt` names them), multi-line SNMP strings (one line, "; " between). Kept as sent
+  (2026-11-20): IPP collections (nested under their attribute, `media-col-database` and the like), dateTime, resolution and
+  range values, SNMP Counter64 (unsigned, whole) and Opaque (its octets) values. On the Mac, PrintCore records and scrubs (roadmap 1.2); the command in the `--report` runner and Report a Problem's recording wait.
 - Supply history: built test-first on a made-up year (two changes, a wobble at the threshold, a week offline, SNMP's −3) and
   run in demo mode; never on a real printer's year. To try on hardware: a cartridge change seen live (an LEDM, an IPP and an
   SNMP printer), a printer whose levels move in 10-point steps (some inkjets: the 30-day slope then needs the full window),

@@ -297,7 +297,8 @@ public sealed partial class FixtureScrubber(string host, string placeholderHost 
     [GeneratedRegex(@"""(?<n>[A-Za-z][\w-]*)""\s*:\s*""(?<v>(?:[^""\\]|\\.)*)""")]
     private static partial Regex JsonField();
 
-    [GeneratedRegex(@"^(?<n>[a-z][a-z0-9-]*) (?<s>[A-Za-z]+) (?<v>.*?)\r?$", RegexOptions.Multiline)]
+    // A collection's members are indented under it (IppText): read as the attribute lines they are.
+    [GeneratedRegex(@"^[ \t]*(?<n>[a-z][a-z0-9-]*) (?<s>[A-Za-z]+) (?<v>.*?)\r?$", RegexOptions.Multiline)]
     private static partial Regex IppLine();
 
     [GeneratedRegex(@"^\.(?<oid>[\d.]+) = STRING: ""(?<v>.*)""\r?$", RegexOptions.Multiline)]

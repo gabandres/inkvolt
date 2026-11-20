@@ -62,7 +62,9 @@ public sealed partial class SnmpAgent : ISnmpTransport
 
     /// <summary>
     /// Objects written as net-snmp prints them (<c>snmpwalk -On</c>): <c>.1.3.6.1.2.1.1.1.0 = STRING: "Demo laser"</c>, with
-    /// INTEGER, STRING, Hex-STRING, OID, Gauge32, Counter32, Timeticks and IpAddress. Blank lines and <c>#</c> comments are skipped.
+    /// INTEGER, STRING, Hex-STRING, OID, Gauge32, Counter32, Counter64, Timeticks, IpAddress and Opaque (its octets in hex, as
+    /// <c>Opaque: 9F 78 04 3F C0 00 00</c>; net-snmp's decoded <c>Opaque: Float: …</c> isn't read). Blank lines and <c>#</c>
+    /// comments are skipped.
     /// </summary>
     public static IReadOnlyList<SnmpVarBind> ParseWalk(string text)
     {
@@ -82,6 +84,8 @@ public sealed partial class SnmpAgent : ISnmpTransport
                 "OID" => SnmpValue.Id(Oid.Parse(value)),
                 "Gauge32" => SnmpValue.Unsigned(Ber.Gauge32, ulong.Parse(value, CultureInfo.InvariantCulture)),
                 "Counter32" => SnmpValue.Unsigned(Ber.Counter32, ulong.Parse(value, CultureInfo.InvariantCulture)),
+                "Counter64" => SnmpValue.Unsigned(Ber.Counter64, ulong.Parse(value, CultureInfo.InvariantCulture)),
+                "Opaque" or "OPAQUE" => SnmpValue.Opaque(Convert.FromHexString(value.Replace(" ", ""))),
                 "Timeticks" => SnmpValue.Unsigned(Ber.TimeTicks, ulong.Parse(Regex.Match(value, @"\d+").Value, CultureInfo.InvariantCulture)),
                 "IpAddress" => SnmpValue.Address(value.Split('.').Select(byte.Parse).ToArray()),
                 var t => throw new FormatException($"Unknown snmpwalk type {t}"),
@@ -93,8 +97,9 @@ public sealed partial class SnmpAgent : ISnmpTransport
     /// <summary>
     /// The other way: objects written as <see cref="ParseWalk"/> reads them, in OID order, one per line, so a recording
     /// (<see cref="Recording.PrinterRecorder"/>) is served again as it was read. An OCTET STRING is a STRING when it is
-    /// printable text (no control characters, no edge spaces, no NULs), else Hex-STRING. Types <see cref="ParseWalk"/> doesn't
-    /// read (Counter64, Opaque, NULL, the v2c exceptions) are left out as a comment line.
+    /// printable text (no control characters, no edge spaces, no NULs), else Hex-STRING; a Counter64 keeps its full unsigned
+    /// value and an Opaque its octets as they came. Types <see cref="ParseWalk"/> doesn't read (NULL, the v2c exceptions, a
+    /// vendor's type) are left out as a comment line.
     /// </summary>
     public static string FormatWalk(IEnumerable<SnmpVarBind> objects)
     {
@@ -107,6 +112,8 @@ public sealed partial class SnmpAgent : ISnmpTransport
                 Ber.Integer => $"INTEGER: {v.Number.ToString(CultureInfo.InvariantCulture)}",
                 Ber.Gauge32 => $"Gauge32: {v.Number.ToString(CultureInfo.InvariantCulture)}",
                 Ber.Counter32 => $"Counter32: {v.Number.ToString(CultureInfo.InvariantCulture)}",
+                Ber.Counter64 => $"Counter64: {unchecked((ulong)v.Number).ToString(CultureInfo.InvariantCulture)}",
+                Ber.Opaque => $"Opaque: {Convert.ToHexString(v.Bytes ?? [])}",
                 Ber.TimeTicks => $"Timeticks: ({v.Number.ToString(CultureInfo.InvariantCulture)})",
                 Ber.ObjectIdentifier => $"OID: .{v.ObjectId}",
                 Ber.IpAddress when v.Bytes is { Length: 4 } ip => $"IpAddress: {string.Join('.', ip)}",
