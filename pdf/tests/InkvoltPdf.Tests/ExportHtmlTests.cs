@@ -389,6 +389,26 @@ public class ExportHtmlTests
     }
 
     [Fact]
+    public void Links_that_are_dropped_dont_count_against_a_pages_cap()
+    {
+        // 600 javascript: links before the page's one web link: the cap of 500 is for links carried.
+        const int bad = 600;
+        var annots = string.Join(' ', Enumerable.Range(0, bad + 1).Select(i => $"{6 + i} 0 R"));
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [{annots}] >>",
+            Core2Pdf.Stream("BT /F1 12 Tf 72 700 Td (Visit the site) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            .. Enumerable.Range(0, bad).Select(i => $"<< /Type /Annot /Subtype /Link /Rect [{300 + i % 200} 100 {301 + i % 200} 101] /A << /S /URI /URI (javascript:x{i}) >> >>"),
+            "<< /Type /Annot /Subtype /Link /Rect [70 694 160 714] /A << /S /URI /URI (https://example.com/) >> >>",
+        ]);
+        var root = Dom(Html(pdf));
+        Assert.Equal("https://example.com/", (string?)All(root, "a").Single().Attribute("href"));
+    }
+
+    [Fact]
     public void A_link_keeps_its_runs_stress_inside_it()
     {
         var link = ExportLink.Web("https://example.com/");

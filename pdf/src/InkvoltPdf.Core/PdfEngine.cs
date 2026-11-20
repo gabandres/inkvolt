@@ -831,8 +831,12 @@ public sealed partial class PdfEngine : IDisposable
             IReadOnlyList<PageLink> read;
             try { read = GetLinks(page, cancel); }
             catch (MuPDFException) { read = []; } // unreadable links: the text goes without them
-            foreach (var l in read.Take(MaxExportLinks))
-                if (links(l) is { } to && l.Area.Width > 0 && l.Area.Height > 0) areas.Add((l.Area, to));
+            // The cap counts links carried, not links dropped (a page of javascript: links mustn't crowd out its real ones).
+            foreach (var l in read)
+            {
+                if (areas.Count >= MaxExportLinks) break;
+                if (l.Area.Width > 0 && l.Area.Height > 0 && links(l) is { } to) areas.Add((l.Area, to));
+            }
         }
         var lines = new List<ExportLine>();
         var raw = new List<(List<ExportGlyph> Glyphs, int Turn, bool Sideways)>();
