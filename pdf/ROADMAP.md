@@ -171,9 +171,24 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   any failure (2 for a wrong command line or preset, 3 stopped), `--help`; Protect's passwords from environment
   variables. Tests: presets round-trip through export and import unchanged, malformed and newer presets are refused
   with clear errors, 24 files copied in slowly (held open, or growing in bursts) all come out once, a held file waits,
-  originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` with 1.4, 2026-11-03). Still to do: a
-  500-file run over a real network share; `--batch` and `--watch` through the alias of an installed package (the pack's
-  smoke run starts the app through the alias, with a dev script only).
+  originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` with 1.4, 2026-11-03).
+  Checked 2026-11-19 (Windows, ARM64): 500 generated PDFs (228 MB: 367 text of 1 to 12 pages, 119 scans, two 600-page
+  and two 110 MB 40-page scans, 10 damaged or hostile: cut short, empty, random bytes, a broken startxref, arrays nested
+  20,000 deep, a page tree that loops with a false count, a stream unpacking to 200 MB, a PNG named .pdf) on this PC's
+  `\\127.0.0.1\C$` over SMB (a share of its own needs an elevated `New-SmbShare`), a preset of watermark, header and footer
+  and Reduce File Size. `--batch` on the share's folder, results on the share: every file reported, 492 done, 8 failed
+  (the broken startxref repaired, the 200 MB stream done), exit 1, 26 s, peak working set 2.0 GB (the 200 MB stream alone
+  1.7 GB; a 1 GB one is refused at 256 MB). `--watch` on the share: 500 copied in one by one over SMB (1.2 s each here),
+  the watcher killed after 152 and restarted with `--once`: 492 done, 8 failed, a log line each; with the 500 already
+  there, killed at 104 with 2 in `working`, restarted: those 2 in `failed` as interrupted, 490 done, 8 failed, 500 log
+  lines, no file, result or original twice, 69 s, peak 2.0 GB. Through the alias of an installed package
+  (`smoke-msix.ps1`'s new `Test-CommandLine`, side by side with the Store copy): `--batch` and `--watch --once` in
+  Documents, the temp folder and the share, results and moved originals seen from outside the package (no write landed
+  in the package's private AppData), exit codes 0, 1 and 2, `--help` typed in a terminal, `--watch` stopped by Ctrl+C
+  (exit 0, no lock or file left in `working`). Found and fixed (`CommandOutput`, tests in `CommandOutputTests`): MuPDF's
+  output redirect took over .NET's console writers, so redirected lines ended "\r\r\n" and, typed in a terminal, 1.15.0's
+  command line ended at once (0xC0000409) printing nothing. Left: a share on another PC over a real network (only this
+  PC's loopback SMB was tried), a run as a scheduled task.
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the

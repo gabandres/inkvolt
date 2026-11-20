@@ -14,7 +14,8 @@ public static class ConsoleOutput
 {
     /// <summary>Output to the redirected handles when there are some, else to the starting terminal's console.</summary>
     /// <param name="utf8Pipes">Redirected output is UTF-8, whatever the console's code page, so names in any script reach a script whole.</param>
-    public static void Use(bool utf8Pipes = false)
+    /// <returns>True when the output is redirected (and, without <paramref name="utf8Pipes"/>, Console's writers are still its own).</returns>
+    public static bool Use(bool utf8Pipes = false)
     {
         if (Valid(GetStdHandle(StdOutput))) // redirected: a pipe or a file (a script, | Out-Default, a task's log)
         {
@@ -25,15 +26,16 @@ public static class ConsoleOutput
                 Console.SetError(new StreamWriter(Console.OpenStandardError(), utf8) { AutoFlush = true });
             }
             AttachConsole(AttachParentProcess); // a windowed app has no console of its own, so Ctrl+C wouldn't reach it, and "| Out-Default" would leave it printing
-            return;
+            return true;
         }
-        if (!AttachConsole(AttachParentProcess)) return; // started from Explorer or a task: nowhere to write, the exit code tells
+        if (!AttachConsole(AttachParentProcess)) return false; // started from Explorer or a task: nowhere to write, the exit code tells
         var console = CreateFile("CONOUT$", GenericRead | GenericWrite, FileShareRead | FileShareWrite, IntPtr.Zero, OpenExisting, 0, IntPtr.Zero);
-        if (!Valid(console)) return;
+        if (!Valid(console)) return false;
         var writer = TextWriter.Synchronized(new ConsoleWriter(new SafeFileHandle(console, ownsHandle: true)));
         writer.WriteLine(); // the prompt came back already (a windowed app isn't waited for): start on a line of our own
         Console.SetOut(writer);
         Console.SetError(writer);
+        return false;
     }
 
     /// <summary>Writes to the console as UTF-16 (WriteConsoleW), so names in any script show whatever the console's code page.</summary>

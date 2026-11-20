@@ -4,7 +4,8 @@
 #
 #   pwsh -File packaging/smoke-msix.ps1 -App Pdf     opens a PDF, searches it in find workers (the installed app starting
 #                                                    itself), Batch-exports it to Word, converts that .docx back (when
-#                                                    Word is installed), and makes a PDF from a local web page
+#                                                    Word is installed), makes a PDF from a local web page, and runs
+#                                                    --batch and --watch through the alias (Test-CommandLine)
 #   pwsh -File packaging/smoke-msix.ps1 -App Print   renders the demo printers' Overview to a PNG
 #   pwsh -File packaging/smoke-msix.ps1 -App Pdf -SmokeSideBySide
 #                                                    runs a renamed copy of the layout (identity <name>.Smoke, alias
@@ -102,6 +103,126 @@ function New-SamplePdf([string]$path) {
     [IO.File]::WriteAllText($path, $sb.ToString(), [Text.Encoding]::ASCII)
 }
 
+# Runs the installed app through its alias with arguments (no window); returns its exit code (-1: didn't end in time).
+function Invoke-Alias([string[]]$arguments, [string]$log, [int]$seconds = 120) {
+    $quoted = $arguments | ForEach-Object { if ($_ -match '\s') { "`"$_`"" } else { $_ } }
+    $env:INKVOLTPDF_DATA = Join-Path $work 'data'
+    try { $p = Start-Process $alias -ArgumentList $quoted -RedirectStandardOutput "$log.out" -RedirectStandardError "$log.err" -PassThru -WindowStyle Hidden }
+    finally { Remove-Item Env:INKVOLTPDF_DATA -ErrorAction SilentlyContinue }
+    $null = $p.Handle # keeps the exit code readable
+    if (-not $p.WaitForExit($seconds * 1000)) { $p.Kill(); return -1 }
+    $p.ExitCode
+}
+
+# Inkvolt PDF's --batch and --watch through the alias, in Documents, the temp folder and a network share (this PC's own
+# administrative share over SMB, when it answers): exit codes, results and moved originals looked for from outside the
+# package (a packaged app's writes under AppData could land in its private copy instead), and --watch stopped by Ctrl+C.
+# Returns what failed.
+function Test-CommandLine([string]$sample) {
+    $failed = [Collections.Generic.List[string]]::new()
+    $preset = Join-Path $work 'smoke-preset.json'
+    Set-Content $preset -Encoding utf8NoBOM -Value '{ "format": "Inkvolt PDF batch preset", "version": 1, "name": "Smoke", "output": { "names": "<<name>> smoke" }, "actions": [ { "action": "watermark", "text": "SMOKE" } ] }'
+    $tag = "inkvolt-smoke-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+    $temp = Join-Path ([IO.Path]::GetTempPath()) $tag
+    $places = [ordered]@{ Documents = Join-Path ([Environment]::GetFolderPath('MyDocuments')) $tag; Temp = $temp }
+    $drive = $temp.Substring(0, 1)
+    if (Test-Path "\\127.0.0.1\$drive`$\") { $places.Share = "\\127.0.0.1\$drive`$$($temp.Substring(2))-share" }
+    else { Write-Host "Command line on a share skipped: \\127.0.0.1\$drive`$ doesn't answer here." }
+    try {
+        foreach ($place in $places.GetEnumerator()) {
+            $root = $place.Value
+            $in = Join-Path $root 'in'
+            $out = Join-Path $root 'out'
+            New-Item -ItemType Directory -Force $in | Out-Null
+            Copy-Item $sample (Join-Path $in 'a.pdf')
+            Set-Content (Join-Path $in 'b.pdf') 'not a PDF' -Encoding ascii
+            $log = Join-Path $work "cli-$($place.Key)"
+
+            $code = Invoke-Alias @('--batch', $preset, (Join-Path $in 'a.pdf'), '--out', $out) "$log-batch"
+            if ($code -ne 0) { $failed.Add("--batch in $($place.Key) exited $code, not 0 ($log-batch.err)") }
+            if (-not (Test-Path (Join-Path $out 'a smoke.pdf'))) { $failed.Add("--batch in $($place.Key) left no result to see from outside the package ($out)") }
+            $code = Invoke-Alias @('--batch', $preset, $in, '--out', $out) "$log-batch2"
+            if ($code -ne 1) { $failed.Add("--batch with a file that isn't a PDF in $($place.Key) exited $code, not 1") }
+            if (-not (Select-String -Path "$log-batch2.err" -Pattern 'failed +b\.pdf' -Quiet)) { $failed.Add("--batch in $($place.Key) didn't report b.pdf as failed") }
+
+            # --watch --once: a scheduled task's run.
+            $watch = Join-Path $root 'watch'
+            New-Item -ItemType Directory -Force $watch | Out-Null
+            Move-Item (Join-Path $in '*.pdf') $watch
+            $code = Invoke-Alias @('--watch', $watch, '--preset', $preset, '--once') "$log-watch"
+            if ($code -ne 1) { $failed.Add("--watch --once in $($place.Key) exited $code, not 1 (b.pdf fails)") }
+            foreach ($moved in 'done\a.pdf', 'failed\b.pdf', 'results\a smoke.pdf', 'inkvolt-watch.log') {
+                if (-not (Test-Path (Join-Path $watch $moved))) { $failed.Add("--watch --once in $($place.Key): no $moved to see from outside the package") }
+            }
+            Write-Host "Command line in $($place.Key) ($root): --batch and --watch --once checked"
+        }
+
+        $code = Invoke-Alias @('--batch', (Join-Path $work 'no-such-preset.json'), $sample, '--out', $temp) (Join-Path $work 'cli-wrong')
+        if ($code -ne 2) { $failed.Add("--batch with a missing preset exited $code, not 2") }
+
+        # Typed in a terminal (nothing redirected; 1.15.0 ended at once there, printing nothing): a hidden PowerShell with a
+        # console of its own runs --help and saves what its console shows.
+        $shown = Join-Path $work 'cli-terminal.txt'
+        $terminal = Join-Path $work 'terminal.ps1'
+        Set-Content $terminal -Encoding utf8 -Value @'
+param([string]$Alias, [string]$Out, [string]$Data)
+$env:INKVOLTPDF_DATA = $Data
+$p = Start-Process $Alias -ArgumentList '--help' -NoNewWindow -PassThru
+$null = $p.Handle
+if (-not $p.WaitForExit(60000)) { $p.Kill() }
+$raw = $Host.UI.RawUI
+$cells = $raw.GetBufferContents([Management.Automation.Host.Rectangle]::new(0, 0, $raw.BufferSize.Width - 1, $raw.CursorPosition.Y))
+$lines = for ($y = 0; $y -le $cells.GetUpperBound(0); $y++) { -join (0..$cells.GetUpperBound(1) | ForEach-Object { $cells[$y, $_].Character }) }
+@("exit $($p.ExitCode)") + ($lines | ForEach-Object TrimEnd) | Set-Content $Out
+'@
+        Start-Process pwsh -ArgumentList '-NoProfile', '-File', "`"$terminal`"", '-Alias', "`"$alias`"", '-Out', "`"$shown`"", '-Data', "`"$(Join-Path $work 'data')`"" -WindowStyle Hidden -Wait
+        $text = if (Test-Path $shown) { Get-Content $shown -Raw } else { '' }
+        if ($text -notmatch '^exit 0' -or $text -notmatch 'Inkvolt PDF command line') { $failed.Add("--help typed in a terminal showed no help or didn't exit 0 ($shown)") }
+        else { Write-Host 'Command line: --help typed in a terminal showed its help (exit 0)' }
+
+        # --watch until Ctrl+C, in a console of its own (a hidden PowerShell that starts it, drops a file in, waits for it to be
+        # done, then presses Ctrl+C on that console, itself ignoring it): it must end by itself, exit 0 and leave no lock.
+        $stopRoot = if ($places.Contains('Share')) { $places.Share } else { $temp }
+        $stop = Join-Path $stopRoot 'watch-stop'
+        New-Item -ItemType Directory -Force $stop | Out-Null
+        $helper = Join-Path $work 'ctrl-c.ps1'
+        Set-Content $helper -Encoding utf8 -Value @'
+param([string]$Alias, [string]$Folder, [string]$Preset, [string]$Sample, [string]$Log, [string]$Data)
+Add-Type -Namespace Smoke -Name Ctrl -MemberDefinition '[DllImport("kernel32.dll")] public static extern bool GenerateConsoleCtrlEvent(uint ev, uint group);
+[DllImport("kernel32.dll")] public static extern bool SetConsoleCtrlHandler(System.IntPtr handler, bool add);'
+$env:INKVOLTPDF_DATA = $Data
+$p = Start-Process $Alias -ArgumentList '--watch', "`"$Folder`"", '--preset', "`"$Preset`"" -NoNewWindow -PassThru -RedirectStandardOutput "$Log.out" -RedirectStandardError "$Log.err"
+$null = $p.Handle
+$deadline = (Get-Date).AddSeconds(90)
+while (-not (Test-Path (Join-Path $Folder 'working')) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+Copy-Item $Sample (Join-Path $Folder 'c.pdf')
+while (-not (Test-Path (Join-Path $Folder 'done\c.pdf')) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+if ($p.HasExited) { exit 97 }
+[Smoke.Ctrl]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null # this PowerShell ignores it; the watcher, started before, doesn't
+[Smoke.Ctrl]::GenerateConsoleCtrlEvent(0, 0) | Out-Null
+if (-not $p.WaitForExit(30000)) { $p.Kill(); exit 98 }
+exit $p.ExitCode
+'@
+        $h = Start-Process pwsh -ArgumentList '-NoProfile', '-File', "`"$helper`"", '-Alias', "`"$alias`"", '-Folder', "`"$stop`"", '-Preset', "`"$preset`"",
+            '-Sample', "`"$sample`"", '-Log', "`"$(Join-Path $work 'cli-stop')`"", '-Data', "`"$(Join-Path $work 'data')`"" -WindowStyle Hidden -PassThru
+        $null = $h.Handle
+        if (-not $h.WaitForExit(180000)) { $h.Kill(); $failed.Add('--watch until Ctrl+C: the test didn''t end in 3 minutes') }
+        elseif ($h.ExitCode -ne 0) {
+            $why = switch ($h.ExitCode) { 97 { 'it ended before Ctrl+C' } 98 { "it didn't end within 30 s of Ctrl+C" } default { "it exited $($h.ExitCode), not 0" } }
+            $failed.Add("--watch until Ctrl+C: $why ($(Join-Path $work 'cli-stop').err)")
+        }
+        else {
+            if (Test-Path (Join-Path $stop '.inkvolt-watch.lock')) { $failed.Add('--watch left its lock file after Ctrl+C') }
+            if (@(Get-ChildItem (Join-Path $stop 'working') -File -ErrorAction SilentlyContinue).Count) { $failed.Add('--watch left files in working after Ctrl+C') }
+            Write-Host "Command line: --watch in $stop stopped by Ctrl+C (exit 0)"
+        }
+    }
+    finally {
+        foreach ($root in $places.Values) { Remove-Item $root -Recurse -Force -ErrorAction SilentlyContinue }
+    }
+    $failed
+}
+
 $failures = [Collections.Generic.List[string]]::new()
 Write-Host "Registering $($identity.Name) $($identity.Version) ($Architecture) from $Layout..."
 Add-AppxPackage -Register $manifestPath
@@ -185,6 +306,9 @@ try {
             $lines2 | Out-Host
             if (-not ($lines2 -match '^convert: .* pages=[1-9]')) { $failures.Add('converting the .docx back to PDF through Word failed') }
         }
+
+        # The command line through the alias, as a terminal, a script or a scheduled task runs it.
+        foreach ($f in Test-CommandLine $pdf) { $failures.Add("command line: $f") }
     }
     else {
         $png = Join-Path $work 'overview.png'

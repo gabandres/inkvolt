@@ -25,7 +25,11 @@ The defaults are the app's Partner Center identity (below); pass `-IdentityName`
 `-PublisherDisplayName` only to build under another one.
 
 After packing, it installs this PC's layout as a Store install would (Developer Mode), runs it, and removes it
-(`packaging/smoke-msix.ps1 -App Pdf`). It also refuses a layout whose native libraries link the Visual C++ runtime
+(`packaging/smoke-msix.ps1 -App Pdf`). The run includes the command line through the alias: `--batch` and
+`--watch --once` in a folder in Documents, in the temp folder and on a network share (this PC's own `\\127.0.0.1\C$`, when
+it answers), each result and moved original looked for from outside the package, the exit codes (0, 1 for a file that
+isn't a PDF, 2 for a missing preset), `--help` typed in a terminal (what its console shows), and `--watch` stopped by
+Ctrl+C in a console of its own. It also refuses a layout whose native libraries link the Visual C++ runtime
 without the VCLibs dependency. Upload only a package that passed both; `-NoSmoke` skips the run.
 
 While the Store copy of the app is installed on this PC, the smoke run refuses to register the layout (it would replace

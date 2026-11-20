@@ -1,6 +1,22 @@
 using InkvoltPdf.Bench;
 using InkvoltPdf.Core;
 
+// A test's command line (CommandOutputTests): two lines written as the app's --batch writes them, MuPDF's messages kept out;
+// to the redirected output, or to a writer of its own (as the app's in a terminal) that saves to the file given.
+if (args is ["command-output", .. var own])
+{
+    using var file = own is [var path] ? new StreamWriter(path) { AutoFlush = true } : null;
+    if (file is not null)
+    {
+        Console.SetOut(file);
+        Console.SetError(file);
+    }
+    await CommandOutput.QuietMuPdfAsync(redirected: file is null);
+    Console.WriteLine("line one");
+    Console.Error.WriteLine("line two");
+    return 0;
+}
+
 // The app's own switch, so a search here reads in worker processes as it does in the app.
 if (FindWorkers.IsCommand(args)) return FindWorkers.Run(args);
 // A test's worker with a page it can't read (FindWorkerTests): "throw" fails that page, "die" ends the process on it.
