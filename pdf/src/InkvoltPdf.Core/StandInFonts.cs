@@ -197,6 +197,24 @@ internal static class StandInFonts
         return RankFor(font, bold, italic).FirstOrDefault() ?? throw new ContentEditException(PdfStrings.Font_NoneOnPc);
     }
 
+    /// <summary>
+    /// The installed face of a page font's own family (its PDF name; "Helvetica" as Arial, "Times" as Times New Roman) in
+    /// its weight and slant; null when the family, or that face of it, isn't installed.
+    /// </summary>
+    internal static StandInFont? Twin(TextFont font)
+    {
+        var family = FontNames.Family(font.Name);
+        if (family.Length == 0) return null;
+        var face = Families.FirstOrDefault(f => f.Name.Equals(family, StringComparison.OrdinalIgnoreCase) || f.Aliases.Contains(family, StringComparer.OrdinalIgnoreCase)) is { } f
+            ? Face(f, font.Bold, font.Italic)
+            : InstalledFamilies.Value.TryGetValue(family, out var listed) ? Face(listed, font.Bold, font.Italic) : null;
+        // Another face standing in for the one asked (a regular where the family has no bold) isn't the font's own.
+        if (face is null) return null;
+        var bold = face.Name.EndsWith(" Bold", StringComparison.Ordinal) || face.Name.EndsWith(" Bold Italic", StringComparison.Ordinal);
+        var italic = face.Name.EndsWith(" Italic", StringComparison.Ordinal);
+        return bold == font.Bold && italic == font.Italic ? face : null;
+    }
+
     /// <summary>An installed family and its faces' files, with its class (from its name for a family Windows lists).</summary>
     internal sealed record InstalledFamily(string Name, Kind Kind, string Regular, string? Bold, string? Italic, string? BoldItalic, bool Common);
 

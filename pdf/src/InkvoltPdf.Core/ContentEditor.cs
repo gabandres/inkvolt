@@ -283,7 +283,7 @@ public static partial class ContentEditor
         var ownText = middle;
         IReadOnlyList<string> missing = enc.Missing;
         List<string> borrowed = [], names = [];
-        var kerning = Kerning([info]); // the run's own pairs, kept where they survive in the new text
+        var kerning = Kerns.For(Kerning([info]), font); // the run's own pairs, kept where they survive in the new text; new pairs the font's own
         if (enc.Missing.Count == 0) parts.AddRange(Parts(run, enc.Codes, kerning));
         else
         {

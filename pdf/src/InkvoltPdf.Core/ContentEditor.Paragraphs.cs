@@ -64,8 +64,11 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// </summary>
     internal double Left, Right, Center, Ascent, Descent;
 
-    /// <summary>The kerning its own text carried, by pair of codes (see <see cref="ContentEditor.Kerning"/>): rewritten lines keep it where the pair survives.</summary>
-    internal IReadOnlyDictionary<(int, int), double>? Kerning { get; init; }
+    /// <summary>
+    /// The kerning its own text carried, by pair of codes (see <see cref="ContentEditor.Kerning"/>): rewritten lines keep
+    /// it where the pair survives, and new pairs get the font's own (see <see cref="ContentEditor.Kerns"/>).
+    /// </summary>
+    internal ContentEditor.Kerns? Kerning { get; init; }
 
     /// <summary>
     /// What <paramref name="text"/> would look like here, its stretches with the looks <paramref name="spans"/> give them:
@@ -401,16 +404,35 @@ public static partial class ContentEditor
     }
 
     /// <summary>Codes as parts (a gap as an adjustment), with the kerning <paramref name="kerning"/> gives each pair of neighbors.</summary>
-    private static List<Part> Parts(TextRun run, IReadOnlyList<int> codes, IReadOnlyDictionary<(int, int), double>? kerning = null, PartLook? look = null)
+    private static List<Part> Parts(TextRun run, IReadOnlyList<int> codes, Kerns? kerning = null, PartLook? look = null)
     {
         var parts = new List<Part>(codes.Count * 2);
         for (var i = 0; i < codes.Count; i++)
         {
             var c = codes[i];
-            if (i > 0 && kerning is not null && kerning.TryGetValue((codes[i - 1], c), out var k)) parts.Add(new Part(null, k, null, look));
+            if (i > 0 && kerning is not null && kerning.TryGet(codes[i - 1], c, out var k)) parts.Add(new Part(null, k, null, look));
             parts.Add(c == TextFont.Gap ? new Part(null, -run.GapEms * 1000, null, look) : new Part(c, 0, null, look));
         }
         return parts;
+    }
+
+    /// <summary>
+    /// The kerning new text gets between two codes of a font: the adjustment the original text carried for the pair
+    /// (<see cref="Kerning"/>), else, when that text was kerned at all, the font's own (<see cref="FontKerning"/>: its
+    /// GPOS or kern table, or its installed twin's). Text a generator set without kerning gets none, so edited lines
+    /// look like the lines around them.
+    /// </summary>
+    internal sealed class Kerns(IReadOnlyDictionary<(int, int), double> seen, FontKerning? font)
+    {
+        public static Kerns For(IReadOnlyDictionary<(int, int), double> seen, TextFont? font) =>
+            new(seen, seen.Count > 0 && font is not null ? FontKerning.Of(font) : null);
+
+        public bool TryGet(int left, int right, out double k)
+        {
+            if (seen.TryGetValue((left, right), out k)) return true;
+            k = font?.Pair(left, right) ?? 0;
+            return k != 0;
+        }
     }
 
     /// <summary>
@@ -601,7 +623,7 @@ public static partial class ContentEditor
             Below = below,
             Spaces = spaces,
             Spans = looks ?? SpansOf(plain, text.ToString(), at, scripts),
-            Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
+            Kerning = blocked is null ? Kerns.For(Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)), own.Font) : null,
             Left = left,
             Right = right,
             Center = center,
