@@ -163,8 +163,12 @@ public sealed partial class FolderIndex
         starts.Add(round.Count);
     }
 
-    /// <summary>Threads confirming pages: a search is what the person is waiting for, but the PC has other work too.</summary>
-    private static readonly int ConfirmThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 6);
+    /// <summary>
+    /// Threads confirming pages: a search is what the person is waiting for, so all but two of the processors (twelve at
+    /// most), the two left for the window and the PC's other work. A phrase of common words reads every page (inflating each is
+    /// most of it): on the bench's 10,000 files, 0.64-1.24 s on 6 threads, 0.48-0.95 s on 11 (ROADMAP 3.5).
+    /// </summary>
+    private static readonly int ConfirmThreads = Math.Clamp(Environment.ProcessorCount - 2, 1, 12);
 
     /// <summary>
     /// Runs Find on each proposed page's text, in order of path and page, a round of pages at a time on several threads. The words of a

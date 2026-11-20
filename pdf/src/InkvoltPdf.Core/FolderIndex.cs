@@ -337,7 +337,8 @@ public sealed partial class FolderIndex : IDisposable
 
     private static Store CreateStore(string path, long stamp)
     {
-        var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess);
+        // Overlapped: a search's threads read pages at once, where a synchronous handle takes one read at a time.
+        var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess | FileOptions.Asynchronous);
         RandomAccess.Write(handle, Header(stamp), 0);
         RandomAccess.FlushToDisk(handle);
         return new Store(path, handle);
@@ -379,7 +380,7 @@ public sealed partial class FolderIndex : IDisposable
         SafeFileHandle? handle = null;
         try
         {
-            handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess);
+            handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess | FileOptions.Asynchronous); // as CreateStore's
             var size = RandomAccess.GetLength(handle);
             Span<byte> header = stackalloc byte[HeaderSize];
             if (size < HeaderSize || RandomAccess.Read(handle, header, 0) != HeaderSize || !header.SequenceEqual(Header(stamp)))

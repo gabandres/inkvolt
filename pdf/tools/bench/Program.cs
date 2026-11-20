@@ -209,6 +209,8 @@ switch (rest)
         return 0;
     case ["index-run", var indexDir]:
         return InkvoltPdf.Bench.FolderIndexBench.Run(indexDir, Console.WriteLine);
+    case ["index-query", var keptIndex, var query, var times]:
+        return InkvoltPdf.Bench.FolderIndexBench.Query(keptIndex, query, int.Parse(times), Console.WriteLine);
     case ["index-read", var indexDir]:
         return InkvoltPdf.Bench.FolderIndexBench.ReadAll(indexDir, 4, Console.WriteLine);
     case ["find-crash", var file, var word]:

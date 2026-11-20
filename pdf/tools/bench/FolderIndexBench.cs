@@ -320,6 +320,24 @@ public static class FolderIndexBench
         return ok;
     }
 
+    /// <summary>
+    /// Times <paramref name="query"/> <paramref name="times"/> times on an index kept by <c>INKVOLTPDF_BENCH_INDEX</c>, opened
+    /// as the app opens one, with nothing else running: a query's own time, without indexing first.
+    /// </summary>
+    public static int Query(string indexDir, string query, int times, Action<string> log)
+    {
+        var basePath = Path.Combine(indexDir, "bench");
+        if (!Directory.Exists(indexDir))
+        {
+            log($"No index at {indexDir}: index-run with INKVOLTPDF_BENCH_INDEX={indexDir} first.");
+            return 2;
+        }
+        using var index = FolderIndex.Open(basePath);
+        log($"Opened {basePath}: {index.Files.Count:N0} files.");
+        for (var i = 0; i < times; i++) OneQuery(index, query, $"run {i + 1}", null, log, target: false);
+        return 0;
+    }
+
     private static bool OneQuery(FolderIndex index, string query, string what, int? wanted, Action<string> log, bool target = true)
     {
         var ok = true;

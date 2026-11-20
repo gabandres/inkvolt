@@ -56,7 +56,8 @@ dotnet run --project pdf/tools/bench -c Release -- index-read C:\somewhere\corpu
 ```
 
 A query's line gives its processor time beside the clock's: on a PC with other work the clock says more about that work.
-`INKVOLTPDF_BENCH_INDEX=dir` keeps the index in `dir` and starts from what is there, to time queries again without indexing.
+`INKVOLTPDF_BENCH_INDEX=dir` keeps the index in `dir` and starts from what is there, to time queries again without indexing;
+`index-query dir "the lantern" 5` then times one query 5 times on that index, opened as the app opens one.
 `index-read` on a corpus just made, then again, shows what a first read costs: Windows Defender scans each file a worker
 opens, and while it is busy the workers wait with processors free (14.0 s, then 0.2 s, on 2026-11-20; ROADMAP 3.5).
 Run as `dotnet Bench.dll`, the workers are started from `Bench.exe` beside it (from `dotnet.exe` they never started).
