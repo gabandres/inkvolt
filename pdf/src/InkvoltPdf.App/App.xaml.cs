@@ -96,6 +96,14 @@ public partial class App : Application
         ExplorerConvert.ChangeOptions = ChangeOptions;
         ExplorerConvert.MainFor = () => _ready;
         ExplorerConvert.Quiet = () => Dispatcher.BeginInvoke(MaybeExit);
+        // Conversion launches that gave up on this copy while it didn't answer left their files: converted here.
+        var dropped = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+        dropped.Tick += (_, _) =>
+        {
+            SingleInstance.TakeDropped(OnForwarded);
+            if (_main is null) MaybeExit();
+        };
+        dropped.Start();
 
         base.OnStartup(e);
         ApplyTheme();
@@ -130,6 +138,7 @@ public partial class App : Application
     /// </summary>
     private void MaybeExit()
     {
+        SingleInstance.TakeDropped(OnForwarded); // left meanwhile: this copy's to convert before it goes
         bool Done() => Core.ConvertCommand.MayExit(_main is not null, ExplorerConvert.ListOpen, ExplorerConvert.Converting,
             Volatile.Read(ref _forwardsQueued));
         if (!Done()) return;
