@@ -280,7 +280,8 @@ public sealed partial class FolderIndex
     /// Whether a page has a phrase's terms one right after the other: the first the end of a word, the last the start of one, those between whole.
     /// Whatever Find finds has that (they are the same words, folded), so a page without it needs no asking. A query's word longer than a term
     /// is cut to one (<see cref="IndexTerms.Of"/>) while a page's words are read whole: a term between is matched by the word's start as it
-    /// would be cut, the first term anywhere inside the word when it may have been cut (the rest of the query's word is unknown).
+    /// would be cut, the first term anywhere inside the word when it may have been cut (the rest of the query's word is unknown), and any
+    /// first term at all on a page's run longer than <see cref="IndexTerms.MaxRun"/> (only its start is read).
     /// </summary>
     internal static bool SideBySide(string text, IReadOnlyList<string> terms)
     {
@@ -301,7 +302,8 @@ public sealed partial class FolderIndex
                     if (at + 1 == terms.Count) found = true;
                     else next.Add(at + 1);
                 }
-            if (headCut ? Inside(word, head, skips!) : word.EndsWith(head, StringComparison.Ordinal)) next.Add(1);
+            // A run longer than is read (its first MaxRun units) may end in the head: its end is unknown here, so it may.
+            if (word.Length >= IndexTerms.MaxRun - 1 || (headCut ? Inside(word, head, skips!) : word.EndsWith(head, StringComparison.Ordinal))) next.Add(1);
             (ends, next) = (next, ends);
         });
         return found;

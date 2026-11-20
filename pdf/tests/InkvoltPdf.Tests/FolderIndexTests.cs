@@ -168,6 +168,20 @@ public sealed class FolderIndexTests : IDisposable
     }
 
     [Fact]
+    public void A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found()
+    {
+        // Only a run's first 1,024 units are read as a word; its end, here the phrase's "the", isn't. A page with an accent
+        // goes the full way, a plain one the quick way: both say yes, as Find does.
+        foreach (var lead in new[] { "café ", "cafe " })
+        {
+            var page = lead + new string('x', 1500) + "the lantern glows";
+            Assert.NotEmpty(PageText.FindIn(page, "the lantern", false, false, true));
+            Assert.True(FolderIndex.SideBySide(page, IndexTerms.Of("the lantern")), lead);
+            Assert.True(OnBytes(page, "the lantern") ?? true, lead);
+        }
+    }
+
+    [Fact]
     public void The_quick_phrase_reading_agrees_with_the_full_one()
     {
         // Pages of a few words, cases and breaks, phrases of their words: every answer the same (or left to the full reading).
