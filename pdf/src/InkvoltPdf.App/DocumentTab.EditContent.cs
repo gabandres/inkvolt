@@ -21,12 +21,15 @@ public partial class DocumentTab
     {
         EditContentReplace.Click += (_, _) => _ = OnContentAction(ContentAction.Replace);
         EditContentDelete.Click += (_, _) => _ = OnContentAction(ContentAction.Delete);
+        EditContentCrop.Click += (_, _) => _ = OnContentAction(ContentAction.Crop);
         EditContentDone.Click += (_, _) => SetEditContent(false);
         Viewer.ToolChanged += (_, _) => UpdateEditContentUi();
         Viewer.ContentNeeded += (_, page) => RequestContent(page);
         Viewer.RunEdited += (_, e) => _ = EditRun(e);
         Viewer.ParagraphEdited += (_, e) => _ = EditParagraph(e);
+        Viewer.ParagraphPictureRequested += (_, _) => _ = InsertParagraphPicture();
         Viewer.ImageMoved += (_, m) => _ = MoveImage(m);
+        Viewer.ImageCropped += (_, m) => _ = CropImage(m);
         Viewer.ContentActionRequested += (_, a) => _ = OnContentAction(a);
         Viewer.ContentRefused += (_, message) =>
         {
@@ -77,6 +80,8 @@ public partial class DocumentTab
     {
         var image = Viewer.SelectedImage;
         EditContentReplace.IsEnabled = EditContentDelete.IsEnabled = image is { Blocked: null };
+        EditContentCrop.IsEnabled = image is { Blocked: null, Turned: false };
+        EditContentCrop.FontWeight = Viewer.CroppingImage ? FontWeights.SemiBold : FontWeights.Normal;
     }
 
     /// <summary>After any change to the document: what was read is stale, so the pages ask again.</summary>
@@ -157,7 +162,7 @@ public partial class DocumentTab
     /// </summary>
     private async Task EditParagraph(ParagraphEdit e)
     {
-        var check = e.Paragraph.Check(e.Text, e.Spans);
+        var check = e.Paragraph.Check(e.Text, e.Spans, e.Added);
         if (check.LookProblem is { } lp)
         {
             Notify(Loc.Format(Strings.EditContent_NotChangedBecause, lp), error: true);
@@ -181,8 +186,33 @@ public partial class DocumentTab
             }
             allow = true;
         }
-        var outcome = await TryEdit(Strings.EditContent_EditParagraph, (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans), veil: false);
+        var outcome = await TryEdit(Strings.EditContent_EditParagraph, (d, pw) => ContentEditor.ReplaceParagraph(d, pw, e.Paragraph, e.Text, allow, e.Spans, e.Added), veil: false);
         if (outcome == EditOutcome.Busy) Notify(Strings.EditContent_StillApplying, error: true);
+    }
+
+    /// <summary>Insert Picture in the paragraph editor: an image file, put where the caret was.</summary>
+    private async Task InsertParagraphPicture()
+    {
+        try
+        {
+            var dlg = new Microsoft.Win32.OpenFileDialog { Title = Strings.EditContent_InsertPictureTitle, Filter = FileTools.ImageFilter, InitialDirectory = AppSettings.Current.LastFolder };
+            if (dlg.ShowDialog(Window.GetWindow(this)) != true) return;
+            byte[] file;
+            try
+            {
+                file = await File.ReadAllBytesAsync(dlg.FileName);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Prompt.Error(Window.GetWindow(this), Strings.EditContent_InsertPictureFailed, ex.Message);
+                return;
+            }
+            Viewer.InsertParagraphPicture(file, Path.GetFileName(dlg.FileName));
+        }
+        finally
+        {
+            Viewer.EndParagraphPictureRequest();
+        }
     }
 
     private async Task MoveImage(ImageMove m)
@@ -193,6 +223,15 @@ public partial class DocumentTab
         else ReloadEditContent(); // back where it was
     }
 
+    /// <summary>A picture cropped to a box by dragging its handles while cropping: one edit, then still selected (as it shows now).</summary>
+    private async Task CropImage(ImageMove m)
+    {
+        var page = m.Image.PageIndex;
+        if (await TryEdit(Strings.EditContent_EditCropPicture, (d, pw) => ContentEditor.CropImage(d, pw, m.Image, m.Box), veil: false) == EditOutcome.Done)
+            Viewer.SelectImage(page, m.Box.Intersect(m.Image.Uncropped ?? m.Image.Box));
+        else ReloadEditContent(); // back where it was
+    }
+
     private async Task OnContentAction(ContentAction action)
     {
         if (Viewer.SelectedImage is not { Blocked: null } image) return;
@@ -200,6 +239,12 @@ public partial class DocumentTab
         image = Viewer.SelectedImage ?? image;
         switch (action)
         {
+            case ContentAction.Crop:
+                Viewer.SetCropping(!Viewer.CroppingImage);
+                if (Viewer.CroppingImage) Notify(Strings.EditContent_CropHint);
+                else if (image.Turned) Notify(PdfStrings.Edit_CropTurned, error: true);
+                UpdateContentButtons();
+                break;
             case ContentAction.Delete:
                 if (await RunEdit(Strings.EditContent_EditDeletePicture, (d, pw) => ContentEditor.DeleteImage(d, pw, image)))
                     Viewer.SelectImage(image.PageIndex, null);

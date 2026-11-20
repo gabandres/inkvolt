@@ -2241,6 +2241,12 @@
   <data name="Tab_DeletePictureTip" xml:space="preserve">
     <value>Quitar de la página la imagen seleccionada (Del)</value>
   </data>
+  <data name="Tab_CropPicture" xml:space="preserve">
+    <value>Recortar imagen</value>
+  </data>
+  <data name="Tab_CropPictureTip" xml:space="preserve">
+    <value>Recorta los bordes de la imagen seleccionada: arrastra sus controladores hacia dentro (C). Lo que recortas se quita del archivo; Deshacer lo recupera. Esc termina el recorte.</value>
+  </data>
   <data name="Tab_LeaveEditTextImagesTip" xml:space="preserve">
     <value>Salir de Editar texto e imágenes (Esc)</value>
   </data>
@@ -4460,12 +4466,24 @@ Modificado {1:g}</value>
     <value>Eliminar imagen</value>
     <comment>Edit name: shown in Undo, toasts and "… didn't work"</comment>
   </data>
+  <data name="EditContent_EditCropPicture" xml:space="preserve">
+    <value>Recortar imagen</value>
+  </data>
+  <data name="EditContent_CropHint" xml:space="preserve">
+    <value>Arrastra un controlador para recortar la imagen: lo que recortas se quita del archivo (Deshacer lo recupera). Pulsa Esc o C al terminar.</value>
+  </data>
   <data name="EditContent_ReplaceTitle" xml:space="preserve">
     <value>Reemplazar imagen</value>
     <comment>File dialog title</comment>
   </data>
   <data name="EditContent_ReplaceFailed" xml:space="preserve">
     <value>No se pudo reemplazar la imagen</value>
+  </data>
+  <data name="EditContent_InsertPictureTitle" xml:space="preserve">
+    <value>Insertar imagen</value>
+  </data>
+  <data name="EditContent_InsertPictureFailed" xml:space="preserve">
+    <value>No se pudo insertar la imagen</value>
   </data>
   <data name="EditContent_EditReplacePicture" xml:space="preserve">
     <value>Reemplazar imagen</value>
@@ -5785,6 +5803,12 @@ Para conservar el original firmado, deshaz el cambio o guarda los cambios como u
   <data name="Viewer_Italic" xml:space="preserve">
     <value>Cursiva</value>
   </data>
+  <data name="Viewer_InsertPictureButton" xml:space="preserve">
+    <value>Imagen…</value>
+  </data>
+  <data name="Viewer_InsertPicture" xml:space="preserve">
+    <value>Insertar una imagen donde está el cursor: va en el flujo del texto y se mueve con sus palabras</value>
+  </data>
   <data name="Viewer_ColorTip" xml:space="preserve">
     <value>Color: {0}</value>
     <comment>{0} a color's name</comment>
@@ -5876,6 +5900,12 @@ Para conservar el original firmado, deshaz el cambio o guarda los cambios como u
   <data name="Viewer_DrawnInFaces" xml:space="preserve">
     <value>Se dibuja con {0} donde el aspecto lo pide (fuentes de este PC, incrustadas según se usan).</value>
     <comment>{0} font names</comment>
+  </data>
+  <data name="Viewer_ParagraphPictures" xml:space="preserve">
+    <value>￼ marca una imagen en el texto: se mueve con sus palabras. Borra la marca para quitar la imagen.</value>
+  </data>
+  <data name="Viewer_PictureTyped" xml:space="preserve">
+    <value>No se puede escribir ni pegar una imagen: ￼ solo marca las imágenes que ya están en el párrafo. Agrega una con Insertar imagen.</value>
   </data>
   <data name="Viewer_AnnounceText" xml:space="preserve">
     <value>Texto: {0}. Enter lo edita.</value>

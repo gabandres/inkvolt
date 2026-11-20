@@ -435,6 +435,54 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   it is part of the paragraph, a typed ✔ too (`ParagraphEditTests.AWordInStandardZapfDingbatsNotEmbedded…`). PDF/A's
   Segoe UI Symbol embedding reads its characters from the same table (`PdfA.DingbatUnicode`). MuPDF reads such a font by
   its own glyphs, not as the characters (before and after an edit alike).
+  Mixed sizes and colors (2026-11-20): a run of the paragraph's own face in another size or color is part of it, read
+  back as a span of that size and color (`SpansOf`), a smaller run set below or above its line's baseline as a subscript
+  or superscript at its own size and rise; the paragraph's own look is the size and color most of its text has
+  (`PlainRun` picks that run of its font; `TextParagraph.FontSize` is its size, not a bigger first word's), new text is
+  written at a run of that look (`Anchor`), and a color the page has is set again with the page's own fill operators
+  (`PartLook.Fill`: CMYK stays CMYK), not as RGB. Lines join at the paragraph's own step or at the step as drawn (a
+  generator that keeps its leading around a bigger word), and the step is read between lines of its own size. Bigger
+  text set off its line (not a script), or a color that is a pattern's, still edits line by line. `ParagraphEditTests.Mixed`
+  (+5). Kerning from the font's own table (2026-11-20): new pairs in text the page kerned (any TJ pair adjustment in
+  the paragraph, or in the one run) get the font's own (`FontKerning`, `PairKerning`: GPOS 'kern' pair adjustments,
+  formats 1 and 2 and through extension lookups, of one language system as a shaper picks for Latin (latn, DFLT, then the
+  other scripts, the first with a kern feature), else the kern table's format 0; bounded, a hostile table gives none),
+  from the embedded TrueType program when it kept its tables, else from the installed face of the font's own family
+  (`StandInFonts.Twin`: Helvetica as Arial) when its widths are the page font's within 1.5%; the pairs the text carried
+  win, a word space gets none, text set without kerning stays without. CFF and Type 1 programs have no kerning of
+  their own and no AFM ships for them, so they are kerned only through an installed twin. `FontKerningTests` (11).
+  Pictures in the flow and cropping (2026-11-20): a picture the page draws upright on a paragraph's line, between or
+  beside its words, with no text over it and no taller than 2.5 times the type (`InlinePictures`), is part of the
+  paragraph (`TextParagraph.Pictures`): U+FFFC stands for it in the text, the layout gives it room as wide as it is
+  (an operator of its own, so the words around it read back as two runs) and its reach above and below the line, and
+  the same edit moves it there (`PictureEdits`); its mark taken out takes it off, a mark typed in is refused. Crop
+  (`ContentEditor.CropImage`, `ContentEditor.Crop.cs`; Crop Picture or C in Edit Text & Images, the handles cut the
+  edges, Esc ends): the part kept, out to whole pixels, is drawn by MuPDF from a copy of the page that shows only it
+  (any filter, color space, decode array; its soft or stencil mask drawn apart as its alpha) and stored as a new picture
+  (Flate RGB, an /SMask when it had a mask) where that part was; the old picture leaves the page and, unused, the file,
+  so the pixels cut off are gone (a signed file's earlier revision keeps them, as for any removal). A clip another
+  program cropped with (`PageImage.Uncropped`) when the clip is the picture's own (inside its q … Q; one outside clips
+  what follows too, and stays). The picture's /OC, /Intent and /Alt go with it (not /Alternates: those are the whole
+  picture). Stencils, pictures masked by a color, transparency inside JPEG 2000 data (/SMaskInData) or blended with a
+  matte color (/Matte), turned pictures (past a quarter turn), a picture over 200 million pixels (MuPDF decodes all of
+  it) and a kept part over 50 million are refused; colors are drawn as RGB. A new picture is placed through the inverse
+  of the text's own CTM (a generator's scale or flip), its mark known by its place (`NewPicture.Mark`) before a moved
+  picture's could take it; the editor stays open while Insert Picture's file dialog has the focus. New
+  pictures in the flow (2026-11-20): Picture… on the paragraph editor's bar puts a mark at the caret for an image file
+  (`NewPicture`; `ReplaceParagraph`'s and `Check`'s `added`): marks that are none of the paragraph's pictures take the
+  new ones in order (one past them is refused), each as tall as the paragraph's ascent and as wide as its proportions,
+  no wider than half the paragraph, its foot on the baseline (`NewPictureSizes`); stored as Add Image stores a file and
+  drawn just before the paragraph's text object, in the same edit; read again it is one of the paragraph's pictures
+  (`JoinAcrossPictures`: a line a wide picture splits is one line; `WidenRight`, and a lone word with a picture glued
+  to it measured whole, so the paragraph stays one). Not for turned text or text inside a reused drawing
+  (`Edit_PictureCantGoHere`). Dev script `parapicture`: a picture put at the end of a paragraph, read back as one
+  paragraph of 3 lines. A mark
+  cut and pasted elsewhere moves its picture; a picture an edit wraps to a line's start keeps the paragraph one
+  (`WidenForPicture`, when the line above starts there too). Dev script (`cropimage`, `editpara`; Helvetica with a
+  bigger red word and a picture between two words): the picture cropped to its middle; the paragraph edited so the
+  picture wrapped to the second line's start, read back as one paragraph of 2 lines.
+  `ParagraphEditTests.Pictures` (11). pdf.js reads the 8 sample pages and 15 corpus pages in order as before; the
+  corpus check passes.
 - **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
   inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
   overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
@@ -453,7 +501,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   own font (its encoding from Unicode's mapping) instead of Adobe's AFM, Symbol with macOS's Symbol. pdf.js reads the 8
   sample pages (with a Mac case for looks) and 15 export-corpus pages in order; the corpus check passes; the app's
   `--only-paragraph-edit` self-test passes in English and Spanish. See `mac/docs/PLAN.md`, "Paragraph editing".
-- **Effort** L. Windows done but for the Still to do above; the Mac done (2026-11-10).
+- **Effort** L. Windows done but for the Still to do above; the Mac done (2026-11-10) but for the Windows additions of 2026-11-20 (mixed sizes and colors, the font's own kerning, pictures in the flow, crop), still to port.
 
 ### 2.2 Better OCR
 - **Leader.** ABBYY FineReader PDF: about 190 OCR languages ([Wikipedia](https://en.wikipedia.org/wiki/ABBYY_FineReader)),
@@ -717,7 +765,15 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   exports are as before); Make Accessible gives the cell what its covered cells hold (text centered in a tall cell
   often sits in a lower row), writes RowSpan in its Table attributes and leaves the covered cells out; a row header
   over two rows heads both; header rows are told from the cells as drawn, a column header's span stops at the last
-  header row, and a row all covered by the cells above is no row of its own (review, 2026-11-04). Borderless tables have no row spans yet (nothing marks them). `AutoTagRowSpanTests` (6:
+  header row, and a row all covered by the cells above is no row of its own (review, 2026-11-04). Tables without lines
+  (2026-11-20): with no rule to mark them, row spans are read from a first column of group labels over rows whose first
+  cell is empty and whose other cells aren't (`AutoTag.UnruledRowSpans`, after the header rows are told, which never
+  span): labels at the top of their group head the rows under them up to the next label; labels centered on their group
+  (in a row of their own between its halves, which goes, or in the middle row of an odd group) head as many rows above
+  as below; an empty first cell left over, or an empty row, leaves the table as it was (a value may just be missing).
+  Only the first column (a 2-column table's continuation rows already read as a cell's wrapped lines); the exports are
+  as before. `AutoTagRowSpanTests` +3 (labels at the top, centered, a missing value); `run.ps1 -Tag` as before (50 of
+  50 the same, 2 of 2 papers and 5 of 12 office files pass PDF/UA-1). `AutoTagRowSpanTests` (6:
   a header over two header rows and a row header over two rows, read, written and checked; Word's table unchanged).
   veraPDF 1.30.3 passes PDF/UA-1 on that table tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before; export corpus: the
   same Word pages for 7 of 7, PowerPoint opens every slide, 3,617 of 3,641 HTML lines in order as before. **Unicode
@@ -740,7 +796,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   user's own vision model (sent only after the usual window); output passes veraPDF PDF/UA-1 on the 1.3 corpus after
   the human checks; Save as PDF/A-2a. Test: 1.3's checker and veraPDF both pass on the corpus's untagged Word and
   LaTeX files after Make Accessible plus alt text.
-- **Effort** L. Windows; Mac done 2026-10-30.
+- **Effort** L. Windows; Mac done 2026-10-30 (row spans in tables without lines, 2026-11-20, still to port).
 
 ### 2.5 What's in this PDF (differentiator, Windows done 2026-10-28)
 - **The gap.** Acrobat's sanitize step removes hidden data when redacting

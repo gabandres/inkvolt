@@ -854,6 +854,8 @@
                                 ToolTip="{x:Static loc:Strings.Tab_ReplacePictureTip}" />
                         <Button x:Name="EditContentDelete" Style="{StaticResource CommandButton}" Content="{x:Static loc:Strings.Tab_DeletePicture}" FontSize="12" Padding="8,4" IsEnabled="False"
                                 ToolTip="{x:Static loc:Strings.Tab_DeletePictureTip}" />
+                        <Button x:Name="EditContentCrop" Style="{StaticResource CommandButton}" Content="{x:Static loc:Strings.Tab_CropPicture}" FontSize="12" Padding="8,4" IsEnabled="False"
+                                ToolTip="{x:Static loc:Strings.Tab_CropPictureTip}" />
                         <Border Style="{StaticResource BarSeparator}" />
                         <Button x:Name="EditContentDone" Style="{StaticResource CommandButton}" Content="{x:Static loc:Strings.Common_Done}" FontSize="12" Padding="10,4" FontWeight="SemiBold"
                                 ToolTip="{x:Static loc:Strings.Tab_LeaveEditTextImagesTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_DoneEditingTextImages}" />

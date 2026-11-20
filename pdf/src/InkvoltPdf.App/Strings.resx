@@ -2242,6 +2242,12 @@
   <data name="Tab_DeletePictureTip" xml:space="preserve">
     <value>Remove the selected picture from the page (Del)</value>
   </data>
+  <data name="Tab_CropPicture" xml:space="preserve">
+    <value>Crop Picture</value>
+  </data>
+  <data name="Tab_CropPictureTip" xml:space="preserve">
+    <value>Cut the selected picture's edges off: drag its handles in (C). What you cut off is removed from the file; Undo brings it back. Esc ends cropping.</value>
+  </data>
   <data name="Tab_LeaveEditTextImagesTip" xml:space="preserve">
     <value>Leave Edit Text &amp; Images (Esc)</value>
   </data>
@@ -4461,12 +4467,24 @@ Modified {1:g}</value>
     <value>Delete picture</value>
     <comment>Edit name: shown in Undo, toasts and "… didn't work"</comment>
   </data>
+  <data name="EditContent_EditCropPicture" xml:space="preserve">
+    <value>Crop picture</value>
+  </data>
+  <data name="EditContent_CropHint" xml:space="preserve">
+    <value>Drag a handle to crop the picture: what you cut off is removed from the file (Undo brings it back). Press Esc or C when done.</value>
+  </data>
   <data name="EditContent_ReplaceTitle" xml:space="preserve">
     <value>Replace Picture</value>
     <comment>File dialog title</comment>
   </data>
   <data name="EditContent_ReplaceFailed" xml:space="preserve">
     <value>Replace Picture didn't work</value>
+  </data>
+  <data name="EditContent_InsertPictureTitle" xml:space="preserve">
+    <value>Insert Picture</value>
+  </data>
+  <data name="EditContent_InsertPictureFailed" xml:space="preserve">
+    <value>Insert Picture didn't work</value>
   </data>
   <data name="EditContent_EditReplacePicture" xml:space="preserve">
     <value>Replace picture</value>
@@ -5786,6 +5804,12 @@ To keep the signed original, undo the change, or save your changes as a copy (Sa
   <data name="Viewer_Italic" xml:space="preserve">
     <value>Italic</value>
   </data>
+  <data name="Viewer_InsertPictureButton" xml:space="preserve">
+    <value>Picture…</value>
+  </data>
+  <data name="Viewer_InsertPicture" xml:space="preserve">
+    <value>Insert a picture where the cursor is: it goes in the text's flow and moves with its words</value>
+  </data>
   <data name="Viewer_ColorTip" xml:space="preserve">
     <value>Color: {0}</value>
     <comment>{0} a color's name</comment>
@@ -5877,6 +5901,12 @@ To keep the signed original, undo the change, or save your changes as a copy (Sa
   <data name="Viewer_DrawnInFaces" xml:space="preserve">
     <value>Drawn in {0} where the look asks for it (fonts on this PC, embedded as used).</value>
     <comment>{0} font names</comment>
+  </data>
+  <data name="Viewer_ParagraphPictures" xml:space="preserve">
+    <value>￼ marks a picture in the text: it moves with its words. Delete the mark to take the picture off.</value>
+  </data>
+  <data name="Viewer_PictureTyped" xml:space="preserve">
+    <value>A picture can't be typed or pasted in: ￼ only marks the pictures already in the paragraph. Add one with Insert Picture.</value>
   </data>
   <data name="Viewer_AnnounceText" xml:space="preserve">
     <value>Text: {0}. Enter edits it.</value>

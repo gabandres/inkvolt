@@ -73,7 +73,11 @@ public static partial class ContentEditor
     /// page's own font it is drawn in when the paragraph has that face (a bold word's font; null: the paragraph's own).
     /// </summary>
     /// <param name="Rise">How far its baseline sits above the line's (a superscript) or below (negative, a subscript), in ems of the paragraph's text.</param>
-    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null, double Rise = 0);
+    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null, double Rise = 0)
+    {
+        /// <summary>The page's own fill operators for <see cref="Color"/> when its text has that color (null: written as RGB).</summary>
+        public string? Fill { get; init; }
+    }
 
     /// <summary>A subscript's or superscript's size against its line's text, and how far its baseline moves (ems of the line's text, up positive).</summary>
     internal const double ScriptScale = 0.7, SubRise = -0.15, SuperRise = 0.35;
@@ -98,10 +102,13 @@ public static partial class ContentEditor
     /// <paramref name="text"/> (where <paramref name="at"/> says each run starts), its size and color as drawn, its font,
     /// bold and italic as its tag says; a run in another face of the paragraph's family (a bold word as the page's
     /// generator drew it) as bold or italic; a run in another family as that family (with bold or italic where its
-    /// face differs); a subscript or superscript as its tag says, at the size of the look it is in; spans of one look
-    /// next to each other or a space apart merged.
+    /// face differs); a subscript or superscript as its tag says, at the size of the look it is in; a run of the
+    /// paragraph's own face in another size or color (a bigger or red word as the page drew it) as that size and color,
+    /// a smaller one set off its line as the script <paramref name="scripts"/> says; spans of one look next to each other
+    /// or a space apart merged.
     /// </summary>
-    private static List<TextSpan> SpansOf(TextRun lead, string text, IEnumerable<(TextRun Run, int Start, int Length)> at)
+    private static List<TextSpan> SpansOf(TextRun lead, string text, IEnumerable<(TextRun Run, int Start, int Length)> at,
+        IReadOnlyDictionary<TextRun, (TextScript Script, double Size, double Rise)>? scripts = null)
     {
         var spans = new List<TextSpan>();
         foreach (var (r, start, length) in at)
@@ -109,13 +116,17 @@ public static partial class ContentEditor
             if (length <= 0) continue;
             var drawn = r.Tag?.Script is not null ? r.FontSize / ScriptScale : r.FontSize;
             var size = Math.Abs(drawn - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(drawn, 1) : (double?)null;
+            int? color = r.Color != lead.Color ? r.Color : null;
             TextLook look;
-            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic, tag.Script, tag.Rise);
+            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, color, tag.Bold, tag.Italic, tag.Script, tag.Rise);
             else if (!r.StandIn && r.Font is not null && !SameFamily(r, lead))
-                look = new TextLook(FontNames.Family(r.FontName), size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+                look = new TextLook(FontNames.Family(r.FontName), size, color, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else if (!r.StandIn && !ReferenceEquals(r.Font, lead.Font) && (r.Bold != lead.Bold || r.Italic != lead.Italic))
-                look = new TextLook(null, size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+                look = new TextLook(null, size, color, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+            else if (size is not null || color is not null) look = new TextLook(null, size, color);
             else continue;
+            if (r.Tag is null && scripts is not null && scripts.TryGetValue(r, out var script))
+                look = look with { Size = script.Size, Script = script.Script, Rise = script.Rise };
             if (look.IsPlain) continue;
             if (spans.Count > 0 && spans[^1].Look == look && JoinsAcrossSpace(spans[^1].End, start, i => text[i]))
                 spans[^1] = spans[^1] with { Length = start + length - spans[^1].Start };
@@ -223,6 +234,40 @@ public static partial class ContentEditor
     {
         if (spans.Count == 0) return [];
         if (old == now) return [.. spans];
+        var map = CharMap(old, now);
+        var oldLooks = LooksOf(old, spans);
+        var looks = new TextLook?[now.Length];
+        var mapped = new bool[now.Length];
+        for (var i = 0; i < old.Length; i++)
+            if (map[i] >= 0)
+            {
+                looks[map[i]] = oldLooks[i];
+                mapped[map[i]] = true;
+            }
+        for (var i = 1; i < now.Length; i++)
+            if (!mapped[i] && !char.IsWhiteSpace(now[i]) && !char.IsWhiteSpace(now[i - 1])) looks[i] = looks[i - 1];
+        var result = new List<TextSpan>();
+        for (var i = 0; i < now.Length;)
+        {
+            if (looks[i] is not { IsPlain: false } look)
+            {
+                i++;
+                continue;
+            }
+            var j = i + 1;
+            while (j < now.Length && looks[j] == look) j++;
+            result.Add(new TextSpan(i, j - i, look));
+            i = j;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Where each character of <paramref name="old"/> went in <paramref name="now"/> (-1: gone): the characters both share
+    /// (the same start and end, then their longest common subsequence in between, when it is small enough to work out).
+    /// </summary>
+    internal static int[] CharMap(string old, string now)
+    {
         var map = new int[old.Length]; // where each old character went (-1: gone)
         Array.Fill(map, -1);
         var pre = 0;
@@ -253,30 +298,55 @@ public static partial class ContentEditor
                 else b++;
             }
         }
-        var oldLooks = LooksOf(old, spans);
-        var looks = new TextLook?[now.Length];
-        var mapped = new bool[now.Length];
-        for (var i = 0; i < old.Length; i++)
-            if (map[i] >= 0)
-            {
-                looks[map[i]] = oldLooks[i];
-                mapped[map[i]] = true;
-            }
-        for (var i = 1; i < now.Length; i++)
-            if (!mapped[i] && !char.IsWhiteSpace(now[i]) && !char.IsWhiteSpace(now[i - 1])) looks[i] = looks[i - 1];
-        var result = new List<TextSpan>();
-        for (var i = 0; i < now.Length;)
+        return map;
+    }
+
+    /// <summary>A U+FFFC the page's own text has, kept as a character (<see cref="PictureMarks"/>).</summary>
+    internal const int TextMark = -2;
+
+    /// <summary>
+    /// For each U+FFFC in <paramref name="now"/>, in order: the paragraph's picture it stands for (its index in
+    /// <paramref name="pictures"/>, whose marks are where <see cref="InlinePicture.Mark"/> says in <paramref name="old"/>),
+    /// <see cref="TextMark"/> for one the page's own text had (a glyph whose text is U+FFFC), or -1 for one typed or
+    /// pasted in. A mark kept from the old text keeps its picture; a picture's mark cut and pasted elsewhere (the text
+    /// between can't keep both) is the next mark that came.
+    /// </summary>
+    /// <param name="inserted">Places in <paramref name="now"/> of marks the editor put in for new pictures: -1, never a picture of the old text's.</param>
+    internal static int[] PictureMarks(string old, string now, IReadOnlyList<InlinePicture> pictures, IReadOnlySet<int>? inserted = null)
+    {
+        var marks = now.Count(c => c == TextParagraph.PictureMark);
+        var result = new int[marks];
+        Array.Fill(result, -1);
+        if (marks == 0 || !old.Contains(TextParagraph.PictureMark)) return result;
+        var map = CharMap(old, now);
+        var ordinal = new Dictionary<int, int>(); // a mark's place in now → its number among now's marks
+        var insertedAt = new HashSet<int>(); // the inserted marks' numbers among now's marks
+        for (int i = 0, k = 0; i < now.Length; i++)
         {
-            if (looks[i] is not { IsPlain: false } look)
-            {
-                i++;
-                continue;
-            }
-            var j = i + 1;
-            while (j < now.Length && looks[j] == look) j++;
-            result.Add(new TextSpan(i, j - i, look));
-            i = j;
+            if (now[i] != TextParagraph.PictureMark) continue;
+            if (inserted?.Contains(i) == true) insertedAt.Add(k);
+            else ordinal[i] = k;
+            k++;
         }
+        var pictureAt = new Dictionary<int, int>(); // a picture's mark's place in old → the picture
+        for (var k = 0; k < pictures.Count; k++)
+            if (pictures[k].Mark >= 0 && pictures[k].Mark < old.Length && old[pictures[k].Mark] == TextParagraph.PictureMark) pictureAt.TryAdd(pictures[k].Mark, k);
+        var used = new bool[pictures.Count];
+        for (var i = 0; i < old.Length; i++)
+        {
+            if (old[i] != TextParagraph.PictureMark || map[i] < 0 || !ordinal.TryGetValue(map[i], out var at)) continue;
+            if (pictureAt.TryGetValue(i, out var k))
+            {
+                result[at] = k;
+                used[k] = true;
+            }
+            else result[at] = TextMark;
+        }
+        var pictures2 = pictures.Count;
+        // A mark cut and pasted elsewhere (the text between can't keep both): the pictures whose marks went, in order.
+        var free = new Queue<int>(Enumerable.Range(0, pictures2).Where(k => !used[k] && pictureAt.ContainsValue(k)));
+        for (var i = 0; i < marks && free.Count > 0; i++)
+            if (result[i] == -1 && !insertedAt.Contains(i)) result[i] = free.Dequeue();
         return result;
     }
 

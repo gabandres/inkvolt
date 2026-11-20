@@ -51,6 +51,9 @@ internal sealed class TrueTypeProgram : FontProgram
     public int NumGlyphs { get; }
     public double UnitsPerEm { get; }
 
+    /// <summary>The program as embedded (for the tables read elsewhere: <see cref="PairKerning"/>).</summary>
+    internal byte[] Bytes => _b;
+
     private TrueTypeProgram(byte[] b, int numGlyphs, double upem, int[] loca, ushort[] advances)
     {
         _b = b;

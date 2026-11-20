@@ -27,6 +27,11 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - Comparar archivos alinea una página escaneada a otro tamaño o girada un cuarto de vuelta (de lado o boca abajo) con la otra versión antes de mostrar lo que se ve distinto, así que la misma página ya no parece distinta por todas partes.
 - Buscar en carpetas encuentra varias veces más rápido una frase de palabras comunes: una que tenía que revisar cada página de 10.000 archivos tardaba de 3 a 5 segundos y ahora tarda menos de un segundo.
 - Reconocer texto y Comparar archivos ya no leen boca abajo una página escaneada por tener una imagen grande o un recuadro sombreado.
+- Editar texto e imágenes reacomoda como un solo párrafo uno que mezcla tamaños o colores (una palabra más grande, una palabra en rojo, un subíndice): cada parte conserva su tamaño, su color y su altura, y un color queda exactamente como lo tenía el PDF.
+- Los pares de letras nuevos que escribes en un texto con interletraje reciben el interletraje propio de la fuente ("To", "AV"), así que las líneas editadas quedan tan ajustadas como las de alrededor.
+- Una imagen pequeña en la línea de un párrafo, entre sus palabras, ahora se mueve con sus palabras al editar el párrafo. En el editor aparece como ￼; borra la marca para quitar la imagen. Imagen… en la barra del editor agrega una nueva donde está el cursor.
+- Recorta una imagen: selecciónala, elige Recortar imagen (o pulsa C) y arrastra sus controladores hacia dentro. Lo que recortas se quita del archivo, no solo se oculta, así que nadie puede recuperarlo del PDF; Deshacer quita el recorte mientras trabajas.
+- Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.
