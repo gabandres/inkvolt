@@ -52,7 +52,14 @@ by hand (RESULTS.md says so): open the file, scroll a page a second for 10 s, co
 ```powershell
 dotnet run --project pdf/tools/bench -c Release -- index-make C:\somewhere\corpus 10000   # 10,000 PDFs and 6 bad ones (about 150 MB, a minute), outside the repository
 dotnet run --project pdf/tools/bench -c Release -- index-run C:\somewhere\corpus          # index it from nothing, search, change a file; exits 1 if a target is missed
+dotnet run --project pdf/tools/bench -c Release -- index-read C:\somewhere\corpus         # only open and read every file (4 threads): what reaching the files costs
 ```
+
+A query's line gives its processor time beside the clock's: on a PC with other work the clock says more about that work.
+`INKVOLTPDF_BENCH_INDEX=dir` keeps the index in `dir` and starts from what is there, to time queries again without indexing.
+`index-read` on a corpus just made, then again, shows what a first read costs: Windows Defender scans each file a worker
+opens, and while it is busy the workers wait with processors free (14.0 s, then 0.2 s, on 2026-11-20; ROADMAP 3.5).
+Run as `dotnet Bench.dll`, the workers are started from `Bench.exe` beside it (from `dotnet.exe` they never started).
 
 Files of 1 to 24 pages (72,797 in all) of made-up prose: a 200-word bank and, one word in five, a vocabulary of 300,000 made-up
 words with a few common and most rare, a reference number per page and a 64-character checksum per file (a run longer than a term), so the list of terms grows as on real files (200,000

@@ -701,10 +701,14 @@ public sealed partial class FolderIndex : IDisposable
 
     // ---- Small tools ----
 
-    /// <summary>Reads through a file in order with one buffer (and back, which reads again).</summary>
-    private sealed class Cursor(SafeFileHandle file)
+    /// <summary>
+    /// Reads through a file in order with one buffer (and back, which reads again). A read past the buffer fills it from there
+    /// (<paramref name="ahead"/> bytes, or what was asked when more): ahead for reading on in order, little for reading here and
+    /// there (a search's pages: a megabyte read for each page of 2 KB made a phrase search read gigabytes).
+    /// </summary>
+    private sealed class Cursor(SafeFileHandle file, int ahead = 1 << 20)
     {
-        private byte[] _buffer = new byte[1 << 20];
+        private byte[] _buffer = new byte[Math.Max(ahead, 4096)];
         private long _start = long.MinValue / 2;
         private int _length;
 
@@ -712,10 +716,11 @@ public sealed partial class FolderIndex : IDisposable
         {
             if (offset >= _start && offset + count <= _start + _length) return _buffer.AsSpan((int)(offset - _start), count);
             if (count > _buffer.Length) _buffer = new byte[count];
+            var want = Math.Max(count, Math.Min(ahead, _buffer.Length));
             var read = 0;
-            while (read < _buffer.Length)
+            while (read < want)
             {
-                var n = RandomAccess.Read(file, _buffer.AsSpan(read), offset + read);
+                var n = RandomAccess.Read(file, _buffer.AsSpan(read, want - read), offset + read);
                 if (n == 0) break;
                 read += n;
             }

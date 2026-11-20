@@ -1372,7 +1372,10 @@ and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 f
 (`PageAlignment.Scale`, the frames tried per quarter turn, the sizing at 2 pixels; CompareAlignTests'
 `AScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp`, `WhatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
 `AScaledAlignmentGoesThereAndBack`), and Compare reads scans with the language's dictionary. E15's exports carry links
-(`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests).
+(`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests). Folder search's phrase reading (2026-11-20): a file's
+pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
+`SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
+`Pages_of_many_files_and_long_pages_read_back_in_order`).
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`

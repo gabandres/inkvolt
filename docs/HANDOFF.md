@@ -521,8 +521,9 @@ directly in `/Annots`. Inkvolt PDF for Mac 1.4.0 ships it. First thing when the 
 - 3.4 Long-term validation: PAdES B-LT and B-LTA pass EU DSS run locally (`pdf/tools/pades-check`). Not checked: Acrobat's "LTV enabled",
   real certificate authorities, smart cards. Certifying with a choice of fields to lock isn't built.
 - 3.5 Folder search: 10,000 generated PDFs, a word in 3-114 ms, a changed file found in 3.4 s. Not checked: real PDFs at that scale, a
-  hostile PDF, an MSIX install, network drives, OneDrive placeholders. One run took 569 s to index, not explained; a two-word phrase
-  takes 3-4 s to list 500 pages.
+  hostile PDF, an MSIX install, network drives, OneDrive placeholders. The slow index runs (569 s once) are Windows Defender
+  scanning each file a worker opens while it is busy (pdf/ROADMAP.md 3.5, 2026-11-20, with numbers); a two-word phrase now lists
+  500 pages in 0.6-1.2 s on a quiet PC (was 3-5 s; processor 7-8 s → 2-3 s), inflating each page being most of what is left.
 
 **Print wave 2 on master, not released.** 2.6 Fleet page, 2.4 Batch print, 2.3 Scan cleanup and Unicode OCR layer. Each has its checks and
 limits in `print/ROADMAP.md`.

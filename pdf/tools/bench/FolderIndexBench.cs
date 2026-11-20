@@ -145,9 +145,16 @@ public static class FolderIndexBench
     /// <summary>Indexes the folder once from nothing, runs the queries, changes a file: prints what each took. 1 if a target is missed.</summary>
     public static int Run(string dir, Action<string> log)
     {
-        var indexDir = Path.Combine(Path.GetTempPath(), "inkvolt-index-bench-" + Guid.NewGuid().ToString("N"));
+        // INKVOLTPDF_BENCH_INDEX keeps the index there (and starts from what is there): to time queries again without indexing.
+        var keep = Environment.GetEnvironmentVariable("INKVOLTPDF_BENCH_INDEX") is { Length: > 0 } kept ? kept : null;
+        var indexDir = keep ?? Path.Combine(Path.GetTempPath(), "inkvolt-index-bench-" + Guid.NewGuid().ToString("N"));
         var basePath = Path.Combine(indexDir, "bench");
         var exe = Environment.ProcessPath!;
+        // Run as "dotnet Bench.dll", the process is dotnet itself, and workers started from it never ran (the index waited
+        // for them for ever): the workers are started from Bench.exe beside the dll.
+        if (Path.GetFileNameWithoutExtension(exe).Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+            exe = Path.ChangeExtension(typeof(FolderIndexBench).Assembly.Location, ".exe");
+        if (!File.Exists(exe)) throw new InvalidOperationException($"No program to start index workers from: {exe}");
         var missed = false;
         try
         {
@@ -219,10 +226,33 @@ public static class FolderIndexBench
         {
             try
             {
-                Directory.Delete(indexDir, true);
+                if (keep is null) Directory.Delete(indexDir, true);
             }
             catch (IOException) { }
         }
+    }
+
+    /// <summary>
+    /// Opens and reads every PDF under <paramref name="dir"/> as the index workers do (whole files, on <paramref name="threads"/>
+    /// threads), parsing nothing: what reaching the files costs by itself. Run on a corpus just made and then again, it shows
+    /// what a first read costs (the antivirus looking at each new file) against the files read before.
+    /// </summary>
+    public static int ReadAll(string dir, int threads, Action<string> log)
+    {
+        var files = Directory.EnumerateFiles(dir, "*.pdf", SearchOption.AllDirectories).Where(f => new FileInfo(f).Length < 64 << 20).ToList();
+        var times = new double[files.Count];
+        var sw = Stopwatch.StartNew();
+        Parallel.For(0, files.Count, new ParallelOptions { MaxDegreeOfParallelism = threads }, i =>
+        {
+            var one = Stopwatch.StartNew();
+            File.ReadAllBytes(files[i]);
+            times[i] = one.Elapsed.TotalMilliseconds;
+        });
+        var total = sw.Elapsed.TotalSeconds;
+        Array.Sort(times);
+        double At(double share) => times[Math.Min(times.Length - 1, (int)(times.Length * share))];
+        log($"Read {files.Count:N0} files on {threads} threads in {total:N1} s ({files.Count / total:N0} files/s); a file: median {At(0.5):N2} ms, 90% {At(0.9):N2} ms, 99% {At(0.99):N1} ms, slowest {times[^1]:N0} ms; all together {times.Sum() / 1000:N1} s.");
+        return 0;
     }
 
     private static int Found(FolderIndex index, string word)
@@ -284,6 +314,7 @@ public static class FolderIndexBench
     {
         var ok = true;
         {
+            var cpu0 = Process.GetCurrentProcess().TotalProcessorTime;
             var sw = Stopwatch.StartNew();
             using var run = index.Search(query, new FolderSearchOptions());
             var narrowed = sw.Elapsed.TotalMilliseconds;
@@ -294,10 +325,12 @@ public static class FolderIndexBench
                 if (pages++ == 0) first = sw.Elapsed.TotalMilliseconds;
             }
             var all = sw.Elapsed.TotalMilliseconds;
+            // The processor time it took too: on a PC with other work the clock says more about the other work.
+            var cpu = (Process.GetCurrentProcess().TotalProcessorTime - cpu0).TotalMilliseconds;
             var miss = target && all >= 1000;
             ok &= !miss;
             if (wanted is { } n && pages != n) ok = false;
-            log($"  {query,-22} {what,-44} {run.CandidatePages,8:N0} pages in {run.CandidateFiles,7:N0} files; narrowed {narrowed,7:N1} ms, first result {first,7:N1} ms, {pages,4} listed {all,8:N1} ms{(miss ? "  OVER 1 s" : "")}");
+            log($"  {query,-22} {what,-44} {run.CandidatePages,8:N0} pages in {run.CandidateFiles,7:N0} files; narrowed {narrowed,7:N1} ms, first result {first,7:N1} ms, {pages,4} listed {all,8:N1} ms (processor {cpu,8:N0} ms){(miss ? "  OVER 1 s" : "")}");
         }
         return ok;
     }
