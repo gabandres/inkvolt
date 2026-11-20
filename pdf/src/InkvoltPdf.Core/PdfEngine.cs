@@ -797,6 +797,9 @@ public sealed partial class PdfEngine : IDisposable
     /// <summary>Most vector paths a page may draw for its thin lines to be read as table rules (maps and charts draw thousands).</summary>
     private const int MaxRulePaths = 4000;
 
+    /// <summary>Most links of a page an export carries (each character is checked against each).</summary>
+    private const int MaxExportLinks = 500;
+
     /// <summary>Pictures larger than this many pixels are exported as JPEG (scans, photos), smaller ones as PNG.</summary>
     private const long JpegAbovePixels = 1_500_000;
 
@@ -812,11 +815,25 @@ public sealed partial class PdfEngine : IDisposable
     /// <param name="boxesOnly">Pictures and figures say where they are, without their pixels (tagging needs no more).</param>
     /// <param name="shapes">Read the page's simple shapes too (<see cref="ExportShapes"/>); what is neither one nor text is added as a picture.</param>
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired before the page was read.</exception>
+    /// <param name="links">
+    /// What each of the page's links becomes on the text it covers (<see cref="ExportSpan.Link"/>; null drops one); null
+    /// reads no links. A character is linked when its middle lies in the link's area.
+    /// </param>
     /// <exception cref="PageRefusedException">The page's check refused it.</exception>
-    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false, bool shapes = false)
+    public ExportPage GetExportPage(int page, bool images, CancellationToken cancel = default, bool boxesOnly = false, bool shapes = false,
+        Func<PageLink, ExportLink?>? links = null)
     {
         cancel.ThrowIfCancellationRequested();
         Vet(page, cancel);
+        var areas = new List<(RectD Area, ExportLink Link)>();
+        if (links is not null)
+        {
+            IReadOnlyList<PageLink> read;
+            try { read = GetLinks(page, cancel); }
+            catch (MuPDFException) { read = []; } // unreadable links: the text goes without them
+            foreach (var l in read.Take(MaxExportLinks))
+                if (links(l) is { } to && l.Area.Width > 0 && l.Area.Height > 0) areas.Add((l.Area, to));
+        }
         var lines = new List<ExportLine>();
         var raw = new List<(List<ExportGlyph> Glyphs, int Turn, bool Sideways)>();
         var pictures = new List<ExportImage>();
@@ -903,6 +920,18 @@ public sealed partial class PdfEngine : IDisposable
                 }
                 if (drawn is not null && !(drawn == "−" && glyphs[k].Text == "¯")) glyphs[k] = glyphs[k] with { Text = drawn };
             }
+        if (areas.Count > 0)
+            foreach (var glyphs in composed)
+                for (var k = 0; k < glyphs.Count; k++)
+                {
+                    var (cx, cy) = (glyphs[k].Rect.CenterX, glyphs[k].Rect.CenterY);
+                    foreach (var (area, to) in areas)
+                        if (area.Contains(cx, cy))
+                        {
+                            glyphs[k] = glyphs[k] with { Look = glyphs[k].Look with { Link = to } };
+                            break;
+                        }
+                }
         var verticals = rules.Where(r => r.Width <= 3 && r.Height > 6).ToList();
         for (var i = 0; i < composed.Count; i++)
             if (composed[i].Count > 0) lines.AddRange(LinesOf(composed[i], raw[i].Turn, raw[i].Sideways, verticals));

@@ -40,13 +40,22 @@ public class ExportHtmlTests
 
     private static string TextOf(XElement e) => string.Concat(e.DescendantNodes().OfType<XText>().Select(t => t.Value));
 
-    /// <summary>What no export may hold: anything that runs or fetches.</summary>
+    /// <summary>
+    /// What no export may hold: anything that runs or fetches. A link is the one thing a reader may click: an a with an
+    /// http, https or mailto address or an exported page's anchor, and nothing else on it.
+    /// </summary>
     private static void AssertInert(XElement root)
     {
-        string[] banned = ["script", "iframe", "object", "embed", "link", "base", "form", "svg", "math", "video", "audio", "source", "a", "input", "button", "frame", "applet"];
+        string[] banned = ["script", "iframe", "object", "embed", "link", "base", "form", "svg", "math", "video", "audio", "source", "input", "button", "frame", "applet"];
         foreach (var e in root.DescendantsAndSelf())
         {
             Assert.DoesNotContain(e.Name.LocalName, banned);
+            if (e.Name.LocalName == "a")
+            {
+                Assert.Matches(@"^(https?://|mailto:|#page-[0-9]+$)", (string?)e.Attribute("href") ?? "");
+                Assert.All(e.Attributes(), a => Assert.Contains(a.Name.LocalName, new[] { "href", "rel" }));
+                continue;
+            }
             foreach (var a in e.Attributes())
             {
                 Assert.False(a.Name.LocalName.StartsWith("on", StringComparison.OrdinalIgnoreCase), $"{e.Name} has {a.Name}");
@@ -352,5 +361,58 @@ public class ExportHtmlTests
         var pdf = ExportTestPdf.Make();
         var root = Dom(Html(pdf, options: new ExportOptions { Source = [1, 2, 3] }));
         Assert.NotEmpty(All(root, "h1"));
+    }
+
+    [Fact]
+    public void Links_stay_links_on_the_words_they_cover()
+    {
+        var root = Dom(Html(ExportTestPdf.Linked()));
+        AssertInert(root);
+        var links = All(root, "a").Select(a => (Text: TextOf(a).Trim(), Href: (string?)a.Attribute("href"))).ToList();
+        Assert.Equal(
+            [("guide", ExportTestPdf.LinkUriEscaped), ("Next page", "#page-2"), ("Mail us", "mailto:a@example.com")],
+            links);
+        Assert.Equal("noopener noreferrer", (string?)All(root, "a").First().Attribute("rel"));
+        // The words around a link stay outside it, and the page it jumps to is there.
+        Assert.Contains(All(root, "p"), p => TextOf(p).Replace("  ", " ") == "See the guide for details.");
+        Assert.NotNull(root.Descendants("div").SingleOrDefault(d => (string?)d.Attribute("id") == "page-2"));
+        // A javascript: address is only text.
+        Assert.Contains(All(root, "p"), p => TextOf(p) == "Do not run this" && !p.Descendants("a").Any());
+    }
+
+    [Fact]
+    public void A_link_to_a_page_left_out_is_dropped()
+    {
+        var root = Dom(Html(ExportTestPdf.Linked(), options: new ExportOptions { Pages = [0] }));
+        Assert.DoesNotContain(All(root, "a"), a => ((string?)a.Attribute("href"))!.StartsWith('#'));
+        Assert.Equal(2, All(root, "a").Count());
+    }
+
+    [Fact]
+    public void A_link_keeps_its_runs_stress_inside_it()
+    {
+        var link = ExportLink.Web("https://example.com/");
+        var spans = new List<ExportSpan>
+        {
+            new("Plain ", "Arial", 11, false, false, 0, new RectD(72, 60, 30, 12)),
+            new("bold", "Arial", 11, true, false, 0, new RectD(102, 60, 20, 12)) { Link = link },
+            new(" and ", "Arial", 11, false, false, 0, new RectD(122, 60, 20, 12)) { Link = link },
+            new("italic", "Arial", 11, false, true, 0, new RectD(142, 60, 30, 12)),
+        };
+        var html = Html([new ExportPage(612, 792, [ExportLine.Of(spans)], [], [])]);
+        Assert.Contains("Plain <a href=\"https://example.com/\" rel=\"noopener noreferrer\"><strong>bold</strong> and </a><em>italic</em>", html);
+        AssertInert(Dom(html));
+    }
+
+    [Fact]
+    public void Only_web_and_mail_addresses_become_links()
+    {
+        Assert.Null(ExportLink.Web("javascript:alert(1)"));
+        Assert.Null(ExportLink.Web("file:///C:/Windows/notepad.exe"));
+        Assert.Null(ExportLink.Web("data:text/html,<script>alert(1)</script>"));
+        Assert.Null(ExportLink.Web("https://example.com/" + new string('a', ExportLink.MaxUri)));
+        Assert.Null(ExportLink.Web("  "));
+        Assert.Equal("https://example.com/a%20b%22%3C", ExportLink.Web(" https://example.com/a b\"< ")!.Uri);
+        Assert.Equal("mailto:a@example.com", ExportLink.Web("mailto:a@example.com")!.Uri);
     }
 }

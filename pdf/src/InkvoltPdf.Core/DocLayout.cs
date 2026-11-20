@@ -1187,7 +1187,8 @@ internal static partial class DocLayout
     private static void Add(List<ExportSpan> runs, ExportSpan s)
     {
         if (s.Text.Length == 0) return;
-        if (runs.Count > 0 && (runs[^1].SameLook(s) || string.IsNullOrWhiteSpace(s.Text)))
+        // Space joins the run before it, but never carries a link onto text that has none (or another).
+        if (runs.Count > 0 && (runs[^1].SameLook(s) || string.IsNullOrWhiteSpace(s.Text) && runs[^1].Link == s.Link))
             runs[^1] = runs[^1] with { Text = runs[^1].Text + s.Text, Box = runs[^1].Box.Union(s.Box) };
         else runs.Add(s);
     }

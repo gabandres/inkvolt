@@ -8,7 +8,7 @@ using InkvoltPdf.Core;
 using MuPDFCore;
 using MuPDFCore.StructuredText;
 
-// export <in.pdf> <out.docx>   Export to Word as the app does, plus <out>.txt, .pptx and .html (the other exports) beside it.
+// export <in.pdf> <out.docx>   Export to Word as the app does, plus <out>.txt, .xlsx (when it has tables), .pptx and .html beside it.
 // pptx <file.pptx>             The Open XML SDK's validator on it: "slides shapes errors", then the first errors.
 // html <file.html> <file.txt>  Active content (none allowed), and whether the text reads in the plain-text export's order.
 // glyphs <in.pdf> <out.txt>    What MuPDF reads, line by line: text lines, vector boxes, and every glyph's box on lines
@@ -21,6 +21,9 @@ switch (args)
         var options = new ExportOptions { Title = Path.GetFileNameWithoutExtension(pdf) };
         var report = DocumentExport.ExportToFile(engine, ExportFormat.Word, docx, options);
         DocumentExport.ExportToFile(engine, ExportFormat.Text, Path.ChangeExtension(docx, ".txt"), options);
+        // Excel: written only when the document has tables (nothing is left behind otherwise).
+        File.Delete(Path.ChangeExtension(docx, ".xlsx"));
+        DocumentExport.ExportToFile(engine, ExportFormat.Excel, Path.ChangeExtension(docx, ".xlsx"), options);
         var withSource = options with { Source = File.ReadAllBytes(pdf) };
         DocumentExport.ExportToFile(engine, ExportFormat.PowerPoint, Path.ChangeExtension(docx, ".pptx"), withSource);
         DocumentExport.ExportToFile(engine, ExportFormat.Html, Path.ChangeExtension(docx, ".html"), withSource);
@@ -41,10 +44,15 @@ switch (args)
     case ["html", var file, var txt]:
     {
         var html = File.ReadAllText(file);
-        var active = Regex.Matches(html, @"<(script|iframe|object|embed|link|base|form|svg|math|video|audio|source|a)|\son\w+\s*=|\s(href|srcset)\s*=|\ssrc=""(?!data:image/(png|jpeg);base64,)", RegexOptions.IgnoreCase).Count;
+        // A link is the one thing allowed to lead anywhere: exactly an http, https or mailto address (with rel) or a page's
+        // anchor. Anything else on an a, or an href elsewhere, counts.
+        var links = Regex.Matches(html, @"<a\s[^>]*>", RegexOptions.IgnoreCase).Select(m => m.Value).ToList();
+        var safeLink = new Regex(@"^<a href=""((https?://|mailto:)[^""<>\s]+"" rel=""noopener noreferrer""|#page-[0-9]+"")>$");
+        var withoutLinks = Regex.Replace(html, @"<a\s[^>]*>", m => safeLink.IsMatch(m.Value) ? "" : m.Value, RegexOptions.IgnoreCase);
+        var active = Regex.Matches(withoutLinks, @"<(script|iframe|object|embed|link|base|form|svg|math|video|audio|source|a)\b|\son\w+\s*=|\s(href|srcset)\s*=|\ssrc=""(?!data:image/(png|jpeg);base64,)", RegexOptions.IgnoreCase).Count;
         // Lines of the plain-text export found, each after the one before: reading order, as a screen reader meets it.
         var main = html[html.IndexOf("<main>", StringComparison.Ordinal)..html.IndexOf("</main>", StringComparison.Ordinal)];
-        var text = Words(Regex.Replace(Regex.Replace(main, "</?(strong|em|code)>", ""), "<[^>]+>", " "), true);
+        var text = Words(Regex.Replace(Regex.Replace(main, @"</?(strong|em|code)>|<a\s[^>]*>|</a>", ""), "<[^>]+>", " "), true);
         var lines = File.ReadAllLines(txt).Select(l => Words(l.TrimStart('﻿'), false)).Where(l => l.Length >= 20).ToList();
         var (at, found, inOrder) = (0, 0, 0);
         foreach (var whole in lines)
@@ -56,7 +64,7 @@ switch (args)
             if (i >= 0) { found++; inOrder++; at = i; }
             else if (text.Contains(line, StringComparison.Ordinal)) found++;
         }
-        Console.WriteLine($"active={active} lines={lines.Count} found={found} inOrder={inOrder}");
+        Console.WriteLine($"active={active} lines={lines.Count} found={found} inOrder={inOrder} links={links.Count}");
         return active == 0 ? 0 : 1;
     }
     case ["glyphs", var pdf, var txt]:

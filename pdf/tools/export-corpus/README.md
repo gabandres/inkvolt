@@ -17,15 +17,17 @@ It also checks the same documents' **PowerPoint and HTML** exports, written besi
 |---|---|---|
 | .pptx | Open XML SDK validator; as many slides as pages | Always |
 | .pptx | PowerPoint opens it without a window, with every slide and shape that was written (a repair fails to open or loses shapes) | When PowerPoint is installed |
-| .pptx | LibreOffice converts it to PDF | When LibreOffice is installed |
-| .html | No active content (script, link, event attribute, a `src` that isn't an embedded picture) | Always |
+| .docx, .xlsx, .pptx | LibreOffice opens each and converts it to PDF, headless, with a profile of its own in `.cache` (the .xlsx is written only when the document has tables) | With `-LibreOffice`, where it is installed (or `-Soffice C:\path\soffice.exe`) |
+| .html | No active content (script, event attribute, a `src` that isn't an embedded picture); a link only as `<a href>` to an http, https or mailto address (with `rel="noopener noreferrer"`) or a `#page-N` anchor | Always |
 | .html | The text reads in the plain-text export's order | Always |
 | .html | The W3C's Nu validator, errors only | When Java and `.cache\vnu` are there: `npm install --prefix pdf\tools\export-corpus\.cache\vnu vnu-jar --ignore-scripts` |
 
 A check that can't run says so and doesn't count. Everything runs on this PC; no document goes to an online service.
-`-SkipWord` leaves out Word's page count. **Last run, 2026-10-30, 7 documents, 174 pages:** the validator, PowerPoint
-(16.0) and the Nu validator pass on all, and 3,617 of 3,641 lines read in order (the rest are repeated lines and rows the two exports
-break differently). **LibreOffice wasn't installed, so it hasn't been run.** No screen reader has been run either.
+`-SkipWord` leaves out Word's page count. **Last run, 2026-11-20, 7 documents, 174 pages:** the validator, PowerPoint
+(16.0) and the Nu validator pass on all, the HTML carries 739 links (all web, mail or page anchors), and 3,617 of 3,641
+lines read in order (the rest are repeated lines and rows the two exports break differently). Word's page counts are the
+baseline's. **LibreOffice isn't installed on that PC, so `-LibreOffice` hasn't been run** (it said so). No screen reader
+has been run either.
 
 Run it after changing `DocLayout`, `DocxWriter`, `PptxWriter`, `HtmlWriter`, `DocumentExport`, or the glyph reading in `PdfEngine`. Fewer pages is
 not automatically better: open the changed exports in `.cache\out` beside their PDFs before you update the baseline.

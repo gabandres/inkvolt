@@ -3,22 +3,29 @@
 # that wrap, spacing that grows. Needs Word (the page count is Word's own layout).
 #
 # It then checks the same documents' PowerPoint and HTML exports. PowerPoint (.pptx): the Open XML SDK's validator, then
-# PowerPoint itself and LibreOffice when they are installed; a check that can't run here says so and doesn't count. HTML:
-# no active content, reads in order, and the W3C's Nu validator when it is in .cache\vnu (the install line is printed).
-# Everything runs on this PC: no document goes to an online service.
+# PowerPoint itself when it is installed; a check that can't run here says so and doesn't count. HTML: no active content
+# (links only to web or mail addresses and the file's own pages), reads in order, and the W3C's Nu validator when it is in
+# .cache\vnu (the install line is printed). -LibreOffice also has LibreOffice open every .docx, .xlsx and .pptx (converted
+# to PDF, headless, with a profile of its own). Everything runs on this PC: no document goes to an online service.
 #
 #   pwsh -File pdf/tools/export-corpus/run.ps1                     export, count, compare with baseline.json
 #   pwsh -File pdf/tools/export-corpus/run.ps1 -Files a.pdf,b.pdf  also export these (counted, no baseline: a user's file)
 #   pwsh -File pdf/tools/export-corpus/run.ps1 -UpdateBaseline     accept the current counts (after a change that's better)
+#   pwsh -File pdf/tools/export-corpus/run.ps1 -LibreOffice        also open the Office files in LibreOffice
 #
-# Downloads go to .cache\, results to .cache\out\<name>.docx, .txt, .pptx and .html, to open beside the PDF. A downloaded file
-# whose SHA-256 differs from the baseline's (the publisher replaced it) is reported and not compared.
+# Downloads go to .cache\, results to .cache\out\<name>.docx, .txt, .xlsx (when there are tables), .pptx and .html, to open
+# beside the PDF. A downloaded file whose SHA-256 differs from the baseline's (the publisher replaced it) is reported and
+# not compared.
 [CmdletBinding()]
 param(
     [string[]]$Files = @(),
     [switch]$UpdateBaseline,
     # Only the PowerPoint and HTML checks, without Word's page count
     [switch]$SkipWord,
+    # Opt-in: LibreOffice converts every .docx, .xlsx and .pptx to PDF (soffice from Program Files, or -Soffice)
+    [switch]$LibreOffice,
+    # Where soffice.exe is, when LibreOffice isn't in Program Files (a portable copy)
+    [string]$Soffice = '',
     # Word pages a document may gain before it counts as a regression
     [int]$Slack = 0
 )
@@ -133,19 +140,34 @@ if ($pptExe) {
 }
 else { Write-Host 'PowerPoint: not installed, not checked.' }
 
-# LibreOffice: converts each to PDF, one page per slide.
-$soffice = @("$env:ProgramFiles\LibreOffice\program\soffice.exe", "${env:ProgramFiles(x86)}\LibreOffice\program\soffice.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
-if ($soffice) {
-    $lo = Join-Path $out 'libreoffice'
-    New-Item -ItemType Directory -Force $lo | Out-Null
-    foreach ($c in $checks) {
-        & $soffice --headless --convert-to pdf --outdir $lo $c.Pptx | Out-Null
-        $made = Join-Path $lo ([IO.Path]::GetFileNameWithoutExtension($c.Pptx) + '.pdf')
-        $c.LibreOffice = if (Test-Path $made) { 'converts' } else { 'FAILED' }
-        if ($c.LibreOffice -eq 'FAILED') { $failures.Add("$($c.Document): LibreOffice can't convert it") }
+# LibreOffice (opt-in): converts each .docx, .xlsx and .pptx to PDF, headless. A file it can't open makes no PDF (or
+# times out after 5 minutes); an empty PDF is a failure too. Its own profile in .cache, so a LibreOffice the user has
+# open, and their settings, are left alone.
+if ($LibreOffice) {
+    $sofficeExe = @($Soffice, "$env:ProgramFiles\LibreOffice\program\soffice.exe", "${env:ProgramFiles(x86)}\LibreOffice\program\soffice.exe") |
+        Where-Object { $_ -and (Test-Path $_) } | Select-Object -First 1
+    if ($sofficeExe) {
+        $lo = Join-Path $out 'libreoffice'
+        $profileUrl = ([Uri](Join-Path $cache 'lo-profile')).AbsoluteUri
+        foreach ($c in $checks) {
+            $results = foreach ($ext in '.docx', '.xlsx', '.pptx') {
+                $file = [IO.Path]::ChangeExtension($c.Pptx, $ext)
+                if (-not (Test-Path $file)) { continue } # no tables: no workbook
+                $dir = Join-Path $lo $ext.TrimStart('.')
+                New-Item -ItemType Directory -Force $dir | Out-Null
+                $made = Join-Path $dir ([IO.Path]::GetFileNameWithoutExtension($file) + '.pdf')
+                Remove-Item $made -ErrorAction SilentlyContinue
+                $p = Start-Process $sofficeExe -ArgumentList @("-env:UserInstallation=$profileUrl", '--headless', '--norestore', '--convert-to', 'pdf', '--outdir', "`"$dir`"", "`"$file`"") -PassThru -WindowStyle Hidden
+                if (-not $p.WaitForExit(300000)) { $p.Kill($true); "$ext timed out" }
+                elseif (-not (Test-Path $made) -or (Get-Item $made).Length -lt 100) { "$ext FAILED" }
+                else { "$ext ok" }
+            }
+            $c.LibreOffice = ($results -join ', ')
+            foreach ($r in $results | Where-Object { $_ -notlike '* ok' }) { $failures.Add("$($c.Document): LibreOffice can't open the $r") }
+        }
     }
+    else { Write-Host 'LibreOffice: not installed (or -Soffice not found), not checked.' }
 }
-else { Write-Host 'LibreOffice: not installed, not checked.' }
 
 $checks | Select-Object Document, Slides, Shapes, 'SDK errors', PowerPoint, LibreOffice, 'HTML lines in order' | Format-Table -AutoSize | Out-Host
 

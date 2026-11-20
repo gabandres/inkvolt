@@ -128,4 +128,33 @@ internal static class ExportTestPdf
         if (line.Length > 0) gfx.DrawString(line, font, XBrushes.Black, new XPoint(x, y));
         return y + 14;
     }
+
+    /// <summary>The address of <see cref="Linked"/>'s web link, and as an export writes it (escaped).</summary>
+    public const string LinkUri = "https://example.com/guide?a=1&b=\"2\"", LinkUriEscaped = "https://example.com/guide?a=1&b=%222%22";
+
+    /// <summary>
+    /// Two pages. Page 1: "See the guide for details." with only "guide" linked to <see cref="LinkUri"/>; "Next page" linked
+    /// to page 2; "Do not run this" linked to a javascript: address; "Mail us" to a mailto: one. Page 2: "Second page".
+    /// </summary>
+    public static byte[] Linked()
+    {
+        static string Text(double x, double y, string s) => $"BT /F1 12 Tf {x} {y} Td ({s}) Tj ET";
+        var page1 = string.Join('\n',
+            Text(72, 700, "See the"), Text(120, 700, "guide"), Text(155, 700, "for details."),
+            Text(72, 650, "Next page"), Text(72, 600, "Do not run this"), Text(72, 550, "Mail us"));
+        return Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> /Annots [8 0 R 9 0 R 10 0 R 11 0 R] >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            Core2Pdf.Stream(page1),
+            Core2Pdf.Stream(Text(72, 700, "Second page")),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Annot /Subtype /Link /Rect [118 694 152 714] /Border [0 0 0] /A << /S /URI /URI (https://example.com/guide?a=1&b=\"2\") >> >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 644 140 664] /Border [0 0 0] /Dest [4 0 R /XYZ 0 792 0] >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 594 170 614] /Border [0 0 0] /A << /S /URI /URI (javascript:alert\\(1\\)) >> >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 544 140 564] /Border [0 0 0] /A << /S /URI /URI (mailto:a@example.com) >> >>",
+        ]);
+    }
 }

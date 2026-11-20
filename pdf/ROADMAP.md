@@ -1018,15 +1018,21 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   apart by looking at a rendering, since MuPDF gives only a path's bounds; any other path stays as it looks, a picture. A
   slide's order is its reading order. HTML: `HtmlWriter`, one file that reflows: headings that never skip a level,
   nested and numbered lists, tables, pictures as data with the tags' alternate text (`ExportTags`), the running header
-  and footer once. Everything from the PDF is escaped; no script, link or request, with a Content-Security-Policy too.
+  and footer once. Everything from the PDF is escaped; no script or request, with a Content-Security-Policy too.
+  **Links** (2026-11-20): both carry the PDF's links on the words they cover (`ExportSpan.Link`, read with the page's
+  glyphs): http, https and mailto addresses (`Links.IsSafe`, at most 2,048 characters, written escaped; anything else stays
+  text) and jumps to an exported page (a slide jump; the HTML's `#page-N`); a jump to a page left out is dropped.
   **Checked** (`tools/export-corpus`, 7 real documents, 174 pages): every .pptx passes the Open XML SDK's validator and
   opens in PowerPoint (16.0, on this PC) with every slide and shape it was written with; every
-  .html passes the W3C's Nu validator (run locally) with no errors, has no active content, and 3,617 of 3,641 lines
-  read in the plain-text export's order. Word's page counts are unchanged.
-  **Not checked yet:** LibreOffice (not installed on the PC that ran this: `run.ps1` runs it when it is) and a real
-  screen reader (the order test reads the file's order, which is what one follows).
+  .html passes the W3C's Nu validator (run locally) with no errors, has no active content (its 739 links all web, mail or
+  page anchors on 2026-11-20), and 3,617 of 3,641 lines read in the plain-text export's order. Word's page counts are
+  unchanged.
+  **Not checked yet:** LibreOffice (not installed on the PC that ran this: `run.ps1 -LibreOffice` opens every .docx,
+  .xlsx and .pptx in it where it is) and a real screen reader (the order test reads the file's order, which is what one
+  follows).
   **Known:** slides don't keep a font that isn't installed: a wider one wraps sooner, so
-  dense forms come out crowded (the Word export's limit too). Links aren't carried over, in either format.
+  dense forms come out crowded (the Word export's limit too). A link on a picture or a shape isn't carried, nor are a
+  scan's links, and the Word export carries none.
 
 ### 3.3 Compare: Office files, scans and formatting
 - **Leader.** ABBYY (Corporate) compares a Word file or a scan with a PDF, OCR in the background; it ignores formatting

@@ -89,7 +89,10 @@ public static class DocumentExport
         options ??= new ExportOptions();
         var pages = options.Pages ?? [.. Enumerable.Range(0, engine.PageCount)];
         var tags = format is ExportFormat.PowerPoint or ExportFormat.Html ? ExportTags.Read(options.Source, options.SourcePassword) : ExportTags.None;
-        var run = new Run(engine, pages, format is ExportFormat.Word or ExportFormat.PowerPoint or ExportFormat.Html, format == ExportFormat.PowerPoint, tags, options, cancel);
+        var run = new Run(engine, pages, format is ExportFormat.Word or ExportFormat.PowerPoint or ExportFormat.Html, format == ExportFormat.PowerPoint, tags, options, cancel)
+        {
+            Links = format is ExportFormat.PowerPoint or ExportFormat.Html,
+        };
         var tables = 0;
         bool saved;
         switch (format)
@@ -161,8 +164,19 @@ public static class DocumentExport
         public int Recognized, NoText, NoTextWithPictures, WithShapes, SuspectWords;
         public readonly List<ExportProblem> Unreadable = [], RecognitionFailed = [];
 
+        /// <summary>
+        /// Carry the pages' links onto their text: web and mail addresses, and jumps to a page that is exported too (to
+        /// its place among them; a jump to a page left out is dropped).
+        /// </summary>
+        public bool Links { get; init; }
+
         public IEnumerable<(int Number, ExportPage Page)> Read()
         {
+            var position = new Dictionary<int, int>();
+            for (var i = 0; i < pages.Count; i++) position.TryAdd(pages[i], i);
+            Func<PageLink, ExportLink?>? links = Links
+                ? l => l.Uri is not null ? ExportLink.Web(l.Uri) : position.TryGetValue(l.PageIndex, out var k) ? ExportLink.ToPage(k) : null
+                : null;
             for (var i = 0; i < pages.Count; i++)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -172,7 +186,7 @@ public static class DocumentExport
                 var readable = true;
                 try
                 {
-                    page = tags.OnPictures(engine.GetExportPage(p, images, cancel, shapes: shapes), p);
+                    page = tags.OnPictures(engine.GetExportPage(p, images, cancel, shapes: shapes, links: links), p);
                 }
                 catch (Exception ex) when (ex is MuPDFException or PageRefusedException)
                 {

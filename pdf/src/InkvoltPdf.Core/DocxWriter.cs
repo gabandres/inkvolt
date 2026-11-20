@@ -899,15 +899,27 @@ internal static class OpenXmlParts
         return sb?.ToString() ?? text;
     }
 
-    public static void Relationships(XmlWriter w, IEnumerable<(string Id, string Type, string Target)> rels)
+    /// <summary>A part's relationships; <paramref name="hyperlinks"/>: web addresses it links to (outside the package).</summary>
+    public static void Relationships(XmlWriter w, IEnumerable<(string Id, string Type, string Target)> rels,
+        IEnumerable<(string Id, string Uri)>? hyperlinks = null)
     {
-        w.WriteStartElement("Relationships", "http://schemas.openxmlformats.org/package/2006/relationships");
+        const string ns = "http://schemas.openxmlformats.org/package/2006/relationships";
+        w.WriteStartElement("Relationships", ns);
         foreach (var (id, type, target) in rels)
         {
-            w.WriteStartElement("Relationship", "http://schemas.openxmlformats.org/package/2006/relationships");
+            w.WriteStartElement("Relationship", ns);
             w.WriteAttributeString("Id", id);
             w.WriteAttributeString("Type", type);
             w.WriteAttributeString("Target", target);
+            w.WriteEndElement();
+        }
+        foreach (var (id, uri) in hyperlinks ?? [])
+        {
+            w.WriteStartElement("Relationship", ns);
+            w.WriteAttributeString("Id", id);
+            w.WriteAttributeString("Type", "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink");
+            w.WriteAttributeString("Target", uri);
+            w.WriteAttributeString("TargetMode", "External");
             w.WriteEndElement();
         }
         w.WriteEndElement();
