@@ -10,13 +10,37 @@ public readonly record struct SheetRect(double X, double Y, double Width, double
 /// <summary>
 /// A printable separator sheet: one page with a patch code at its exact size (vector bars, <see cref="PatchCodes"/> geometry)
 /// in the middle, running down the page, with a clear zone around it, and a few lines of text above and below saying what it
-/// is and how to use it. Printed at actual size it is read by Inkvolt Print's batch scanning (and by scanners that read patch
-/// codes themselves).
+/// is and how to use it. Left of the bars, well clear of their clear zone, a QR code saying PATCHT
+/// (<see cref="SeparatorCodes"/>), read when the bars aren't (and by Paperless-ngx). Printed at actual size it is read by
+/// Inkvolt Print's batch scanning (and by scanners that read patch codes themselves).
 /// </summary>
 public static class SeparatorSheet
 {
     /// <summary>How long the bars are: twice the spec's 2 in minimum, so a sheet fed off-centre still shows enough.</summary>
     public const double BarLength = 4;
+
+    /// <summary>The QR code's side without its quiet zone: about 0.06 in a module, 6 pixels in the app's analysis copy of a page.</summary>
+    public const double QrSize = 1.25;
+
+    /// <summary>The QR code's dark modules on the sheet, joined into a rectangle per run along each row: left of the bars, level with their middle.</summary>
+    public static IReadOnlyList<SheetRect> QrLayout(double widthIn, double heightIn)
+    {
+        var modules = SeparatorCodes.QrModules();
+        var (rows, columns) = (modules.GetLength(0), modules.GetLength(1));
+        var module = QrSize / columns;
+        var left = (widthIn - PatchCodes.Size) / 2 - 1.35 - QrSize; // 1.35 in from the bars: past their 0.8 in clear zone
+        var top = (heightIn - BarLength) / 2 - 0.25 + (BarLength - QrSize) / 2;
+        var rects = new List<SheetRect>();
+        for (var y = 0; y < rows; y++)
+            for (var x = 0; x < columns; x++)
+            {
+                if (!modules[y, x]) continue;
+                var start = x;
+                while (x + 1 < columns && modules[y, x + 1]) x++;
+                rects.Add(new SheetRect(left + start * module, top + y * module, (x - start + 1) * module, module));
+            }
+        return rects;
+    }
 
     /// <summary>The four bars across the patch: offset from its edge and width, in inches, in reading order.</summary>
     public static IReadOnlyList<(double Offset, double Width)> Bars(PatchCode code)
@@ -47,7 +71,7 @@ public static class SeparatorSheet
         var content = new StringBuilder();
         var bars = Layout(code, widthIn, heightIn);
         content.Append("0 g\n");
-        foreach (var r in bars)
+        foreach (var r in bars.Concat(QrLayout(widthIn, heightIn)))
             content.Append(CultureInfo.InvariantCulture, $"{F(r.X * 72)} {F(h - (r.Y + r.Height) * 72)} {F(r.Width * 72)} {F(r.Height * 72)} re f\n");
 
         var name = PatchCodes.Name(code);

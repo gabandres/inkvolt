@@ -365,7 +365,7 @@
     <comment>button</comment>
   </data>
   <data name="ScanTab_PrintSeparatorTip" xml:space="preserve">
-    <value>Saves a Patch T sheet as a PDF to print at actual size</value>
+    <value>Saves a separator sheet (Patch T and a QR code) as a PDF to print at actual size</value>
     <comment>tooltip; Patch T is a name</comment>
   </data>
   <data name="ScanTab_DragHint" xml:space="preserve">

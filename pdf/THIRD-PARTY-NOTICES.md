@@ -9,6 +9,7 @@ package's metadata).
 | MuPDF (via MuPDFCore's native library MuPDFWrapper.dll) | 1.25.2 | AGPL-3.0-only | Artifex Software, Inc. | https://mupdf.com, https://github.com/ArtifexSoftware/mupdf |
 | MuPDFCore (.NET bindings) | 2.0.1 | AGPL-3.0-only | Giorgio Bianchini | https://github.com/arklumpus/MuPDFCore |
 | PDFsharp | 6.2.4 | MIT | empira Software GmbH | https://github.com/empira/PDFsharp |
+| ZXing.Net (zxing.dll; in Inkvolt Print's shared library, for its separator sheets) | 0.16.11 | Apache-2.0 | Michael Jahn; ZXing authors | https://github.com/micjahn/ZXing.Net |
 | Jint | 4.17.0 | BSD-2-Clause | Sebastien Ros | https://github.com/sebastienros/jint |
 | Acornima (used by Jint) | 1.7.0 | BSD-3-Clause | Adam Simon | https://github.com/adams85/acornima |
 | HarfBuzzSharp (incl. native libHarfBuzzSharp) | 14.2.1.301 | MIT | Microsoft Corporation; Xamarin, Inc. | https://github.com/mono/SkiaSharp |

@@ -247,7 +247,7 @@ public class BatchScanTests
         Assert.Equal(SplitAt.PatchCode, presets[0].SplitAt);
         Assert.True(presets[0].KeepSeparators);
         Assert.Equal(SplitAt.None, presets[1].SplitAt);
-        Assert.Contains("a new file at each patch code sheet", Core.Presets.ScanPresetText.Summary(presets[0]));
+        Assert.Contains("a new file at each patch or QR code sheet", Core.Presets.ScanPresetText.Summary(presets[0]));
         Assert.DoesNotContain("new file", Core.Presets.ScanPresetText.Summary(presets[1]));
     }
 

@@ -69,7 +69,7 @@ $apps = @{
     }
     Print = @{
         Folder = 'print'; Name = 'InkvoltPrint'; IdentityName = 'BermudezSystems.InkvoltPrint'; DisplayName = 'Inkvolt Print'
-        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll')
+        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'zxing.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll')
         Extras = @('THIRD-PARTY-NOTICES.md', 'LICENSE')
     }
 }

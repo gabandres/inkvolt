@@ -3389,11 +3389,11 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <comment>after 'a new file at each '</comment>
   </data>
   <data name="Preset_SplitPatchOrBlank" xml:space="preserve">
-    <value>patch code sheet or blank page</value>
+    <value>patch or QR code sheet or blank page</value>
     <comment>as above; patch code = barcode separator sheet</comment>
   </data>
   <data name="Preset_SplitPatch" xml:space="preserve">
-    <value>patch code sheet</value>
+    <value>patch or QR code sheet</value>
     <comment>as above</comment>
   </data>
   <data name="Preset_ColorDpi" xml:space="preserve">
@@ -3610,11 +3610,11 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <comment>separator found (la página)</comment>
   </data>
   <data name="Imaging_SheetBack" xml:space="preserve">
-    <value>back of the patch sheet</value>
+    <value>back of the separator sheet</value>
     <comment>separator found</comment>
   </data>
   <data name="Imaging_SplitPatchCodes" xml:space="preserve">
-    <value>Patch codes</value>
+    <value>Patch or QR codes</value>
     <comment>'Split into files at' choice</comment>
   </data>
   <data name="Imaging_SplitBlankPages" xml:space="preserve">
@@ -3622,7 +3622,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <comment>'Split into files at' choice</comment>
   </data>
   <data name="Imaging_SplitPatchOrBlank" xml:space="preserve">
-    <value>Patch codes or blank pages</value>
+    <value>Patch or QR codes, or blank pages</value>
     <comment>'Split into files at' choice</comment>
   </data>
   <data name="Imaging_SplitNone" xml:space="preserve">
@@ -3658,7 +3658,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <comment>printed on the separator sheet; keep it short (one line)</comment>
   </data>
   <data name="Pdf_SeparatorChoose" xml:space="preserve">
-    <value>On the Scan tab, choose "Split into files at: Patch codes".</value>
+    <value>On the Scan tab, choose "Split into files at: Patch or QR codes".</value>
     <comment>printed; quotes the Scan tab's label (ScanTab_SplitAt) and Imaging_SplitPatchCodes</comment>
   </data>
   <data name="Pdf_SeparatorActualSize" xml:space="preserve">
@@ -4278,5 +4278,13 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Twain_Only32Bit" xml:space="preserve">
     <value>This scanner has only a 32-bit TWAIN driver, which a 64-bit app can't use. Install the maker's 64-bit TWAIN driver or its Windows (WIA) driver, or use the scanner's own app.</value>
+  </data>
+  <data name="Imaging_QrCodeSheet" xml:space="preserve">
+    <value>QR code sheet</value>
+    <comment>separator found: a QR code saying PATCHT (lower case: follows 'Separator: ')</comment>
+  </data>
+  <data name="Imaging_BarcodeSheet" xml:space="preserve">
+    <value>barcode sheet</value>
+    <comment>separator found: a barcode saying PATCHT (lower case: follows 'Separator: ')</comment>
   </data>
 </root>

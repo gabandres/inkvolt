@@ -242,11 +242,33 @@ internal static class Demo
     public static bool FeederBatch { get; set; }
 
     /// <summary>
-    /// Two documents and a one-page third: a straight page and a crooked one, a Patch T separator sheet, a page, a blank sheet,
-    /// a page. Split at patch codes, that's two files (the blank page skipped); at patch codes or blank pages, three.
+    /// Three documents: a straight page and a crooked one, a Patch T separator sheet, a page, a blank sheet, a sheet with only a
+    /// QR code saying PATCHT (as Paperless-ngx prints them), a page. Split at patch or QR codes, that's three files (the blank
+    /// page skipped); at those or blank pages, three too (the blank and the QR sheet are one split).
     /// </summary>
     private static readonly Lazy<IReadOnlyList<byte[]>> Batch = new(() => Application.Current.Dispatcher.Invoke(() =>
-        (IReadOnlyList<byte[]>)[Pages[0].Value, Pages[1].Value, SeparatorSheetPage(), ScanPage(0), Pages[2].Value, ScanPage(-1.5)]));
+        (IReadOnlyList<byte[]>)[Pages[0].Value, Pages[1].Value, SeparatorSheetPage(), ScanPage(0), Pages[2].Value, QrSheetPage(), ScanPage(-1.5)]));
+
+    /// <summary>A sheet with nothing on it but a 1.5 in QR code saying PATCHT, a little crooked, as scanned at 300 dpi.</summary>
+    private static byte[] QrSheetPage()
+    {
+        const int w = 1275, h = 1650;
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(2, 2));
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, w, h));
+            dc.PushTransform(new RotateTransform(-2, w / 2.0, h / 2.0));
+            var modules = Core.Imaging.SeparatorCodes.QrModules();
+            var size = 1.5 * 150 / modules.GetLength(1);
+            var (left, top) = ((w - 1.5 * 150) / 2, 2.0 * 150);
+            var ink = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
+            for (var y = 0; y < modules.GetLength(0); y++)
+                for (var x = 0; x < modules.GetLength(1); x++)
+                    if (modules[y, x]) dc.DrawRectangle(ink, null, new Rect(left + x * size, top + y * size, size + 0.2, size + 0.2));
+        }
+        return Jpeg(visual, w * 2, h * 2);
+    }
 
     /// <summary>The printable separator sheet (<see cref="Core.Pdf.SeparatorSheet"/>'s own layout) as scanned at 300 dpi.</summary>
     private static byte[] SeparatorSheetPage()
@@ -258,7 +280,7 @@ internal static class Demo
             dc.PushTransform(new ScaleTransform(2, 2));
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, w, h));
             var ink = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-            foreach (var r in Core.Pdf.SeparatorSheet.Layout(Core.Imaging.PatchCode.PatchT, 8.5, 11))
+            foreach (var r in Core.Pdf.SeparatorSheet.Layout(Core.Imaging.PatchCode.PatchT, 8.5, 11).Concat(Core.Pdf.SeparatorSheet.QrLayout(8.5, 11)))
                 dc.DrawRectangle(ink, null, new Rect(r.X * 150, r.Y * 150, r.Width * 150, r.Height * 150));
             var face = new Typeface("Segoe UI");
             void Line(string text, double size, double y)
