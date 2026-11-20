@@ -466,23 +466,12 @@ public static class FindWorkers
         }
     }
 
-    /// <summary>A pipe only this user's processes may open, and only this one instance under this name.</summary>
-    internal static NamedPipeServerStream NewPipe(string name) =>
-        new(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly | PipeOptions.FirstPipeInstance, 1 << 16, 1 << 18);
+    /// <summary>A pipe only this user's processes may open, and only this one instance under this name (<see cref="WorkerPipe"/>).</summary>
+    internal static WorkerPipe NewPipe(string name) => new(name);
 
     /// <summary>Waits for <paramref name="process"/> to open <paramref name="pipe"/>, and makes sure it is the one that did.</summary>
-    internal static void AwaitConnection(NamedPipeServerStream pipe, Process process, int connectMs, CancellationToken ended)
-    {
-        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(ended);
-        waiting.CancelAfter(connectMs);
-        var connect = pipe.WaitForConnectionAsync(waiting.Token);
-        _ = connect.ContinueWith(t => t.Exception, TaskContinuationOptions.OnlyOnFaulted); // observed, should it fail after the wait
-        Task.WhenAny(connect, process.WaitForExitAsync(waiting.Token)).GetAwaiter().GetResult();
-        if (!connect.IsCompletedSuccessfully) throw new InvalidOperationException("The worker didn't connect.");
-        // Whoever got in must be the process just started.
-        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out var client)) throw new Win32Exception();
-        if (client != process.Id) throw new InvalidOperationException("Another process answered the pipe.");
-    }
+    internal static void AwaitConnection(WorkerPipe pipe, Process process, int connectMs, CancellationToken ended) =>
+        pipe.Connect(process, connectMs, ended);
 
     /// <summary>What every worker does once it has its pipe: no box for a crash, batch-friendly memory, and it ends with the parent.</summary>
     internal static void BecomeWorker(NamedPipeClientStream pipe)
@@ -639,9 +628,6 @@ public static class FindWorkers
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GetNamedPipeServerProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint process);
-
-    [DllImport("kernel32.dll", SetLastError = true)]
-    internal static extern bool GetNamedPipeClientProcessId(Microsoft.Win32.SafeHandles.SafePipeHandle pipe, out uint process);
 }
 
 /// <summary>A process started by <see cref="FindWorkers.StartWithOnlyPipes"/>: its output and error output, read here.</summary>
