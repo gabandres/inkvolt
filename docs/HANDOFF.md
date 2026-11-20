@@ -1,3 +1,21 @@
+# 2026-11-19: concluding the roadmaps on Windows (owner: "do all for Windows"; Mac halves wait for a new Mac)
+
+**Merged and pushed** (each reviewed with `/code-review` high, all findings fixed, `tools/test.ps1` green in its worktree):
+Print 3.3 the printer's own copier and copy extras (`085f2d19`), Print 2.1 printing straight to the printer over IPP
+(`7da5da4c`), PDF 3.6 speed (`31f84311`), Print 2.2 scan from the printer's button (`a0284f75`), PDF 2.2 part A Tesseract
+as an optional download and two-language pages (`0ae83a72`), Print 3.1 scanner sharing over eSCL with Kestrel
+(`daf71fcb`), PDF 3.1 Translate's Still wrong list (`464121f2`). Not released: the next Store versions carry them.
+
+**Left (start here after the owner's reboot):** PDF 2.2 part B (straightened lines, trapezoid correction, "make the text
+editable"); PDF 1.2's checks (a 500-file Batch over a network share on this PC, `--batch`/`--watch` through the installed
+package's alias). Then a full `tools/test.ps1` on master, the bench, and a release when the owner says. Owner, 2026-11-19:
+continue past the usage gate's 60 % this week. Leftover locked worktrees under `.claude/worktrees` (merged): remove.
+
+**Needs the owner or hardware:** Record a printer on the M234dw (copy element names; it has no LEDM Scan to Computer), a
+copy and a direct IPP print on it, scanner sharing from an iPhone or a Mac on a Private network with a real USB scanner,
+Tesseract's language list and download wording, comments.pdf's panes filling ~1 s after the pages, translated scripts on
+screen.
+
 # 2026-11-17: Windows catches up with the Mac (no Mac from now on)
 
 **Owner, 2026-11-17: no Mac any more; all work is Windows.** Mac items in this file wait indefinitely. The three Mac-first
