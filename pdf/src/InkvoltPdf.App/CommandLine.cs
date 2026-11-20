@@ -14,12 +14,12 @@ internal static class CommandLine
 {
     public static async Task<int> RunAsync(string[] args)
     {
-        var redirected = InkvoltPrint.Windows.Suite.ConsoleOutput.Use();
+        var (output, error) = InkvoltPrint.Windows.Suite.ConsoleOutput.Use();
         try
         {
             // MuPDF's own warnings ("repairing PDF document") would go to stderr between the lines: keep them out, and our
-            // lines on the redirected handles (CommandOutput).
-            await CommandOutput.QuietMuPdfAsync(redirected);
+            // lines where they were going (CommandOutput). Bench's "command-output" does the same for CommandOutputTests.
+            await CommandOutput.QuietMuPdfAsync(output, error);
         }
         catch (Exception ex)
         {

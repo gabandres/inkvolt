@@ -110,7 +110,7 @@ function Invoke-Alias([string[]]$arguments, [string]$log, [int]$seconds = 120) {
     try { $p = Start-Process $alias -ArgumentList $quoted -RedirectStandardOutput "$log.out" -RedirectStandardError "$log.err" -PassThru -WindowStyle Hidden }
     finally { Remove-Item Env:INKVOLTPDF_DATA -ErrorAction SilentlyContinue }
     $null = $p.Handle # keeps the exit code readable
-    if (-not $p.WaitForExit($seconds * 1000)) { $p.Kill(); return -1 }
+    if (-not $p.WaitForExit($seconds * 1000)) { $p.Kill($true); return -1 }
     $p.ExitCode
 }
 
@@ -169,7 +169,7 @@ param([string]$Alias, [string]$Out, [string]$Data)
 $env:INKVOLTPDF_DATA = $Data
 $p = Start-Process $Alias -ArgumentList '--help' -NoNewWindow -PassThru
 $null = $p.Handle
-if (-not $p.WaitForExit(60000)) { $p.Kill() }
+if (-not $p.WaitForExit(60000)) { $p.Kill($true) }
 $raw = $Host.UI.RawUI
 $cells = $raw.GetBufferContents([Management.Automation.Host.Rectangle]::new(0, 0, $raw.BufferSize.Width - 1, $raw.CursorPosition.Y))
 $lines = for ($y = 0; $y -le $cells.GetUpperBound(0); $y++) { -join (0..$cells.GetUpperBound(1) | ForEach-Object { $cells[$y, $_].Character }) }
@@ -194,21 +194,30 @@ $env:INKVOLTPDF_DATA = $Data
 $p = Start-Process $Alias -ArgumentList '--watch', "`"$Folder`"", '--preset', "`"$Preset`"" -NoNewWindow -PassThru -RedirectStandardOutput "$Log.out" -RedirectStandardError "$Log.err"
 $null = $p.Handle
 $deadline = (Get-Date).AddSeconds(90)
-while (-not (Test-Path (Join-Path $Folder 'working')) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
-Copy-Item $Sample (Join-Path $Folder 'c.pdf')
-while (-not (Test-Path (Join-Path $Folder 'done\c.pdf')) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+while (-not (Test-Path (Join-Path $Folder 'working')) -and -not $p.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+if (Test-Path (Join-Path $Folder 'working')) {
+    Copy-Item $Sample (Join-Path $Folder 'c.pdf')
+    while (-not (Test-Path (Join-Path $Folder 'done\c.pdf')) -and -not $p.HasExited -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 200 }
+}
 if ($p.HasExited) { exit 97 }
+if (-not (Test-Path (Join-Path $Folder 'done\c.pdf'))) { $p.Kill($true); exit 96 } # it never started watching, or c.pdf was never done
 [Smoke.Ctrl]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null # this PowerShell ignores it; the watcher, started before, doesn't
 [Smoke.Ctrl]::GenerateConsoleCtrlEvent(0, 0) | Out-Null
-if (-not $p.WaitForExit(30000)) { $p.Kill(); exit 98 }
+if (-not $p.WaitForExit(30000)) { $p.Kill($true); exit 98 }
 exit $p.ExitCode
 '@
         $h = Start-Process pwsh -ArgumentList '-NoProfile', '-File', "`"$helper`"", '-Alias', "`"$alias`"", '-Folder', "`"$stop`"", '-Preset', "`"$preset`"",
             '-Sample', "`"$sample`"", '-Log', "`"$(Join-Path $work 'cli-stop')`"", '-Data', "`"$(Join-Path $work 'data')`"" -WindowStyle Hidden -PassThru
         $null = $h.Handle
-        if (-not $h.WaitForExit(180000)) { $h.Kill(); $failed.Add('--watch until Ctrl+C: the test didn''t end in 3 minutes') }
+        # A timeout ends the watcher too (the helper's child), so no --watch is left holding the folder's lock.
+        if (-not $h.WaitForExit(180000)) { $h.Kill($true); $failed.Add('--watch until Ctrl+C: the test didn''t end in 3 minutes') }
         elseif ($h.ExitCode -ne 0) {
-            $why = switch ($h.ExitCode) { 97 { 'it ended before Ctrl+C' } 98 { "it didn't end within 30 s of Ctrl+C" } default { "it exited $($h.ExitCode), not 0" } }
+            $why = switch ($h.ExitCode) {
+                96 { "it never started watching, or c.pdf dropped in wasn't done within 90 s" }
+                97 { 'it ended before Ctrl+C' }
+                98 { "it didn't end within 30 s of Ctrl+C" }
+                default { "it exited $($h.ExitCode), not 0" }
+            }
             $failed.Add("--watch until Ctrl+C: $why ($(Join-Path $work 'cli-stop').err)")
         }
         else {

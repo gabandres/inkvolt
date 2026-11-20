@@ -11,7 +11,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Pages in two languages: choose a second language in Recognize Text. Each line is read in the language that fits it, or both at once with Tesseract.
 - Batch, Scan, the exports, Compare Files and Redact by Pattern now read scans in the language you last chose in Recognize Text.
 - With Tesseract, a word it wasn't sure of is listed among the suspect words to check.
-- The command line (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`) typed in a terminal works: it ended at once without printing anything. Sent to a file or another program, its lines no longer have an extra line break after each (a blank line between lines in PowerShell, a stray character at the end of each in a script).
+- The command line (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`) typed in a terminal works: it ended at once without printing anything. Sent to a file or another program, its lines no longer have an extra line break after each (a blank line between lines in PowerShell, a stray character at the end of each in a script), and its lines and errors sent to the same file (`> log.txt 2>&1`) all stay there. Errors sent to a file of their own (`2> errors.txt`) go there.
 
 ## 1.15.0
 - Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.

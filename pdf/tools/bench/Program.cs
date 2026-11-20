@@ -1,18 +1,27 @@
 using InkvoltPdf.Bench;
 using InkvoltPdf.Core;
 
-// A test's command line (CommandOutputTests): two lines written as the app's --batch writes them, MuPDF's messages kept out;
-// to the redirected output, or to a writer of its own (as the app's in a terminal) that saves to the file given.
-if (args is ["command-output", .. var own])
+// A test's command line (CommandOutputTests): two lines written as the app's --batch writes them (CommandLine.RunAsync's
+// wiring), as a windowed app: without a console of its own, and with "no-output" without a standard output either (a
+// windowed app started with only its errors redirected). "own-writer <file>": a writer of its own that saves to the file,
+// as the console writer in a terminal, must stay.
+if (args is ["command-output", .. var mode])
 {
-    using var file = own is [var path] ? new StreamWriter(path) { AutoFlush = true } : null;
-    if (file is not null)
+    if (mode is ["own-writer", var path])
     {
+        using var file = new StreamWriter(path) { AutoFlush = true };
         Console.SetOut(file);
         Console.SetError(file);
+        await CommandOutput.QuietMuPdfAsync(output: false, error: false);
+        Console.WriteLine("line one");
+        Console.Error.WriteLine("line two");
+        return 0;
     }
-    await CommandOutput.QuietMuPdfAsync(redirected: file is null);
-    Console.WriteLine("line one");
+    BenchConsole.FreeConsole();
+    if (mode is ["no-output"]) BenchConsole.SetStdHandle(-11, 0);
+    var (output, error) = InkvoltPrint.Windows.Suite.ConsoleOutput.Use();
+    await CommandOutput.QuietMuPdfAsync(output, error);
+    if (output) Console.WriteLine("line one"); // else it would go to the console the tests run in
     Console.Error.WriteLine("line two");
     return 0;
 }
