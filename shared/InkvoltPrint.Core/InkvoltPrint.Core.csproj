@@ -12,7 +12,7 @@
     <InternalsVisibleTo Include="InkvoltPrint.Windows" />
   </ItemGroup>
   <ItemGroup>
-    <!-- QR codes on separator sheets, written and read (Imaging/QrSeparator). Apache-2.0, approved by the owner 2026-11-20;
+    <!-- QR codes on separator sheets, written and read (Imaging/SeparatorCodes). Apache-2.0, approved by the owner 2026-11-20;
          in both apps' THIRD-PARTY-NOTICES.md (Inkvolt PDF ships this library too). -->
     <PackageReference Include="ZXing.Net" Version="0.16.11" />
   </ItemGroup>

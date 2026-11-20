@@ -21,8 +21,12 @@ public sealed partial class BrotherDrivers(BoundedHttp http) : IDriverCatalog
 
     public static string Words(string name) => DriverPages.ModelWords(name, "brother");
 
-    /// <summary>The download list's code for this Windows.</summary>
-    public static string OsCode(PcWindows windows) => windows == PcWindows.Windows11 ? "10068" : "10013";
+    /// <summary>
+    /// The download list's code for this Windows and processor: 10068 Windows 11, 10013 Windows 10 64-bit. Brother lists no ARM
+    /// system (none on five current models, 2026-11-20): on ARM64 the Windows 11 list is read, where an ARM build would be, and
+    /// only an entry that says it is for ARM is taken.
+    /// </summary>
+    public static string OsCode(PcWindows windows, PcArch arch) => windows == PcWindows.Windows11 || arch == PcArch.Arm64 ? "10068" : "10013";
 
     public async Task<DriverLookup> FindAsync(DriverQuery query, CancellationToken ct)
     {
@@ -34,11 +38,12 @@ public sealed partial class BrotherDrivers(BoundedHttp http) : IDriverCatalog
                 Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
             if (ProductCode(search, query.Model) is not { } prod) return DriverLookup.None(NoOffer.NotFound);
             var page = new Uri(Site + "downloadtop.aspx?c=us&lang=en&prod=" + prod);
-            var list = await http.GetTextAsync(new Uri(Site + $"downloadlist.aspx?c=us&lang=en&prod={prod}&os={OsCode(query.Windows)}"),
+            var list = await http.GetTextAsync(new Uri(Site + $"downloadlist.aspx?c=us&lang=en&prod={prod}&os={OsCode(query.Windows, query.Arch)}"),
                 Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
             if (DriverPages.ForThisPc(Ranked(ParseList(list), query.Kind), query.Arch, out var why) is not { } pick) return DriverLookup.None(why, page);
             var howto = await http.GetTextAsync(pick.Link, Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
-            return FileOf(howto) is { } file ? DriverPages.Offer(pick, file, page, Source) : DriverLookup.None(NoOffer.NotFound, page);
+            // The licence the "Agree to the EULA and Download" button accepts is on the download's own page: shown before downloading.
+            return FileOf(howto) is { } file ? DriverPages.Offer(pick, file, page, Source, LicencePage(pick.Link)) : DriverLookup.None(NoOffer.NotFound, page);
         }
         catch (FetchException ex)
         {
@@ -125,6 +130,9 @@ public sealed partial class BrotherDrivers(BoundedHttp http) : IDriverCatalog
         }
         return [.. list.Select(e => (e.Download, Rank: Rank(e))).Where(e => e.Rank is not null).OrderBy(e => e.Rank).Select(e => e.Download)];
     }
+
+    /// <summary>The download's page that shows Brother's EULA and its "Agree to the EULA and Download" button (the link is the page past it).</summary>
+    public static Uri LicencePage(Uri howto) => new(howto.AbsoluteUri.Replace("/downloadhowto.aspx", "/downloadend.aspx", StringComparison.Ordinal));
 
     [GeneratedRegex(@"<a id=""downloadfile"" href=""(https://[^""\s]{1,500})""")]
     private static partial Regex DownloadFile();

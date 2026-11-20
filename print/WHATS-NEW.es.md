@@ -25,6 +25,7 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 - El escaneo en lote también divide en códigos QR: una hoja con un código QR o un código de barras que dice PATCHT (como los que imprime Paperless-ngx) empieza un archivo nuevo, igual que una hoja con código patch. La hoja separadora que Inkvolt Print guarda para ti ahora lleva uno junto a sus barras.
 - Obtener el controlador ahora también encuentra los controladores de Canon, HP y Brother y los de PFU (escáneres fi y SP de Fujitsu y Ricoh), cada uno en el sitio del propio fabricante y firmado por él, como ya lo hacía con Epson.
 - Novedades aparece en español cuando Inkvolt Print está en español.
+- Ayuda › Abrir la carpeta del registro en la versión de Microsoft Store abre la carpeta donde de verdad se guarda su registro, que Windows guarda en la carpeta del paquete de la app. Obtener el controlador muestra la licencia de Brother y de Canon antes de descargar su controlador, que aceptas con Aceptar y descargar.
 
 ## 1.6.0
 - Acceso SNMP… ahora le pregunta a la impresora antes de guardar: dice qué parte rechazó la impresora, o que respondió otro dispositivo, y no guarda nada; cuando la impresora no responde, o el rechazo puede no venir de tu impresora, Guardar de todos modos lo guarda tal cual.

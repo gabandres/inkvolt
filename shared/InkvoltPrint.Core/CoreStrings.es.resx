@@ -3568,4 +3568,16 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Imaging_BarcodeSheet" xml:space="preserve">
     <value>hoja con código de barras</value>
   </data>
+  <data name="GetDriver_LicenceNote" xml:space="preserve">
+    <value>{0} pide que aceptes su licencia para esta descarga. Descargarla significa que la aceptas.</value>
+  </data>
+  <data name="GetDriver_ReadLicence" xml:space="preserve">
+    <value>Leer la licencia de {0}</value>
+  </data>
+  <data name="GetDriver_AcceptButton" xml:space="preserve">
+    <value>Aceptar y descargar</value>
+  </data>
+  <data name="GetDriver_LicenceLinkNote" xml:space="preserve">
+    <value>Se abre la página de {0} con su licencia: acéptala allí para descargar el controlador.</value>
+  </data>
 </root>

@@ -17,7 +17,10 @@ public sealed record DriverQuery(string Maker, string Model, NeedsDriverKind Kin
 
 /// <summary>A download a maker's page offers for the model: what the confirmation shows, and where it comes from.</summary>
 /// <param name="SizeText">The size as the page says it ("29.5 MB"): shown only; the file's own length is what's checked.</param>
-public sealed record DriverOffer(string Title, string? Version, string? SizeText, Uri Download, string FileName, Uri Page);
+/// <param name="Licence">The maker's page with the licence the download is under, when the maker asks for it to be accepted before
+/// downloading (Brother's EULA, Canon's disclaimer): shown before the download, which the user's click accepts; a Store copy opens
+/// this page instead of the file. Null when the maker asks for none.</param>
+public sealed record DriverOffer(string Title, string? Version, string? SizeText, Uri Download, string FileName, Uri Page, Uri? Licence = null);
 
 /// <summary>Why no download was offered.</summary>
 public enum NoOffer

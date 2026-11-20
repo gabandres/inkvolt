@@ -2648,8 +2648,10 @@ public partial class MainWindow : Window
 
     private void OnOpenLog(object sender, RoutedEventArgs e)
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(Log.FilePath)!);
-        Shell.Open(Path.GetDirectoryName(Log.FilePath)!);
+        // The folder the log is really written to: a Store copy's is redirected into its package (Explorer sees only that path).
+        var folder = Path.GetDirectoryName(InkvoltPrint.Windows.AppPackage.WrittenPath(Log.FilePath))!;
+        Directory.CreateDirectory(folder);
+        Shell.Open(folder);
     }
 
     /// <summary>Where this version's source is published (the AGPL requires offering it with every copy).</summary>

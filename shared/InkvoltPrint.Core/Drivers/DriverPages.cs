@@ -88,30 +88,42 @@ public static partial class DriverPages
 
     /// <summary>
     /// The download for this processor among <paramref name="ranked"/> (the maker's candidates for the kind and Windows, best first):
-    /// on ARM64 the first that says it is for ARM, on x64 the first that isn't for ARM only. None: <see cref="NoOffer.NoArm64"/> when
-    /// there were candidates but none for ARM (an x64 driver doesn't load on ARM64 Windows), else <see cref="NoOffer.NotFound"/>.
+    /// on ARM64 the first that says it is for ARM, on x64 the first that isn't for ARM only. None: on ARM64
+    /// <see cref="NoOffer.NoArm64"/> when there were candidates but none for ARM (an x64 driver doesn't load on ARM64 Windows), else
+    /// (and always on x64, even when only ARM builds were listed) <see cref="NoOffer.NotFound"/>.
     /// </summary>
     public static MakerDownload? ForThisPc(IReadOnlyList<MakerDownload> ranked, PcArch arch, out NoOffer why)
     {
         var pick = arch == PcArch.Arm64 ? ranked.FirstOrDefault(d => ForArm(d.Title, d.Description)) : ranked.FirstOrDefault(d => !ArmOnly(d.Title, d.Description));
-        why = ranked.Count > 0 ? NoOffer.NoArm64 : NoOffer.NotFound;
+        why = WhyNone(ranked.Count > 0, arch);
         return pick;
     }
 
-    /// <summary>The offer for <paramref name="d"/>'s file at <paramref name="file"/>: none when that isn't on the maker's download hosts.</summary>
-    public static DriverLookup Offer(MakerDownload d, Uri file, Uri page, MakerSource source)
+    /// <summary>Why nothing was offered: <see cref="NoOffer.NoArm64"/> only on ARM64 when the kind's drivers were listed.</summary>
+    public static NoOffer WhyNone(bool listed, PcArch arch) => listed && arch == PcArch.Arm64 ? NoOffer.NoArm64 : NoOffer.NotFound;
+
+    /// <summary>
+    /// The offer for <paramref name="d"/>'s file at <paramref name="file"/>: none when that isn't on the maker's download hosts.
+    /// <paramref name="licence"/>: the maker's page with the licence the download is under, when it asks for one to be accepted
+    /// (only one on the maker's own site is kept).
+    /// </summary>
+    public static DriverLookup Offer(MakerDownload d, Uri file, Uri page, MakerSource source, Uri? licence = null)
     {
         if (!BoundedHttp.IsAllowed(file, source.DownloadHosts)) return DriverLookup.None(NoOffer.NotFound, page);
         return DriverLookup.Found(new DriverOffer(Plain(d.Title, 120), d.Version is { Length: > 0 } v ? Plain(v, 40) : null, d.SizeText,
-            file, SafeFileName(d.FileName ?? "", file), page));
+            file, SafeFileName(d.FileName, file, d.Title), page, licence is not null && BoundedHttp.IsAllowed(licence, source.PageHosts) ? licence : null));
     }
 
-    /// <summary>The file's own name, kept to letters, digits, '.', '_' and '-', ending in .exe: never a path.</summary>
-    public static string SafeFileName(string name, Uri href)
+    /// <summary>
+    /// The name the download is saved under, kept to letters, digits, '.', '_' and '-' and ending in .exe, never a path: the page's
+    /// name for the file when that is a program's (.exe), else the address's own file name when it is, else the title.
+    /// </summary>
+    public static string SafeFileName(string? pageName, Uri href, string title)
     {
-        var raw = Path.GetFileName(href.AbsolutePath);
-        if (!raw.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) && name.Length > 0) raw = name;
-        var s = Regex.Replace(Regex.Replace(raw.Length > 0 ? raw : name, @"[^A-Za-z0-9._\-]", "_"), @"\.{2,}", ".").Trim('.');
+        static bool IsExe(string? s) => s is { Length: > 0 } && s.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+        var fromUrl = Path.GetFileName(href.AbsolutePath);
+        var raw = IsExe(pageName) ? pageName! : IsExe(fromUrl) ? fromUrl : title;
+        var s = Regex.Replace(Regex.Replace(raw.Length > 200 ? raw[..200] : raw, @"[^A-Za-z0-9._\-]", "_"), @"\.{2,}", ".").Trim('.');
         if (s.Length is 0 or > 100) s = "driver";
         return s.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? s : s + ".exe";
     }

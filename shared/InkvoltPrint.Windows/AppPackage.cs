@@ -20,6 +20,25 @@ public static class AppPackage
     /// <summary>The package family name (Name_PublisherHash) when packaged, else null.</summary>
     public static string? FamilyName { get; } = QueryFamilyName();
 
+    /// <summary>
+    /// Where a file the app writes under %LOCALAPPDATA% (its log) really is, for Explorer: in a packaged copy the package's
+    /// redirected folder, or the plain one when Windows let it write there (<see cref="Core.Suite.InkvoltPaths.WrittenPath"/>).
+    /// </summary>
+    public static string WrittenPath(string path) =>
+        Core.Suite.InkvoltPaths.WrittenPath(path, Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), FamilyName, LastWrite);
+
+    private static DateTime? LastWrite(string path)
+    {
+        try
+        {
+            return File.Exists(path) ? File.GetLastWriteTimeUtc(path) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     private static string? QueryFamilyName()
     {
         try

@@ -20,7 +20,8 @@ public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
 
     public static string Words(string name) => DriverPages.ModelWords(name, "pfu", "fujitsu", "ricoh", "image", "imaging");
 
-    public static string OsId(PcWindows windows) => windows == PcWindows.Windows11 ? "win-11" : "win-10";
+    /// <summary>The page's system for this Windows and processor: "win-11" or "win-10"; on ARM64 "win-11", where PFU lists its ARM builds.</summary>
+    public static string OsId(PcWindows windows, PcArch arch) => windows == PcWindows.Windows11 || arch == PcArch.Arm64 ? "win-11" : "win-10";
 
     public async Task<DriverLookup> FindAsync(DriverQuery query, CancellationToken ct)
     {
@@ -31,7 +32,7 @@ public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
             var index = await http.GetTextAsync(new Uri(Site), Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
             if (ModelPage(index, query.Model) is not { } page) return DriverLookup.None(NoOffer.NotFound);
             var html = await http.GetTextAsync(page, Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
-            return DriverPages.ForThisPc(Ranked(ParsePage(html, OsId(query.Windows))), query.Arch, out var why) is { } pick
+            return DriverPages.ForThisPc(Ranked(ParsePage(html, OsId(query.Windows, query.Arch))), query.Arch, out var why) is { } pick
                 ? DriverPages.Offer(pick, pick.Link, page, Source)
                 : DriverLookup.None(why, page);
         }
@@ -92,14 +93,17 @@ public sealed partial class PfuDrivers(BoundedHttp http) : IDriverCatalog
         e.ValueKind == JsonValueKind.Object && e.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String && v.GetString() is { Length: > 0 } s
             ? s.Length > max ? s[..max] : s : null;
 
-    /// <summary>PaperStream IP's installers (.exe, not the ISO images), best first: TWAIN x64, TWAIN (its ARM build among them), ISIS.</summary>
+    /// <summary>
+    /// PaperStream IP's installers (.exe, not the ISO images) Inkvolt Print can scan through: TWAIN x64 (its 64-bit TWAIN sources), then
+    /// TWAIN's ARM build, only for ARM64. Never the 32-bit TWAIN driver on x64 (Inkvolt Print reads no 32-bit source) nor ISIS.
+    /// </summary>
     public static IReadOnlyList<MakerDownload> Ranked(IReadOnlyList<MakerDownload> list)
     {
         int? Rank(MakerDownload d)
         {
             if (!d.Link.AbsolutePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || !d.Title.Contains("PaperStream IP", StringComparison.OrdinalIgnoreCase)) return null;
             if (d.Title.Contains("TWAIN x64", StringComparison.OrdinalIgnoreCase)) return 0;
-            return d.Title.Contains("TWAIN", StringComparison.OrdinalIgnoreCase) ? 1 : d.Title.Contains("ISIS", StringComparison.OrdinalIgnoreCase) ? 2 : null;
+            return d.Title.Contains("TWAIN", StringComparison.OrdinalIgnoreCase) && DriverPages.ForArm(d.Title, d.Description) ? 1 : null;
         }
         return [.. list.Select(d => (d, Rank: Rank(d))).Where(e => e.Rank is not null).OrderBy(e => e.Rank).Select(e => e.d)];
     }

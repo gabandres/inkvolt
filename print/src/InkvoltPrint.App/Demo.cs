@@ -280,7 +280,7 @@ internal static class Demo
             dc.PushTransform(new ScaleTransform(2, 2));
             dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, w, h));
             var ink = new SolidColorBrush(Color.FromRgb(0x1C, 0x1C, 0x1C));
-            foreach (var r in Core.Pdf.SeparatorSheet.Layout(Core.Imaging.PatchCode.PatchT, 8.5, 11).Concat(Core.Pdf.SeparatorSheet.QrLayout(8.5, 11)))
+            foreach (var r in Core.Pdf.SeparatorSheet.Layout(Core.Imaging.PatchCode.PatchT, 8.5, 11).Concat(Core.Pdf.SeparatorSheet.QrLayout(Core.Imaging.PatchCode.PatchT, 8.5, 11)))
                 dc.DrawRectangle(ink, null, new Rect(r.X * 150, r.Y * 150, r.Width * 150, r.Height * 150));
             var face = new Typeface("Segoe UI");
             void Line(string text, double size, double y)

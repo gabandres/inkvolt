@@ -39,7 +39,9 @@ public static class Separators
     {
         if (splitAt is SplitAt.PatchCode or SplitAt.PatchCodeOrBlankPage)
         {
-            if (PatchCodes.Find(img, pixelsPerInch) is { } code && PatchCodes.Separates(code)) return new(SeparatorKind.PatchCode, code);
+            // An image-control patch (1, 4 or 6) separates nothing, whatever else is on its sheet.
+            if (PatchCodes.Find(img, pixelsPerInch) is { } code)
+                return PatchCodes.Separates(code) ? new(SeparatorKind.PatchCode, code) : SeparatorFound.None;
             if (SeparatorCodes.Find(img) is { } kind) return new(kind);
         }
         if (splitAt is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage && BlankPage.IsBlank(img))

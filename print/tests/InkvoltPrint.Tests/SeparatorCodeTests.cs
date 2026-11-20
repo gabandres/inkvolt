@@ -218,7 +218,7 @@ public class SeparatorCodeTests
                     pixels[y * w + x] = 25;
         }
         foreach (var r in SeparatorSheet.Layout(PatchCode.PatchT, width, height)) Fill(r);
-        var qr = SeparatorSheet.QrLayout(width, height);
+        var qr = SeparatorSheet.QrLayout(PatchCode.PatchT, width, height);
         foreach (var r in qr) Fill(r);
         var page = new GrayImage(w, h, pixels);
 
@@ -237,6 +237,31 @@ public class SeparatorCodeTests
         Assert.Equal(SeparatorKind.QrCode, Separators.Detect(new GrayImage(w, h, qrOnly), Ppi, SplitAt.PatchCode).Kind);
     }
 
+    [Theory]
+    [InlineData(PatchCode.Patch1)]
+    [InlineData(PatchCode.Patch4)]
+    [InlineData(PatchCode.Patch6)]
+    public void An_image_control_sheet_has_no_QR_code_and_a_QR_beside_its_patch_separates_nothing(PatchCode code)
+    {
+        Assert.Empty(SeparatorSheet.QrLayout(code, 8.5, 11));
+        using var ms = new MemoryStream();
+        SeparatorSheet.Write(ms, code, 8.5, 11);
+        Assert.Equal(4, Encoding.Latin1.GetString(ms.ToArray()).Split('\n').Count(l => l.EndsWith(" re f", StringComparison.Ordinal)));
+
+        // A Patch 1, 4 or 6 sheet with a PATCHT QR code drawn on it anyway (another program's sheet): the patch decides.
+        var pixels = Paper();
+        void Fill(SheetRect r)
+        {
+            for (var y = (int)Math.Round(r.Y * Ppi); y < (int)Math.Round((r.Y + r.Height) * Ppi); y++)
+                for (var x = (int)Math.Round(r.X * Ppi); x < (int)Math.Round((r.X + r.Width) * Ppi); x++)
+                    pixels[y * W + x] = 25;
+        }
+        foreach (var r in SeparatorSheet.Layout(code, 8.5, 11).Concat(SeparatorSheet.QrLayout(PatchCode.PatchT, 8.5, 11))) Fill(r);
+        var page = new GrayImage(W, H, pixels);
+        Assert.Equal(SeparatorKind.QrCode, SeparatorCodes.Find(page));
+        Assert.Equal(SeparatorKind.None, Separators.Detect(page, Ppi, SplitAt.PatchCode).Kind);
+    }
+
     [Fact]
     public void The_sheet_pdf_draws_the_QR_code()
     {
@@ -245,7 +270,7 @@ public class SeparatorCodeTests
         var pdf = Encoding.Latin1.GetString(ms.ToArray());
         var rects = pdf.Split('\n').Count(l => l.EndsWith(" re f", StringComparison.Ordinal));
 
-        Assert.Equal(4 + SeparatorSheet.QrLayout(8.5, 11).Count, rects);
+        Assert.Equal(4 + SeparatorSheet.QrLayout(PatchCode.PatchT, 8.5, 11).Count, rects);
         Assert.Contains("Patch or QR codes", pdf);
     }
 

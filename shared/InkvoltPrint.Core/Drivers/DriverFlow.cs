@@ -154,8 +154,14 @@ public sealed class DriverFlow(IDriverCatalog catalog, BoundedHttp http, ISignat
     public Task<DriverLookup> FindAsync(NeedsDriverPrinter device, CancellationToken ct) =>
         LooksUp(device) ? catalog.FindAsync(DriverQuery.For(device, arch, windows), ct) : Task.FromResult(DriverLookup.None(NoOffer.MakerNotLookedUp));
 
+    /// <summary>
+    /// What a Store copy opens: the maker's page with the licence the download is under, when the maker asks for one to be accepted
+    /// (the person accepts it there and downloads from it), else the file itself; null when it isn't on the maker's hosts.
+    /// </summary>
     public Uri? LinkFor(DriverOffer offer, NeedsDriverPrinter device) =>
-        MakerSource.For(device.Maker) is { } source && BoundedHttp.IsAllowed(offer.Download, source.DownloadHosts) ? offer.Download : null;
+        MakerSource.For(device.Maker) is not { } source ? null
+        : offer.Licence is { } licence ? BoundedHttp.IsAllowed(licence, source.PageHosts) ? licence : null
+        : BoundedHttp.IsAllowed(offer.Download, source.DownloadHosts) ? offer.Download : null;
 
     public async Task<DriverDownload> DownloadAsync(DriverOffer offer, NeedsDriverPrinter device, IProgress<long>? progress, CancellationToken ct)
     {

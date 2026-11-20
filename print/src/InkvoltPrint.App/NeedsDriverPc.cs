@@ -118,16 +118,19 @@ internal sealed class DemoDriverGetter : IDriverGetter
     /// <summary>Set by the snapshot aid (<c>--driver-link</c>) to show the Store copy's flow from any build.</summary>
     internal static DriverMode? Forced { get; set; }
 
+    /// <summary>Set by the snapshot aid (<c>--driver-licence</c>): the made-up find comes under a licence to accept first, as Brother's and Canon's do.</summary>
+    internal static bool WithLicence { get; set; }
+
     public bool LooksUp(NeedsDriverPrinter device) => device.IsMadeUp && device.IsScanner;
 
-    public Uri? LinkFor(DriverOffer offer, NeedsDriverPrinter device) => offer.Download;
+    public Uri? LinkFor(DriverOffer offer, NeedsDriverPrinter device) => offer.Licence ?? offer.Download;
 
     public Task<bool> LookAgainAsync(Func<CancellationToken, Task<bool>> isThere, CancellationToken ct) => Task.FromResult(false);
 
     public async Task<DriverLookup> FindAsync(NeedsDriverPrinter device, CancellationToken ct)
     {
         await Task.Delay(300, ct);
-        return DriverLookup.Found(new DriverOffer("Scanner Driver (made up)", "1.0.0.0", "12.0 MB", Page, "demo-driver.exe", Page));
+        return DriverLookup.Found(new DriverOffer("Scanner Driver (made up)", "1.0.0.0", "12.0 MB", Page, "demo-driver.exe", Page, WithLicence ? Page : null));
     }
 
     public async Task<DriverDownload> DownloadAsync(DriverOffer offer, NeedsDriverPrinter device, IProgress<long>? progress, CancellationToken ct)

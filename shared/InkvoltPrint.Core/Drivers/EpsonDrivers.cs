@@ -184,10 +184,10 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
                                         && BoundedHttp.IsAllowed(d.Href, Source.DownloadHosts)).ToList();
         var pick = query.Arch == PcArch.Arm64 ? fits.FirstOrDefault(d => DriverPages.ForArm(d.Title, d.Description))
             : fits.FirstOrDefault(d => !DriverPages.ArmOnly(d.Title, d.Description));
-        if (pick is null) return DriverLookup.None(fits.Count > 0 ? NoOffer.NoArm64 : NoOffer.NotFound, page);
+        if (pick is null) return DriverLookup.None(DriverPages.WhyNone(fits.Count > 0, query.Arch), page);
         var title = Version().Replace(pick.Title, "").Trim();
         var version = Version().Match(pick.Title) is { Success: true } v ? v.Groups[1].Value : null;
         return DriverLookup.Found(new DriverOffer(title.Length > 0 ? title : pick.Title, version, pick.SizeText, pick.Href,
-            DriverPages.SafeFileName(pick.FileName, pick.Href), page));
+            DriverPages.SafeFileName(pick.FileName, pick.Href, pick.Title), page));
     }
 }

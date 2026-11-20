@@ -309,6 +309,115 @@ public sealed class MakerDriversTests
         Assert.Equal("3.40.2", found.Offer.Version);
     }
 
+    // ---------------------------------------------------------------- the review's findings: processors, systems, names, licences
+
+    [Fact]
+    public void On_x64_only_TWAIN_x64_is_offered_and_never_32_bit_TWAIN_or_ISIS()
+    {
+        var withoutX64 = PfuDrivers.ParsePage(Fixture("pfu-fi8170.html"), "win-11").Where(d => !d.Title.Contains("TWAIN x64")).ToList();
+        var ranked = PfuDrivers.Ranked(withoutX64);
+        Assert.All(ranked, d => Assert.Contains("ARM", d.Title));
+        Assert.Null(DriverPages.ForThisPc(ranked, PcArch.X64, out var why));
+        Assert.Equal(NoOffer.NotFound, why); // ARM builds only: not "no ARM driver" on an x64 PC
+        Assert.DoesNotContain(PfuDrivers.Ranked(PfuDrivers.ParsePage(Fixture("pfu-fi8170.html"), "win-11")), d => d.Title.Contains("ISIS"));
+    }
+
+    [Theory]
+    [InlineData(PcArch.Arm64, true, NoOffer.NoArm64)]
+    [InlineData(PcArch.X64, true, NoOffer.NotFound)]
+    [InlineData(PcArch.Arm64, false, NoOffer.NotFound)]
+    public void No_ARM64_driver_is_said_only_on_ARM64(PcArch arch, bool listed, NoOffer why) => Assert.Equal(why, DriverPages.WhyNone(listed, arch));
+
+    [Theory]
+    [InlineData(PcWindows.Windows11, PcArch.X64, "10068", "Windows 11", "Windows 11", "win-11")]
+    [InlineData(PcWindows.Windows10, PcArch.X64, "10013", "Windows 10 (x64)", "Windows 10 (64-bit)", "win-10")]
+    [InlineData(PcWindows.Windows11, PcArch.Arm64, "10068", "Windows 11", "Windows 11 on ARM (64-bit)", "win-11")]
+    [InlineData(PcWindows.Windows10, PcArch.Arm64, "10068", "Windows 11", "Windows 11 on ARM (64-bit)", "win-11")]
+    public void ARM64_asks_each_site_for_the_list_its_ARM_builds_are_in(PcWindows windows, PcArch arch, string brother, string canon, string hp, string pfu)
+    {
+        // Checked on the sites 2026-11-20: HP has an ARM system; Brother, Canon and PFU list theirs (if any) under Windows 11.
+        Assert.Equal(brother, BrotherDrivers.OsCode(windows, arch));
+        Assert.Equal(canon, CanonDrivers.OsFilter(windows, arch));
+        Assert.Equal(hp, HpDrivers.OsName(windows, arch));
+        Assert.Equal(pfu, PfuDrivers.OsId(windows, arch));
+    }
+
+    [Fact]
+    public async Task HPs_ARM_list_gives_a_scanner_its_ARM_scan_driver_and_a_printer_none()
+    {
+        var web = new FakeWeb();
+        web.Text(HpSearch, Fixture("hp-search-m234dw.json"));
+        web.Text(HpSystems, Fixture("hp-systems-m234dw.json"));
+        web.Post(HpList, Fixture("hp-drivers-m234dw-windows11-arm.json"));
+        var scanner = await new HpDrivers(new BoundedHttp(web)).FindAsync(Query(Device(M234.Name, "HP", NeedsDriverKind.Scanner), PcArch.Arm64), CancellationToken.None);
+        Assert.Equal("HP Universal Scan - Basic Feature Software and Driver (ARM 64)", scanner.Offer!.Title);
+        Assert.Contains("\"osName\":\"Windows 11 on ARM (64-bit)\"", web.Posted[0]);
+        Assert.Contains("\"osTMSId\":\"16144137901514415411821122407512213166102\"", web.Posted[0]);
+        var printer = await new HpDrivers(new BoundedHttp(web)).FindAsync(Query(M234, PcArch.Arm64), CancellationToken.None);
+        Assert.Equal(NoOffer.NotFound, printer.Why); // HP lists nothing for the printer itself on ARM
+    }
+
+    [Theory]
+    [InlineData("V19_EScan_3950_AM.exe", "https://ftp.epson.com/drivers/x.exe", "Title", "V19_EScan_3950_AM.exe")]  // the page's name
+    [InlineData("Scanner Driver and EPSON Scan Utility", "https://ftp.epson.com/drivers/V19.exe", "Title", "V19.exe")] // a display name: the address's
+    [InlineData(null, "https://pdisp01.c-wss.com/gdl/WWUFORedirectTarget.do?id=1", "LiDE 400 Scanner Driver (Windows)", "LiDE_400_Scanner_Driver__Windows_.exe")]
+    [InlineData("", "https://pdisp01.c-wss.com/gdl/WWUFORedirectTarget.do", "", "driver.exe")]
+    public void The_saved_name_is_the_pages_exe_name_else_the_addresss_else_the_title(string? page, string url, string title, string expected) =>
+        Assert.Equal(expected, DriverPages.SafeFileName(page, new Uri(url), title));
+
+    [Fact]
+    public void A_canon_page_without_a_file_name_is_saved_by_its_title_not_canons_redirect()
+    {
+        var page = string.Join('\n', Fixture("canon-lide400-scanner-driver.html").Split('\n').Where(l => !l.Contains("File name")));
+        var file = CanonDrivers.ParseDetail(page, new MakerDownload("CanoScan LiDE 400 Scanner Driver Ver.1.01 (Windows)", "", null, null, new Uri("https://asia.canon/")))!.Value;
+        var offer = DriverPages.Offer(file.Download, file.Url, new Uri("https://asia.canon/"), MakerSource.Canon).Offer!;
+        Assert.Equal("CanoScan_LiDE_400_Scanner_Driver_Ver.1.01__Windows_.exe", offer.FileName);
+    }
+
+    [Fact]
+    public async Task Brothers_and_canons_offers_carry_the_licence_the_click_accepts()
+    {
+        var web = new FakeWeb();
+        web.Text("https://support.brother.com/g/b/productlist.aspx?c=us&lang=en&content=dl&q=hl-l2350dw", Fixture("brother-search-hll2350dw.html"));
+        web.Text("https://support.brother.com/g/b/downloadlist.aspx?c=us&lang=en&prod=hll2350dw_us_eu_as&os=10068", Fixture("brother-hll2350dw-windows11.html"));
+        web.Text("https://support.brother.com/g/b/downloadhowto.aspx?c=us&lang=en&prod=hll2350dw_us_eu_as&os=10068&dlid=dlf106853_000&flang=4&type3=408",
+            Fixture("brother-howto-printer-driver.html"));
+        web.Text("https://asia.canon/en/support/suggest?query=canoscan%20lide%20400", Fixture("canon-suggest-lide400.json"));
+        web.Text("https://asia.canon/en/support/CanoScan%20LiDE%20400/get-search-result-content?fileType=DR&os=Windows%2011&q=", Fixture("canon-lide400-windows11.html"));
+        web.Text("https://asia.canon/en/support/0100963702?model=CanoScan+LiDE+400", Fixture("canon-lide400-scanner-driver.html"));
+        var brother = (await new BrotherDrivers(new BoundedHttp(web)).FindAsync(Query(HlL2350), CancellationToken.None)).Offer!;
+        var canon = (await new CanonDrivers(new BoundedHttp(web)).FindAsync(Query(Lide400), CancellationToken.None)).Offer!;
+
+        Assert.Equal("https://support.brother.com/g/b/downloadend.aspx?c=us&lang=en&prod=hll2350dw_us_eu_as&os=10068&dlid=dlf106853_000&flang=4&type3=408",
+            brother.Licence!.AbsoluteUri);
+        Assert.Equal("https://asia.canon/en/support/0100963702?model=CanoScan+LiDE+400#disclaimer", canon.Licence!.AbsoluteUri);
+
+        // A Store copy opens the maker's page with the licence, not the file; with no licence, the file.
+        var flow = new DriverFlow(new MakerCatalogs(), new BoundedHttp(web), new NoSignatures(), new NoPc(), Path.GetTempPath(), PcArch.X64, PcWindows.Windows11, DriverMode.OpenLink);
+        Assert.Equal(brother.Licence, flow.LinkFor(brother, HlL2350));
+        Assert.Equal(canon.Licence, flow.LinkFor(canon, Lide400));
+        Assert.Equal(brother.Download, flow.LinkFor(brother with { Licence = null }, HlL2350));
+        // A licence off the maker's site is never kept nor opened.
+        Assert.Null(DriverPages.Offer(new MakerDownload("x", "", null, null, brother.Download), brother.Download, brother.Page, MakerSource.Brother,
+            new Uri("https://eula.example/agree")).Offer!.Licence);
+        Assert.Null(flow.LinkFor(brother with { Licence = new Uri("https://eula.example/agree") }, HlL2350));
+        Assert.False(string.IsNullOrWhiteSpace(DriverText.LicenceNote(HlL2350)));
+    }
+
+    private sealed class NoSignatures : ISignatureCheck
+    {
+        public SignatureFacts Check(string path) => new(SignatureState.NotSigned, null);
+    }
+
+    private sealed class NoPc : IDriverPc
+    {
+        public Task<InstallerProcess?> StartInstallerAsync(string path, CancellationToken ct) => Task.FromResult<InstallerProcess?>(null);
+        public IReadOnlyList<ProcessLink> Processes() => [];
+        public DateTime? StartedAt(int id) => null;
+        public Task<bool> RescanAsUserAsync(CancellationToken ct) => Task.FromResult(false);
+        public Task<bool> RescanElevatedAsync(CancellationToken ct) => Task.FromResult(false);
+    }
+
     // ---------------------------------------------------------------- hostile answers
 
     public static TheoryData<string> Junk => new()

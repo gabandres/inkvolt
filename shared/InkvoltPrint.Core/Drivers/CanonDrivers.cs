@@ -22,7 +22,12 @@ public sealed partial class CanonDrivers(BoundedHttp http) : IDriverCatalog
 
     public static string Words(string name) => DriverPages.ModelWords(name, "canon");
 
-    public static string OsFilter(PcWindows windows) => windows == PcWindows.Windows11 ? "Windows 11" : "Windows 10 (x64)";
+    /// <summary>
+    /// The driver list's filter for this Windows and processor: "Windows 11", "Windows 10 (x64)". Canon's site has no ARM system
+    /// (2026-11-20, current models): on ARM64 the "Windows 11" list is read, where an ARM build would be, and only an entry that says
+    /// it is for ARM is taken.
+    /// </summary>
+    public static string OsFilter(PcWindows windows, PcArch arch) => windows == PcWindows.Windows11 || arch == PcArch.Arm64 ? "Windows 11" : "Windows 10 (x64)";
 
     public async Task<DriverLookup> FindAsync(DriverQuery query, CancellationToken ct)
     {
@@ -35,11 +40,14 @@ public sealed partial class CanonDrivers(BoundedHttp http) : IDriverCatalog
             if (ModelName(suggest, query.Model) is not { } name) return DriverLookup.None(NoOffer.NotFound);
             var path = PathOf(name);
             var page = new Uri(Site + path + "/model");
-            var list = await http.GetTextAsync(new Uri(Site + path + "/get-search-result-content?fileType=DR&os=" + Uri.EscapeDataString(OsFilter(query.Windows)) + "&q="),
+            var list = await http.GetTextAsync(new Uri(Site + path + "/get-search-result-content?fileType=DR&os=" + Uri.EscapeDataString(OsFilter(query.Windows, query.Arch)) + "&q="),
                 Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
             if (DriverPages.ForThisPc(Ranked(ParseList(list), query.Kind), query.Arch, out var why) is not { } pick) return DriverLookup.None(why, page);
             var detail = await http.GetTextAsync(pick.Link, Source.PageHosts, DriverPages.MaxPage, DriverPages.Limit, ct).ConfigureAwait(false);
-            return ParseDetail(detail, pick) is { } file ? DriverPages.Offer(file.Download, file.Url, page, Source) : DriverLookup.None(NoOffer.NotFound, page);
+            // Canon's download button sits under "I have read and understood the disclaimer below": that page, at its disclaimer, is the licence.
+            return ParseDetail(detail, pick) is { } file
+                ? DriverPages.Offer(file.Download, file.Url, page, Source, new Uri(pick.Link.GetLeftPart(UriPartial.Query) + "#disclaimer"))
+                : DriverLookup.None(NoOffer.NotFound, page);
         }
         catch (FetchException ex)
         {

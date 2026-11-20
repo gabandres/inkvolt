@@ -24,6 +24,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Batch scanning splits at QR codes too: a sheet with a QR code or barcode that says PATCHT (as Paperless-ngx prints them) starts a new file, like a patch code sheet. The separator sheet Inkvolt Print saves for you now carries one beside its bars.
 - Get the driver now finds Canon, HP and Brother drivers and PFU's (Fujitsu and Ricoh fi and SP scanners) too, each from the maker's own site and signed by the maker, as it does for Epson.
 - What's new is in Spanish when Inkvolt Print is.
+- Help › Open log folder in the Microsoft Store version opens the folder its log is really kept in, which Windows keeps in the app's package folder. Get the driver shows Brother's and Canon's licence before downloading their driver, which you accept with Accept and download.
 
 ## 1.6.0
 - SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, or the refusal may not come from your printer, Save anyway keeps it as it is.

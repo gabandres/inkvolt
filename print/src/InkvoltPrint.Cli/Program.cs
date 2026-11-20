@@ -232,7 +232,7 @@ switch (cmd)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners and TWAIN sources; --caps connects and reads what each offers)
             inkvoltprint scanners --needs-driver [--get-driver [--yes]] [--model "Epson Perfection V19"]
                                                            (USB scanners plugged in with no driver; --get-driver finds the maker's
-                                                           driver, downloads and checks it, and asks before running it, --yes
+                                                           driver (asking first when the maker has a licence to accept), downloads and checks it, and asks before running it, --yes
                                                            without asking; then rescans and checks WIA lists the scanner)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
             inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--web url] [--force]
@@ -275,6 +275,20 @@ async Task<int> NeedsDriverScanners(bool getDriver, bool yes)
             continue;
         }
         Console.WriteLine($"  found: {offer.Title} {offer.Version} ({offer.SizeText}) at {offer.Download}");
+        if (offer.Licence is { } licence)
+        {
+            // The maker asks for its licence to be accepted before the download: named, and accepted only by y (or --yes).
+            Console.WriteLine($"  {s.Maker}'s licence for it: {licence}");
+            if (!yes)
+            {
+                Console.Write("  Accept it and download? [y/N] ");
+                if (!string.Equals(Console.ReadLine()?.Trim(), "y", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.WriteLine("  not downloaded");
+                    continue;
+                }
+            }
+        }
         var got = await flow.DownloadAsync(offer, s, null, ct);
         if (got.Ready is not { } ready)
         {

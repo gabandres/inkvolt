@@ -4287,4 +4287,20 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>barcode sheet</value>
     <comment>separator found: a barcode saying PATCHT (lower case: follows 'Separator: ')</comment>
   </data>
+  <data name="GetDriver_LicenceNote" xml:space="preserve">
+    <value>{0} asks you to accept its licence for this download. Downloading it means you accept it.</value>
+    <comment>Get the driver, before a download whose maker asks for its licence to be accepted; {0} = maker</comment>
+  </data>
+  <data name="GetDriver_ReadLicence" xml:space="preserve">
+    <value>Read {0}'s licence</value>
+    <comment>link that opens the maker's licence page in the browser; {0} = maker</comment>
+  </data>
+  <data name="GetDriver_AcceptButton" xml:space="preserve">
+    <value>Accept and download</value>
+    <comment>button: accepts the maker's licence and downloads the driver</comment>
+  </data>
+  <data name="GetDriver_LicenceLinkNote" xml:space="preserve">
+    <value>{0}'s page with its licence opens: accept it there to download the driver.</value>
+    <comment>Store copy, before opening the maker's page; {0} = maker</comment>
+  </data>
 </root>

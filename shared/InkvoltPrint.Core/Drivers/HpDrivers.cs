@@ -21,9 +21,12 @@ public sealed class HpDrivers(BoundedHttp http) : IDriverCatalog
 
     public static string Words(string name) => DriverPages.ModelWords(name, "hp", "hewlett", "packard", "hewlett-packard");
 
-    /// <summary>The name HP's list of systems gives this PC's Windows.</summary>
+    /// <summary>
+    /// The name HP's list of systems gives this PC's Windows: on ARM64 its one ARM system, "Windows 11 on ARM (64-bit)" (HP lists no
+    /// Windows 10 on ARM), else "Windows 11" or "Windows 10 (64-bit)".
+    /// </summary>
     public static string OsName(PcWindows windows, PcArch arch) =>
-        windows == PcWindows.Windows10 ? "Windows 10 (64-bit)" : arch == PcArch.Arm64 ? "Windows 11 on ARM (64-bit)" : "Windows 11";
+        arch == PcArch.Arm64 ? "Windows 11 on ARM (64-bit)" : windows == PcWindows.Windows10 ? "Windows 10 (64-bit)" : "Windows 11";
 
     public async Task<DriverLookup> FindAsync(DriverQuery query, CancellationToken ct)
     {
