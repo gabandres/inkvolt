@@ -360,8 +360,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   characters out, right-to-left words in visual order; a Text language choice per scan and preset when more than one OCR
   language is installed. **Measured** (`ocr-corpus cleanup`, [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md),
   today → cleaned, this PC's en-US and es-MX): skewed on a lid 5.9 → 5.7 %, grey 20.2 → 19.7 and 20.6 → 18.8, halftoned
-  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.4 and **2.7 → 3.0 (not lower, two words)**, so the roadmap's "every file" isn't met
-  on that one. Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
+  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.3 and 2.7 → 2.3, so every file measured is lower (2026-11-20: the faded file rose,
+  2.7 → 3.0, because whitening a page Restore faded colors had already taken to white evened out paper clipped at 255 and
+  lightened the type's edges; paper white all over now only loses its specks, `PageBackground.AlreadyWhite`). Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
   Hebrew, Japanese, Chinese, Korean, Devanagari, Thai and beyond the first plane, found by Inkvolt PDF's search and pdf.js; the
   layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`; `ocr-corpus layer` goes the whole way with
   Latin text (a cleaned page's JPEG, Windows' recognizer, this writer, every word read found again by MuPDF). veraPDF's PDF/A-2b font rules (6.2.11) pass; the

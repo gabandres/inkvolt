@@ -253,6 +253,8 @@ public static class PaperEdge
 /// darker than its paper. A thin stroke a median would smooth away (a hairline, a pencil signature) is found as a connected run
 /// of pixels darker than the noise and keeps them. Blocks that aren't paper (a picture: mostly mid-tones or dark, or at a level
 /// no slow shading leads to) are divided by the paper around them, never darkened, and never snapped to white. A page whose paper is dark is left alone. Then lone specks go (<see cref="Despeckle"/>).
+/// A page whose paper is white all over already (a faded print after <see cref="FadedColors"/>, a scanner at its own white point)
+/// only loses its specks: evening out paper clipped at white thinned the type (ocr-corpus <c>cleanup</c>, es-faded 2.7 → 3.0%).
 /// </summary>
 public static class PageBackground
 {
@@ -318,6 +320,14 @@ public static class PageBackground
         if (paperBlocks.Count == 0) return false;
         var sigmaRaw = Median(paperBlocks.Select(i => noiseRaw[i]));
         var sigmaSmooth = Median(paperBlocks.Select(i => noiseSmooth[i]));
+        if (AlreadyWhite(levels, paperBlocks))
+        {
+            // Nothing to even out: dividing by a paper level clipped at white would only lighten the type's edges (and its noise,
+            // measured on clipped paper, reads too high and lowers the white point further). Its specks still go.
+            var plain = (byte[])gray.Clone();
+            specks = Despeckle.Remove(plain, width, height, dpi, cancel);
+            return specks > 0 && Write(plain);
+        }
         var isPaper = (bool[])known.Clone();
         FillUnknown(levels, known, cols, rows);
         var map = new PaperLevel.Map(width, height, block, cols, rows, levels);
@@ -342,30 +352,48 @@ public static class PageBackground
         });
         cancel.ThrowIfCancellationRequested();
         specks = Despeckle.Remove(result, width, height, dpi, cancel);
+        return Write(result);
 
-        if (channels == 1)
+        // The grey result into the page: as it is, or each color channel by what its grey level got.
+        bool Write(byte[] result)
         {
-            Buffer.BlockCopy(result, 0, pixels, 0, result.Length);
+            if (channels == 1)
+            {
+                Buffer.BlockCopy(result, 0, pixels, 0, result.Length);
+                return true;
+            }
+            Parallel.For(0, height, options, y =>
+            {
+                for (var x = 0; x < width; x++)
+                {
+                    var i = y * width + x;
+                    if (result[i] == 255)
+                    {
+                        pixels[i * 3] = pixels[i * 3 + 1] = pixels[i * 3 + 2] = 255;
+                        continue;
+                    }
+                    // Every channel by what the grey level got, so a colored stamp stays its color.
+                    var scale = gray[i] > 0 ? result[i] / (float)gray[i] : 1;
+                    if (result[i] < gray[i]) scale = 1; // a pixel the smoothing darkened keeps its color as it was
+                    for (var c = 0; c < 3; c++) pixels[i * 3 + c] = (byte)Math.Clamp(pixels[i * 3 + c] * scale, 0, 255);
+                }
+            });
             return true;
         }
-        Parallel.For(0, height, options, y =>
-        {
-            for (var x = 0; x < width; x++)
-            {
-                var i = y * width + x;
-                if (result[i] == 255)
-                {
-                    pixels[i * 3] = pixels[i * 3 + 1] = pixels[i * 3 + 2] = 255;
-                    continue;
-                }
-                // Every channel by what the grey level got, so a colored stamp stays its color.
-                var scale = gray[i] > 0 ? result[i] / (float)gray[i] : 1;
-                if (result[i] < gray[i]) scale = 1; // a pixel the smoothing darkened keeps its color as it was
-                for (var c = 0; c < 3; c++) pixels[i * 3 + c] = (byte)Math.Clamp(pixels[i * 3 + c] * scale, 0, 255);
-            }
-        });
-        return true;
     }
+
+    /// <summary>
+    /// The level at or above which paper is already white: within 2% of white, closer than the whitening's own white point ever
+    /// comes (97%). A faded print once restored has its paper at 250-255 all over.
+    /// </summary>
+    private const int WhitePaper = 250;
+
+    /// <summary>
+    /// The paper is white all over already: all but 2% of its blocks at <see cref="WhitePaper"/> or above. A page white at one side
+    /// and shaded at the other isn't (its shading still wants evening out).
+    /// </summary>
+    private static bool AlreadyWhite(float[] levels, List<int> paperBlocks) =>
+        paperBlocks.Count(i => levels[i] < WhitePaper) * 50 <= paperBlocks.Count;
 
     private static int Percentile(ReadOnlySpan<int> histogram, int all, int percent)
     {
