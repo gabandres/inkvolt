@@ -790,14 +790,65 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   answers (`TranslationCorpusTests`): 216 texts of 2,082 sent marked (attn's "d<sub>model</sub>", resnet's
   "W<sub>i</sub>"), no tag on any page, the ink check's counts as before (3, 1, 9, 0, 0, 42, 0); pdf.js reads the copies'
   words in order.
-  **Still wrong.** Looks a stretch can't carry: a word in another color or family that is neither bold nor italic (a
-  name in Times among Arial, code in a monospace font), an underline, a regular word in a bold paragraph, a
-  superscript of more than four characters set on its own band (it isn't part of the paragraph's lines). A paragraph
-  goes plain when its text has angle brackets of its own, more than 64 stretches, needs more than one request (a piece
-  could cut a stretch's tags apart; a cut-off answer is asked for in plain halves too), or is written right to left.
-  The sizes and rises are fixed, not the page's own, and a superscript doesn't widen the line step. LaTeX's math
-  italic ("d" of "d_model", CMMI) isn't read as italic. attn's section titles (NimbusRomNo9L-Medi) come out regular in
-  the installed font, as before. Not checked with a real model: how often a small one keeps the tags. The model's,
+  **More looks (2026-11-19), the "still wrong" list worked through.** A regular word in a bold (or italic) paragraph is
+  a look of its own (`Bold: false`), marked the other way round: `<b>` around the rest of the paragraph, so the model
+  sees what it knows; a reply whose bold covers less than about half of what the paragraph's did isn't trusted (written
+  all bold, its own look, as a reply with no tags is). A word in another color (a channel more than 24 of 255 apart) or in
+  a family of another class (serif, sans, monospace; not a symbol font, and TeX's roman beside Times is the same class)
+  where neither bold nor italic says so goes as `<span>` (`ContentEditor.OtherLook`, `OtherColor`), drawn in the page's
+  font of that family, or the installed one closest to it, in its color; one such look a paragraph (`<span>` can't tell
+  two apart: the first is kept, the others keep only their bold, italic or script; `TranslationMarkup.Kept`). Sub- and
+  superscripts keep the page's own size and rise (`TextLook.Rise`; held to 0.4-0.85 of the line's size and a rise of
+  -0.6 to -0.08 or 0.12 to 0.9 em, also when read back from the copy's tag's `/Rise`, so editing the copy draws them
+  there again). A sub- or superscript widens the step to and from its line by as much as it reaches past the line's own
+  height or depth (as a word processor's line does; `LayOut`); one on the first line only sits lower, as before.
+  `FontNames.LooksBold`/`LooksItalic` read TeX's Computer Modern names (CMMI, CMTI, CMSL, CMBX, CMMIB…), URW's "-Medi"
+  and "…Ital" and Adobe's "-It"/"-BoldIt": attn's "d" of "d_model" goes as `<i>d</i>` in its CMMI, its section titles
+  (NimbusRomNo9L-Medi) come out in Times New Roman Bold, and Export to Word gets the same bold and italic. A script of up
+  to 12 characters set on its own band, smaller than 0.85 of the line it sits on, joins that line as a footnote mark does
+  ("[12-15]" raised after a name; `WithMarksInLine`). A paragraph goes plain less often: text whose own angle brackets
+  read only as text ("p < 0.05", "->", "x > y") is marked (one with "x<y", "<html>", "< b" or "b>" still isn't: a
+  reply's would be taken for tags); past 64 stretches its scripts alone are marked (they change what it says); a text too
+  long for one request goes in marked pieces, each closing the tags open at its end and opening them again in the next
+  (`TranslationMarkup.Pieces`), the answers joined read as the whole's markup, and a cut-off answer is asked for in marked
+  halves the same way (plain only when a cut falls inside a tag: no space to cut at). The prompt names `<span>` with the
+  other tags. `TranslationLooksTests` (60 to 102 cases, with the real run's finds below), `TranslationMarkupHostileTests`
+  (9 to 12: random replies to a bold paragraph's inverted markup and a `<span>`, 2 MB of a paragraph's own brackets
+  checked in one pass, pieces that each close their tags).
+  **Real model, looks (2026-11-19).** Qwen3 4B Instruct 2507 (Q4_0) on llama.cpp's llama-server on this PC's GPU (8,192
+  tokens), through `TranslationRealModelTests` (which now counts the tags kept), Spanish, ten pages: attn-v7 p. 1, 2, 3, 5;
+  resnet p. 1, 3; census-p60 p. 7; NIST p. 9, 14; fw9 p. 1, 12 minutes in all. Of 55 paragraphs sent with markup, 47 came
+  back with every tag (85%), 3 with some dropped (the bold of a run-in label: attn's "Encoder:", resnet's two italic
+  abstracts' one stretch), 4 with none (a label left untranslated, a footnote number, and attn's FFN formula, where the
+  model wrote "xW₁ + b₁" in Unicode subscripts), 1 with markup not trusted (NIST's "< b>IAL1", written plain). No tag
+  reached a copy; every answer's words show; nothing doesn't fit. The model's mistakes with markup the run found, fixed:
+  author names sent as "<b>Aidan N. Gomez</b><sup>∗ †</sup>" came back as "<Aidan N. Gomez></sup>∗ †", and taking out the
+  "tag" left only the marks in place of the name; an answer whose words are all gone is now not used (asked again, then
+  left and flagged: one of the 8 author names on attn p. 1, the rest come back unchanged). Faults of ours it found, fixed:
+  two footnotes each after its raised mark (attn's "†Work performed while at Google Brain." over "‡…Google Research.") were
+  one paragraph, the second mark left in the middle of the new lines: a mark just before a line now joins it as a mark
+  after it does, and a line a note's mark or a bullet starts is a paragraph of its own (`PLine.Marked`); a new line was
+  written at its old line's last run, census p. 7's tagged line-end hyphen (a piece of its own with a soft hyphen as
+  `/ActualText`), so MuPDF read the whole new line as "­": a line's last run with a letter or digit takes it.
+  A prompt line asking to keep every pair "even around words you leave as they are" was tried on the six pages with
+  dropped tags: 32 of 39 kept against 31 of 39 without it, no clear help, so not kept. pdfjs-check passes; the export
+  corpus's Word page counts are as before (its bold and italic now read the same names). Not ported to the Mac yet.
+  Review (2026-11-19), ten findings fixed: a long paragraph's answers are joined with each seam's closing and opening
+  tags taken out (`TranslationMarkup.Join`), so a stretch cut by pieces is one stretch again and the markup is trusted; a
+  short run that starts a line splits the paragraph only when it is a raised or set-apart mark, or the line before ended
+  its sentence (CMSY's "=" inside a sentence goes on); a script widens the line step only past the room the leading leaves;
+  a line's hyphen drawn last gives way to its words only when nothing is painted over the line between them (otherwise
+  the last-drawn rule stands), and runs inside /ActualText are skipped; "Digital", "Capital", "Orbital" no longer read as
+  italic; a script's size and rise are read in the paragraph's ems, as the copy draws them; each script stretch keeps its
+  own size and rise (a footnote mark and an exponent in one paragraph); the report's tag count judges as `Read` does
+  (`TagsKept`; the 47 of 55 above recomputed from the run's saved answers, unchanged); a dead guard taken out; plain
+  halves are made only when marked ones can't be.
+  **Still wrong, and why.** An underline that isn't a link's: it is a rule drawn under the words, told from a table's
+  rule, a strike-out or a field's line only by where it sits; reading it as a look needs that judged first (links' own
+  underlines are followed, above). A right-to-left translation is written plain: `LayOutRightToLeft` shapes each line
+  whole, and looks would need each run shaped and the runs ordered by direction. Two other looks in one paragraph (a red
+  word and a word in Courier): the second is written in the paragraph's own. A script longer than 12 characters on its
+  own band stays a paragraph of its own. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"

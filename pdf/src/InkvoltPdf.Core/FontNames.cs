@@ -22,12 +22,48 @@ public static partial class FontNames
     private static readonly string[] StyleWords =
         ["Bold", "Italic", "Oblique", "Regular", "Book", "Medium", "Light", "Semibold", "SemiBold", "Demi", "Black", "Heavy", "Condensed", "Narrow"];
 
+    /// <summary>
+    /// Whether a font's name says bold: "Bold", "Black", "Heavy", "Demi" in it; URW's "Medi" style ("NimbusRomNo9L-Medi",
+    /// "-MediItal": the bold of its Times); TeX's bold Computer Modern ("CMBX10", "CMBXTI10", "CMMIB10").
+    /// </summary>
     public static bool LooksBold(string name) =>
         name.Contains("Bold", StringComparison.OrdinalIgnoreCase) || name.Contains("Black", StringComparison.OrdinalIgnoreCase)
-        || name.Contains("Heavy", StringComparison.OrdinalIgnoreCase) || name.Contains("Demi", StringComparison.OrdinalIgnoreCase);
+        || name.Contains("Heavy", StringComparison.OrdinalIgnoreCase) || name.Contains("Demi", StringComparison.OrdinalIgnoreCase)
+        || UrwMedium().IsMatch(StyleOf(name)) || TexBold().IsMatch(Untagged(name));
 
+    /// <summary>
+    /// Whether a font's name says italic: "Italic", "Oblique" in it; a style ending in URW's "Ital" ("-ReguItal") or
+    /// Adobe's "It" ("MinionPro-It", "-BoldIt"); TeX's italic, slanted and math italic Computer Modern ("CMTI10",
+    /// "CMSL10", "CMMI10": the "d" of "d_model").
+    /// </summary>
     public static bool LooksItalic(string name) =>
-        name.Contains("Italic", StringComparison.OrdinalIgnoreCase) || name.Contains("Oblique", StringComparison.OrdinalIgnoreCase);
+        name.Contains("Italic", StringComparison.OrdinalIgnoreCase) || name.Contains("Oblique", StringComparison.OrdinalIgnoreCase)
+        || StyleItalic().IsMatch(StyleOf(name)) || TexItalic().IsMatch(Untagged(name));
+
+    /// <summary>A font name without its subset tag ("ABCDEF+").</summary>
+    private static string Untagged(string name) =>
+        name.Length > 7 && name[6] == '+' && !name.AsSpan(0, 6).ContainsAnyExceptInRange('A', 'Z') ? name[7..] : name;
+
+    /// <summary>The style part of a font name: after its last '-' or ',' ("Medi" of "NimbusRomNo9L-Medi"); empty when it has none.</summary>
+    private static string StyleOf(string name)
+    {
+        var cut = name.LastIndexOfAny(['-', ',']);
+        return cut >= 0 ? name[(cut + 1)..].Trim() : "";
+    }
+
+    [GeneratedRegex("^Medi(Ital)?$", RegexOptions.IgnoreCase)]
+    private static partial Regex UrwMedium();
+
+    // A style of capitalized words ending in "Ital" or "It" ("ReguItal", "MediItal", "BoldIt", "SemiboldIt", "It"); not a
+    // word that merely ends so ("Digital", "Capital", "Orbital", "Bandit").
+    [GeneratedRegex("^(?:[A-Z][a-z]*)*?(?:Ital|It)$")]
+    private static partial Regex StyleItalic();
+
+    [GeneratedRegex(@"^CM(?:BX(?:SL|TI)?|B|MIB|BSY|SSBX)\d+$")]
+    private static partial Regex TexBold();
+
+    [GeneratedRegex(@"^CM(?:MI|MIB|TI|SL|BXTI|BXSL|ITT|SSI|U)\d+$")]
+    private static partial Regex TexItalic();
 
     /// <summary>The family name for Word: subset tag, style suffix and PostScript "MT"/"PS" endings dropped, words spaced.</summary>
     public static string Family(string pdfName)

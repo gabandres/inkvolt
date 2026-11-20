@@ -43,6 +43,9 @@ public sealed class TranslationPlan
     /// </summary>
     public IReadOnlySet<string> Marked { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
+    /// <summary>For each text of <see cref="Marked"/>: its paragraph's text and looks, as an answer is read against them (a real model's report).</summary>
+    internal IReadOnlyDictionary<string, (string Text, IReadOnlyList<TextSpan> Spans)> Sources { get; init; } = new Dictionary<string, (string, IReadOnlyList<TextSpan>)>();
+
     /// <summary>Paragraphs with words in them, repeats included.</summary>
     public int ParagraphCount { get; init; }
 
@@ -201,6 +204,7 @@ public static class Translation
             var texts = new List<(string, int)>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var marked = new HashSet<string>(StringComparer.Ordinal);
+            var sources = new Dictionary<string, (string, IReadOnlyList<TextSpan>)>(StringComparer.Ordinal);
             var blocked = new List<(int, string)>();
             List<int> scans = [], turned = [], crowded = [], unreadable = [];
             int paragraphs = 0, noWords = 0, done = 0;
@@ -243,7 +247,7 @@ public static class Translation
                         paragraphs++;
                         var key = Key(t);
                         if (seen.Add(key)) texts.Add((key, p));
-                        if (key != t.Text) marked.Add(key); // Mark gives back the text as it is when it doesn't mark it
+                        if (key != t.Text && marked.Add(key)) sources[key] = (t.Text, t.Spans); // Mark gives back the text as it is when it doesn't mark it
                     }
                     if (!pageHasWords && content.Images.Count > 0 && (content.Runs.Count == 0 || content.Runs.All(r => ContentEditor.IsInvisible(r.Blocked))))
                         scans.Add(p);
@@ -266,6 +270,7 @@ public static class Translation
                 Pages = plans,
                 Texts = texts,
                 Marked = marked,
+                Sources = sources,
                 ParagraphCount = paragraphs,
                 NoWords = noWords,
                 Blocked = blocked,
@@ -371,17 +376,18 @@ public static class Translation
     private static string Key(TextParagraph p) => TranslationMarkup.Mark(p.Text, p.Spans);
 
     /// <summary>
-    /// What goes out: each distinct text, a long one in pieces that fit the model. Markup goes only with a text sent
-    /// whole: a piece could cut a stretch's tags apart, so a text in pieces goes without its looks.
+    /// What goes out: each distinct text, a long one in pieces that fit the model. A marked text's pieces each close the
+    /// tags open at their end and open them again at the next one's start (<see cref="TranslationMarkup.Pieces"/>); one
+    /// that can't be cut so (a cut inside a tag) goes in plain pieces.
     /// </summary>
     public static IReadOnlyList<TranslationJob> Jobs(TranslationPlan plan, int pieceTokens) =>
         [.. plan.Texts.Select(t => Job(t.Text, t.Page, plan.Marked.Contains(t.Text), pieceTokens))];
 
     private static TranslationJob Job(string text, int page, bool marked, int tokens)
     {
-        var pieces = AiText.Pieces(text, tokens).ToList();
-        if (pieces.Count > 1 && marked) return new TranslationJob(text, page, [.. AiText.Pieces(TranslationMarkup.Plain(text), tokens)]);
-        return new TranslationJob(text, page, pieces, marked);
+        if (!marked) return new TranslationJob(text, page, [.. AiText.Pieces(text, tokens)]);
+        if (TranslationMarkup.Pieces(text, tokens) is { } pieces) return new TranslationJob(text, page, pieces, true);
+        return new TranslationJob(text, page, [.. AiText.Pieces(TranslationMarkup.Plain(text), tokens)]);
     }
 
     /// <summary>The requests, as the "what is sent, where" window shows them.</summary>
@@ -457,7 +463,8 @@ public static class Translation
             if (text is null) return (null, problem);
             parts.Add(text);
         }
-        return (string.Join(' ', parts), null);
+        // A marked text's pieces each closed the tags open at their seam: joined, those stretches are one again.
+        return (job.Marked ? TranslationMarkup.Join(parts) : string.Join(' ', parts), null);
     }
 
     /// <param name="marked">The piece carries its paragraph's looks as markup (<see cref="TranslationJob.Marked"/>).</param>
@@ -479,17 +486,22 @@ public static class Translation
             {
                 if (depth < 3 && piece.Length > 40)
                 {
-                    // Without its markup: a half could cut a stretch's tags apart.
-                    var whole = marked ? TranslationMarkup.Plain(piece) : piece;
-                    var half = AiText.Pieces(whole, Math.Max(20, AiText.EstimateTokens(whole) / 2)).ToList();
-                    var parts = new List<string>(half.Count);
-                    foreach (var h in half)
+                    // With its markup when it can be cut with each half's tags closed in it; else plain.
+                    var halves = marked ? TranslationMarkup.Pieces(piece, Math.Max(20, AiText.EstimateTokens(piece) / 2)) : null;
+                    var keep = halves is not null;
+                    if (halves is null)
                     {
-                        var (text, why) = await TranslatePiece(h, false, language, chat, settings, cancel, depth + 1);
+                        var whole = marked ? TranslationMarkup.Plain(piece) : piece;
+                        halves = [.. AiText.Pieces(whole, Math.Max(20, AiText.EstimateTokens(whole) / 2))];
+                    }
+                    var parts = new List<string>(halves.Count);
+                    foreach (var h in halves)
+                    {
+                        var (text, why) = await TranslatePiece(h, keep, language, chat, settings, cancel, depth + 1);
                         if (text is null) return (null, why);
                         parts.Add(text);
                     }
-                    return (string.Join(' ', parts), null);
+                    return (keep ? TranslationMarkup.Join(parts) : string.Join(' ', parts), null);
                 }
                 return (null, PdfStrings.Translate_CutOff);
             }
@@ -688,8 +700,8 @@ public static partial class TranslationText
 
     private const string Firm = " Your last answer couldn't be used. Give only the translation of this one paragraph, as one paragraph.";
 
-    private const string Tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <sub> (subscript) and <sup> (superscript): " +
-        "put each pair of tags around the words of your translation that translate the words it marks, and add no other tags or markup.";
+    private const string Tagged = " The text marks some words with the tags <b> (bold), <i> (italic), <span> (another font or color), <sub> (subscript) " +
+        "and <sup> (superscript): put each pair of tags around the words of your translation that translate the words it marks, and add no other tags or markup.";
 
     /// <summary>The request for a paragraph or a piece of one. Nothing else about the document goes with it.</summary>
     /// <param name="firm">It asks again, more firmly, after an answer that couldn't be used.</param>
@@ -778,7 +790,7 @@ public static partial class TranslationText
         if (!Label().IsMatch(own)) text = Label().Replace(text, "").TrimStart();
         text = Characters(text);
         // Text sent with markup (TranslationMarkup) keeps its tags, read when the copy is written; any other tag goes.
-        if (marked) text = TranslationMarkup.WithoutOtherTags(text);
+        if (marked) text = TranslationMarkup.WithoutOtherTags(text, source);
         else if (!source.Contains('<')) text = Tags().Replace(text, "");
         if (!own.Contains('&')) text = global::System.Net.WebUtility.HtmlDecode(text);
         if (!own.Contains("**", StringComparison.Ordinal)) text = text.Replace("**", "", StringComparison.Ordinal);
@@ -790,6 +802,8 @@ public static partial class TranslationText
         text = string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
         text = Unquoted(text, own);
         if (text.Length == 0) return (null, PdfStrings.Translate_EmptyAnswer);
+        // Words gone, only marks left: a model's "<Aidan N. Gomez></sup>∗ †" loses the name as a tag would.
+        if (HasWords(own) && !(marked ? TranslationMarkup.Plain(text) : text).Any(char.IsLetter)) return (null, PdfStrings.Translate_EmptyAnswer);
         if (text.Length > MaxReplyChars(source)) return (null, PdfStrings.Translate_FarLonger);
         if (source.Length >= 200 && text.Length < source.Length / 12) return (null, PdfStrings.Translate_FarShorter);
         return (text, null);

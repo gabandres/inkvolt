@@ -112,6 +112,11 @@ public static partial class ContentEditor
 
         /// <summary>For a translated copy: the run with most of its text, what the line is like when a link or a mark starts it.</summary>
         public TextRun? Main;
+
+        /// <summary>For a translated copy: a footnote's or a list's mark (raised, or set apart by a gap) started it and stays where it is; it starts an item of its own (two footnotes aren't one paragraph).</summary>
+        public bool Marked;
+        /// <summary>For a translated copy: a short mark or symbol started it and stays where it is (see <see cref="Marked"/> for one that surely starts an item).</summary>
+        public bool MarkStart;
         public double Size => Lead.FontSize;
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
@@ -329,7 +334,7 @@ public static partial class ContentEditor
             var room = i == 1 && indented ? right - prev.Box.X : width;
             var word = line.Text.TrimStart().Split(' ')[0];
             var need = prev.Box.Width + WidthOf(line.Lead, " " + word, line);
-            if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && Labels(prev.Text, line.Text)))
+            if ((need < room - 0.5 * prev.Size && !(translating && GoesOn(prev.Text, line.Text))) || (translating && (Labels(prev.Text, line.Text) || line.Marked || line.MarkStart && EndsSentence(prev.Text))))
             {
                 parts.Add(cur);
                 cur = [];
@@ -338,6 +343,13 @@ public static partial class ContentEditor
         }
         parts.Add(cur);
         return parts;
+    }
+
+    /// <summary>A line that ends a sentence: its last character a full stop, question or exclamation mark (a closing quote or bracket after it allowed).</summary>
+    private static bool EndsSentence(string line)
+    {
+        var t = line.TrimEnd().TrimEnd('"', '\'', '”', '’', ')', ']', '»');
+        return t.Length > 0 && ".!?".Contains(t[^1]);
     }
 
     /// <summary>A line starting in lowercase after one that ends in no sentence-ending punctuation.</summary>
@@ -491,7 +503,7 @@ public static partial class ContentEditor
                 var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
-                if (looks is not null && to > from && TranslationLook(own, baseline, l.Runs[i]) is { } look)
+                if (looks is not null && to > from && TranslationLook(own, runs[0].FontSize, baseline, l.Runs[i]) is { } look)
                 {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
                     var start = text.Length + from;
@@ -637,7 +649,10 @@ public static partial class ContentEditor
             // A line with bigger text sits lower: the step to it grows with its biggest text, the step after it with its depth.
             var s = Math.Max(1, parts.Where(q => q.Code is not null || q.StandIn is not null).Select(q => q.Look?.Scale ?? 1).DefaultIfEmpty(1).Max());
             // A superscript's top and a subscript's foot reach past the line's own height and depth: the first line
-            // sits low enough for the one, the box ends low enough for the other.
+            // sits low enough for the one, the box ends low enough for the other, and between lines the step widens by
+            // as much as they reach past the room the leading leaves, so they don't run into the line above or below (a
+            // footnote mark that fits in that room changes nothing).
+            var depth = below; // the line above's: its subscripts' foot
             double above = 0;
             below = 0;
             foreach (var q in parts)
@@ -646,7 +661,14 @@ public static partial class ContentEditor
                     above = Math.Max(above, (look.Rise * p.FontSize + look.Scale * p.Ascent) * shrink);
                     below = Math.Max(below, (-look.Rise * p.FontSize + look.Scale * p.Descent) * shrink);
                 }
-            baseline = i == 0 ? p.Box.Y + Math.Max(p.Ascent * shrink * s, above) : baseline + p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
+            if (i == 0) baseline = p.Box.Y + Math.Max(p.Ascent * shrink * s, above);
+            else
+            {
+                var step = p.LineStep * shrink * (Rise * scale + (1 - Rise) * s);
+                var room = Math.Max(0, step - p.Ascent * shrink * s - p.Descent * shrink * scale); // the leading between the lines' own ink
+                var reach = Math.Max(0, above - p.Ascent * shrink * s) + Math.Max(0, depth - p.Descent * shrink * scale);
+                baseline += step + Math.Max(0, reach - room);
+            }
             scale = s;
             var w = W(parts);
             var x0 = p.Left + (i == 0 ? p.FirstIndent : 0);
@@ -826,7 +848,8 @@ public static partial class ContentEditor
             if (_resolved.TryGetValue(look, out var known)) return known;
             var lead = _p.Lead;
             var scale = look.Size is > 0 and var size && Math.Abs(size - _p.FontSize) > 0.01 ? size / _p.FontSize : 1;
-            var rise = look.Script switch { TextScript.Sub => SubRise, TextScript.Super => SuperRise, _ => 0 };
+            // A script at the page's own rise when it was read from the page, else the usual one.
+            var rise = look.Script is { } script ? look.Rise is { } own && double.IsFinite(own) ? ScriptRise(script, own) : script == TextScript.Sub ? SubRise : SuperRise : 0;
             if (look.Script is not null) scale *= ScriptScale;
             int? color = look.Color is { } c && c != lead.Color ? c : null;
             var bold = look.Bold ?? lead.Bold;
