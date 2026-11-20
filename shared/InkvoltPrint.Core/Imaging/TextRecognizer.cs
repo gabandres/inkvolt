@@ -1,13 +1,16 @@
 namespace InkvoltPrint.Core.Imaging;
 
-/// <summary>A recognized word: its text and its box in the recognized image's pixels, and which line it was read on.</summary>
-public sealed record RecognizedWord(string Text, double X, double Y, double Width, double Height, int Line);
+/// <summary>
+/// A recognized word: its text and its box in the recognized image's pixels, which line it was read on, and how sure the
+/// engine was (0-100) when it says: Tesseract does, Windows' recognizer doesn't (null).
+/// </summary>
+public sealed record RecognizedWord(string Text, double X, double Y, double Width, double Height, int Line, double? Confidence = null);
 
 /// <summary>
-/// A text recognition engine, on this device: Windows' own today (Windows.Media.Ocr), Apple's Vision on the Mac; a second
-/// engine (Tesseract, roadmap 2.2's later stage) would be another implementation. It reads a page image and returns its
-/// words in reading order. No engine Inkvolt uses gives a per-word confidence (Windows' doesn't have one), so
-/// nothing here pretends to: doubtful words are found by <c>SuspectWords</c> instead.
+/// A text recognition engine, on this device: Windows' own (Windows.Media.Ocr), Apple's Vision on the Mac, and Inkvolt
+/// PDF's optional Tesseract (roadmap 2.2). It reads a page image and returns its words in reading order. Windows'
+/// recognizer gives no per-word confidence, so doubtful words are found by <c>SuspectWords</c>; Tesseract's confidence,
+/// when there is one, is one more reason.
 /// </summary>
 public interface ITextRecognizer
 {

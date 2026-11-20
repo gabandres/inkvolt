@@ -6948,4 +6948,12 @@
     <value>Remove what you marked, for good</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Tesseract_Failed" xml:space="preserve">
+    <value>Tesseract stopped without reading the page. Try again, or choose a language Windows reads.</value>
+    <comment>Message</comment>
+  </data>
+  <data name="Tesseract_TooSlow" xml:space="preserve">
+    <value>Tesseract took too long to read a page, so it was stopped. Try again with fewer pages or one language.</value>
+    <comment>Message</comment>
+  </data>
 </root>

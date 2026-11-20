@@ -16,17 +16,23 @@ public enum SuspectReasons
     OddCharacters = 4,
     /// <summary>Read differently from the page as scanned than from the cleaned page.</summary>
     ReadDifferently = 8,
+    /// <summary>The recognizer itself wasn't sure of it (Tesseract's confidence under <see cref="SuspectWords.UnsureBelow"/>; Windows' gives none).</summary>
+    Unsure = 16,
 }
 
 /// <summary>
 /// Suspect words: recognized words worth a second look. Windows' recognizer gives no confidence per word (its OcrWord has
 /// only its text and box), so this is a heuristic, never a score: a word is suspect when the spell checker for the
 /// page's language doesn't know it, when letters and digits are mixed inside it, when it has odd characters, or when the
-/// page as scanned and the cleaned page gave different words at its place. Short words, numbers, words in capitals (an
+/// page as scanned and the cleaned page gave different words at its place. Tesseract gives a confidence: a word it
+/// read under <see cref="UnsureBelow"/> is suspect too. Short words, numbers, words in capitals (an
 /// acronym) and the usual mixes (A4, 2nd, 10mm, MP3) are left alone.
 /// </summary>
 public static class SuspectWords
 {
+    /// <summary>A recognizer's confidence (0-100) under which its word is suspect.</summary>
+    public const double UnsureBelow = 60;
+
     private const string Edges = ".,;:!?¿¡\"'“”‘’«»()[]{}…*";
 
     public static SuspectReasons Check(string text, ISpelling? spelling)

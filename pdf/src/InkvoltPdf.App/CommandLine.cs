@@ -31,10 +31,11 @@ internal static class CommandLine
             cts.Cancel();
         };
         Log.Write($"Command line: {args[0]}");
-        var ocr = args[0].ToLowerInvariant() is "--batch" or "--watch" ? PageOcr.Engine : null;
+        var ocr = args[0].ToLowerInvariant() is "--batch" or "--watch" ? await PageOcr.ChosenAsync() : null;
         var host = new BatchHost
         {
             Ocr = PageOcr.ForBatch(ocr),
+            OcrUnavailable = ocr is null ? PageOcr.Unavailable : null,
         };
         int code;
         try

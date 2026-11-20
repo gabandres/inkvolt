@@ -423,7 +423,7 @@ internal sealed class CompareWindow : Window
             _scanNote = Pro.Locked(ProFeature.CompareOfficeAndScans);
             return (oldRead, newRead);
         }
-        if (PageOcr.For(AppSettings.Current.OcrLanguage) is not { } ocr)
+        if (await PageOcr.ChosenAsync() is not { } ocr)
         {
             _scanNote = Loc.Format(Strings.Compare_ScansNotRead, PageOcr.Unavailable);
             return (oldRead, newRead);

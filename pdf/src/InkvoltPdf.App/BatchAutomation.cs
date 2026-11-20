@@ -110,16 +110,13 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         }
         Output = Setting.Output is { Length: > 0 } o ? o : preset.OutputFolder ?? WatchedFolder.DefaultOutput(Setting.Folder);
         var plan = preset.ToPlan(Output) with { Steps = steps };
-        var ocr = PageOcr.Engine;
-        if ((WatchedFolder.Validate(Setting.Folder, Output) ?? plan.Validate(ocr is not null)) is { } error)
+        // Cheap here (no file hashed on the UI thread); the recognizer itself is built when the watch starts, below.
+        var ocrMissing = PageOcr.Unavailable;
+        if ((WatchedFolder.Validate(Setting.Folder, Output) ?? plan.Validate(PageOcr.CanRead, ocrMissing)) is { } error)
         {
             Show(Loc.Format(Strings.Batch_NotWatching, error), problem: true);
             return;
         }
-        var host = new BatchHost
-        {
-            Ocr = PageOcr.ForBatch(ocr),
-        };
         var progress = new Progress<WatchProgress>(p =>
         {
             if (p.Finished is { } e)
@@ -140,6 +137,12 @@ internal sealed class FolderWatch(AppSettings.WatchSetting setting)
         {
             try
             {
+                var ocr = await PageOcr.ChosenAsync();
+                var host = new BatchHost
+                {
+                    Ocr = PageOcr.ForBatch(ocr),
+                    OcrUnavailable = ocr is null ? ocrMissing : null,
+                };
                 await WatchedFolder.RunAsync(Setting.Folder, plan, host, null, progress, token);
                 Ui(() => Show(Strings.Batch_Stopped));
             }
