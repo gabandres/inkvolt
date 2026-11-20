@@ -26,7 +26,7 @@ public static class Timing
     public const string Alone = "Alone";
 
     /// <summary>How much longer than its processor-time limit <see cref="Within{T}"/> waits on the wall for work that uses none.</summary>
-    public const int WallFactor = 10;
+    public const int WallFactor = 3;
 
     /// <summary>
     /// <paramref name="work"/> on a thread of its own, given <see cref="Limit"/>(<paramref name="local"/>) of that thread's

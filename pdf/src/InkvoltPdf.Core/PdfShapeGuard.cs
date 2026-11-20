@@ -285,6 +285,10 @@ internal static class PdfShapeGuard
         private bool _name;
         private long _number = -1, _lastNumber = -1; // the last two numbers read, for an object's header ("12 0 obj")
         private (int Num, int Gen)? _object;            // the object whose dictionary is being read
+        private (int Num, int Gen)? _streamObject;      // the object whose "stream" keyword was read last (an indirect
+                                                        // /Length read after it is another object's header)
+        private bool _sawEncrypt;                       // a name /Encrypt read (escapes decoded, as PDFsharp reads it)
+        private int _cipherChecks;                      // encrypted object streams checked in this file
 
         // An encrypted file's object stream is noise on disk: its data, where it lies in the file, is checked decrypted
         // once PDFsharp has read all of it (it reads on, or moves elsewhere, before it parses it).
@@ -292,6 +296,12 @@ internal static class PdfShapeGuard
         private bool _encryptionRead;
         private (int Num, int Gen)? _cipherObject;
         private long _cipherStart = -1, _cipherEnd;
+
+        /// <summary>
+        /// The most encrypted object streams one file may hold: each is a decryption of its own (a file of its own for
+        /// PDFsharp, the key worked out again), and a real file has a handful. Past it the file is refused.
+        /// </summary>
+        internal const int MaxEncryptedObjectStreams = 200;
 
         /// <summary>The password PDFsharp is given (null: none), which decrypts what it decrypts.</summary>
         public string? Password { get; init; }
@@ -312,6 +322,7 @@ internal static class PdfShapeGuard
             var (start, end, obj) = (_cipherStart, _cipherEnd, _cipherObject);
             _cipherStart = -1;
             if (obj is not { } o) throw new PdfShapeException(); // no header before it: nothing says how it is encrypted
+            if (++_cipherChecks > MaxEncryptedObjectStreams) throw new PdfShapeException();
             CheckEncryptedObjectStream(_encryption!, Password, o.Num, o.Gen, _data.AsSpan((int)start, (int)(end - start)));
         }
 
@@ -338,7 +349,10 @@ internal static class PdfShapeGuard
             {
                 (_nextIsObjectStream, _inObjectStream) = (false, true);
                 _objectStream.Reset();
-                if (Encryption() is not null) (_cipherObject, _cipherStart) = (_object, from);
+                if (Encryption() is not null) (_cipherObject, _cipherStart) = (_streamObject, from);
+                // Encrypted in a way this can't describe (more candidates than allowed, an escaped /Encrypt key): its data
+                // can't be read to tell, so nothing says it is safe to parse.
+                else if (_sawEncrypt || _data.AsSpan().IndexOf("/Encrypt"u8) >= 0) throw new PdfShapeException();
             }
             if (_cipherStart >= 0) _cipherEnd = Position; // decrypted only once it is all read
             else if (_inObjectStream)
@@ -383,6 +397,7 @@ internal static class PdfShapeGuard
                 }
                 if (name[..length].SequenceEqual("ObjStm"u8)) _objStm = true;
                 else if (name[..length].SequenceEqual("Filter"u8)) _filter = true;
+                else if (name[..length].SequenceEqual("Encrypt"u8)) _sawEncrypt = true;
             }
             else if (token.SequenceEqual("obj"u8))
             {
@@ -400,6 +415,7 @@ internal static class PdfShapeGuard
             {
                 _nextIsObjectStream = _objStm && !_filter;
                 _inObjectStream = false;
+                _streamObject = _object;
             }
             (_number, _lastNumber) = (-1, -1); // a header's two numbers come just before its "obj"
         }

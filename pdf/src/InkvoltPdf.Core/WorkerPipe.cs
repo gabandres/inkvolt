@@ -108,10 +108,11 @@ internal sealed unsafe class WorkerPipe : Stream
             ObjectDisposedException.ThrowIf(op.Freed || Volatile.Read(ref _disposed) != 0, this);
             op.Busy = true;
         }
-        var handle = _pipe.SafePipeHandle;
+        SafePipeHandle? handle = null;
         var added = false;
         try
         {
+            handle = _pipe.SafePipeHandle; // inside: a Dispose meanwhile throws here, and Busy is still undone
             handle.DangerousAddRef(ref added);
             var h = handle.DangerousGetHandle();
             op.Done.Reset();
@@ -145,7 +146,7 @@ internal sealed unsafe class WorkerPipe : Stream
         }
         finally
         {
-            if (added) handle.DangerousRelease();
+            if (added) handle!.DangerousRelease();
             lock (op.Gate)
             {
                 op.Busy = false;

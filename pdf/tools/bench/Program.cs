@@ -101,6 +101,13 @@ if (args is ["index-worker-fault", var fileHow, var badFile, .. var indexWorkerA
         if (!path.EndsWith(badFile, StringComparison.OrdinalIgnoreCase)) return;
         if (fileHow == "die") System.Diagnostics.Process.GetCurrentProcess().Kill();
         while (fileHow == "spin") { }
+        // Stuck, but with a little processor time now and then, as an idle process's runtime threads take.
+        while (fileHow == "tick")
+        {
+            var tick = System.Diagnostics.Stopwatch.StartNew();
+            while (tick.ElapsedMilliseconds < 15) { }
+            Thread.Sleep(200);
+        }
         if (fileHow == "work")
         {
             // Busy for 15 s without a word, then read as any file.

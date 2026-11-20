@@ -185,7 +185,12 @@ public static class IndexWorkers
         private int _seenSigns;          // for Watch, on the watchdog's thread
         private TimeSpan _quiet;
         private TimeSpan _cpuAtStart;
-        private TimeSpan _cpuSeen;       // the worker's processor time at Watch's last look
+        private TimeSpan _cpuSeen;       // the worker's processor time when its quiet spell began
+
+        /// <summary>The least processor time that ends a quiet spell (<see cref="Watch"/>).</summary>
+        private static readonly TimeSpan MinWork = TimeSpan.FromMilliseconds(50);
+
+        private static TimeSpan Max(TimeSpan a, TimeSpan b) => a > b ? a : b;
 
         /// <summary>Why this link was ended from outside (the watchdog); null: it wasn't.</summary>
         public volatile string? EndedFor;
@@ -215,7 +220,7 @@ public static class IndexWorkers
 
         /// <summary>
         /// For the watchdog, about every tick of <paramref name="tick"/>: the processor time this file has taken, and how long the worker has said nothing
-        /// and used no processor time while the PC was awake; null while it isn't reading. Not the clock on the wall: at low priority on a busy PC a file may take
+        /// and done no work (a quarter of that time on the processor) while the PC was awake; null while it isn't reading. Not the clock on the wall: at low priority on a busy PC a file may take
         /// a long time without being any trouble, and nothing counts while a laptop sleeps.
         /// </summary>
         public (TimeSpan Cpu, TimeSpan Quiet)? Watch(TimeSpan tick)
@@ -237,11 +242,13 @@ public static class IndexWorkers
             {
                 cpu = null; // just ended: the read says so
             }
-            // Processor time used since the last look is a sign of life too: a worker at low priority on a busy PC can go
-            // long without a page to say (starting up, a big first page), and isn't stuck while it works.
-            var working = cpu is { } now && now != _cpuSeen;
-            if (cpu is { } seen) _cpuSeen = seen;
-            _quiet = signs == _seenSigns && !working ? _quiet + tick : TimeSpan.Zero;
+            // Work is a sign of life too: a worker at low priority on a busy PC can go long without a page to say (starting
+            // up, a big first page), and isn't stuck while it works. Work, not a tick now and then: a hung worker's runtime
+            // threads still take 15 ms at times, so the quiet spell ends only once the worker has used a quarter of it
+            // (50 ms at least) on the processor.
+            _quiet = signs == _seenSigns ? _quiet + tick : TimeSpan.Zero;
+            if (_quiet == TimeSpan.Zero) _cpuSeen = cpu ?? _cpuSeen;
+            else if (cpu is { } now && now - _cpuSeen >= Max(_quiet / 4, MinWork)) (_quiet, _cpuSeen) = (TimeSpan.Zero, now);
             _seenSigns = signs;
             return (cpu is { } used ? used - _cpuAtStart : TimeSpan.Zero, _quiet);
         }

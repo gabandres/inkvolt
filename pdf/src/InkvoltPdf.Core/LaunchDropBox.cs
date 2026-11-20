@@ -20,32 +20,58 @@ public static class LaunchDropBox
     /// <summary>Taken at most at once: the rest come at the next look.</summary>
     public const int TakeAtOnce = 500;
 
-    /// <summary>One older than this is let go of unread: whoever selected it has long stopped waiting.</summary>
-    public static readonly TimeSpan MaxAge = TimeSpan.FromDays(1);
+    /// <summary>
+    /// One older than this is let go of unread: whoever selected it has stopped waiting, and a later start of the app, for
+    /// something else, mustn't convert it (one left when the copy that didn't answer was ended, say).
+    /// </summary>
+    public static readonly TimeSpan MaxAge = TimeSpan.FromMinutes(5);
+
+    /// <summary>What became of a launch given to <see cref="Leave"/>.</summary>
+    public enum Left
+    {
+        /// <summary>Left for the copy that converts.</summary>
+        Waiting,
+
+        /// <summary><see cref="MaxLaunches"/> are waiting already.</summary>
+        Full,
+
+        /// <summary>Its arguments are past <see cref="MaxChars"/>, or one holds a line break (it would read as two).</summary>
+        TooLong,
+
+        /// <summary>The folder couldn't be written.</summary>
+        Failed,
+    }
 
     private const string Extension = ".launch";
 
-    /// <summary>Leaves <paramref name="args"/> in <paramref name="folder"/>; false when it is full, the arguments too long, or it can't be written.</summary>
-    public static bool Leave(string folder, IReadOnlyList<string> args)
+    /// <summary>Leaves <paramref name="args"/> in <paramref name="folder"/>, and says whether it did and why not.</summary>
+    public static Left Leave(string folder, IReadOnlyList<string> args)
     {
         var text = string.Join('\n', args);
-        if (text.Length > MaxChars || args.Any(a => a.Contains('\n'))) return false;
+        if (text.Length > MaxChars || args.Any(a => a.Contains('\n'))) return Left.TooLong;
         try
         {
             Directory.CreateDirectory(folder);
-            if (Directory.EnumerateFiles(folder, "*" + Extension).Take(MaxLaunches).Count() >= MaxLaunches) return false;
+            if (Directory.EnumerateFiles(folder, "*" + Extension).Take(MaxLaunches).Count() >= MaxLaunches) return Left.Full;
             // Written aside, then named: a taker never reads half a launch. Named by time, so they are taken in order.
             var name = $"{NextTicks():D19}-{Guid.NewGuid():N}";
             var part = Path.Combine(folder, name + ".part");
             File.WriteAllText(part, text, new UTF8Encoding(false));
             File.Move(part, Path.Combine(folder, name + Extension));
-            return true;
+            return Left.Waiting;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return false;
+            return Left.Failed;
         }
     }
+
+    /// <summary>
+    /// The conversion launches waiting (<see cref="Take"/>): only a conversion is ever left there, so anything else in the
+    /// folder (written by another program of this user's) is dropped, never opened as files.
+    /// </summary>
+    public static IReadOnlyList<string[]> TakeConversions(string folder, DateTime? now = null) =>
+        [.. Take(folder, now).Where(ConvertCommand.IsCommand)];
 
     /// <summary>
     /// The launches waiting in <paramref name="folder"/>, oldest first, <see cref="TakeAtOnce"/> at most: each removed as it is

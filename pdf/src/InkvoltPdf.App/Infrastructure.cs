@@ -182,13 +182,14 @@ public sealed class SingleInstance : IDisposable
     /// The launches left there by conversion launches that gave up, each handed to <paramref name="onArgs"/> as a forwarded
     /// one. Every copy that runs takes them: the owner once it answers again, or the one converting on its own.
     /// </summary>
-    public static void TakeDropped(Action<string[]> onArgs)
+    /// <returns>Whether any was taken.</returns>
+    public static bool TakeDropped(Action<string[]> onArgs)
     {
-        var taken = Core.LaunchDropBox.Take(DroppedLaunches);
-        if (taken.Count == 0) return;
+        var taken = Core.LaunchDropBox.TakeConversions(DroppedLaunches);
+        if (taken.Count == 0) return false;
         Log.Write($"Convert from Explorer: took {taken.Count} launch(es) left while no copy answered.");
-        foreach (var launch in taken)
-            if (Core.ConvertCommand.IsCommand(launch)) onArgs(launch); // only conversions are ever left there
+        foreach (var launch in taken) onArgs(launch);
+        return true;
     }
 
     /// <summary>
@@ -220,9 +221,13 @@ public sealed class SingleInstance : IDisposable
                 return new SingleInstance(null) { _convertSlot = slot };
             case Core.LaunchHandoff.Way.Dropped:
                 // No message (hundreds of launches would each show one): the files wait for the copy that converts.
-                Log.Write(Core.LaunchDropBox.Leave(DroppedLaunches, [.. args.Select(Absolute)])
-                    ? "Convert from Explorer: the running Inkvolt PDF didn't answer; this launch's files were left for the copy that converts."
-                    : "Convert from Explorer: the running Inkvolt PDF didn't answer and the dropped launches' folder is full; this launch's files were left out.");
+                Log.Write("Convert from Explorer: the running Inkvolt PDF didn't answer; " + Core.LaunchDropBox.Leave(DroppedLaunches, [.. args.Select(Absolute)]) switch
+                {
+                    Core.LaunchDropBox.Left.Waiting => "this launch's files were left for the copy that converts.",
+                    Core.LaunchDropBox.Left.Full => "the dropped launches' folder is full; this launch's files were left out.",
+                    Core.LaunchDropBox.Left.TooLong => "this launch's arguments are too long to leave; its files were left out.",
+                    _ => "the dropped launches' folder couldn't be written; this launch's files were left out.",
+                });
                 return null;
             default:
                 return null;

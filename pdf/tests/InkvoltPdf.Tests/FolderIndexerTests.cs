@@ -271,6 +271,17 @@ public sealed class FolderIndexerTests : IDisposable
     }
 
     [Fact]
+    public void A_stuck_worker_that_ticks_now_and_then_is_still_given_up()
+    {
+        // 15 ms of processor time every 200 ms is no work: any processor time counting as a sign of life, it was never stuck.
+        Put("ticker.pdf", "tickword");
+        var options = Quick() with { WorkerArgs = ["index-worker-fault", "tick", "ticker.pdf"], MaxWorkers = 1, Stall = TimeSpan.FromSeconds(3) };
+        using var indexer = TakeOwnership(Start(options));
+        WaitUntil(() => indexer.Status.Phase == IndexerPhase.UpToDate && indexer.Index?.Files.ContainsKey("ticker.pdf") == true, "the file given up", about: indexer);
+        Assert.Equal(IndexedState.TooSlow, indexer.Index!.Files["ticker.pdf"].State);
+    }
+
+    [Fact]
     public void A_worker_busy_without_a_word_isnt_taken_for_stuck()
     {
         // Fifteen seconds of work with nothing to say, past a six-second stall but well within the file's processor time: the
