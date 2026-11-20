@@ -1,3 +1,22 @@
+# 2026-11-20: Inkvolt Print's printer-data items closed (Windows; branch worktree-agent-a83f5e17d97d5cce9, not merged)
+
+Seven commits, one an item (`print/README.md`, `print/ROADMAP.md` 1.1, 1.2, 3.2 and `print/WHATS-NEW.md` "Next" have each):
+pages left and a cartridge's yield from CDM, IPP's `printer-supply` and the Printer MIB, and the page count from IPP's
+`printer-impressions-completed` and `prtMarkerLifeCount` (`SupplyPagesTests`); recordings keep IPP collections and dateTime,
+SNMP Counter64 and Opaque (`RecordingTests` +9); SNMPv3's MD5, SHA-1, DES, AES-192 and AES-256 beside each passphrase, the
+short key lengthened Blumenthal's way then Reeder's (`SnmpV3ProtocolTests`); a web server on a port of its own, typed or from
+`adminurl` (`PrinterWebPortTests`); the front panel's text under the status (`PanelTextTests`); SNMP for WSD queues from the
+WSD node's PnP-X address (`WsdSnmpTests`); queue change notices from the spooler (`QueueChangeTests`, `queues --watch`).
+
+**Only a real printer confirms:** a printer's own `printer-supply` in impressions and its `printer-impressions-completed`; a
+Printer MIB supply counted in impressions and a real `prtMarkerLifeCount`; a recording of a printer with `media-col-database`;
+SNMPv3 on a printer's agent with each protocol, and which key extension a maker's agent uses for AES-192/256 after MD5 or SHA-1
+(both are tried); a printer whose web server is on another port, and whether its `adminurl` says so; what a real panel's lines
+hold; a WSD printer that answers SNMP (the PnP-X address was read here for one of the two WSD printers, which was away). The
+app's printer list following a queue added in Settings was checked through `queues --watch` (add, rename, remove: one notice
+each), not on screen. **Mac follow-up:** PrintCore has none of these (the .NET code is its spec; SNMPv3's other protocols need
+`SnmpCrypto` to give MD5, SHA-1, DES and longer AES keys).
+
 # 2026-11-20: Translate's leftovers closed (Windows; branch worktree-agent-a11e03ded4fac60e7, not merged)
 
 Six commits and a review-fix commit, `pdf/ROADMAP.md` 3.1 has each: plain underlines as a look (`<u>`, the rule redrawn
