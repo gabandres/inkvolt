@@ -55,7 +55,8 @@ public static partial class WiaMatch
         var result = new List<(WiaDeviceInfo, string?)>(devices.Count);
         foreach (var device in devices)
         {
-            var owner = Match(device, targets);
+            // A 32-bit-only TWAIN source scans for no printer: listed on its own, where it says why it can't be used.
+            var owner = device.IsTwain32Only ? null : Match(device, targets);
             if (owner is not null && takesScanner(owner) && !given.Add(owner)) owner = null;
             result.Add((device, owner));
         }

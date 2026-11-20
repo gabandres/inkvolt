@@ -363,6 +363,114 @@ public class TwainTests
         Assert.Equal((false, true), ScanChoices.Remember(ScanColor.BlackAndWhite));
     }
 
+    private static WiaDeviceInfo Only32(string name, string? maker = null) => new(name, name, maker, null, WiaDeviceInfo.Twain32Port);
+
+    [Fact]
+    public async Task A_32_bit_only_TWAIN_source_is_named_and_declined_in_words()
+    {
+        var twain = new ListingTwain([Only32("Example FilmScan 4000", "Example")]);
+        var system = new DriverScanners(new FakeWiaSystem([Wia(UsbMfp)]), twain);
+        var listed = await system.ListScannersAsync(CancellationToken.None);
+        Assert.Equal(["EPSON Perfection V600 Photo", "Example FilmScan 4000"], listed.Select(d => d.Name));
+        var old = listed[1];
+        Assert.Equal("twain32:Example FilmScan 4000", old.Id); // never a "twain:" id: it never reaches the TWAIN manager
+        Assert.True(old.IsTwain32Only);
+        Assert.True(old.IsTwain); // shown as a TWAIN scanner (its own kind in the lists)
+        Assert.Equal(ScannerKind.Twain32, ScannerList.Kind(old)); // its own kind and label in Inkvolt PDF's Scan dialog
+        Assert.Equal("Example FilmScan 4000  (TWAIN, 32-bit only)", ScannerList.Label(ScannerKind.Twain32, old.Name));
+        Assert.Equal(old.Id, ScannerList.Key(old));
+
+        var ex = await Assert.ThrowsAsync<WiaException>(() => WiaScanner.OpenAsync(system, old, CancellationToken.None));
+        Assert.Equal(WiaErrors.Only32Bit, ex.Code);
+        Assert.Equal(CoreStrings.Twain_Only32Bit, WiaErrors.Message(ex.Code, false));
+        Assert.Contains("32-bit", CoreStrings.Twain_Only32Bit, StringComparison.Ordinal);
+        Assert.DoesNotContain("Inkvolt", CoreStrings.Twain_Only32Bit, StringComparison.Ordinal); // Inkvolt PDF's Scan dialog shows it too
+        Assert.Same(NoButtons.Instance, await system.WatchButtonsAsync(old.Id, WiaIds.ScanButtonEvents, () => { }, CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task A_32_bit_source_with_a_64_bit_twin_or_a_WIA_driver_is_left_out()
+    {
+        var twain = new ListingTwain([
+            new WiaDeviceInfo("Example DocScan 10", "Example DocScan 10", Port: WiaDeviceInfo.TwainPort),
+            Only32("Example DocScan 10"), // the maker installed both: the 64-bit one is used
+            Only32("EPSON Perfection V600"), // WIA has this scanner
+            Only32("Example FilmScan 4000"),
+        ]);
+        var listed = await new DriverScanners(new FakeWiaSystem([Wia(UsbMfp)]), twain).ListScannersAsync(CancellationToken.None);
+        Assert.Equal(["EPSON Perfection V600 Photo", "Example DocScan 10", "Example FilmScan 4000"], listed.Select(d => d.Name));
+        Assert.Equal([false, false, true], listed.Select(d => d.IsTwain32Only));
+    }
+
+    [Fact]
+    public void The_32_bit_folders_sources_are_named_from_their_files_and_Windows_bridge_left_out()
+    {
+        var files = new[]
+        {
+            new Twain32File("wiatwain.ds", "Microsoft® Windows® Operating System", "WIA-TWAIN", "Microsoft Corporation"), // Windows' WIA bridge
+            new Twain32File(@"Example\FilmScan.ds", "Example FilmScan 4000", "TWAIN driver", "Example Corp."),
+            new Twain32File(@"Example\Twin.ds", "Example DocScan 10", null, "Example Corp."), // also in twain_64
+            new Twain32File(@"Other\old.ds", "  ", "Old\u0007 Scanner ", null), // product blank: the description, control characters out
+            new Twain32File(@"Bare\NoVersion.ds", null, null, null), // no version resource: the file's name
+            new Twain32File(@"Long\long.ds", new string('W', 80), null, null),
+            new Twain32File(@"example\filmscan.ds", "Example FilmScan 4000", null, null), // the same file listed twice: once
+        };
+        var listed = Twain32Sources.From(files, [new Twain32File(@"Example\Twin.ds", null, null, null)]);
+        Assert.Equal(["Example FilmScan 4000", "Old Scanner", "NoVersion", new string('W', 64)], listed.Select(s => s.Name));
+        Assert.Equal("Example/FilmScan.ds", listed[0].Id); // its path: one entry per file
+        Assert.All(listed, s => Assert.True(s.IsTwain32Only));
+        Assert.Equal("Example Corp.", listed[0].Manufacturer);
+        Assert.Equal(Twain32Sources.MaxFiles, Twain32Sources.From(Enumerable.Range(0, 500).Select(i => new Twain32File($"s{i}.ds", $"Source {i}", null, null)), []).Count);
+    }
+
+    [Fact]
+    public void A_64_bit_twin_is_found_by_its_files_name_and_maker_and_sources_alike_by_name_stay_apart()
+    {
+        var files = new[]
+        {
+            new Twain32File(@"Fujitsu\fi7160_32.ds", "PaperStream IP", null, "PFU Limited"),
+            new Twain32File(@"Canon\CNQ9000.ds", "TWAIN Driver", null, "Canon Inc."),
+            new Twain32File(@"Plustek\PSD.ds", "TWAIN Driver", null, "Plustek Inc."),
+            new Twain32File(@"Other\fi7160.ds", "Clone fi-7160", null, "Another Maker"),
+        };
+        var in64 = new[]
+        {
+            new Twain32File(@"Fujitsu64\Fi7160_64.ds", "PaperStream IP (x64)", null, "PFU Limited"), // the same stem and maker: its twin
+            new Twain32File(@"Canon\CNQ9000x64.ds", null, null, null), // the same stem, no maker said: its twin
+        };
+        var listed = Twain32Sources.From(files, in64);
+        // A stem shared with another maker's file isn't a twin.
+        Assert.Equal(["TWAIN Driver", "Clone fi-7160"], listed.Select(s => s.Name)); // Canon's has its twin, so Plustek's reads plainly
+        Assert.Equal(["fi7160", "cnq9000", "psd"], new[] { "fi7160_32.ds", "CNQ9000x64.ds", "PSD-win32.ds" }.Select(Twain32Sources.Stem));
+
+        var both = Twain32Sources.From(files[1..3], []);
+        Assert.Equal(["TWAIN Driver (CNQ9000.ds)", "TWAIN Driver (PSD.ds)"], both.Select(s => s.Name));
+    }
+
+    [Fact]
+    public void A_32_bit_source_goes_to_no_printer()
+    {
+        var old = Only32("Example MFP-4400 TWAIN", "Example");
+        var targets = new[] { new ScanTarget("q", ["Example MFP4400 series"], ["192.0.2.16"]) };
+        Assert.Null(WiaMatch.Assign([old with { Id = "twain32:x" }], targets, _ => true).Single().Owner); // listed on its own, declined
+    }
+
+    [Fact]
+    public async Task A_failing_TWAIN_manager_still_names_the_32_bit_sources_and_keeps_those_listed_before()
+    {
+        var twain = new ListingTwain([new WiaDeviceInfo("Example FilmScan 7200", "Example FilmScan 7200", Port: WiaDeviceInfo.TwainPort)]);
+        var notes = new List<string>();
+        var system = new DriverScanners(new FakeWiaSystem([]), twain, notes.Add) { TwainRelistInterval = TimeSpan.Zero };
+        Assert.Single(await system.ListScannersAsync(CancellationToken.None));
+
+        twain.Fails = new PartialListException(new DllNotFoundException("TWAINDSM.dll"), [Only32("Example FilmScan 4000")]);
+        var listed = await system.ListScannersAsync(CancellationToken.None);
+        Assert.Equal(["Example FilmScan 7200", "Example FilmScan 4000"], listed.Select(d => d.Name));
+        Assert.Equal(["twain:Example FilmScan 7200", "twain32:Example FilmScan 4000"], listed.Select(d => d.Id));
+        Assert.IsType<DllNotFoundException>(system.TwainFailure); // the manager's failure is still said
+        Assert.Single(notes);
+    }
+
     /// <summary>A TWAIN manager whose listing can be made to fail or hang.</summary>
     private sealed class ListingTwain(IReadOnlyList<WiaDeviceInfo> sources) : IWiaSystem
     {

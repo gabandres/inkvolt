@@ -21,10 +21,19 @@ public interface IWiaDevice
     int? Apply(WiaScanSettings settings);
 
     /// <summary>
-    /// Scans one page as JPEG with the settings applied: the next page from the feeder, or the glass. Null when the driver gave
-    /// no image (some say "no more pages" that way).
+    /// Scans one page as JPEG with the settings applied: the next page from the feeder, or the glass. With
+    /// <see cref="WiaScanSettings.Pdf"/>, the driver's PDF as it sent it (one page, or every page of the run). Null when the driver
+    /// gave no image (some say "no more pages" that way).
     /// </summary>
     byte[]? TransferPage(WiaScanSettings settings);
+
+    /// <summary>
+    /// <see cref="TransferPage(WiaScanSettings)"/> through WIA 2.0's own transfer (<see cref="WiaScannerInfo.CancelsPage"/>): the
+    /// page's progress (0-100) goes to <paramref name="progress"/> as the driver reports it, and <paramref name="cancel"/> stops the
+    /// page in the driver (<see cref="OperationCanceledException"/>), so the scanner is free at once. A driver reached through WIA
+    /// 1's scripting layer can do neither: its page runs to its end.
+    /// </summary>
+    byte[]? TransferPage(WiaScanSettings settings, Action<int>? progress, CancellationToken cancel) => TransferPage(settings);
 }
 
 /// <summary>
@@ -99,6 +108,13 @@ public sealed class WiaScanner : IScanner
     public WiaScannerInfo Info { get; }
     public ScannerCapabilities Capabilities { get; }
 
+    /// <summary>
+    /// Told each page's progress as a WIA 2.0 driver reports it (<see cref="WiaScannerInfo.CancelsPage"/>): the page's number in the
+    /// job (from 1) and its percent. Called on any thread (WIA calls its transfer callback where it likes): marshal to a UI; a WIA
+    /// 1 driver never calls it.
+    /// </summary>
+    public Action<int, int>? Progress { get; set; }
+
     /// <summary>The longest one page may take (a slow scanner at its highest resolution); past it the driver is taken as hung.</summary>
     public TimeSpan PageTimeout { get; set; } = TimeSpan.FromMinutes(5);
 
@@ -133,11 +149,18 @@ public sealed class WiaScanner : IScanner
             for (var page = 0; page < (settings.Feeder ? MaxFeederPages : 1); page++)
             {
                 ct.ThrowIfCancellationRequested();
-                var (jpeg, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
+                var (data, end) = await PageAsync(settings, page, ct).ConfigureAwait(false);
                 if (end) yield break;
-                if (WiaFeeder.Repeats(last, jpeg!)) yield break; // the glass scanned again, not a new sheet
-                last = jpeg;
-                yield return jpeg!;
+                if (WiaFeeder.Repeats(last, data!)) yield break; // the glass scanned again, not a new sheet
+                last = data;
+                if (!ScannerPdf.IsPdf(data!))
+                {
+                    yield return data!;
+                    continue;
+                }
+                // A PDF-only driver's transfer: one page or the whole run, its pages taken out as JPEG as an eSCL scanner's are.
+                foreach (var jpeg in await ScannerPdf.PagesAsync(data!, settings.Resolution, ct).ConfigureAwait(false))
+                    yield return jpeg;
             }
         }
         finally
@@ -162,7 +185,9 @@ public sealed class WiaScanner : IScanner
                 if (first) throw new ScanException(WiaErrors.Message(WiaErrors.PaperEmpty, true)); // load the pages first (some drivers would scan the glass)
                 return (null, true);
             }
-            jpeg = await _host.UseAsync(d => d.TransferPage(settings), limit.Token).ConfigureAwait(false);
+            var progress = Progress is { } report ? percent => report(page + 1, Math.Clamp(percent, 0, 100)) : (Action<int>?)null;
+            var token = limit.Token;
+            jpeg = await _host.UseAsync(d => d.TransferPage(settings, progress, token), token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (!ct.IsCancellationRequested)
         {
@@ -237,7 +262,8 @@ public static class WiaCapabilities
     /// The scanner as the Scan tab sees it: glass and feeder from the document handling capabilities (glass only when the driver
     /// has none), their sizes (the feeder's from the sheet feed size, else the glass's; a feeder of any length gets Legal), color
     /// and grey as offered (black and white too when the driver offers its threshold type), resolutions from the driver's list or
-    /// range (as eSCL ranges are turned into choices). Pages always arrive as JPEG (converted when the driver sends another format).
+    /// range (as eSCL ranges are turned into choices). Pages always arrive as JPEG (converted when the driver sends another format,
+    /// taken out of the PDF a PDF-only driver sends).
     /// </summary>
     public static ScannerCapabilities From(WiaScannerInfo info, string name)
     {
@@ -252,10 +278,11 @@ public static class WiaCapabilities
         if (colors.Count == 0) colors.Add("RGB24"); // black and white only: asked for color, the driver gives what it has
         if (info.DataTypes.Contains(WiaIds.DataThreshold)) colors.Add("BlackAndWhite1");
         var resolutions = Resolutions(info.Resolutions);
-        InputCaps Input(int w, int h) => new(0, w, 0, h, colors, ["image/jpeg"], resolutions, []);
+        InputCaps Input(int w, int h, IReadOnlyList<int> dpi) => new(0, w, 0, h, colors, ["image/jpeg"], dpi, []);
         return new ScannerCapabilities("WIA", name, null,
-            hasFlat ? Input(bedW, bedH) : null,
-            hasFeed ? Input(Size(info.FeederWidth, bedW), Size(info.FeederHeight, hasFlat ? Math.Max(bedH, LegalHeight) : LegalHeight)) : null,
+            hasFlat ? Input(bedW, bedH, resolutions) : null,
+            hasFeed ? Input(Size(info.FeederWidth, bedW), Size(info.FeederHeight, hasFlat ? Math.Max(bedH, LegalHeight) : LegalHeight),
+                info.FeederResolutions is { } own ? Resolutions(own) : resolutions) : null,
             hasFeed && (handling & WiaIds.CapDuplex) != 0);
     }
 
@@ -302,7 +329,7 @@ public static class WiaCapabilities
         int? pages = !feeder ? null : source == ScanSource.AdfDuplex ? 0 : 1;
         var (dataType, depth) = bw ? (WiaIds.DataThreshold, 1) : grey ? (WiaIds.DataGrayscale, 8) : (WiaIds.DataColor, 24);
         return new WiaScanSettings(handling, feeder, dataType, depth, res, Pixels(width, res), Pixels(height, res), pages,
-            Offset(x, res), Offset(y, res));
+            Offset(x, res), Offset(y, res), info.PdfOnlyFor(feeder));
     }
 
     private static int Pixels(int threeHundredths, int dpi) => Math.Max(1, Offset(threeHundredths, dpi));

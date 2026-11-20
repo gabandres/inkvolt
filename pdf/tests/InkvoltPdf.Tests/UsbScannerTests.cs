@@ -359,6 +359,79 @@ public class UsbScannerTests
         Assert.Equal("Grayscale8", Mode("RGB24", "Grayscale8"));
     }
 
+    // ---- A preset's Clean up (print/ROADMAP.md 2.3) ------------------------------------------------------------------------------
+
+    /// <summary>
+    /// The Scan dialog's codec, made up: page n decodes to grey recycled paper (190) with blocks of "text", or to white paper when
+    /// <paramref name="white"/> says so; encoding keeps the pixels and gives a new JPEG (page 1000 + its number).
+    /// </summary>
+    private sealed class FakeCodec(Func<int, bool>? white = null)
+    {
+        public Dictionary<int, byte[]> Encoded { get; } = [];
+        public const int W = 600, H = 800;
+
+        public (byte[], int, int, int) Decode(byte[] jpeg)
+        {
+            var n = NumberOf(jpeg);
+            if (n == 99) throw new InvalidOperationException("Not a picture WIC reads.");
+            var paper = white?.Invoke(n) == true ? (byte)255 : (byte)190;
+            var px = Enumerable.Repeat(paper, W * H).ToArray();
+            for (var y = 100; y < 700; y += 40)
+                for (var x = 60; x < 540; x++)
+                    if (x % 30 < 18)
+                        for (var yy = y; yy < y + 20; yy++) px[yy * W + x] = 30;
+            return (px, W, H, 1);
+        }
+
+        public byte[] Encode(byte[] pixels, int width, int height, int channels)
+        {
+            Assert.Equal((W, H, 1), (width, height, channels));
+            var n = Encoded.Count;
+            Encoded[n] = pixels;
+            return Page(1000 + n);
+        }
+    }
+
+    [Fact]
+    public async Task A_presets_clean_up_is_applied_to_each_kept_page()
+    {
+        var preset = ScanPresets.Normalize(new ScanPresetSettings
+        {
+            Items = [new ScanPreset { Id = "p", Name = "Recycled paper", Source = PresetSource.Feeder, Resolution = 300, Cleanup = PageFilters.Whiten }],
+        }).Single();
+        Assert.Equal(PageFilters.Whiten, preset.Cleanup); // kept by the settings, as Inkvolt Print keeps it
+
+        var codec = new FakeCodec();
+        var scanner = await Open(Fake(FeederScanner(), feederPages: 3));
+        var cleanup = new ScanRunCleanup(preset.Cleanup, 300, codec.Decode, codec.Encode);
+        var pages = new List<ScanRunPage>();
+        await foreach (var p in ScanRun.PagesAsync(scanner, new ScanRequest(ScanSource.Adf, Resolution: 300), Analysis(n => n == 1), default, cleanup)) pages.Add(p);
+
+        Assert.Equal([ScanPageFate.Kept, ScanPageFate.Blank, ScanPageFate.Kept], pages.Select(p => p.Fate));
+        Assert.Equal([1000, 1, 1001], pages.Select(p => NumberOf(p.Jpeg))); // the kept pages cleaned, the blank one left as it came
+        Assert.Equal(2, codec.Encoded.Count);
+        foreach (var cleaned in codec.Encoded.Values)
+        {
+            Assert.True(cleaned.Take(FakeCodec.W * 90).All(v => v == 255), "the grey paper went white");
+            Assert.True(cleaned[110 * FakeCodec.W + 70] < 80, "the text stays");
+        }
+    }
+
+    [Fact]
+    public void A_page_the_clean_up_leaves_or_cant_read_is_kept_as_scanned()
+    {
+        var codec = new FakeCodec(white: n => n == 2);
+        var page = Page(5);
+        Assert.Same(page, ScanRun.Clean(page, new ScanRunCleanup(PageFilters.None, 300, codec.Decode, codec.Encode))); // no Clean up
+        var white = Page(2);
+        Assert.Same(white, ScanRun.Clean(white, new ScanRunCleanup(PageFilters.Whiten, 300, codec.Decode, codec.Encode))); // nothing to whiten: not encoded again
+        var unreadable = Page(99);
+        Assert.Same(unreadable, ScanRun.Clean(unreadable, new ScanRunCleanup(PageFilters.Whiten, 300, codec.Decode, codec.Encode))); // never lose a page
+        var short_ = new ScanRunCleanup(PageFilters.Whiten, 300, _ => (new byte[10], FakeCodec.W, FakeCodec.H, 1), codec.Encode);
+        Assert.Same(page, ScanRun.Clean(page, short_)); // fewer pixels than its size says: as scanned
+        Assert.Empty(codec.Encoded);
+    }
+
     /// <summary>A scanner that hands over the pages it was given (for the page checks alone).</summary>
     private sealed class ListScanner(IReadOnlyList<byte[]> pages) : IScanner
     {

@@ -730,6 +730,15 @@ public sealed partial class ScanViewModel : ObservableObject
             _batchKeep = job.KeepSeparators;
             var findPhotos = job.FindPhotos && request.Source == ScanSource.Platen; // photos lie on the glass, not in the feeder
             _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: findPhotos); // what made-up scanners then hold
+            if (_client is Core.Wia.WiaScanner { Info.CancelsPage: true } wia2)
+            {
+                // A WIA 2.0 driver says how far each page is (on the scanner's thread: shown on this one).
+                var ui = SynchronizationContext.Current;
+                wia2.Progress = (_, percent) => ui?.Post(state =>
+                {
+                    if (IsScanning) Message = string.Format(Strings.Scan_PageProgress, Pages.Count + 1, percent);
+                }, null);
+            }
             await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
             {
                 var page = new ScanPageViewModel(jpeg, dpi, job.Ocr, job.OcrLanguage);

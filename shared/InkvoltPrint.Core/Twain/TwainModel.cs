@@ -93,6 +93,76 @@ public sealed record TwainSettings(bool Feeder, bool Duplex, ushort PixelType, u
         Math.Round(s.X / (double)s.Resolution, 3), Math.Round(s.Y / (double)s.Resolution, 3));
 }
 
+/// <summary>A data source file in Windows' <c>twain_32</c> folder: its path inside that folder and what its version resource says (the driver wrote it).</summary>
+public sealed record Twain32File(string RelativePath, string? Product, string? Description, string? Company);
+
+/// <summary>
+/// 32-bit-only TWAIN sources (roadmap 2.5): a source whose driver is only in <c>twain_32</c> can't be loaded by the 64-bit TWAIN
+/// manager or this 64-bit app, so it is named in the lists (port <see cref="WiaDeviceInfo.Twain32Port"/>) and declined with
+/// <see cref="WiaErrors.Only32Bit"/>'s words instead of silently missing. Windows' own WIA-to-TWAIN bridge (<c>wiatwain.ds</c>) is
+/// left out (its scanners are WIA's, listed already), and so is a source the maker also installed in <c>twain_64</c>.
+/// </summary>
+public static class Twain32Sources
+{
+    /// <summary>At most this many files are read (a folder full of them can't fill the list).</summary>
+    public const int MaxFiles = 64;
+
+    private const int MaxName = 64;
+
+    /// <summary>Windows' WIA-to-TWAIN bridge for 32-bit apps: not a scanner's driver.</summary>
+    public const string WindowsBridge = "wiatwain.ds";
+
+    /// <summary>
+    /// The 32-bit-only sources among <paramref name="files"/>, one per file (its path inside <c>twain_32</c> is its id), named by
+    /// product, else description, else the file's name; two that would read alike get their file's name after them.
+    /// </summary>
+    /// <param name="in64">The files in <c>twain_64</c>: a 32-bit source has a 64-bit twin there when the path is the same, or the
+    /// file's name is with a 64-bit mark ("fi7160_64.ds", "fi7160x64.ds" beside "fi7160.ds" or "fi7160_32.ds") and the company
+    /// too (or either doesn't say).</param>
+    public static IReadOnlyList<WiaDeviceInfo> From(IEnumerable<Twain32File> files, IEnumerable<Twain32File> in64)
+    {
+        var twins = in64.Take(MaxFiles * 4).ToList();
+        var kept = new List<(string Path, string Name, string FileName, string? Company)>();
+        foreach (var file in files.Take(MaxFiles))
+        {
+            var path = Normalize(file.RelativePath);
+            var fileName = path.Split('/')[^1];
+            if (fileName.Equals(WindowsBridge, StringComparison.OrdinalIgnoreCase) || twins.Any(t => IsTwin(file, t))) continue;
+            if (kept.Any(k => k.Path.Equals(path, StringComparison.OrdinalIgnoreCase))) continue;
+            var name = Clean(file.Product) ?? Clean(file.Description) ?? Clean(Path.GetFileNameWithoutExtension(fileName));
+            if (name is not null) kept.Add((path, name, fileName, Clean(file.Company)));
+        }
+        return [.. kept.Select(k => new WiaDeviceInfo(k.Path,
+            kept.Count(o => o.Name.Equals(k.Name, StringComparison.OrdinalIgnoreCase)) > 1 ? $"{k.Name} ({k.FileName})" : k.Name,
+            k.Company, null, WiaDeviceInfo.Twain32Port))];
+    }
+
+    private static bool IsTwin(Twain32File source, Twain32File other)
+    {
+        if (Normalize(source.RelativePath).Equals(Normalize(other.RelativePath), StringComparison.OrdinalIgnoreCase)) return true;
+        if (Stem(source.RelativePath) is not { Length: > 0 } stem || !stem.Equals(Stem(other.RelativePath), StringComparison.OrdinalIgnoreCase)) return false;
+        return Clean(source.Company) is not { } a || Clean(other.Company) is not { } b || a.Equals(b, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>A data source's file name without its extension and its bitness mark: "Fi7160_64.ds", "fi7160x64.ds", "fi7160-32.ds" → "fi7160".</summary>
+    public static string Stem(string path)
+    {
+        var stem = Path.GetFileNameWithoutExtension(Normalize(path).Split('/')[^1]).ToLowerInvariant();
+        return System.Text.RegularExpressions.Regex.Replace(stem, @"[_\-\s]?(?:x64|x86|win64|win32|amd64|arm64|64|32)$", "");
+    }
+
+    private static string Normalize(string path) => path.Replace('\\', '/').Trim('/');
+
+    /// <summary>A name from a driver's version resource, fit to show: control characters out, spaces trimmed, at most 64 characters.</summary>
+    private static string? Clean(string? text)
+    {
+        if (text is null) return null;
+        var clean = new string([.. text.Where(c => !char.IsControl(c))]).Trim();
+        if (clean.Length > MaxName) clean = clean[..(char.IsHighSurrogate(clean[MaxName - 1]) ? MaxName - 1 : MaxName)].TrimEnd();
+        return clean.Length == 0 ? null : clean;
+    }
+}
+
 /// <summary>TWAIN failures as the WIA errors <see cref="WiaErrors.Message"/> words, so both read the same to the user.</summary>
 public static class TwainErrors
 {

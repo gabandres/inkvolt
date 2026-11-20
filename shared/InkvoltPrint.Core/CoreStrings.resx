@@ -4276,4 +4276,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Share_NotAnnounced" xml:space="preserve">
     <value>It couldn't be announced, so devices may not list it on their own: add it by this PC's address.</value>
   </data>
+  <data name="Twain_Only32Bit" xml:space="preserve">
+    <value>This scanner has only a 32-bit TWAIN driver, which a 64-bit app can't use. Install the maker's 64-bit TWAIN driver or its Windows (WIA) driver, or use the scanner's own app.</value>
+  </data>
 </root>

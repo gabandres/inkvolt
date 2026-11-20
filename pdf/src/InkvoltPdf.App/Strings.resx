@@ -11698,4 +11698,24 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>Text recognition is set to {0}, which needs Tesseract's download. Choose it in Review &gt; Recognize Text to download it, or choose another language there.</value>
     <comment>{0} language names joined by " + "</comment>
   </data>
+  <data name="Scan_PresetCleansUp" xml:space="preserve">
+    <value>Its pages are cleaned up: {0}.</value>
+    <comment>{0} = what the preset's clean up does, e.g. 'cropped to the paper, background whitened'</comment>
+  </data>
+  <data name="Scan_CleanCrop" xml:space="preserve">
+    <value>cropped to the paper</value>
+  </data>
+  <data name="Scan_CleanWhiten" xml:space="preserve">
+    <value>background whitened</value>
+  </data>
+  <data name="Scan_CleanDescreen" xml:space="preserve">
+    <value>printed pictures descreened</value>
+  </data>
+  <data name="Scan_CleanColors" xml:space="preserve">
+    <value>faded colors restored</value>
+  </data>
+  <data name="Scan_Twain32Label" xml:space="preserve">
+    <value>{0}  (TWAIN, 32-bit only)</value>
+    <comment>{0} = scanner name; a scanner whose only driver is a 32-bit TWAIN one (listed, can't be used)</comment>
+  </data>
 </root>

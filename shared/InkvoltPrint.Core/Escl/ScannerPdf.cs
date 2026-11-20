@@ -20,7 +20,8 @@ public sealed record PdfOrigin(byte[] Pdf, int Page, int PageCount, bool Rendere
 public readonly record struct PageToSave(PdfOrigin? Origin, bool Changed);
 
 /// <summary>
-/// Scanners that send only PDF from a source (print/ROADMAP.md 1.3: some eSCL feeders offer <c>application/pdf</c> and no JPEG).
+/// Scanners that send only PDF from a source (print/ROADMAP.md 1.3: some eSCL feeders offer <c>application/pdf</c> and no JPEG,
+/// some WIA drivers <c>WiaImgFmt_PDFA</c> and no picture format: <see cref="Wia.WiaScanner"/>).
 /// Their pages go to the review, OCR, presets and photos as the JPEG pages every other scanner sends: a page that is one JPEG
 /// picture (a scanner's PDF nearly always is) is taken out as it is, byte for byte, so nothing is re-encoded and the page is the
 /// one a JPEG scan gives; anything else (a picture in another encoding, a turned page, compressed object streams) is rendered at
@@ -35,6 +36,9 @@ public static partial class ScannerPdf
     public static IPdfPageRenderer? Renderer { get; set; }
 
     private static readonly ConditionalWeakTable<byte[], PdfOrigin> Origins = new();
+
+    /// <summary>The bytes are a PDF (its header), not a picture: what a PDF-only WIA driver's transfer gives.</summary>
+    public static bool IsPdf(ReadOnlySpan<byte> data) => data.StartsWith("%PDF-"u8);
 
     /// <summary>The PDF a page handed over by <see cref="PagesAsync"/> came from; null for a page that came as a JPEG.</summary>
     public static PdfOrigin? OriginOf(byte[] page) => Origins.TryGetValue(page, out var origin) ? origin : null;

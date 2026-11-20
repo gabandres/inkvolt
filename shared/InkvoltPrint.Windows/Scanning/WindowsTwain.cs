@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using InkvoltPrint.Core.Twain;
@@ -40,14 +41,20 @@ public sealed class WindowsTwain : IWiaSystem
     /// </summary>
     public async Task<IReadOnlyList<WiaDeviceInfo>> ListScannersAsync(CancellationToken ct)
     {
-        if (!ManagerInstalled) return [];
+        // Named and declined, with or without the 64-bit manager: read off this thread, under the caller's token (a slow disk).
+        var only32 = await Task.Run(Only32Bit, ct).WaitAsync(ct).ConfigureAwait(false);
+        if (!ManagerInstalled) return only32;
         try
         {
-            return await _listThread.Value.RunAsync(() => WindowsWia.Wrap(List), ct).ConfigureAwait(false);
+            return [.. await _listThread.Value.RunAsync(() => WindowsWia.Wrap(List), ct).ConfigureAwait(false), .. only32];
         }
         catch (WorkThreadStuckException)
         {
-            throw new WiaException(WiaErrors.NotAnswering, "The TWAIN manager still hasn't answered an earlier request.");
+            throw new PartialListException(new WiaException(WiaErrors.NotAnswering, "The TWAIN manager still hasn't answered an earlier request."), only32);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new PartialListException(ex, only32); // the manager failed: the 32-bit-only sources are still there to name
         }
     }
 
@@ -68,6 +75,44 @@ public sealed class WindowsTwain : IWiaSystem
     }
 
     private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    /// <summary>
+    /// The sources in Windows' <c>twain_32</c> folder with no twin in <c>twain_64</c> (<see cref="Twain32Sources"/>), named from each
+    /// file's version resource, which is read as data: nothing is loaded. Empty when the folder isn't there or can't be read.
+    /// </summary>
+    private static IReadOnlyList<WiaDeviceInfo> Only32Bit()
+    {
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var folder32 = Path.Combine(windows, "twain_32");
+        try
+        {
+            if (!Directory.Exists(folder32)) return [];
+            var files = Files(folder32);
+            var folder64 = Path.Combine(windows, "twain_64");
+            var in64 = Directory.Exists(folder64) ? Files(folder64) : [];
+            return Twain32Sources.From(files, in64);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
+    }
+
+    /// <summary>A TWAIN folder's data sources with what their version resources say (read as data: nothing is loaded).</summary>
+    private static List<Twain32File> Files(string folder) => [.. DataSources(folder).Select(path =>
+    {
+        FileVersionInfo? version = null;
+        try { version = FileVersionInfo.GetVersionInfo(path); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { }
+        return new Twain32File(Path.GetRelativePath(folder, path), version?.ProductName, version?.FileDescription, version?.CompanyName);
+    })];
+
+    /// <summary>The .ds files in a TWAIN folder (makers put each in a folder of its own), a few levels down, links not followed.</summary>
+    private static IEnumerable<string> DataSources(string folder) =>
+        Directory.EnumerateFiles(folder, "*.ds", new EnumerationOptions
+        {
+            RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint,
+        }).Take(Twain32Sources.MaxFiles);
 
     /// <summary>One source: its own STA thread and, once opened, its session (touched on that thread only).</summary>
     private sealed class Slot(string id, int number) : IWiaDeviceHost

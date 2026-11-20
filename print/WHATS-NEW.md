@@ -11,6 +11,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Copies through the PC can put 2 or 4 pages on each sheet, come out uncollated (all the copies of page 1, then of page 2), and wait in a preview until you press Print.
 - Scan from the printer's button: on an HP printer that offers Scan to Computer, turn it on in the Scan tab and this PC appears on the printer's panel; choose it there and press Scan, and your chosen scan preset runs here while Inkvolt Print or its icon in the notification area is running. A scanner whose Windows driver reports its button does the same; a printer with neither says so.
 - Inkvolt Pro (free for now): share a scanner on the network. A USB scanner, or an all-in-one that can't scan over the network, can be used from an iPhone or Android scan app, a Mac's Image Capture or another PC: turn on Share this scanner on the network in its Scan tab, or from the icon in the notification area. It's off until you turn it on, works only on networks Windows calls Private and only while Inkvolt Print runs, and the card shows the certificate's fingerprint to compare.
+- Scanners whose Windows driver sends only PDF now scan like any other: their pages come into the Scan tab for the review, text recognition and presets.
+- Scanners with a newer (WIA 2.0) Windows driver: the Scan tab shows how far each page is, Stop stops the page being scanned, and the glass and the feeder each offer their own resolutions.
+- A scanner whose only driver is an old 32-bit TWAIN driver is now listed by its name and says why it can't be used here and which driver to install, instead of not showing at all.
+- Clean up's Whiten no longer makes faded pages harder to read once their colors are restored.
 
 ## 1.6.0
 - SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, or the refusal may not come from your printer, Save anyway keeps it as it is.
