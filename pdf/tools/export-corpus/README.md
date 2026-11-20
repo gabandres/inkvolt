@@ -24,7 +24,7 @@ It also checks the same documents' **PowerPoint and HTML** exports, written besi
 
 A check that can't run says so and doesn't count. Everything runs on this PC; no document goes to an online service.
 `-SkipWord` leaves out Word's page count. **Last run, 2026-11-20, 7 documents, 174 pages:** the validator, PowerPoint
-(16.0) and the Nu validator pass on all, the HTML carries 739 links (all web, mail or page anchors), and 3,617 of 3,641
+(16.0) and the Nu validator pass on all, the HTML carries 869 links (all web, mail or page anchors; a link over two lines is two), and 3,617 of 3,641
 lines read in order (the rest are repeated lines and rows the two exports break differently). Word's page counts are the
 baseline's. **LibreOffice isn't installed on that PC, so `-LibreOffice` hasn't been run** (it said so). No screen reader
 has been run either.
