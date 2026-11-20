@@ -244,6 +244,8 @@ public static partial class ContentEditor
         if (now is { Blocked: { } why }) throw new ContentEditException(Loc.Format(PdfStrings.Edit_TextCantBeEdited, why));
         if (now is null || !walk.Runs.TryGetValue(now.Id, out var info))
             throw new ContentEditException(PdfStrings.Edit_PageChangedText);
+        // Right-to-left letters drawn left to right are read in reading order; written back from the edit as drawn, they would come out mirrored.
+        if (info.Columns == 1 && Reordered(info, now)) throw new ContentEditException(Loc.Format(PdfStrings.Edit_TextCantBeEdited, PdfStrings.Edit_BlockedRightToLeft));
         var font = now.Font!;
 
         var plan = Plan(info, now, text);
@@ -1111,6 +1113,16 @@ public static partial class ContentEditor
         return RectD.FromEdges(minX, minY, maxX, maxY);
     }
 
+    /// <summary>The text of an operator's items (or a column's), right-to-left letters drawn left to right put in reading order (<see cref="DrawnLeftToRight"/>).</summary>
+    private static string InReadingOrder(List<RunItem> items)
+    {
+        var text = string.Concat(items.Select(i => i.Text));
+        return DrawnLeftToRight(items, text) ? Bidi.ToReadingOrder(text) : text;
+    }
+
+    /// <summary>Whether an operator's text was put in reading order: the single-run editor writes its items as drawn, so it can't edit such a run.</summary>
+    internal static bool Reordered(RunInfo info, TextRun run) => !string.Equals(run.Text, string.Concat(info.Items.Select(i => i.Text)), StringComparison.Ordinal);
+
     /// <summary>
     /// Whether an operator's text has right-to-left letters and its glyphs go left to right, never back (visual order), most
     /// of them clear of the one before: a letter and the mark on it drawn in reading order also go right, but over each other.
@@ -1198,10 +1210,10 @@ public static partial class ContentEditor
         var vscale = Math.Sqrt((vx0 - bx0) * (vx0 - bx0) + (vy0 - by0) * (vy0 - by0));
         var angle = Math.Atan2(by1 - by0, bx1 - bx0) * 180 / Math.PI;
         var upright = Upright(bx1 - bx0, by1 - by0, vx0 - bx0, vy0 - by0);
-        var text = string.Concat(items.Select(i => i.Text));
         // Right-to-left letters an operator draws left to right (visual order: Word's PDFs, a translated copy's lines) are read
         // in reading order, as MuPDF reads them; drawn in reading order (moving back as it goes), they are read as they are.
-        if (DrawnLeftToRight(items, text)) text = Bidi.ToReadingOrder(text);
+        // A column of an operator drawing several is read so on its own (InReadingOrder in Make).
+        var text = InReadingOrder(items);
 
         var why = blocked;
         if (why is null)
@@ -1243,7 +1255,7 @@ public static partial class ContentEditor
             }
             var (ox, oy) = Project(page, place, 0, 0);
             var mine = from == 0 && to == items.Count ? items : items.GetRange(from, to - from);
-            return new TextRun(pageIndex, id, columns == 1 ? text : string.Concat(mine.Select(i => i.Text)), BoxOf(page, place, low, desc, Math.Max(end, high), asc),
+            return new TextRun(pageIndex, id, columns == 1 ? text : InReadingOrder(mine), BoxOf(page, place, low, desc, Math.Max(end, high), asc),
                 Math.Abs(fs) * vscale, font?.Name ?? gs.FontKey, font?.Bold ?? false, font?.Italic ?? false, gs.Fill, angle, why)
             {
                 Font = font,

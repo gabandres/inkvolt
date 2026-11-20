@@ -942,6 +942,55 @@ public class TranslationCopyTests
         Assert.Equal(line, Bidi.ToReadingOrder(string.Concat(shaped.Glyphs.Select(g => g.Text))));
     }
 
+    /// <summary>A page of right-to-left text drawn left to right (visual order, as Word writes it): each piece in Arial at 12 points, its baseline's left end at (x, y) in PDF space.</summary>
+    private static byte[] DrawnLeftToRight(params (string Text, double X, double Y)[] pieces)
+    {
+        var writer = new CidFontWriter("/V");
+        var sb = new StringBuilder();
+        foreach (var (text, x, y) in pieces)
+        {
+            sb.Append(System.FormattableString.Invariant($"BT 1 0 0 1 {x} {y} Tm "));
+            writer.Emit(sb, TextShaper.Shape(text, SystemFonts.Get("arial.ttf"), visualOrder: true), 12);
+            sb.Append("ET\n");
+        }
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(612);
+        page.Height = XUnit.FromPoint(792);
+        var resources = new PdfDictionary(doc);
+        resources.Elements["/Font"] = writer.BuildFonts(doc);
+        page.Elements["/Resources"] = resources;
+        PdfObj.AppendContent(doc, page, sb.ToString());
+        using var ms = new MemoryStream();
+        doc.Save(ms, false);
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void Right_to_left_words_drawn_left_to_right_read_in_order_across_operators_and_columns()
+    {
+        // Two operators on one line, the first word on the right; and one operator drawing two columns (a wide gap).
+        var pdf = DrawnLeftToRight(("مرحبا", 300, 700), ("بالعالم", 272, 700), ("الأول                    الثاني", 72, 600));
+        var paragraphs = ContentEditor.Read(pdf, null, 0).Paragraphs.Select(p => p.Text).ToList();
+        Assert.Contains("مرحبا بالعالم", paragraphs);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
+        var columns = ContentEditor.ReadRaw(doc.Pages[0], 0, default).Runs.Where(r => r.Text.Trim().Length > 0 && r.Box.Y > 792 - 620).Select(r => r.Text.Trim()).ToList();
+        Assert.Equal(2, columns.Count); // a run for each column, each in reading order
+        Assert.Contains("الأول", columns);
+        Assert.Contains("الثاني", columns);
+    }
+
+    [Fact]
+    public void A_right_to_left_run_drawn_left_to_right_is_not_edited_as_one_run()
+    {
+        // Read in reading order, written back as drawn, it would come out mirrored.
+        var pdf = DrawnLeftToRight(("مرحبا بالعالم", 300, 700));
+        var run = Assert.Single(ContentEditor.Read(pdf, null, 0).Runs, r => r.Text.Trim().Length > 0);
+        Assert.Equal("مرحبا بالعالم", run.Text);
+        var e = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(pdf, null, run, "مرحبا يا عالم"));
+        Assert.Contains(PdfStrings.Edit_BlockedRightToLeft, e.Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void Arabic_keeps_a_bold_and_a_red_word_where_they_read()
     {

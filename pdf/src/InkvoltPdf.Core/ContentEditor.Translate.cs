@@ -317,6 +317,9 @@ public static partial class ContentEditor
         foreach (var i in Enumerable.Range(0, byBaseline.Count).OrderByDescending(k => byBaseline[k].Text.Trim().Length))
         {
             var mark = byBaseline[i];
+            // A line already hosting a script (a long one, which may sit on a line shorter than itself) joins no line itself:
+            // it would be written twice, with its script and as one.
+            if (joined.ContainsKey(mark)) continue;
             var length = mark.Text.Trim().Length;
             var reach = 1.2 * Math.Max(mark.Size, 1);
             PLine? host = null;
@@ -762,10 +765,11 @@ public static partial class ContentEditor
     /// italic in that face of an installed font that has the text's letters, another family in that family, a script at
     /// its size and rise, a color, an underline drawn under it (<see cref="ParagraphLayout.Underlined"/>).
     /// </summary>
-    private static ParagraphLayout LayOutRightToLeft(TextParagraph p, TextRun m, string text, double shrink, TextLook?[] looks)
+    /// <param name="colorable">The run the text is written at has a fill it can be set back to (not a pattern): a look's color can be drawn.</param>
+    private static ParagraphLayout LayOutRightToLeft(TextParagraph p, TextRun m, string text, double shrink, TextLook?[] looks, bool colorable = true)
     {
         var cps = TrueTypeFont.CodePoints(text).Where(c => c > 32).Distinct().ToList();
-        var ranked = StandInFonts.RankFor(m.Font!).FirstOrDefault(f => cps.All(f.Font.Has));
+        var ranked = RightToLeftFont(StandInFonts.RankFor(m.Font!), cps, text);
         var primary = ranked?.Font;
         var missing = TrueTypeFont.CodePoints(text)
             .Where(c => c > 32 && !(primary?.Has(c) == true || SystemFonts.For(c, primary) is { } fb && fb.Has(c)))
@@ -859,10 +863,36 @@ public static partial class ContentEditor
             baseline += p.LineStep * shrink;
         }
         var bottom = baseline - p.LineStep * shrink + p.Descent * shrink;
-        var check = new ParagraphCheck(RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1)), placed.Count, [], null) { StandIns = names };
+        // A color its run can't be set back to after (a pattern fill): its words are drawn in the run's own, and the look is named, as left to right.
+        var problem = !colorable && styles.Any(st => st.Color is not null) ? PdfStrings.Edit_SpecialInkColor : null;
+        var check = new ParagraphCheck(RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1)), placed.Count, [], null) { StandIns = names, LookProblem = problem };
         return new ParagraphLayout(placed, check, []) { Underlined = underlined };
     }
 
+    /// <summary>The most installed fonts tried for right-to-left text whose letters stay on the line.</summary>
+    private const int RightToLeftFontsTried = 6;
+
+    /// <summary>
+    /// Of installed fonts in the order they come closest to the page's (<paramref name="ranked"/>), the first with every one
+    /// of <paramref name="cps"/> whose letters all sit on the line when <paramref name="text"/> is shaped in it (only marks
+    /// move up or down); else the first with every one of them; null when none has. MuPDF (the app's own reading: search,
+    /// copy, export) reads a right-to-left line backwards when some of its letters sit on another baseline: Calibri's Arabic
+    /// lowers letters it joins (cursive attachment), and NIST p. 1's Arabic table values in Calibri read backwards; in Arial
+    /// they read right.
+    /// </summary>
+    private static StandInFont? RightToLeftFont(IReadOnlyList<StandInFont> ranked, List<int> cps, string? text)
+    {
+        var having = ranked.Where(f => cps.All(f.Font.Has)).Take(RightToLeftFontsTried).ToList();
+        var sample = text ?? string.Concat(cps.Select(char.ConvertFromUtf32));
+        if (sample.Length > 400) sample = sample[..400];
+        return having.FirstOrDefault(f => LettersOnTheLine(TextShaper.Shape(sample, f.Font))) ?? having.FirstOrDefault();
+    }
+
+    /// <summary>Whether a shaped line's glyphs all sit on its baseline but marks (and glyphs of no text of their own, a cluster's extra ones).</summary>
+    private static bool LettersOnTheLine(ShapedLine line) =>
+        line.Glyphs.All(g => Math.Abs(g.Y) < 1e-6 || g.Text.Length == 0
+            || System.Globalization.CharUnicodeInfo.GetUnicodeCategory(g.Text, 0) is System.Globalization.UnicodeCategory.NonSpacingMark
+                or System.Globalization.UnicodeCategory.EnclosingMark or System.Globalization.UnicodeCategory.SpacingCombiningMark);
     /// <summary>The words of a text, spaces apart: where each starts and ends.</summary>
     private static IEnumerable<(int Start, int End)> SpacedWords(string text)
     {
@@ -890,7 +920,7 @@ public static partial class ContentEditor
         StandInFont? face = null;
         if (family is not null) face = StandInFonts.Styled(m.Font!, family, bold, italic);
         else if (bold != lead.Bold || italic != lead.Italic)
-            face = StandInFonts.RankFor(m.Font!, bold, italic).FirstOrDefault(s => cps.All(s.Font.Has)) ?? StandInFonts.Styled(m.Font!, null, bold, italic);
+            face = RightToLeftFont(StandInFonts.RankFor(m.Font!, bold, italic), cps, null) ?? StandInFonts.Styled(m.Font!, null, bold, italic);
         return (new GlyphStyle(face?.Font, scale, rise, color), face?.Name);
     }
 
@@ -1178,9 +1208,9 @@ public static partial class ContentEditor
         var ops = ContentLexer.Parse(streams.Bytes, cancel);
         var walk = Walk(page, pageIndex, ops, cancel, columns: true);
         var content = TranslationContent(page, walk, ops);
-        // A plain underline is the text's look, not a rule the new text keeps clear of.
-        if (content.Underlines.Count > 0)
-            obstacles = [.. obstacles.Where(o => !content.Underlines.Any(u => Math.Abs(o.X - u.Box.X) < 1 && Math.Abs(o.Right - u.Box.Right) < 1 && Math.Abs(o.CenterY - u.Box.CenterY) < 1))];
+        // A plain underline is the upright text's look, not a rule its new text keeps clear of; turned text (laid out in its
+        // frame, from all of them) keeps clear of it as of any rule.
+        IReadOnlyList<RectD> uprightObstacles = content.Underlines.Count == 0 ? obstacles : [.. obstacles.Where(o => !content.Underlines.Any(u => Math.Abs(o.X - u.Box.X) < 1 && Math.Abs(o.Right - u.Box.Right) < 1 && Math.Abs(o.CenterY - u.Box.CenterY) < 1))];
         var (pageWidth, pageHeight) = PdfObj.DisplaySize(page);
         var turned = TurnedParts(content, pageWidth, pageHeight, turnedCells);
         var slots = TranslationSlots(content, cells, cancel, turned);
@@ -1193,7 +1223,7 @@ public static partial class ContentEditor
         var fonts = new List<(TextFont Font, IReadOnlyList<int> Codes, string Text)>();
         var owners = new List<PdfDictionary>();
         var taken = new HashSet<(Target, int)>();
-        var things = new PageThings(content, obstacles);
+        var things = new PageThings(content, uprightObstacles);
         var paints = walk.PaintsCut ? null : walk.Paints;
         // A turned part's surroundings in its frame, worked out once it has a paragraph to lay out.
         var framed = new Dictionary<int, (PageThings Things, List<RectD> Obstacles, List<(RectD, int)> Fills, List<Paint>? Paints)>();
@@ -1204,7 +1234,7 @@ public static partial class ContentEditor
         var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
         // Plain underlines drawn again under the new words (added after the content), and the old ones' operators taken off.
         var underlines = new StringBuilder();
-        var blanked = new HashSet<int>();
+        var writtenRuns = new HashSet<TextRun>(ReferenceEqualityComparer.Instance);
 
         // Every paragraph laid out first: a column's then take one size (OneSizePerColumn) before any is written.
         var laid = new Laid?[slots.Count];
@@ -1242,7 +1272,7 @@ public static partial class ContentEditor
                 }
                 room = Room(upright, f.Things, f.Obstacles, part.Frame.Width, part.Frame.Height, f.Fills, f.Paints);
             }
-            else room = Room(slot, things, obstacles, pageWidth, pageHeight, walk.Fills, paints);
+            else room = Room(slot, things, uprightObstacles, pageWidth, pageHeight, walk.Fills, paints);
             var (inRoom, bottom, wide, wideBottom) = room;
             var (layout, fit, fits, dropped) = FitText(inRoom, bottom, text, wide, wideBottom, spans: spans);
             if (layout.Check.Missing.Count > 0 || layout.Lines.Count == 0)
@@ -1339,7 +1369,11 @@ public static partial class ContentEditor
             if (slots[i].Part is null)
             {
                 placed[i] = (layout.Check.Box, fit, [.. layout.Lines.Select(l => l.Origin)]);
-                if (content.Underlines.Count > 0) underlines.Append(RedrawUnderlines(page, p, content.Underlines, layout, fit, ops, pageEdits, blanked));
+                if (content.Underlines.Count > 0)
+                {
+                    underlines.Append(NewUnderlines(page, p, content.Underlines, layout, fit));
+                    writtenRuns.UnionWith(p.Runs);
+                }
             }
         }
 
@@ -1350,6 +1384,8 @@ public static partial class ContentEditor
             foreach (var (edits, op, id, parts) in columned.Values)
                 edits.Add((op.Start, op.End, string.Join(' ', columnsOf[id].OrderBy(r => r.Info!.Column).Select(r => parts[r.Info!.Column] ?? Kept(op, r)))));
         }
+        // The old rules under the words written are taken off; the part of one under words not written is drawn again.
+        if (writtenRuns.Count > 0) underlines.Append(TakeOffUnderlines(page, content.Underlines, writtenRuns, ops, pageEdits));
         // Links, and their underlines, are moved once the page and its fonts are written.
         var links = written.Count > 0 ? LinksOfWritten(page, slots, written, placed, ops, paints) : [];
         if (written.Count == 0 && pageEdits.Count == 0) return (slots, written, refused);

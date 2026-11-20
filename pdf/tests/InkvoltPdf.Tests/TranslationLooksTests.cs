@@ -320,9 +320,11 @@ public class TranslationLooksTests
     }
 
     [Theory]
-    [InlineData("<Aidan N. Gomez></sup>∗ †", "<b>Aidan N. Gomez</b><sup>∗ †</sup>", "Aidan N. Gomez ∗ †")] // a real model's bold name in brackets
+    [InlineData("<Aidan N. Gomez></sup>∗ †", "<b>Aidan N. Gomez</b><sup>∗ †</sup>", "Aidan N. Gomez∗ †")] // a real model's bold name in brackets
     [InlineData("<Décodage :> Le décodeur est composé.", "<b>Decoder:</b> The decoder is composed.", "Décodage : Le décodeur est composé.")]
     [InlineData("<Décodage :> Le décodeur est composé.", "Decoder: The decoder is composed.", "Décodage : Le décodeur est composé.")] // sent without markup
+    [InlineData("Voir <Annexe A>, page 3.", "See <b>Annex</b> A, page 3.", "Voir Annexe A, page 3.")] // no space before its comma
+    [InlineData("Voir<Annexe A>page 3.", "See <b>Annex</b> A, page 3.", "Voir Annexe A page 3.")] // a space from the letters beside it
     [InlineData("<font color=\"#0000FF\">Informations</font> <bold>en plus</bold><br/>", "<b>More</b> information", "Informations en plus")] // tag-shaped: only the tags go
     public void Words_a_model_put_in_angle_brackets_stay_and_only_tags_go(string reply, string source, string written)
     {
@@ -747,6 +749,19 @@ public class TranslationLooksTests
     }
 
     [Fact]
+    public void Arabic_for_a_paragraph_in_Calibri_is_drawn_in_a_font_MuPDF_reads_in_order()
+    {
+        // Calibri's Arabic lowers letters it joins; MuPDF read such lines on NIST p. 1 backwards. The closest font whose letters stay on the line is taken.
+        if (SystemFonts.Get("calibri.ttf") is null) return;
+        var pdf = WithTimesNamed(ContentEditPdf.Make("BT /FT 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the dog) Tj ET", faces: true, fontText: Letters), "Calibri");
+        const string ar = "القسم المُطبّق للهندسة الأمنية (مختبر التكنولوجيا المعلوماتية)";
+        var (_, r) = Translate(pdf, _ => ar);
+        Assert.Equal(1, r.Report.Translated);
+        static string Solid(string s) => new([.. s.Where(c => !char.IsWhiteSpace(c))]);
+        Assert.Contains(Solid(ar), Solid(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void A_regular_word_in_a_bold_paragraph_goes_with_the_bold_around_it_and_comes_back_regular()
     {
         var pdf = ContentEditPdf.Make(
@@ -998,6 +1013,55 @@ public class TranslationLooksTests
         Assert.Equal(7, mark.FontSize, 1);
         var plain = runs.First(q => q.Text.Contains("perro", StringComparison.Ordinal));
         Assert.True(mark.Origin.Y < plain.Origin.Y - 3, $"{mark.Origin.Y} {plain.Origin.Y}");
+    }
+
+    [Fact]
+    public void A_line_hosting_a_long_script_is_not_also_joined_to_another_line_as_one()
+    {
+        // A big line, a smaller one raised after its end, and a long script raised after that one: the middle line hosts the
+        // script and could itself be the big line's script; joined both ways, its words would be sent and written twice.
+        const string big = "BT /FA 20 Tf 1 0 0 1 72 700 Tm (THE QUICK BROWN FOX) Tj ET";
+        var right = Assert.Single(ContentEditor.Read(ContentEditPdf.Make(big, fontText: Letters + "[]-"), null, 0).Paragraphs).Box.Right;
+        var middle = $"BT /FA 12 Tf 1 0 0 1 {right + 2:0.##} 706 Tm (The lazy dog) Tj ET";
+        var middleRight = ContentEditor.Read(ContentEditPdf.Make(big + " " + middle, fontText: Letters + "[]-"), null, 0).Runs.Single(r => r.Text == "The lazy dog").Box.Right;
+        var pdf = ContentEditPdf.Make(big + " " + middle + $" BT /FA 7 Tf 1 0 0 1 {middleRight + 0.5:0.##} 710 Tm ([3, 7, 12, 18-24, 31, 40]) Tj ET", fontText: Letters + "[]-");
+        var all = string.Concat(Translation.MakePlan(pdf, null, [0]).Texts.Select(t => t.Text));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(all, "lazy dog"));
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(all, @"\[3, 7"));
+    }
+
+    [Fact]
+    public void Thousands_of_rules_under_a_crowded_baseline_are_looked_at_quickly()
+    {
+        // 4,000 thin rectangles, each under 20,000 runs on one baseline: the look for underlines gives up, it doesn't compare them all.
+        var content = new System.Text.StringBuilder("BT /FA 1 Tf 1 0 0 1 10 700 Tm ");
+        for (var i = 0; i < 20_000; i++) content.Append("(ab) Tj ");
+        content.Append("ET 0 g ");
+        for (var i = 0; i < 4_000; i++) content.Append(System.FormattableString.Invariant($"{10 + i * 0.1} 699.8 5 0.1 re f "));
+        var pdf = ContentEditPdf.Make(content.ToString(), fontText: Letters);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
+        var clock = Stopwatch.StartNew();
+        ContentEditor.ReadRaw(doc.Pages[0], 0, default);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"{clock.Elapsed}");
+    }
+
+    [Fact]
+    public void A_rule_under_two_paragraphs_stays_under_the_one_not_written()
+    {
+        // "The quick brown fox" and, a column's gap on, "jumps over the dog", one rule under both; only the first is translated.
+        const string line = "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox) Tj 1 0 0 1 200 700 Tm (jumps over the dog) Tj ET";
+        var runs = Runs(ContentEditPdf.Make(line, fontText: Letters));
+        var second = Assert.Single(runs, q => q.Text.StartsWith("jumps", StringComparison.Ordinal)).Box;
+        var pdf = ContentEditPdf.Make(line + System.FormattableString.Invariant($" 0 0 1 rg 72 697.2 {second.Right - 72:0.###} 0.8 re f 0 g"), fontText: Letters);
+        var (plan, r) = Translate(pdf, t => t.Contains("quick", StringComparison.Ordinal) ? "<u>El zorro marron rapido</u>" : t);
+        Assert.Equal(2, plan.Texts.Count);
+        Assert.All(plan.Texts, t => Assert.StartsWith("<u>", t.Text, StringComparison.Ordinal));
+        Assert.Equal(1, r.Report.Translated);
+        var rules = Filled(r.Data!);
+        Assert.Equal(2, rules.Count); // the one under the translation and what is left of the old one
+        Assert.Contains(rules, q => Math.Abs(q.X - second.X) < 1 && Math.Abs(q.X + q.W - second.Right) < 1 && Math.Abs(q.Y - 697.2) < 0.01);
+        var words = Assert.Single(Runs(r.Data!), q => q.Text.Contains("marron", StringComparison.Ordinal));
+        Assert.Contains(rules, q => Math.Abs(q.X - words.Box.X) < 1);
     }
 
     [Fact]

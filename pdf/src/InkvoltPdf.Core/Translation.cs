@@ -795,7 +795,7 @@ public static partial class TranslationText
         text = Characters(text);
         // Text sent with markup (TranslationMarkup) keeps its tags, read when the copy is written; any other tag goes.
         if (marked) text = TranslationMarkup.WithoutOtherTags(text, source);
-        else if (!source.Contains('<')) text = Tags().Replace(text, m => TranslationMarkup.Unwrapped(m.Value));
+        else if (!source.Contains('<')) text = Tags().Replace(text, m => TranslationMarkup.Unwrapped(text, m));
         if (!own.Contains('&')) text = global::System.Net.WebUtility.HtmlDecode(text);
         if (!own.Contains("**", StringComparison.Ordinal)) text = text.Replace("**", "", StringComparison.Ordinal);
         if (!own.Contains("__", StringComparison.Ordinal)) text = text.Replace("__", "", StringComparison.Ordinal);

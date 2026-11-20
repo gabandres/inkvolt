@@ -1016,11 +1016,25 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   runs). A label or name the model put in angle brackets ("<Décodage :>", the earlier run's "<Aidan N. Gomez>") was taken
   out as a tag with its words: only what is shaped as a tag goes now, other brackets leave their words
   (`TranslationMarkup.Unwrapped`). A ligature's "لى" of a right-to-left run written left to right read "ىل" in MuPDF (above).
-  Not fixed: on NIST p. 1's table MuPDF reads two Arabic values backwards ("القسم المطبّق…", "النسخة الأخيرة…"), each on a row
-  with its label: on screen they read right, and the same lines on a page of their own read right in MuPDF; it is MuPDF's
-  joining of a label and a value into one line, to look at. The model's: Russian "номер" in a Japanese label, English left
+  Then fixed (2026-11-20, review): on NIST p. 1's table MuPDF read the Arabic values backwards. Their paragraphs are in
+  Calibri, whose Arabic lowers letters it joins (cursive attachment), and MuPDF reads a right-to-left line whose letters
+  sit on more than one baseline backwards; in Arial or Segoe UI they read right. A right-to-left line is now drawn in the
+  closest of the first six installed fonts that have its letters whose letters stay on the line when shaped (only marks
+  move), else the closest (`RightToLeftFont`); NIST p. 1 in Arabic with the real model again: every answer read back.
+  `TranslationLooksTests.Arabic_for_a_paragraph_in_Calibri_is_drawn_in_a_font_MuPDF_reads_in_order`. The model's: Russian "номер" in a Japanese label, English left
   inside Arabic ("تاريخ ال-withdrawal", "Guidelines"), Vietnamese "mới" in Arabic; `SlipsIntoAnotherScript` judges only
   Latin-letter languages.
+  **Review (2026-11-20), ten findings fixed.** The editor's reading of right-to-left text drawn left to right: a column of
+  an operator drawing several is read in reading order on its own; a line of several operators most of whose letters read
+  right to left is joined right to left (`InReadingOrder(PLine)`), so its words come in reading order; the one-run editor
+  refuses such a run (written back as drawn it would come out mirrored). A line hosting a long script joins no line as a
+  script itself (it was sent and written twice). A rule under two paragraphs is taken off once all are written and drawn
+  again under the words of any not written (`TakeOffUnderlines`); turned text keeps clear of the page's underlines as of any
+  rule. Underlines are looked for under at most 2,048 runs a rule and a million a page (4,000 rules over 20,000 runs on one
+  baseline). A right-to-left line's color its run can't be set back to is named (`LookProblem`), as left to right; the
+  layout carries a paragraph's looks to right-to-left text as to left to right. Words a model put in angle brackets get a
+  space only from a letter or digit beside them ("Voir <Annexe A>," reads "Voir Annexe A,"). Tests: `TranslationTests` +2,
+  `TranslationLooksTests` +3 and 2 cases of the angle-bracket test.
   **Still wrong, and why.** The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads

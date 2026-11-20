@@ -309,7 +309,7 @@ internal static partial class TranslationMarkup
                 var bold = m.Groups["name"].Value.ToLowerInvariant() is "bold" or "strong" or "bf";
                 return (had & (bold ? Kind.Bold : Kind.Italic)) == 0 ? m.Value : (m.Groups["close"].Length > 0 ? "</" : "<") + (bold ? "b" : "i") + ">";
             });
-        return AnyTag().Replace(reply, m => IsOurs(m.ValueSpan) && (KindNamed(m.ValueSpan[1..^1]) & had) != 0 ? m.Value : Unwrapped(m.Value));
+        return AnyTag().Replace(reply, m => IsOurs(m.ValueSpan) && (KindNamed(m.ValueSpan[1..^1]) & had) != 0 ? m.Value : Unwrapped(reply, m));
     }
 
     [GeneratedRegex(@"<(?<close>/)?(?<name>bold|strong|bf|em|italic)>", RegexOptions.IgnoreCase)]
@@ -320,13 +320,20 @@ internal static partial class TranslationMarkup
     /// ("&lt;br/&gt;", "&lt;font color="#00F"&gt;", "&lt;bold&gt;"), its words when it isn't ("&lt;Décodage :&gt;",
     /// "&lt;Aidan N. Gomez&gt;": how a real model marked a label or a name it was sent in bold, which taking out as a tag lost).
     /// </summary>
-    internal static string Unwrapped(string bracketed)
+    /// <remarks>Its words keep a space from a letter or digit right beside it ("Voir<Annexe A>," reads "Voir Annexe A,"), and none from anything else.</remarks>
+    /// <param name="input">The text <paramref name="m"/> was found in.</param>
+    internal static string Unwrapped(string input, Match m)
     {
+        var bracketed = m.Value;
         if (bracketed.Length < 3 || bracketed[1] is '!' or '?') return "";
         // The usual tag, a name alone ("<b>", "</bold>"), without a regex: a crafted reply has hundreds of thousands.
         var name = bracketed.AsSpan(bracketed[1] == '/' ? 2 : 1, bracketed.Length - (bracketed[1] == '/' ? 3 : 2));
         if (name.Length > 0 && !name.ContainsAnyExcept(AsciiLettersAndDigits)) return "";
-        return TagShaped().IsMatch(bracketed) ? "" : " " + bracketed[1..^1].TrimStart('/').Trim() + " ";
+        if (TagShaped().IsMatch(bracketed)) return "";
+        int before = m.Index - 1, after = m.Index + m.Length;
+        var left = before >= 0 && char.IsLetterOrDigit(input[before]) ? " " : "";
+        var right = after < input.Length && char.IsLetterOrDigit(input[after]) ? " " : "";
+        return left + bracketed[1..^1].TrimStart('/').Trim() + right;
     }
 
     private static readonly System.Buffers.SearchValues<char> AsciiLettersAndDigits =
@@ -606,7 +613,7 @@ internal static partial class TranslationMarkup
     /// </summary>
     private static string Stripped(string reply)
     {
-        var s = AnyTag().Replace(reply, m => Unwrapped(m.Value));
+        var s = AnyTag().Replace(reply, m => Unwrapped(reply, m));
         s = TagPiece().Replace(s, "");
         s = TagOpening().Replace(s, "");
         return Collapsed(s);

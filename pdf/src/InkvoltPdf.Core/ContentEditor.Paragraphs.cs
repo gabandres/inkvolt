@@ -123,9 +123,10 @@ public static partial class ContentEditor
         /// <summary>Its biggest text against its own: 1 unless an edit made part of it bigger.</summary>
         public double Scale => Math.Max(1, Runs.Max(r => r.FontSize) / Math.Max(0.1, Size));
 
-        public void Add(TextRun r)
+        /// <param name="leftward">The run is left of the line (a right-to-left line joined in reading order, <see cref="InReadingOrder(PLine)"/>).</param>
+        public void Add(TextRun r, bool leftward = false)
         {
-            var gap = r.Box.X - Box.Right;
+            var gap = leftward ? Box.X - r.Box.Right : r.Box.X - Box.Right;
             if (gap > 0.15 * Size && !Text.EndsWith(' ') && !r.Text.StartsWith(' ')) Text += " ";
             Starts.Add(Text.Length);
             Text += r.Text;
@@ -133,6 +134,19 @@ public static partial class ContentEditor
             _lead = null;
             Box = Box.Union(r.Box);
         }
+    }
+
+    /// <summary>
+    /// A line most of whose letters read right to left with its runs joined right to left, so its words (each run read in
+    /// reading order already) come in the order they read; else the line as it is.
+    /// </summary>
+    private static PLine InReadingOrder(PLine l)
+    {
+        if (l.Runs.Count < 2 || !MostlyRightToLeft(l.Text)) return l;
+        var runs = l.Runs.OrderByDescending(r => r.Box.Right).ToList();
+        var line = new PLine(runs[0]) { Baseline = l.Baseline, Own = l.Own, Main = l.Main, Marked = l.Marked, MarkStart = l.MarkStart };
+        foreach (var r in runs.Skip(1)) line.Add(r, leftward: true);
+        return line;
     }
 
     /// <summary>Lines stacked one under the other, and which alignments they still allow.</summary>
@@ -420,6 +434,7 @@ public static partial class ContentEditor
     /// its own font, so mixed looks, right-to-left text and marks on its lines don't stop it, and a hanging first line stays where it hangs.</param>
     private static TextParagraph Paragraph(PageContent content, List<PLine> lines, bool translating = false)
     {
+        lines = [.. lines.Select(InReadingOrder)];
         var first = lines[0];
         var size = first.Size;
         var tol = Tolerance(size);
@@ -616,8 +631,9 @@ public static partial class ContentEditor
         m.WordSpacing = 0; // the lines are written with Tw 0 (justification goes into adjustments)
         var shrink = fit ?? 1;
         m.Size *= shrink;
-        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink, LooksOf(text, spans));
-        var enc = new MixedText(p, font, m, text, LooksOf(text, spans ?? Carry(p.Text, text, p.Spans)), oneFace: fit is not null);
+        var looks = LooksOf(text, spans ?? Carry(p.Text, text, p.Spans));
+        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink, looks, anchor.Info?.FillOp is not null);
+        var enc = new MixedText(p, font, m, text, looks, oneFace: fit is not null);
         if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), []);
 
         double W(List<Part> parts) => parts.Count == 0 ? 0 : m.Width(parts) * m.Scale;
