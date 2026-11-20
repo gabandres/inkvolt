@@ -16,7 +16,7 @@ public class TranslationCorpusTests(ITestOutputHelper output)
 {
     private const string Marker = "ñandú";
 
-    private static readonly System.Text.RegularExpressions.Regex Tag = new("</?(b|i|sub|sup)>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    private static readonly System.Text.RegularExpressions.Regex Tag = new("</?(b|i|u|span|sub|sup)>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
     [Fact]
     public void Real_files_keep_their_pages_and_pictures_and_their_new_text_shows()
@@ -42,7 +42,8 @@ public class TranslationCorpusTests(ITestOutputHelper output)
                              $"{plan.Blocked.Count} blocked, scans {plan.ScanPages.Count}, turned {plan.TurnedTextPages.Count}, failed {r.FailedPages.Count}; fonts {string.Join("/", r.Fonts)}; read {read.TotalSeconds:0.0}s write {sw.Elapsed.TotalSeconds:0.0}s; {pdf.Length / 1024} KB → {(result.Data?.Length ?? 0) / 1024} KB");
             foreach (var g in plan.Blocked.GroupBy(b => b.Why).OrderByDescending(g => g.Count()).Take(3)) output.WriteLine($"  blocked {g.Count()}: {g.Key}");
             var marked = plan.Texts.Where(t => plan.Marked.Contains(t.Text)).ToList();
-            output.WriteLine($"  {marked.Count} texts sent with markup");
+            output.WriteLine($"  {marked.Count} texts sent with markup, {marked.Count(t => t.Text.Contains("<u>", StringComparison.Ordinal))} with an underline");
+            foreach (var t in marked.Where(t => t.Text.Contains("<u>", StringComparison.Ordinal)).Take(3)) output.WriteLine($"    underlined p{t.Page + 1}: {(t.Text.Length > 160 ? t.Text[..160] + "…" : t.Text)}");
             foreach (var t in marked.Take(4)) output.WriteLine($"    p{t.Page + 1}: {(t.Text.Length > 160 ? t.Text[..160] + "…" : t.Text)}");
             if (result.Data is null) continue;
             if (outDir is not null)

@@ -26,9 +26,15 @@ public class TranslationRealModelTests(ITestOutputHelper output)
         var parts = model.Split('|');
         Assert.True(AiEndpoint.TryParse(parts[0], out var endpoint, out var error), error);
         using var client = new AiClient(endpoint!, parts[1], null);
+        var failures = new List<string>(); // every page is run, and what went wrong on each is told at the end
         foreach (var job in list.Split(';'))
         {
             var (file, page, language) = (job.Split('|')[0], int.Parse(job.Split('|')[1]) - 1, job.Split('|')[2]);
+            void Fail(string what)
+            {
+                failures.Add($"{Path.GetFileName(file)} p{page + 1} {language}: {what}");
+                output.WriteLine($"  FAIL {what}");
+            }
             var pdf = File.ReadAllBytes(file);
             var plan = Translation.MakePlan(pdf, null, [page]);
             var jobs = Translation.Jobs(plan, Translation.PieceTokens(8192));
@@ -66,14 +72,14 @@ public class TranslationRealModelTests(ITestOutputHelper output)
             output.WriteLine($"  so far: marked {_totals[0]}, all kept {_totals[1]}, some dropped {_totals[2]}, all dropped {_totals[3]}, not trusted {_totals[4]}");
             foreach (var text in answers.Done.Values)
             {
-                Assert.DoesNotMatch(new Regex("</?think>|<\\|", RegexOptions.IgnoreCase), text);
-                Assert.DoesNotMatch(new Regex(@"^(here is|here's|translation:|aquí (está|tienes)|traducción:)", RegexOptions.IgnoreCase), text);
-                Assert.DoesNotContain(text, char.IsControl);
+                if (Regex.IsMatch(text, "</?think>|<\\|", RegexOptions.IgnoreCase)) Fail($"reasoning tags: {text}");
+                if (Regex.IsMatch(text, @"^(here is|here's|translation:|aquí (está|tienes)|traducción:)", RegexOptions.IgnoreCase)) Fail($"a preamble: {text}");
+                if (text.Any(char.IsControl)) Fail($"control characters: {text}");
             }
             if (outDir is not null)
             {
                 Directory.CreateDirectory(outDir);
-                var stem = $"{Path.GetFileNameWithoutExtension(file)}-{page + 1}";
+                var stem = $"{Path.GetFileNameWithoutExtension(file)}-{page + 1}-{language}";
                 File.WriteAllLines(Path.Combine(outDir, stem + ".txt"), answers.Done.Select(a => $"{a.Key}\n  => {a.Value}\n"));
                 if (result.Data is { } copy) File.WriteAllBytes(Path.Combine(outDir, stem + ".pdf"), copy);
             }
@@ -84,11 +90,13 @@ public class TranslationRealModelTests(ITestOutputHelper output)
             {
                 // A marked answer's words, as the copy has them (its tags are looks, not text).
                 var text = TranslationInk.Solid(plan.Marked.Contains(source) ? TranslationMarkup.Plain(answer) : answer);
-                Assert.Contains(text[..Math.Min(40, text.Length)], shown, StringComparison.Ordinal);
+                if (!shown.Contains(text[..Math.Min(40, text.Length)], StringComparison.Ordinal)) Fail($"not read back by MuPDF: {text[..Math.Min(40, text.Length)]}");
             }
             var problems = TranslationInk.Problems(engine, page);
             foreach (var problem in problems) output.WriteLine($"  doesn't show: {problem}");
-            Assert.True(problems.Count <= r.DoNotFit, string.Join("; ", problems));
+            if (problems.Count > r.DoNotFit) Fail(string.Join("; ", problems));
         }
+        Assert.Empty(failures);
+
     }
 }

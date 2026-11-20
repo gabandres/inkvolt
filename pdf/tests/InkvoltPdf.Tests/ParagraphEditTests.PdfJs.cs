@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Text.Json;
 using InkvoltPdf.Core;
 
 namespace InkvoltPdf.Tests;
@@ -11,92 +9,15 @@ namespace InkvoltPdf.Tests;
 /// </summary>
 public partial class ParagraphEditTests
 {
-    /// <summary>pdf/tools/pdfjs-check, found upward from the test binaries (whose folder depth depends on the runtime identifier).</summary>
-    private static readonly string PdfJsTool = FindUp(AppContext.BaseDirectory, Path.Combine("tools", "pdfjs-check", "index.mjs"))
-                                               ?? Path.Combine(AppContext.BaseDirectory, "tools", "pdfjs-check");
-
-    private static string? FindUp(string from, string relative)
-    {
-        for (var dir = new DirectoryInfo(from); dir is not null; dir = dir.Parent)
-            if (File.Exists(Path.Combine(dir.FullName, relative))) return Path.GetDirectoryName(Path.Combine(dir.FullName, relative));
-        return null;
-    }
-
-    /// <summary>A program on the PATH ("node", "npm"; Windows' .cmd and .exe wrappers found too), or null.</summary>
-    private static string? OnPath(string name)
-    {
-        foreach (var dir in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
-            foreach (var ext in new[] { "", ".cmd", ".exe" })
-            {
-                var path = Path.Combine(dir.Trim('"'), name + ext);
-                if (File.Exists(path)) return path;
-            }
-        return null;
-    }
-
-    private static string RunTool(string exe, string args, string workDir)
-    {
-        var psi = new ProcessStartInfo(exe, args)
-        {
-            WorkingDirectory = workDir, RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false,
-            StandardOutputEncoding = System.Text.Encoding.UTF8, StandardErrorEncoding = System.Text.Encoding.UTF8, // Node writes UTF-8, whatever the console's code page
-        };
-        using var p = Process.Start(psi)!;
-        var stdout = p.StandardOutput.ReadToEndAsync();
-        var stderr = p.StandardError.ReadToEndAsync();
-        p.WaitForExit();
-        if (p.ExitCode != 0) throw new InvalidOperationException($"{Path.GetFileName(exe)} {args}: exit {p.ExitCode}\n{stderr.Result}");
-        return stdout.Result;
-    }
-
-    /// <summary>The text pdf.js reads from one page of a PDF (0-based), items in the order it reads them.</summary>
-    private static string PdfJsText(string node, byte[] pdf, int page)
-    {
-        var file = Path.Combine(Path.GetTempPath(), $"inkvolt-pdfjs-{Guid.NewGuid():N}.pdf");
-        File.WriteAllBytes(file, pdf);
-        try
-        {
-            var json = RunTool(node, $"index.mjs \"{file}\" {page + 1} {page + 1}", PdfJsTool);
-            using var doc = JsonDocument.Parse(json);
-            return doc.RootElement.GetProperty("pages")[0].GetProperty("text").GetString() ?? "";
-        }
-        finally
-        {
-            File.Delete(file);
-        }
-    }
-
-    /// <summary>
-    /// Null when every word of <paramref name="expected"/> appears in <paramref name="got"/>, in order (pdf.js may space
-    /// the rest differently); else the first word missing and what pdf.js read after the last one found.
-    /// </summary>
-    private static string? FirstMiss(string expected, string got)
-    {
-        var words = got.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        var at = 0;
-        foreach (var w in expected.Split(' ', StringSplitOptions.RemoveEmptyEntries))
-        {
-            var from = at;
-            while (at < words.Length && words[at] != w) at++;
-            if (at == words.Length) return $"“{w}” missing; pdf.js reads on: {string.Join(' ', words.Skip(from).Take(12))}";
-            at++;
-        }
-        return null;
-    }
-
     [Fact]
     public void EditedParagraphsReadTheSameInPdfJs()
     {
-        if (Environment.GetEnvironmentVariable("INKVOLTPDF_PDFJS") is not { Length: > 0 }) return;
-        var node = OnPath("node");
-        var npm = OnPath("npm");
-        if (node is null || npm is null)
+        var (node, skipped) = PdfJs.Ready();
+        if (node is null)
         {
-            output.WriteLine("Skipped: node or npm isn't on the PATH.");
+            if (skipped is not null) output.WriteLine(skipped);
             return;
         }
-        Assert.True(File.Exists(Path.Combine(PdfJsTool, "index.mjs")), PdfJsTool);
-        if (!Directory.Exists(Path.Combine(PdfJsTool, "node_modules"))) RunTool(npm, "ci --no-audit --no-fund", PdfJsTool);
 
         // The test's own pages: each alignment, a paragraph inside a form XObject, turned text, stand-in characters, and a one-run edit.
         var cases = new List<(string Name, byte[] Pdf, int Page, string Added)>();
@@ -167,8 +88,8 @@ public partial class ParagraphEditTests
                 failures.Add($"{name}: {ex.Message}");
                 continue;
             }
-            var got = Words(PdfJsText(node, edited, page));
-            var miss = FirstMiss(Words(text), got) ?? (got.Contains(Words(added), StringComparison.Ordinal) ? null : "the added words aren't read together");
+            var got = Words(PdfJs.Text(node, edited, page));
+            var miss = PdfJs.FirstMiss(Words(text), got) ?? (got.Contains(Words(added), StringComparison.Ordinal) ? null : "the added words aren't read together");
             output.WriteLine($"{name}: {p.Lines.Count} lines {p.Align} → {check.LineCount}; pdf.js {(miss is null ? "reads it in order" : "DIFFERS: " + miss)}; {(check.Borrowed.Count > 0 ? $"stand-ins {string.Join(" ", check.StandIns)}" : "")}");
             if (miss is not null) failures.Add($"{name}: pdf.js doesn't read the edited paragraph in order ({miss})");
         }
@@ -177,7 +98,7 @@ public partial class ParagraphEditTests
             var pdf = ContentEditPdf.Make("BT /FA 20 Tf 72 692 Td (Hello World) Tj ET BT /FA 9 Tf 72 600 Td (draft) Tj ET");
             var run = ContentEditor.Read(pdf, null, 0).Runs.Single(r => r.Text == "Hello World");
             var edited = ContentEditor.ReplaceText(pdf, null, run, "Hello Zebra");
-            var got = Words(PdfJsText(node, edited, 0));
+            var got = Words(PdfJs.Text(node, edited, 0));
             output.WriteLine($"one run with stand-ins: pdf.js reads \"{got}\"");
             if (!got.Contains("Hello Zebra", StringComparison.Ordinal)) failures.Add("one run with stand-ins: pdf.js doesn't read \"Hello Zebra\"");
         }

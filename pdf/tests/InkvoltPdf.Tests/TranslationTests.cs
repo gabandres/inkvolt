@@ -914,8 +914,9 @@ public class TranslationCopyTests
         const string ar = "نظرت اللجنة في النتائج الفصلية ووجدت أن الإيرادات نمت في كل منطقة خلال الفترة";
         var (_, r) = Translate(pdf, _ => ar, "ar");
         Assert.Equal(1, r.Report.Translated);
-        // Copied out, it reads as typed.
+        // Copied out, it reads as typed; its lines are drawn left to right (pdf.js reads their spaces so), and read back in reading order.
         Assert.Contains(Plain(ar)[..10], Plain(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+        Assert.Contains(ContentEditor.Read(r.Data!, null, 0).Paragraphs, q => q.Text == ar);
         var p = ContentEditor.Read(pdf, null, 0).Paragraphs[^1];
         var laid = ContentEditor.LayOut(p, p.Runs, ar, [], 1.0);
         Assert.True(laid.Lines.Count >= 1);
@@ -925,6 +926,121 @@ public class TranslationCopyTests
             Assert.Equal(p.Box.Right, origin.X + shaped.Width * p.FontSize, 0);
             Assert.True(shaped.Rtl);
         }
+    }
+
+    [Theory]
+    [InlineData("في عام 2024 والكلب")] // figures stay left to right inside it
+    [InlineData("الثعلب يقفز فوق fox الكلب")] // an English word inside
+    [InlineData("الثعلب الكلب fox")] // an English word at its left end: still a right-to-left line
+    [InlineData("The dog שלום עולם jumps")] // a Hebrew phrase in an English line
+    [InlineData("plain English, 2024")]
+    [InlineData("لا إله إلا الله")] // lam-alef ligatures: a glyph standing for two letters
+    [InlineData("مُنسوب إلى نشرة")] // a mark on its letter, and "لى" (a real model's copy read "إىل" in MuPDF)
+    public void A_line_drawn_left_to_right_reads_back_in_reading_order(string line)
+    {
+        var shaped = TextShaper.Shape(line, null, visualOrder: true);
+        Assert.Equal(line, Bidi.ToReadingOrder(string.Concat(shaped.Glyphs.Select(g => g.Text))));
+    }
+
+    /// <summary>A page of right-to-left text drawn left to right (visual order, as Word writes it): each piece in Arial at 12 points, its baseline's left end at (x, y) in PDF space.</summary>
+    private static byte[] DrawnLeftToRight(params (string Text, double X, double Y)[] pieces)
+    {
+        var writer = new CidFontWriter("/V");
+        var sb = new StringBuilder();
+        foreach (var (text, x, y) in pieces)
+        {
+            sb.Append(System.FormattableString.Invariant($"BT 1 0 0 1 {x} {y} Tm "));
+            writer.Emit(sb, TextShaper.Shape(text, SystemFonts.Get("arial.ttf"), visualOrder: true), 12);
+            sb.Append("ET\n");
+        }
+        using var doc = new PdfDocument();
+        var page = doc.AddPage();
+        page.Width = XUnit.FromPoint(612);
+        page.Height = XUnit.FromPoint(792);
+        var resources = new PdfDictionary(doc);
+        resources.Elements["/Font"] = writer.BuildFonts(doc);
+        page.Elements["/Resources"] = resources;
+        PdfObj.AppendContent(doc, page, sb.ToString());
+        using var ms = new MemoryStream();
+        doc.Save(ms, false);
+        return ms.ToArray();
+    }
+
+    [Fact]
+    public void Right_to_left_words_drawn_left_to_right_read_in_order_across_operators_and_columns()
+    {
+        // Two operators on one line, the first word on the right; and one operator drawing two columns (a wide gap).
+        var pdf = DrawnLeftToRight(("مرحبا", 300, 700), ("بالعالم", 272, 700), ("الأول                    الثاني", 72, 600));
+        var paragraphs = ContentEditor.Read(pdf, null, 0).Paragraphs.Select(p => p.Text).ToList();
+        Assert.Contains("مرحبا بالعالم", paragraphs);
+        using var doc = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Import);
+        var columns = ContentEditor.ReadRaw(doc.Pages[0], 0, default).Runs.Where(r => r.Text.Trim().Length > 0 && r.Box.Y > 792 - 620).Select(r => r.Text.Trim()).ToList();
+        Assert.Equal(2, columns.Count); // a run for each column, each in reading order
+        Assert.Contains("الأول", columns);
+        Assert.Contains("الثاني", columns);
+    }
+
+    [Fact]
+    public void A_right_to_left_run_drawn_left_to_right_is_not_edited_as_one_run()
+    {
+        // Read in reading order, written back as drawn, it would come out mirrored.
+        var pdf = DrawnLeftToRight(("مرحبا بالعالم", 300, 700));
+        var run = Assert.Single(ContentEditor.Read(pdf, null, 0).Runs, r => r.Text.Trim().Length > 0);
+        Assert.Equal("مرحبا بالعالم", run.Text);
+        var e = Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceText(pdf, null, run, "مرحبا يا عالم"));
+        Assert.Contains(PdfStrings.Edit_BlockedRightToLeft, e.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Arabic_keeps_a_bold_and_a_red_word_where_they_read()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (brown) Tj /FA 12 Tf ( fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and jumps over the lazy dog.) Tj ET",
+            faces: true, fontText: Letters);
+        const string ar = "الثعلب <b>البني</b> السريع <span>أحمر</span> ويقفز فوق الكلب الكسول.";
+        var (plan, r) = Translate(pdf, _ => ar, "ar");
+        Assert.Equal("The quick <b>brown</b> fox is <span>red</span> and jumps over the lazy dog.", Assert.Single(plan.Texts).Text);
+        Assert.Equal(1, r.Report.Translated);
+        // Copied out, it reads as written, the looks' words in their places.
+        Assert.Contains(Plain("الثعلب البني السريع أحمر ويقفز"), Plain(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Trim().Length > 0).ToList();
+        var bold = Assert.Single(runs, q => q.Text.Contains("البني", StringComparison.Ordinal));
+        Assert.Equal("البني", bold.Text.Trim());
+        var red = Assert.Single(runs, q => q.Color == 0xFF0000);
+        Assert.Equal("أحمر", red.Text.Trim());
+        var first = Assert.Single(runs, q => q.Text.Contains("الثعلب", StringComparison.Ordinal));
+        Assert.Equal(0, first.Color);
+        Assert.NotEqual(first.FontName, bold.FontName); // "arialbd" beside "arial": the bold face of the installed font the rest is in
+        Assert.Contains("Arial Bold", r.Report.Fonts);
+        // Right to left: the first word rightmost, then the bold one, then the red one (a run written in logical order reads from its start, so its right edges tell).
+        Assert.True(first.Box.Right > bold.Box.Right && bold.Box.X > red.Box.Right - 1, $"{first.Box} {bold.Box} {red.Box}");
+    }
+
+    [Fact]
+    public void Hebrew_keeps_an_underline_and_a_superscript_in_its_line()
+    {
+        var p = ContentEditor.Read(Page(Lines(72, 700, 12, 14, "Hello World draft, 2024! Hello World draft, 2024!")), null, 0).Paragraphs[^1];
+        const string he = "שלום עולם יפה מאוד 2";
+        List<TextSpan> spans =
+        [
+            new(he.IndexOf("עולם", StringComparison.Ordinal), 4, new TextLook(Underline: true)),
+            new(he.Length - 1, 1, new TextLook(Script: TextScript.Super)),
+        ];
+        var laid = ContentEditor.LayOut(p, p.Runs, he, spans, 1.0);
+        var (origin, parts) = Assert.Single(laid.Lines);
+        var shaped = Assert.Single(parts).StandIn!;
+        Assert.True(shaped.Rtl);
+        Assert.Equal(p.Box.Right, origin.X + shaped.Width * p.FontSize, 0);
+        // The underline is under the second word, where its shaped run is, and no wider.
+        var (left, right, baseline) = Assert.Single(laid.Underlined);
+        Assert.Equal(origin.Y, baseline);
+        var word = shaped.Runs.Single(q => q.Style >= 0 && q.End - q.Start > 0.5);
+        Assert.Equal(origin.X + word.Start * p.FontSize, left, 2);
+        Assert.Equal(origin.X + word.End * p.FontSize, right, 2);
+        Assert.True(right - left < 0.5 * shaped.Width * p.FontSize);
+        // The figure raised and smaller: its glyph above the line, its size scaled.
+        var two = Assert.Single(shaped.Glyphs, g => g.Text == "2");
+        Assert.True(two.Y > 0.1 && two.Scale < 0.9, $"{two.Y} {two.Scale}");
     }
 
     [Fact]
@@ -1394,11 +1510,19 @@ public class TranslationCopyTests
     private const string KeepsQuickFox = "Now a lazy dog jumps over the brown fox, and the QUICK FOX 42 sits there until the end of the day.";
 
     [Fact]
-    public void An_underline_that_belongs_to_no_link_stays_as_drawn()
+    public void An_underline_that_belongs_to_no_link_goes_with_its_words_as_a_look()
     {
         var (pdf, underlines) = LinkedParagraph(["QUICK FOX 42"], annotate: false);
-        var (_, r) = Translate(pdf, _ => KeepsQuickFox);
-        Assert.True(BluePixels(r.Data!, Taller(underlines[0])) > 0);
+        const string marked = "<u><span>QUICK FOX 42</span></u>"; // underlined, and blue
+        var (plan, r) = Translate(pdf, _ => KeepsQuickFox.Replace("QUICK FOX 42", marked, StringComparison.Ordinal));
+        Assert.Contains(marked, Assert.Single(plan.Texts).Text, StringComparison.Ordinal);
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        var text = engine.GetText(0, cache: false);
+        var hit = text.Find("QUICK FOX 42", matchCase: true, wholeWord: false).Single();
+        var words = text.GetRects(hit.Start, hit.End).Aggregate((a, b) => a.Union(b));
+        Assert.True(BluePixels(r.Data!, RectD.FromEdges(words.X + 1, words.CenterY, words.Right - 1, words.Bottom + 6)) > 0);
+        if (Taller(underlines[0]).Intersect(RectD.FromEdges(words.X, words.Y, words.Right, words.Bottom + 6)) is not { Width: > 0, Height: > 0 })
+            Assert.Equal(0, BluePixels(r.Data!, Taller(underlines[0])));
     }
 
     [Fact]
