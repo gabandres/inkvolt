@@ -146,7 +146,7 @@ driver reports it, with its black toner at 8% from its made-up driver over bidi;
 queue and the HP laser's own WSD queue stay out of the list. A made-up USB photo flatbed, "Demo Photo Scanner 40", belongs to
 no printer and is listed as a scanner of its own (`--printer 9`); with `--twain`, a made-up TWAIN-only document scanner, "Demo DocScan 10"
 (`Demo.TwainScanner`: glass, feeder both sides, black and white), is listed on its own too (`--printer 10`; Fleet too, and
-`--demo status --all --twain`). Demo mode never asks this PC's WIA or TWAIN scanners. Demo SNMP goes only to the made-up agents (`Demo.Snmp`). The third, "Demo office laser", is remembered at 192.0.2.12, where nothing answers: its offline
+`--demo status --all --twain`), and a made-up film scanner whose only driver is 32-bit, "Demo FilmScan 35", listed and declined (`--printer 11`). Demo mode never asks this PC's WIA or TWAIN scanners. Demo SNMP goes only to the made-up agents (`Demo.Snmp`). The third, "Demo office laser", is remembered at 192.0.2.12, where nothing answers: its offline
 fixer runs against a made-up PC (`DemoOfflinePc`: a Windows queue whose TCP/IP port still points at .12, "Use Printer Offline"
 on, a stuck job) and finds the printer at 192.0.2.23, so the whole flow works without touching this PC's queues
 (`--demo --printer 3 --fix all --snapshot fixed.png`). The fourth, at 192.0.2.13, is a newer HP color laser that answers CDM only (status, toner, details; `Fixtures/cdm-laser`, `--printer 4`). No network access, no discovery, no Windows queue, and
@@ -429,7 +429,9 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   (listed on its own, its note and About row, a two-sided feeder run in black and white, Spanish). **Never run against a
   real TWAIN manager or source**: this PC (ARM64) has neither. On hardware: a TWAIN-only flatbed at each resolution, a
   document scanner's feeder (several pages, empty at the start, two sides), black and white, Cancel mid-feeder, a source
-  matched to its printer, and one with both drivers listed once (by WIA).
+  matched to its printer, and one with both drivers listed once (by WIA). 32-bit-only sources (2026-11-20): named from
+  their files in `twain_32` and declined in words (`TwainTests`, with listed files and sources made up); this PC's
+  `twain_32` holds only Windows' `wiatwain.ds`, left out. To try: a PC with a 32-bit-only TWAIN driver installed.
 - Black and white in the Scan tab: the Color choice offers it where the source does (eSCL's `BlackAndWhite1`, WIA's threshold
   type, TWAIN's `TWPT_BW`); the choice is kept as presets keep theirs (`ScanChoices.Pick`), so a source without it scans grey.
 - Backlog (WIA): WIA 2.0's own interface (`IWiaItem2`, `IWiaTransfer` with a callback) for cancelling a page in progress,

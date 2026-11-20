@@ -49,7 +49,7 @@ would do and where to get Pro, and never takes away a result already made.
 | 2.2 Scan from the printer's button | All of it (Windows built 2026-11-19; the Mac half waits) | |
 | 2.3 Scan cleanup, Unicode OCR | All of it | |
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
-| 2.5 TWAIN | All of it (Windows done 2026-11-05, but 32-bit sources) | |
+| 2.5 TWAIN | All of it (Windows done 2026-11-05; 32-bit-only sources named and declined 2026-11-20) | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
 | 3.1 Share a scanner on the network | | All of it (Windows built 2026-11-19; the Mac half waits) |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
@@ -446,8 +446,10 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   color, grey, black and white, resolution from the capabilities, a hung source contained as a hung WIA driver is). The Scan
   tab's Color choice offers black and white wherever the source does (eSCL, WIA, TWAIN; `ScanChoices.Pick`, as presets).
   Tested with `FakeTwain` (the FakeWiaSystem's twin: capabilities, a feeder run, an empty feeder, cancel, a hang;
-  `TwainTests`); checked with `--demo --twain` (a made-up TWAIN-only document scanner). Not yet: 32-bit-only sources named
-  and declined. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC (ARM64); on hardware, a TWAIN-only
+  `TwainTests`); checked with `--demo --twain` (a made-up TWAIN-only document scanner). 32-bit-only sources (2026-11-20): a
+  data source in Windows' `twain_32` folder with no twin in `twain_64` (Windows' own `wiatwain.ds` left out) is listed by
+  its version resource's name (`Twain32Sources`; id `twain32:`, *Driver: TWAIN, 32-bit only*), never loaded, and declined in
+  words that say why and what to install (`WiaErrors.Only32Bit`); one with a 64-bit twin or a WIA driver is listed once. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC (ARM64); on hardware, a TWAIN-only
   flatbed at each resolution, a feeder run, both sides, black and white, Cancel. Mac: ICA, not started.
 - **Effort** M. Windows; the Mac has ICA (parity check: the same flatbed through ICA).
 

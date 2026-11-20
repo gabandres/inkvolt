@@ -70,8 +70,20 @@ public sealed record WiaDeviceInfo(string Id, string Name, string? Manufacturer 
     /// <summary>The port a TWAIN source is listed with (<see cref="IsTwain"/>).</summary>
     public const string TwainPort = "TWAIN";
 
+    /// <summary>
+    /// The port a 32-bit-only TWAIN source is listed with (<see cref="IsTwain32Only"/>): its driver is in Windows' <c>twain_32</c>
+    /// folder with no 64-bit one beside it.
+    /// </summary>
+    public const string Twain32Port = "TWAIN 32-bit";
+
     /// <summary>A TWAIN source (listed by the TWAIN manager and scanned through it, its maker's TWAIN driver), not a WIA driver.</summary>
-    public bool IsTwain => Port == TwainPort;
+    public bool IsTwain => Port is TwainPort or Twain32Port;
+
+    /// <summary>
+    /// A TWAIN source with only a 32-bit driver: named in the lists so it isn't simply missing, and declined (a 64-bit app can't
+    /// load a 32-bit driver, nor can the 64-bit TWAIN manager): <see cref="WiaErrors.Only32Bit"/>.
+    /// </summary>
+    public bool IsTwain32Only => Port == Twain32Port;
 
     /// <summary>Windows reaches it with its built-in eSCL (AirScan) driver: Inkvolt Print scans such a printer over eSCL itself when it finds it.</summary>
     public bool IsEscl => Port?.StartsWith(@"SWD\Escl", StringComparison.OrdinalIgnoreCase) == true;
@@ -161,6 +173,12 @@ public static class WiaErrors
     /// </summary>
     public const int NotAnswering = unchecked((int)0x800705B4);
 
+    /// <summary>
+    /// Not from WIA: the scanner's only driver is a 32-bit TWAIN source, which this 64-bit app can't load.
+    /// HRESULT_FROM_WIN32(ERROR_BAD_EXE_FORMAT), what loading one would give.
+    /// </summary>
+    public const int Only32Bit = unchecked((int)0x800700C1);
+
     // COM failures that aren't WIA's: the WIA service restarted or stopped (RPC), access denied, out of memory.
     public const int RpcServerUnavailable = unchecked((int)0x800706BA), RpcCallFailed = unchecked((int)0x800706BE),
         RpcDisconnected = unchecked((int)0x80010108), AccessDenied = unchecked((int)0x80070005), OutOfMemory = unchecked((int)0x8007000E);
@@ -178,7 +196,7 @@ public static class WiaErrors
     /// object is dead, and a fresh connection costs little.
     /// </summary>
     public static bool NeedsReconnect(int hresult) => hresult is not (PaperJam or PaperEmpty or PaperProblem or Busy or WarmingUp
-        or UserIntervention or DeviceLocked or IncorrectHardwareSetting or CoverOpen or LampOff or NotAnswering);
+        or UserIntervention or DeviceLocked or IncorrectHardwareSetting or CoverOpen or LampOff or NotAnswering or Only32Bit);
 
     /// <summary>
     /// Any failure of a WIA call as a <see cref="WiaException"/>: COM errors keep their HRESULT, also those .NET turned into other
@@ -207,6 +225,7 @@ public static class WiaErrors
         CoverOpen => CoreStrings.Wia_CoverOpen,
         LampOff => CoreStrings.Wia_LampOff,
         NotAnswering => CoreStrings.Wia_LastRequestStuck,
+        Only32Bit => CoreStrings.Twain_Only32Bit,
         RpcServerUnavailable or RpcCallFailed or RpcDisconnected => CoreStrings.Wia_ServiceRestarted,
         AccessDenied => CoreStrings.Wia_AccessDenied,
         OutOfMemory => CoreStrings.Wia_OutOfMemory,

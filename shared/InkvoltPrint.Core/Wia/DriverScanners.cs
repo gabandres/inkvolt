@@ -26,6 +26,9 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
     /// <summary>Before a TWAIN source's name in its id (as Inkvolt PDF's Scan dialog keys it).</summary>
     public const string TwainPrefix = "twain:";
 
+    /// <summary>Before a 32-bit-only TWAIN source's name in its id (<see cref="WiaDeviceInfo.IsTwain32Only"/>): listed, never opened.</summary>
+    public const string Twain32Prefix = "twain32:";
+
     /// <summary>At most this many TWAIN sources are listed (a manager that keeps answering "next" can't fill the list).</summary>
     public const int MaxSources = 64;
 
@@ -81,18 +84,38 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
     }
 
     public IWiaDeviceHost Device(string deviceId) =>
-        deviceId.StartsWith(TwainPrefix, StringComparison.Ordinal) ? new InUse(twain.Device(deviceId[TwainPrefix.Length..]), this) : wia.Device(deviceId);
+        deviceId.StartsWith(Twain32Prefix, StringComparison.Ordinal) ? Declined.Instance
+        : deviceId.StartsWith(TwainPrefix, StringComparison.Ordinal) ? new InUse(twain.Device(deviceId[TwainPrefix.Length..]), this) : wia.Device(deviceId);
 
     /// <summary>A WIA scanner's buttons through WIA; a TWAIN source's aren't heard.</summary>
     public Task<IDisposable> WatchButtonsAsync(string deviceId, IReadOnlyList<string> events, Action pressed, CancellationToken ct) =>
-        deviceId.StartsWith(TwainPrefix, StringComparison.Ordinal) ? Task.FromResult<IDisposable>(NoButtons.Instance) : wia.WatchButtonsAsync(deviceId, events, pressed, ct);
+        deviceId.StartsWith(TwainPrefix, StringComparison.Ordinal) || deviceId.StartsWith(Twain32Prefix, StringComparison.Ordinal)
+            ? Task.FromResult<IDisposable>(NoButtons.Instance) : wia.WatchButtonsAsync(deviceId, events, pressed, ct);
 
-    /// <summary>WIA's scanners, then the TWAIN sources (with their "twain:" ids) that aren't any WIA entry.</summary>
+    /// <summary>
+    /// WIA's scanners, then the TWAIN sources (with their "twain:" ids) that aren't any WIA entry, then the 32-bit-only sources
+    /// ("twain32:") that are neither a WIA entry nor a 64-bit source (a maker that installs both is listed once, by its 64-bit one).
+    /// </summary>
     public static IReadOnlyList<WiaDeviceInfo> Merge(IReadOnlyList<WiaDeviceInfo> wiaScanners, IReadOnlyList<WiaDeviceInfo> twainSources)
     {
         // One target per WIA entry: a source that is one all-in-one's USB and WSD entries both matches each alone.
-        var targets = wiaScanners.Select(d => new ScanTarget(d.Id, new[] { d.Name, d.Description }.OfType<string>().ToList(), [])).ToList();
-        return [.. wiaScanners, .. twainSources.Where(s => !targets.Any(t => WiaMatch.Match(s, [t]) is not null))];
+        static List<ScanTarget> Targets(IEnumerable<WiaDeviceInfo> listed) =>
+            [.. listed.Select(d => new ScanTarget(d.Id, new[] { d.Name, d.Description }.OfType<string>().ToList(), []))];
+        var targets = Targets(wiaScanners);
+        var sources = twainSources.Where(s => !s.IsTwain32Only && !targets.Any(t => WiaMatch.Match(s, [t]) is not null)).ToList();
+        targets.AddRange(Targets(twainSources.Where(s => !s.IsTwain32Only)));
+        var only32 = twainSources.Where(s => s.IsTwain32Only && !targets.Any(t => WiaMatch.Match(s, [t]) is not null)
+            && !twainSources.Any(t => !t.IsTwain32Only && string.Equals(t.Name, s.Name, StringComparison.OrdinalIgnoreCase)));
+        return [.. wiaScanners, .. sources, .. only32];
+    }
+
+    /// <summary>A 32-bit-only TWAIN source: every call says why it can't be used, at once (nothing is loaded).</summary>
+    private sealed class Declined : IWiaDeviceHost
+    {
+        public static Declined Instance { get; } = new();
+
+        public Task<T> UseAsync<T>(Func<IWiaDevice, T> work, CancellationToken ct) =>
+            Task.FromException<T>(new WiaException(WiaErrors.Only32Bit, "The scanner's only TWAIN driver is 32-bit."));
     }
 
     /// <summary>The merged list; WIA's failure when there is nothing at all to list in its place.</summary>
@@ -156,7 +179,8 @@ public sealed class DriverScanners(IWiaSystem wia, IWiaSystem twain, Action<stri
         {
             // WaitAsync too: a manager stuck in a driver may never look at the token.
             var listed = await twain.ListScannersAsync(limit.Token).WaitAsync(limit.Token).ConfigureAwait(false);
-            _sources = listed.Take(MaxSources).Select(s => s with { Id = TwainPrefix + s.Id, Port = WiaDeviceInfo.TwainPort }).ToList();
+            _sources = listed.Take(MaxSources).Select(s => s.IsTwain32Only ? s with { Id = Twain32Prefix + s.Id }
+                : s with { Id = TwainPrefix + s.Id, Port = WiaDeviceInfo.TwainPort }).ToList();
             TwainFailure = null;
             _lastFailure = null;
         }

@@ -1021,7 +1021,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Scanning: network scanners that speak eSCL (AirScan/Mopria), scanners with a Windows (WIA) driver, and TWAIN sources
   when a TWAIN manager of the app's own architecture is installed (the x64 build needs an x64 TWAINDSM.dll, the ARM64
   build an ARM64 one; makers mostly ship x64, so on an ARM64 PC a TWAIN-only scanner usually isn't listed); 32-bit-only
-  TWAIN drivers aren't used. WIA and TWAIN scanning has been tested with made-up devices only: no page has gone through
+  TWAIN drivers aren't used (such a scanner is listed and says why). WIA and TWAIN scanning has been tested with made-up devices only: no page has gone through
   a real WIA or TWAIN driver yet (on the one PC tried, the only WIA scanner was a printer no longer on the network).
   WIA 2.0 drivers are used through Windows' WIA 1.0 view (as Inkvolt Print does): a page in progress finishes before Stop
   takes effect, and a driver's own extras (its blank page skipping, color dropout) aren't offered. Black-and-white pages

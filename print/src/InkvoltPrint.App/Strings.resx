@@ -4487,4 +4487,16 @@ Start over</value>
     <value>Share a scanner on the _network</value>
     <comment>menu item; _ marks the access key</comment>
   </data>
+  <data name="Printer_ScannerDriver32Bit" xml:space="preserve">
+    <value>Can't use this scanner's driver</value>
+    <comment>status</comment>
+  </data>
+  <data name="Printer_AboutTwain32Bit" xml:space="preserve">
+    <value>TWAIN, 32-bit only</value>
+    <comment>About card value next to Driver</comment>
+  </data>
+  <data name="Printer_SourceTwain32Scanner" xml:space="preserve">
+    <value>Listed so it isn't missing: Inkvolt Print scans with it once a driver it can load is installed.</value>
+    <comment>status card note</comment>
+  </data>
 </root>

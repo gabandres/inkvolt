@@ -134,13 +134,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         {
             new(Strings.Printer_AboutWindowsScanner, scanner.Name),
             scanner.Manufacturer is { Length: > 0 } maker ? new(Strings.Printer_AboutDriverFrom, maker) : null,
-            scanner.IsTwain ? new(Strings.Printer_AboutScannerDriver, "TWAIN") : null,
+            scanner.IsTwain32Only ? new(Strings.Printer_AboutScannerDriver, Strings.Printer_AboutTwain32Bit)
+                : scanner.IsTwain ? new(Strings.Printer_AboutScannerDriver, "TWAIN") : null,
             scanner.ConnectionText is { } via ? new(Strings.Printer_AboutConnectedVia, scanner.IsEscl ? string.Format(Strings.Printer_AboutViaWindowsEscl, via) : via) : null,
         }.OfType<InfoRow>().ToList());
     }
 
     /// <summary>A scanner listed on its own (<see cref="ScannerDevice"/>), not a printer.</summary>
     public bool IsScannerOnly => ScannerDevice is not null;
+
+    /// <summary>A scanner whose only driver is a 32-bit TWAIN one: listed, never connected (trying again changes nothing).</summary>
+    public bool IsDeclinedScanner => ScannerDevice?.IsTwain32Only == true;
 
     /// <summary>The WIA scanner this entry is (<see cref="IsScannerOnly"/>); null for printers.</summary>
     public WiaDeviceInfo? ScannerDevice { get; }
@@ -173,7 +177,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>For the status card of a queue printer: where its status comes from and what that leaves out.</summary>
     public string? StatusSourceNote => IsScannerOnly
-        ? ScannerDevice!.IsTwain ? Strings.Printer_SourceTwainScanner : Strings.Printer_SourceWiaScanner
+        ? ScannerDevice!.IsTwain32Only ? Strings.Printer_SourceTwain32Scanner
+        : ScannerDevice.IsTwain ? Strings.Printer_SourceTwainScanner : Strings.Printer_SourceWiaScanner
         : _queueSource is not { } source ? null
         : source.HasSupplyLevels
         ? string.Format(_wia is null ? Strings.Printer_SourceSuppliesNoScan : Strings.Printer_SourceSuppliesScansViaWindows, source.Origin)
@@ -1115,6 +1120,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             BindScanner();
             _ = UseButtonDriverAsync(null, null);
             _ = OfferToShareAsync(gone.Id, null);
+            return;
+        }
+        if (device.IsTwain32Only)
+        {
+            // Named, never opened: a 32-bit TWAIN driver can't load in this 64-bit app (roadmap 2.5). A printer keeps its own scanning.
+            if (!IsScannerOnly) return;
+            IsConnecting = false;
+            IsOnline = false;
+            StatusSeverity = Severity.Info;
+            StatusMessage = Strings.Printer_ScannerDriver32Bit;
+            StatusDetail = WiaErrors.Message(WiaErrors.Only32Bit, false);
             return;
         }
         if (_wiaConnecting || (_wia is not null && string.Equals(_wia.Device.Id, device.Id, StringComparison.OrdinalIgnoreCase))) return;

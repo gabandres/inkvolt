@@ -163,12 +163,12 @@ switch (cmd)
         Environment.ExitCode = await NeedsDriverScanners(args.Contains("--get-driver"), args.Contains("--yes"));
         break;
     case "scanners":
-        // Read-only: the WIA scanners Windows has drivers for and the 64-bit TWAIN sources beside them, as the app lists them;
+        // Read-only: the WIA scanners Windows has drivers for and the TWAIN sources beside them (32-bit-only ones named), as the app lists them;
         // --caps connects to each and prints what it offers (never scans).
         var driverScanners = InkvoltPrint.Windows.Scanning.WindowsTwain.BesideWia(Console.Error.WriteLine); // stdout is the list alone
         foreach (var d in await driverScanners.ListScannersAsync(ct))
         {
-            Console.WriteLine($"{d.Name} | maker={d.Manufacturer} | port={d.Port}{(d.IsEscl ? " (Windows' eSCL driver)" : d.IsTwain ? " (TWAIN driver)" : "")}");
+            Console.WriteLine($"{d.Name} | maker={d.Manufacturer} | port={d.Port}{(d.IsEscl ? " (Windows' eSCL driver)" : d.IsTwain32Only ? " (32-bit TWAIN driver: declined)" : d.IsTwain ? " (TWAIN driver)" : "")}");
             if (!args.Contains("--caps")) continue;
             try
             {
