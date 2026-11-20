@@ -49,14 +49,14 @@ public class RedactionLinesTests
 
     private static int Differing(bool[] a, bool[] b) => a.Zip(b).Count(p => p.First != p.Second);
 
-    /// <summary>The stretches of ink (words and boxes: gaps under 4 pixels, between letters, joined).</summary>
+    /// <summary>The stretches of ink (words and boxes: gaps under 8 pixels, between letters, joined; a space is 12).</summary>
     private static List<(int Start, int End)> Runs(bool[] ink)
     {
         var runs = new List<(int, int)>();
         for (var x = 0; x < ink.Length; x++)
         {
             if (!ink[x]) continue;
-            if (runs.Count > 0 && x - runs[^1].Item2 < 4) runs[^1] = (runs[^1].Item1, x + 1);
+            if (runs.Count > 0 && x - runs[^1].Item2 < 8) runs[^1] = (runs[^1].Item1, x + 1);
             else runs.Add((x, x + 1));
         }
         return runs;
@@ -70,7 +70,7 @@ public class RedactionLinesTests
     {
         var ra = Runs(a);
         var rb = Runs(b);
-        Assert.True(ra.Count == rb.Count, $"{ra.Count} vs {rb.Count} stretches");
+        Assert.True(ra.Count == rb.Count, $"{ra.Count} vs {rb.Count} stretches: {string.Join(" ", ra)} | {string.Join(" ", rb)}");
         foreach (var (x, y) in ra.Zip(rb))
         {
             Assert.InRange(x.Start - y.Start, -1, 1);
@@ -87,21 +87,31 @@ public class RedactionLinesTests
         // "Name: ▮ lives here", the box 70 or 80 points wide: in a line 20 points high both are two 40-point steps.
         RedactionLines.CutLine Line(double boxWidth, double gap) => new(new RectD(72, 80, 300, 20), new RectD(72, 78, 300, 24),
         [
-            new(72, 120, false, false),
-            new(120 + gap, 120 + gap + boxWidth, true, true),
-            new(120 + 2 * gap + boxWidth, 160 + 2 * gap + boxWidth, false, true),
-            new(165 + 2 * gap + boxWidth, 190 + 2 * gap + boxWidth, false, true),
-        ], []);
-        var narrow = RedactionLines.Layout(Line(70, 5), 612);
-        var wide = RedactionLines.Layout(Line(80, 9), 612); // a justified line's wider spaces too
+            new(72, 120, Word, false),
+            new(120 + gap, 120 + gap + boxWidth, Box, true),
+            new(120 + 2 * gap + boxWidth, 160 + 2 * gap + boxWidth, Word, true),
+            new(165 + 2 * gap + boxWidth, 190 + 2 * gap + boxWidth, Word, true),
+        ], []) { Limit = 612 };
+        var narrow = RedactionLines.Layout(Line(70, 5));
+        var wide = RedactionLines.Layout(Line(80, 9)); // a justified line's wider spaces too
         Assert.Equal(narrow, wide);
         Assert.Equal([(72d, 48d), (125d, 80d), (210d, 40d), (255d, 25d)], narrow);
         Assert.Equal(40, RedactionLines.BoxWidth(1, 20)); // at least one step
         Assert.Equal(120, RedactionLines.BoxWidth(110, 20));
         // A line that would run off the page (or into the next column) narrows its spaces to fit.
-        var tight = RedactionLines.Layout(Line(80, 5), 275);
+        var tight = RedactionLines.Layout(Line(80, 5) with { Limit = 275 });
         Assert.Equal(275, tight[^1].X + tight[^1].Width, 3);
+        // Right-aligned, it keeps its end (the band's: 372); centred, its middle (222); either way the same for both widths.
+        foreach (var align in new[] { RedactionLines.Alignment.End, RedactionLines.Alignment.Middle })
+        {
+            var a = RedactionLines.Layout(Line(70, 5) with { Align = align });
+            Assert.Equal(a, RedactionLines.Layout(Line(80, 9) with { Align = align }));
+            var (first, last) = (a[0].X, a[^1].X + a[^1].Width);
+            Assert.Equal(align == RedactionLines.Alignment.End ? 372 : 222, align == RedactionLines.Alignment.End ? last : (first + last) / 2, 3);
+        }
     }
+
+    private const RedactionLines.PieceKind Word = RedactionLines.PieceKind.Word, Box = RedactionLines.PieceKind.Box;
 
     [Fact]
     public void TwoNamesOfDifferentWidthsLeaveTheSameLine()
@@ -165,7 +175,7 @@ public class RedactionLinesTests
         var rb = Redact(b, "Robert Kahn");
         var black = ra.Blacked[0].Single();
         Assert.Equal(black, rb.Blacked[0].Single());
-        Assert.Equal(Boxes(a, "Bob Kahn")[0].X, black.X, 0);
+        Assert.Equal(Boxes(a, "Bob Kahn")[0].X + 1, black.X, 0); // where its text started
         SameLine(Ink(ra.Data, LineStrip), Ink(rb.Data, LineStrip));
         Assert.True(ra.Moved.IsEmpty);
         var below = new RectD(60, 792 - 690, 500, 24);
@@ -184,10 +194,10 @@ public class RedactionLinesTests
         // step, the line would reach past where the other column starts; its spaces narrow so it stops short of it.
         static List<(string, RectD)> Chars(string s, double x) => [.. s.Select((c, i) => (c.ToString(), new RectD(x + 10 * i, 80, 10, 20)))];
         var text = new PageText([Chars("Ann a b", 72), Chars("Right", 170)]);
-        var line = Assert.Single(RedactionLines.Find(text, [new RectD(111, 79, 12, 22)]));
+        var line = Assert.Single(RedactionLines.Find(text, [new RectD(111, 79, 12, 22)], 612, 792));
         Assert.Equal(160, line.Limit, 3);
         Assert.Equal([false, true, false], line.Pieces.Select(p => p.Box));
-        var placed = RedactionLines.Layout(line, 612);
+        var placed = RedactionLines.Layout(line);
         Assert.Equal(40, placed[1].Width, 3); // one step of twice the line's height
         Assert.Equal(160, placed[^1].X + placed[^1].Width, 3);
     }
@@ -198,9 +208,9 @@ public class RedactionLinesTests
         static List<(string, RectD)> Chars(string s, double x, double y) => [.. s.Select((c, i) => (c.ToString(), new RectD(x + 10 * i, y, 10, 20)))];
         var text = new PageText([Chars("abc def", 72, 80), Chars("ghi jkl", 72, 104), Chars("mno pqr", 72, 128)]);
         // Taller than a line, a few points right of the paragraph: no letter of it is taken.
-        Assert.Empty(RedactionLines.Find(text, [new RectD(150, 70, 200, 90)]));
+        Assert.Empty(RedactionLines.Find(text, [new RectD(150, 70, 200, 90)], 612, 792));
         // A block over the middle of the lines takes "def", "jkl" and "pqr": each line keeps the rest, laid out again.
-        Assert.Equal(3, RedactionLines.Find(text, [new RectD(110, 70, 100, 90)]).Count);
+        Assert.Equal(3, RedactionLines.Find(text, [new RectD(110, 70, 100, 90)], 612, 792).Count);
     }
 
     [Fact]
@@ -220,10 +230,178 @@ public class RedactionLinesTests
             using var engine = PdfEngine.Open(r.Data, InputFileTypes.PDF, null);
             Assert.True(engine.GetText(0).IsEmpty);
         }
-        // Lines found from text with no size, or turned sideways, are left alone.
+        // Lines found from text with no size are left alone.
         var text = new PageText([[("A", new RectD(10, 10, 0, 0)), ("B", new RectD(20, 10, 5, 0))]]);
-        Assert.Empty(RedactionLines.Find(text, [new RectD(0, 0, 50, 50)]));
-        var turned = new PageText([[("A", new RectD(10, 10, 10, 10)), ("B", new RectD(10, 20, 10, 10)), ("C", new RectD(10, 30, 10, 10))]], [(0d, 1d)]);
-        Assert.Empty(RedactionLines.Find(turned, [new RectD(10, 20, 10, 10)]));
+        Assert.Empty(RedactionLines.Find(text, [new RectD(0, 0, 50, 50)], 612, 792));
+    }
+
+    [Fact]
+    public void ASidewaysLineIsLaidOutAlongItsOwnAxis()
+    {
+        // "A B C" turned clockwise (down the page): "B" redacted, the line's pieces run down it.
+        var turned = new PageText([[("A", new RectD(10, 10, 10, 10)), (" ", new RectD(10, 20, 10, 10)), ("B", new RectD(10, 30, 10, 10)),
+            (" ", new RectD(10, 40, 10, 10)), ("C", new RectD(10, 50, 10, 10))]], [(0d, 1d)]);
+        var line = Assert.Single(RedactionLines.Find(turned, [new RectD(9, 29, 12, 12)], 612, 792));
+        Assert.True(line.Vertical);
+        Assert.Equal([Word, Box, Word], line.Pieces.Select(p => p.Kind));
+        Assert.Equal(new RectD(10, 10, 10, 50), line.ToPage(line.Band));
+
+        // On a page: a name written up the page, two names of different lengths leave the same column.
+        static byte[] Up(string name) => Page($"BT /F1 18 Tf 0 1 -1 0 300 100 Tm (Patient: {name} was seen on Monday) Tj ET");
+        var a = Redaction.Redact(Up("Robert Kahn"), null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = Boxes(Up("Robert Kahn"), "Robert Kahn") }, dpi: 144);
+        var b = Redaction.Redact(Up("Bob Kahn"), null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = Boxes(Up("Bob Kahn"), "Bob Kahn") }, dpi: 144);
+        Assert.Equal(a.Blacked[0].Single(), b.Blacked[0].Single());
+        var column = new RectD(276, 60, 30, 680);
+        SameLine(InkRows(a.Data, column), InkRows(b.Data, column));
+    }
+
+    /// <summary>Which pixel rows of a strip of the page hold ink, at 2 pixels a point.</summary>
+    private static bool[] InkRows(byte[] pdf, RectD strip)
+    {
+        using var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        var img = engine.Render(0, 2, strip);
+        var ink = new bool[img.Height];
+        for (var y = 0; y < img.Height; y++)
+            for (var x = 0; x < img.Width; x++)
+                if (img.Pixels[y * img.Stride + x * 3] + img.Pixels[y * img.Stride + x * 3 + 1] + img.Pixels[y * img.Stride + x * 3 + 2] < 384) ink[y] = true;
+        return ink;
+    }
+
+    [Fact]
+    public void RightAlignedAndCentredLinesKeepTheirEdgeNotTheirStart()
+    {
+        // A right-aligned block (each line ends at 540) and a centred one (each line's middle at 306): with a name of
+        // either length redacted, the line comes out the same, still ending at 540, or centred at 306.
+        static string Right(string text, double y, string name) => string.Create(CultureInfo.InvariantCulture,
+            $"BT /F1 18 Tf {540 - Width(text, name):0.###} {y} Td ({text}) Tj ET ");
+        static string Centre(string text, double y, string name) => string.Create(CultureInfo.InvariantCulture,
+            $"BT /F1 18 Tf {306 - Width(text, name) / 2:0.###} {y} Td ({text}) Tj ET ");
+        foreach (var place in new Func<string, double, string, string>[] { Right, Centre })
+        {
+            byte[] Block(string name) => Page(place($"Patient: {name} was seen", 700, name) + place("Second line of the block", 676, name)
+                                              + place("A third one", 652, name));
+            var a = Redact(Block("Robert Kahn"), "Robert Kahn");
+            var b = Redact(Block("Bob Kahn"), "Bob Kahn");
+            var inkA = Ink(a.Data, LineStrip);
+            SameLine(inkA, Ink(b.Data, LineStrip));
+            var runs = Runs(inkA);
+            var (first, last) = (runs[0].Start / 2.0 + LineStrip.X, runs[^1].End / 2.0 + LineStrip.X);
+            if (place == Right) Assert.InRange(last, 538, 542);
+            else Assert.InRange((first + last) / 2, 304, 308);
+        }
+    }
+
+    /// <summary>The width Helvetica 18 gives <paramref name="text"/> on its page (found through the page's text).</summary>
+    private static double Width(string text, string name) => Boxes(Page(Show(text)), text).Single().Width - 2;
+
+    [Fact]
+    public void NothingOfAnAreaMarksWhereTheLineEnded()
+    {
+        // The area runs from the name to 500 points, far past the line's end, and starts left of the line: what isn't the
+        // box is paper, not black, and the shortened line leaves paper behind it (not the black the area left).
+        var pdf = Page(Show("Patient: Robert Kahn"));
+        var name = Boxes(pdf, "Robert Kahn")[0];
+        var area = RectD.FromEdges(name.X, name.Y, 500, name.Bottom);
+        var r = Redaction.Redact(pdf, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [area] }, dpi: 144);
+        var box = r.Blacked[0].Single();
+        Assert.True(box.Right < 300, $"{box}");
+        var after = new RectD(box.Right + 1, area.Y + 1, 500 - box.Right, area.Height - 2);
+        Assert.Equal(0, Ink(r.Data, after).Count(x => x));
+
+        var start = Page(Show("Patient: Robert Kahn was seen"));
+        var whole = RectD.FromEdges(40, name.Y, Boxes(start, "Patient:")[0].Right, name.Bottom); // the area starts left of the line
+        var s = Redaction.Redact(start, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [whole] }, dpi: 144);
+        var words = Runs(Ink(s.Data, LineStrip));
+        var end = words[^1].End / 2.0 + LineStrip.X;
+        Assert.Equal(0, Ink(s.Data, new RectD(end + 1, name.Y + 1, 560 - end, name.Height - 2)).Count(x => x));
+    }
+
+    [Fact]
+    public void AnEarlierRedactionsBoxKeepsItsWidthAndMovesWithItsLine()
+    {
+        // A box an earlier redaction left between words (40 points), then another word redacted on the line: the earlier
+        // box isn't squeezed into the space it sits in, it moves with the line, and Moved says where it went.
+        var pdf = Page("BT /F1 18 Tf 72 700 Td (Name: ) Tj ET 0 g 130 695 40 18 re f BT /F1 18 Tf 175 700 Td (lives at Main Street now) Tj ET");
+        var earlier = new RectD(130, 792 - 713, 40, 18);
+        var r = Redact(pdf, "Main");
+        Assert.Equal(2, r.Blacked[0].Count);
+        var kept = r.Blacked[0].Single(b => Math.Abs(b.Width - 40) < 1);
+        Assert.Equal(kept.X, r.Moved.Now(0, earlier).X, 0);
+        var runs = Runs(Ink(r.Data, LineStrip));
+        Assert.Contains(runs, x => Math.Abs((x.End - x.Start) / 2.0 - 40) <= 1); // still 40 points of black
+    }
+
+    [Fact]
+    public void ALineWhoseSpaceHoldsARuleStaysWhereItIs()
+    {
+        // A table row: a rule between "here" and "and". Laying the line out again would cut and move the rule, so the line
+        // stays: the rule and the words after it where they were, the box rounded where it allows, and it isn't recorded
+        // as laid out (the check reports it).
+        var pdf = Page(Show("Code    A1 here and B2 there"));
+        var code = Boxes(pdf, "Code")[0];
+        var a1 = Boxes(pdf, "A1")[0];
+        var rule = (code.Right + a1.X) / 2;
+        pdf = Page(Show("Code    A1 here and B2 there") + string.Create(CultureInfo.InvariantCulture, $"0 g {rule:0.##} 690 1 30 re f"));
+        var r = Redact(pdf, "A1");
+        foreach (var kept in new[] { RectD.FromEdges(code.X - 2, 72, rule + 4, 96), RectD.FromEdges(Boxes(pdf, "here")[0].X, 72, 540, 96) })
+            Assert.True(Differing(Ink(pdf, kept), Ink(r.Data, kept)) <= 4, $"{kept} stays");
+        using var doc = PdfObj.Read(r.Data, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var image = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!.Elements["/PdRedacted"])!;
+        Assert.Empty(Redaction.LaidOutBoxes(image));
+        Assert.NotEmpty(r.Blacked[0]);
+    }
+
+    [Fact]
+    public void LinesWhoseBandsOverlapAreEachLaidOutFromThePageAsItWas()
+    {
+        // Tight leading: the bands of the two lines overlap. The second line is laid out from the page as it was, not from
+        // the first line's moved pixels in the rows they share: its rows come out exactly as when it is redacted alone.
+        const string Content = "BT /F1 18 Tf 72 700 Td (Alpha Robert Kahn beta) Tj ET BT /F1 18 Tf 72 686 Td (Gamma Bob Kahn delta) Tj ET";
+        var pdf = Page(Content);
+        var first = Boxes(pdf, "Alpha Robert Kahn beta")[0].Inflate(-1);
+        var second = Boxes(pdf, "Gamma Bob Kahn delta")[0].Inflate(-1);
+        Assert.True(second.Y < first.Bottom - 2, "the bands overlap");
+        // Each area over its own line's rows only, so the rows they share hold the same pixels before either is laid out.
+        var (n1, n2) = (Boxes(pdf, "Robert Kahn")[0], Boxes(pdf, "Bob Kahn")[0]);
+        var a1 = RectD.FromEdges(n1.X, first.Y, n1.Right, second.Y - 0.5);
+        var a2 = RectD.FromEdges(n2.X, first.Bottom + 0.5, n2.Right, second.Bottom);
+        var both = Redaction.Redact(pdf, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [a1, a2] }, dpi: 144);
+        var bottom = Redaction.Redact(pdf, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [a2] }, dpi: 144);
+        Assert.Equal(2, both.Blacked[0].Count);
+        using var e1 = PdfEngine.Open(both.Data, InputFileTypes.PDF, null);
+        using var e2 = PdfEngine.Open(bottom.Data, InputFileTypes.PDF, null);
+        Assert.Equal(e2.Render(0, 2, second).Pixels, e1.Render(0, 2, second).Pixels);
+    }
+
+    [Fact]
+    public void ATallAreaIsRowsOfLines()
+    {
+        // An area over the middle of three lines: each line keeps its words with a rounded box, and between the lines,
+        // where the area was, is paper, not black with the area's drawn edges.
+        var pdf = Page(Show("Alpha one two three") + Show("Beta four five six", 666) + Show("Gamma seven eight", 632));
+        var area = RectD.FromEdges(130, 792 - 718, 200, 792 - 626);
+        var r = Redaction.Redact(pdf, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [area] }, dpi: 144);
+        Assert.Equal(3, r.Blacked[0].Count);
+        Assert.All(r.Blacked[0], b => Assert.True(b.Height < 30));
+        var bands = new[] { "Alpha one two three", "Beta four five six", "Gamma seven eight" }.Select(t => Boxes(pdf, t)[0].Inflate(-1)).ToList();
+        for (var k = 0; k + 1 < bands.Count; k++) // the leading between the lines
+        {
+            var between = RectD.FromEdges(area.X, bands[k].Bottom + 1, area.Right, bands[k + 1].Y - 1);
+            Assert.True(Ink(r.Data, between).Count(x => x) <= 2, $"black between lines {k + 1} and {k + 2}");
+        }
+    }
+
+    [Fact]
+    public void ABlockIsRecordedAsInkvoltsOwn()
+    {
+        // A block (no text left beside it) is black as drawn, and the picture says so: a check later doesn't call it a leak.
+        var pdf = Page(Show("Alpha one two three") + Show("Beta four five six", 676));
+        var block = RectD.FromEdges(60, 70, 400, 125);
+        var r = Redaction.Redact(pdf, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [block] }, dpi: 72);
+        using var doc = PdfObj.Read(r.Data, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var image = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!.Elements["/PdRedacted"])!;
+        var written = Assert.Single(Redaction.LaidOutBoxes(image));
+        Assert.Equal(block.X, written.X, 1);
+        Assert.Equal(block.Width, written.Width, 1);
     }
 }

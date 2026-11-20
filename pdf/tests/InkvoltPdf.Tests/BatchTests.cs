@@ -422,6 +422,41 @@ public sealed class BatchTests : IDisposable
     }
 
     [Fact]
+    public void APictureIsPricedByWhatItDecodesToWithoutInflatingIt()
+    {
+        // A 2000 x 1500 RGB picture whose data isn't Flate (as a JPEG's isn't): 9 MB once decoded, though nothing inflates.
+        var noise = System.Text.Encoding.Latin1.GetString([.. Enumerable.Range(0, 50_000).Select(i => (byte)(i * 7919 >> 3))]);
+        var pdf = Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /XObject << /Im 4 0 R >> >> >>",
+            Core2Pdf.Stream(noise, "/Type /XObject /Subtype /Image /Width 2000 /Height 1500 /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode"),
+        ]);
+        Assert.Equal(9_000_000, BatchRunner.Unpacked(Put("in/picture.pdf", pdf), long.MaxValue));
+        // What a picture's dictionary says: gray, CMYK, a mask, an indexed one; an indirect width can't be read there.
+        Assert.Equal(100 * 50, BatchRunner.PictureBytes("4 0 obj << /Subtype /Image /Width 100 /Height 50 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 9 >>"));
+        Assert.Equal(100 * 50 * 4, BatchRunner.PictureBytes("4 0 obj << /Subtype/Image /Width 100 /Height 50 /ColorSpace /DeviceCMYK /BitsPerComponent 8 >>"));
+        Assert.Equal((100 * 50 + 7) / 8, BatchRunner.PictureBytes("<< /Subtype /Image /ImageMask true /Width 100 /Height 50 >>"));
+        Assert.Equal(100 * 50, BatchRunner.PictureBytes("<< /Subtype /Image /Width 100 /Height 50 /ColorSpace [/Indexed /DeviceRGB 255 5 0 R] /BitsPerComponent 8 >>"));
+        Assert.Null(BatchRunner.PictureBytes("<< /Subtype /Image /Width 7 0 R /Height 50 >>"));
+        Assert.Null(BatchRunner.PictureBytes("<< /Type /XObject /Subtype /Form /BBox [0 0 1 1] >>"));
+        // Huge numbers stay within a stream's limit.
+        Assert.Equal(PdfObj.MaxStreamBytes, BatchRunner.PictureBytes("<< /Subtype /Image /Width 999999999 /Height 999999999 /BitsPerComponent 16 >>"));
+    }
+
+    [Fact]
+    public async Task CountingWhatAFileUnpacksToStopsWhenTheBatchIsCancelled()
+    {
+        var bomb = Put("in/bomb.pdf", Unpacking(64L << 20));
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.Throws<OperationCanceledException>(() => BatchRunner.Unpacked(bomb, long.MaxValue, cts.Token));
+        // A batch cancelled while files wait: it ends, every file not done is said to be cancelled.
+        var summary = await Run([bomb, Put("in/a.pdf", TestPdf.Make(1))], Plan(new RotateStep(90)), cancel: cts.Token);
+        Assert.All(summary.Items, i => Assert.Equal(BatchItemState.Cancelled, i.State));
+    }
+
+    [Fact]
     public async Task AFileIsPricedByWhatItsStreamsUnpackTo()
     {
         // Roadmap 1.2's check: a 200 KB file whose stream unpacks to 200 MB took 1.6 GB in Reduce File Size, priced by its

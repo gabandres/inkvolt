@@ -263,8 +263,10 @@ public class RedactionCheckTests
         // Inkvolt PDF's redaction says in the picture which boxes it laid out with their lines, and the check after it is told.
         var marked = PictureSpacing(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"/PdLaidOut [{box.X:0.##} {box.Y:0.##} {box.Width:0.##} {box.Height:0.##}]"));
         Assert.DoesNotContain(RedactionCheck.Run(marked, null).Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        // Being told it was just redacted there isn't enough: only what the picture records gives nothing away (a line the
+        // redaction had to leave in place isn't recorded, and is reported).
         var told = RedactionCheck.Run(PictureSpacing(), null, new RedactionCheckOptions { Areas = new Dictionary<int, IReadOnlyList<RectD>> { [0] = [box] } });
-        Assert.DoesNotContain(told.Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        Assert.Contains(told.Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
         // A marker that isn't numbers, or is huge, is read as far as it makes sense.
         Assert.Contains(RedactionCheck.Run(PictureSpacing("/PdLaidOut [/a (b) 1 2]"), null).Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
         RedactionCheck.Run(PictureSpacing($"/PdLaidOut [{string.Join(' ', Enumerable.Repeat("99999999999 -99999999999 99999999999 99999999999", 5000))}]"), null);

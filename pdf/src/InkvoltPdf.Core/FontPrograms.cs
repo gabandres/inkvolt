@@ -259,7 +259,9 @@ internal sealed class CffProgram : FontProgram
     /// <summary>The Private DICTs (one, or one per FDArray font of a CID-keyed program) and, per glyph, which (FDSelect).</summary>
     private PrivateDict[] _privates = [];
     private byte[]? _fdOfGlyph;
-    private double?[]? _advances;
+    /// <summary>Each glyph's advance once read (NaN: can't be told), made with the program; read and written under <see cref="_gate"/>.</summary>
+    private double?[] _advances = [];
+    private readonly Lock _gate = new();
 
     /// <summary>A Private DICT's widths and local subroutines, with the scale of its font's FontMatrix (to thousandths of an em).</summary>
     private sealed record PrivateDict(double DefaultWidth, double NominalWidth, List<(int Offset, int Length)> Subrs, double Scale);
@@ -273,9 +275,8 @@ internal sealed class CffProgram : FontProgram
     /// <summary>The advance of a glyph (by index) its charstring gives, in thousandths of an em; null when it can't be told.</summary>
     internal double? AdvanceOfGlyph(int gid)
     {
-        if (gid < 0 || gid >= _charStrings.Count || _privates.Length == 0) return null;
-        _advances ??= new double?[_charStrings.Count];
-        lock (_advances)
+        if (gid < 0 || gid >= _charStrings.Count || gid >= _advances.Length || _privates.Length == 0) return null;
+        lock (_gate)
         {
             if (_advances[gid] is { } known) return double.IsNaN(known) ? null : known;
             var fd = _fdOfGlyph is null ? 0 : gid < _fdOfGlyph.Length ? _fdOfGlyph[gid] : -1;
@@ -383,9 +384,20 @@ internal sealed class CffProgram : FontProgram
         return new PrivateDict(Number(20), Number(21), subrs, scale);
     }
 
-    /// <summary>A FontMatrix's horizontal scale, to thousandths of an em (the default [0.001 …] gives 1); null without one or a bad one.</summary>
+    /// <summary>A FontMatrix's horizontal scale (the default is 0.001); null without one or a bad one.</summary>
     private static double? MatrixScale(Dictionary<int, List<double>> dict) =>
-        dict.TryGetValue(1207, out var m) && m.Count >= 1 && double.IsFinite(m[0]) && Math.Abs(m[0]) is > 1e-9 and < 1e3 ? m[0] * 1000 : null;
+        dict.TryGetValue(1207, out var m) && m.Count >= 1 && double.IsFinite(m[0]) && Math.Abs(m[0]) is > 1e-9 and < 1e3 ? m[0] : null;
+
+    /// <summary>
+    /// A CID-keyed program's glyph scale from its Top DICT's FontMatrix and its font DICT's (each 0.001 when missing), to
+    /// thousandths of an em, as FreeType combines them: multiplied, except that when both scale down (an em of units each,
+    /// [0.001 …] in both is common) the em counts once, so the smaller one is the scale.
+    /// </summary>
+    internal static double CombinedScale(double? top, double? font)
+    {
+        double t = top ?? 0.001, f = font ?? 0.001;
+        return 1000 * (Math.Abs(t) < 1 && Math.Abs(f) < 1 ? t * f / Math.Max(Math.Abs(t), Math.Abs(f)) : t * f);
+    }
 
     public static CffProgram? Read(byte[] b)
     {
@@ -410,7 +422,7 @@ internal sealed class CffProgram : FontProgram
         var csAt = (int)cs[0];
         var charStrings = Index(b, ref csAt);
         var n = charStrings.Count;
-        var font = new CffProgram { NumGlyphs = n, IsCid = cid, _b = b, _charStrings = charStrings, _globalSubrs = globalSubrs };
+        var font = new CffProgram { NumGlyphs = n, IsCid = cid, _b = b, _charStrings = charStrings, _globalSubrs = globalSubrs, _advances = new double?[n] };
         font.ReadPrivates(b, top, cid);
         var charset = top.TryGetValue(15, out var c) && c.Count > 0 ? (int)c[0] : 0;
         var sids = new int[n];
@@ -472,7 +484,7 @@ internal sealed class CffProgram : FontProgram
             var topScale = MatrixScale(top);
             if (!cid)
             {
-                _privates = [ReadPrivate(b, top, topScale ?? 1)];
+                _privates = [ReadPrivate(b, top, 1000 * (topScale ?? 0.001))];
                 return;
             }
             var fdArray = At(top, 1236, 0, b);
@@ -483,8 +495,7 @@ internal sealed class CffProgram : FontProgram
             _privates = [.. fonts.Select(f =>
             {
                 var dict = Dict(b, f.Offset, f.Offset + f.Length);
-                var scale = MatrixScale(dict) is { } own ? own * (topScale is { } t ? t / 1000 : 1) : topScale ?? 1;
-                return ReadPrivate(b, dict, scale);
+                return ReadPrivate(b, dict, CombinedScale(topScale, MatrixScale(dict)));
             })];
             var n = _charStrings.Count;
             var select = new byte[n];

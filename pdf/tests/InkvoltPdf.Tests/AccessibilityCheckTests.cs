@@ -618,9 +618,10 @@ public class AccessibilityCheckTests
     [Fact]
     public void CidKeyedCffWidthsComeFromEachGlyphsPrivateDict()
     {
-        // CID 36 in font DICT 0 (nominal 0), CID 37 in font DICT 1 (nominal 400, and its own FontMatrix of 0.002): FDSelect picks.
+        // CID 36 in font DICT 0 (nominal 0), CID 37 in font DICT 1 (nominal 400, and its own FontMatrix of 0.002, under a
+        // Top DICT matrix of 1): FDSelect picks.
         var cff = TestFontPrograms.Cff([(36, TestFontPrograms.Cs(667, TestFontPrograms.EndChar)), (37, TestFontPrograms.Cs(-100, TestFontPrograms.EndChar))],
-            [new(1000, 0), new(1000, 400, FontMatrix: "0.002")], cid: true, fdOfGlyph: [0, 0, 1]);
+            [new(1000, 0), new(1000, 400, FontMatrix: "0.002")], cid: true, fdOfGlyph: [0, 0, 1], topMatrix: "1");
         var program = CffProgram.Read(cff)!;
         Assert.True(program.IsCid);
         Assert.Equal(667, program.AdvanceOfCid(36));
@@ -628,6 +629,19 @@ public class AccessibilityCheckTests
         Assert.Null(program.AdvanceOfCid(38));
         Passes(CidCffFont(cff, "667 600"));
         Fails(CidCffFont(cff, "667 300"), "31-016");
+
+        // 0.001 in both the Top DICT and the font DICT (as many CID fonts write it): the em counts once, as FreeType reads it.
+        var both = TestFontPrograms.Cff([(36, TestFontPrograms.Cs(667, TestFontPrograms.EndChar))], [new(1000, 0, FontMatrix: "0.001")], cid: true, topMatrix: "0.001");
+        Assert.Equal(667, CffProgram.Read(both)!.AdvanceOfCid(36));
+        Assert.Equal(1, CffProgram.CombinedScale(null, null), 9);
+        Assert.Equal(1, CffProgram.CombinedScale(1, 0.001), 9);
+        Assert.Equal(0.5, CffProgram.CombinedScale(0.0005, 0.001), 9);
+
+        // Read from many threads at once, the widths come out the same (the cache is made with the program, under a lock).
+        var shared = CffProgram.Read(cff)!;
+        var widths = new System.Collections.Concurrent.ConcurrentBag<double?>();
+        Parallel.For(0, 64, i => widths.Add(shared.AdvanceOfCid(36 + i % 2)));
+        Assert.Equal([600, 667], widths.Distinct().Order().Select(w => w!.Value));
     }
 
     [Fact]

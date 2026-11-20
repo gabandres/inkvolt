@@ -118,7 +118,8 @@ internal static class BoundedFilters
     /// kept nowhere. Counting stops once past <paramref name="limit"/> (what it returns is then more than the limit); data
     /// damaged part way counts what came out before the damage (PDFsharp fails on it, or not, as it would have).
     /// </summary>
-    public static long InflatedLength(Stream deflate, long limit)
+    /// <param name="cancel">Checked at every chunk.</param>
+    public static long InflatedLength(Stream deflate, long limit, CancellationToken cancel = default)
     {
         using var z = new DeflateStream(deflate, CompressionMode.Decompress, leaveOpen: true);
         var chunk = System.Buffers.ArrayPool<byte>.Shared.Rent(64 * 1024);
@@ -126,7 +127,10 @@ internal static class BoundedFilters
         try
         {
             for (int n; (n = z.Read(chunk)) > 0;)
+            {
+                cancel.ThrowIfCancellationRequested();
                 if ((total += n) > limit) return total;
+            }
         }
         catch (InvalidDataException)
         {

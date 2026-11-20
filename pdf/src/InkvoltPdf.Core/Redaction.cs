@@ -26,18 +26,19 @@ public sealed record RedactedPages(byte[] Data, IReadOnlyDictionary<int, IReadOn
 }
 
 /// <summary>Words a redaction moved along their lines (<see cref="RedactionLines"/>): where each was (page space) and how far it went.</summary>
-public sealed class RedactionMoves(IReadOnlyDictionary<int, IReadOnlyList<(RectD Was, double Dx)>> moves)
+public sealed class RedactionMoves(IReadOnlyDictionary<int, IReadOnlyList<(RectD Was, double Dx, double Dy)>> moves)
 {
-    public static RedactionMoves None { get; } = new(new Dictionary<int, IReadOnlyList<(RectD, double)>>());
+    public static RedactionMoves None { get; } = new(new Dictionary<int, IReadOnlyList<(RectD, double, double)>>());
 
     public bool IsEmpty => moves.Count == 0;
 
-    /// <summary>Where a box of text that was kept on <paramref name="page"/> is now (as it was, when its word didn't move).</summary>
+    /// <summary>Where a box of text that was kept on <paramref name="page"/> (or an earlier redaction's box) is now (as it
+    /// was, when it didn't move).</summary>
     public RectD Now(int page, RectD box)
     {
         if (!moves.TryGetValue(page, out var list)) return box;
-        foreach (var (was, dx) in list)
-            if (was.Contains(box.CenterX, box.CenterY)) return box with { X = box.X + dx };
+        foreach (var (was, dx, dy) in list)
+            if (was.Contains(box.CenterX, box.CenterY)) return box with { X = box.X + dx, Y = box.Y + dy };
         return box;
     }
 }
@@ -69,7 +70,7 @@ public static class Redaction
     {
         var pages = areasByPage.Where(kv => kv.Value.Any(r => !r.IsEmpty)).ToList();
         var blackedByPage = new Dictionary<int, IReadOnlyList<RectD>>();
-        var movedByPage = new Dictionary<int, IReadOnlyList<(RectD, double)>>();
+        var movedByPage = new Dictionary<int, IReadOnlyList<(RectD, double, double)>>();
         if (pages.Count == 0) return new RedactedPages(data, blackedByPage);
         dpi = Math.Clamp(dpi, 36, 1200);
         data = ClearRedactedFields(data, password, pages);
@@ -97,49 +98,157 @@ public static class Redaction
                 var y1 = Math.Clamp((int)Math.Ceiling(a.Bottom * scale), 0, img.Height);
                 for (var y = y0; y < y1; y++) Array.Clear(rgb, (y * img.Width + x0) * 3, (x1 - x0) * 3);
             }
-            var moved = new List<(RectD, double)>();
+            var moved = new List<(RectD, double, double)>();
             var laidOut = new List<RectD>();
-            blackedByPage[index] = Relay(engine.GetText(index, cache: false), drawn, rgb, img.Width, img.Height, scale, moved, laidOut);
+            var earlier = EarlierBoxes(doc.Pages[index]);
+            blackedByPage[index] = Relay(engine.GetText(index, cache: false), drawn, earlier,
+                new RedactionLines.Canvas(rgb, img.Width, img.Height, scale, drawn), moved, laidOut);
             if (moved.Count > 0) movedByPage[index] = moved;
             ReplacePage(doc, doc.Pages[index], img.Width, img.Height, rgb, laidOut);
         }
         return new RedactedPages(PdfObj.Save(doc, rewrite: true), blackedByPage) { Moved = new RedactionMoves(movedByPage) };
     }
 
-    /// <summary>
-    /// The lines the areas cut, laid out again in the page image; returns what is black: each line's boxes where they now
-    /// are, and of each area what lies outside the rows laid out again. Each word moved goes in <paramref name="moved"/>.
-    /// </summary>
-    private static List<RectD> Relay(PageText text, List<RectD> areas, byte[] rgb, int width, int height, double scale, List<(RectD Was, double Dx)> moved,
-        List<RectD> laidOut)
+    /// <summary>The boxes an earlier redaction by Inkvolt PDF wrote into the page's picture (<see cref="LaidOutBoxes"/>).</summary>
+    private static List<RectD> EarlierBoxes(PdfPage page)
     {
+        var xobjects = PdfObj.Dict(PdfObj.Dict(page.Elements["/Resources"])?.Elements["/XObject"]);
+        return xobjects is null ? [] : [.. xobjects.Elements.Values.Select(PdfObj.Dict).OfType<PdfDictionary>().SelectMany(LaidOutBoxes).Take(MaxLaidOut)];
+    }
+
+    /// <summary>
+    /// The lines the areas cut, laid out again in the page image (<see cref="RedactionLines"/>); returns what is black: each
+    /// line's boxes where they now are, the areas that are blocks as drawn, and what lines left in place keep. Each word
+    /// and earlier box moved goes in <paramref name="moved"/>; every box that gives no width away, in <paramref name="laidOut"/>
+    /// (a line left in place, because its space holds a rule or a picture, is left out, so the check reports it). What
+    /// an area cutting lines laid out again holds outside their rows (between the lines of a tall area, past a line's end)
+    /// becomes paper: the area is rows of lines.
+    /// </summary>
+    private static List<RectD> Relay(PageText text, List<RectD> areas, List<RectD> earlier, RedactionLines.Canvas canvas,
+        List<(RectD Was, double Dx, double Dy)> moved, List<RectD> laidOut)
+    {
+        var scale = canvas.Scale;
         var blacked = new List<RectD>();
         var rows = new List<RectD>();
-        foreach (var line in RedactionLines.Find(text, areas))
+        var inPlaceRows = new List<RectD>();
+        var lineAreas = new HashSet<RectD>();
+        var inPlaceAreas = new HashSet<RectD>();
+        foreach (var line in RedactionLines.Find(text, areas, canvas.Width / scale, canvas.Height / scale, (band, vertical) => DarkRuns(canvas, band, vertical)))
         {
-            var placed = RedactionLines.Layout(line, width / scale);
-            var (boxes, relaid) = RedactionLines.Relay(rgb, width, height, scale, line, placed);
-            blacked.AddRange(boxes);
-            laidOut.AddRange(boxes);
-            if (relaid.IsEmpty) continue;
-            rows.Add(relaid);
-            for (var k = 0; k < line.Pieces.Count; k++)
-                if (line.Pieces[k] is { Box: false } p && placed[k].X != p.X)
-                    moved.Add((RectD.FromEdges(p.X, relaid.Y, p.Right, relaid.Bottom), placed[k].X - p.X));
+            var r = RedactionLines.Relay(canvas, line, RedactionLines.Layout(line));
+            blacked.AddRange(r.Boxes);
+            blacked.AddRange(r.Fixed.Select(f => f.Now));
+            if (r.Rows.IsEmpty) continue;
+            var mine = line.Areas.Select(line.ToPage);
+            if (!r.LaidOut)
+            {
+                inPlaceRows.Add(r.Rows);
+                inPlaceAreas.UnionWith(mine);
+                continue;
+            }
+            rows.Add(r.Rows);
+            lineAreas.UnionWith(mine);
+            laidOut.AddRange(r.Boxes);
+            // An earlier box that was Inkvolt's is still one that gives nothing away; another tool's is still reported.
+            laidOut.AddRange(r.Fixed.Where(f => earlier.Any(e => !e.Intersect(f.Was.Inflate(-0.5)).IsEmpty)).Select(f => f.Now));
+            moved.AddRange(r.Moved);
         }
         foreach (var a in areas)
         {
-            // The area less the rows laid out again (their columns): the strips above and below a line, or the whole area.
-            var cuts = rows.Where(r => r.Right > a.X && r.X < a.Right && r.Bottom > a.Y && r.Y < a.Bottom).OrderBy(r => r.Y).ToList();
-            var y = a.Y;
-            foreach (var r in cuts)
+            var rest = Subtract(Subtract([a], rows), inPlaceRows);
+            if (lineAreas.Contains(a) && !inPlaceAreas.Contains(a))
             {
-                if (r.Y > y) blacked.Add(RectD.FromEdges(a.X, y, a.Right, r.Y));
-                y = Math.Max(y, r.Bottom);
+                // Rows of lines: what it holds between and beyond them is paper, so nothing there keeps its drawn edges.
+                foreach (var piece in rest) Paper(canvas, piece);
+                continue;
             }
-            if (a.Bottom > y) blacked.Add(RectD.FromEdges(a.X, y, a.Right, a.Bottom));
+            blacked.AddRange(rest);
+            if (!inPlaceAreas.Contains(a)) laidOut.AddRange(rest); // a block, as drawn: its width is the area's, not its words'
         }
         return blacked;
+    }
+
+    /// <summary>The rectangles less each of <paramref name="cuts"/> (each split into at most four).</summary>
+    internal static List<RectD> Subtract(List<RectD> rects, IEnumerable<RectD> cuts)
+    {
+        foreach (var c in cuts)
+        {
+            var next = new List<RectD>();
+            foreach (var r in rects)
+            {
+                var i = r.Intersect(c);
+                if (i.IsEmpty)
+                {
+                    next.Add(r);
+                    continue;
+                }
+                if (i.Y > r.Y) next.Add(RectD.FromEdges(r.X, r.Y, r.Right, i.Y));
+                if (i.Bottom < r.Bottom) next.Add(RectD.FromEdges(r.X, i.Bottom, r.Right, r.Bottom));
+                if (i.X > r.X) next.Add(RectD.FromEdges(r.X, i.Y, i.X, i.Bottom));
+                if (i.Right < r.Right) next.Add(RectD.FromEdges(i.Right, i.Y, r.Right, i.Bottom));
+            }
+            rects = [.. next.Where(r => r.Width > 1e-6 && r.Height > 1e-6)];
+        }
+        return rects;
+    }
+
+    /// <summary>Paints a rectangle (page space) with the paper beside it, row by row.</summary>
+    private static void Paper(RedactionLines.Canvas canvas, RectD r)
+    {
+        var x0 = (int)Math.Clamp(Math.Floor(r.X * canvas.Scale), 0, canvas.Width);
+        var x1 = (int)Math.Clamp(Math.Ceiling(r.Right * canvas.Scale), 0, canvas.Width);
+        var y0 = (int)Math.Clamp(Math.Floor(r.Y * canvas.Scale), 0, canvas.Height);
+        var y1 = (int)Math.Clamp(Math.Ceiling(r.Bottom * canvas.Scale), 0, canvas.Height);
+        for (var y = y0; y < y1; y++)
+        {
+            var (red, green, blue) = canvas.PaperBeside(false, x0, x1, y);
+            for (var x = x0; x < x1; x++)
+            {
+                var o = (y * canvas.Width + x) * 3;
+                (canvas.Rgb[o], canvas.Rgb[o + 1], canvas.Rgb[o + 2]) = (red, green, blue);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Boxes already on a line (an earlier redaction's, Inkvolt's or another tool's): along the line and up to three line
+    /// heights beyond its ends, stretches at least 0.6 line heights long that are dark across the middle half of its band in
+    /// the page as it was (line space).
+    /// </summary>
+    private static List<(double X, double Right)> DarkRuns(RedactionLines.Canvas canvas, RectD band, bool vertical)
+    {
+        var s = canvas.Scale;
+        var along = vertical ? canvas.Height : canvas.Width;
+        var across = vertical ? canvas.Width : canvas.Height;
+        var h = band.Height;
+        int Clamp(double v, int max) => (int)Math.Clamp(Math.Round(v * s), 0, max);
+        int a0 = Clamp(band.X - 3 * h, along), a1 = Clamp(band.Right + 3 * h, along);
+        int c0 = Clamp(band.Y + h / 4, across), c1 = Math.Max(Clamp(band.Bottom - h / 4, across), c0 + 1);
+        if (c1 > across) return [];
+        bool Dark(int a)
+        {
+            var dark = 0;
+            for (var c = c0; c < c1; c++)
+            {
+                var o = vertical ? (a * canvas.Width + c) * 3 : (c * canvas.Width + a) * 3;
+                if (canvas.Before[o] * 30 + canvas.Before[o + 1] * 59 + canvas.Before[o + 2] * 11 < 70 * 100) dark++;
+            }
+            return dark >= 0.95 * (c1 - c0);
+        }
+        var runs = new List<(double, double)>();
+        for (var a = a0; a < a1;)
+        {
+            if (!Dark(a))
+            {
+                a++;
+                continue;
+            }
+            var end = a;
+            while (end < a1 && Dark(end)) end++;
+            if ((end - a) / s >= 0.6 * h) runs.Add((a / s, end / s));
+            a = end;
+        }
+        return runs;
     }
 
     /// <summary>How the redacted pages are read back into text: cleaned, no suspect words (nobody reviews a redacted page's words), only the text written.</summary>

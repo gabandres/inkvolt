@@ -709,9 +709,9 @@ public static partial class RedactionCheck
         /// Boxes in pictures: a redaction drawn into the page image (as tools that turn pages into pictures draw it) or a
         /// scan's black marker. In the page as drawn for <see cref="HiddenChars"/> (<paramref name="img"/>), on each line of
         /// its text, a stretch of columns dark across the line's middle, in a picture and wider than the line is tall, is a
-        /// box; with text beside it, it is reported as a drawn box is (<see cref="BesideBox"/>). Not the boxes of a redaction
-        /// whose lines were laid out again: the areas just redacted (<see cref="RedactionCheckOptions.Areas"/>) and those
-        /// Inkvolt PDF wrote into the picture.
+        /// box; with text beside it, it is reported as a drawn box is (<see cref="BesideBox"/>). Not the boxes Inkvolt PDF's
+        /// redaction says in the picture give no width away (<see cref="Redaction.LaidOutBoxes"/>: lines laid out again,
+        /// blocks); the boxes of a line it had to leave in place are reported, even just after it (they are left out).
         /// </summary>
         private List<RectD> PictureBoxes(int p, PageScan scan, RenderedImage img, double scale)
         {
@@ -719,17 +719,16 @@ public static partial class RedactionCheck
             var text = _texts[p];
             var pictures = scan.Pictures.Select(x => x.Box).Where(b => b.Width >= 6 && b.Height >= 4).ToList();
             if (text.IsEmpty || pictures.Count == 0 || img.Width == 0 || img.Height == 0) return found;
-            var known = scan.Covers.Select(c => c.Box).Concat(scan.LaidOut)
-                .Concat(options.Areas is { } areas && areas.TryGetValue(p, out var mine) ? mine : []).ToList();
+            var known = scan.Covers.Select(c => c.Box).Concat(scan.LaidOut).ToList();
             bool Dark(int x, int y)
             {
                 var o = y * img.Stride + x * 3;
                 return img.Pixels[o] * 11 + img.Pixels[o + 1] * 59 + img.Pixels[o + 2] * 30 < 70 * 100;
             }
             int Px(double v, int max) => (int)Math.Clamp(Math.Round(v * scale), 0, max);
-            foreach (var (start, end, across) in text.Lines)
+            foreach (var (start, end, dx, _) in text.Lines)
             {
-                if (!across) continue;
+                if (Math.Abs(dx) < 0.99) continue;
                 var band = default(RectD);
                 for (var i = start; i < end; i++)
                     if (Visible(text.Text[i]) && text.BoxAt(i) is { Width: > 0, Height: > 0 } b)

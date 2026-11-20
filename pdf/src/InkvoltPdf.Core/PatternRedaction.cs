@@ -84,6 +84,9 @@ public sealed class PatternRedaction(string file, RedactionPatternOptions patter
     /// <summary>What is black after <see cref="Redact"/>: <see cref="Areas"/>, with the boxes where the lines laid out again put them.</summary>
     public IReadOnlyDictionary<int, IReadOnlyList<RectD>> Blacked => _redacted?.Blacked ?? Areas;
 
+    /// <summary>The words and earlier boxes <see cref="Redact"/> moved (none before it ran).</summary>
+    public RedactionMoves Moved => _redacted?.Moved ?? RedactionMoves.None;
+
     /// <summary>The edit: <see cref="Areas"/> blacked out, the redacted pages' text recognized again (<see cref="Redaction.ApplyWithText"/>).</summary>
     public RedactedData Redact(byte[] data, string? password, IProgress<(int Done, int Total)>? progress = null, CancellationToken skipText = default) =>
         _redacted = Redaction.ApplyWithText(data, password, Areas, ocr, progress, skipText);
