@@ -614,7 +614,7 @@ public static partial class ContentEditor
         m.WordSpacing = 0; // the lines are written with Tw 0 (justification goes into adjustments)
         var shrink = fit ?? 1;
         m.Size *= shrink;
-        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink);
+        if (fit is not null && MostlyRightToLeft(text)) return LayOutRightToLeft(p, m, text, shrink, LooksOf(text, spans));
         var enc = new MixedText(p, font, m, text, LooksOf(text, spans ?? Carry(p.Text, text, p.Spans)), oneFace: fit is not null);
         if (enc.Missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, enc.Missing, null), []);
 
@@ -779,6 +779,19 @@ public static partial class ContentEditor
         return result;
     }
 
+    /// <summary>
+    /// A look's size against the paragraph's text, how far its baseline rises (ems of the paragraph's text: a script at the
+    /// page's own rise when it was read from the page, else the usual one), and its color where it isn't the paragraph's.
+    /// </summary>
+    private static (double Scale, double Rise, int? Color) LookMetrics(TextParagraph p, TextLook look)
+    {
+        var scale = look.Size is > 0 and var size && Math.Abs(size - p.FontSize) > 0.01 ? size / p.FontSize : 1;
+        var rise = look.Script is { } script ? look.Rise is { } own && double.IsFinite(own) ? ScriptRise(script, own) : script == TextScript.Sub ? SubRise : SuperRise : 0;
+        if (look.Script is not null) scale *= ScriptScale;
+        int? color = look.Color is { } c && c != p.Lead.Color ? c : null;
+        return (scale, rise, color);
+    }
+
     /// <summary>Where a paragraph's new text is written: its first run in content order in its own font and look.</summary>
     private static TextRun Anchor(IReadOnlyList<TextRun> runs) =>
         runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => Order(r.Id)) ?? runs.Where(r => !r.StandIn).MinBy(r => Order(r.Id)) ?? runs.MinBy(r => Order(r.Id))!;
@@ -881,11 +894,7 @@ public static partial class ContentEditor
             if (_looks[at] is not { IsPlain: false } look) return null;
             if (_resolved.TryGetValue(look, out var known)) return known;
             var lead = _p.Lead;
-            var scale = look.Size is > 0 and var size && Math.Abs(size - _p.FontSize) > 0.01 ? size / _p.FontSize : 1;
-            // A script at the page's own rise when it was read from the page, else the usual one.
-            var rise = look.Script is { } script ? look.Rise is { } own && double.IsFinite(own) ? ScriptRise(script, own) : script == TextScript.Sub ? SubRise : SuperRise : 0;
-            if (look.Script is not null) scale *= ScriptScale;
-            int? color = look.Color is { } c && c != lead.Color ? c : null;
+            var (scale, rise, color) = LookMetrics(_p, look);
             var bold = look.Bold ?? lead.Bold;
             var italic = look.Italic ?? lead.Italic;
             StandInFont? face = null;
@@ -1189,7 +1198,8 @@ public static partial class ContentEditor
                 Close();
                 var tc = Math.Abs(run.CharSpacing) > 1e-9;
                 if (tc) sb.Append("0 Tc ");
-                writer.Emit(sb, standIn, plain.Size * s, ts);
+                // (A right-to-left line's styled glyphs set their own colors and go back to the run's: WriteLine's own color is the run's here.)
+                writer.Emit(sb, standIn, plain.Size * s, ts, part.Look?.Color is null ? info.FillOp : null);
                 ownFont = false;
                 if (tc) sb.Append(ContentLexer.Number(run.CharSpacing)).Append(" Tc ");
                 continue;

@@ -280,7 +280,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>A color as an RGB fill operator.</summary>
-    private static string RgbOp(int color) =>
+    internal static string RgbOp(int color) =>
         string.Create(CultureInfo.InvariantCulture,
             $"{ContentLexer.Number((color >> 16 & 0xFF) / 255.0)} {ContentLexer.Number((color >> 8 & 0xFF) / 255.0)} {ContentLexer.Number((color & 0xFF) / 255.0)} rg ");
 }

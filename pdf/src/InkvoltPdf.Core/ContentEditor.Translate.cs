@@ -749,9 +749,12 @@ public static partial class ContentEditor
 
     /// <summary>
     /// Right-to-left text in an installed font: words go on a line as long as it fits, each line shaped whole so its words
-    /// come out in reading order, and it sits against the box's right edge (or its center, if centered).
+    /// come out in reading order, and it sits against the box's right edge (or its center, if centered). Stretches with a
+    /// look of their own (<paramref name="looks"/>) are shaped in it within the line (<see cref="GlyphStyle"/>): bold or
+    /// italic in that face of an installed font that has the text's letters, another family in that family, a script at
+    /// its size and rise, a color, an underline drawn under it (<see cref="ParagraphLayout.Underlined"/>).
     /// </summary>
-    private static ParagraphLayout LayOutRightToLeft(TextParagraph p, TextRun m, string text, double shrink)
+    private static ParagraphLayout LayOutRightToLeft(TextParagraph p, TextRun m, string text, double shrink, TextLook?[] looks)
     {
         var cps = TrueTypeFont.CodePoints(text).Where(c => c > 32).Distinct().ToList();
         var ranked = StandInFonts.RankFor(m.Font!).FirstOrDefault(f => cps.All(f.Font.Has));
@@ -761,56 +764,123 @@ public static partial class ContentEditor
             .Distinct().Select(char.ConvertFromUtf32).ToList();
         if (missing.Count > 0) return new ParagraphLayout([], new ParagraphCheck(p.Box, p.Lines.Count, missing, null), []);
 
-        double W(string line) => TextShaper.Measure(line, primary) * m.Size * m.HScale * m.Scale;
+        // One style per look the text has; each UTF-16 unit's (-1: the paragraph's own).
+        var styles = new List<GlyphStyle>();
+        var styleLooks = new List<TextLook>();
+        var styleNames = new List<string?>();
+        var styleAt = new int[text.Length];
+        Array.Fill(styleAt, -1);
+        var byLook = new Dictionary<TextLook, int>();
+        for (var i = 0; i < text.Length && i < looks.Length; i++)
+        {
+            if (looks[i] is not { IsPlain: false } look) continue;
+            if (!byLook.TryGetValue(look, out var k))
+            {
+                byLook[look] = k = styles.Count;
+                var (style, name) = RightToLeftStyle(p, m, look, cps);
+                styles.Add(style);
+                styleLooks.Add(look);
+                styleNames.Add(name);
+            }
+            styleAt[i] = k;
+        }
+        var styled = styles.Count > 0;
+        ShapedLine ShapeOf(int start, int end) =>
+            styled ? TextShaper.Shape(text[start..end], primary, styles, styleAt[start..end]) : TextShaper.Shape(text[start..end], primary);
+        var em = m.Size * m.HScale * m.Scale;
+        double W(int start, int end) => ShapeOf(start, end).Width * em;
+
         // A word with no spaces can be the whole answer: longer than any line, it isn't measured whole for every line it breaks into.
         const int longest = 1024;
-        var lines = new List<string>();
-        var cur = "";
+        var lines = new List<(int Start, int End)>();
+        int curStart = -1, curEnd = -1;
         var avail = p.Right - p.Left;
-        foreach (var word in text.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        foreach (var (start, end) in SpacedWords(text))
         {
-            var joined = cur.Length == 0 ? word : cur + " " + word;
-            if (W(joined) <= avail + 0.01)
+            if (curStart < 0 || W(curStart, end) > avail + 0.01)
             {
-                cur = joined;
+                if (curStart >= 0) lines.Add((curStart, curEnd));
+                (curStart, curEnd) = (start, end);
+                while (curEnd - curStart > 1 && (curEnd - curStart > longest || W(curStart, curEnd) > avail + 0.01))
+                {
+                    // A word wider than the line is broken: as much of it as fits.
+                    var els = System.Globalization.StringInfo.ParseCombiningCharacters(text[curStart..Math.Min(curEnd, curStart + longest)]);
+                    var n = els.Length - 1;
+                    while (n > 1 && W(curStart, curStart + els[n]) > avail + 0.01) n = n * 3 / 4;
+                    if (n < 1 || els[n] == 0) break;
+                    lines.Add((curStart, curStart + els[n]));
+                    curStart += els[n];
+                }
                 continue;
             }
-            if (cur.Length > 0) lines.Add(cur);
-            cur = word;
-            while (cur.Length > 1 && (cur.Length > longest || W(cur) > avail + 0.01))
-            {
-                // A word wider than the line is broken: as much of it as fits.
-                var els = System.Globalization.StringInfo.ParseCombiningCharacters(cur.Length > longest ? cur[..longest] : cur);
-                var n = els.Length - 1;
-                while (n > 1 && W(cur[..els[n]]) > avail + 0.01) n = n * 3 / 4;
-                if (n < 1 || els[n] == 0) break;
-                lines.Add(cur[..els[n]]);
-                cur = cur[els[n]..];
-            }
+            curEnd = end;
         }
-        if (cur.Length > 0) lines.Add(cur);
+        if (curStart >= 0 && curEnd > curStart) lines.Add((curStart, curEnd));
 
         var placed = new List<(PointD, List<Part>)>();
+        var underlined = new List<(double Left, double Right, double Baseline)>();
         var names = new List<string>();
+        void Name(string name)
+        {
+            if (!names.Contains(name)) names.Add(name);
+        }
         var baseline = p.Box.Y + p.Ascent * shrink;
         var (minLeft, maxRight) = (p.Box.X, p.Box.Right);
-        foreach (var line in lines)
+        foreach (var (start, end) in lines)
         {
-            var shaped = TextShaper.Shape(line, primary);
+            var shaped = ShapeOf(start, end);
             foreach (var g in shaped.Glyphs)
-            {
-                var known = ReferenceEquals(g.Font, primary) ? ranked!.Name : StandInFonts.Pretty(g.Font.Family);
-                if (!names.Contains(known)) names.Add(known);
-            }
-            var w = shaped.Width * m.Size * m.HScale * m.Scale;
+                Name(ReferenceEquals(g.Font, primary) ? ranked!.Name : styles.FindIndex(s => ReferenceEquals(s.Font, g.Font)) is >= 0 and var k && styleNames[k] is { } n ? n : StandInFonts.Pretty(g.Font.Family));
+            var w = shaped.Width * em;
             var x = p.Align == ParagraphAlign.Center ? p.Center - w / 2 : p.Right - w;
             placed.Add((new PointD(x, baseline), [new Part(null, 0, shaped)]));
+            // Underlined runs side by side are one rule.
+            foreach (var run in shaped.Runs)
+            {
+                if (run.Style < 0 || styleLooks[run.Style].Underline != true || run.End <= run.Start) continue;
+                double left = x + run.Start * em, right = x + run.End * em;
+                if (underlined.Count > 0 && underlined[^1].Baseline == baseline && Math.Abs(underlined[^1].Right - left) < 0.01)
+                    underlined[^1] = underlined[^1] with { Right = right };
+                else underlined.Add((left, right, baseline));
+            }
             minLeft = Math.Min(minLeft, x);
             maxRight = Math.Max(maxRight, x + w);
             baseline += p.LineStep * shrink;
         }
         var bottom = baseline - p.LineStep * shrink + p.Descent * shrink;
-        return new ParagraphLayout(placed, new ParagraphCheck(RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1)), placed.Count, [], null) { StandIns = names }, []);
+        var check = new ParagraphCheck(RectD.FromEdges(minLeft, p.Box.Y, maxRight, Math.Max(bottom, p.Box.Y + 1)), placed.Count, [], null) { StandIns = names };
+        return new ParagraphLayout(placed, check, []) { Underlined = underlined };
+    }
+
+    /// <summary>The words of a text, spaces apart: where each starts and ends.</summary>
+    private static IEnumerable<(int Start, int End)> SpacedWords(string text)
+    {
+        for (var i = 0; i < text.Length;)
+        {
+            while (i < text.Length && text[i] == ' ') i++;
+            var start = i;
+            while (i < text.Length && text[i] != ' ') i++;
+            if (i > start) yield return (start, i);
+        }
+    }
+
+    /// <summary>
+    /// How a look is drawn in right-to-left text (<see cref="LayOutRightToLeft"/>): its size, rise and color as a
+    /// left-to-right paragraph draws them (<see cref="LookMetrics"/>), and, where its face or family isn't the paragraph's,
+    /// the installed font for it (the closest in that style with all the text's letters, else the closest in that style:
+    /// what it lacks comes from the fallbacks) and its name.
+    /// </summary>
+    private static (GlyphStyle Style, string? Name) RightToLeftStyle(TextParagraph p, TextRun m, TextLook look, List<int> cps)
+    {
+        var (scale, rise, color) = LookMetrics(p, look);
+        var lead = p.Lead;
+        bool bold = look.Bold ?? lead.Bold, italic = look.Italic ?? lead.Italic;
+        var family = look.Font is { } f && !f.Equals(FontNames.Family(lead.FontName), StringComparison.OrdinalIgnoreCase) ? f : null;
+        StandInFont? face = null;
+        if (family is not null) face = StandInFonts.Styled(m.Font!, family, bold, italic);
+        else if (bold != lead.Bold || italic != lead.Italic)
+            face = StandInFonts.RankFor(m.Font!, bold, italic).FirstOrDefault(s => cps.All(s.Font.Has)) ?? StandInFonts.Styled(m.Font!, null, bold, italic);
+        return (new GlyphStyle(face?.Font, scale, rise, color), face?.Name);
     }
 
     // ---- Wrapping ----

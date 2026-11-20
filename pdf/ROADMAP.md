@@ -963,8 +963,17 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   left under other words. The rule isn't an obstacle the paragraph keeps clear of. Not followed: an underline stroked
   (`S`) or filled as a path of its own, several in one operator, in a form XObject, or under turned text: they stay as
   drawn. `TranslationLooksTests` (+9, one with all five tags nested), `TranslationTests.An_underline_that_belongs_to_no_link_goes_with_its_words_as_a_look`.
-  **Still wrong, and why.** A right-to-left translation is written plain: `LayOutRightToLeft` shapes each line
-  whole, and looks would need each run shaped and the runs ordered by direction. Two other looks in one paragraph (a red
+  **Looks in right-to-left text (2026-11-20).** An Arabic or Hebrew translation keeps its bold, italic, other family,
+  color, sub- and superscripts and underline: each line is still shaped whole, its runs now split where the look changes
+  too (`TextShaper.Shape` with a `GlyphStyle` per look: the installed font in that face with all the text's letters, else
+  the closest in that style, the fallbacks for what it lacks; its size, rise and color as a left-to-right paragraph's,
+  `LookMetrics`), so the line's bidi order holds across them and a bold word sits where it reads. The glyphs go out in
+  logical order as before; `CidFontWriter.Emit` sets each one's size (`Tf`, adjustments in that size's thousandths) and
+  color, and sets the text's own back after. An underline is drawn under the line's underlined runs (`ShapedLine.Runs`).
+  Wrapping measures each candidate line styled. A script in right-to-left text doesn't widen the step to its line, as
+  it does in left-to-right text. `TranslationTests.Arabic_keeps_a_bold_and_a_red_word_where_they_read`,
+  `Hebrew_keeps_an_underline_and_a_superscript_in_its_line`.
+  **Still wrong, and why.** Two other looks in one paragraph (a red
   word and a word in Courier): the second is written in the paragraph's own. A script longer than 12 characters on its
   own band stays a paragraph of its own. The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as

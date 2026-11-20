@@ -928,6 +928,58 @@ public class TranslationCopyTests
     }
 
     [Fact]
+    public void Arabic_keeps_a_bold_and_a_red_word_where_they_read()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (brown) Tj /FA 12 Tf ( fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and jumps over the lazy dog.) Tj ET",
+            faces: true, fontText: Letters);
+        const string ar = "الثعلب <b>البني</b> السريع <span>أحمر</span> ويقفز فوق الكلب الكسول.";
+        var (plan, r) = Translate(pdf, _ => ar, "ar");
+        Assert.Equal("The quick <b>brown</b> fox is <span>red</span> and jumps over the lazy dog.", Assert.Single(plan.Texts).Text);
+        Assert.Equal(1, r.Report.Translated);
+        // Copied out, it reads as written, the looks' words in their places.
+        Assert.Contains(Plain("الثعلب البني السريع أحمر ويقفز"), Plain(ContentEditPdf.Text(r.Data!)), StringComparison.Ordinal);
+        var runs = ContentEditor.Read(r.Data!, null, 0).Runs.Where(q => q.Text.Trim().Length > 0).ToList();
+        var bold = Assert.Single(runs, q => q.Text.Contains("البني", StringComparison.Ordinal));
+        Assert.Equal("البني", bold.Text.Trim());
+        var red = Assert.Single(runs, q => q.Color == 0xFF0000);
+        Assert.Equal("أحمر", red.Text.Trim());
+        var first = Assert.Single(runs, q => q.Text.Contains("الثعلب", StringComparison.Ordinal));
+        Assert.Equal(0, first.Color);
+        Assert.NotEqual(first.FontName, bold.FontName); // "arialbd" beside "arial": the bold face of the installed font the rest is in
+        Assert.Contains("Arial Bold", r.Report.Fonts);
+        // Right to left: the first word rightmost, then the bold one, then the red one (a run written in logical order reads from its start, so its right edges tell).
+        Assert.True(first.Box.Right > bold.Box.Right && bold.Box.X > red.Box.Right - 1, $"{first.Box} {bold.Box} {red.Box}");
+    }
+
+    [Fact]
+    public void Hebrew_keeps_an_underline_and_a_superscript_in_its_line()
+    {
+        var p = ContentEditor.Read(Page(Lines(72, 700, 12, 14, "Hello World draft, 2024! Hello World draft, 2024!")), null, 0).Paragraphs[^1];
+        const string he = "שלום עולם יפה מאוד 2";
+        List<TextSpan> spans =
+        [
+            new(he.IndexOf("עולם", StringComparison.Ordinal), 4, new TextLook(Underline: true)),
+            new(he.Length - 1, 1, new TextLook(Script: TextScript.Super)),
+        ];
+        var laid = ContentEditor.LayOut(p, p.Runs, he, spans, 1.0);
+        var (origin, parts) = Assert.Single(laid.Lines);
+        var shaped = Assert.Single(parts).StandIn!;
+        Assert.True(shaped.Rtl);
+        Assert.Equal(p.Box.Right, origin.X + shaped.Width * p.FontSize, 0);
+        // The underline is under the second word, where its shaped run is, and no wider.
+        var (left, right, baseline) = Assert.Single(laid.Underlined);
+        Assert.Equal(origin.Y, baseline);
+        var word = shaped.Runs.Single(q => q.Style >= 0 && q.End - q.Start > 0.5);
+        Assert.Equal(origin.X + word.Start * p.FontSize, left, 2);
+        Assert.Equal(origin.X + word.End * p.FontSize, right, 2);
+        Assert.True(right - left < 0.5 * shaped.Width * p.FontSize);
+        // The figure raised and smaller: its glyph above the line, its size scaled.
+        var two = Assert.Single(shaped.Glyphs, g => g.Text == "2");
+        Assert.True(two.Y > 0.1 && two.Scale < 0.9, $"{two.Y} {two.Scale}");
+    }
+
+    [Fact]
     public void Right_to_left_source_text_is_translated_where_the_editor_would_refuse_it()
     {
         // Hebrew isn't in the test fonts, so a page is written with its codes mapped: the check here is the paragraph, not the source's glyphs.
