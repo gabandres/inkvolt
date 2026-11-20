@@ -267,8 +267,11 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
 - Supply history: built test-first on a made-up year (two changes, a wobble at the threshold, a week offline, SNMP's −3) and
   run in demo mode; never on a real printer's year. To try on hardware: a cartridge change seen live (an LEDM, an IPP and an
   SNMP printer), a printer whose levels move in 10-point steps (some inkjets: the 30-day slope then needs the full window),
-  and a remanufactured cartridge that reports no level. Pages per cartridge need a lifetime count, which only LEDM gives
-  here (CDM's `lifetimeCounters`, IPP and SNMP `prtMarkerLifeCount` aren't read yet). The history is kept only while
+  and a remanufactured cartridge that reports no level. Pages per cartridge need a lifetime count: LEDM's, IPP's
+  `printer-impressions-completed` or SNMP's `prtMarkerLifeCount` (CDM's `lifetimeCounters` aren't read yet). Pages left and a
+  cartridge's yield come from LEDM, CDM (`capacity` in pages), IPP's `printer-supply` and the Printer MIB, only where the
+  printer counts the supply in pages (impressions or sheets): written from RFC 3805 and PWG 5100.13, never seen on a printer's
+  own `printer-supply`; most inkjets count in percent and show no pages. The history is kept only while
   Inkvolt Print runs (the window, or the notification area); days the PC was off are a gap. Mac: PrintCore done (roadmap 1.1); the monitor recording readings, the supplies card, the Swift Charts chart and Export history… wait.
 - Inkvolt Pro: the key is checked on this PC only, so a key can be entered on any number of PCs (the licence is per person,
   on trust); there is no way to revoke one short of a release with a new public key. No checkout yet: the Get Inkvolt Pro
@@ -398,7 +401,7 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   address). SNMPv3 (Pro) was tried only against the made-up agent: never against a printer's agent, nor with agents' other auth or
   privacy protocols (MD5, SHA-1, DES, AES-192/256 aren't spoken: authPriv with SHA-256 and AES-128 only).
 - Backlog: SNMP supply levels for IPP printers whose
-  `marker-*` attributes are missing; page counts from `prtMarkerLifeCount`; the front panel's text (`prtConsoleDisplayBufferText`)
+  `marker-*` attributes are missing; the front panel's text (`prtConsoleDisplayBufferText`)
   as the status detail; SNMP for WSD queues (the device's address from its PnP properties); queue
   changes as Windows notifies them (`FindFirstPrinterChangeNotification`) instead of reading every 5 s; QR code / barcode separator sheets (ZXing.Net, Apache-2.0); CDM page counts (`/cdm/deviceUsage/v1/lifetimeCounters`); photos: color management (ICC profiles), text or date on prints, saving a photo layout as a preset, a sheet of mixed sizes; maintenance: follow an alignment or cleaning to its end (the session's `Location`, the printer's state), offer the cleaning check page right after a cleaning, read the calibration paths from its manifest, CDM maintenance for newer HP models.
 - Scanners through Windows (WIA): built test-first against a fake (`FakeWiaSystem`: capabilities, settings, feeder loop,

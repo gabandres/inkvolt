@@ -17,7 +17,10 @@ namespace InkvoltPrint.Core.Probe;
 /// with errors or garbage (it is waking up or busy: keep the last good status on screen).
 /// </param>
 /// <param name="Supplies">Null when they couldn't be read this time (keep the last known levels); empty when the printer reports none.</param>
-/// <param name="Usage">Lifetime counters (HP's LEDM only); null when the printer has none or they couldn't be read.</param>
+/// <param name="Usage">
+/// Lifetime counters (HP's LEDM; the page count alone from IPP's <c>printer-impressions-completed</c> or the Printer MIB's
+/// prtMarkerLifeCount); null when the printer has none or they couldn't be read.
+/// </param>
 public sealed record PrinterReading(PrinterStatus Status, IReadOnlyList<Consumable>? Supplies, UsageCounters? Usage)
 {
     public bool IsOffline => Status.Code == "offline";
@@ -189,7 +192,10 @@ internal abstract class ReadingSource
         public override Task<string?> ReadUuidAsync(CancellationToken ct) => Uuid(client.GetIdentityAsync(ct));
     }
 
-    /// <summary>IPP: status and supplies both from one Get-Printer-Attributes request.</summary>
+    /// <summary>
+    /// IPP: status, supplies and the page count all from one Get-Printer-Attributes request. The page count alone asks
+    /// nothing (an interface before this one gave the rest: no request just for it).
+    /// </summary>
     public sealed class Ipp(IppClient client) : ReadingSource
     {
         public override StartedRead Start(ReadParts parts, CancellationToken ct)
@@ -198,14 +204,18 @@ internal abstract class ReadingSource
             var attributes = client.GetPrinterAttributesAsync(ct: ct);
             return new(
                 parts.HasFlag(ReadParts.Status) ? Map(attributes, IppClient.ToStatus) : null,
-                parts.HasFlag(ReadParts.Supplies) ? Map(attributes, IppClient.ToConsumables) : null);
+                parts.HasFlag(ReadParts.Supplies) ? Map(attributes, IppClient.ToConsumables) : null,
+                parts.HasFlag(ReadParts.Usage) ? Map(attributes, IppClient.ToUsage) : null);
         }
 
         public override Task<string?> ReadUuidAsync(CancellationToken ct) =>
             Map(client.GetPrinterAttributesAsync(ct: ct), r => r.Str("printer-uuid"));
     }
 
-    /// <summary>SNMP (Printer MIB): status and supplies from one walk (the client shares a read made moments ago). No UUID.</summary>
+    /// <summary>
+    /// SNMP (Printer MIB): status, supplies and the page count from one walk (the client shares a read made moments ago). No
+    /// UUID. The page count alone asks nothing, as with IPP.
+    /// </summary>
     public sealed class Snmp(SnmpPrinterClient client) : ReadingSource
     {
         public override StartedRead Start(ReadParts parts, CancellationToken ct)
@@ -214,7 +224,8 @@ internal abstract class ReadingSource
             var reading = client.ReadAsync(ct);
             return new(
                 parts.HasFlag(ReadParts.Status) ? Map(reading, SnmpPrinterStatus.ToStatus) : null,
-                parts.HasFlag(ReadParts.Supplies) ? Map(reading, SnmpPrinterStatus.ToConsumables) : null);
+                parts.HasFlag(ReadParts.Supplies) ? Map(reading, SnmpPrinterStatus.ToConsumables) : null,
+                parts.HasFlag(ReadParts.Usage) ? Map(reading, SnmpPrinterStatus.ToUsage) : null);
         }
     }
 

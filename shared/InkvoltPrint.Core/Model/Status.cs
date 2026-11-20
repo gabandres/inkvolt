@@ -52,6 +52,13 @@ public sealed record Consumable(
     /// </summary>
     public string Key { get => _key ?? Name; init => _key = value; }
 
+    /// <summary>
+    /// The pages a full cartridge is rated for, when the printer says (CDM's <c>capacity</c> in pages, IPP's <c>printer-supply</c>
+    /// and the Printer MIB's prtMarkerSuppliesMaxCapacity counted in impressions or sheets); null otherwise. Beside
+    /// <see cref="EstimatedPagesRemaining"/>, the pages left in it now.
+    /// </summary>
+    public int? PageYield { get; init; }
+
     /// <summary>Needs attention soon: low, empty, or (a waste box) almost full or full.</summary>
     public bool IsLow => State is "low" or "veryLow" or "out" or "almostFull" or "full" || (PercentRemaining is { } p && LowThreshold is { } t && p <= t);
 

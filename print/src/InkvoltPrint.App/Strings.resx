@@ -2465,6 +2465,10 @@ Only do this if it really is this printer, for example after a repair, a reset o
     <value>Replacement: {0}</value>
     <comment>{0} = cartridge numbers</comment>
   </data>
+  <data name="Printer_SupplyYield" xml:space="preserve">
+    <value>Rated for about {0:N0} pages</value>
+    <comment>what a full cartridge gives, from the printer; {0} = pages</comment>
+  </data>
   <data name="Printer_SupplyFull" xml:space="preserve">
     <value>Full</value>
     <comment>waste box state</comment>

@@ -12,6 +12,7 @@ public sealed class IppClient
         "printer-info", "marker-names", "marker-levels", "marker-low-levels", "marker-high-levels", "marker-types", "marker-colors",
         "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
         "printer-alert", "printer-alert-description", "printer-location", "printer-more-info", "printer-icons",
+        "printer-supply", "printer-impressions-completed",
     ];
 
     private readonly DeviceHttp _http;
@@ -217,6 +218,10 @@ public sealed class IppClient
         var wasteState = waste.Any(x => !x.EndsWith("almost-full", StringComparison.Ordinal) && x.EndsWith("-full", StringComparison.Ordinal)) ? "full"
             : waste.Any(x => x.EndsWith("almost-full", StringComparison.Ordinal)) ? "almostFull"
             : "ok";
+        // printer-supply describes the same supplies in the same order (CUPS makes the marker-* lists from it): only a list as
+        // long as the markers is taken, so a page count never lands on another supply.
+        var supplies = r.Strs("printer-supply").Take(MaxSupplies + 1).Select(IppSupply.Parse).ToList();
+        if (supplies.Count != names.Count) supplies = [];
         return names.Select((n, i) =>
         {
             var kind = i < types.Count ? types[i] : "supply";
@@ -226,9 +231,17 @@ public sealed class IppClient
             int? level = raw >= 0 ? Math.Min(raw, 100) : null;
             int? low = i < lows.Count && lows[i] >= 0 ? lows[i] : null;
             var state = raw == -3 ? "ok" : level is null ? "unknown" : level == 0 ? "out" : low is { } l && level <= l ? "low" : "ok";
-            return new Consumable(n, kind, color, level, state, null, null, low, null, null);
+            var pages = i < supplies.Count ? supplies[i] : null;
+            return new Consumable(n, kind, color, level, state, null, null, low, pages?.PagesLeft, null) { PageYield = pages?.PageYield };
         }).ToList();
     }
+
+    /// <summary>
+    /// The lifetime page count: <c>printer-impressions-completed</c> (PWG 5100.22), what the supply history counts pages per
+    /// cartridge with. Null when the printer doesn't say.
+    /// </summary>
+    public static UsageCounters? ToUsage(IppResponse r) =>
+        r.Int("printer-impressions-completed") is >= 0 and var pages ? new UsageCounters(pages, null, null, null, null) : null;
 
     /// <summary>
     /// <c>marker-colors</c> value (<c>#RRGGBB</c>, several for a multi-color cartridge, or <c>none</c>) → K/C/M/Y for the

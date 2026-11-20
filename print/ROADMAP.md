@@ -81,8 +81,12 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   (`SupplyHistoryCsv`, formula-safe cells). Demo mode makes up a year per printer, so `--demo --snapshot` shows the
   chart. Tests: `SupplyHistoryTests` and `SupplyHistoryCsvTests` (the year with two changes, the wobble, the week
   offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
-  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM only for now (CDM,
-  IPP and SNMP counters not read). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
+  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM's, and since
+  2026-11-20 IPP's `printer-impressions-completed` and the Printer MIB's `prtMarkerLifeCount` (in impressions or sheets), from
+  the same request as the levels (CDM's counters still not read). **Pages left and yield beyond LEDM (2026-11-20):** CDM's
+  `capacity` in pages, IPP's `printer-supply` and the Printer MIB's supplies counted in impressions or sheets give each
+  supply's pages left and what a full one is rated for (`Consumable.PageYield`, `IppSupply`, `SnmpSupply.Unit`); the card
+  shows "About N pages left" and "Rated for about N pages" (`SupplyPagesTests`). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
   (README, "Not done"). Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore (2026-11-02: the store, the analysis, the
   chart's data, the card's lines, the alert's days left, the CSV behind Pro, the demo year; SupplyHistoryTests on the PC);
   the files in `history` beside the state file, fed through `SupplyHistoryFeed` by the printer monitor on each reading (a

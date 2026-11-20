@@ -1583,11 +1583,16 @@ public sealed record SupplyViewModel(Consumable Supply)
     /// <summary>From the supply history: days left and pages on this cartridge, or why there's no estimate yet; null: nothing to say.</summary>
     public string? HistoryLine { get; init; }
 
+    /// <summary>"Replacement: HP 136A  ·  W1360A  ·  Rated for about 1,150 pages": what to buy and what a full one gives, as known.</summary>
     public string? Cartridge => string.Join("  ·  ", new[]
     {
-        Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
-        Supply.ProductNumber,
-    }.Where(s => s is not null)) is { Length: > 0 } c ? string.Format(Strings.Printer_SupplyReplacement, c) : null;
+        string.Join("  ·  ", new[]
+        {
+            Supply.SelectibilityNumber is { } sel ? $"HP {sel}" : null, // LEDM (HP) only
+            Supply.ProductNumber,
+        }.Where(s => s is not null)) is { Length: > 0 } c ? string.Format(Strings.Printer_SupplyReplacement, c) : null,
+        Supply.PageYield is { } pages && !Supply.IsWaste ? string.Format(Strings.Printer_SupplyYield, pages) : null,
+    }.Where(s => s is not null)) is { Length: > 0 } line ? line : null;
 
     public string Level => Supply.State is "out" or "full" or "missing" ? "empty" : IsLow ? "low" : "ok";
 

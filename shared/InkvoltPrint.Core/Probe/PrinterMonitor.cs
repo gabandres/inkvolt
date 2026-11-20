@@ -31,7 +31,7 @@ public sealed record PrinterView
     /// <summary>The last levels read: a read that couldn't get them keeps these.</summary>
     public IReadOnlyList<Consumable> Supplies { get; init; } = [];
 
-    /// <summary>The last usage counters read (HP's LEDM only).</summary>
+    /// <summary>The last usage counters read (HP's LEDM; the page count alone over IPP and SNMP).</summary>
     public UsageCounters? Usage { get; init; }
 
     /// <summary>What the printer said about itself when it last connected; null before the first connection.</summary>
