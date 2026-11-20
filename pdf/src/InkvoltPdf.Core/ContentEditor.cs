@@ -1075,8 +1075,8 @@ public static partial class ContentEditor
                     var sub = PdfObj.NameOf(xobj, "/Subtype");
                     if (sub == "/Image")
                     {
-                        AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked), CropBefore(ops, i));
-                        Painted(BoxOf(page, gs.Ctm, 0, 0, 1, 1), i, false, null);
+                        var shown = AddImage(w, page, pageIndex, id, gs.Ctm, false, blocked ?? (form is null ? null : FormImageBlocked), CropBefore(ops, i));
+                        Painted(shown, i, false, null);
                     }
                     else if (sub == "/Form" && depth < MaxDepth)
                     {
@@ -1107,8 +1107,8 @@ public static partial class ContentEditor
                     break;
                 }
                 case "BI":
-                    AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? PdfStrings.Edit_BlockedDataEnd : null), CropBefore(ops, i));
-                    Painted(BoxOf(page, gs.Ctm, 0, 0, 1, 1), i, false, null);
+                    var inlineShown = AddImage(w, page, pageIndex, id, gs.Ctm, true, blocked ?? (form is not null ? FormImageBlocked : op.Broken ? PdfStrings.Edit_BlockedDataEnd : null), CropBefore(ops, i));
+                    Painted(inlineShown, i, false, null);
                     break;
             }
         }
@@ -1151,14 +1151,16 @@ public static partial class ContentEditor
         return Off(PdfObj.Dict(oc.Elements["/OCGs"]));
     }
 
-    private static void AddImage(Walked w, PdfPage page, int pageIndex, int id, Mat ctm, bool inline, string? blocked, (double X0, double Y0, double X1, double Y1)? crop = null)
+    /// <returns>Where it shows (a crop's box when it is cropped).</returns>
+    private static RectD AddImage(Walked w, PdfPage page, int pageIndex, int id, Mat ctm, bool inline, string? blocked, (double X0, double Y0, double X1, double Y1)? crop = null)
     {
         var box = BoxOf(page, ctm, 0, 0, 1, 1);
-        if (box.Width <= 0 && box.Height <= 0) return;
+        if (box.Width <= 0 && box.Height <= 0) return box;
         var turned = Math.Abs(ctm.B) > 1e-6 && Math.Abs(ctm.A) > 1e-6 || Math.Abs(ctm.C) > 1e-6 && Math.Abs(ctm.D) > 1e-6;
         var shown = crop is { } c ? BoxOf(page, ctm, c.X0, c.Y0, c.X1, c.Y1) : box;
         w.Images.Add(new PageImage(pageIndex, id, shown, inline, blocked) { Turned = turned, Uncropped = crop is null ? null : box });
         if (blocked is null) w.ImageCtm[id] = ctm;
+        return shown;
     }
 
     /// <summary>The page-space bounding box of a rectangle in a coordinate system.</summary>

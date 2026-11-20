@@ -18,19 +18,72 @@ public partial class ParagraphEditTests
     /// Body as a left-aligned paragraph with a 12 x 9 pt picture (/Im1) on its second line after its third word, its
     /// foot a point below the baseline, the words around it 18 pt apart; a line of text under the paragraph.
     /// </summary>
-    private static (byte[] Pdf, string Pre) WithPicture()
+    /// <param name="line">The line it is on (its third word before it).</param>
+    /// <param name="height">Its height (points).</param>
+    private static (byte[] Pdf, string Pre) WithPicture(int line = 1, double height = 9)
     {
         var lines = Wrap(Body, Width - 30);
-        var words = lines[1].Split(' ');
+        var words = lines[line].Split(' ');
         var pre = string.Join(' ', words.Take(3));
         var post = string.Join(' ', words.Skip(3));
-        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td ({lines[0]}) Tj");
-        sb.Append($" T* ({pre}) Tj [{N(-18 * 1000 / Size)}] TJ ({post}) Tj");
-        foreach (var l in lines.Skip(2)) sb.Append($" T* ({l}) Tj");
+        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Step)} TL {N(Left)} {N(Top)} Td");
+        for (var i = 0; i < lines.Count; i++)
+        {
+            if (i > 0) sb.Append(" T*");
+            sb.Append(i == line ? $" ({pre}) Tj [{N(-18 * 1000 / Size)}] TJ ({post}) Tj" : $" ({lines[i]}) Tj");
+        }
         sb.Append(" 0 -60 Td (Next block starts here) Tj ET\n");
         var x = Left + Measure(pre) + 3;
-        sb.Append($"q 12 0 0 9 {N(x)} {N(Top - Step - 1)} cm /Im1 Do Q\n");
+        sb.Append($"q 12 0 0 {N(height)} {N(x)} {N(Top - line * Step - 1)} cm /Im1 Do Q\n");
         return (ContentEditPdf.Make(sb.ToString(), fontText: Chars), pre);
+    }
+
+    [Fact]
+    public void TakingATallPictureOffTheFirstLineLiftsNothing()
+    {
+        // A picture twice the type's height on the first line: without it, the first line stays where it was.
+        var (pdf, _) = WithPicture(line: 0, height: 22);
+        var p = Body0(pdf);
+        Assert.Single(p.Pictures);
+        var first = p.Runs[0].Origin.Y;
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, p.Text.Replace(" ￼", "", StringComparison.Ordinal));
+        Assert.Equal(first, Body0(edited).Runs[0].Origin.Y, 1);
+        // Kept, and unchanged text in front of it: the first line stays too.
+        var same = ContentEditor.ReplaceParagraph(pdf, null, p, p.Text + " end");
+        Assert.Equal(first, Body0(same).Runs[0].Origin.Y, 1);
+    }
+
+    [Fact]
+    public void APictureBeforeALineThatIsntInTheFlowDoesntWidenIt()
+    {
+        // The second line starts after a picture lined up with the line above, but its foot hangs 7 points below the
+        // baseline: not a picture in the flow, so the line isn't widened to it and rewritten text isn't drawn over it.
+        var lines = Wrap(Body, Width);
+        var sb = new StringBuilder($"BT /FA {N(Size)} Tf {N(Left)} {N(Top)} Td ({lines[0]}) Tj ET\n");
+        sb.Append($"BT /FA {N(Size)} Tf {N(Left + 16)} {N(Top - Step)} Td ({lines[1]}) Tj ET\n");
+        sb.Append($"q 12 0 0 9 {N(Left)} {N(Top - Step - 7)} cm /Im1 Do Q\n");
+        var pdf = ContentEditPdf.Make(sb.ToString(), fontText: Chars);
+        var content = ContentEditor.Read(pdf, null, 0);
+        var picture = content.Images.Single().Box;
+        foreach (var p in content.Paragraphs.Where(q => q.Blocked is null))
+        {
+            Assert.Empty(p.Pictures);
+            var edited = ContentEditor.ReplaceParagraph(pdf, null, p, p.Text + " and a few more words here", allowOverlap: true);
+            Assert.DoesNotContain(ContentEditor.Read(edited, null, 0).Runs, r => r.Box.Intersect(picture) is { Width: > 1, Height: > 1 });
+        }
+    }
+
+    [Fact]
+    public void AMarkThePagesOwnTextHasIsNoPicture()
+    {
+        // The text has a U+FFFC of its own (a glyph whose ToUnicode says so) before the picture's mark: each keeps its part.
+        const string old = "a ￼ b ￼ c";
+        InlinePicture[] pictures = [new InlinePicture(new PageImage(0, 1, new RectD(0, 0, 1, 1), false, null), 0) { Mark = 6 }];
+        Assert.Equal([ContentEditor.TextMark, 0], ContentEditor.PictureMarks(old, old, pictures));
+        Assert.Equal([ContentEditor.TextMark, 0], ContentEditor.PictureMarks(old, "x " + old, pictures));
+        Assert.Equal([0], ContentEditor.PictureMarks(old, "a b ￼ c", pictures)); // the page's own one deleted
+        Assert.Equal([ContentEditor.TextMark], ContentEditor.PictureMarks(old, "a ￼ b c", pictures)); // the picture's deleted
+        Assert.Equal([ContentEditor.TextMark, 0, -1], ContentEditor.PictureMarks(old, old + " ￼", pictures)); // one typed in
     }
 
     [Fact]

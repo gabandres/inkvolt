@@ -295,36 +295,45 @@ public static partial class ContentEditor
         return map;
     }
 
+    /// <summary>A U+FFFC the page's own text has, kept as a character (<see cref="PictureMarks"/>).</summary>
+    internal const int TextMark = -2;
+
     /// <summary>
-    /// For each picture mark in <paramref name="now"/>, in order, the paragraph's picture it is (its index in
-    /// <see cref="TextParagraph.Pictures"/>), or -1 for a mark typed or pasted in: a mark kept from
-    /// <paramref name="old"/> keeps its picture.
+    /// For each U+FFFC in <paramref name="now"/>, in order: the paragraph's picture it stands for (its index in
+    /// <paramref name="pictures"/>, whose marks are where <see cref="InlinePicture.Mark"/> says in <paramref name="old"/>),
+    /// <see cref="TextMark"/> for one the page's own text had (a glyph whose text is U+FFFC), or -1 for one typed or
+    /// pasted in. A mark kept from the old text keeps its picture; a picture's mark cut and pasted elsewhere (the text
+    /// between can't keep both) is the next mark that came.
     /// </summary>
-    internal static int[] PictureMarks(string old, string now, int pictures)
+    internal static int[] PictureMarks(string old, string now, IReadOnlyList<InlinePicture> pictures)
     {
         var marks = now.Count(c => c == TextParagraph.PictureMark);
         var result = new int[marks];
         Array.Fill(result, -1);
-        if (marks == 0 || pictures == 0) return result;
+        if (marks == 0 || !old.Contains(TextParagraph.PictureMark)) return result;
         var map = CharMap(old, now);
         var ordinal = new Dictionary<int, int>(); // a mark's place in now → its number among now's marks
         for (int i = 0, k = 0; i < now.Length; i++)
             if (now[i] == TextParagraph.PictureMark) ordinal[i] = k++;
-        var used = new bool[pictures];
-        for (int i = 0, k = 0; i < old.Length; i++)
+        var pictureAt = new Dictionary<int, int>(); // a picture's mark's place in old → the picture
+        for (var k = 0; k < pictures.Count; k++)
+            if (pictures[k].Mark >= 0 && pictures[k].Mark < old.Length && old[pictures[k].Mark] == TextParagraph.PictureMark) pictureAt.TryAdd(pictures[k].Mark, k);
+        var used = new bool[pictures.Count];
+        for (var i = 0; i < old.Length; i++)
         {
-            if (old[i] != TextParagraph.PictureMark) continue;
-            if (k < pictures && map[i] >= 0 && ordinal.TryGetValue(map[i], out var at))
+            if (old[i] != TextParagraph.PictureMark || map[i] < 0 || !ordinal.TryGetValue(map[i], out var at)) continue;
+            if (pictureAt.TryGetValue(i, out var k))
             {
                 result[at] = k;
                 used[k] = true;
             }
-            k++;
+            else result[at] = TextMark;
         }
+        var pictures2 = pictures.Count;
         // A mark cut and pasted elsewhere (the text between can't keep both): the pictures whose marks went, in order.
-        var free = new Queue<int>(Enumerable.Range(0, pictures).Where(k => !used[k]));
+        var free = new Queue<int>(Enumerable.Range(0, pictures2).Where(k => !used[k] && pictureAt.ContainsValue(k)));
         for (var i = 0; i < marks && free.Count > 0; i++)
-            if (result[i] < 0) result[i] = free.Dequeue();
+            if (result[i] == -1) result[i] = free.Dequeue();
         return result;
     }
 

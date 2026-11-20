@@ -333,4 +333,37 @@ public class AutoTagRowSpanTests
         var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
         Assert.All(table.Rows.SelectMany(r => r), c => Assert.True(c.RowSpan == 1 && !c.Covered));
     }
+
+    [Fact]
+    public void One_missing_name_in_the_first_column_is_no_group()
+    {
+        // Alice, (nothing), Carol, Dan: one empty first cell under a name is a value missing, not a group of two.
+        var pdf = Unruled([("Name", 0, 0), ("Visits", 0, 1), ("Orders", 0, 2),
+            ("Alice", 1, 0), ("1", 1, 1), ("2", 1, 2), ("3", 2, 1), ("4", 2, 2), ("Carol", 3, 0), ("5", 3, 1), ("6", 3, 2),
+            ("Dan", 4, 0), ("7", 4, 1), ("8", 4, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(5, table.Rows.Count);
+        Assert.All(table.Rows.SelectMany(r => r), c => Assert.True(c.RowSpan == 1 && !c.Covered));
+    }
+
+    [Fact]
+    public void Labels_in_rows_of_their_own_above_their_groups_head_the_rows_under_them()
+    {
+        // "Europe" alone in its row over France and Germany, "Asia" over Japan and Korea: each heads the two rows below it.
+        var pdf = Unruled([.. Header,
+            ("Europe", 1, 0), ("France", 2, 1), ("40", 2, 2), ("Germany", 3, 1), ("52", 3, 2),
+            ("Asia", 4, 0), ("Japan", 5, 1), ("12", 5, 2), ("Korea", 6, 1), ("13", 6, 2)]);
+        var table = Assert.Single(Plan(pdf).Blocks, b => b.Kind == TagBlockKind.Table);
+        Assert.Equal(5, table.Rows.Count); // the labels' own rows went
+        Assert.Equal(("Europe", 2), (table.Rows[1][0].Text, table.Rows[1][0].RowSpan));
+        Assert.Equal("France", table.Rows[1][1].Text);
+        Assert.True(table.Rows[2][0].Covered);
+        Assert.Equal(("Asia", 2), (table.Rows[3][0].Text, table.Rows[3][0].RowSpan));
+        Assert.Equal("Japan", table.Rows[3][1].Text);
+        Assert.True(table.Rows[4][0].Covered);
+        var tagged = AutoTag.Write(pdf, null, Plan(pdf));
+        Assert.Equal([3, 3, 2, 3, 2], WrittenRows(tagged).Select(r => r.Count));
+        var report = AccessibilityCheck.Run(tagged, null);
+        Assert.True(report.Passed, string.Join("\n", report.Failures.Select(f => $"{f.Condition}: {f.Problem}")));
+    }
 }

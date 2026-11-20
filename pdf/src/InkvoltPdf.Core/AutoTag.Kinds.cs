@@ -294,12 +294,12 @@ public static partial class AutoTag
 
     /// <summary>
     /// Row spans in a table without rules, where nothing draws them: a first column of group labels over rows whose first
-    /// cell is empty and whose other cells aren't. When the body's first row has its label and no row holds a label alone,
-    /// each label heads the rows under it up to the next label (labels at the top of their group); otherwise each label
-    /// heads as many of those rows above it as below it (labels centered on their group: in a row of its own between two
-    /// halves, or in the middle row of an odd group), and a label's own row, when it holds nothing else, goes. Header rows
-    /// (<paramref name="headerRows"/>) never span. Any empty first cell left over, or a row with nothing in it, and the
-    /// table is left as it is: an empty cell may just be a value missing.
+    /// cell is empty and whose other cells aren't. When the body's first row has a label, each label heads the rows under
+    /// it up to the next label (labels at the top of their group, in its first row or in a row of their own above it,
+    /// which goes); otherwise each label heads as many of those rows above it as below it (labels centered on their group:
+    /// in a row of its own between two halves, which goes, or in the middle row of an odd group). Header rows
+    /// (<paramref name="headerRows"/>) never span. Any empty first cell left over, a row with nothing in it, or fewer than
+    /// two labels heading two rows or more, and the table is left as it is: an empty cell may just be a value missing.
     /// </summary>
     private static DocTable UnruledRowSpans(DocTable t, int headerRows)
     {
@@ -315,20 +315,29 @@ public static partial class AutoTag
         var alone = Enumerable.Range(first, body).Where(r => Label(r) && Rest(r) == 0).ToHashSet();
         var claimed = new bool[rows.Count];
         var gone = new List<int>();
-        if (Label(first) && alone.Count == 0)
+        var dropped = new List<int>(); // labels' own rows that go, the span already counting without them
+        if (Label(first))
         {
-            // Labels at the top of their group.
+            // Labels at the top of their group: in its first row, or in a row of their own above it (which goes).
             for (var r = first; r < rows.Count; r++)
             {
                 if (!Label(r)) continue;
                 var down = 0;
                 while (r + down + 1 < rows.Count && Open(r + down + 1)) down++;
                 if (down == 0) continue;
-                rows[r][0] = rows[r][0] with { RowSpan = down + 1 };
-                for (var d = 1; d <= down; d++)
+                var top = r;
+                if (alone.Contains(r))
                 {
-                    rows[r + d][0] = rows[r + d][0] with { Covered = true };
-                    claimed[r + d] = true;
+                    rows[r + 1][0] = rows[r][0];
+                    dropped.Add(r);
+                    top = r + 1;
+                    claimed[r + 1] = true;
+                }
+                rows[top][0] = rows[top][0] with { RowSpan = r + down - top + 1 };
+                for (var k = top + 1; k <= r + down; k++)
+                {
+                    rows[k][0] = rows[k][0] with { Covered = true };
+                    claimed[k] = true;
                 }
             }
         }
@@ -367,16 +376,20 @@ public static partial class AutoTag
         }
         if (Enumerable.Range(first, body).Any(r => Open(r) && !claimed[r])) return t;
         // A label's own row gone: the span counts one row less (the rows are taken out from the bottom up).
-        foreach (var r in gone.OrderDescending())
+        foreach (var r in gone.Concat(dropped).OrderDescending())
         {
-            for (var up = r - 1; up >= first; up--)
-                if (!rows[up][0].Covered)
-                {
-                    rows[up][0] = rows[up][0] with { RowSpan = rows[up][0].RowSpan - 1 };
-                    break;
-                }
+            if (gone.Contains(r))
+                for (var up = r - 1; up >= first; up--)
+                    if (!rows[up][0].Covered)
+                    {
+                        rows[up][0] = rows[up][0] with { RowSpan = rows[up][0].RowSpan - 1 };
+                        break;
+                    }
             rows.RemoveAt(r);
         }
+        // Grouping shows only in two labels at least that each head two rows or more: one empty first cell under a
+        // name is more likely a value missing than a group of one.
+        if (rows.Skip(first).Count(r => r[0] is { Covered: false, RowSpan: >= 2 }) < 2) return t;
         return t with { Rows = [.. rows.Select(r => (IReadOnlyList<DocCell>)r)] };
     }
 

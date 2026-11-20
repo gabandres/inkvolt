@@ -84,13 +84,33 @@ internal sealed class PairKerning
         var lookupList = g + U16(b, g + 8);
         var wanted = new SortedSet<int>();
         var count = U16(b, features);
-        for (var i = 0; i < count; i++)
+        bool Kern(int i) => i < count && features + 2 + 6 * i + 6 <= b.Length && b[features + 2 + 6 * i] == 'k' && b[features + 3 + 6 * i] == 'e'
+                            && b[features + 4 + 6 * i] == 'r' && b[features + 5 + 6 * i] == 'n';
+        void Add(int i)
         {
-            var rec = features + 2 + 6 * i;
-            if (b[rec] != 'k' || b[rec + 1] != 'e' || b[rec + 2] != 'r' || b[rec + 3] != 'n') continue;
-            var feature = features + U16(b, rec + 4);
+            var feature = features + U16(b, features + 2 + 6 * i + 4);
             var n = U16(b, feature + 2);
             for (var k = 0; k < n && wanted.Count < MaxLookups; k++) wanted.Add(U16(b, feature + 4 + 2 * k));
+        }
+        // Only the features of one language system, as a shaper applies them to Latin text: the default script's
+        // (DFLT), else Latin's (latn), else the first script's; its default language, else its first one. Another
+        // script's or language's kern feature may hold the same pairs again.
+        var langSys = DefaultLangSys(b, g + U16(b, g + 4));
+        if (langSys >= 0)
+        {
+            var n = U16(b, langSys + 4);
+            for (var k = 0; k < n; k++)
+                if (U16(b, langSys + 6 + 2 * k) is var i && Kern(i)) Add(i);
+        }
+        else
+        {
+            // No script list to choose by: the first kern feature.
+            for (var i = 0; i < count; i++)
+                if (Kern(i))
+                {
+                    Add(i);
+                    break;
+                }
         }
         var lookups = U16(b, lookupList);
         var subtables = 0;
@@ -111,6 +131,27 @@ internal sealed class PairKerning
             if (list.Count > 0) result.Add(list);
         }
         return result;
+    }
+
+    /// <summary>The language system whose features apply (DFLT, else latn, else the first script; its default, else its first), or -1.</summary>
+    private static int DefaultLangSys(byte[] b, int scripts)
+    {
+        var n = U16(b, scripts);
+        if (n == 0) return -1;
+        int? Find(string tag)
+        {
+            for (var i = 0; i < n; i++)
+            {
+                var rec = scripts + 2 + 6 * i;
+                if (rec + 6 > b.Length) return null;
+                if (b[rec] == tag[0] && b[rec + 1] == tag[1] && b[rec + 2] == tag[2] && b[rec + 3] == tag[3]) return scripts + U16(b, rec + 4);
+            }
+            return null;
+        }
+        var script = Find("DFLT") ?? Find("latn") ?? scripts + U16(b, scripts + 6);
+        var def = U16(b, script);
+        if (def != 0) return script + def;
+        return U16(b, script + 2) > 0 ? script + U16(b, script + 4 + 4) : -1;
     }
 
     /// <summary>A lookup's adjustment for a pair: its first subtable that covers the pair decides.</summary>
