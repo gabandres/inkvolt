@@ -396,6 +396,67 @@ public sealed class BatchTests : IDisposable
         Assert.Equal((32L << 20) + 4L * 64_000_000, BatchRunner.Weight(1000, (14400, 14400), images));
     }
 
+    /// <summary>A one-page PDF with an unused Flate stream of <paramref name="zeros"/> zeros, its "stream" keyword starting at
+    /// <paramref name="keywordAt"/> when given (padding goes in before it).</summary>
+    private static byte[] Unpacking(long zeros, int? keywordAt = null)
+    {
+        using var packed = new MemoryStream();
+        using (var z = new System.IO.Compression.ZLibStream(packed, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+        {
+            var chunk = new byte[1 << 20];
+            for (var left = zeros; left > 0; left -= chunk.Length) z.Write(chunk, 0, (int)Math.Min(chunk.Length, left));
+        }
+        var stream = Core2Pdf.Stream(System.Text.Encoding.Latin1.GetString(packed.ToArray()), "/Filter /FlateDecode");
+        byte[] Build(int pad) => Core2Pdf.Build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << >> >>",
+            Core2Pdf.Stream("0 0 1 rg 72 72 100 100 re f"),
+            $"({new string('x', pad)})",
+            stream,
+        ]);
+        var data = Build(0);
+        if (keywordAt is not { } at) return data;
+        var now = System.Text.Encoding.Latin1.GetString(data).LastIndexOf(">>\nstream\n", StringComparison.Ordinal) + 3;
+        return Build(at - now);
+    }
+
+    [Fact]
+    public async Task AFileIsPricedByWhatItsStreamsUnpackTo()
+    {
+        // Roadmap 1.2's check: a 200 KB file whose stream unpacks to 200 MB took 1.6 GB in Reduce File Size, priced by its
+        // size on disk. Here 64 MB of zeros in a 64 KB stream.
+        var bomb = Put("in/bomb.pdf", Unpacking(64L << 20));
+        var size = new FileInfo(bomb).Length;
+        Assert.True(size < 100_000, $"{size}");
+        var unpacked = BatchRunner.Unpacked(bomb, long.MaxValue);
+        Assert.InRange(unpacked, 64L << 20, (64L << 20) + 100); // the bomb and the page's content
+        var plan = Plan(new OptimizeStep(new OptimizeOptions())) with { MemoryBudget = 256L << 20, MaxParallel = 4 };
+        Assert.Equal(32L << 20, BatchRunner.Weight(size, null, plan)); // by its size alone: seven more beside it
+        var weight = BatchRunner.Weight(size, null, plan, unpacked);
+        Assert.Equal(8 * unpacked, weight);
+        // Priced so, it runs alone in a 256 MB budget: nothing else enters while it is in, and it waits for the others.
+        var gate = new WeightedGate(plan.MemoryBudget);
+        Assert.True(gate.TryEnter(weight));
+        Assert.False(gate.TryEnter(32L << 20));
+        gate.Release(weight);
+        Assert.True(gate.TryEnter(32L << 20));
+        Assert.False(gate.TryEnter(weight));
+
+        // Counting stops past the cap (such a file runs alone anyway): a 64 KB chunk past it at most.
+        Assert.InRange(BatchRunner.Unpacked(bomb, 1 << 20), (1 << 20) + 1, (1 << 20) + (64 << 10));
+        // A keyword split across the 64 KB blocks the file is read in is still found, wherever it falls.
+        for (var at = 65530; at <= 65536; at++)
+            Assert.InRange(BatchRunner.Unpacked(Put($"in/split{at}.pdf", Unpacking(1 << 20, at)), long.MaxValue), 1 << 20, (1 << 20) + 100);
+        // An ordinary file: what its content unpacks to, small; a file that isn't a PDF counts nothing.
+        Assert.InRange(BatchRunner.Unpacked(Put("in/plain.pdf", TestPdf.Make(3)), long.MaxValue), 0, 1 << 20);
+        Assert.Equal(0, BatchRunner.Unpacked(Put("in/noise.pdf", [.. Enumerable.Range(0, 200_000).Select(i => (byte)(i * 7919 >> 3))]), long.MaxValue));
+
+        // The batch itself: priced so, every file is done.
+        var summary = await Run([bomb, Put("in/a.pdf", TestPdf.Make(2)), Put("in/b.pdf", TestPdf.Make(1))], plan);
+        Assert.Equal(3, summary.Done);
+    }
+
     [Fact]
     public void AFileThatAppearsMeanwhileIsNeverOverwritten()
     {

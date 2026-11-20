@@ -188,13 +188,17 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (exit 0, no lock or file left in `working`). Found and fixed (`CommandOutput`, tests in `CommandOutputTests`): MuPDF's
   output redirect took over .NET's console writers, so redirected lines ended "\r\r\n" and, typed in a terminal, 1.15.0's
   command line ended at once (0xC0000409) printing nothing. Left: a share on another PC over a real network (only this
-  PC's loopback SMB was tried), a run as a scheduled task; the memory a small file can ask for. The 200 MB stream (a
-  200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`, `BoundedFilters`), so nothing there
-  catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is decoded and packed again) and 760 MB in
-  a watermark or header and footer (measured, the copies not traced); rotate and text export stay under 100 MB. Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by its size on disk, so
-  such files run side by side with others. Lowering the limit would refuse real 200 MB scans; what it takes is pricing a
-  file by what it unpacks to (its streams' lengths counted as `BoundedFilters.InflatesPast` does, without keeping them)
-  before it is admitted, then finding which copies Reduce File Size and the page marks make and streaming the large ones.
+  PC's loopback SMB was tried), a run as a scheduled task; the copies Reduce File Size and the page marks make of a large
+  stream (below). The 200 MB stream (a 200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`,
+  `BoundedFilters`), so nothing there catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is
+  decoded and packed again) and 760 MB in a watermark or header and footer (measured, the copies not traced); rotate and
+  text export stay under 100 MB. Done 2026-11-19: Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by the
+  larger of its size on disk and what its streams unpack to (`BatchRunner.Unpacked`: before the file is admitted, the
+  bytes after each `stream` keyword are inflated a chunk at a time and counted, kept nowhere, as
+  `BoundedFilters.InflatedLength` does for PDFsharp; encrypted streams count nothing; counting stops past the budget), 8
+  bytes a byte, so such a file runs alone instead of beside others (`BatchTests.AFileIsPricedByWhatItsStreamsUnpackTo`: 64
+  MB in a 64 KB file weighs 512 MB, alone in a 256 MB budget). Left: finding which copies Reduce File Size and the page
+  marks make and streaming the large ones, so the file itself takes less.
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the

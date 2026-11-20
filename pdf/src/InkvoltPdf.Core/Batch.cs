@@ -551,7 +551,8 @@ public sealed record BatchSummary(IReadOnlyList<BatchItemResult> Items)
 /// </summary>
 public static class BatchRunner
 {
-    /// <summary>Estimated working memory per byte of file (the bytes, PDFsharp's object tree, MuPDF, a copy per action).</summary>
+    /// <summary>Estimated working memory per byte of file, or of what its streams unpack to (the bytes, PDFsharp's object
+    /// tree, MuPDF, a copy per action: Reduce File Size took 1.6 GB for a 200 MB stream).</summary>
     private const int MemoryPerByte = 8;
 
     private const long MinWeight = 32L << 20;
@@ -589,7 +590,8 @@ public static class BatchRunner
             long weight;
             try
             {
-                weight = Weight(new FileInfo(file.Path).Length, plan.RendersPages ? LargestPage(file) : null, plan);
+                weight = Weight(new FileInfo(file.Path).Length, plan.RendersPages ? LargestPage(file) : null, plan,
+                    file.IsImage ? 0 : Unpacked(file.Path, plan.MemoryBudget / MemoryPerByte));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -664,13 +666,15 @@ public static class BatchRunner
     private const double CheckDpi = 54;
 
     /// <summary>
-    /// Estimated working memory of a file: its bytes (and the copies its actions make), plus, when the plan renders pages
-    /// (page images, OCR), the largest page's pixels at the highest resolution asked, 4 bytes each.
+    /// Estimated working memory of a file: its bytes or what its streams unpack to, whichever is more (and the copies its
+    /// actions make), plus, when the plan renders pages (page images, OCR), the largest page's pixels at the highest
+    /// resolution asked, 4 bytes each.
     /// </summary>
     /// <param name="largestPage">The largest page in points (null: unknown, a Letter page is assumed).</param>
-    internal static long Weight(long fileSize, (double Width, double Height)? largestPage, BatchPlan plan)
+    /// <param name="unpacked">What the file's streams unpack to (<see cref="Unpacked"/>).</param>
+    internal static long Weight(long fileSize, (double Width, double Height)? largestPage, BatchPlan plan, long unpacked = 0)
     {
-        var weight = Math.Max(MinWeight, fileSize * MemoryPerByte);
+        var weight = Math.Max(MinWeight, Math.Max(fileSize, unpacked) * MemoryPerByte);
         if (!plan.RendersPages) return weight;
         var (w, h) = largestPage ?? (612, 792);
         double pixels = 0;
@@ -687,6 +691,56 @@ public static class BatchRunner
             pixels = Math.Max(pixels, Math.Min(max, w / 72 * dpi * (h / 72 * dpi)));
         }
         return weight + (long)(pixels * 4);
+    }
+
+    /// <summary>
+    /// What a file's streams unpack to, together, counted before the file is admitted: a 200 KB file can hold a stream that
+    /// unpacks to 200 MB (under <see cref="PdfObj.MaxStreamBytes"/>, so nothing refuses it), and Reduce File Size then takes
+    /// 1.6 GB. The file is read in place, not parsed: the data after each "stream" keyword and its end of line is inflated
+    /// as PDFsharp inflates it (two header bytes skipped) and counted a chunk at a time, kept nowhere
+    /// (<see cref="BoundedFilters.InflatedLength"/>); data that isn't Flate fails at once, having counted next to nothing.
+    /// Encrypted streams count nothing (the file is priced by its size). Each stream counts up to
+    /// <see cref="PdfObj.MaxStreamBytes"/>, and counting stops past <paramref name="cap"/> (such a file runs alone anyway).
+    /// </summary>
+    internal static long Unpacked(string path, long cap)
+    {
+        var keyword = "stream"u8;
+        using var scan = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.SequentialScan);
+        using var data = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1); // the inflater reads in blocks of its own
+        var buffer = new byte[1 << 16];
+        long total = 0, start = 0; // start: the file offset of buffer[0]
+        var filled = 0;
+        for (var end = false; !end;)
+        {
+            var n = scan.Read(buffer, filled, buffer.Length - filled);
+            end = n == 0;
+            filled += n;
+            var at = 0;
+            int? wait = null; // a keyword whose end of line may be in the next block
+            for (int i; (i = buffer.AsSpan(at, filled - at).IndexOf(keyword)) >= 0;)
+            {
+                i += at;
+                at = i + keyword.Length;
+                if (!end && at + 2 > filled)
+                {
+                    wait = i;
+                    break;
+                }
+                var p = at;
+                if (p < filled && buffer[p] == '\r') p++;
+                if (p < filled && buffer[p] == '\n') p++;
+                if (p == at || i >= 3 && buffer.AsSpan(i - 3, 3).SequenceEqual("end"u8)) continue; // "streams", "endstream"
+                data.Position = start + p + 2;
+                total += BoundedFilters.InflatedLength(data, Math.Min(PdfObj.MaxStreamBytes, cap - total));
+                if (total > cap) return total;
+            }
+            // Keep what may be the start of a keyword split across blocks.
+            var keep = wait ?? Math.Max(at, filled - keyword.Length + 1);
+            buffer.AsSpan(keep, filled - keep).CopyTo(buffer);
+            start += keep;
+            filled -= keep;
+        }
+        return total;
     }
 
     /// <summary>The largest page of a file (points), read in place; null when it can't be told (encrypted, damaged).</summary>

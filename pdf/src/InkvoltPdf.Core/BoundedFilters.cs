@@ -108,24 +108,35 @@ internal static class BoundedFilters
             return Decoded(base.Decode(data, parms), limit);
         }
 
-        private static bool InflatesPast(byte[] raw, int limit)
+        // PDFsharp skips two bytes (the zlib header) whatever they are and never reads the checksum: so does this.
+        private static bool InflatesPast(byte[] raw, int limit) =>
+            raw.Length >= 2 && InflatedLength(new MemoryStream(raw, 2, raw.Length - 2), limit) > limit;
+    }
+
+    /// <summary>
+    /// How many bytes the deflate data at <paramref name="deflate"/>'s position inflates to, inflated a chunk at a time and
+    /// kept nowhere. Counting stops once past <paramref name="limit"/> (what it returns is then more than the limit); data
+    /// damaged part way counts what came out before the damage (PDFsharp fails on it, or not, as it would have).
+    /// </summary>
+    public static long InflatedLength(Stream deflate, long limit)
+    {
+        using var z = new DeflateStream(deflate, CompressionMode.Decompress, leaveOpen: true);
+        var chunk = System.Buffers.ArrayPool<byte>.Shared.Rent(64 * 1024);
+        long total = 0;
+        try
         {
-            // PDFsharp skips two bytes (the zlib header) whatever they are and never reads the checksum: so does this.
-            if (raw.Length < 2) return false;
-            using var z = new DeflateStream(new MemoryStream(raw, 2, raw.Length - 2), CompressionMode.Decompress);
-            var chunk = new byte[64 * 1024];
-            long total = 0;
-            try
-            {
-                for (int n; (n = z.Read(chunk)) > 0;)
-                    if ((total += n) > limit) return true;
-            }
-            catch (InvalidDataException)
-            {
-                // damaged past what was counted: PDFsharp fails on it (or not) as it would have
-            }
-            return false;
+            for (int n; (n = z.Read(chunk)) > 0;)
+                if ((total += n) > limit) return total;
         }
+        catch (InvalidDataException)
+        {
+            // damaged past what was counted
+        }
+        finally
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(chunk);
+        }
+        return total;
     }
 
     /// <summary>LZW: its output counted (lengths only) as PDFsharp's decoder would make it, then decoded by a decoder of its own.</summary>

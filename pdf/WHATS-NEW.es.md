@@ -12,6 +12,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - En lote, Escanear, las exportaciones, Comparar archivos y Eliminar por patrón leen ahora los escaneos en el idioma que elegiste por última vez en Reconocer texto.
 - Con Tesseract, una palabra de la que no estaba seguro aparece entre las palabras dudosas para revisar.
 - La línea de comandos (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`) escrita en una terminal ya funciona: terminaba enseguida sin mostrar nada. Enviadas a un archivo o a otro programa, sus líneas ya no llevan un salto de línea de más tras cada una (una línea en blanco entre líneas en PowerShell, un carácter de más al final de cada una en un script), y sus líneas y errores enviados al mismo archivo (`> log.txt 2>&1`) se quedan todos ahí. Los errores enviados a un archivo propio (`2> errores.txt`) van a ese archivo.
+- En lote, un archivo pequeño que al descomprimirse ocupa mucho más que su tamaño (uno de 200 KB que guarda 200 MB) se procesa solo, para que ya no les quite memoria a los archivos que se procesan a la vez.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.
