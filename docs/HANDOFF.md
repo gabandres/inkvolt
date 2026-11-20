@@ -1,3 +1,13 @@
+# 2026-11-20: pdf.js reads the spaces in Arabic and Hebrew translations (Windows; branch worktree-agent-a89a2b9072fde6c80, not merged)
+
+Translate writes a right-to-left line in stretches (`GlyphOrder.Stretches` in `Shaping.cs`, `pdf/ROADMAP.md` 3.1 "pdf.js
+reads the spaces"): each right-to-left stretch left to right, the stretches and the figures and Latin words between them in
+reading order. MuPDF reads it exactly as before; pdf.js now reads the spaces between right-to-left words. What one content
+stream can't give both readers, now documented with the reason from their code: pdf.js runs a right-to-left word and a
+figure or Latin word beside it together, and a line with a bold, other-font or raised word inside right-to-left text stays
+in reading order (no spaces in pdf.js). Found, not changed: MuPDF reads Arabic-Indic digits backwards in any order.
+**For a person:** an Arabic copy in Firefox (copy a line, search a phrase) and in Acrobat.
+
 # 2026-11-20: Inkvolt Print's printer-data items closed (Windows; branch worktree-agent-a83f5e17d97d5cce9, not merged)
 
 Seven commits, one an item (`print/README.md`, `print/ROADMAP.md` 1.1, 1.2, 3.2 and `print/WHATS-NEW.md` "Next" have each):
@@ -36,8 +46,8 @@ text has (a model told of `<font>` wrote `<font color=…>`), `<bold>`/`<strong>
 angle brackets kept, a ligature's letters in a right-to-left run drawn left to right read in order, and (after review)
 two Arabic values on NIST p. 1 MuPDF read backwards: Calibri's Arabic lowers joined letters and MuPDF reads such lines
 backwards, so right-to-left lines take the closest font whose letters stay on the line (Segoe UI there). Review's 10
-findings fixed. pdf.js reads right-to-left lines without their spaces (written left to right for it, MuPDF read figures
-and brackets backwards); a known limit. For a person: a translated Arabic and Japanese copy on screen and in Acrobat; Make
+findings fixed. pdf.js read right-to-left lines without their spaces (written left to right for it, MuPDF read figures
+and brackets backwards); closed in the entry above. For a person: a translated Arabic and Japanese copy on screen and in Acrobat; Make
 Text Editable on an Arabic scan (the editor now reads right-to-left text drawn left to right in reading order).
 # 2026-11-19: concluding the roadmaps on Windows (owner: "do all for Windows"; Mac halves wait for a new Mac)
 

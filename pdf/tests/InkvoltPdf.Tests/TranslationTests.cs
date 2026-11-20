@@ -928,6 +928,49 @@ public class TranslationCopyTests
         }
     }
 
+    [Fact]
+    public void Arabic_stretches_go_right_and_read_in_order_with_their_figures_brackets_and_latin_words()
+    {
+        // pdf.js makes a space only going right, MuPDF turns each right-to-left stretch around in place: so each stretch is
+        // written left to right, the stretches and the figures and Latin words between them in reading order.
+        var pdf = Page(Lines(40, 700, 10, 14, "Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024!"));
+        const string ar = "قال ابن-سينا إن الثعلب قفز في عام 2024 فوق الكلب (الكسول) وكتب fox jumps.";
+        var (_, r) = Translate(pdf, _ => ar, "ar");
+        Assert.Equal(1, r.Report.Translated);
+        using (var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null))
+        {
+            var text = engine.GetText(0, cache: false);
+            Assert.Contains(ar, text.Text, StringComparison.Ordinal);
+            foreach (var phrase in new[] { "ابن-سينا", "في عام 2024 فوق", "(الكسول) وكتب fox jumps." })
+                Assert.Single(text.Find(phrase, matchCase: true, wholeWord: false));
+        }
+
+        var shaped = TextShaper.Shape(ar, SystemFonts.Get("arial.ttf"), null, null, GlyphOrder.Stretches);
+        Assert.True(shaped.Mixed);
+        // Written in pieces: going right inside each, left from one to the next; the pieces' texts, turned around where
+        // they read right to left, come in reading order.
+        var pieces = new List<List<PlacedGlyph>>();
+        foreach (var g in shaped.Glyphs)
+        {
+            if (pieces.Count == 0 || pieces[^1][^1].Rtl != g.Rtl || g.X < pieces[^1][^1].X - 1e-9) pieces.Add([]);
+            pieces[^1].Add(g);
+        }
+        var read = string.Concat(pieces.Select(p => p[0].Rtl ? new string([.. string.Concat(p.Select(g => g.Text)).Reverse()]) : string.Concat(p.Select(g => g.Text))));
+        Assert.Equal(ar, read);
+        var words = pieces.Where(p => p[0].Rtl).Select(p => string.Concat(p.Select(g => g.Text)).Trim()).Where(t => t.Contains(' ', StringComparison.Ordinal)).ToList();
+        Assert.True(words.Count >= 2, string.Join(" | ", words)); // whole stretches of words, each going right
+        Assert.Contains(pieces, p => p is [{ Text: "-", Rtl: false }]); // the hyphen MuPDF reads left to right goes alone
+
+        // A stretch in two fonts would be two items to pdf.js, read right to left: such a line is written in reading order.
+        var bold = SystemFonts.Get("arialbd.ttf");
+        var looks = new int[ar.Length];
+        Array.Fill(looks, -1);
+        for (var i = ar.IndexOf("الثعلب", StringComparison.Ordinal); i < ar.IndexOf(" قفز", StringComparison.Ordinal); i++) looks[i] = 0;
+        var mixed = TextShaper.Shape(ar, SystemFonts.Get("arial.ttf"), [new GlyphStyle(bold)], looks, GlyphOrder.Stretches);
+        var letters = mixed.Glyphs.Where(g => g.Rtl && g.Text is { Length: > 0 } t && char.IsLetter(t[0])).ToList();
+        Assert.All(letters.Zip(letters.Skip(1)).Where(p => p.First.Font == p.Second.Font), p => Assert.True(p.Second.X <= p.First.X + 1e-9));
+    }
+
     [Theory]
     [InlineData("في عام 2024 والكلب")] // figures stay left to right inside it
     [InlineData("الثعلب يقفز فوق fox الكلب")] // an English word inside
