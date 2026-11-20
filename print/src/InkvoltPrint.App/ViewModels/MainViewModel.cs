@@ -53,6 +53,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private bool _scannersRead;
     private IDisposable? _usbWatch;
 
+    /// <summary>The spooler's change notices (a queue added, removed or renamed); null on the made-up PC.</summary>
+    private IDisposable? _queueChanges;
+
     /// <param name="pc">This PC, or demo mode's made-up one (<c>--demo</c>): there every printer talks to made-up web servers instead
     /// of the network, the queues and scanners are made up, and discovery, adding by address and the HP software check are off.</param>
     public MainViewModel(AppState state, PcEnvironment pc)
@@ -116,6 +119,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             return;
         }
         _usbWatch = pc.NeedsDriver.Watch(RelistQueues); // a USB printer plugged in or out: the queues and USB printers are read again at once
+        _queueChanges = pc.WatchQueueChanges(RelistQueues); // a queue added, removed or renamed in Windows: read again at once
         _wia.TwainChanged += RelistQueues; // TWAIN's sources read (after WIA's were shown): listed now
         _ = WatchQueuesAsync(_queueWatch.Token);
         if (pc.ChecksHpSoftware) _ = CheckHpSoftwareAsync();
@@ -836,6 +840,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _wia.TwainChanged -= RelistQueues;
         _relist.Dispose();
         _usbWatch?.Dispose();
+        _queueChanges?.Dispose();
         _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
         // Exit: this PC comes off the printers' panels (Scan to Computer) before the process ends, each within its limit.

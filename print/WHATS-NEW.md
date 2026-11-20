@@ -20,6 +20,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - A printer whose web page is on a port of its own can be added by that address (for example http://192.168.1.20:8080), and one that announces its page on the network is read there by itself.
 - The printer's status shows what its control panel says, when that tells you more than the status does.
 - Printers Windows set up through WSD now show the printer's own status and toner or ink levels when the printer answers SNMP, as printers on a TCP/IP port do.
+- A printer added, removed or renamed in Windows shows on the printer list, goes or takes its new name within a second or so, instead of at the next check.
 
 ## 1.6.0
 - SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, or the refusal may not come from your printer, Save anyway keeps it as it is.

@@ -113,6 +113,18 @@ switch (cmd)
         Console.WriteLine(await InkvoltPrint.Windows.Queues.IppQueueInstaller.InstallAsync(args[2], new Uri(host)));
         foreach (var q in await InkvoltPrint.Windows.Printing.QueueFinder.ListAsync()) Console.WriteLine($"  {q.Name} | container={q.ContainerId}");
         break;
+    case "queues" when args.Contains("--watch"):
+        // Read-only: the spooler's change notices as the app gets them (a queue added, removed or renamed), for a minute.
+        {
+            var seen = 0;
+            using var watch = new InkvoltPrint.Windows.Printing.SpoolerChanges(
+                () => Console.WriteLine($"{DateTime.Now:HH:mm:ss} queues changed ({Interlocked.Increment(ref seen)})"),
+                line => Console.Error.WriteLine(line));
+            Console.WriteLine("Watching the spooler for a minute: add, remove or rename a queue.");
+            await Task.Delay(TimeSpan.FromMinutes(1));
+            Console.WriteLine($"{seen} change notices.");
+        }
+        break;
     case "queues":
         // Read-only: each installed queue as the app's sidebar sees it (virtual or not, connection, status from the spooler).
         var installed = await InkvoltPrint.Windows.Printing.InstalledQueues.ListAsync(_ => true);
@@ -215,6 +227,7 @@ switch (cmd)
             inkvoltprint queues [--unplugged] [--bidi]     (read-only: installed queues as the sidebar sees them, and USB printers
                                                            that need their driver; --unplugged: also those not plugged in now;
                                                            --bidi: ask every queue's driver, also those the app doesn't)
+            inkvoltprint queues --watch                    (read-only: the spooler's change notices for a minute, as the app gets them)
             inkvoltprint scanners [--caps]                 (read-only: WIA scanners and TWAIN sources; --caps connects and reads what each offers)
             inkvoltprint scanners --needs-driver [--get-driver [--yes]] [--model "Epson Perfection V19"]
                                                            (USB scanners plugged in with no driver; --get-driver finds the maker's

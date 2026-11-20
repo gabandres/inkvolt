@@ -98,6 +98,12 @@ public abstract class PcEnvironment
     /// own SNMP community when it has one; for the others (USB, WSD), the printer through Windows' IPP class driver (IPP over USB)
     /// or the driver over bidi when they answer. A WSD printer that doesn't answer SNMP is still asked those ways.
     /// </summary>
+    /// <summary>
+    /// Tells <paramref name="changed"/> when Windows adds, removes or renames a print queue (the spooler's change notices), so the
+    /// printer list follows without waiting for its next read; null where nothing changes (the made-up PC). Dispose to stop.
+    /// </summary>
+    public virtual IDisposable? WatchQueueChanges(Action changed) => null;
+
     public IQueueStatusSource QueueStatus(SpoolerQueue q)
     {
         var windows = SpoolerStatus(q);
@@ -194,6 +200,8 @@ public abstract class PcEnvironment
         public override (IReadOnlyList<SpoolerQueue>, IReadOnlyList<WiaDeviceInfo>)? FixedDevices => null;
         public override DriverScanners Wia { get; } =WindowsTwain.BesideWia(Log.Write); // WIA scanners and TWAIN sources, one list
         public override bool HasWindowsQueues => true;
+
+        public override IDisposable? WatchQueueChanges(Action changed) => new Windows.Printing.SpoolerChanges(changed, Log.Write);
 
         public override Core.Sharing.ShareEnvironment ScannerSharing => _sharing ??= new(new InkvoltPrint.Sharing.KestrelShareHost(),
             new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));
