@@ -2,7 +2,8 @@ namespace InkvoltPrint.Core.Snmp;
 
 /// <summary>
 /// How Inkvolt Print signs in to one printer's SNMP agent: a read community (v1, v2c), or (Inkvolt Pro) an SNMPv3 user with
-/// its two passphrases (<see cref="SnmpV3User"/>: SHA-256 authentication, AES-128 privacy). A secret: kept by an
+/// its two passphrases and protocols (<see cref="SnmpV3User"/>: SHA-256, SHA-1 or MD5 authentication; AES-128, AES-192, AES-256
+/// or DES privacy). A secret: kept by an
 /// <see cref="ISnmpLogins"/> (Windows Credential Manager), never in <c>state.json</c>, a recording or the log;
 /// <see cref="ToString"/> names no secret. A printer with nothing kept is asked with <see cref="Public"/>.
 /// </summary>
@@ -31,10 +32,12 @@ public sealed record SnmpLogin
 
     /// <summary>
     /// An SNMPv3 user as typed: a name (1 to 32 characters) and two passphrases of at least <see cref="SnmpV3User.MinPassphrase"/>
-    /// characters (RFC 3414 §11.2). Null with <paramref name="error"/> otherwise.
+    /// characters (RFC 3414 §11.2), with the protocols the printer's agent was set up with. Null with <paramref name="error"/> otherwise.
     /// </summary>
-    public static SnmpLogin? ForUser(string? name, string? authPassphrase, string? privPassphrase, out string? error)
+    public static SnmpLogin? ForUser(string? name, string? authPassphrase, string? privPassphrase, out string? error,
+        SnmpAuth auth = SnmpAuth.Sha256, SnmpPriv priv = SnmpPriv.Aes128)
     {
+        if (!Enum.IsDefined(auth) || !Enum.IsDefined(priv)) throw new ArgumentOutOfRangeException(nameof(auth), "Not a protocol Inkvolt Print speaks.");
         error = string.IsNullOrWhiteSpace(name) ? CoreStrings.Snmp_EnterUserName
             : System.Text.Encoding.UTF8.GetByteCount(name) > SnmpV3User.MaxName || name.Any(char.IsControl) ? string.Format(CoreStrings.Snmp_UserNameLength, SnmpV3User.MaxName)
             : (authPassphrase?.Length ?? 0) < SnmpV3User.MinPassphrase ? string.Format(CoreStrings.Snmp_AuthPassphraseLength, SnmpV3User.MinPassphrase)
@@ -42,7 +45,7 @@ public sealed record SnmpLogin
             : authPassphrase!.Length > SnmpV3User.MaxPassphrase || privPassphrase!.Length > SnmpV3User.MaxPassphrase ? string.Format(CoreStrings.Snmp_PassphraseTooLong, SnmpV3User.MaxPassphrase)
             : authPassphrase!.Any(char.IsControl) || privPassphrase!.Any(char.IsControl) ? CoreStrings.Snmp_PassphraseControlChars
             : null;
-        return error is null ? new SnmpLogin("", new SnmpV3User(name!, authPassphrase!, privPassphrase!)) : null;
+        return error is null ? new SnmpLogin("", new SnmpV3User(name!, authPassphrase!, privPassphrase!) { Auth = auth, Priv = priv }) : null;
     }
 
     /// <summary>
@@ -58,9 +61,13 @@ public sealed record SnmpLogin
         return error is null ? new SnmpLogin(text) : null;
     }
 
-    /// <summary>The login as one string, for <see cref="ISnmpLogins"/> to keep (and only for that).</summary>
+    /// <summary>
+    /// The login as one string, for <see cref="ISnmpLogins"/> to keep (and only for that). A user with SHA-256 and AES-128 is
+    /// kept as before the other protocols came; another's protocols follow its passphrases (<c>usm:…:Sha1:Aes256</c>).
+    /// </summary>
     public string ToSecret() => User is { } u
         ? "usm:" + string.Join(':', new[] { u.Name, u.AuthPassphrase, u.PrivPassphrase }.Select(p => Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(p))))
+          + (u is { Auth: SnmpAuth.Sha256, Priv: SnmpPriv.Aes128 } ? "" : $":{u.Auth}:{u.Priv}")
         : "community:" + Community;
 
     /// <summary>A login kept by <see cref="ToSecret"/>; null for anything else (a damaged or unknown entry: asked with public).</summary>
@@ -68,11 +75,19 @@ public sealed record SnmpLogin
     {
         if (secret is null) return null;
         if (secret.StartsWith("community:", StringComparison.Ordinal)) return ForCommunity(secret["community:".Length..], out _);
-        if (!secret.StartsWith("usm:", StringComparison.Ordinal) || secret[4..].Split(':') is not { Length: 3 } parts) return null;
+        if (!secret.StartsWith("usm:", StringComparison.Ordinal)) return null;
+        var parts = secret[4..].Split(':');
+        if (parts.Length is not (3 or 5)) return null;
+        var auth = SnmpAuth.Sha256;
+        var priv = SnmpPriv.Aes128;
+        // Names only (Enum.TryParse would take "7" or " sha1"): an entry this version didn't write is no login.
+        if (parts.Length == 5 && (!Enum.GetNames<SnmpAuth>().Contains(parts[3], StringComparer.Ordinal) || !Enum.TryParse(parts[3], out auth)
+                                  || !Enum.GetNames<SnmpPriv>().Contains(parts[4], StringComparer.Ordinal) || !Enum.TryParse(parts[4], out priv)))
+            return null;
         try
         {
-            var p = parts.Select(b => System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(b))).ToArray();
-            return ForUser(p[0], p[1], p[2], out _);
+            var p = parts[..3].Select(b => System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(b))).ToArray();
+            return ForUser(p[0], p[1], p[2], out _, auth, priv);
         }
         catch (FormatException)
         {

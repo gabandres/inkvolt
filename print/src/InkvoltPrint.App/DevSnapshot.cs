@@ -379,8 +379,8 @@ internal static class DevSnapshot
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
-                "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer",
-                    Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!),
+                "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", // protocols other than the defaults: the note shows
+                    Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _, Core.Snmp.SnmpAuth.Sha1, Core.Snmp.SnmpPriv.Aes256)!),
                 // Save pressed with a made-up answer from the printer: no answer (Save anyway), a refused passphrase, another device.
                 "snmp-noanswer" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForCommunity("demo-community", out _)!, new Core.Snmp.SnmpLoginCheck.NoAnswer()),
                 "snmp-refused" => SnmpCheckPreview(dialogMain, Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _)!,

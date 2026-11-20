@@ -21,17 +21,19 @@ public sealed partial class SnmpAgent : ISnmpTransport
     }
 
     /// <summary>
-    /// An SNMPv3-only agent (<see cref="RespondV3"/>) for <paramref name="user"/> at authPriv (SHA-256, AES-128), with engine
-    /// <paramref name="engineId"/>; v1 and v2c requests get no reply.
+    /// An SNMPv3-only agent (<see cref="RespondV3"/>) for <paramref name="user"/> at authPriv (with the user's protocols), with
+    /// engine <paramref name="engineId"/>, lengthening a short privacy key as <paramref name="extension"/> says; v1 and v2c
+    /// requests get no reply.
     /// </summary>
-    public SnmpAgent(IEnumerable<SnmpVarBind> objects, SnmpV3User user, byte[] engineId, int engineBoots = 1, int engineTime = 1000)
+    public SnmpAgent(IEnumerable<SnmpVarBind> objects, SnmpV3User user, byte[] engineId, int engineBoots = 1, int engineTime = 1000,
+        Usm.KeyExtension extension = Usm.KeyExtension.Blumenthal)
         : this(objects)
     {
         V3User = user;
         EngineId = engineId;
         EngineBoots = engineBoots;
         EngineTime = engineTime;
-        _keys = Usm.Keys.For(user, engineId);
+        _keys = Usm.Keys.For(user, engineId, extension);
     }
 
     public string Community { get; }
@@ -243,15 +245,15 @@ public sealed partial class SnmpAgent : ISnmpTransport
             return Report(m, Usm.UnknownEngineIds, m.EngineId.Length == 0 ? "discovery" : "unknownEngineIDs");
         if (m.UserName != user.Name) return Report(m, Usm.UnknownUserNames, "unknownUserNames");
         if (!m.Authenticated || !m.Private) return Report(m, Usm.UnsupportedSecLevels, "unsupportedSecLevels");
-        if (!m.Verify(request, keys.Auth)) return Report(m, Usm.WrongDigests, "wrongDigests");
+        if (!m.Verify(request, keys)) return Report(m, Usm.WrongDigests, "wrongDigests");
         if (m.EngineBoots != EngineBoots || Math.Abs((long)m.EngineTime - EngineTime) > Usm.TimeWindow)
             return Report(m, Usm.NotInTimeWindows, "notInTimeWindows", signed: true);
         SnmpMessage pdu;
         try
         {
             if (m.Encrypted is null || m.PrivParameters.Length != Usm.SaltLength) throw new FormatException("no encrypted PDU");
-            var (_, _, decrypted) = SnmpV3Message.DecodeScoped(
-                Usm.AesCfb(keys.Priv, Usm.AesIv(m.EngineBoots, m.EngineTime, m.PrivParameters), m.Encrypted, encrypt: false));
+            var (_, _, decrypted) = SnmpV3Message.DecodeScoped(keys.Decrypt(m.EngineBoots, m.EngineTime, m.PrivParameters, m.Encrypted),
+                padded: keys.PrivProtocol == SnmpPriv.Des);
             pdu = decrypted;
         }
         catch (FormatException)
@@ -275,21 +277,20 @@ public sealed partial class SnmpAgent : ISnmpTransport
                 MessageId = to.MessageId, Flags = signed ? SnmpV3Message.FlagAuth : (byte)0, EngineId = EngineId, EngineBoots = EngineBoots,
                 EngineTime = EngineTime, UserName = to.UserName, ContextEngineId = EngineId, Pdu = report,
             };
-            return signed ? reply.Sign(keys.Auth) : reply.Encode();
+            return signed ? reply.Sign(keys) : reply.Encode();
         }
     }
 
     /// <summary>A Response, encrypted with a fresh salt and signed.</summary>
     private byte[] Wrap(SnmpV3Message to, SnmpMessage answer, Usm.Keys keys)
     {
-        var salt = new byte[Usm.SaltLength];
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(salt, Interlocked.Increment(ref _salt));
+        var salt = keys.Salt(EngineBoots, Interlocked.Increment(ref _salt));
         var scoped = SnmpV3Message.EncodeScoped(EngineId, "", answer);
         return new SnmpV3Message
         {
             MessageId = to.MessageId, Flags = SnmpV3Message.FlagAuth | SnmpV3Message.FlagPriv, EngineId = EngineId,
             EngineBoots = EngineBoots, EngineTime = EngineTime, UserName = to.UserName, PrivParameters = salt,
-            Encrypted = Usm.AesCfb(keys.Priv, Usm.AesIv(EngineBoots, EngineTime, salt), scoped, encrypt: true),
-        }.Sign(keys.Auth);
+            Encrypted = keys.Encrypt(EngineBoots, EngineTime, salt, scoped),
+        }.Sign(keys);
     }
 }

@@ -4,21 +4,32 @@ using System.Security.Cryptography;
 
 namespace InkvoltPrint.Core.Snmp;
 
-/// <summary>SNMPv3 for <see cref="SnmpClient"/> (RFC 3412, RFC 3414, RFC 3826, RFC 7860): authPriv only, read only.</summary>
+/// <summary>
+/// SNMPv3 for <see cref="SnmpClient"/> (RFC 3412, RFC 3414, RFC 3826, RFC 7860, draft-blumenthal-aes-usm-04): authPriv only, read
+/// only, with the user's authentication and privacy protocols.
+/// </summary>
 public sealed partial class SnmpClient
 {
     private V3Engine? _engine;
     private long _salt = RandomNumberGenerator.GetInt32(int.MaxValue);
 
     /// <summary>The agent's engine as discovered: its ID, boots and time (and when that was), and the user's keys localized to it.</summary>
-    private sealed class V3Engine(byte[] id, int boots, int time, Usm.Keys keys)
+    private sealed class V3Engine(byte[] id, int boots, int time, Usm.Keys keys, Usm.Keys? other)
     {
         private long _at = Stopwatch.GetTimestamp();
         private int _time = time;
         private int _latest = time; // RFC 3414 §2.3's latestReceivedEngineTime
 
         public byte[] Id { get; } = id;
-        public Usm.Keys Keys { get; } = keys;
+        public Usm.Keys Keys { get; private set; } = keys;
+
+        /// <summary>
+        /// The privacy key lengthened the other way (<see cref="Usm.KeyExtension"/>: AES-192 or AES-256 after MD5 or SHA-1), tried
+        /// once when the agent can't decrypt with the first; null when there's no other, or it was taken.
+        /// </summary>
+        public Usm.Keys? Other { get; private set; } = other;
+
+        public void TakeOther() => (Keys, Other) = (Other ?? Keys, null);
         public int Boots { get; private set; } = boots;
 
         /// <summary>It answered a request, signed with the user's keys localized to <see cref="Id"/>: the ID is its own, and no refusal is taken from it after.</summary>
@@ -46,30 +57,30 @@ public sealed partial class SnmpClient
     }
 
     /// <summary>
-    /// One request over SNMPv3: the engine discovered first (once per client), the scoped PDU encrypted with AES-128 and the
-    /// message signed with HMAC-SHA-256-192. A signed notInTimeWindow report sets the clock and sends again (once); a refusal
-    /// from the engine is an <see cref="SnmpAccessException"/> saying which part; reports RFC 3414 doesn't let a manager act
-    /// on are no answer (<see cref="ActedOn"/>).
+    /// One request over SNMPv3: the engine discovered first (once per client), the scoped PDU encrypted and the message signed
+    /// with the user's protocols. A signed notInTimeWindow report sets the clock and sends again (once); a decryption error with
+    /// AES-192 or AES-256 after MD5 or SHA-1 sends again once with the privacy key lengthened the other way (agents differ); a
+    /// refusal from the engine is an <see cref="SnmpAccessException"/> saying which part; reports RFC 3414 doesn't let a manager
+    /// act on are no answer (<see cref="ActedOn"/>).
     /// </summary>
     private async Task<SnmpMessage> SendV3Async(SnmpMessage pdu, CancellationToken ct)
     {
         var user = _user!;
         var resynchronized = false;
-        for (var round = 0; round < 3; round++)
+        for (var round = 0; round < 4; round++)
         {
             var engine = _engine ??= await DiscoverAsync(user, ct).ConfigureAwait(false);
             var messageId = Interlocked.Increment(ref _requestId) & int.MaxValue;
-            var salt = new byte[Usm.SaltLength];
-            BinaryPrimitives.WriteInt64BigEndian(salt, Interlocked.Increment(ref _salt));
             var (boots, time) = (engine.Boots, engine.Time);
+            var salt = engine.Keys.Salt(boots, Interlocked.Increment(ref _salt));
             var scoped = SnmpV3Message.EncodeScoped(engine.Id, "", pdu);
             var request = new SnmpV3Message
             {
                 MessageId = messageId,
                 Flags = SnmpV3Message.FlagAuth | SnmpV3Message.FlagPriv | SnmpV3Message.FlagReportable,
                 EngineId = engine.Id, EngineBoots = boots, EngineTime = time, UserName = user.Name, PrivParameters = salt,
-                Encrypted = Usm.AesCfb(engine.Keys.Priv, Usm.AesIv(boots, time, salt), scoped, encrypt: true),
-            }.Sign(engine.Keys.Auth);
+                Encrypted = engine.Keys.Encrypt(boots, time, salt, scoped),
+            }.Sign(engine.Keys);
             var (reply, answer) = await ExchangeAsync(request, messageId, engine, ct).ConfigureAwait(false);
             if (answer.Type == SnmpPduType.Response)
             {
@@ -79,6 +90,11 @@ public sealed partial class SnmpClient
                 return answer;
             }
             var said = Counter(answer);
+            if (Usm.DecryptionErrors.Equals(said) && engine.Other is not null)
+            {
+                engine.TakeOther(); // the agent may lengthen the privacy key the other way: ask again with that one
+                continue;
+            }
             if (!Usm.NotInTimeWindows.Equals(said))
                 throw new SnmpAccessException(Refusals.First(r => r.Counter.Equals(said)).Reason) { EngineId = Convert.ToHexString(engine.Id) };
             // Signed (ExchangeAsync lets no other through): the engine's own clock, taken once a request; again, it's no answer.
@@ -126,7 +142,8 @@ public sealed partial class SnmpClient
         var (reply, _) = await ExchangeAsync(request, messageId, null, ct).ConfigureAwait(false);
         // RFC 3411's SnmpEngineID is 5 to 32 octets.
         if (reply.EngineId.Length is < 5 or > 32) throw new FormatException("SNMPv3: the agent reported no usable engine ID.");
-        return new V3Engine(reply.EngineId, reply.EngineBoots, reply.EngineTime, Usm.Keys.For(user, reply.EngineId));
+        return new V3Engine(reply.EngineId, reply.EngineBoots, reply.EngineTime, Usm.Keys.For(user, reply.EngineId),
+            Usm.Keys.Otherwise(user, reply.EngineId, Usm.KeyExtension.Blumenthal));
     }
 
     /// <summary>
@@ -143,15 +160,16 @@ public sealed partial class SnmpClient
             {
                 var reply = SnmpV3Message.Decode(bytes);
                 if (reply.MessageId != messageId) continue;
-                if (reply.Authenticated && (engine is null || !reply.EngineId.AsSpan().SequenceEqual(engine.Id) || !reply.Verify(bytes, engine.Keys.Auth)))
+                if (reply.Authenticated && (engine is null || !reply.EngineId.AsSpan().SequenceEqual(engine.Id) || !reply.Verify(bytes, engine.Keys)))
                     continue;
                 if (reply.Private && !reply.Authenticated) continue; // privacy without authentication isn't a USM level
                 SnmpMessage pdu;
                 if (reply.Private)
                 {
                     if (reply.Encrypted is null || reply.PrivParameters.Length != Usm.SaltLength) continue;
-                    var iv = Usm.AesIv(reply.EngineBoots, reply.EngineTime, reply.PrivParameters);
-                    pdu = SnmpV3Message.DecodeScoped(Usm.AesCfb(engine!.Keys.Priv, iv, reply.Encrypted, encrypt: false)).Pdu;
+                    var keys = engine!.Keys;
+                    pdu = SnmpV3Message.DecodeScoped(keys.Decrypt(reply.EngineBoots, reply.EngineTime, reply.PrivParameters, reply.Encrypted),
+                        padded: keys.PrivProtocol == SnmpPriv.Des).Pdu;
                 }
                 else pdu = reply.Pdu ?? throw new FormatException("SNMPv3: no PDU.");
                 if (pdu.Type == SnmpPduType.Response && (!reply.Authenticated || !reply.Private || engine is null)) continue; // an answer must be signed and private

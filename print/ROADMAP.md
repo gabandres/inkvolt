@@ -589,6 +589,19 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   made-up agent discovered and read over v3 (GetBulk too), refusing a wrong user and each wrong key, a restarted agent's clock
   set again, a changed reply ignored; `SnmpV3ProTests`: a kept v3 user unused without a licence once the gate is on. **Done on
   Windows** (no hardware: never tried on a printer's agent).
+- **Now (Windows): the other SNMPv3 protocols, built 2026-11-20.** Beside each passphrase, the protocol the printer's agent uses:
+  HMAC-SHA-256-192 (default), HMAC-SHA-1-96, HMAC-MD5-96 (RFC 3414 §6, §7); AES-128 (default), AES-192, AES-256 in CFB mode
+  (draft-blumenthal-aes-usm-04), CBC-DES (RFC 3414 §8: key and pre-IV from the privacy key, salt of boots and a counter, whole
+  blocks); a note says MD5, SHA-1 and DES are weak. Both keys come from the authentication protocol's hash. **Key extension:** a
+  privacy key too short for AES-192/256 (after MD5 or SHA-1) is lengthened as Blumenthal's draft says (net-snmp's default; the
+  hash of the key so far appended) and, on a decryption error, once as Reeder's (Cisco IOS and pysnmp's `usmAesCfb192/256`:
+  password-to-key and localization run again over the key so far), kept for the connection; which one a printer maker's agent
+  uses isn't published, so a real printer is what confirms it. The protocols are kept with the login (`usm:…:Sha1:Aes256`; an
+  entry from before reads as SHA-256 and AES-128). .NET's own HMACMD5, HMACSHA1, AES and DES; no package. `SnmpV3ProtocolTests`
+  (RFC 2202's HMAC-MD5 and HMAC-SHA-1 cut to 96 bits, NIST SP 800-38A's CFB with AES-192 and AES-256, the textbook DES block,
+  RFC 3414's DES framing and both key extensions against Python's hashlib and cryptography, the made-up agent read with all 12
+  pairs, another protocol refused as its part, a Reeder agent read after one decryption error, DES blocks not whole, the kept
+  login). `--dialog snmp3` shows SHA-1 and AES-256 with the note (en, es). Never tried on a printer's agent.
 - **Now (Windows): SNMP access… asks the printer first, and a refused login is its own state, ported from the Mac 2026-11-17.**
   Save in the printer's menu › SNMP access… asks the printer at its address with the login (`SnmpLoginCheck`, Core): kept once it
   answers as itself; a refusal says which part and keeps nothing; another device keeps nothing; no answer says what to check and turns

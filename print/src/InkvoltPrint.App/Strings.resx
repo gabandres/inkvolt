@@ -3041,12 +3041,24 @@ HP's updates have brought "dynamic security", which stops cartridges with non-HP
     <comment>field label</comment>
   </data>
   <data name="Snmp_AuthPassphrase" xml:space="preserve">
-    <value>Authentication passphrase (SHA-256)</value>
+    <value>Authentication passphrase</value>
     <comment>field label</comment>
   </data>
   <data name="Snmp_PrivPassphrase" xml:space="preserve">
-    <value>Privacy passphrase (AES-128)</value>
+    <value>Privacy passphrase</value>
     <comment>field label</comment>
+  </data>
+  <data name="Snmp_AuthProtocol" xml:space="preserve">
+    <value>Authentication protocol</value>
+    <comment>screen reader name of the list beside the authentication passphrase</comment>
+  </data>
+  <data name="Snmp_PrivProtocol" xml:space="preserve">
+    <value>Privacy protocol</value>
+    <comment>screen reader name of the list beside the privacy passphrase</comment>
+  </data>
+  <data name="Snmp_WeakProtocols" xml:space="preserve">
+    <value>MD5, SHA-1 and DES are old and weak: choose them only for a printer that offers nothing better.</value>
+    <comment>shown when one of them is chosen; protocol names stay as they are</comment>
   </data>
   <data name="Snmp_V3Note" xml:space="preserve">
     <value>The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads.</value>

@@ -14,6 +14,10 @@ public partial class SnmpAccessFields : UserControl
     public SnmpAccessFields()
     {
         InitializeComponent();
+        // The protocols' own names (the same in every language), in the enums' order: an item's index is its value.
+        AuthProtocol.ItemsSource = Enum.GetValues<SnmpAuth>().Select(Usm.Name).ToList();
+        PrivProtocol.ItemsSource = Enum.GetValues<SnmpPriv>().Select(Usm.Name).ToList();
+        (AuthProtocol.SelectedIndex, PrivProtocol.SelectedIndex) = (0, 0);
         Kind_Changed(this, new RoutedEventArgs());
     }
 
@@ -26,6 +30,8 @@ public partial class SnmpAccessFields : UserControl
             UserBox.Text = user.Name;
             AuthBox.Password = user.AuthPassphrase;
             PrivBox.Password = user.PrivPassphrase;
+            AuthProtocol.SelectedIndex = (int)user.Auth;
+            PrivProtocol.SelectedIndex = (int)user.Priv;
         }
         else
         {
@@ -50,7 +56,7 @@ public partial class SnmpAccessFields : UserControl
         SnmpLogin? login;
         if (UseV3.IsChecked == true)
         {
-            login = SnmpLogin.ForUser(UserBox.Text, AuthBox.Password, PrivBox.Password, out error);
+            login = SnmpLogin.ForUser(UserBox.Text, AuthBox.Password, PrivBox.Password, out error, Auth, Priv);
             if (login is not null && !Pro.Allows(ProFeature.SnmpV3))
             {
                 (login, error) = (null, Pro.Locked(ProFeature.SnmpV3));
@@ -83,5 +89,17 @@ public partial class SnmpAccessFields : UserControl
     {
         Error.Visibility = Visibility.Collapsed;
         Edited?.Invoke();
+    }
+
+    /// <summary>The protocols chosen: the combo boxes list <see cref="SnmpAuth"/> and <see cref="SnmpPriv"/> in their order.</summary>
+    private SnmpAuth Auth => Enum.IsDefined((SnmpAuth)AuthProtocol.SelectedIndex) ? (SnmpAuth)AuthProtocol.SelectedIndex : SnmpAuth.Sha256;
+
+    private SnmpPriv Priv => Enum.IsDefined((SnmpPriv)PrivProtocol.SelectedIndex) ? (SnmpPriv)PrivProtocol.SelectedIndex : SnmpPriv.Aes128;
+
+    private void Protocol_Changed(object sender, SelectionChangedEventArgs e)
+    {
+        if (WeakNote is null || AuthProtocol is null || PrivProtocol is null) return; // while loading
+        WeakNote.Visibility = Auth != SnmpAuth.Sha256 || Priv == SnmpPriv.Des ? Visibility.Visible : Visibility.Collapsed;
+        Field_Changed(sender, e);
     }
 }
