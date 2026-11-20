@@ -9,7 +9,7 @@ using InkvoltPdf.Core;
 namespace InkvoltPdf.App.Viewer;
 
 /// <summary>What the user asked for on the selected picture.</summary>
-public enum ContentAction { Delete, Replace }
+public enum ContentAction { Delete, Replace, Crop }
 
 /// <summary>Text typed over a run (committed with Enter or by clicking elsewhere).</summary>
 public sealed record RunEdit(TextRun Run, string Text);
@@ -57,6 +57,18 @@ public sealed partial class PageViewer
     public event EventHandler<RunEdit>? RunEdited;
     public event EventHandler<ParagraphEdit>? ParagraphEdited;
     public event EventHandler<ImageMove>? ImageMoved;
+    /// <summary>The selected picture cropped to a box (page space), by dragging a handle while cropping.</summary>
+    public event EventHandler<ImageMove>? ImageCropped;
+
+    /// <summary>Cropping the selected picture: its handles cut its edges instead of resizing it.</summary>
+    public bool CroppingImage { get; private set; }
+
+    /// <summary>Starts or ends cropping the selected picture (an upright one, or one turned a quarter).</summary>
+    public void SetCropping(bool on)
+    {
+        CroppingImage = on && SelectedImage is { Blocked: null, Turned: false };
+        _surface.InvalidateVisual();
+    }
     public event EventHandler<ContentAction>? ContentActionRequested;
     /// <summary>A click on text or a picture that can't be edited: why (a sentence for the user).</summary>
     public event EventHandler<string>? ContentRefused;
@@ -108,6 +120,7 @@ public sealed partial class PageViewer
     {
         FlushImageNudge();
         _imageSel = box is { } b ? (page, b) : null;
+        if (box is null) CroppingImage = false;
         _surface.InvalidateVisual();
         ContentSelectionChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -118,6 +131,7 @@ public sealed partial class PageViewer
         FlushImageNudge();
         _imageDrag = null;
         _imageSel = null;
+        CroppingImage = false;
         _contentFocus = null;
         _hoverRun = null;
         _hoverImage = null;
@@ -244,8 +258,14 @@ public sealed partial class PageViewer
             var vp = ToViewPoint(page, sp);
             vp = new PointD(vp.X + d.Offset.X, vp.Y + d.Offset.Y);
             var view = RotatedView.ToView(d.Start, g.Width, g.Height, _viewRotation);
-            var sized = DrawingGeometry.Resize(view, d.Handle, vp, 4, keepAspect: (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
+            var sized = DrawingGeometry.Resize(view, d.Handle, vp, 4, keepAspect: !CroppingImage && (Keyboard.Modifiers & ModifierKeys.Shift) != 0);
             r = RotatedView.FromView(sized, g.Width, g.Height, _viewRotation);
+            // Cropping: no further out than the whole picture.
+            if (CroppingImage && (d.Image.Uncropped ?? d.Image.Box) is var whole)
+            {
+                var cut = r.Intersect(whole);
+                if (cut.Width >= 1 && cut.Height >= 1) r = cut;
+            }
         }
         _imageDrag = d with { Rect = r };
         _surface.InvalidateVisual();
@@ -260,7 +280,8 @@ public sealed partial class PageViewer
         if (_dragged && !Near(d.Rect, d.Start))
         {
             _imagePending[(d.Image.PageIndex, d.Image.Id)] = d.Rect;
-            ImageMoved?.Invoke(this, new ImageMove(d.Image, d.Rect));
+            if (CroppingImage && d.Handle >= 0) ImageCropped?.Invoke(this, new ImageMove(d.Image, d.Rect));
+            else ImageMoved?.Invoke(this, new ImageMove(d.Image, d.Rect));
         }
         return true;
     }
@@ -431,7 +452,12 @@ public sealed partial class PageViewer
         var check = p.Check(text, spans);
         string note;
         string? brush = null;
-        if (check.Missing.Count > 0)
+        if (check.Missing.Contains(TextParagraph.PictureMark.ToString()))
+        {
+            note = Strings.Viewer_PictureTyped;
+            brush = "SystemFillColorCriticalBrush";
+        }
+        else if (check.Missing.Count > 0)
         {
             note = Loc.Format(Strings.Viewer_FontMissing, p.Lead.FontName, CharList(check.Missing));
             brush = "SystemFillColorCriticalBrush";
@@ -456,6 +482,7 @@ public sealed partial class PageViewer
                 note += "\n" + Loc.Plural(check.Borrowed.Count, Strings.Viewer_Borrowed_One, Strings.Viewer_Borrowed_Many, CharList(check.Borrowed), p.Lead.FontName, string.Join(Strings.Viewer_ListAnd, check.StandIns));
             if (check.Faces.Count > 0) note += "\n" + Loc.Format(Strings.Viewer_DrawnInFaces, string.Join(", ", check.Faces));
         }
+        if (p.Pictures.Count > 0) note += "\n" + Strings.Viewer_ParagraphPictures;
         _runInfoText!.Text = note;
         _runInfoText.SetResourceReference(TextBlock.ForegroundProperty, brush ?? "TextFillColorSecondaryBrush");
         if (_highContrast) _runInfoText.Foreground = SystemColors.WindowTextBrush;
@@ -619,6 +646,10 @@ public sealed partial class PageViewer
                 FlushImageNudge();
                 ContentActionRequested?.Invoke(this, ContentAction.Replace);
                 return true;
+            case Key.C when mods == ModifierKeys.None && image is { Blocked: null }:
+                FlushImageNudge();
+                ContentActionRequested?.Invoke(this, ContentAction.Crop);
+                return true;
             case Key.Delete or Key.Back when mods == ModifierKeys.None && image is { Blocked: null }:
                 FlushImageNudge();
                 ContentActionRequested?.Invoke(this, ContentAction.Delete);
@@ -628,7 +659,12 @@ public sealed partial class PageViewer
                 return true;
             case Key.Escape when mods == ModifierKeys.None:
                 FlushImageNudge();
-                if (_imageSel is not null || _contentFocus is not null)
+                if (CroppingImage)
+                {
+                    SetCropping(false);
+                    ContentSelectionChanged?.Invoke(this, EventArgs.Empty);
+                }
+                else if (_imageSel is not null || _contentFocus is not null)
                 {
                     _contentFocus = null;
                     SelectImage(0, null);
@@ -739,6 +775,9 @@ public sealed partial class PageViewer
         {
             var r = ToSurfaceRect(page, ShownBox(img));
             var isSel = selected is not null && img == selected;
+            // Cropping: where the whole picture reaches, dotted.
+            if (isSel && CroppingImage && img.Uncropped is { } whole && _imageDrag is null)
+                dc.DrawRectangle(null, Frozen(new Pen(accent, 1) { DashStyle = DashStyles.Dot }), ToSurfaceRect(page, whole));
             dc.DrawRectangle(null, img.Blocked is not null ? RefusedPen : isSel ? bold : thin, r);
             if (!isSel || img.Blocked is not null) continue;
             var frame = new RectD(r.X, r.Y, r.Width, r.Height);
@@ -799,4 +838,10 @@ public sealed partial class PageViewer
     }
 
     internal void DevContentAction(ContentAction action) => ContentActionRequested?.Invoke(this, action);
+
+    internal void DevCropImage(PageImage image, RectD box)
+    {
+        _imagePending[(image.PageIndex, image.Id)] = box;
+        ImageCropped?.Invoke(this, new ImageMove(image, box));
+    }
 }

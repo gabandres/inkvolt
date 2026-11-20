@@ -21,12 +21,14 @@ public partial class DocumentTab
     {
         EditContentReplace.Click += (_, _) => _ = OnContentAction(ContentAction.Replace);
         EditContentDelete.Click += (_, _) => _ = OnContentAction(ContentAction.Delete);
+        EditContentCrop.Click += (_, _) => _ = OnContentAction(ContentAction.Crop);
         EditContentDone.Click += (_, _) => SetEditContent(false);
         Viewer.ToolChanged += (_, _) => UpdateEditContentUi();
         Viewer.ContentNeeded += (_, page) => RequestContent(page);
         Viewer.RunEdited += (_, e) => _ = EditRun(e);
         Viewer.ParagraphEdited += (_, e) => _ = EditParagraph(e);
         Viewer.ImageMoved += (_, m) => _ = MoveImage(m);
+        Viewer.ImageCropped += (_, m) => _ = CropImage(m);
         Viewer.ContentActionRequested += (_, a) => _ = OnContentAction(a);
         Viewer.ContentRefused += (_, message) =>
         {
@@ -77,6 +79,8 @@ public partial class DocumentTab
     {
         var image = Viewer.SelectedImage;
         EditContentReplace.IsEnabled = EditContentDelete.IsEnabled = image is { Blocked: null };
+        EditContentCrop.IsEnabled = image is { Blocked: null, Turned: false };
+        EditContentCrop.FontWeight = Viewer.CroppingImage ? FontWeights.SemiBold : FontWeights.Normal;
     }
 
     /// <summary>After any change to the document: what was read is stale, so the pages ask again.</summary>
@@ -193,6 +197,15 @@ public partial class DocumentTab
         else ReloadEditContent(); // back where it was
     }
 
+    /// <summary>A picture cropped to a box by dragging its handles while cropping: one edit, then still selected (as it shows now).</summary>
+    private async Task CropImage(ImageMove m)
+    {
+        var page = m.Image.PageIndex;
+        if (await TryEdit(Strings.EditContent_EditCropPicture, (d, pw) => ContentEditor.CropImage(d, pw, m.Image, m.Box), veil: false) == EditOutcome.Done)
+            Viewer.SelectImage(page, m.Box.Intersect(m.Image.Uncropped ?? m.Image.Box));
+        else ReloadEditContent(); // back where it was
+    }
+
     private async Task OnContentAction(ContentAction action)
     {
         if (Viewer.SelectedImage is not { Blocked: null } image) return;
@@ -200,6 +213,12 @@ public partial class DocumentTab
         image = Viewer.SelectedImage ?? image;
         switch (action)
         {
+            case ContentAction.Crop:
+                Viewer.SetCropping(!Viewer.CroppingImage);
+                if (Viewer.CroppingImage) Notify(Strings.EditContent_CropHint);
+                else if (image.Turned) Notify(PdfStrings.Edit_CropTurned, error: true);
+                UpdateContentButtons();
+                break;
             case ContentAction.Delete:
                 if (await RunEdit(Strings.EditContent_EditDeletePicture, (d, pw) => ContentEditor.DeleteImage(d, pw, image)))
                     Viewer.SelectImage(image.PageIndex, null);

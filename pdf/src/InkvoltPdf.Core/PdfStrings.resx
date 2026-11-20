@@ -3805,6 +3805,12 @@
   <data name="Edit_PictureTooSmall" xml:space="preserve">
     <value>A picture can't be made that small.</value>
   </data>
+  <data name="Edit_CropTurned" xml:space="preserve">
+    <value>Only an upright picture, or one turned a quarter, can be cropped.</value>
+  </data>
+  <data name="Edit_PictureTyped" xml:space="preserve">
+    <value>A picture can't be typed or pasted into a paragraph: the mark ￼ stands for a picture already in it. Add a picture with Add Image.</value>
+  </data>
   <data name="Edit_PageSizeUnreadable" xml:space="preserve">
     <value>This page's size can't be read.</value>
   </data>

@@ -3805,6 +3805,12 @@
   <data name="Edit_PictureTooSmall" xml:space="preserve">
     <value>Una imagen no puede ser tan pequeña.</value>
   </data>
+  <data name="Edit_CropTurned" xml:space="preserve">
+    <value>Solo se puede recortar una imagen derecha o girada un cuarto de vuelta.</value>
+  </data>
+  <data name="Edit_PictureTyped" xml:space="preserve">
+    <value>No se puede escribir ni pegar una imagen en un párrafo: la marca ￼ representa una imagen que ya está en él. Agrega una imagen con Agregar imagen.</value>
+  </data>
   <data name="Edit_PageSizeUnreadable" xml:space="preserve">
     <value>No se puede leer el tamaño de esta página.</value>
   </data>

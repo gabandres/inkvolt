@@ -228,6 +228,40 @@ public static partial class ContentEditor
     {
         if (spans.Count == 0) return [];
         if (old == now) return [.. spans];
+        var map = CharMap(old, now);
+        var oldLooks = LooksOf(old, spans);
+        var looks = new TextLook?[now.Length];
+        var mapped = new bool[now.Length];
+        for (var i = 0; i < old.Length; i++)
+            if (map[i] >= 0)
+            {
+                looks[map[i]] = oldLooks[i];
+                mapped[map[i]] = true;
+            }
+        for (var i = 1; i < now.Length; i++)
+            if (!mapped[i] && !char.IsWhiteSpace(now[i]) && !char.IsWhiteSpace(now[i - 1])) looks[i] = looks[i - 1];
+        var result = new List<TextSpan>();
+        for (var i = 0; i < now.Length;)
+        {
+            if (looks[i] is not { IsPlain: false } look)
+            {
+                i++;
+                continue;
+            }
+            var j = i + 1;
+            while (j < now.Length && looks[j] == look) j++;
+            result.Add(new TextSpan(i, j - i, look));
+            i = j;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Where each character of <paramref name="old"/> went in <paramref name="now"/> (-1: gone): the characters both share
+    /// (the same start and end, then their longest common subsequence in between, when it is small enough to work out).
+    /// </summary>
+    internal static int[] CharMap(string old, string now)
+    {
         var map = new int[old.Length]; // where each old character went (-1: gone)
         Array.Fill(map, -1);
         var pre = 0;
@@ -258,29 +292,29 @@ public static partial class ContentEditor
                 else b++;
             }
         }
-        var oldLooks = LooksOf(old, spans);
-        var looks = new TextLook?[now.Length];
-        var mapped = new bool[now.Length];
-        for (var i = 0; i < old.Length; i++)
-            if (map[i] >= 0)
-            {
-                looks[map[i]] = oldLooks[i];
-                mapped[map[i]] = true;
-            }
-        for (var i = 1; i < now.Length; i++)
-            if (!mapped[i] && !char.IsWhiteSpace(now[i]) && !char.IsWhiteSpace(now[i - 1])) looks[i] = looks[i - 1];
-        var result = new List<TextSpan>();
-        for (var i = 0; i < now.Length;)
+        return map;
+    }
+
+    /// <summary>
+    /// For each picture mark in <paramref name="now"/>, in order, the paragraph's picture it is (its index in
+    /// <see cref="TextParagraph.Pictures"/>), or -1 for a mark typed or pasted in: a mark kept from
+    /// <paramref name="old"/> keeps its picture.
+    /// </summary>
+    internal static int[] PictureMarks(string old, string now, int pictures)
+    {
+        var marks = now.Count(c => c == TextParagraph.PictureMark);
+        var result = new int[marks];
+        Array.Fill(result, -1);
+        if (marks == 0 || pictures == 0) return result;
+        var map = CharMap(old, now);
+        var ordinal = new Dictionary<int, int>(); // a mark's place in now → its number among now's marks
+        for (int i = 0, k = 0; i < now.Length; i++)
+            if (now[i] == TextParagraph.PictureMark) ordinal[i] = k++;
+        for (int i = 0, k = 0; i < old.Length; i++)
         {
-            if (looks[i] is not { IsPlain: false } look)
-            {
-                i++;
-                continue;
-            }
-            var j = i + 1;
-            while (j < now.Length && looks[j] == look) j++;
-            result.Add(new TextSpan(i, j - i, look));
-            i = j;
+            if (old[i] != TextParagraph.PictureMark) continue;
+            if (k < pictures && map[i] >= 0 && ordinal.TryGetValue(map[i], out var at)) result[at] = k;
+            k++;
         }
         return result;
     }
