@@ -11697,4 +11697,19 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>El reconocimiento de texto está configurado en {0}, que necesita la descarga de Tesseract. Elígelo en Revisar &gt; Reconocer texto para descargarlo, o elige otro idioma allí.</value>
     <comment>{0} language names joined by " + "</comment>
   </data>
+  <data name="Scan_PresetCleansUp" xml:space="preserve">
+    <value>Sus páginas se limpian: {0}.</value>
+  </data>
+  <data name="Scan_CleanCrop" xml:space="preserve">
+    <value>recortadas al papel</value>
+  </data>
+  <data name="Scan_CleanWhiten" xml:space="preserve">
+    <value>fondo blanqueado</value>
+  </data>
+  <data name="Scan_CleanDescreen" xml:space="preserve">
+    <value>trama de las imágenes impresas quitada</value>
+  </data>
+  <data name="Scan_CleanColors" xml:space="preserve">
+    <value>colores desvaídos restaurados</value>
+  </data>
 </root>

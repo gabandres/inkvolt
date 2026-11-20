@@ -1025,7 +1025,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   a real WIA or TWAIN driver yet (on the one PC tried, the only WIA scanner was a printer no longer on the network).
   WIA 2.0 drivers are used through Windows' WIA 1.0 view (as Inkvolt Print does): a page in progress finishes before Stop
   takes effect, and a driver's own extras (its blank page skipping, color dropout) aren't offered. Black-and-white pages
-  are stored as JPEG (larger than CCITT/JBIG2 would be). The scan is saved as scanned: OCR reads a straightened, cleaned
+  are stored as JPEG (larger than CCITT/JBIG2 would be). A preset with a clean up (made in Inkvolt Print) crops and cleans
+  each page as Inkvolt Print's Scan tab does; otherwise the scan is saved as scanned: OCR reads a straightened, cleaned
   copy of each page, but the cleaned page replaces the scan only through Recognize Text.
   Printer status needs the printer to be one Inkvolt Print remembers.
 - Speed on huge files: the targets are the first page in under 1 s, scrolling at 60 fps without blank pages after a

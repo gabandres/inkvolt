@@ -556,7 +556,7 @@ internal sealed class ScanDialog : Window
         _message.Text = Strings.Scan_Scanning;
         try
         {
-            await foreach (var page in ScanRun.PagesAsync(device, request, skipBlank ? Analysis : null, cts.Token))
+            await foreach (var page in ScanRun.PagesAsync(device, request, skipBlank ? Analysis : null, cts.Token, PresetCleanup(dpi.Value)))
             {
                 if (page.Fate != ScanPageFate.Kept)
                 {
@@ -767,7 +767,7 @@ internal sealed class ScanDialog : Window
         FillOptions();
         _ocr.IsChecked = plan.Ocr;
         _skipBlank.IsChecked = preset.SkipBlank;
-        _message.Text = plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : Loc.Format(Strings.Scan_PresetChosen, preset.Name);
+        _message.Text = (plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : Loc.Format(Strings.Scan_PresetChosen, preset.Name)) + CleanupNote(preset.Cleanup);
         UpdateState();
     }
 
@@ -787,7 +787,8 @@ internal sealed class ScanDialog : Window
         };
         if (!dlg.ShowModal()) return;
         var preset = ScanPresets.FromChoices(list, name.Text, source.Value, (_color.SelectedItem as Choice<ScanColor>)?.Value ?? ScanColor.Color,
-            dpi.Value, (_size.SelectedItem as Choice<ScanPageSize>)?.Value.Key, _ocr.IsChecked == true, _skipBlank.IsChecked == true);
+            dpi.Value, (_size.SelectedItem as Choice<ScanPageSize>)?.Value.Key, _ocr.IsChecked == true, _skipBlank.IsChecked == true)
+            with { Cleanup = (_preset.SelectedItem as Choice<ScanPreset?>)?.Value?.Cleanup ?? PageFilters.None }; // the chosen preset's Clean up carries over
         list.Add(preset);
         AppSettings.Current.ScanPresets = list;
         AppSettings.Current.Save();
@@ -822,6 +823,49 @@ internal sealed class ScanDialog : Window
         var pixels = new byte[gray.PixelWidth * gray.PixelHeight];
         gray.CopyPixels(pixels, gray.PixelWidth, 0);
         return new GrayImage(gray.PixelWidth, gray.PixelHeight, pixels);
+    }
+
+    /// <summary>The chosen preset's Clean up (print/ROADMAP.md 2.3), as Inkvolt Print's Scan tab does it; null: pages as scanned.</summary>
+    private ScanRunCleanup? PresetCleanup(int dpi) =>
+        _preset.SelectedItem is Choice<ScanPreset?> { Value: { Cleanup: not PageFilters.None } preset }
+            ? new ScanRunCleanup(preset.Cleanup, dpi, DecodePixels, EncodeJpeg) : null;
+
+    /// <summary>"Its pages are cleaned up: cropped to the paper, background whitened." for a preset with a Clean up; empty without.</summary>
+    private static string CleanupNote(PageFilters filters)
+    {
+        var parts = new List<string>();
+        if (filters.HasFlag(PageFilters.CropToPaper)) parts.Add(Strings.Scan_CleanCrop);
+        if (filters.HasFlag(PageFilters.Whiten)) parts.Add(Strings.Scan_CleanWhiten);
+        if (filters.HasFlag(PageFilters.Descreen)) parts.Add(Strings.Scan_CleanDescreen);
+        if (filters.HasFlag(PageFilters.RestoreColors)) parts.Add(Strings.Scan_CleanColors);
+        return parts.Count == 0 ? "" : " " + Loc.Format(Strings.Scan_PresetCleansUp, string.Join(", ", parts));
+    }
+
+    /// <summary>A JPEG as grey or BGR pixels, rows packed (WIC), for <see cref="ScanRun.Clean"/>.</summary>
+    private static (byte[] Pixels, int Width, int Height, int Channels) DecodePixels(byte[] jpeg)
+    {
+        var img = new BitmapImage();
+        img.BeginInit();
+        img.CacheOption = BitmapCacheOption.OnLoad;
+        img.StreamSource = new MemoryStream(jpeg);
+        img.EndInit();
+        img.Freeze();
+        BitmapSource bmp = img.Format == PixelFormats.Gray8 ? img : new FormatConvertedBitmap(img, PixelFormats.Bgr24, null, 0);
+        var channels = bmp.Format == PixelFormats.Gray8 ? 1 : 3;
+        var pixels = new byte[bmp.PixelWidth * bmp.PixelHeight * channels];
+        bmp.CopyPixels(pixels, bmp.PixelWidth * channels, 0);
+        return (pixels, bmp.PixelWidth, bmp.PixelHeight, channels);
+    }
+
+    /// <summary>Cleaned pixels as a JPEG, at the quality Inkvolt Print saves an edited page with.</summary>
+    private static byte[] EncodeJpeg(byte[] pixels, int width, int height, int channels)
+    {
+        var bmp = BitmapSource.Create(width, height, 96, 96, channels == 1 ? PixelFormats.Gray8 : PixelFormats.Bgr24, null, pixels, width * channels);
+        var encoder = new JpegBitmapEncoder { QualityLevel = 92 };
+        encoder.Frames.Add(BitmapFrame.Create(bmp));
+        using var ms = new MemoryStream();
+        encoder.Save(ms);
+        return ms.ToArray();
     }
 
     private void OnClosing(object? sender, System.ComponentModel.CancelEventArgs e)
