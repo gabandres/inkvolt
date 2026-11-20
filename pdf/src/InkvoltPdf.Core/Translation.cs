@@ -43,6 +43,9 @@ public sealed class TranslationPlan
     /// </summary>
     public IReadOnlySet<string> Marked { get; init; } = new HashSet<string>(StringComparer.Ordinal);
 
+    /// <summary>For each text of <see cref="Marked"/>: its paragraph's text and looks, as an answer is read against them (a real model's report).</summary>
+    internal IReadOnlyDictionary<string, (string Text, IReadOnlyList<TextSpan> Spans)> Sources { get; init; } = new Dictionary<string, (string, IReadOnlyList<TextSpan>)>();
+
     /// <summary>Paragraphs with words in them, repeats included.</summary>
     public int ParagraphCount { get; init; }
 
@@ -201,6 +204,7 @@ public static class Translation
             var texts = new List<(string, int)>();
             var seen = new HashSet<string>(StringComparer.Ordinal);
             var marked = new HashSet<string>(StringComparer.Ordinal);
+            var sources = new Dictionary<string, (string, IReadOnlyList<TextSpan>)>(StringComparer.Ordinal);
             var blocked = new List<(int, string)>();
             List<int> scans = [], turned = [], crowded = [], unreadable = [];
             int paragraphs = 0, noWords = 0, done = 0;
@@ -243,7 +247,7 @@ public static class Translation
                         paragraphs++;
                         var key = Key(t);
                         if (seen.Add(key)) texts.Add((key, p));
-                        if (key != t.Text) marked.Add(key); // Mark gives back the text as it is when it doesn't mark it
+                        if (key != t.Text && marked.Add(key)) sources[key] = (t.Text, t.Spans); // Mark gives back the text as it is when it doesn't mark it
                     }
                     if (!pageHasWords && content.Images.Count > 0 && (content.Runs.Count == 0 || content.Runs.All(r => ContentEditor.IsInvisible(r.Blocked))))
                         scans.Add(p);
@@ -266,6 +270,7 @@ public static class Translation
                 Pages = plans,
                 Texts = texts,
                 Marked = marked,
+                Sources = sources,
                 ParagraphCount = paragraphs,
                 NoWords = noWords,
                 Blocked = blocked,
@@ -458,7 +463,8 @@ public static class Translation
             if (text is null) return (null, problem);
             parts.Add(text);
         }
-        return (string.Join(' ', parts), null);
+        // A marked text's pieces each closed the tags open at their seam: joined, those stretches are one again.
+        return (job.Marked ? TranslationMarkup.Join(parts) : string.Join(' ', parts), null);
     }
 
     /// <param name="marked">The piece carries its paragraph's looks as markup (<see cref="TranslationJob.Marked"/>).</param>
@@ -483,8 +489,11 @@ public static class Translation
                     // With its markup when it can be cut with each half's tags closed in it; else plain.
                     var halves = marked ? TranslationMarkup.Pieces(piece, Math.Max(20, AiText.EstimateTokens(piece) / 2)) : null;
                     var keep = halves is not null;
-                    var whole = marked ? TranslationMarkup.Plain(piece) : piece;
-                    halves ??= AiText.Pieces(whole, Math.Max(20, AiText.EstimateTokens(whole) / 2)).ToList();
+                    if (halves is null)
+                    {
+                        var whole = marked ? TranslationMarkup.Plain(piece) : piece;
+                        halves = [.. AiText.Pieces(whole, Math.Max(20, AiText.EstimateTokens(whole) / 2))];
+                    }
                     var parts = new List<string>(halves.Count);
                     foreach (var h in halves)
                     {
@@ -492,7 +501,7 @@ public static class Translation
                         if (text is null) return (null, why);
                         parts.Add(text);
                     }
-                    return (string.Join(' ', parts), null);
+                    return (keep ? TranslationMarkup.Join(parts) : string.Join(' ', parts), null);
                 }
                 return (null, PdfStrings.Translate_CutOff);
             }

@@ -293,33 +293,49 @@ internal static partial class TranslationMarkup
     /// </summary>
     public static (string Text, List<TextSpan> Spans) Read(string answer, string text, IReadOnlyList<TextSpan> spans)
     {
-        if (!Markable(text)) return (answer, []);
-        if (answer.AsSpan().IndexOfAny('<', '>') < 0) return (answer, []);
-        var (marked, kept) = Marking(text, spans);
-        var inverted = Inverted(kept);
-        if (Parse(marked) is not { } source || Parse(answer) is not { } reply || !Trusted(source, reply, inverted)) return (Stripped(answer), []);
-        // What each look was on the page: the family of its face, the other look's family and color, a script's size and rise.
+        var judged = Judge(answer, text, spans);
+        if (judged.Plain is { } plain) return (plain, []);
+        var (reply, kept, inverted) = (judged.Reply!, judged.Kept, judged.Inverted);
+        // What each look was on the page: the family of its face, the other look's family and color; each script stretch's
+        // size and rise, in order (a footnote mark and an exponent in one paragraph keep their own).
         var faces = new Dictionary<Kind, string>();
         (string? Font, int? Color)? other = null;
-        var scripts = new Dictionary<Kind, (double? Size, double? Rise)>();
+        var scripts = new Dictionary<Kind, List<(double? Size, double? Rise)>>();
+        TextSpan? last = null;
+        foreach (var s in kept.Where(s => s.Look.Script is not null).OrderBy(s => s.Start))
+        {
+            // One stretch however many runs drew it: a span right after one of the same look goes on it.
+            if (last is not { } l || l.Look != s.Look || s.Start > l.End)
+            {
+                var k = KindOf(s.Look) & Scripts;
+                if (!scripts.TryGetValue(k, out var list)) scripts[k] = list = [];
+                list.Add((s.Look.Size, s.Look.Rise));
+            }
+            last = s;
+        }
         foreach (var s in kept)
         {
             var k = KindOf(s.Look);
             if ((k & Faces) != 0 && s.Look.Font is { } f) faces.TryAdd(k & Faces, f);
             other ??= OtherOf(s.Look);
-            if ((k & Scripts) != 0) scripts.TryAdd(k & Scripts, (s.Look.Size, s.Look.Rise));
         }
         var result = new List<TextSpan>();
         var kinds = reply.Kinds;
+        var seen = new Dictionary<Kind, int>(); // script stretches of each kind met so far in the reply
+        var previous = Kind.None;
         for (var i = 0; i < kinds.Length;)
         {
             var k = kinds[i];
             var j = i + 1;
             while (j < kinds.Length && kinds[j] == k) j++;
             var rel = k ^ inverted; // against the paragraph's own: in a bold paragraph, no <b> is a regular word
+            var script = k & Scripts;
+            if (script != Kind.None && (previous & script) == 0) seen[script] = seen.GetValueOrDefault(script) + 1;
+            previous = k;
             if (rel != Kind.None)
             {
-                var (size, rise) = scripts.GetValueOrDefault(k & Scripts);
+                // The reply's n-th stretch of a script takes the source's n-th (its last when the reply has more).
+                var (size, rise) = scripts.TryGetValue(script, out var looks) ? looks[Math.Min(seen[script], looks.Count) - 1] : default;
                 var mine = (rel & Kind.Other) != 0 ? other : null;
                 result.Add(new TextSpan(i, j - i, new TextLook(
                     Font: faces.GetValueOrDefault(rel & Faces) ?? mine?.Font,
@@ -336,21 +352,51 @@ internal static partial class TranslationMarkup
     }
 
     /// <summary>
-    /// For a real model's report (<c>TranslationRealModelTests</c>): how many stretches the markup <paramref name="sent"/>
-    /// had and <paramref name="answer"/> has, and whether its markup would be trusted (null: it has no tags at all).
+    /// What <see cref="Read"/> makes of a reply, before its looks are rebuilt: the reply as plain text when its markup is
+    /// not used (null when it is), the source's and the reply's markup read, the looks marked and which are inverted.
     /// </summary>
-    internal static (int Sent, int Back, bool? Trusted) Kept(string answer, string sent)
+    private static (string? Plain, Parsed? Source, Parsed? Reply, List<TextSpan> Kept, Kind Inverted) Judge(string answer, string text, IReadOnlyList<TextSpan> spans)
     {
-        if (Parse(sent) is not { } source) return (0, 0, null);
-        var had = source.Stretches.Values.Sum(l => l.Count);
-        if (!answer.Contains('<', StringComparison.Ordinal)) return (had, 0, null);
-        if (Parse(answer) is not { } reply) return (had, 0, false);
-        // Bold or italic over most of the text: a paragraph of that look, marked the other way round.
-        var inverted = Kind.None;
-        foreach (var k in new[] { Kind.Bold, Kind.Italic })
-            if (source.Stretches.TryGetValue(k, out var l) && l.Sum() * 2 > source.Letters) inverted |= k;
-        return (had, reply.Stretches.Values.Sum(l => l.Count), Trusted(source, reply, inverted));
+        if (!Markable(text)) return (answer, null, null, [], Kind.None);
+        var (marked, kept) = Marking(text, spans);
+        var inverted = Inverted(kept);
+        var source = Parse(marked);
+        if (answer.AsSpan().IndexOfAny('<', '>') < 0) return (answer, source, null, kept, inverted);
+        if (source is null || Parse(answer) is not { } reply) return (Stripped(answer), source, null, kept, inverted);
+        if (!Trusted(source, reply, inverted)) return (Stripped(answer), source, reply, kept, inverted);
+        return (null, source, reply, kept, inverted);
     }
+
+    /// <summary>
+    /// For a real model's report (<c>TranslationRealModelTests</c>), judged as <see cref="Read"/> judges it: how many
+    /// stretches the paragraph's markup had and the reply's has, and whether the reply's markup is used (null: it has no
+    /// tags at all).
+    /// </summary>
+    internal static (int Sent, int Back, bool? Trusted) TagsKept(string answer, string text, IReadOnlyList<TextSpan> spans)
+    {
+        var judged = Judge(answer, text, spans);
+        var had = judged.Source?.Stretches.Values.Sum(l => l.Count) ?? 0;
+        if (!answer.Contains('<', StringComparison.Ordinal)) return (had, 0, null);
+        return (had, judged.Reply?.Stretches.Values.Sum(l => l.Count) ?? 0, judged.Plain is null);
+    }
+
+    /// <summary>
+    /// The answers to a marked text's pieces (<see cref="Pieces"/>) joined into one, the tags a seam closed and opened
+    /// again ("&lt;/b&gt; &lt;b&gt;") taken out, so a stretch cut by a seam is one stretch again.
+    /// </summary>
+    public static string Join(IEnumerable<string> parts) =>
+        Seam().Replace(string.Join(' ', parts), m =>
+        {
+            var closed = TagNames().Matches(m.Groups["close"].Value).Select(t => t.Groups[1].Value.ToLowerInvariant()).Reverse();
+            var opened = TagNames().Matches(m.Groups["open"].Value).Select(t => t.Groups[1].Value.ToLowerInvariant());
+            return closed.SequenceEqual(opened) ? m.Groups["space"].Value : m.Value;
+        });
+
+    [GeneratedRegex(@"(?<close>(?:</(?:b|i|span|sub|sup)>){1,4})(?<space>\s+)(?<open>(?:<(?:b|i|span|sub|sup)>){1,4})", RegexOptions.IgnoreCase)]
+    private static partial Regex Seam();
+
+    [GeneratedRegex(@"</?(b|i|span|sub|sup)>", RegexOptions.IgnoreCase)]
+    private static partial Regex TagNames();
 
     /// <summary>Text read from markup: its characters (spaces collapsed, ends trimmed), each one's looks, and per look its stretches' lengths (not counting spaces).</summary>
     private sealed record Parsed(string Text, Kind[] Kinds, Dictionary<Kind, List<int>> Stretches, int Letters, Kind Opened);

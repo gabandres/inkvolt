@@ -53,7 +53,8 @@ public class TranslationRealModelTests(ITestOutputHelper output)
             foreach (var (sent, answer) in answers.Done.Where(a => plan.Marked.Contains(a.Key)))
             {
                 marked++;
-                var (had, back, trusted) = TranslationMarkup.Kept(answer, sent);
+                var (text, spans) = plan.Sources[sent];
+                var (had, back, trusted) = TranslationMarkup.TagsKept(answer, text, spans); // judged as the copy reads it
                 if (trusted is null) none++;
                 else if (trusted == false) untrusted++;
                 else if (back >= had) all++;

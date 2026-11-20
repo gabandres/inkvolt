@@ -195,6 +195,26 @@ public class TranslationLooksTests
     }
 
     [Fact]
+    public void A_stretch_cut_by_many_piece_seams_is_one_stretch_again_when_the_answers_are_joined()
+    {
+        // Sentences 10 to 159 bold: one stretch, cut at each piece's end. Joined as they are, the answer would have far
+        // more bold stretches than the paragraph had and be read plain.
+        var plain = string.Join(' ', Enumerable.Range(0, 200).Select(i => $"Sentence {i} of the long paragraph goes on and on here."));
+        var start = plain.IndexOf("Sentence 10 ", StringComparison.Ordinal);
+        var end = plain.IndexOf("Sentence 160 ", StringComparison.Ordinal) - 1;
+        List<TextSpan> spans = [new(start, end - start, B)];
+        var text = TranslationMarkup.Mark(plain, spans);
+        var pieces = TranslationMarkup.Pieces(text, 200)!;
+        Assert.True(pieces.Count(p => p.Contains("</b>", StringComparison.Ordinal)) > 4);
+        var (now, looks) = TranslationMarkup.Read(TranslationMarkup.Join(pieces), plain, spans);
+        Assert.Equal(plain, now);
+        Assert.Equal([new TextSpan(start, end - start, B)], looks);
+        // A seam joins only tags that close and open the same looks in order.
+        Assert.Equal("<b>a</b> <i>b</i>", TranslationMarkup.Join(["<b>a</b>", "<i>b</i>"]));
+        Assert.Equal("<b><i>a b</i></b>", TranslationMarkup.Join(["<b><i>a</i></b>", "<b><i>b</i></b>"]));
+    }
+
+    [Fact]
     public async Task A_marked_text_cut_off_by_the_models_limit_is_asked_for_in_marked_halves()
     {
         var text = string.Join(' ', Enumerable.Repeat("A <b>sentence</b> of the long paragraph goes here.", 8));
@@ -482,6 +502,53 @@ public class TranslationLooksTests
     }
 
     [Fact]
+    public void A_scripts_rise_is_kept_in_the_ems_the_copy_draws_it_in()
+    {
+        // The paragraph's size (its first run's, 12) isn't its line's (most of it, 10): a rise of 3 points is kept as 0.25
+        // of the paragraph's em, which the copy draws it in, so it is 3 points again (not 0.3 em, 3.6 points).
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 400 Tm (A) Tj /FA 10 Tf ( quick brown fox jumps over the lazy dog 2) Tj /FA 7 Tf 3 Ts (10) Tj 0 Ts /FA 10 Tf ( until the dog.) Tj ET",
+            fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE QUICK FOX 2<sup>10</sup> AND THE DOG.");
+        Assert.Contains("<sup>10</sup>", Assert.Single(plan.Texts).Text, StringComparison.Ordinal);
+        var runs = Runs(r.Data!);
+        var plain = runs.First(q => q.Text.Contains("FOX", StringComparison.Ordinal));
+        var sup = Assert.Single(runs, q => q.Text.Trim() == "10");
+        Assert.Equal(10, plain.FontSize, 1); // not shrunk
+        Assert.Equal(3, plain.Origin.Y - sup.Origin.Y, 1);
+    }
+
+    [Fact]
+    public void A_footnote_mark_and_an_exponent_in_one_paragraph_keep_their_own_sizes_and_rises()
+    {
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 400 Tm (The quick brown fox jumps over the dog) Tj /FA 6 Tf 5 Ts (1) Tj 0 Ts /FA 12 Tf ( and 2) Tj " +
+            "/FA 9 Tf 3 Ts (10) Tj 0 Ts /FA 12 Tf ( until the dog.) Tj ET",
+            fontText: Letters);
+        var (plan, r) = Translate(pdf, _ => "THE FOX OVER THE DOG<sup>1</sup> AND 2<sup>10</sup> UNTIL THE DOG.");
+        Assert.Contains("dog<sup>1</sup> and 2<sup>10</sup>", Assert.Single(plan.Texts).Text, StringComparison.Ordinal);
+        var runs = Runs(r.Data!);
+        var plain = runs.First(q => q.Text.Contains("FOX", StringComparison.Ordinal));
+        var mark = Assert.Single(runs, q => q.Text.Trim() == "1");
+        var exponent = Assert.Single(runs, q => q.Text.Trim() == "10");
+        Assert.Equal(6.0 / 12 * plain.FontSize, mark.FontSize, 1);
+        Assert.Equal(9.0 / 12 * plain.FontSize, exponent.FontSize, 1);
+        Assert.Equal(5.0 / 12 * plain.FontSize, plain.Origin.Y - mark.Origin.Y, 1);
+        Assert.Equal(3.0 / 12 * plain.FontSize, plain.Origin.Y - exponent.Origin.Y, 1);
+    }
+
+    [Fact]
+    public void A_line_starting_with_a_symbol_goes_on_the_sentence_above()
+    {
+        // CMSY's "=" or "−" opening a line inside a sentence, set on the line with no gap: not an item of its own.
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the quick fox x) Tj ET " +
+            "BT /FA 12 Tf 1 0 0 1 64.99 686 Tm (=) Tj (y for the lazy dog and the brown fox jumps over it.) Tj ET",
+            fontText: Letters + "=");
+        Assert.Single(Translation.MakePlan(pdf, null, [0]).Texts);
+    }
+
+    [Fact]
     public void A_crafted_rise_far_off_the_line_is_not_taken_for_its_superscript()
     {
         // 1,000 points up: text of its own somewhere else, left as it is; the line is translated without it.
@@ -570,11 +637,19 @@ public class TranslationLooksTests
         Assert.Equal(2, plain.Lines.Count);
         Assert.Equal(2, raised.Lines.Count);
         var step = plain.Lines[1].Origin.Y - plain.Lines[0].Origin.Y;
+        var room = step - p.Ascent - p.Descent; // the leading between the two lines' own ink
         var top = 0.6 * p.FontSize + ContentEditor.ScriptScale * p.Ascent; // the superscript's top above its baseline
-        Assert.Equal(step + (top - p.Ascent), raised.Lines[1].Origin.Y - raised.Lines[0].Origin.Y, 2);
-        // On the first line it only sits lower in the box; a superscript that stays within the line's height changes nothing.
-        var low = ContentEditor.LayOut(p, p.Runs, text, [new TextSpan(text.LastIndexOf('2'), 1, new TextLook(Script: TextScript.Super, Rise: 0.12))], fit: 1);
-        Assert.Equal(step, low.Lines[1].Origin.Y - low.Lines[0].Origin.Y, 2);
+        Assert.True(top - p.Ascent > room, $"{top - p.Ascent} {room}");
+        Assert.Equal(step + (top - p.Ascent - room), raised.Lines[1].Origin.Y - raised.Lines[0].Origin.Y, 2);
+        // A superscript within the line's height changes nothing; one reaching into the leading, only past it.
+        var within = ContentEditor.LayOut(p, p.Runs, text, [new TextSpan(text.LastIndexOf('2'), 1, new TextLook(Script: TextScript.Super, Rise: 0.12))], fit: 1);
+        Assert.Equal(step, within.Lines[1].Origin.Y - within.Lines[0].Origin.Y, 2);
+        foreach (var rise in new[] { 0.3, ContentEditor.SuperRise, 0.45 })
+        {
+            var reach = rise * p.FontSize + ContentEditor.ScriptScale * p.Ascent - p.Ascent;
+            var low = ContentEditor.LayOut(p, p.Runs, text, [new TextSpan(text.LastIndexOf('2'), 1, new TextLook(Script: TextScript.Super, Rise: rise))], fit: 1);
+            Assert.Equal(step + Math.Max(0, reach - room), low.Lines[1].Origin.Y - low.Lines[0].Origin.Y, 2);
+        }
     }
 
     [Fact]
@@ -771,6 +846,24 @@ public class TranslationLooksTests
     }
 
     [Fact]
+    public void A_new_line_goes_after_a_band_painted_between_a_lines_word_and_its_hyphen()
+    {
+        // Something painted over the line after its words and before its hyphen: what the line draws last still takes it.
+        const string first = "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the quick fox is respon) Tj ET";
+        var right = Assert.Single(ContentEditor.Read(ContentEditPdf.Make(first, fontText: Letters + "-"), null, 0).Paragraphs).Box.Right;
+        var pdf = ContentEditPdf.Make(
+            first + $" 1 1 0.9 rg 60 696 500 14 re f 0 g BT /FA 12 Tf 1 0 0 1 {right:0.##} 700 Tm (-) Tj ET " +
+            "BT /FA 12 Tf 1 0 0 1 72 686 Tm (sible for the lazy dog and the brown fox.) Tj ET",
+            fontText: Letters + "-");
+        var (_, r) = Translate(pdf, _ => "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG AND THE QUICK FOX IS THE ONE FOR THE LAZY DOG AND THE BROWN FOX.");
+        Assert.Equal(1, r.Report.Translated);
+        // No new text (a TJ with a string in it) before the band; a removed run's own TJ only moves the text position.
+        var content = ContentEditPdf.Content(r.Data!);
+        Assert.DoesNotMatch(@"\[[^\]]*[(<]", content[..content.IndexOf("re f", StringComparison.Ordinal)]);
+        Assert.Matches(@"\[[^\]]*[(<]", content[content.IndexOf("re f", StringComparison.Ordinal)..]);
+    }
+
+    [Fact]
     public void A_line_of_small_text_beside_a_line_is_not_taken_for_its_script()
     {
         // Longer than a mark and hardly smaller than the line it sits on: not a script.
@@ -794,6 +887,11 @@ public class TranslationLooksTests
     [InlineData("CMSY10", false, false)]
     [InlineData("Gotham-Medium", false, false)]
     [InlineData("Digital-Regular", false, false)]
+    [InlineData("Seven-Digital", false, false)]
+    [InlineData("Trajan-Capital", false, false)]
+    [InlineData("Space-Orbital", false, false)]
+    [InlineData("Wild-Bandit", false, false)]
+    [InlineData("Garamond-SemiBoldItal", true, true)]
     public void Font_names_that_say_bold_or_italic(string name, bool bold, bool italic)
     {
         Assert.Equal(bold, FontNames.LooksBold(name));

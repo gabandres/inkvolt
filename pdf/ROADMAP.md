@@ -783,6 +783,16 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   A prompt line asking to keep every pair "even around words you leave as they are" was tried on the six pages with
   dropped tags: 32 of 39 kept against 31 of 39 without it, no clear help, so not kept. pdfjs-check passes; the export
   corpus's Word page counts are as before (its bold and italic now read the same names). Not ported to the Mac yet.
+  Review (2026-11-19), ten findings fixed: a long paragraph's answers are joined with each seam's closing and opening
+  tags taken out (`TranslationMarkup.Join`), so a stretch cut by pieces is one stretch again and the markup is trusted; a
+  short run that starts a line splits the paragraph only when it is a raised or set-apart mark, or the line before ended
+  its sentence (CMSY's "=" inside a sentence goes on); a script widens the line step only past the room the leading leaves;
+  a line's hyphen drawn last gives way to its words only when nothing is painted over the line between them (otherwise
+  the last-drawn rule stands), and runs inside /ActualText are skipped; "Digital", "Capital", "Orbital" no longer read as
+  italic; a script's size and rise are read in the paragraph's ems, as the copy draws them; each script stretch keeps its
+  own size and rise (a footnote mark and an exponent in one paragraph); the report's tag count judges as `Read` does
+  (`TagsKept`; the 47 of 55 above recomputed from the run's saved answers, unchanged); a dead guard taken out; plain
+  halves are made only when marked ones can't be.
   **Still wrong, and why.** An underline that isn't a link's: it is a rule drawn under the words, told from a table's
   rule, a strike-out or a field's line only by where it sits; reading it as a look needs that judged first (links' own
   underlines are followed, above). A right-to-left translation is written plain: `LayOutRightToLeft` shapes each line

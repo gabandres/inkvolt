@@ -168,10 +168,11 @@ public static partial class ContentEditor
             else if (drop <= -0.12 * line.Size) script = TextScript.Super;
             if (script is not null && size > 0)
             {
-                // The page's own size and rise, within what a script can be (a crafted rise of a thousand ems is held to one).
-                var ratio = Math.Clamp(r.FontSize / line.Size, 0.4, 0.85);
+                // The page's own size and rise, within what a script can be (a crafted rise of a thousand ems is held to one);
+                // both in the paragraph's ems, as the copy draws them (its size against the paragraph's, its rise in its ems).
+                var ratio = Math.Clamp(r.FontSize / size, 0.4, 0.85);
                 scriptSize = Math.Round(ratio * size / ScriptScale, 2);
-                rise = ScriptRise(script.Value, -drop / line.Size);
+                rise = ScriptRise(script.Value, -drop / size);
             }
         }
         // A stand-in an earlier edit drew says its look only by its tag.

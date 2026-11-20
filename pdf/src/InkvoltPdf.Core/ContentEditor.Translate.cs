@@ -299,7 +299,8 @@ public static partial class ContentEditor
         var byBaseline = lines.OrderBy(l => l.Baseline).ToList();
         var result = new HashSet<PLine>(lines);
         var joined = new Dictionary<PLine, List<PLine>>();
-        // Longer scripts first: one is joined to its line before a mark set on it looks for a line of its own to join.
+        // Longer scripts first: a line that hosts a mark is longer than it, so it is joined (or not) before that mark looks
+        // for a host, and one joined as a script hosts nothing (Consider skips it).
         foreach (var i in Enumerable.Range(0, byBaseline.Count).OrderByDescending(k => Math.Min(byBaseline[k].Text.Trim().Length, MaxScriptLength + 1)))
         {
             var mark = byBaseline[i];
@@ -319,7 +320,7 @@ public static partial class ContentEditor
             }
             for (var k = i - 1; k >= 0 && mark.Baseline - byBaseline[k].Baseline <= reach * 2; k--) Consider(byBaseline[k]);
             for (var k = i + 1; k < byBaseline.Count && byBaseline[k].Baseline - mark.Baseline <= reach * 2; k++) Consider(byBaseline[k]);
-            if (host is null || joined.ContainsKey(mark)) continue; // a line with scripts of its own stays a line
+            if (host is null) continue;
             if (!joined.TryGetValue(host, out var marks)) joined[host] = marks = [];
             marks.Add(mark);
             result.Remove(mark);
@@ -351,7 +352,13 @@ public static partial class ContentEditor
             var marker = first.Text.Trim() is { Length: > 0 and <= 2 } m && !m.Any(char.IsLetterOrDigit) && !m.Any(Opens);
             if (l.Runs.Count > 1 && (note || marker))
             {
-                var line = new PLine(l.Runs[1]) { Marked = true };
+                // A footnote's or a list's own mark (raised above what follows, or set apart from it by a gap) starts an
+                // item of its own; a symbol or a small capital that just begins a line (CMSY's "−", small caps' "UN") only
+                // where the line before ended its sentence.
+                var next = l.Runs.Skip(1).FirstOrDefault(r => r.Text.Trim().Length > 0) ?? l.Runs[1];
+                var raised = first.Origin.Y < next.Origin.Y - 0.15 * next.FontSize;
+                var apart = first.Text.EndsWith(' ') || next.Box.X - first.Box.Right > 0.25 * next.FontSize;
+                var line = new PLine(l.Runs[1]) { Marked = raised || apart, MarkStart = true };
                 foreach (var r in l.Runs.Skip(2)) line.Add(r);
                 result.Add(line);
             }
@@ -529,7 +536,7 @@ public static partial class ContentEditor
         var wideBottom = wide is null ? bottom : Math.Min(bottom, Down(wide));
         // What the page clips to hides whatever goes past it: new text stays inside, or is flagged. Each line is written
         // where one of the old lines was drawn, so what counts is what they clip to together.
-        var drawnAt = LineRuns(p, PlainRun(p.Runs));
+        var drawnAt = LineRuns(p, PlainRun(p.Runs), fills ?? []);
         // Lines below the old ones are written with the last: whatever clips that clips them, whatever the others do.
         if (drawnAt[^1].Info?.Clip is { } lowest)
         {
@@ -896,24 +903,36 @@ public static partial class ContentEditor
 
     /// <summary>
     /// For each of a paragraph's old lines, the run a new line there is written at: its last one in the paragraph's color
-    /// (what the line draws last has nothing of the line painted over it) with a letter or digit in it, not a hyphen drawn
-    /// on its own after it; a line with none takes the one above's.
+    /// (what the line draws last has nothing of the line painted over it), not one inside an /ActualText; a line with
+    /// none takes the one above's. A line-end hyphen drawn last on its own gives way to the run before it when nothing
+    /// <paramref name="fills"/> paints comes between them over the line.
     /// </summary>
-    private static TextRun[] LineRuns(TextParagraph p, TextRun plain)
+    private static TextRun[] LineRuns(TextParagraph p, TextRun plain, IReadOnlyList<(RectD Box, int Id)> fills)
     {
         // New text takes the color of the run it is written at: the color most of the paragraph is in, not a link's.
         var color = p.Runs.Where(r => r.Info is not null).GroupBy(r => r.Color).MaxBy(g => g.Sum(r => r.Text.Trim().Length))?.Key ?? plain.Color;
         var chosen = new TextRun?[p.Lines.Count];
+        var wordy = new TextRun?[p.Lines.Count]; // each line's last run with a letter or digit
         foreach (var run in p.Runs)
         {
             var at = 0;
             for (var k = 1; k < p.Lines.Count; k++)
                 if (Math.Abs(run.Box.CenterY - p.Lines[k].CenterY) < Math.Abs(run.Box.CenterY - p.Lines[at].CenterY)) at = k;
-            if (run.Color != color || run.Info is null) continue;
-            if (chosen[at] is not { } had || Wordy(run) && !Wordy(had) || Wordy(run) == Wordy(had) && DrawOrder(run) > DrawOrder(had)) chosen[at] = run;
+            if (run.Color != color || run.Info is null || run.Blocked == PdfStrings.Edit_BlockedActualText) continue;
+            if (chosen[at] is not { } had || DrawOrder(run) > DrawOrder(had)) chosen[at] = run;
+            if (Wordy(run) && (wordy[at] is not { } w || DrawOrder(run) > DrawOrder(w))) wordy[at] = run;
         }
-        // A line-end hyphen drawn on its own is often a tagged piece of its own whose /ActualText (a soft hyphen) readers
-        // show in place of whatever is drawn there: a new line written in it read as "­" (census-p60 p. 7 with a real model).
+        // A line-end hyphen drawn on its own is often a tagged piece of its own whose /ActualText (a soft hyphen, in the
+        // structure tree) readers show in place of whatever is drawn there: a new line written in it read as "­"
+        // (census-p60 p. 7 with a real model). The word before it takes the line when nothing is painted over the line between.
+        for (var k = 0; k < chosen.Length; k++)
+        {
+            if (chosen[k] is not { } last || Wordy(last) || wordy[k] is not { } word) continue;
+            int from = DrawOrder(word), to = DrawOrder(last);
+            var line = p.Lines[k];
+            if (!fills.Any(f => f.Id > from && f.Id < to && f.Box.Right > line.X && f.Box.X < line.Right && f.Box.Bottom > line.Y && f.Box.Y < line.Bottom))
+                chosen[k] = word;
+        }
         static bool Wordy(TextRun r) => r.Text.Any(char.IsLetterOrDigit);
         var result = new TextRun[chosen.Length];
         var fallback = chosen.FirstOrDefault(r => r is not null) ?? Anchor(p.Runs);
@@ -1151,8 +1170,8 @@ public static partial class ContentEditor
             var plain = PlainRun(p.Runs) with { };
             // Turned text: which old line each new one goes at is told in its frame, where it was laid out.
             var newLines = slots[i] is { Part: { } turnedPart, Upright.Paragraph: { } inFrame }
-                ? OnPage(LinesToRuns(inFrame, LineRuns(inFrame, PlainRun(inFrame.Runs)), layout, fit), turnedPart)
-                : LinesToRuns(p, LineRuns(p, plain), layout, fit);
+                ? OnPage(LinesToRuns(inFrame, LineRuns(inFrame, PlainRun(inFrame.Runs), framed.TryGetValue(turnedPart.Frame.Turn, out var inTurn) ? inTurn.Fills : []), layout, fit), turnedPart)
+                : LinesToRuns(p, LineRuns(p, plain, walk.Fills), layout, fit);
             plain.Size *= fit;
             Target target;
             List<(int Start, int End, string Text)> edits;

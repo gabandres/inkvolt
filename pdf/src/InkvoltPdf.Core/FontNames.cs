@@ -54,7 +54,9 @@ public static partial class FontNames
     [GeneratedRegex("^Medi(Ital)?$", RegexOptions.IgnoreCase)]
     private static partial Regex UrwMedium();
 
-    [GeneratedRegex("(?i:Ital)$|^It$|[a-z]It$")]
+    // A style of capitalized words ending in "Ital" or "It" ("ReguItal", "MediItal", "BoldIt", "SemiboldIt", "It"); not a
+    // word that merely ends so ("Digital", "Capital", "Orbital", "Bandit").
+    [GeneratedRegex("^(?:[A-Z][a-z]*)*?(?:Ital|It)$")]
     private static partial Regex StyleItalic();
 
     [GeneratedRegex(@"^CM(?:BX(?:SL|TI)?|B|MIB|BSY|SSBX)\d+$")]
