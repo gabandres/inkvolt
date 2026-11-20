@@ -722,23 +722,26 @@ public static partial class ContentEditor
     /// </summary>
     private static void WidenForPicture(PageContent content, PLine l, List<PLine> lines)
     {
+        if (content.Images.Count == 0) return;
         var size = l.Size;
         var first = l.Box.X;
-        var above = lines.Where(o => o != l && o.Baseline < l.Baseline && l.Baseline - o.Baseline <= 2.5 * size && o.Box.Right > first && o.Box.X < l.Box.Right)
-            .MaxBy(o => o.Baseline);
-        if (above is null || above.Box.X >= first - 0.5 * size) return;
+        var box = l.Box;
         for (var guard = 0; guard < 4; guard++)
         {
-            var x = l.Box.X;
+            var x = box.X;
             var next = content.Images.Where(img => img.Blocked is null && !img.Turned && img.Id >= 0 && double.IsFinite(img.Box.X + img.Box.Y + img.Box.Width + img.Box.Height)
                                                    && img.Box.Height <= 2.5 * size && img.Box.Height >= 0.5 && img.Box.Right <= x + 1 && x - img.Box.Right <= size
                                                    && img.Box.CenterY >= l.Box.Y - 0.25 * size && img.Box.CenterY <= l.Box.Bottom + 0.25 * size)
                 .MaxBy(img => img.Box.Right);
             if (next is null) break;
-            l.Box = l.Box.Union(next.Box);
+            box = box.Union(next.Box);
         }
-        if (Math.Abs(l.Box.X - above.Box.X) > Tolerance(size)) l.Box = l.Box with { X = first, Width = l.Box.Right - first };
-        else l.PictureRoom = first - l.Box.X;
+        if (box.X >= first - 0.01) return;
+        var above = lines.Where(o => o != l && o.Baseline < l.Baseline && l.Baseline - o.Baseline <= 2.5 * size && o.Box.Right > first && o.Box.X < l.Box.Right)
+            .MaxBy(o => o.Baseline);
+        if (above is null || Math.Abs(box.X - above.Box.X) > Tolerance(size)) return;
+        l.Box = box;
+        l.PictureRoom = first - box.X;
     }
 
     // ---- Laying out new text ----
