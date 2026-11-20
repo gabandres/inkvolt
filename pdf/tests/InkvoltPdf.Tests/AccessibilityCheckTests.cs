@@ -552,6 +552,114 @@ public class AccessibilityCheckTests
 
     }
 
+    /// <summary>A simple font F2 at <paramref name="at"/> showing A and B with <paramref name="widths"/>, its program after its descriptor.</summary>
+    private static string[] SimpleFont(int at, byte[] program, string widths, string fontFile, string streamExtra = "") =>
+    [
+        $"<< /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Test /FirstChar 65 /LastChar 66 /Widths {widths} /Encoding /WinAnsiEncoding /FontDescriptor {at + 1} 0 R >>",
+        $"<< /Type /FontDescriptor /FontName /ABCDEF+Test /Flags 32 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 {fontFile} {at + 2} 0 R >>",
+        Core2Pdf.Stream(Encoding.Latin1.GetString(program), streamExtra),
+    ];
+
+    private static string[] Type1Font(byte[] program, string widths) => SimpleFont(11, program, widths, "/FontFile");
+
+    private static string[] CffFont(byte[] program, string widths) => SimpleFont(11, program, widths, "/FontFile3", "/Subtype /Type1C");
+
+    /// <summary>A composite font F2 (Identity-H) over a CID-keyed CFF program, CIDs 36 and 37 (A and B) with <paramref name="widths"/>.</summary>
+    private static A11yDoc CidCffFont(byte[] program, string widths) => InFont(
+    [
+        "<< /Type /Font /Subtype /Type0 /BaseFont /ABCDEF+Test /Encoding /Identity-H /DescendantFonts [12 0 R] /ToUnicode 15 0 R >>",
+        $"<< /Type /Font /Subtype /CIDFontType0 /BaseFont /ABCDEF+Test /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor 13 0 R /DW 1000 /W [36 [{widths}]] >>",
+        "<< /Type /FontDescriptor /FontName /ABCDEF+Test /Flags 32 /FontBBox [0 -200 1000 800] /ItalicAngle 0 /Ascent 800 /Descent -200 /CapHeight 700 /StemV 80 /FontFile3 14 0 R >>",
+        Core2Pdf.Stream(Encoding.Latin1.GetString(program), "/Subtype /CIDFontType0C"),
+        Core2Pdf.Stream("1 begincodespacerange <0000> <FFFF> endcodespacerange 2 beginbfchar <0024> <0041> <0025> <0042> endbfchar"),
+    ], "<00240025>");
+
+    [Fact]
+    public void Type1WidthsComeFromTheCharStrings()
+    {
+        // A (600) and B (700) set by hsbw; B's written past ±1131 as a 32-bit number in a font of 0.0005 to the unit.
+        var program = TestFontPrograms.Type1([("A", TestFontPrograms.Hsbw(600)), ("B", TestFontPrograms.Hsbw(700))]);
+        Passes(InFont(Type1Font(program, "[600 700]")));
+        Passes(InFont(Type1Font(program, "[601 699]"))); // within a unit, as veraPDF allows
+        Fails(InFont(Type1Font(program, "[600 650]")), "31-016");
+        var half = TestFontPrograms.Type1([("A", TestFontPrograms.Hsbw(1200)), ("B", TestFontPrograms.Hsbw(1400))], "0.0005");
+        Passes(InFont(Type1Font(half, "[600 700]")));
+        Fails(InFont(Type1Font(half, "[1200 1400]")), "31-016");
+        // sbw (sbx sby wx wy) and a width divided (div) give it too.
+        var sbw = TestFontPrograms.Type1([("A", [.. TestFontPrograms.Num(0), .. TestFontPrograms.Num(0), .. TestFontPrograms.Num(600), .. TestFontPrograms.Num(0), 12, 7, 14]),
+            ("B", [.. TestFontPrograms.Num(0), .. TestFontPrograms.Num(1050), .. TestFontPrograms.Num(3), 12, 12, .. TestFontPrograms.Num(2), 12, 12, 13, 14])]);
+        var widths = InkvoltPdf.Core.Type1Program.Read(sbw)!;
+        Assert.Equal(600, widths.Advance("A"));
+        Assert.Equal(175, widths.Advance("B")); // 1050 / 3 / 2
+        Passes(InFont(Type1Font(sbw, "[600 175]")));
+        Fails(InFont(Type1Font(sbw, "[600 350]")), "31-016");
+    }
+
+    [Fact]
+    public void CffWidthsComeFromTheCharStrings()
+    {
+        // Default width 500 (A has none), nominal 600 + 100 (B's leading operand, found after a call to a local
+        // subroutine that holds the hints).
+        var privateDict = new TestFontPrograms.Private(500, 600, [TestFontPrograms.Cs(10, 20, TestFontPrograms.HStem, TestFontPrograms.Return)]);
+        var cff = TestFontPrograms.Cff([(34, TestFontPrograms.Cs(TestFontPrograms.EndChar)), (35, TestFontPrograms.Cs(100, -107, TestFontPrograms.CallSubr, 0, 0, TestFontPrograms.RMoveTo, TestFontPrograms.EndChar))], [privateDict]);
+        var program = CffProgram.Read(cff)!;
+        Assert.Equal(500, program.Advance("A"));
+        Assert.Equal(700, program.Advance("B"));
+        Assert.Null(program.Advance("C"));
+        Passes(InFont(CffFont(cff, "[500 700]")));
+        Fails(InFont(CffFont(cff, "[500 600]")), "31-016");
+        // A FontMatrix of 0.0005 to the unit (a real number in the Top DICT) halves them.
+        var half = TestFontPrograms.Cff([(34, TestFontPrograms.Cs(TestFontPrograms.EndChar)), (35, TestFontPrograms.Cs(100, TestFontPrograms.EndChar))], [privateDict], topMatrix: "0.0005");
+        Assert.Equal(350, CffProgram.Read(half)!.Advance("B"));
+        Fails(InFont(CffFont(half, "[500 700]")), "31-016");
+        Passes(InFont(CffFont(half, "[250 350]")));
+    }
+
+    [Fact]
+    public void CidKeyedCffWidthsComeFromEachGlyphsPrivateDict()
+    {
+        // CID 36 in font DICT 0 (nominal 0), CID 37 in font DICT 1 (nominal 400, and its own FontMatrix of 0.002): FDSelect picks.
+        var cff = TestFontPrograms.Cff([(36, TestFontPrograms.Cs(667, TestFontPrograms.EndChar)), (37, TestFontPrograms.Cs(-100, TestFontPrograms.EndChar))],
+            [new(1000, 0), new(1000, 400, FontMatrix: "0.002")], cid: true, fdOfGlyph: [0, 0, 1]);
+        var program = CffProgram.Read(cff)!;
+        Assert.True(program.IsCid);
+        Assert.Equal(667, program.AdvanceOfCid(36));
+        Assert.Equal(600, program.AdvanceOfCid(37));
+        Assert.Null(program.AdvanceOfCid(38));
+        Passes(CidCffFont(cff, "667 600"));
+        Fails(CidCffFont(cff, "667 300"), "31-016");
+    }
+
+    [Fact]
+    public void HostileFontProgramsGiveNoWidthAndNoHang()
+    {
+        // A subroutine that calls itself; one past the end; a charstring that draws before any width; hsbw with too few numbers.
+        var loop = new TestFontPrograms.Private(500, 600, [TestFontPrograms.Cs(-107, TestFontPrograms.CallSubr)]);
+        var cff = TestFontPrograms.Cff([(34, TestFontPrograms.Cs(-107, TestFontPrograms.CallSubr)), (35, TestFontPrograms.Cs(5, TestFontPrograms.CallSubr)), (36, TestFontPrograms.Cs(1, 2, (byte)5))], [loop]);
+        var program = CffProgram.Read(cff)!;
+        Assert.Null(program.Advance("A"));
+        Assert.Null(program.Advance("B"));
+        Assert.Null(program.Advance("C"));
+        DoesNotFail(InFont(CffFont(cff, "[1 2]")), "31-016");
+        // A stack past 48 numbers.
+        Assert.Null(CffProgram.Read(TestFontPrograms.Cff([(34, TestFontPrograms.Cs([.. Enumerable.Repeat<object>(1, 60), TestFontPrograms.EndChar]))], [loop]))!.Advance("A"));
+        // CID-keyed: a font DICT index past FDArray, then its range running far past the glyphs: no width, quickly.
+        var cid = TestFontPrograms.Cff([(36, TestFontPrograms.Cs(1, TestFontPrograms.EndChar))], [new(1000, 0)], cid: true, fdOfGlyph: [0, 7]);
+        Assert.Null(CffProgram.Read(cid)!.AdvanceOfCid(36));
+        var bad = cid.ToArray();
+        bad[^2] = 0xFF; // the sentinel: 65,282 glyphs
+        Assert.Null(CffProgram.Read(bad)!.AdvanceOfCid(36));
+        // Type 1: a division by zero, hsbw with one number, a last charstring whose length runs past the end of the program.
+        var t1 = TestFontPrograms.Type1([("A", [.. TestFontPrograms.Num(5), .. TestFontPrograms.Num(0), 12, 12, 13]), ("B", [.. TestFontPrograms.Num(5), 13]),
+            ("C", TestFontPrograms.Hsbw(500))], cutLast: true);
+        var read = InkvoltPdf.Core.Type1Program.Read(t1)!;
+        Assert.Null(read.Advance("A"));
+        Assert.Null(read.Advance("B"));
+        Assert.True(read.HasName("C"));
+        Assert.Null(read.Advance("C"));
+        DoesNotFail(InFont(Type1Font(t1, "[1 2]")), "31-016");
+    }
+
     [Fact]
     public void CompositeFontsAndCMaps()
     {

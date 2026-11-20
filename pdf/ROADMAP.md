@@ -222,7 +222,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   outlines it), what is wrong and what fixes it; the 48 human conditions are a 15-item checklist in the same pane; the
   report saves as one accessible HTML page; Batch's Check Accessibility action writes it beside each file and fails a
   file with failures. Not checked: 09-007, 09-008 (Ruby, Warichu), 28-018 (a printer's mark's appearance), 31-023
-  (veraPDF doesn't check these either); widths of CFF and Type 1 programs. Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
+  (veraPDF doesn't check these either). Widths (31-016) are checked against every kind of embedded program: TrueType's
+  hmtx, and (done 2026-11-19) CFF and Type 1 charstrings (`CffProgram`: the Type 2 width rule, local and global
+  subroutines followed, each glyph's Private DICT through FDSelect, FontMatrix; `Type1Program`: hsbw or sbw, div,
+  FontMatrix, lenIV; bounded against programs built to loop; tests on crafted fonts in `AccessibilityCheckTests`). Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
   OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
   conditions for 50 (wcag-table-word, long called a veraPDF inconsistency, was a later object stream PDFsharp missed; see
   the tool's README); veraPDF's own 297 PDF/UA-1 test
