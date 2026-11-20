@@ -1753,7 +1753,8 @@ public partial class DocumentTab
         switch (outcome)
         {
             case EditOutcome.Done when made is { Pages: > 0 } m:
-                Notify(Loc.Plural(m.Pages, Strings.Editable_Done_One, Strings.Editable_Done_Many, m.Words, string.Join(", ", m.Fonts)),
+                Notify(Loc.Format(Strings.Editable_Done, Loc.Plural(m.Words, Strings.Editable_Words_One, Strings.Editable_Words_Many),
+                        Loc.Plural(m.Pages, Strings.Editable_Pages_One, Strings.Editable_Pages_Many), string.Join(", ", m.Fonts)),
                     Strings.Editable_EditAction, () => { if (!IsEditingContent) SetEditContent(true); });
                 return true;
             case EditOutcome.Done or EditOutcome.NoChange:

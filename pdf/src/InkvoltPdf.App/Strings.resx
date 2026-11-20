@@ -3933,13 +3933,25 @@ Modified {1:g}</value>
     <value>Recognize Text</value>
     <comment>Button in a message</comment>
   </data>
-  <data name="Editable_Done_One" xml:space="preserve">
-    <value>Made {1} words editable on {0} page, in {2}. Click a paragraph with Edit Text &amp; Images to change it.</value>
-    <comment>{0} pages (1), {1} words, {2} the fonts</comment>
+  <data name="Editable_Done" xml:space="preserve">
+    <value>Made {0} on {1} editable, in {2}. Click a paragraph with Edit Text &amp; Images to change it.</value>
+    <comment>{0} is Editable_Words…, {1} Editable_Pages…, {2} the fonts</comment>
   </data>
-  <data name="Editable_Done_Many" xml:space="preserve">
-    <value>Made {1} words editable on {0} pages, in {2}. Click a paragraph with Edit Text &amp; Images to change it.</value>
-    <comment>{0} pages, {1} words, {2} the fonts</comment>
+  <data name="Editable_Words_One" xml:space="preserve">
+    <value>{0} word</value>
+    <comment>Count</comment>
+  </data>
+  <data name="Editable_Words_Many" xml:space="preserve">
+    <value>{0} words</value>
+    <comment>Count</comment>
+  </data>
+  <data name="Editable_Pages_One" xml:space="preserve">
+    <value>{0} page</value>
+    <comment>Count</comment>
+  </data>
+  <data name="Editable_Pages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+    <comment>Count</comment>
   </data>
   <data name="Editable_EditAction" xml:space="preserve">
     <value>Edit Text</value>

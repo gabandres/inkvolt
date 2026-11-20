@@ -12,7 +12,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Batch, Scan, the exports, Compare Files and Redact by Pattern now read scans in the language you last chose in Recognize Text.
 - With Tesseract, a word it wasn't sure of is listed among the suspect words to check.
 - Recognize Text straightens a page photographed at an angle and flattens lines bent by a book's spine before reading it, so phone photos and open books read much better. Replace the scans with the cleaned pages to keep them straightened. Both are on by default and leave pages that don't need them as they are.
-- Make Text Editable (Review menu, and Scan & OCR on the bar) turns a scanned page's recognized text into real text, in the installed font closest to the scan's and at its size and place, so you can edit its paragraphs with Edit Text & Images. The scan is covered behind the text in the paper's own colour, or left showing if you prefer. Undo puts the page back.
+- Make Text Editable (Review menu, and Scan & OCR on the bar) turns a scanned page's recognized text into real text, in the installed font closest to the scan's (italic, bold and coloured text too) and at its size and place, so you can edit its paragraphs with Edit Text & Images. The scan is covered behind the text in the paper's own colour, or left showing if you prefer. Undo puts the page back.
 
 ## 1.15.0
 - Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.

@@ -15,12 +15,14 @@ public sealed record EditableTextResult(byte[] Data, int Pages, int Words, IRead
 /// Make Text Editable (roadmap 2.2, for 2.1's paragraph editing): a scanned page's recognized words (its Inkvolt text
 /// layer, <see cref="TextLayer"/>) become real, visible text, so Edit Text &amp; Images can change them. The words are put
 /// in lines (by their angle, then their height on the page), the lines in paragraphs. The font is matched, as recognized
-/// words carry none: of the installed families whose glyphs' proportions fit the words' boxes, the one whose words, set
-/// where the scan has them and drawn, look most like the scan (<see cref="ScanLook"/>); a heading picks among every face,
-/// bold ones too. Each line takes the size and baseline its words' boxes give in that font, each word starts where the scan
-/// has it. Lines of a paragraph get one size, a steady line step and their left edges lined up, as 2.1 groups a
-/// paragraph. The scan is covered behind each line with the paper's own colour (or left showing), and the invisible layer
-/// goes.
+/// words carry none (<see cref="FontMatch"/>): the scan's class (serif, sans serif or monospaced) from the common
+/// families, then of every installed family of that class whose glyphs' proportions fit the words' boxes, the one whose
+/// words, drawn small at the scan's size, look most like the scan's; each paragraph then takes the face of that family
+/// (regular, bold, italic, bold italic) that looks most like it, and a heading the face of any family short-listed. Each
+/// paragraph is drawn in its ink's colour. Each line takes the size and baseline its words' boxes give in its face, each
+/// word starts where the scan has it. Lines of a paragraph get one size, a steady line step and their left edges lined up,
+/// as 2.1 groups a paragraph. The scan is covered behind each line with the paper's own colour (or left showing), and the
+/// invisible layer goes.
 /// </summary>
 public static class EditableText
 {
@@ -33,34 +35,71 @@ public static class EditableText
     /// <summary>A family whose measures miss the words by more than this (<see cref="Misfit"/>) isn't compared by look.</summary>
     internal const double MaxMisfit = 0.2;
 
-    /// <summary>The most headings a page compares every installed face with (each one draws the line in each of them).</summary>
+    /// <summary>The most headings a page compares the short-listed faces with.</summary>
     public const int MaxHeadings = 6;
 
     /// <summary>A recognized word longer than this (characters) is no word: left out.</summary>
     public const int MaxWordLength = 200;
 
-    internal sealed record Family(string Name, string Pdf, string Regular, string? Bold);
+    /// <summary>A font file larger than this (a CJK collection) isn't tried: its look is no Latin text's.</summary>
+    internal const long MaxFontFile = 4_000_000;
 
-    /// <summary>The installed families the text is matched against: the usual faces of printed documents on Windows.</summary>
-    internal static readonly Family[] Families =
-    [
-        new("Times New Roman", "TimesNewRoman", "times.ttf", "timesbd.ttf"),
-        new("Arial", "Arial", "arial.ttf", "arialbd.ttf"),
-        new("Calibri", "Calibri", "calibri.ttf", "calibrib.ttf"),
-        new("Cambria", "Cambria", "cambria.ttc", "cambriab.ttf"),
-        new("Georgia", "Georgia", "georgia.ttf", "georgiab.ttf"),
-        new("Verdana", "Verdana", "verdana.ttf", "verdanab.ttf"),
-        new("Segoe UI", "SegoeUI", "segoeui.ttf", "segoeuib.ttf"),
-        new("Courier New", "CourierNew", "cour.ttf", "courbd.ttf"),
-    ];
+    /// <summary>
+    /// How much more like the scan another family must look than a common one to be chosen: print is mostly set in the
+    /// common families, and at 150 dpi faces of one design (Times New Roman, Baskerville) look alike within this.
+    /// </summary>
+    internal const double CommonFirst = 0.03;
 
-    private static readonly ConcurrentDictionary<string, TrueTypeFont?> Loaded = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>A page's family is judged on the words that look most like it, this share of them: a page's italic or bold words look like no regular face.</summary>
+    internal const double FamilyShare = 0.6;
 
-    /// <summary>An installed face under its family's PDF name ("TimesNewRoman", "ArialBold"), loaded once for the run.</summary>
-    internal static TrueTypeFont? Face(Family family, bool bold) =>
-        (bold ? family.Bold : family.Regular) is { } file
-            ? Loaded.GetOrAdd(file, f => SystemFonts.Get(f) is { } font ? TrueTypeFont.Load(family.Pdf + (bold ? "Bold" : ""), font.Bytes) : null)
-            : null;
+    /// <summary>Of the installed families of the scan's class, at most this many are measured (the common ones first).</summary>
+    internal const int MaxCandidates = 24;
+
+    /// <summary>A face's style.</summary>
+    [Flags]
+    internal enum Style { Regular = 0, Bold = 1, Italic = 2, BoldItalic = 3 }
+
+    /// <summary>An installed family: its name, its name in the PDF ("TimesNewRoman"), class and each face's file.</summary>
+    internal sealed record Family(string Name, string Pdf, StandInFonts.Kind Kind, string Regular, string? Bold, string? Italic, string? BoldItalic, bool Common)
+    {
+        public string? File(Style style) => style switch
+        {
+            Style.Bold => Bold,
+            Style.Italic => Italic,
+            Style.BoldItalic => BoldItalic,
+            _ => Regular,
+        };
+    }
+
+    /// <summary>Every installed family to match against, the common ones first (file sizes checked, not the files read).</summary>
+    internal static IReadOnlyList<Family> Families => FamiliesOnce.Value;
+
+    private static readonly Lazy<List<Family>> FamiliesOnce = new(() =>
+        [.. StandInFonts.AllFamilies()
+            .Where(f => SystemFonts.Size(f.Regular) is { } size && size <= MaxFontFile)
+            .Select(f => new Family(f.Name, new string([.. f.Name.Where(char.IsAsciiLetterOrDigit)]), f.Kind, f.Regular, f.Bold, f.Italic, f.BoldItalic, f.Common))]);
+
+    /// <summary>The families a page with no picture to compare with is measured against: the common ones.</summary>
+    private static IEnumerable<Family> Common => Families.Where(f => f.Common);
+
+    private static readonly ConcurrentDictionary<(Family Family, Style Style), TrueTypeFont?> Loaded = new();
+
+    /// <summary>An installed face under its family's PDF name ("TimesNewRoman", "ArialBoldItalic"), loaded once for the run; null when the family hasn't the style.</summary>
+    internal static TrueTypeFont? Face(Family family, Style style) =>
+        Loaded.GetOrAdd((family, style), key => key.Family.File(key.Style) is { } file && SystemFonts.Size(file) is { } size && size <= MaxFontFile
+                                                && SystemFonts.Get(file) is { } font
+            ? TrueTypeFont.Load(key.Family.Pdf + (key.Style == Style.Regular ? "" : key.Style.ToString()), font.Bytes)
+            : null);
+
+    /// <summary>A face's name as people know it ("Times New Roman Bold Italic").</summary>
+    internal static string NameOf(Family family, Style style) => family.Name + style switch
+    {
+        Style.Bold => " Bold",
+        Style.Italic => " Italic",
+        Style.BoldItalic => " Bold Italic",
+        _ => "",
+    };
 
     /// <summary>The pages that have recognized text to make editable, in order.</summary>
     public static IReadOnlyList<int> Pages(byte[] data, string? password) => [.. TextLayer.Words(data, password).Keys.Order()];
@@ -76,18 +115,19 @@ public static class EditableText
         var chosen = pages.Distinct().Where(layers.ContainsKey).Order().ToList();
         if (chosen.Count == 0) return new EditableTextResult(data, 0, 0, []);
         var plans = new Dictionary<int, PagePlan>();
-        // The paper behind each line, from the page as it shows.
         var papers = new Dictionary<int, (double R, double G, double B)[]>();
+        var match = new FontMatch(cancel);
         using (var engine = PdfEngine.Open(data, InputFileTypes.PDF, password))
             for (var i = 0; i < chosen.Count; i++)
             {
                 cancel.ThrowIfCancellationRequested();
                 progress?.Report((i, chosen.Count));
                 var page = chosen[i];
-                var scan = new ScanLook(engine, page, cancel);
-                if (Plan(layers[page].Words, scan.Resemblance) is not { Lines.Count: > 0 } plan) continue;
+                var look = new ScanLook(engine, page, match, cancel);
+                if (Plan(layers[page].Words, look) is not { Lines.Count: > 0 } plan) continue;
                 plans[page] = plan;
-                if (!keepScan) papers[page] = PaperBehind(engine, page, plan, cancel);
+                // The paper behind each line, from the page as it shows.
+                if (!keepScan) papers[page] = [.. plan.Lines.Select(l => look.Paper(Cover(l, Shape(l, plan.FaceOf(l)), plan.FaceOf(l))))];
             }
         if (plans.Count == 0) return new EditableTextResult(data, 0, 0, []);
 
@@ -125,7 +165,7 @@ public static class EditableText
 
     /// <summary>
     /// A line of text to write: its words, its frame's angle (degrees clockwise; the frame is the page turned back by it about
-    /// the page's top left), size (points), baseline and bold, in frame coordinates.
+    /// the page's top left), size (points), baseline, face and colour, in frame coordinates.
     /// </summary>
     internal sealed class PlanLine(List<PlanWord> words, double angle)
     {
@@ -133,9 +173,13 @@ public static class EditableText
         public double Angle { get; } = angle;
         public double Size { get; set; }
         public double Baseline { get; set; }
-        public bool Bold { get; set; }
+        public Style Style { get; set; }
+        public bool Bold => Style.HasFlag(Style.Bold);
+        public bool Italic => Style.HasFlag(Style.Italic);
         /// <summary>A family of its own (a heading set apart from the page's text); null: the page's.</summary>
         public Family? Family { get; set; }
+        /// <summary>Its ink's colour (0 to 1 each); black unless its paragraph's ink is clearly another.</summary>
+        public (double R, double G, double B) Color { get; set; }
         public double Left => Words[0].Pen;
         public double Right => Words[^1].Right;
         public double Top => Words.Min(w => w.Top);
@@ -151,10 +195,13 @@ public static class EditableText
     {
         public Family FamilyOf(PlanLine line) => line.Family ?? Family;
 
-        public TrueTypeFont FaceOf(PlanLine line) => (line.Bold ? Face(FamilyOf(line), true) : null) ?? Face(FamilyOf(line), false)!;
+        /// <summary>The style a line is drawn in: its own when its family has that face, else regular.</summary>
+        public Style StyleOf(PlanLine line) => Face(FamilyOf(line), line.Style) is not null ? line.Style : Style.Regular;
+
+        public TrueTypeFont FaceOf(PlanLine line) => Face(FamilyOf(line), StyleOf(line))!;
 
         /// <summary>The face a line is drawn in, as people know it ("Times New Roman Bold").</summary>
-        public string NameOf(PlanLine line) => FamilyOf(line).Name + (line.Bold && Face(FamilyOf(line), true) is not null ? " Bold" : "");
+        public string NameOf(PlanLine line) => EditableText.NameOf(FamilyOf(line), StyleOf(line));
     }
 
     /// <summary>How far a word's ink reaches (ems): left and right from the pen, top and bottom from the baseline (up positive).</summary>
@@ -197,18 +244,19 @@ public static class EditableText
         return left > right ? new Ink(0, line.Width, 0.7, 0, true) : new Ink(left, right, top, bottom, missing);
     }
 
+
     /// <summary>
     /// The page's recognized words as lines to write: grouped by angle and height into lines, the family that fits them
-    /// best chosen, each line's size, baseline and boldness measured, its paragraph's lines made alike. Null when no
-    /// installed family is there to write in.
+    /// best chosen, each line's size and baseline measured, its paragraph's lines made alike, then each paragraph's face
+    /// and colour taken from the scan (<paramref name="look"/>; without it, by measure among the common families, regular
+    /// and black). Null when no installed family is there to write in.
     /// </summary>
-    /// <param name="resemblance">How much a font set where the words are looks like the scan (null: by measure alone).</param>
-    internal static PagePlan? Plan(IReadOnlyList<OcrWord> recognized, Func<TrueTypeFont, List<PlanLine>, bool, double>? resemblance = null)
+    internal static PagePlan? Plan(IReadOnlyList<OcrWord> recognized, ScanLook? look = null)
     {
         _inks = [];
         try
         {
-            return Planned(recognized, resemblance);
+            return Planned(recognized, look);
         }
         finally
         {
@@ -216,73 +264,98 @@ public static class EditableText
         }
     }
 
-    private static PagePlan? Planned(IReadOnlyList<OcrWord> recognized, Func<TrueTypeFont, List<PlanLine>, bool, double>? resemblance)
+    private static PagePlan? Planned(IReadOnlyList<OcrWord> recognized, ScanLook? look)
     {
         var words = recognized.Where(w => w.Text.Trim() is { Length: > 0 and <= MaxWordLength } && w.Rect.Width > 0 && w.Rect.Height > 0
                                           && double.IsFinite(w.Angle) && double.IsFinite(w.Rect.X) && double.IsFinite(w.Rect.Y)).Take(MaxWords).ToList();
         if (words.Count == 0) return null;
         var lines = new List<PlanLine>();
-        foreach (var group in ByAngle(words)) lines.AddRange(LinesOf(group.Words, group.Angle));
+        foreach (var (angle, group) in ByAngle(words)) lines.AddRange(LinesOf(group, angle));
         if (lines.Count == 0) return null;
 
         // Do the boxes hold each word's own ink, or the line's height for every word? Words in one line all as tall: the line's.
         var lineBoxes = LineBoxes(lines);
-        var family = Choose(lines, lineBoxes, resemblance);
+        var family = Choose(lines, lineBoxes, look);
         if (family is null) return null;
-        var regular = Face(family, false)!;
+        var regular = Face(family, Style.Regular)!;
         foreach (var line in lines) Measure(line, regular, lineBoxes);
         var plan = new PagePlan(family, lines);
-        Paragraphs(plan);
+        var paragraphs = Paragraphs(plan);
+        if (look is null) return plan;
 
-        // A line on its own may be set in another family or weight: it takes the face that fits it clearly better by
-        // measure; a heading (a line on its own a sixth bigger than the body text or more, the first few on the page) the
-        // face of them all that looks most like it.
-        var inParagraphs = lines.GroupBy(l => l.Paragraph).Where(g => g.Count() >= 2).SelectMany(g => g).Select(l => l.Size).ToList();
+        // Each paragraph in the face of the family that looks most like it (bold, italic), a heading (a line on its own a
+        // sixth bigger than the body text or more, the first few on the page) in that of any family short-listed; each in
+        // its ink's colour. The faces' words are drawn together, once for the page.
+        var inParagraphs = paragraphs.Where(p => p.Count >= 2).SelectMany(p => p).Select(l => l.Size).ToList();
         var bodySize = Median(inParagraphs.Count > 0 ? inParagraphs : [.. lines.Select(l => l.Size)]);
-        var headings = 0;
-        foreach (var alone in lines.GroupBy(l => l.Paragraph).Where(g => g.Count() == 1).Select(g => g.First()))
+        var headings = paragraphs.Where(p => p.Count == 1 && p[0].Size >= 1.15 * bodySize && p[0].Words.Sum(w => w.Text.Count(char.IsLetter)) >= 6).Take(MaxHeadings).ToHashSet();
+        var samples = paragraphs.ToDictionary(p => p, p => SampleOf(p, 10));
+        List<(Family Family, Style Style)> FacesOf(IEnumerable<Family> families) =>
+            [.. families.SelectMany(f => new[] { Style.Regular, Style.Bold, Style.Italic, Style.BoldItalic }.Select(s => (f, s))).Where(x => Face(x.Item1, x.Item2) is not null)];
+        var bodyFaces = FacesOf([family]);
+        var headingFaces = FacesOf(look.Match.HeadingFamilies(family));
+        look.Draw([.. bodyFaces.SelectMany(x => samples.Where(kv => !headings.Contains(kv.Key)).SelectMany(kv => kv.Value).Select(s => (Face(x.Family, x.Style)!, s.Word.Text))),
+                   .. headingFaces.SelectMany(x => headings.SelectMany(h => samples[h]).Select(s => (Face(x.Family, x.Style)!, s.Word.Text)))]);
+        foreach (var p in paragraphs)
         {
-            if (alone.Words.Sum(w => w.Text.Count(char.IsLetter)) < 8) continue;
-            var faces = Families.SelectMany(f => new[] { (Family: f, Bold: false), (Family: f, Bold: true) }).Where(x => Face(x.Family, x.Bold) is not null).ToList();
-            var current = (Family: plan.FamilyOf(alone), Bold: alone.Bold && Face(plan.FamilyOf(alone), true) is not null);
-            (Family Family, bool Bold) pick;
-            if (resemblance is not null && alone.Size >= 1.15 * bodySize && headings++ < MaxHeadings)
+            var sample = samples[p];
+            // A paragraph of a word or two says too little to change its face (a heading may).
+            if (sample.Count >= 3 || headings.Contains(p) && sample.Count > 0)
             {
-                double Look((Family Family, bool Bold) f) => resemblance(Face(f.Family, f.Bold)!, [alone], lineBoxes);
-                var mine = Look(current);
-                var best = faces.Select(f => (Face: f, Look: Look(f))).MaxBy(x => x.Look);
-                if (best.Look <= mine + 0.02) continue;
-                pick = best.Face;
+                double Score((Family Family, Style Style) x) => look.Resemblance(Face(x.Family, x.Style)!, sample);
+                var mine = Score((family, Style.Regular));
+                var best = (headings.Contains(p) ? headingFaces : bodyFaces).Select(x => (Face: x, Score: Score(x))).MaxBy(x => x.Score);
+                if (best.Score > mine + 0.03 && (best.Face.Family != family || best.Face.Style != Style.Regular))
+                {
+                    foreach (var l in p)
+                    {
+                        l.Family = best.Face.Family == family ? null : best.Face.Family;
+                        l.Style = best.Face.Style;
+                        Measure(l, plan.FaceOf(l), lineBoxes);
+                    }
+                    Regularize(p);
+                }
             }
-            else
-            {
-                var now = Misfit([alone], Face(current.Family, current.Bold)!, lineBoxes, 2);
-                var best = faces.Select(f => (Face: f, Score: Misfit([alone], Face(f.Family, f.Bold)!, lineBoxes, 2))).MinBy(x => x.Score);
-                if (best.Score + 0.04 >= now) continue;
-                pick = best.Face;
-            }
-            alone.Family = pick.Family == family ? null : pick.Family;
-            alone.Bold = pick.Bold;
-            Measure(alone, plan.FaceOf(alone), lineBoxes);
+            var color = look.InkColor(p);
+            foreach (var l in p) l.Color = color;
         }
         return plan;
     }
 
-    /// <summary>Words of about one angle (within half a degree of the next), each group with its middle angle.</summary>
-    private static IEnumerable<(double Angle, List<OcrWord> Words)> ByAngle(List<OcrWord> words)
+    /// <summary>Up to <paramref name="count"/> words of three letters or more of <paramref name="lines"/>, spread over them.</summary>
+    internal static List<(PlanLine Line, PlanWord Word)> SampleOf(IEnumerable<PlanLine> lines, int count)
     {
-        var sorted = words.OrderBy(w => w.Angle).ToList();
-        var group = new List<OcrWord> { sorted[0] };
+        var all = lines.SelectMany(l => l.Words.Where(w => w.Text.Count(char.IsLetter) >= 3).Select(w => (Line: l, Word: w))).ToList();
+        var n = Math.Min(count, all.Count);
+        return [.. Enumerable.Range(0, n).Select(i => all[i * all.Count / n])];
+    }
+
+    /// <summary>
+    /// Words of about one angle (within half a degree of the next, round the circle: an upside-down page's words read at
+    /// 179.9° and −179.9° are one direction), each group with its middle angle.
+    /// </summary>
+    internal static List<(double Angle, List<OcrWord> Words)> ByAngle(List<OcrWord> words)
+    {
+        var sorted = words.OrderBy(w => Angles.Wrap(w.Angle)).ToList();
+        var groups = new List<List<OcrWord>> { new() { sorted[0] } };
         foreach (var w in sorted.Skip(1))
         {
-            if (w.Angle - group[^1].Angle > 0.5)
-            {
-                yield return (group[group.Count / 2].Angle, group);
-                group = [];
-            }
-            group.Add(w);
+            if (Angles.Wrap(w.Angle) - Angles.Wrap(groups[^1][^1].Angle) > 0.5) groups.Add([]);
+            groups[^1].Add(w);
         }
-        yield return (group[group.Count / 2].Angle, group);
+        // The last group and the first meet across ±180°.
+        if (groups.Count > 1 && Math.Abs(Angles.Difference(groups[0][0].Angle, groups[^1][^1].Angle)) <= 0.5)
+        {
+            groups[0].InsertRange(0, groups[^1]);
+            groups.RemoveAt(groups.Count - 1);
+        }
+        return [.. groups.Select(g =>
+        {
+            // The middle angle, measured from the group's first so the values don't jump at ±180°.
+            var first = g[0].Angle;
+            var middle = g.Select(w => first + Angles.Difference(w.Angle, first)).Order().ElementAt(g.Count / 2);
+            return (Angles.Wrap(middle), g);
+        })];
     }
 
     /// <summary>A page point turned back by <paramref name="angle"/> about the page's top left (into the frame where the text is level).</summary>
@@ -313,16 +386,20 @@ public static class EditableText
         for (var i = 0; i < framed.Count;)
         {
             var band = new List<PlanWord> { framed[i] };
-            var (top, bottom) = (framed[i].Top, framed[i].Bottom);
             var j = i + 1;
-            // A word whose middle is inside the band's middle half joins it.
+            // A word whose middle is within 0.4 of a word's usual height of the band's first words' middle joins it (a word
+            // with ascenders, one with descenders and one of x-height alone sit about a quarter of that apart). The usual
+            // height, not the band's: a word read too tall (two lines' ink in its box) doesn't swallow the next line.
+            var bandMid = (framed[i].Top + framed[i].Bottom) / 2;
+            var usual = framed[i].Height;
             for (; j < framed.Count; j++)
             {
                 var mid = (framed[j].Top + framed[j].Bottom) / 2;
-                var h = bottom - top;
-                if (mid > bottom - 0.25 * h) break;
+                // Its first words' median height (a crafted band of thousands isn't sorted again for each).
+                if (band.Count < 16) usual = band.Select(w => w.Height).Append(framed[j].Height).Order().ElementAt(band.Count / 2);
+                if (mid - bandMid > 0.4 * usual) break;
                 band.Add(framed[j]);
-                (top, bottom) = (Math.Min(top, framed[j].Top), Math.Max(bottom, framed[j].Bottom));
+                if (band.Count <= 3) bandMid = band.Average(w => (w.Top + w.Bottom) / 2);
             }
             i = j;
             var height = band.Select(w => w.Height).Order().ElementAt(band.Count / 2);
@@ -405,19 +482,42 @@ public static class EditableText
     private static double Median(List<double> values) => values.Order().ElementAt(values.Count / 2);
 
     /// <summary>
-    /// The installed family whose regular face fits the page's words best: by measure (<see cref="Misfit"/> over its words of
-    /// three letters or more: a box's height and width are a few percent off, as much as faces differ, so this only rules
-    /// out faces far off), then among those by how much the words set in it look like the scan (<paramref name="resemblance"/>:
-    /// serif or not, weight and shape tell faces apart that measure alike).
+    /// The installed family the page's text is set in. Without a picture, by measure (<see cref="Misfit"/>) among the
+    /// common families. With one (<paramref name="look"/>): the scan's class from how the common serif, sans serif and
+    /// monospaced families look against it; of that class's installed families (the common ones first, at most
+    /// <see cref="MaxCandidates"/>), those whose measures fit (a box's height and width are a few percent off, as much as
+    /// faces differ, so measure only rules out faces far off), the eight closest by measure compared by look. The best four
+    /// are kept for the document's next pages, which compare only those.
     /// </summary>
-    private static Family? Choose(List<PlanLine> lines, bool lineBoxes, Func<TrueTypeFont, List<PlanLine>, bool, double>? resemblance)
+    private static Family? Choose(List<PlanLine> lines, bool lineBoxes, ScanLook? look)
     {
-        var ranked = Families.Where(f => Face(f, false) is not null)
-            .Select(f => (Family: f, Score: Misfit(lines, Face(f, false)!, lineBoxes, 3))).OrderBy(r => r.Score).ToList();
-        if (ranked.Count == 0) return null;
-        if (resemblance is null || ranked[0].Score == double.MaxValue) return ranked[0].Family;
-        var close = ranked.Where(r => r.Score <= MaxMisfit).ToList();
-        return close.Count < 2 ? ranked[0].Family : close.MaxBy(r => resemblance(Face(r.Family, false)!, lines, lineBoxes)).Family;
+        var measured = lines.Where(l => l.Words.Count >= 3).Take(8).ToList();
+        if (measured.Count == 0) measured = lines;
+        if (look is null)
+            return Common.Where(f => Face(f, Style.Regular) is not null)
+                .Select(f => (Family: f, Score: Misfit(measured, Face(f, Style.Regular)!, lineBoxes, 3))).MinBy(r => r.Score).Family;
+
+        var sample = SampleOf(lines, ScanLook.Samples);
+        if (sample.Count == 0) return look.Match.Shortlist?[0] ?? Common.FirstOrDefault(f => Face(f, Style.Regular) is not null);
+        List<Family> Ranked(IEnumerable<Family> families)
+        {
+            var faces = families.Where(f => Face(f, Style.Regular) is not null).ToList();
+            look.Draw([.. faces.SelectMany(f => sample.Select(s => (Face(f, Style.Regular)!, s.Word.Text)))]);
+            return [.. faces.OrderByDescending(f => look.Resemblance(Face(f, Style.Regular)!, sample, FamilyShare) + (f.Common ? CommonFirst : 0))];
+        }
+        if (look.Match.Shortlist is { } kept) return Ranked(kept).FirstOrDefault();
+
+        var representatives = new[] { StandInFonts.Kind.Serif, StandInFonts.Kind.Sans, StandInFonts.Kind.Mono }
+            .Select(k => Common.FirstOrDefault(f => f.Kind == k && Face(f, Style.Regular) is not null)).OfType<Family>().ToList();
+        if (representatives.Count == 0) return null;
+        var kind = Ranked(representatives)[0].Kind;
+        var candidates = Families.Where(f => f.Kind == kind).Take(MaxCandidates)
+            .Select(f => (Family: f, Font: Face(f, Style.Regular))).Where(x => x.Font is not null)
+            .Select(x => (x.Family, Score: Misfit(measured, x.Font!, lineBoxes, 3))).Where(x => x.Score <= MaxMisfit)
+            .OrderBy(x => x.Score).Take(8).Select(x => x.Family).ToList();
+        var ranked = candidates.Count > 0 ? Ranked(candidates) : Ranked(representatives.Where(f => f.Kind == kind));
+        look.Match.Keep([.. ranked.Take(4)], representatives);
+        return ranked.FirstOrDefault();
     }
 
     /// <summary>A line's size (the median of its words'), baseline (the median of where each word's ink puts it) and where each word's text starts.</summary>
@@ -433,11 +533,11 @@ public static class EditableText
     }
 
     /// <summary>
-    /// Lines one under the other in the same look (bold or not, size within 15%, a step of 0.9 to 2.5 sizes, steady, left
-    /// edges or a first-line indent lined up) are a paragraph; its lines take one size, an even step and one left edge
-    /// where they are near it, as Edit Text &amp; Images then reads them as one paragraph.
+    /// Lines one under the other in the same look (size within 15%, a step of 0.9 to 2.5 sizes, steady, left edges or a
+    /// first-line indent lined up) are a paragraph; its lines take one size, an even step and one left edge where they are
+    /// near it, as Edit Text &amp; Images then reads them as one paragraph. The paragraphs, in the order found.
     /// </summary>
-    private static void Paragraphs(PagePlan plan)
+    private static List<List<PlanLine>> Paragraphs(PagePlan plan)
     {
         var paragraphs = new List<List<PlanLine>>();
         foreach (var angleGroup in plan.Lines.GroupBy(l => l.Angle))
@@ -454,7 +554,7 @@ public static class EditableText
                     var last = p[^1];
                     var size = Math.Max(last.Size, line.Size);
                     var step = line.Baseline - last.Baseline;
-                    if (last.Bold != line.Bold || Math.Abs(last.Size - line.Size) > 0.15 * size) continue;
+                    if (last.Style != line.Style || Math.Abs(last.Size - line.Size) > 0.15 * size) continue;
                     if (step < 0.9 * size || step > 2.5 * size || line.Left >= last.Right || line.Right <= last.Left) continue;
                     if (p.Count >= 2 && Math.Abs(step - (last.Baseline - p[^2].Baseline)) > 0.2 * size) continue;
                     var left = p.Count >= 2 ? p[1].Left : last.Left;
@@ -473,25 +573,30 @@ public static class EditableText
         }
         for (var i = 0; i < paragraphs.Count; i++)
         {
-            var p = paragraphs[i];
-            foreach (var l in p) l.Paragraph = i;
-            if (p.Count < 2) continue;
-            var size = Math.Round(p.Select(l => l.Size).Order().ElementAt(p.Count / 2), 1);
-            foreach (var l in p)
-            {
-                // The words keep their places: their text grows or shrinks about each box's left.
-                var scale = size / l.Size;
-                foreach (var w in l.Words) w.Pen = w.Left - (w.Left - w.Pen) * scale;
-                l.Size = size;
-            }
-            // An even step: the baselines' straight fit, when every line is near it.
-            if (PlanFit(p) is { } fit) for (var k = 0; k < p.Count; k++) p[k].Baseline = fit.First + k * fit.Step;
-            // One left edge for the lines after the first (and the first too unless it is indented).
-            var lefts = p.Skip(1).Select(l => l.Left).Order().ToList();
-            var edge = lefts[lefts.Count / 2];
-            foreach (var l in p)
-                if (Math.Abs(l.Left - edge) <= 0.6 * size) l.Words[0].Pen = edge;
+            foreach (var l in paragraphs[i]) l.Paragraph = i;
+            Regularize(paragraphs[i]);
         }
+        return paragraphs;
+    }
+
+    /// <summary>A paragraph's lines given one size, an even step and one left edge (and its first too unless indented).</summary>
+    private static void Regularize(List<PlanLine> p)
+    {
+        if (p.Count < 2) return;
+        var size = Math.Round(p.Select(l => l.Size).Order().ElementAt(p.Count / 2), 1);
+        foreach (var l in p)
+        {
+            // The words keep their places: their text grows or shrinks about each box's left.
+            var scale = size / l.Size;
+            foreach (var w in l.Words) w.Pen = w.Left - (w.Left - w.Pen) * scale;
+            l.Size = size;
+        }
+        // An even step: the baselines' straight fit, when every line is near it.
+        if (PlanFit(p) is { } fit) for (var k = 0; k < p.Count; k++) p[k].Baseline = fit.First + k * fit.Step;
+        var lefts = p.Skip(1).Select(l => l.Left).Order().ToList();
+        var edge = lefts[lefts.Count / 2];
+        foreach (var l in p)
+            if (Math.Abs(l.Left - edge) <= 0.6 * size) l.Words[0].Pen = edge;
     }
 
     private static (double First, double Step)? PlanFit(List<PlanLine> p)
@@ -560,10 +665,12 @@ public static class EditableText
                 ops.Append("h f\n");
             }
 
-        ops.Append("0 g BT 0 Tr 0 Tc 0 Tw 100 Tz 0 Ts\n");
+        ops.Append("BT 0 Tr 0 Tc 0 Tw 100 Tz 0 Ts\n");
         for (var i = 0; i < plan.Lines.Count; i++)
         {
             var line = plan.Lines[i];
+            var (cr, cg, cb) = line.Color;
+            ops.Append(CultureInfo.InvariantCulture, $"{PdfObj.F(cr)} {PdfObj.F(cg)} {PdfObj.F(cb)} rg ");
             var (sin, cos) = Math.SinCos(line.Angle * Math.PI / 180);
             var (px, py) = ToPage(line.Angle, line.Left, line.Baseline);
             var o = PdfObj.ToPdf(page, px, py);
@@ -626,132 +733,291 @@ public static class EditableText
     }
 
     /// <summary>
-    /// The paper's colour behind each line: the page drawn small, the brightest part of what is under the line (the
-    /// pixels at or above its 85th percentile of lightness), averaged.
+    /// What one Make Text Editable run keeps across its pages: each word drawn in each face (once, at
+    /// <see cref="Em"/> pixels to the em), and the families short-listed on the first page with enough words, which the
+    /// next pages compare alone.
     /// </summary>
-    private static (double R, double G, double B)[] PaperBehind(PdfEngine engine, int page, PagePlan plan, CancellationToken cancel)
+    internal sealed class FontMatch(CancellationToken cancel)
     {
-        var g = engine.GetPage(page);
-        var scale = Math.Min(0.5, Math.Sqrt(4_000_000 / Math.Max(1, g.Width * g.Height)));
-        var image = engine.Render(page, scale, null, cancel, annotations: false);
-        var result = new (double, double, double)[plan.Lines.Count];
-        for (var i = 0; i < plan.Lines.Count; i++)
+        /// <summary>The size words are drawn at to compare (pixels to the em).</summary>
+        public const double Em = 40;
+
+        /// <summary>The widest word drawn (pixels): a longer one is no word to compare.</summary>
+        public const double MaxWidth = 2000;
+
+        /// <summary>A word drawn: grey pixels around its ink, the ink's box in them.</summary>
+        internal sealed record Drawn(byte[] Pixels, int Width, int Height, double InkLeft, double InkTop, double InkWidth, double InkHeight);
+
+        private readonly Dictionary<(TrueTypeFont Font, string Text), Drawn?> _drawn = [];
+
+        public List<Family>? Shortlist { get; private set; }
+
+        private List<Family> _representatives = [];
+
+        /// <summary>How many pictures were drawn (for the speed measure).</summary>
+        public int Renders { get; private set; }
+
+        public void Keep(List<Family> shortlist, List<Family> representatives)
         {
-            var line = plan.Lines[i];
-            var corners = Cover(line, Shape(line, plan.FaceOf(line)), plan.FaceOf(line));
-            var (x0, x1) = ((int)Math.Floor(corners.Min(c => c.X) * scale), (int)Math.Ceiling(corners.Max(c => c.X) * scale));
-            var (y0, y1) = ((int)Math.Floor(corners.Min(c => c.Y) * scale), (int)Math.Ceiling(corners.Max(c => c.Y) * scale));
-            (x0, x1, y0, y1) = (Math.Clamp(x0, 0, image.Width), Math.Clamp(x1, 0, image.Width), Math.Clamp(y0, 0, image.Height), Math.Clamp(y1, 0, image.Height));
-            var pixels = new List<(int Light, int B, int G, int R)>();
-            for (var y = y0; y < y1; y++)
-                for (var x = x0; x < x1; x++)
-                {
-                    var o = y * image.Stride + x * 3;
-                    int b = image.Pixels[o], gg = image.Pixels[o + 1], r = image.Pixels[o + 2];
-                    pixels.Add(((b * 29 + gg * 150 + r * 77) >> 8, b, gg, r));
-                }
-            if (pixels.Count == 0)
+            Shortlist = shortlist;
+            _representatives = representatives;
+        }
+
+        /// <summary>The families a heading may be set in: the short list, and the common serif, sans serif and monospaced.</summary>
+        public IEnumerable<Family> HeadingFamilies(Family page) => new[] { page }.Concat(Shortlist ?? []).Concat(_representatives).Distinct();
+
+        public Drawn? Get(TrueTypeFont font, string text) => _drawn.GetValueOrDefault((font, text));
+
+        /// <summary>Draws every (face, word) not drawn yet, all on one picture: one render however many faces.</summary>
+        public void Draw(IEnumerable<(TrueTypeFont Font, string Text)> wanted)
+        {
+            var missing = wanted.Distinct().Where(x => !_drawn.ContainsKey(x)).ToList();
+            if (missing.Count == 0) return;
+            const double pad = 8, rowHeight = 64, baselineAt = 46, pageWidth = 2400;
+            var placed = new List<((TrueTypeFont Font, string Text) Key, Ink Ink, double X, double Baseline)>();
+            double x = pad, row = 0;
+            foreach (var key in missing)
             {
-                result[i] = (1, 1, 1);
-                continue;
+                var ink = InkOf(key.Text, key.Font);
+                var width = (Math.Max(0, ink.Right) - Math.Min(0, ink.Left)) * Em + 2 * pad;
+                if (ink.Missing || ink.Width <= 0 || width > MaxWidth)
+                {
+                    _drawn[key] = null;
+                    continue;
+                }
+                if (x + width > pageWidth && x > pad) (x, row) = (pad, row + 1);
+                placed.Add((key, ink, x - Math.Min(0, ink.Left) * Em, row * rowHeight + baselineAt));
+                x += width;
             }
-            var bright = pixels.OrderBy(p => p.Light).Skip(pixels.Count * 85 / 100).ToList();
-            if (bright.Count == 0) bright = pixels;
-            var (rr, gr, br) = (bright.Average(p => p.R) / 255, bright.Average(p => p.G) / 255, bright.Average(p => p.B) / 255);
-            // Nearly white paper is white.
-            result[i] = Math.Min(rr, Math.Min(gr, br)) >= 0.96 ? (1, 1, 1) : (Math.Round(rr, 3), Math.Round(gr, 3), Math.Round(br, 3));
-        }
-        return result;
-    }
+            if (placed.Count == 0) return;
+            var height = (row + 1) * rowHeight + pad;
 
-    /// <summary>
-    /// A scanned page drawn in grey at about 150 dpi, to compare fonts with: some of its words are set in a font where the
-    /// scan has them, drawn the same way, and the two pictures correlated over the words' boxes.
-    /// </summary>
-    internal sealed class ScanLook(PdfEngine engine, int page, CancellationToken cancel)
-    {
-        /// <summary>The words compared (spread over the page).</summary>
-        public const int Samples = 40;
-
-        private readonly (double W, double H) _size = (engine.GetPage(page).Width, engine.GetPage(page).Height);
-        private double Scale => Math.Min(150 / 72.0, Math.Sqrt(6_000_000 / Math.Max(1, _size.W * _size.H)));
-        private byte[]? _scan;
-        private (int W, int H) _pixels;
-
-        private byte[] Gray(RenderedImage image)
-        {
-            _pixels = (image.Width, image.Height);
-            var gray = new byte[image.Width * image.Height];
-            for (var i = 0; i < gray.Length; i++)
-                gray[i] = (byte)((image.Pixels[3 * i] * 29 + image.Pixels[3 * i + 1] * 150 + image.Pixels[3 * i + 2] * 77) >> 8);
-            return gray;
-        }
-
-        public double Resemblance(TrueTypeFont font, List<PlanLine> lines, bool lineBoxes)
-        {
-            var words = lines.SelectMany(l => l.Words.Where(w => w.Text.Count(char.IsLetter) >= 4).Select(w => (Line: l, Word: w))).ToList();
-            if (words.Count == 0) return 0;
-            var sample = Enumerable.Range(0, Math.Min(Samples, words.Count)).Select(i => words[i * words.Count / Math.Min(Samples, words.Count)]).ToList();
-            _scan ??= Gray(engine.Render(page, Scale, null, cancel, annotations: false));
-
-            // The sample set in the font, each word at the size and place its box gives in it, on a blank page of this size.
             using var doc = new PdfDocument();
             var p = doc.AddPage();
-            p.Width = PdfSharp.Drawing.XUnit.FromPoint(_size.W);
-            p.Height = PdfSharp.Drawing.XUnit.FromPoint(_size.H);
+            p.Width = PdfSharp.Drawing.XUnit.FromPoint(pageWidth);
+            p.Height = PdfSharp.Drawing.XUnit.FromPoint(height);
             var writer = new CidFontWriter("/F");
             var ops = new StringBuilder("0 g BT\n");
-            var boxes = new List<(double X0, double Y0, double X1, double Y1)>();
-            foreach (var (line, word) in sample)
+            foreach (var (key, _, px, baseline) in placed)
             {
-                var ink = InkOf(word.Text, font);
-                var lineInk = lineBoxes ? InkOf(line.Text, font) : ink;
-                var size = SizeOf(word, line, font, lineBoxes);
-                if (ink.Missing || !(size > 0) || !double.IsFinite(size)) continue;
-                var baseline = word.Bottom + lineInk.Bottom * size;
-                var (px, py) = ToPage(line.Angle, word.Left - ink.Left * size, baseline);
-                var (sin, cos) = Math.SinCos(line.Angle * Math.PI / 180);
-                ops.Append(CultureInfo.InvariantCulture, $"{PdfObj.F(cos)} {PdfObj.F(-sin)} {PdfObj.F(sin)} {PdfObj.F(cos)} {PdfObj.F(px)} {PdfObj.F(_size.H - py)} Tm ");
-                writer.Emit(ops, TextShaper.Shape(word.Text, font, visualOrder: true), size);
+                ops.Append(CultureInfo.InvariantCulture, $"1 0 0 1 {PdfObj.F(px)} {PdfObj.F(height - baseline)} Tm ");
+                writer.Emit(ops, TextShaper.Shape(key.Text, key.Font, visualOrder: true), Em);
                 ops.Append('\n');
-                var corners = new[] { (word.Left, word.Top), (word.Right, word.Top), (word.Right, word.Bottom), (word.Left, word.Bottom) }.Select(c => ToPage(line.Angle, c.Item1, c.Item2)).ToList();
-                // Around the box by a third of its height: a face too wide or too narrow shows there.
-                var margin = 1 + word.Height / 3;
-                boxes.Add((corners.Min(c => c.X) - margin, corners.Min(c => c.Y) - 1, corners.Max(c => c.X) + margin, corners.Max(c => c.Y) + 1));
             }
-            if (boxes.Count == 0) return 0;
             ops.Append("ET\n");
             var resources = new PdfDictionary(doc);
             resources.Elements["/Font"] = writer.BuildFonts(doc);
             p.Elements["/Resources"] = resources;
             p.Elements["/Contents"] = PdfObj.AddStream(doc, Encoding.ASCII.GetBytes(ops.ToString())).Reference!;
             using var set = PdfEngine.Open(PdfObj.Save(doc), InputFileTypes.PDF, null);
-            var drawn = Gray(set.Render(0, Scale, null, cancel, annotations: false));
-
-            // Pearson's correlation over the words' boxes (each pixel once).
-            var (w, h) = _pixels;
-            var seen = new bool[w * h];
-            double sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, paperA = 0, paperB = 0; // paper: the lightest each shows there
-            long n = 0;
-            foreach (var (x0, y0, x1, y1) in boxes)
-                for (var y = Math.Max(0, (int)(y0 * Scale)); y < Math.Min(h, (int)Math.Ceiling(y1 * Scale)); y++)
-                    for (var x = Math.Max(0, (int)(x0 * Scale)); x < Math.Min(w, (int)Math.Ceiling(x1 * Scale)); x++)
+            var image = set.Render(0, 1, null, cancel, annotations: false);
+            Renders++;
+            foreach (var (key, ink, px, baseline) in placed)
+            {
+                // The ink's box, a pixel around it.
+                var (x0, x1) = ((int)Math.Floor(px + ink.Left * Em) - 1, (int)Math.Ceiling(px + ink.Right * Em) + 1);
+                var (y0, y1) = ((int)Math.Floor(baseline - ink.Top * Em) - 1, (int)Math.Ceiling(baseline - ink.Bottom * Em) + 1);
+                (x0, x1, y0, y1) = (Math.Clamp(x0, 0, image.Width), Math.Clamp(x1, 0, image.Width), Math.Clamp(y0, 0, image.Height), Math.Clamp(y1, 0, image.Height));
+                var (w, h) = (x1 - x0, y1 - y0);
+                if (w <= 0 || h <= 0)
+                {
+                    _drawn[key] = null;
+                    continue;
+                }
+                var px2 = new byte[w * h];
+                for (var y = 0; y < h; y++)
+                    for (var xx = 0; xx < w; xx++)
                     {
-                        var i = y * w + x;
-                        if (seen[i] || i >= drawn.Length || i >= _scan.Length) continue;
-                        seen[i] = true;
-                        double a = _scan[i], b = drawn[i];
-                        (sx, sy, sxx, syy, sxy, n) = (sx + a, sy + b, sxx + a * a, syy + b * b, sxy + a * b, n + 1);
-                        (paperA, paperB) = (Math.Max(paperA, a), Math.Max(paperB, b));
+                        var o = (y0 + y) * image.Stride + (x0 + xx) * 3;
+                        px2[y * w + xx] = (byte)((image.Pixels[o] * 29 + image.Pixels[o + 1] * 150 + image.Pixels[o + 2] * 77) >> 8);
                     }
-            if (n < 2) return 0;
-            var va = sxx - sx * sx / n;
-            var vb = syy - sy * sy / n;
-            if (va <= 0 || vb <= 0) return 0;
-            // Less for ink of another weight: a regular face where the scan is bold covers less of it.
-            var (inkScan, inkDrawn) = (paperA * n - sx, paperB * n - sy);
-            var weight = inkScan > 0 && inkDrawn > 0 ? Math.Abs(Math.Log(inkDrawn / inkScan)) : 1;
-            return (sxy - sx * sy / n) / Math.Sqrt(va * vb) - weight;
+                _drawn[key] = new Drawn(px2, w, h, px + ink.Left * Em - x0, baseline - ink.Top * Em - y0, ink.Width * Em, ink.Height * Em);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A scanned page as it shows, drawn at about 150 dpi: its words compared with the same words drawn in a face
+    /// (<see cref="Resemblance"/>), its ink's colour and its paper's.
+    /// </summary>
+    internal sealed class ScanLook(PdfEngine engine, int page, FontMatch match, CancellationToken cancel)
+    {
+        /// <summary>The words compared to choose the page's family (spread over the page).</summary>
+        public const int Samples = 40;
+
+        /// <summary>A word compared is brought to this height (pixels), with this much room around it.</summary>
+        private const int CanvasHeight = 20, PadX = 3, PadY = 6;
+
+        public FontMatch Match { get; } = match;
+
+        private RenderedImage? _image;
+        private double _scale;
+
+        private RenderedImage Image
+        {
+            get
+            {
+                if (_image is not null) return _image;
+                var g = engine.GetPage(page);
+                _scale = Math.Min(150 / 72.0, Math.Sqrt(6_000_000 / Math.Max(1, g.Width * g.Height)));
+                return _image = engine.Render(page, _scale, null, cancel, annotations: false);
+            }
+        }
+
+        /// <summary>Draws (once for the run) what the next comparisons need.</summary>
+        public void Draw(IEnumerable<(TrueTypeFont Font, string Text)> wanted) => Match.Draw(wanted);
+
+        /// <summary>The scan's grey at a page point (bilinear; white off the page).</summary>
+        private double GrayAt(double x, double y)
+        {
+            var img = Image;
+            var (sx, sy) = (x * _scale - 0.5, y * _scale - 0.5);
+            if (!(sx > -1 && sy > -1 && sx < img.Width && sy < img.Height)) return 255;
+            var (x0, y0) = ((int)Math.Floor(sx), (int)Math.Floor(sy));
+            var (fx, fy) = (sx - x0, sy - y0);
+            double At(int a, int b)
+            {
+                if (a < 0 || b < 0 || a >= img.Width || b >= img.Height) return 255;
+                var o = b * img.Stride + a * 3;
+                return (img.Pixels[o] * 29 + img.Pixels[o + 1] * 150 + img.Pixels[o + 2] * 77) / 256.0;
+            }
+            return (At(x0, y0) * (1 - fx) + At(x0 + 1, y0) * fx) * (1 - fy) + (At(x0, y0 + 1) * (1 - fx) + At(x0 + 1, y0 + 1) * fx) * fy;
+        }
+
+        /// <summary>
+        /// How much <paramref name="sample"/>'s words drawn in <paramref name="font"/> look like the scan's: each word's scan
+        /// and its drawing brought to one height (the drawing scaled to the scan word's width, centred on its height, so a face
+        /// with other proportions, slant or serifs shows), Pearson's correlation between them less how far the ink each covers
+        /// differs (|ln| of the ratio: another weight); the mean over the words, or over the best <paramref name="share"/> of
+        /// them (a page's family is judged on its words in that family's look, not on the italic or bold ones among them).
+        /// Words not drawn (<see cref="Draw"/> first) aren't counted; −1 when none is.
+        /// </summary>
+        public double Resemblance(TrueTypeFont font, IReadOnlyList<(PlanLine Line, PlanWord Word)> sample, double share = 1)
+        {
+            var scores = new List<double>(sample.Count);
+            foreach (var (line, word) in sample)
+            {
+                if (Match.Get(font, word.Text) is not { } d || word.Width <= 0 || word.Height <= 0) continue;
+                var (scan, cw, paper) = Canvas(line, word);
+                var k = cw / d.InkWidth;
+                var (w, h) = (cw + 2 * PadX, CanvasHeight + 2 * PadY);
+                double sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0, inkScan = 0, inkDrawn = 0;
+                var n = w * h;
+                for (var j = 0; j < h; j++)
+                    for (var i = 0; i < w; i++)
+                    {
+                        var ix = (i + 0.5 - PadX) / k + d.InkLeft - 0.5;
+                        var iy = (j + 0.5 - (PadY + CanvasHeight / 2.0)) / k + d.InkTop + d.InkHeight / 2 - 0.5;
+                        var b = Bilinear(d.Pixels, d.Width, d.Height, ix, iy);
+                        var a = scan[j * w + i];
+                        (sx, sy, sxx, syy, sxy) = (sx + a, sy + b, sxx + a * a, syy + b * b, sxy + a * b);
+                        (inkScan, inkDrawn) = (inkScan + paper - a, inkDrawn + 255 - b);
+                    }
+                var va = sxx - sx * sx / n;
+                var vb = syy - sy * sy / n;
+                if (va <= 0 || vb <= 0) continue;
+                var weight = inkScan > 0 && inkDrawn > 0 ? Math.Abs(Math.Log(inkDrawn / inkScan)) : 1;
+                scores.Add((sxy - sx * sy / n) / Math.Sqrt(va * vb) - weight);
+            }
+            if (scores.Count == 0) return -1;
+            return scores.OrderDescending().Take(Math.Max(1, (int)Math.Ceiling(scores.Count * share))).Average();
+        }
+
+        private readonly Dictionary<PlanWord, (double[] Pixels, int Width, double Paper)> _canvases = new(ReferenceEqualityComparer.Instance);
+
+        /// <summary>A scan word brought to <see cref="CanvasHeight"/> (once a page, whatever the faces it is compared with), its width and its paper's grey.</summary>
+        private (double[] Pixels, int Width, double Paper) Canvas(PlanLine line, PlanWord word)
+        {
+            if (_canvases.TryGetValue(word, out var known)) return known;
+            var cw = Math.Clamp((int)Math.Round(CanvasHeight * word.Width / word.Height), 4, 240);
+            var (w, h) = (cw + 2 * PadX, CanvasHeight + 2 * PadY);
+            var scan = new double[w * h];
+            var paper = 0.0;
+            for (var j = 0; j < h; j++)
+                for (var i = 0; i < w; i++)
+                {
+                    var fx = word.Left + (i + 0.5 - PadX) * word.Width / cw;
+                    var fy = word.Top + (j + 0.5 - PadY) * word.Height / CanvasHeight;
+                    var (px, py) = ToPage(line.Angle, fx, fy);
+                    paper = Math.Max(paper, scan[j * w + i] = GrayAt(px, py));
+                }
+            return _canvases[word] = (scan, cw, paper);
+        }
+
+        private static double Bilinear(byte[] px, int w, int h, double x, double y)
+        {
+            var (x0, y0) = ((int)Math.Floor(x), (int)Math.Floor(y));
+            var (fx, fy) = (x - x0, y - y0);
+            double At(int a, int b) => a < 0 || b < 0 || a >= w || b >= h ? 255 : px[b * w + a];
+            return (At(x0, y0) * (1 - fx) + At(x0 + 1, y0) * fx) * (1 - fy) + (At(x0, y0 + 1) * (1 - fx) + At(x0 + 1, y0 + 1) * fx) * fy;
+        }
+
+        /// <summary>The pixels inside a polygon's bounding box on the page, by lightness: per level, how many and their summed R, G, B.</summary>
+        private void Collect(IEnumerable<(double X, double Y)> corners, long[] count, double[] r, double[] g, double[] b)
+        {
+            var img = Image;
+            var list = corners.ToList();
+            var (x0, x1) = ((int)Math.Floor(list.Min(c => c.X) * _scale), (int)Math.Ceiling(list.Max(c => c.X) * _scale));
+            var (y0, y1) = ((int)Math.Floor(list.Min(c => c.Y) * _scale), (int)Math.Ceiling(list.Max(c => c.Y) * _scale));
+            (x0, x1, y0, y1) = (Math.Clamp(x0, 0, img.Width), Math.Clamp(x1, 0, img.Width), Math.Clamp(y0, 0, img.Height), Math.Clamp(y1, 0, img.Height));
+            for (var y = y0; y < y1; y++)
+                for (var x = x0; x < x1; x++)
+                {
+                    var o = y * img.Stride + x * 3;
+                    int bb = img.Pixels[o], gg = img.Pixels[o + 1], rr = img.Pixels[o + 2];
+                    var light = (bb * 29 + gg * 150 + rr * 77) >> 8;
+                    count[light]++;
+                    (r[light], g[light], b[light]) = (r[light] + rr, g[light] + gg, b[light] + bb);
+                }
+        }
+
+        /// <summary>The mean colour (0 to 1) of the lightest (<paramref name="lightest"/>) or darkest share of what was collected; null for nothing.</summary>
+        private static (double R, double G, double B)? Mean(long[] count, double[] r, double[] g, double[] b, double share, bool lightest)
+        {
+            var total = count.Sum();
+            if (total == 0) return null;
+            var want = Math.Max(1, (long)(total * share));
+            double n = 0, sr = 0, sg = 0, sb = 0;
+            for (var k = 0; k < 256 && n < want; k++)
+            {
+                var level = lightest ? 255 - k : k;
+                if (count[level] == 0) continue;
+                // A level only partly needed counts in proportion.
+                var take = Math.Min(count[level], want - (long)n) / (double)count[level];
+                (n, sr, sg, sb) = (n + count[level] * take, sr + r[level] * take, sg + g[level] * take, sb + b[level] * take);
+            }
+            return (sr / n / 255, sg / n / 255, sb / n / 255);
+        }
+
+        /// <summary>The paper's colour behind a line (the corners of what covers it): the lightest 15% of what is under it, averaged; nearly white is white.</summary>
+        public (double R, double G, double B) Paper(IEnumerable<(double X, double Y)> corners)
+        {
+            var (count, r, g, b) = (new long[256], new double[256], new double[256], new double[256]);
+            Collect(corners, count, r, g, b);
+            if (Mean(count, r, g, b, 0.15, lightest: true) is not var (pr, pg, pb)) return (1, 1, 1);
+            return Math.Min(pr, Math.Min(pg, pb)) >= 0.96 ? (1, 1, 1) : (Math.Round(pr, 3), Math.Round(pg, 3), Math.Round(pb, 3));
+        }
+
+        /// <summary>
+        /// A paragraph's ink colour: the darkest tenth of what is inside its words' boxes, averaged. Ink with little colour
+        /// in it (a scan's black or grey print) is black; a clear colour (blue, red) is kept, rounded to a twentieth.
+        /// </summary>
+        public (double R, double G, double B) InkColor(IReadOnlyList<PlanLine> lines)
+        {
+            var (count, sr, sg, sb) = (new long[256], new double[256], new double[256], new double[256]);
+            foreach (var line in lines)
+                foreach (var w in line.Words.Take(20))
+                    Collect(new[] { (w.Left, w.Top), (w.Right, w.Top), (w.Right, w.Bottom), (w.Left, w.Bottom) }.Select(c => ToPage(line.Angle, c.Item1, c.Item2)), count, sr, sg, sb);
+            if (Mean(count, sr, sg, sb, 0.1, lightest: false) is not var (r, g, b)) return (0, 0, 0);
+            var chroma = Math.Max(r, Math.Max(g, b)) - Math.Min(r, Math.Min(g, b));
+            static double Round(double v) => Math.Round(v * 20) / 20;
+            if (chroma < 0.15)
+            {
+                // Grey print: black when dark (a scan's black is never quite black), else its grey.
+                var l = (r + g + b) / 3;
+                return l < 0.35 ? (0, 0, 0) : (Round(l), Round(l), Round(l));
+            }
+            return (Round(r), Round(g), Round(b));
         }
     }
 }

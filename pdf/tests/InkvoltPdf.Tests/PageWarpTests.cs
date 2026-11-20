@@ -205,4 +205,79 @@ public class PageWarpTests
         var word = frame.ToRendered(new RecognizedWord("bent", 300, 880, 200, 40, 0), 300 / 72.0);
         Assert.InRange(word.Angle, -20, -0.5); // towards the spine (left) the line sags: it rises to the right
     }
+
+    /// <summary>A flat page of two columns whose lines aren't level with each other: the right column a third of a line lower.</summary>
+    private static (byte[] Pixels, int Width, int Height) TwoColumns()
+    {
+        var (clean, w, h, _) = ScanCorpus.CleanPage(ScanCorpus.Files[0], 0);
+        var page = Enumerable.Repeat((byte)255, w * h).ToArray();
+        // The typeset text runs from x 300 to about 2250: its left 45% makes each column (half a page each, a gutter between).
+        var (from, width, drop) = (300, (int)(0.42 * w) - 300, 18); // 11 pt at 1.4 leading is 64 px a line: 18 px is under a third
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < width; x++)
+            {
+                page[y * w + 150 + x] = clean[y * w + from + x];
+                var sy = y - drop;
+                if (sy >= 0) page[y * w + w / 2 + 100 + x] = clean[sy * w + from + x];
+            }
+        return (page, w, h);
+    }
+
+    [Fact]
+    public void AFlatPageInTwoColumnsIsNotBent()
+    {
+        // The columns' lines aren't level: matched across the gutter, they'd look like a step in one bent line.
+        var (px, w, h) = TwoColumns();
+        Assert.Null(CurvedLines.Find(new GrayImage(w, h, px), 300));
+        var cleaned = ScanCleanup.Clean(px, w, h, 1, 300, steps: CleanupSteps.All);
+        Assert.Null(cleaned.Curve);
+        Assert.Null(cleaned.Perspective);
+    }
+
+    [Fact]
+    public void ATiltedBooksPageIsFlattenedToItsLinesEnds()
+    {
+        // A book's page tilted 2° as well: flattened in place of being straightened, the ends of its lines (past the strips
+        // measured) carry no tilt either.
+        var (px, w, h, _) = PhotoCorpus.Photo(Photo("en-book"));
+        var tilted = PageRotate.Rotate(px, w, h, w, 1, 2);
+        var cleaned = ScanCleanup.Clean(tilted, w, h, 1, PhotoCorpus.Dpi, steps: CleanupSteps.CurvedLines);
+        Assert.NotNull(cleaned.Curve);
+        Assert.Equal(0, cleaned.Skew);
+        Assert.Equal(0, ScanCleanup.SkewOf(cleaned.Gray, PhotoCorpus.Dpi), 0.3);
+        // Past the measured stretch the map follows the page's tilt there, not a constant.
+        var c = cleaned.Curve!;
+        var beyond = c.AlongTo + 300;
+        Assert.NotEqual(c.ShiftAt(c.AlongTo), c.ShiftAt(beyond));
+        Assert.Equal(c.ShiftAt(c.AlongTo) + c.ShiftSlope * 300 / c.AlongHalf, c.ShiftAt(beyond), 1e-6);
+    }
+
+    [Fact]
+    public void ATiltedFlatPageOnGreyPaperIsStraightenedNotBent()
+    {
+        // Grey paper shaded down to below the ink threshold on one side: read as it is, the shade would be ink. The tilted
+        // page's bend is looked for on its whitened copy, finds none, and the page is straightened as before.
+        var (clean, w, h, _) = ScanCorpus.CleanPage(ScanCorpus.Files[0], 0);
+        var grey = new byte[clean.Length];
+        for (var y = 0; y < h; y++)
+            for (var x = 0; x < w; x++)
+            {
+                var paper = 220 - 110.0 * x / w;
+                grey[y * w + x] = (byte)(25 + (paper - 25) * clean[y * w + x] / 255);
+            }
+        var tilted = PageRotate.Rotate(grey, w, h, w, 1, 2);
+        var cleaned = ScanCleanup.Clean(tilted, w, h, 1, 300, steps: CleanupSteps.CurvedLines);
+        Assert.Null(cleaned.Curve);
+        Assert.Equal(2, cleaned.Skew, 0.3);
+    }
+
+    [Fact]
+    public void ColumnsAreSplitAtGapsAQuarterOfAnInchWide()
+    {
+        int[] ink = [0, 5, 5, 5, 0, 0, 9, 9, 9, 9, 0, 0, 0, 0, 0, 7, 7, 0];
+        Assert.Equal((1, 9), CurvedLines.WidestColumn(ink, 1, 16, 4)); // the gap of 5 splits, the gap of 2 doesn't
+        Assert.Equal((6, 9), CurvedLines.WidestColumn(ink, 1, 16, 2)); // both split: the inkiest column
+        Assert.Equal((1, 9), CurvedLines.WidestColumn(ink, 1, 9, 4));
+        Assert.Equal((1, 16), CurvedLines.WidestColumn(ink, 1, 16, 6));
+    }
 }

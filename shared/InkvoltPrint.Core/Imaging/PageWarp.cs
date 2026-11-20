@@ -467,20 +467,28 @@ public static class Trapezoid
 /// Lines of text bent on the page (a book's pages curving towards its spine, photographed or scanned open), and how to
 /// flatten them. Each line is shifted across its run by an amount that changes along it: at a place u along the lines, a
 /// point v across them came from v + <see cref="ShiftAt"/>(u) + <see cref="StretchAt"/>(u) × (v − <see cref="AcrossCenter"/>),
-/// so lines can bow, sag towards the spine and fan out (closer together at one end) at once. Outside the text the map is
-/// held at its last value. Letters aren't narrowed or widened along the line (the squeeze near a spine stays).
+/// so lines can bow, sag towards the spine and fan out (closer together at one end) at once. Past the stretch it was
+/// measured on, the map goes on with the page's tilt there (<paramref name="ShiftSlope"/>, <paramref name="StretchSlope"/>:
+/// a page flattened in place of being straightened keeps no tilt at its lines' ends). Letters aren't narrowed or widened
+/// along the line: the squeeze near a spine stays, as the bend of a line says how the page curves up out of the picture's
+/// plane only together with the camera's distance, which a photo doesn't give.
 /// </summary>
 /// <param name="Vertical">The lines run down the image (a page lying sideways): u is y and v is x.</param>
 /// <param name="Shift">Polynomial in t = (u − <paramref name="AlongMid"/>) / <paramref name="AlongHalf"/>, pixels.</param>
 /// <param name="Stretch">Polynomial in t, pixels per pixel.</param>
+/// <param name="ShiftSlope">The shift's straight-line fit's slope (per unit of t), followed past the measured stretch.</param>
+/// <param name="StretchSlope">The same for the stretch.</param>
 public sealed record LineCurve(bool Vertical, double AlongMid, double AlongHalf, double AlongFrom, double AlongTo,
-    double AcrossCenter, double AcrossFrom, double AcrossTo, double[] Shift, double[] Stretch)
+    double AcrossCenter, double AcrossFrom, double AcrossTo, double[] Shift, double[] Stretch, double ShiftSlope = 0, double StretchSlope = 0)
 {
     private double T(double u) => (Math.Clamp(u, AlongFrom, AlongTo) - AlongMid) / AlongHalf;
 
-    public double ShiftAt(double u) => PageWarp.Eval(Shift, T(u));
+    /// <summary>How far past the measured stretch <paramref name="u"/> is (in t), 0 inside it.</summary>
+    private double Beyond(double u) => (u - Math.Clamp(u, AlongFrom, AlongTo)) / AlongHalf;
 
-    public double StretchAt(double u) => PageWarp.Eval(Stretch, T(u));
+    public double ShiftAt(double u) => PageWarp.Eval(Shift, T(u)) + ShiftSlope * Beyond(u);
+
+    public double StretchAt(double u) => PageWarp.Eval(Stretch, T(u)) + StretchSlope * Beyond(u);
 
     /// <summary>Where a point across the lines at <paramref name="u"/> along them came from, across.</summary>
     public double SourceAcross(double u, double v) => v + ShiftAt(u) + StretchAt(u) * (Math.Clamp(v, AcrossFrom, AcrossTo) - AcrossCenter);
@@ -552,6 +560,10 @@ public static class CurvedLines
         var (uFrom, uTo) = Extent(alongInk, 2);
         var (vFrom, vTo) = Extent(acrossInk, 2);
         if (uTo - uFrom < 60 || vTo - vFrom < 30) return null;
+        // Columns: a gap of a quarter of an inch or more with no ink all the way across the lines. Two columns' lines
+        // needn't be level with each other, so only the column with most ink is measured (the others follow its map).
+        (uFrom, uTo) = WidestColumn(alongInk, uFrom, uTo, (int)Math.Ceiling(smallDpi / 4));
+        if (uTo - uFrom < 60) return null;
         cancel.ThrowIfCancellationRequested();
 
         // Strips across the lines, about a third of an inch apart, each half again as wide.
@@ -640,9 +652,38 @@ public static class CurvedLines
         }
         if (bend < Math.Max(1.5, MinBend * step)) return null;
 
-        // The same map at full size.
+        // The same map at full size, its tilt going on past the measured stretch.
+        var shiftTilt = PageWarp.Fit(ts, [.. matched.Select(k => shift[k]!.Value)], 1)?[1] ?? 0;
+        var stretchTilt = PageWarp.Fit(ts, [.. matched.Select(k => stretch[k])], 1)?[1] ?? 0;
         return new LineCurve(vertical, mid * f, halfAlong * f, first * f, last * f, vc * f, vFrom * (double)f, (vTo + 1.0) * f,
-            [.. shiftCurve.Select(c => c * f)], stretchCurve);
+            [.. shiftCurve.Select(c => c * f)], stretchCurve, shiftTilt * f, stretchTilt);
+    }
+
+    /// <summary>
+    /// Of the text from <paramref name="from"/> to <paramref name="to"/>, the column with most ink: the stretches between
+    /// gaps of <paramref name="gap"/> or more with no ink.
+    /// </summary>
+    internal static (int From, int To) WidestColumn(int[] ink, int from, int to, int gap)
+    {
+        var (best, bestInk) = ((from, to), -1L);
+        var start = from;
+        for (var u = from; u <= to + 1; u++)
+        {
+            var empty = 0;
+            while (u + empty <= to && ink[u + empty] < 2) empty++;
+            if (u <= to && (empty < gap || empty == 0))
+            {
+                u += empty;
+                continue;
+            }
+            var end = u - 1;
+            long sum = 0;
+            for (var k = start; k <= end; k++) sum += ink[k];
+            if (end >= start && sum > bestInk) (best, bestInk) = ((start, end), sum);
+            start = u + empty;
+            u += empty;
+        }
+        return best;
     }
 
     /// <summary>The first and last index with at least <paramref name="min"/> (−1, −1 when none).</summary>

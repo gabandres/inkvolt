@@ -56,18 +56,31 @@ public static class ScanCleanup
         var (skew, sideways, axisSure) = Lines(Downscale(new GrayImage(width, height, gray), factor));
         cancel.ThrowIfCancellationRequested();
 
-        // A book's bent lines look tilted on the whole: flattened as they are, without turning the page, its margins stay
-        // upright (turned, then flattened, the margins would lean by the tilt).
+        // A book's bent lines look tilted on the whole: looked for on the page as it is (smoothed and whitened, so a desk,
+        // a shadow or grey paper isn't ink), and when found, flattened without turning the page, so its margins stay
+        // upright (turned, then flattened, the margins would lean by the tilt). Not found there, it isn't looked for again.
         LineCurve? curve = null;
-        if (steps.HasFlag(CleanupSteps.CurvedLines) && skew != 0 && Math.Abs(skew) <= MaxTiltOfBentLines
-            && CurvedLines.Find(new GrayImage(width, height, gray), dpi, sideways, cancel) is { } tilted)
-            (curve, skew) = (tilted, 0);
+        byte[]? smooth = null;
+        PaperLevel.Map? paper = null;
+        var bendLooked = false;
+        if (steps.HasFlag(CleanupSteps.CurvedLines) && skew != 0 && Math.Abs(skew) <= MaxTiltOfBentLines)
+        {
+            bendLooked = true;
+            var asIs = Smooth.Median3(gray, width, height, cancel);
+            var level = PaperLevel.Estimate(asIs, width, height, dpi);
+            PaperLevel.Whiten(asIs, level);
+            if (CurvedLines.Find(new GrayImage(width, height, asIs), dpi, sideways, cancel) is { } tilted)
+                (curve, skew, smooth, paper) = (tilted, 0, asIs, level);
+        }
 
         if (skew != 0) gray = PageRotate.Rotate(gray, width, height, width, 1, -skew);
-        var smooth = Smooth.Median3(gray, width, height);
+        if (smooth is null || paper is null)
+        {
+            smooth = Smooth.Median3(gray, width, height, cancel);
+            paper = PaperLevel.Estimate(smooth, width, height, dpi);
+            PaperLevel.Whiten(smooth, paper);
+        }
         cancel.ThrowIfCancellationRequested();
-        var paper = PaperLevel.Estimate(smooth, width, height, dpi);
-        PaperLevel.Whiten(smooth, paper);
         var specks = Despeckle.Remove(smooth, width, height, dpi);
         cancel.ThrowIfCancellationRequested();
 
@@ -79,7 +92,7 @@ public static class ScanCleanup
         }
 
         // Lines bent by a book's spine: flattened along the way they run, before telling which way up the page is.
-        if (steps.HasFlag(CleanupSteps.CurvedLines) && curve is null) curve = CurvedLines.Find(new GrayImage(width, height, smooth), dpi, sideways, cancel);
+        if (steps.HasFlag(CleanupSteps.CurvedLines) && curve is null && !bendLooked) curve = CurvedLines.Find(new GrayImage(width, height, smooth), dpi, sideways, cancel);
         if (curve is not null)
         {
             smooth = curve.Apply(smooth, width, height, 1, cancel);

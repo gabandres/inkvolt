@@ -17,6 +17,20 @@ public sealed record OcrWord(string Text, RectD Rect, double Angle = 0, SuspectR
     public bool IsSuspect => Suspect != SuspectReasons.None;
 }
 
+/// <summary>Angles in degrees, compared round the circle.</summary>
+public static class Angles
+{
+    /// <summary><paramref name="a"/> in (−180, 180].</summary>
+    public static double Wrap(double a)
+    {
+        a %= 360;
+        return a <= -180 ? a + 360 : a > 180 ? a - 360 : a;
+    }
+
+    /// <summary><paramref name="a"/> − <paramref name="b"/> in (−180, 180]: 179.9° and −179.9° are 0.2° apart.</summary>
+    public static double Difference(double a, double b) => Wrap(a - b);
+}
+
 /// <summary>A page's Inkvolt text layer as read back: its words, and the language they were recognized in (when known).</summary>
 public sealed record OcrLayer(List<OcrWord> Words, string? Language);
 
@@ -269,7 +283,7 @@ public static class TextLayer
 
             // An explicit space, stretched over the gap, to the next word on the same line (not across columns), measured
             // along the line: the next word's box as seen from this word's turned frame.
-            if (i + 1 < words.Count && space.Width > 0 && Math.Abs(words[i + 1].Angle - w.Angle) < 1)
+            if (i + 1 < words.Count && space.Width > 0 && Math.Abs(Angles.Difference(words[i + 1].Angle, w.Angle)) < 1)
             {
                 var next = InFrameOf(w, words[i + 1]);
                 var overlap = Math.Min(w.Rect.Bottom, next.Bottom) - Math.Max(w.Rect.Y, next.Y);
