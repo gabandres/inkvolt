@@ -347,9 +347,11 @@ public sealed class RedactionPatternTests : IDisposable
         foreach (var secret in new[] { "jane.doe", "example.com", "123-45", "6789" })
             Assert.DoesNotContain(secret, after);
         Assert.Equal("Second page stays: no numbers here", Text(redacted, 1)); // a page without matches keeps its text
-        foreach (var m in matches)
-            foreach (var r in m.Rects)
-                Assert.True(Core2Pdf.Ink(redacted, 0, r.Inflate(-1)) > 0.95, $"{m.Pattern} blacked out");
+        // Each line with a match is laid out again: its boxes are where the layout put them.
+        var blacked = Redaction.Redact(data, null, RedactionSearch.Areas(matches)).Blacked;
+        Assert.Equal(3, blacked[0].Count);
+        foreach (var r in blacked[0])
+            Assert.True(Core2Pdf.Ink(redacted, 0, r.Inflate(-1)) > 0.95, $"{r} blacked out");
         Assert.True(Core2Pdf.Ink(redacted, 0, heading) > 0.05, "the heading still shows");
         Assert.True(Core2Pdf.Ink(redacted, 0, heading) < 0.6, "and isn't blacked out");
 

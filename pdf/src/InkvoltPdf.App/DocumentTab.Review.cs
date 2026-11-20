@@ -1355,6 +1355,7 @@ public partial class DocumentTab
             return false;
         }
 
+        run.Applied(LastApplied.Blacked, LastApplied.Moved);
         // What the person unticked stays a mark, not applied.
         if (review.EarlierKept.Count > 0) Viewer.AddRedactions(review.EarlierKept);
         var (read, outcome) = await ReadBackPatterns(run, before);
@@ -1412,6 +1413,9 @@ public partial class DocumentTab
 
     public void MarkRedaction(int page, RectD rect) => Viewer.AddRedactions([new RedactMark(page, rect)]);
 
+    /// <summary>What the last <see cref="ApplyRedactions"/> made black and which words it moved (<see cref="Redaction.Redact"/>).</summary>
+    private (IReadOnlyDictionary<int, IReadOnlyList<RectD>> Blacked, RedactionMoves Moved) LastApplied { get; set; }
+
     /// <summary>Confirms, then blacks out every marked area for good (the affected pages become images).</summary>
     /// <param name="check">Check the result afterwards (<see cref="RedactionCheck"/>, in the background): a report when
     /// anything of what was redacted is left in the file, a toast when nothing is.</param>
@@ -1431,16 +1435,21 @@ public partial class DocumentTab
         var values = check && Viewer.Engine is { } engine ? RedactionCheck.ValuesUnder(engine, areas) : [];
         var ocr = await PageOcr.ChosenAsync();
         var ocrSkipped = false;
+        // Where the boxes end up and which words moved (lines laid out again move them).
+        IReadOnlyDictionary<int, IReadOnlyList<RectD>> blacked = areas;
+        var moved = RedactionMoves.None;
         var ok = await RunEdit(Loc.Plural(marks.Count, Strings.Review_UndoRedact_One, Strings.Review_UndoRedact_Many), (d, pw) =>
         {
-            var redacted = Redaction.Apply(d, pw, areas);
+            var redaction = Redaction.Redact(d, pw, areas);
+            var redacted = redaction.Data;
+            (blacked, moved) = (redaction.Blacked, redaction.Moved);
             if (ocr is null) return redacted;
             // The redacted pages are images now: recognize what's left on them and lay it back as invisible text, so they
             // stay searchable and selectable. Part of the same edit (one undo step). Cancel skips only this part.
             var progress = Dispatcher.Invoke(() => new ProgressPrompt(Window.GetWindow(this), Strings.Review_ApplyingTitle, Strings.Review_RecognizingText));
             try
             {
-                var read = Redaction.TextBack(redacted, pw, areas, ocr, PageProgress(progress, Strings.Review_RecognizingRedacted), progress.Token);
+                var read = Redaction.TextBack(redacted, pw, redaction.Blacked, ocr, PageProgress(progress, Strings.Review_RecognizingRedacted), progress.Token);
                 ocrSkipped = read.TextSkipped;
                 return read.Data;
             }
@@ -1451,11 +1460,12 @@ public partial class DocumentTab
         }, signaturesWarned: confirm);
         if (ok)
         {
+            LastApplied = (blacked, moved);
             Viewer.ClearRedactions();
             if (Viewer.Tool == ViewerTool.Redact) Viewer.Tool = ViewerTool.Hand;
             if (ocr is null) Notify(Strings.Review_RedactedNoOcr);
             else if (ocrSkipped) Notify(Strings.Review_RedactedOcrCancelled);
-            if (check) _ = CheckAfterApply(new RedactionCheckOptions { Values = values, Areas = areas, Original = before });
+            if (check) _ = CheckAfterApply(new RedactionCheckOptions { Values = values, Areas = blacked, Original = before });
         }
         return ok;
     }

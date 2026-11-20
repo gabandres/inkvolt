@@ -145,8 +145,8 @@ public sealed record RedactionCheckReport(IReadOnlyList<RedactionFinding> Findin
 /// <list type="bullet">
 /// <item>covers that hide nothing for good: text under dark boxes, highlights and other content, or drawn in the color
 /// behind it (each character is rendered: one that doesn't change a pixel doesn't show); pictures and drawings under dark
-/// boxes (the page is drawn again without the box); Redact annotations never applied; text beside a box whose positions
-/// give away the removed width;</item>
+/// boxes (the page is drawn again without the box); Redact annotations never applied; text beside a box (drawn, or in a
+/// picture) whose positions give away the removed width;</item>
 /// <item>the redacted text anywhere else: page text, text in the content that doesn't show (hidden layers, off the page),
 /// comments and their appearances, form fields (and XFA), bookmarks, document properties and XMP, attached files (also
 /// inside zipped Office files and PDFs), the structure tree, scripts, objects nothing uses, earlier versions kept by
@@ -290,6 +290,8 @@ public static partial class RedactionCheck
         public readonly List<(RectD Box, int Order, bool Picture)> Drawn = [];
         public readonly List<RectD> LightBoxes = [];
         public readonly List<List<RectD>> Marks = [];
+        /// <summary>Boxes Inkvolt PDF's redaction drew into the page's picture with their lines laid out again (<see cref="Redaction.LaidOutBoxes"/>).</summary>
+        public readonly List<RectD> LaidOut = [];
 
         /// <summary>Something other than text was drawn under the cover before it: a picture reaching into it, or a path
         /// mostly inside it (not a rule or a frame that just crosses it).</summary>
@@ -334,6 +336,7 @@ public static partial class RedactionCheck
             _total = pages * 2 + Math.Min(revisions.Count, MaxRevisions);
             _texts = new PageText[pages];
             _reported = [.. Enumerable.Range(0, pages).Select(_ => new HashSet<int>())];
+            _pictureBoxes = [.. Enumerable.Range(0, pages).Select(_ => new List<RectD>())];
 
             // The pages' text is read on another thread (the engine reads text in a context of its own) while the pages are
             // walked and drawn here.
@@ -367,6 +370,9 @@ public static partial class RedactionCheck
                 }
                 reader.GetAwaiter().GetResult();
                 Covers(engine, scans);
+                for (var p = 0; p < pages; p++)
+                    foreach (var box in _pictureBoxes[p])
+                        BesideBox(p, box);
                 for (var p = 0; p < pages; p++) HiddenRuns(p, hidden[p], scans[p]);
                 if (options.Areas is { Count: > 0 } areas) Areas(engine, doc, scans, areas);
                 HiddenContent(doc);
@@ -502,6 +508,7 @@ public static partial class RedactionCheck
                 var pixels = Math.Max(1, g.Width * g.Height);
                 var scale = Math.Min(CharScale, Math.Sqrt(8_000_000 / pixels));
                 var img = engine.Render(p, scale, cancel: cancel);
+                _pictureBoxes[p] = PictureBoxes(p, scan, img, scale);
                 var over = scan.Covers.Select(c => c.Box).Concat(scan.LightBoxes).Concat(scan.Pictures.Select(i => i.Box))
                     .Where(b => b.Width * b.Height < 0.5 * pixels).ToList();
                 var maybe = candidates.Where(i => text.BoxAt(i) is var b && (over.Any(o => o.Contains(b.CenterX, b.CenterY)) || Uniform(img, b, scale, default, inner: false))).ToList();
@@ -668,28 +675,106 @@ public static partial class RedactionCheck
         /// </summary>
         private void Beside(int p, PageScan scan)
         {
-            var text = _texts[p];
             foreach (var cover in scan.Covers.Where(c => c.RectLike && c.Box.Width >= 12 && c.Box.Width >= 1.5 * c.Box.Height && c.Box.Height >= 4))
+                BesideBox(p, cover.Box);
+        }
+
+        /// <summary>A box with no text under it and text beside it on its line: reported (<see cref="RedactionLeak.GlyphSpacing"/>).</summary>
+        private void BesideBox(int p, RectD box)
+        {
+            var text = _texts[p];
+            var inside = false;
+            var near = new List<int>();
+            for (var i = 0; i < text.Text.Length && !inside; i++)
             {
-                var box = cover.Box;
-                var inside = false;
-                var near = new List<int>();
-                for (var i = 0; i < text.Text.Length && !inside; i++)
-                {
-                    if (!Visible(text.Text[i])) continue;
-                    var b = text.BoxAt(i);
-                    if (box.Inflate(-0.5).Contains(b.CenterX, b.CenterY)) inside = true;
-                    else if (b.CenterY >= box.Y && b.CenterY <= box.Bottom && b.Height >= 0.4 * box.Height && b.Height <= 2.5 * box.Height
-                             && (b.Right <= box.X + 0.5 ? box.X - b.Right : b.X >= box.Right - 0.5 ? b.X - box.Right : double.MaxValue) <= Math.Max(2, b.Height))
-                        near.Add(i);
-                }
-                if (inside || near.Count == 0 || near.Any(_reported[p].Contains)) continue;
-                // The text on either side, with the box between: "Name: ▮ lives here".
-                var lines = near.Select(text.LineAt).Distinct().OrderBy(l => text.BoxAt(l.Start).X).ToList();
-                var left = lines.Where(l => text.BoxAt(l.Start).X < box.X).Select(l => text.Text[l.Start..l.End].Trim());
-                var right = lines.Where(l => text.BoxAt(l.Start).X >= box.X).Select(l => text.Text[l.Start..l.End].Trim());
-                Add(new RedactionFinding(RedactionLeak.GlyphSpacing, Loc.Format(PdfStrings.Redact_WhereBesideBox, p + 1), string.Join(" ", [.. left, "▮", .. right])) { Page = p, Box = box });
+                if (!Visible(text.Text[i])) continue;
+                var b = text.BoxAt(i);
+                if (box.Inflate(-0.5).Contains(b.CenterX, b.CenterY)) inside = true;
+                else if (b.CenterY >= box.Y && b.CenterY <= box.Bottom && b.Height >= 0.4 * box.Height && b.Height <= 2.5 * box.Height
+                         && (b.Right <= box.X + 0.5 ? box.X - b.Right : b.X >= box.Right - 0.5 ? b.X - box.Right : double.MaxValue) <= Math.Max(2, b.Height))
+                    near.Add(i);
             }
+            if (inside || near.Count == 0 || near.Any(_reported[p].Contains)) return;
+            // The text on either side, with the box between: "Name: ▮ lives here".
+            var lines = near.Select(text.LineAt).Distinct().OrderBy(l => text.BoxAt(l.Start).X).ToList();
+            var left = lines.Where(l => text.BoxAt(l.Start).X < box.X).Select(l => text.Text[l.Start..l.End].Trim());
+            var right = lines.Where(l => text.BoxAt(l.Start).X >= box.X).Select(l => text.Text[l.Start..l.End].Trim());
+            Add(new RedactionFinding(RedactionLeak.GlyphSpacing, Loc.Format(PdfStrings.Redact_WhereBesideBox, p + 1), string.Join(" ", [.. left, "▮", .. right])) { Page = p, Box = box });
+        }
+
+        /// <summary>Per page, boxes found in its pictures (<see cref="PictureBoxes"/>), reported once every page is read.</summary>
+        private List<RectD>[] _pictureBoxes = [];
+
+        /// <summary>
+        /// Boxes in pictures: a redaction drawn into the page image (as tools that turn pages into pictures draw it) or a
+        /// scan's black marker. In the page as drawn for <see cref="HiddenChars"/> (<paramref name="img"/>), on each line of
+        /// its text, a stretch of columns dark across the line's middle, in a picture and wider than the line is tall, is a
+        /// box; with text beside it, it is reported as a drawn box is (<see cref="BesideBox"/>). Not the boxes of a redaction
+        /// whose lines were laid out again: the areas just redacted (<see cref="RedactionCheckOptions.Areas"/>) and those
+        /// Inkvolt PDF wrote into the picture.
+        /// </summary>
+        private List<RectD> PictureBoxes(int p, PageScan scan, RenderedImage img, double scale)
+        {
+            var found = new List<RectD>();
+            var text = _texts[p];
+            var pictures = scan.Pictures.Select(x => x.Box).Where(b => b.Width >= 6 && b.Height >= 4).ToList();
+            if (text.IsEmpty || pictures.Count == 0 || img.Width == 0 || img.Height == 0) return found;
+            var known = scan.Covers.Select(c => c.Box).Concat(scan.LaidOut)
+                .Concat(options.Areas is { } areas && areas.TryGetValue(p, out var mine) ? mine : []).ToList();
+            bool Dark(int x, int y)
+            {
+                var o = y * img.Stride + x * 3;
+                return img.Pixels[o] * 11 + img.Pixels[o + 1] * 59 + img.Pixels[o + 2] * 30 < 70 * 100;
+            }
+            int Px(double v, int max) => (int)Math.Clamp(Math.Round(v * scale), 0, max);
+            foreach (var (start, end, across) in text.Lines)
+            {
+                if (!across) continue;
+                var band = default(RectD);
+                for (var i = start; i < end; i++)
+                    if (Visible(text.Text[i]) && text.BoxAt(i) is { Width: > 0, Height: > 0 } b)
+                        band = band.IsEmpty ? b : band.Union(b);
+                if (band.Height is < 4 or > 200) continue;
+                // The line's middle half: a box drawn over its words covers it, a letter's strokes never do.
+                int y0 = Px(band.Y + band.Height / 4, img.Height), y1 = Math.Max(Px(band.Bottom - band.Height / 4, img.Height), y0 + 1);
+                if (y1 > img.Height) continue;
+                bool Column(int x)
+                {
+                    var dark = 0;
+                    for (var y = y0; y < y1; y++) if (Dark(x, y)) dark++;
+                    return dark >= 0.95 * (y1 - y0);
+                }
+                foreach (var pic in pictures.Where(pic => pic.Y < band.Bottom && pic.Bottom > band.Y))
+                {
+                    int x0 = Px(pic.X, img.Width), x1 = Px(pic.Right, img.Width);
+                    for (var x = x0; x < x1;)
+                    {
+                        var run = x;
+                        while (run < x1 && Column(run)) run++;
+                        if (run == x)
+                        {
+                            x++;
+                            continue;
+                        }
+                        // Its rows: up and down from the middle while (nearly) all its columns stay dark.
+                        var (from, to) = (x, run);
+                        bool Row(int y)
+                        {
+                            var dark = 0;
+                            for (var c = from; c < to; c++) if (Dark(c, y)) dark++;
+                            return dark >= 0.9 * (to - from);
+                        }
+                        int top = y0, bottom = y1, reach = Math.Max(1, Px(band.Height, img.Height));
+                        while (top > 0 && y0 - top < reach && Row(top - 1)) top--;
+                        while (bottom < img.Height && bottom - y1 < reach && Row(bottom)) bottom++;
+                        var box = new RectD(x / scale, top / scale, (run - x) / scale, (bottom - top) / scale);
+                        x = run;
+                        if (box.Width < Math.Max(6, 1.2 * box.Height) || known.Any(k => !k.Intersect(box).IsEmpty) || found.Any(f => !f.Intersect(box).IsEmpty)) continue;
+                        found.Add(box);
+                    }
+                }
+            }
+            return found;
         }
 
         /// <summary>Characters found not to show (not reported yet): under a dark box or comment, or else under other content or
@@ -956,6 +1041,7 @@ public static partial class RedactionCheck
                             var box = Box([(0, 0), (1, 1), (0, 1), (1, 0)], state.Ctm);
                             scan.Pictures.Add((box, xobj));
                             scan.Drawn.Add((box, ++_order, true));
+                            scan.LaidOut.AddRange(Redaction.LaidOutBoxes(xobj));
                         }
                         else if (sub == "/Form" && depth < MaxDepth && entry is PdfReference r && _active.Add(xobj))
                         {

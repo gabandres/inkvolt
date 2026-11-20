@@ -1091,7 +1091,7 @@ public static class BatchRunner
                 result = await EditAsync(data, (d, pw) => run.Redact(d, pw, skipText: cancel).Data).ConfigureAwait(false);
                 _beforeRedaction ??= data;
                 _redactedValues.AddRange(RedactionSearch.SoughtValues(hits));
-                foreach (var (page, list) in areas)
+                foreach (var (page, list) in run.Blacked) // where the boxes are now (lines laid out again move them)
                     (_redactedAreas.TryGetValue(page, out var all) ? all : _redactedAreas[page] = []).AddRange(list);
             }
             var outcome = await Task.Run(() => run.Verify(result, _password, data, Pages(PdfStrings.Batch_ReadingBack), cancel: cancel), cancel).ConfigureAwait(false);

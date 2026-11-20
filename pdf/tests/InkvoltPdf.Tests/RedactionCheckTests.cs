@@ -62,8 +62,8 @@ public class RedactionCheckTests
         var areas = AreasOf(data, page, text);
         List<string> values;
         using (var engine = PdfEngine.Open(data, InputFileTypes.PDF, null)) values = RedactionCheck.ValuesUnder(engine, areas);
-        var redacted = Redaction.Apply(data, null, areas, dpi: 100);
-        return (redacted, RedactionCheck.Run(redacted, null, new RedactionCheckOptions { Values = values, Areas = areas, Original = data }));
+        var redacted = Redaction.Redact(data, null, areas, dpi: 100);
+        return (redacted.Data, RedactionCheck.Run(redacted.Data, null, new RedactionCheckOptions { Values = values, Areas = redacted.Blacked, Original = data }));
     }
 
     [Fact]
@@ -183,7 +183,21 @@ public class RedactionCheckTests
         Encoding.Latin1.GetString([.. Enumerable.Range(0, 16).SelectMany(i => (i % 4) switch { 0 => new byte[] { 200, 30, 30 }, 1 => new byte[] { 30, 200, 30 }, 2 => new byte[] { 30, 30, 200 }, _ => new byte[] { 220, 220, 40 } })]),
         "/Type /XObject /Subtype /Image /Width 4 /Height 4 /ColorSpace /DeviceRGB /BitsPerComponent 8");
 
-    public static TheoryData<string> BadKinds => ["box", "highlight", "black-on-black", "white", "mark", "picture", "picture-comment", "spacing"];
+    public static TheoryData<string> BadKinds => ["box", "highlight", "black-on-black", "white", "mark", "picture", "picture-comment", "spacing", "picture-spacing"];
+
+    /// <summary>A black picture (one pixel) for a box drawn into the page's image.</summary>
+    private static string BlackPicture(string extra = "") =>
+        Core2Pdf.Stream("\0", $"/Type /XObject /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 {extra}");
+
+    /// <summary>The name taken out and a box drawn in a picture where it was (as tools that turn pages into pictures do),
+    /// "lives here" left where it was. <paramref name="pictureExtra"/> goes in the picture's dictionary.</summary>
+    private static byte[] PictureSpacing(string pictureExtra = "")
+    {
+        var b = NameBox();
+        var cm = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{b.X2 - b.X1:0.##} 0 0 {b.Y2 - b.Y1:0.##} {b.X1:0.##} {b.Y1:0.##} cm");
+        return OnePage($"BT /F1 18 Tf 72 700 Td (Name: ) Tj ET q {cm} /Im1 Do Q BT /F1 18 Tf {b.X2 + 5:0.##} 700 Td (lives here) Tj ET",
+            more: [BlackPicture(pictureExtra)], xobjects: "/Im1 6 0 R");
+    }
 
     /// <summary>The roadmap's corpus: bad redactions of each kind. <paramref name="kind"/> picks one.</summary>
     private static (byte[] Bad, RedactionLeak Expected, RectD Area) Bad(string kind)
@@ -214,6 +228,8 @@ public class RedactionCheckTests
             ], "/Im1 6 0 R"), RedactionLeak.CoveredContent, picArea),
             // The name was taken out and a box drawn where it was; "lives here" kept its place.
             "spacing" => (OnePage($"BT /F1 18 Tf 72 700 Td (Name: ) Tj ET 0 g {re} f BT /F1 18 Tf {b.X2 + 5:0.##} 700 Td (lives here) Tj ET"), RedactionLeak.GlyphSpacing, area),
+            // The same, the box drawn into a picture: a pixel redaction (roadmap 1.5, glyph spacing around pixel redactions).
+            "picture-spacing" => (PictureSpacing(), RedactionLeak.GlyphSpacing, area),
             _ => throw new ArgumentException(kind),
         };
     }
@@ -236,6 +252,32 @@ public class RedactionCheckTests
         var after = RedactionCheck.Run(proper, null);
         Assert.True(after.IsClean, string.Join("; ", after.Findings.Select(f => $"{f.Kind} {f.Where}: {f.Text}")));
         Assert.True(RedactionCheck.Run(RedactionCheck.Fix(bad, null, report.Findings), null).IsClean);
+    }
+
+    [Fact]
+    public void BoxesOfALineLaidOutAgainAreNotFlagged()
+    {
+        var b = NameBox();
+        var box = RectD.FromEdges(b.X1, 792 - b.Y2, b.X2, 792 - b.Y1);
+        Assert.Contains(RedactionCheck.Run(PictureSpacing(), null).Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        // Inkvolt PDF's redaction says in the picture which boxes it laid out with their lines, and the check after it is told.
+        var marked = PictureSpacing(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"/PdLaidOut [{box.X:0.##} {box.Y:0.##} {box.Width:0.##} {box.Height:0.##}]"));
+        Assert.DoesNotContain(RedactionCheck.Run(marked, null).Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        var told = RedactionCheck.Run(PictureSpacing(), null, new RedactionCheckOptions { Areas = new Dictionary<int, IReadOnlyList<RectD>> { [0] = [box] } });
+        Assert.DoesNotContain(told.Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        // A marker that isn't numbers, or is huge, is read as far as it makes sense.
+        Assert.Contains(RedactionCheck.Run(PictureSpacing("/PdLaidOut [/a (b) 1 2]"), null).Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        RedactionCheck.Run(PictureSpacing($"/PdLaidOut [{string.Join(' ', Enumerable.Repeat("99999999999 -99999999999 99999999999 99999999999", 5000))}]"), null);
+
+        // What the redaction writes: its boxes, where the layout put them.
+        var redacted = Redaction.Redact(OnePage(Line), null, AreasOf(OnePage(Line), 0, Name), dpi: 72);
+        using var doc = PdfObj.Read(redacted.Data, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        var image = PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!.Elements["/PdRedacted"])!;
+        var written = Redaction.LaidOutBoxes(image).ToList();
+        var blacked = Assert.Single(redacted.Blacked[0]);
+        var only = Assert.Single(written);
+        Assert.Equal(blacked.X, only.X, 1);
+        Assert.Equal(blacked.Width, only.Width, 1);
     }
 
     [Fact]

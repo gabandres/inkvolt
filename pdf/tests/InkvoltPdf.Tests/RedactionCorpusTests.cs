@@ -27,21 +27,26 @@ public sealed class RedactionCorpusTests : IDisposable
     }
 
     private static byte[] ApplyAndReadBack(byte[] data, string? password, PlantedReader reader, out RedactionSearchResult found, out List<RedactionMatch> left)
+        => ApplyAndReadBack(data, password, reader, out found, out left, out _);
+
+    private static byte[] ApplyAndReadBack(byte[] data, string? password, PlantedReader reader, out RedactionSearchResult found, out List<RedactionMatch> left,
+        out IReadOnlyDictionary<int, IReadOnlyList<RectD>> blacked)
     {
         using (var engine = PdfEngine.Open(data, InputFileTypes.PDF, password))
             found = RedactionSearch.Find(engine, RedactionCorpus.Search, reader);
         FindsAll(found.Hits);
         var areas = RedactionSearch.Areas(found.Hits);
-        var result = Redaction.Apply(data, password, areas);
-        left = RedactionSearch.ReadBack(result, password, RedactionCorpus.Search, reader, areas.Keys.ToHashSet(), []);
-        return result;
+        var result = Redaction.Redact(data, password, areas);
+        blacked = result.Blacked;
+        left = RedactionSearch.ReadBack(result.Data, password, RedactionCorpus.Search, reader, areas.Keys.ToHashSet(), []);
+        return result.Data;
     }
 
     [Fact]
     public void FindsEveryPlantedValueAndLeavesNoneAfterApplying()
     {
         var data = RedactionCorpus.Make(out var reader);
-        var result = ApplyAndReadBack(data, null, reader, out var found, out var left);
+        var result = ApplyAndReadBack(data, null, reader, out var found, out var left, out var blacked);
         Assert.True(left.Count == 0, "Still there: " + string.Join("; ", left.Select(h => $"{h.Page + 1}:{h.Pattern}:{h.Normalized}")));
 
         // Nothing of any planted value is in the pages' text or the file, and each hit's place is black.
@@ -54,9 +59,11 @@ public sealed class RedactionCorpusTests : IDisposable
         var report = RedactionCheck.Run(result, null, new RedactionCheckOptions { Values = RedactionSearch.Values(found.Hits), Patterns = RedactionCorpus.Search, ValuesOnly = true });
         Assert.True(report.IsClean, report.Summary);
         Assert.False(report.Incomplete);
-        foreach (var hit in found.Hits)
-            foreach (var r in hit.Rects)
-                Assert.True(Core2Pdf.Ink(result, hit.Page, r.Inflate(-1)) > 0.9, $"page {hit.Page + 1} {hit.Pattern} blacked out");
+        // Each box is black where it now is (a line with words left beside a hit is laid out again).
+        Assert.Equal(found.Hits.Select(h => h.Page).Distinct().Order(), blacked.Keys.Order());
+        foreach (var (page, boxes) in blacked)
+            foreach (var r in boxes.Where(r => r.Width > 3 && r.Height > 3))
+                Assert.True(Core2Pdf.Ink(result, page, r.Inflate(-1)) > 0.9, $"page {page + 1} {r} blacked out");
     }
 
     [Fact]

@@ -333,6 +333,9 @@ public sealed class PageText
         return (s, e);
     }
 
+    /// <summary>Each line's characters [Start, End), and whether its baseline runs across the page (not turned sideways).</summary>
+    public IEnumerable<(int Start, int End, bool Across)> Lines => _lines.Select(l => (l.Start, l.End, Math.Abs(l.Dx) > 0.99));
+
     /// <summary>Expands a caret to its whole line (for triple-click).</summary>
     public (int Start, int End) LineAt(int caret)
     {

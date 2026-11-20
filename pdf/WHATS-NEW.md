@@ -12,6 +12,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Batch, Scan, the exports, Compare Files and Redact by Pattern now read scans in the language you last chose in Recognize Text.
 - With Tesseract, a word it wasn't sure of is listed among the suspect words to check.
 - The command line (`inkvoltpdf --batch`, `--watch`, `--fill`, `--help`) typed in a terminal works: it ended at once without printing anything. Sent to a file or another program, its lines no longer have an extra line break after each (a blank line between lines in PowerShell, a stray character at the end of each in a script), and its lines and errors sent to the same file (`> log.txt 2>&1`) all stay there. Errors sent to a file of their own (`2> errors.txt`) go there.
+- Redaction no longer lets the width of what you removed show. Text after a black box used to stay where it was, so the gap (and the box itself) could tell how long the hidden words were. Now each redacted line is laid out again: its words keep their order, spaces are even, and the box's width is rounded, so the line looks the same whatever was under it.
+- Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
 - Accessibility Check compares the widths a PDF gives its characters with the font's own for every kind of embedded font, not just TrueType: CFF and Type 1 fonts too (most PDFs from InDesign, LaTeX and Acrobat).
 - Batch runs a small file that unpacks to far more than its size (a 200 KB file holding 200 MB) on its own, so it no longer takes memory from the files beside it.
 

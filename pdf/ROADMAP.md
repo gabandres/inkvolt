@@ -294,8 +294,22 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   picture. Fix redacts, sanitizes and rewrites. With 1.1's patterns it also looks for what they find outside the pages, and
   a part it couldn't search to the end is reported, not read as clean. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
-  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30). Still to
-  do: glyph-spacing inference around pixel redactions.
+  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30).
+  Glyph spacing around pixel redactions (Windows, done 2026-11-19): the redaction lays out again, in the page image,
+  each line an area cuts (`RedactionLines`, through `Redaction.Redact`): its words keep their letters and order, start
+  where the line started, a space of a quarter of the line's height between them, and each box takes a width rounded to
+  steps of twice the line's height; a line redacted whole is its rounded box; a block over several lines keeps its area.
+  So neither the text after a box (where the removed words ended), a justified line's spaces nor the box's own width
+  tells the removed width beyond its step. A line that would run into the next column or off the page narrows its
+  spaces. Where the boxes went (`RedactedPages.Blacked`) is what the check after Apply, Redact by Pattern and Batch are
+  told, the words that moved (`Moved`) where a kept hit is looked for, and the page's picture lists its boxes
+  (`/PdLaidOut`). The check also finds boxes drawn into pictures (another tool's pixel redaction, a scan's marker) with
+  text beside them (`GlyphSpacing`), not those of a line Inkvolt laid out. Tests (`RedactionLinesTests`,
+  `RedactionCheckTests`): two pages differing only in a name 22 pt wider, ragged and justified, give the same line to the
+  pixel (each word within one); a picture box beside text is flagged and fixed. Left: a moved word keeps the shading of
+  where it was (a fraction of a pixel, 0.24 pt at 300 dpi; drawing it anew would need MuPDF rendering at a sub-pixel
+  offset); an area reaching more than half a line above or below its line, or more than a line beyond its ends, keeps its
+  drawn edges there; lines turned sideways stay as they were. Mac: not yet.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
 ### 1.6 Store update check (done 2026-10-27)
