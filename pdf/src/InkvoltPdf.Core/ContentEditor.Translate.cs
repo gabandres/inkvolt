@@ -294,40 +294,47 @@ public static partial class ContentEditor
         return sb.Append("] TJ").ToString();
     }
 
-    /// <summary>The longest script on a band of its own that joins the line it sits on.</summary>
+    /// <summary>The longest script that joins a line shorter than itself, or a line it reaches across: longer, it must sit clear of the line's words.</summary>
     private const int MaxScriptLength = 12;
+
+    /// <summary>The most lines on each side, by baseline, a script looks at for the line it sits on.</summary>
+    private const int MaxHostsLooked = 128;
 
     /// <summary>
     /// A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its
-    /// place from left to right; so does a longer script up to <see cref="MaxScriptLength"/> characters that is smaller than
-    /// the line ("[12-15]", "a,b,c" raised after a name).
+    /// place from left to right; so does a longer script that is smaller than the line ("[12-15]", "a,b,c" raised after a
+    /// name, "[3, 7, 12, 18-24, 31]"): one over <see cref="MaxScriptLength"/> characters only where it overlaps none of the
+    /// line's words (after its end, before its start, or in a gap between its pieces), so small text set beside a line isn't
+    /// taken for its script.
     /// </summary>
     private static List<PLine> WithMarksInLine(List<PLine> lines)
     {
         var byBaseline = lines.OrderBy(l => l.Baseline).ToList();
         var result = new HashSet<PLine>(lines);
         var joined = new Dictionary<PLine, List<PLine>>();
-        // Longer scripts first: a line that hosts a mark is longer than it, so it is joined (or not) before that mark looks
-        // for a host, and one joined as a script hosts nothing (Consider skips it).
-        foreach (var i in Enumerable.Range(0, byBaseline.Count).OrderByDescending(k => Math.Min(byBaseline[k].Text.Trim().Length, MaxScriptLength + 1)))
+        // Longer scripts first: a line that hosts a mark is longer than it, or bigger, so it is joined (or not) before that
+        // mark looks for a host, and one joined as a script hosts nothing (Consider skips it).
+        foreach (var i in Enumerable.Range(0, byBaseline.Count).OrderByDescending(k => byBaseline[k].Text.Trim().Length))
         {
             var mark = byBaseline[i];
             var length = mark.Text.Trim().Length;
-            if (length > MaxScriptLength) continue;
             var reach = 1.2 * Math.Max(mark.Size, 1);
             PLine? host = null;
             void Consider(PLine m)
             {
-                if (m == mark || m.Text.Trim().Length <= Math.Max(4, length) || m.Size < mark.Size) return;
+                var hostLength = m.Text.Trim().Length;
+                if (m == mark || hostLength <= 4 || length <= MaxScriptLength && hostLength <= length || m.Size < mark.Size) return;
                 if (length > 4 && mark.Size > 0.85 * m.Size) return; // longer: only a script, smaller than its line
                 if (!result.Contains(m)) return; // already joined to a line as a script itself
                 if (mark.Box.CenterY <= m.Box.Y || mark.Box.CenterY >= m.Box.Bottom) return;
                 // Across the line, right after its end, or right before its start (a footnote's own mark: "†Work performed…").
                 if (mark.Box.Right <= m.Box.X - 0.5 * m.Size || mark.Box.X >= m.Box.Right + 0.5 * m.Size) return;
+                if (length > MaxScriptLength && m.Runs.Any(r => r.Text.Trim().Length > 0 && Math.Min(r.Box.Right, mark.Box.Right) - Math.Max(r.Box.X, mark.Box.X) > 1)) return;
                 host ??= m;
             }
-            for (var k = i - 1; k >= 0 && mark.Baseline - byBaseline[k].Baseline <= reach * 2; k--) Consider(byBaseline[k]);
-            for (var k = i + 1; k < byBaseline.Count && byBaseline[k].Baseline - mark.Baseline <= reach * 2; k++) Consider(byBaseline[k]);
+            // The nearest lines each way (a crafted page's thousands of lines on one baseline aren't each compared with all).
+            for (var k = i - 1; k >= 0 && k >= i - MaxHostsLooked && mark.Baseline - byBaseline[k].Baseline <= reach * 2; k--) Consider(byBaseline[k]);
+            for (var k = i + 1; k < byBaseline.Count && k <= i + MaxHostsLooked && byBaseline[k].Baseline - mark.Baseline <= reach * 2; k++) Consider(byBaseline[k]);
             if (host is null) continue;
             if (!joined.TryGetValue(host, out var marks)) joined[host] = marks = [];
             marks.Add(mark);
@@ -339,6 +346,7 @@ public static partial class ContentEditor
             var line = new PLine(runs[0]);
             foreach (var r in runs.Skip(1)) line.Add(r);
             line.Baseline = host.Baseline;
+            line.Own = LineBaseline(host);
             result.Remove(host);
             result.Add(line);
         }
@@ -366,7 +374,7 @@ public static partial class ContentEditor
                 var next = l.Runs.Skip(1).FirstOrDefault(r => r.Text.Trim().Length > 0) ?? l.Runs[1];
                 var raised = first.Origin.Y < next.Origin.Y - 0.15 * next.FontSize;
                 var apart = first.Text.EndsWith(' ') || next.Box.X - first.Box.Right > 0.25 * next.FontSize;
-                var line = new PLine(l.Runs[1]) { Marked = raised || apart, MarkStart = true };
+                var line = new PLine(l.Runs[1]) { Marked = raised || apart, MarkStart = true, Own = l.Own };
                 foreach (var r in l.Runs.Skip(2)) line.Add(r);
                 result.Add(line);
             }

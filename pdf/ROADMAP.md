@@ -979,8 +979,12 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   italic, underline or script. A character has one of them at most (a later span's replaces an earlier one's, as
   scripts do), and a reply that nests one inside another, or names one the paragraph didn't have, is written plain.
   `TranslationLooksTests` (+5: bold, red and Times on one page; three marked and a fourth demoted; garbled replies).
-  **Still wrong, and why.** A script longer than 12 characters on its
-  own band stays a paragraph of its own. The model's,
+  **Long scripts (2026-11-20).** A script on a band of its own longer than 12 characters ("[3, 7, 12, 18-24, 31, 40]"
+  raised after a word) joins the line it sits on as a shorter one does, when it overlaps none of that line's words (small
+  text set beside a line stays apart); its line may be shorter than it. The joined line keeps its own baseline and size
+  (PLine.Own): counted by characters, a long script would have been taken for the line. Each script looks at the 128
+  nearest lines each way, by baseline, for its line. TranslationLooksTests (+3).
+  **Still wrong, and why.** The model's,
   not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
   "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
   translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"

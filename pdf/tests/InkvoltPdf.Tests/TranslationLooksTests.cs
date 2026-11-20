@@ -939,6 +939,35 @@ public class TranslationLooksTests
         Assert.True(mark.Origin.Y < plain.Origin.Y - 2, $"{mark.Origin.Y} {plain.Origin.Y}");
     }
 
+    [Theory]
+    [InlineData("The quick brown fox jumps over the lazy dog")]
+    [InlineData("The lazy dog")] // a line shorter than its script
+    public void A_script_longer_than_twelve_characters_joins_the_line_it_sits_on_whole(string words)
+    {
+        const string script = "[3, 7, 12, 18-24, 31, 40]";
+        var line = $"BT /FA 12 Tf 1 0 0 1 72 700 Tm ({words}) Tj ET";
+        var right = Assert.Single(ContentEditor.Read(ContentEditPdf.Make(line, fontText: Letters + "[]-"), null, 0).Paragraphs).Box.Right;
+        var pdf = ContentEditPdf.Make(line + $" BT /FA 7 Tf 1 0 0 1 {right + 0.5:0.##} 704.5 Tm ({script}) Tj ET", fontText: Letters + "[]-");
+        var (plan, r) = Translate(pdf, _ => $"El perro <sup>{script}</sup>");
+        Assert.Equal($"{words}<sup>{script}</sup>", Assert.Single(plan.Texts).Text);
+        var runs = Runs(r.Data!);
+        var mark = Assert.Single(runs, q => q.Text.Contains("[3", StringComparison.Ordinal));
+        Assert.Equal(script, mark.Text.Trim()); // whole
+        Assert.Equal(7, mark.FontSize, 1);
+        var plain = runs.First(q => q.Text.Contains("perro", StringComparison.Ordinal));
+        Assert.True(mark.Origin.Y < plain.Origin.Y - 3, $"{mark.Origin.Y} {plain.Origin.Y}");
+    }
+
+    [Fact]
+    public void Long_small_text_over_a_lines_words_is_not_taken_for_its_script()
+    {
+        // Smaller and raised, but across the line's words: a note set beside it, not a script.
+        var pdf = ContentEditPdf.Make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog) Tj ET BT /FA 7 Tf 1 0 0 1 120 704.5 Tm (until the 0123456789 and the dog) Tj ET",
+            fontText: Letters);
+        Assert.DoesNotContain(Translation.MakePlan(pdf, null, [0]).Texts, t => t.Text.Contains("<sup>", StringComparison.Ordinal));
+    }
+
     [Fact]
     public void A_mark_on_a_longer_script_on_a_band_of_its_own_is_read_once()
     {

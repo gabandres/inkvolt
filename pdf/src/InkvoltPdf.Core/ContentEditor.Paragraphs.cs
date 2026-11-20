@@ -100,6 +100,8 @@ public static partial class ContentEditor
         public readonly List<TextRun> Runs = [first];
         public RectD Box = first.Box;
         public double Baseline = first.Origin.Y;
+        /// <summary>For a translated copy: a line scripts were joined to, its own baseline and size as it was before (<see cref="LineBaseline"/>: a long script mustn't count as the line).</summary>
+        public (double Y, double Size)? Own;
         public string Text = first.Text;
         /// <summary>Where each run's text starts in <see cref="Text"/>.</summary>
         public readonly List<int> Starts = [0];

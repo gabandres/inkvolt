@@ -133,6 +133,7 @@ public static partial class ContentEditor
     /// <summary>A line's own baseline and size, as most of its characters sit on it (not a big name set higher, nor a script).</summary>
     private static (double Y, double Size) LineBaseline(PLine line)
     {
+        if (line.Own is { } own) return own;
         var chars = new Dictionary<double, (int Count, Dictionary<double, int> Sizes)>();
         foreach (var r in line.Runs)
         {
