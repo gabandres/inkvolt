@@ -36,11 +36,11 @@ public partial class MainViewModel
 
     /// <summary>
     /// Asks the device at <paramref name="host"/> what it is (LEDM, CDM, IPP at <paramref name="ipp"/> or the default, eSCL, SNMP
-    /// with <paramref name="snmpLogin"/>, public when null).
+    /// with <paramref name="snmpLogin"/>, public when null), its web server at <paramref name="web"/> when it isn't on port 80 or 443.
     /// </summary>
-    public async Task<ProbeResult> IdentifyAsync(string host, Uri? ipp, CancellationToken ct, SnmpLogin? snmpLogin = null)
+    public async Task<ProbeResult> IdentifyAsync(string host, Uri? ipp, CancellationToken ct, SnmpLogin? snmpLogin = null, Uri? web = null)
     {
-        using var http = new Core.Net.DeviceHttp(host, _pc.DeviceTransport());
+        using var http = new Core.Net.DeviceHttp(host, _pc.DeviceTransport(), web: web);
         return await PrinterConnection.ProbeAsync(http, ct: ct, ippHint: ipp, snmp: _pc.Snmp, snmpLogin: snmpLogin);
     }
 
@@ -56,7 +56,8 @@ public partial class MainViewModel
     /// A printer read over SNMP keeps the login it answered to (<see cref="SnmpIdentity.Login"/>) in Credential Manager, never
     /// in state.json; one that answered HTTP has no use for it.
     /// </remarks>
-    public PrinterViewModel Add(ProbeResult probe, string host)
+    /// <param name="web">Its web server's root when it isn't on port 80 or 443 (typed with its port): remembered with it.</param>
+    public PrinterViewModel Add(ProbeResult probe, string host, Uri? web = null)
     {
         var uuid = PrinterId.Normalize(probe.Uuid, host);
         if (probe.Snmp is { } answered) KeepSnmpLogin(uuid, answered.LoginOrPublic);
@@ -67,12 +68,16 @@ public partial class MainViewModel
         if (vm is null)
         {
             vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Presets, Remember, _pc)
-                { IppUri = probe.IppEndpoint, SnmpDevice = snmpOnly };
+                { IppUri = probe.IppEndpoint, SnmpDevice = snmpOnly, WebRoot = probe.WebRootKept(web) };
             Printers.Add(vm);
             vm.Start();
             NotifyEmpty();
         }
-        else vm.SnmpDevice ??= snmpOnly;
+        else
+        {
+            vm.SnmpDevice ??= snmpOnly;
+            vm.WebRoot = probe.WebRootKept(web); // added again by a plain address, or its web port no longer answers: the defaults again
+        }
         Remember(vm);
         ShowPrinter(vm);
         Reconcile(queues: true);

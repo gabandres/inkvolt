@@ -97,6 +97,7 @@ public static class CdmParsers
                 Installed: null)
             {
                 Key = SupplyNames.EnglishName(code, kind, capitalize: true),
+                PageYield = Int(e, "capacity") is > 0 and var capacity && Str(e, "capacityUnit") is "pages" or "impressions" or "sheets" ? capacity : null,
             }, kind == "printhead"));
         }
         return [.. supplies.Where(s => !s.Printhead).Concat(supplies.Where(s => s.Printhead)).Select(s => s.Supply)];

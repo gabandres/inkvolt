@@ -16,6 +16,12 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 - Escáneres con un controlador de Windows más nuevo (WIA 2.0): la pestaña Escanear muestra cuánto falta para cada página, Detener detiene la página que se está escaneando, y el cristal y el alimentador ofrecen cada uno sus propias resoluciones.
 - Un escáner cuyo único controlador es un antiguo controlador TWAIN de 32 bits ahora aparece con su nombre y dice por qué no se puede usar aquí y qué controlador instalar, en vez de no aparecer.
 - El Blanquear de la limpieza ya no hace más difíciles de leer las páginas desvaídas una vez restaurados sus colores.
+- Los consumibles muestran las páginas que quedan y cuántas páginas rinde un cartucho lleno en más impresoras: las impresoras HP más nuevas y las de otras marcas que cuentan su tóner en páginas. También se ven sus páginas impresas y las páginas desde que se puso cada cartucho.
+- Acceso SNMP… con un usuario SNMPv3 (Inkvolt Pro) funciona con más impresoras: elige el protocolo que usa la impresora junto a cada frase de contraseña, SHA-256, SHA-1 o MD5 para la autenticación y AES-128, AES-192, AES-256 o DES para la privacidad.
+- Una impresora cuya página web está en un puerto propio se puede agregar por esa dirección (por ejemplo http://192.168.1.20:8080), y una que anuncia su página en la red se lee allí por sí sola.
+- El estado de la impresora muestra lo que dice su panel de control, cuando eso dice más que el estado.
+- Las impresoras que Windows configuró mediante WSD ahora muestran el estado y los niveles de tóner o tinta de la propia impresora cuando responde por SNMP, como las impresoras en un puerto TCP/IP.
+- Una impresora agregada, quitada o con otro nombre en Windows aparece en la lista de impresoras, desaparece o toma su nuevo nombre en un segundo más o menos, en vez de en la siguiente revisión.
 - El escaneo en lote también divide en códigos QR: una hoja con un código QR o un código de barras que dice PATCHT (como los que imprime Paperless-ngx) empieza un archivo nuevo, igual que una hoja con código patch. La hoja separadora que Inkvolt Print guarda para ti ahora lleva uno junto a sus barras.
 - Obtener el controlador ahora también encuentra los controladores de Canon, HP y Brother y los de PFU (escáneres fi y SP de Fujitsu y Ricoh), cada uno en el sitio del propio fabricante y firmado por él, como ya lo hacía con Epson.
 - Novedades aparece en español cuando Inkvolt Print está en español.

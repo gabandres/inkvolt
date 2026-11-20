@@ -21,17 +21,19 @@ public sealed partial class SnmpAgent : ISnmpTransport
     }
 
     /// <summary>
-    /// An SNMPv3-only agent (<see cref="RespondV3"/>) for <paramref name="user"/> at authPriv (SHA-256, AES-128), with engine
-    /// <paramref name="engineId"/>; v1 and v2c requests get no reply.
+    /// An SNMPv3-only agent (<see cref="RespondV3"/>) for <paramref name="user"/> at authPriv (with the user's protocols), with
+    /// engine <paramref name="engineId"/>, lengthening a short privacy key as <paramref name="extension"/> says; v1 and v2c
+    /// requests get no reply.
     /// </summary>
-    public SnmpAgent(IEnumerable<SnmpVarBind> objects, SnmpV3User user, byte[] engineId, int engineBoots = 1, int engineTime = 1000)
+    public SnmpAgent(IEnumerable<SnmpVarBind> objects, SnmpV3User user, byte[] engineId, int engineBoots = 1, int engineTime = 1000,
+        Usm.KeyExtension extension = Usm.KeyExtension.Blumenthal)
         : this(objects)
     {
         V3User = user;
         EngineId = engineId;
         EngineBoots = engineBoots;
         EngineTime = engineTime;
-        _keys = Usm.Keys.For(user, engineId);
+        _keys = Usm.Keys.For(user, engineId, extension);
     }
 
     public string Community { get; }
@@ -62,7 +64,9 @@ public sealed partial class SnmpAgent : ISnmpTransport
 
     /// <summary>
     /// Objects written as net-snmp prints them (<c>snmpwalk -On</c>): <c>.1.3.6.1.2.1.1.1.0 = STRING: "Demo laser"</c>, with
-    /// INTEGER, STRING, Hex-STRING, OID, Gauge32, Counter32, Timeticks and IpAddress. Blank lines and <c>#</c> comments are skipped.
+    /// INTEGER, STRING, Hex-STRING, OID, Gauge32, Counter32, Counter64, Timeticks, IpAddress and Opaque (its octets in hex, as
+    /// <c>Opaque: 9F 78 04 3F C0 00 00</c>; net-snmp's decoded <c>Opaque: Float: …</c> isn't read). Blank lines and <c>#</c>
+    /// comments are skipped.
     /// </summary>
     public static IReadOnlyList<SnmpVarBind> ParseWalk(string text)
     {
@@ -82,6 +86,8 @@ public sealed partial class SnmpAgent : ISnmpTransport
                 "OID" => SnmpValue.Id(Oid.Parse(value)),
                 "Gauge32" => SnmpValue.Unsigned(Ber.Gauge32, ulong.Parse(value, CultureInfo.InvariantCulture)),
                 "Counter32" => SnmpValue.Unsigned(Ber.Counter32, ulong.Parse(value, CultureInfo.InvariantCulture)),
+                "Counter64" => SnmpValue.Unsigned(Ber.Counter64, ulong.Parse(value, CultureInfo.InvariantCulture)),
+                "Opaque" or "OPAQUE" => SnmpValue.Opaque(Convert.FromHexString(value.Replace(" ", ""))),
                 "Timeticks" => SnmpValue.Unsigned(Ber.TimeTicks, ulong.Parse(Regex.Match(value, @"\d+").Value, CultureInfo.InvariantCulture)),
                 "IpAddress" => SnmpValue.Address(value.Split('.').Select(byte.Parse).ToArray()),
                 var t => throw new FormatException($"Unknown snmpwalk type {t}"),
@@ -93,8 +99,9 @@ public sealed partial class SnmpAgent : ISnmpTransport
     /// <summary>
     /// The other way: objects written as <see cref="ParseWalk"/> reads them, in OID order, one per line, so a recording
     /// (<see cref="Recording.PrinterRecorder"/>) is served again as it was read. An OCTET STRING is a STRING when it is
-    /// printable text (no control characters, no edge spaces, no NULs), else Hex-STRING. Types <see cref="ParseWalk"/> doesn't
-    /// read (Counter64, Opaque, NULL, the v2c exceptions) are left out as a comment line.
+    /// printable text (no control characters, no edge spaces, no NULs), else Hex-STRING; a Counter64 keeps its full unsigned
+    /// value and an Opaque its octets as they came. Types <see cref="ParseWalk"/> doesn't read (NULL, the v2c exceptions, a
+    /// vendor's type) are left out as a comment line.
     /// </summary>
     public static string FormatWalk(IEnumerable<SnmpVarBind> objects)
     {
@@ -107,6 +114,8 @@ public sealed partial class SnmpAgent : ISnmpTransport
                 Ber.Integer => $"INTEGER: {v.Number.ToString(CultureInfo.InvariantCulture)}",
                 Ber.Gauge32 => $"Gauge32: {v.Number.ToString(CultureInfo.InvariantCulture)}",
                 Ber.Counter32 => $"Counter32: {v.Number.ToString(CultureInfo.InvariantCulture)}",
+                Ber.Counter64 => $"Counter64: {unchecked((ulong)v.Number).ToString(CultureInfo.InvariantCulture)}",
+                Ber.Opaque => $"Opaque: {Convert.ToHexString(v.Bytes ?? [])}",
                 Ber.TimeTicks => $"Timeticks: ({v.Number.ToString(CultureInfo.InvariantCulture)})",
                 Ber.ObjectIdentifier => $"OID: .{v.ObjectId}",
                 Ber.IpAddress when v.Bytes is { Length: 4 } ip => $"IpAddress: {string.Join('.', ip)}",
@@ -236,15 +245,15 @@ public sealed partial class SnmpAgent : ISnmpTransport
             return Report(m, Usm.UnknownEngineIds, m.EngineId.Length == 0 ? "discovery" : "unknownEngineIDs");
         if (m.UserName != user.Name) return Report(m, Usm.UnknownUserNames, "unknownUserNames");
         if (!m.Authenticated || !m.Private) return Report(m, Usm.UnsupportedSecLevels, "unsupportedSecLevels");
-        if (!m.Verify(request, keys.Auth)) return Report(m, Usm.WrongDigests, "wrongDigests");
+        if (!m.Verify(request, keys)) return Report(m, Usm.WrongDigests, "wrongDigests");
         if (m.EngineBoots != EngineBoots || Math.Abs((long)m.EngineTime - EngineTime) > Usm.TimeWindow)
             return Report(m, Usm.NotInTimeWindows, "notInTimeWindows", signed: true);
         SnmpMessage pdu;
         try
         {
             if (m.Encrypted is null || m.PrivParameters.Length != Usm.SaltLength) throw new FormatException("no encrypted PDU");
-            var (_, _, decrypted) = SnmpV3Message.DecodeScoped(
-                Usm.AesCfb(keys.Priv, Usm.AesIv(m.EngineBoots, m.EngineTime, m.PrivParameters), m.Encrypted, encrypt: false));
+            var (_, _, decrypted) = SnmpV3Message.DecodeScoped(keys.Decrypt(m.EngineBoots, m.EngineTime, m.PrivParameters, m.Encrypted),
+                padded: keys.PrivProtocol == SnmpPriv.Des);
             pdu = decrypted;
         }
         catch (FormatException)
@@ -268,21 +277,20 @@ public sealed partial class SnmpAgent : ISnmpTransport
                 MessageId = to.MessageId, Flags = signed ? SnmpV3Message.FlagAuth : (byte)0, EngineId = EngineId, EngineBoots = EngineBoots,
                 EngineTime = EngineTime, UserName = to.UserName, ContextEngineId = EngineId, Pdu = report,
             };
-            return signed ? reply.Sign(keys.Auth) : reply.Encode();
+            return signed ? reply.Sign(keys) : reply.Encode();
         }
     }
 
     /// <summary>A Response, encrypted with a fresh salt and signed.</summary>
     private byte[] Wrap(SnmpV3Message to, SnmpMessage answer, Usm.Keys keys)
     {
-        var salt = new byte[Usm.SaltLength];
-        System.Buffers.Binary.BinaryPrimitives.WriteInt64BigEndian(salt, Interlocked.Increment(ref _salt));
+        var salt = keys.Salt(EngineBoots, Interlocked.Increment(ref _salt));
         var scoped = SnmpV3Message.EncodeScoped(EngineId, "", answer);
         return new SnmpV3Message
         {
             MessageId = to.MessageId, Flags = SnmpV3Message.FlagAuth | SnmpV3Message.FlagPriv, EngineId = EngineId,
             EngineBoots = EngineBoots, EngineTime = EngineTime, UserName = to.UserName, PrivParameters = salt,
-            Encrypted = Usm.AesCfb(keys.Priv, Usm.AesIv(EngineBoots, EngineTime, salt), scoped, encrypt: true),
-        }.Sign(keys.Auth);
+            Encrypted = keys.Encrypt(EngineBoots, EngineTime, salt, scoped),
+        }.Sign(keys);
     }
 }

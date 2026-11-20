@@ -25,13 +25,17 @@ public sealed record PrinterView
 
     public string StatusMessage { get; init; } = CoreStrings.Monitor_Connecting;
     public string? StatusDetail { get; init; }
+
+    /// <summary>What the printer's control panel says, when it says more than the status (<see cref="PrinterStatus.PanelNote"/>); null otherwise.</summary>
+    public string? StatusPanel { get; init; }
+
     public Severity Severity { get; init; } = Severity.Info;
     public IReadOnlyList<PrinterAlert> Alerts { get; init; } = [];
 
     /// <summary>The last levels read: a read that couldn't get them keeps these.</summary>
     public IReadOnlyList<Consumable> Supplies { get; init; } = [];
 
-    /// <summary>The last usage counters read (HP's LEDM only).</summary>
+    /// <summary>The last usage counters read (HP's LEDM; the page count alone over IPP and SNMP).</summary>
     public UsageCounters? Usage { get; init; }
 
     /// <summary>What the printer said about itself when it last connected; null before the first connection.</summary>
@@ -234,16 +238,17 @@ public sealed class PrinterMonitor : IDisposable
     /// True when the caller should run the monitor again now: it moved, or it was seen again while offline and not connecting.
     /// </summary>
     /// <param name="model">The model the announcement names.</param>
-    public async Task<bool> AnnouncedAsync(string? host, Uri? escl, Uri? ipp, string? model, CancellationToken ct = default)
+    /// <param name="web">Its web server's root when the announcement names one on a port of its own (<see cref="PrinterWhere.WebHint"/>).</param>
+    public async Task<bool> AnnouncedAsync(string? host, Uri? escl, Uri? ipp, string? model, CancellationToken ct = default, Uri? web = null)
     {
         if (host is null || string.Equals(host, Target.Host, StringComparison.OrdinalIgnoreCase))
         {
-            TakeHints(escl, ipp);
+            TakeHints(escl, ipp, web);
             return !View.IsOnline && !View.IsConnecting && host is not null; // mDNS just saw it again; don't wait for the retry
         }
         try
         {
-            var check = await _session.CheckAddressAsync(Target, new PrinterWhere(host, escl, ipp), View.IsOnline && !View.IsElsewhere, model, ct);
+            var check = await _session.CheckAddressAsync(Target, new PrinterWhere(host, escl, ipp, WebHint: web), View.IsOnline && !View.IsElsewhere, model, ct);
             if (check == AddressCheck.Skipped) return false;
             if (check != AddressCheck.Move)
             {
@@ -254,7 +259,7 @@ public sealed class PrinterMonitor : IDisposable
             }
             if (string.Equals(host, Target.Host, StringComparison.OrdinalIgnoreCase)) return false;
             Move(host);
-            TakeHints(escl, ipp);
+            TakeHints(escl, ipp, web);
             return true;
         }
         catch (Exception ex)
@@ -337,7 +342,13 @@ public sealed class PrinterMonitor : IDisposable
         var p = conn.Probe;
         // Over SNMPv3 the engine that answered signed, as this printer, is remembered (the app keeps Target when it connects):
         // a later refusal is the printer's only from it.
-        Target = Target with { IppHint = p.IppEndpoint ?? Target.IppHint, Snmp = Target.Snmp is { } known && p.Snmp is { } said ? known.Answered(said) : Target.Snmp };
+        // A web root where neither LEDM nor CDM answers any more (the printer moved it back, or another port) is let go: the
+        // next connection asks the default ports (an announcement's adminurl gives it again).
+        Target = Target with
+        {
+            IppHint = p.IppEndpoint ?? Target.IppHint, Snmp = Target.Snmp is { } known && p.Snmp is { } said ? known.Answered(said) : Target.Snmp,
+            WebHint = p.WebRootKept(Target.WebHint),
+        };
         var notice = View.FirmwareNotice;
         if (_firmware is { } memory)
         {
@@ -378,7 +389,8 @@ public sealed class PrinterMonitor : IDisposable
             Usage = reading.Usage ?? View.Usage,
         };
         // An unusable reply (printer waking up) keeps the last good status instead of flashing an error.
-        if (!status.IsUnavailable) v = v with { StatusMessage = status.Message, StatusDetail = status.Detail, Severity = status.Severity, Alerts = status.Alerts };
+        if (!status.IsUnavailable)
+            v = v with { StatusMessage = status.Message, StatusDetail = status.Detail, StatusPanel = status.PanelNote, Severity = status.Severity, Alerts = status.Alerts };
         Show(v);
         _onEvent(new MonitorEvent.Read(reading));
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), true, status.IsUnavailable ? null : status, reading.Supplies)
@@ -394,7 +406,7 @@ public sealed class PrinterMonitor : IDisposable
         Show(View with
         {
             IsConnecting = false, IsOnline = false, IsRefused = false, IsElsewhere = elsewhere || View.IsElsewhere, StatusMessage = message,
-            StatusDetail = detail, Severity = Severity.Error, Alerts = [],
+            StatusDetail = detail, StatusPanel = null, Severity = Severity.Error, Alerts = [],
         });
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), false, null, null)));
     }
@@ -410,7 +422,7 @@ public sealed class PrinterMonitor : IDisposable
         Show(View with
         {
             IsConnecting = false, IsOnline = false, IsRefused = true, StatusMessage = CoreStrings.Monitor_RefusedTitle,
-            StatusDetail = string.Format(CoreStrings.Monitor_RefusedDetail, new SnmpAccessException(why).Message), Severity = Severity.Error, Alerts = [],
+            StatusDetail = string.Format(CoreStrings.Monitor_RefusedDetail, new SnmpAccessException(why).Message), StatusPanel = null, Severity = Severity.Error, Alerts = [],
         });
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), false, null, null) { LoginRefused = why }));
     }
@@ -428,7 +440,8 @@ public sealed class PrinterMonitor : IDisposable
         SetOffline(CoreStrings.Monitor_ElsewhereTitle, string.Format(CoreStrings.Monitor_ElsewhereDetail, Target.Host), elsewhere: true);
     }
 
-    private void TakeHints(Uri? escl, Uri? ipp) => Target = Target with { EsclHint = escl ?? Target.EsclHint, IppHint = ipp ?? Target.IppHint };
+    private void TakeHints(Uri? escl, Uri? ipp, Uri? web) =>
+        Target = Target with { EsclHint = escl ?? Target.EsclHint, IppHint = ipp ?? Target.IppHint, WebHint = web ?? Target.WebHint };
 
     private void Show(PrinterView v)
     {

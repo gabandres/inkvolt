@@ -22,7 +22,21 @@ public static class PrinterMib
 
     /// <summary>prtMarkerSuppliesEntry (1.3.6.1.2.1.43.11.1.1) columns.</summary>
     public static readonly Oid SuppliesColorantIndex = Supplies(3), SuppliesClass = Supplies(4), SuppliesType = Supplies(5),
-        SuppliesDescription = Supplies(6), SuppliesMaxCapacity = Supplies(8), SuppliesLevel = Supplies(9);
+        SuppliesDescription = Supplies(6), SuppliesUnit = Supplies(7), SuppliesMaxCapacity = Supplies(8), SuppliesLevel = Supplies(9);
+
+    /// <summary>prtMarkerEntry (1.3.6.1.2.1.43.10.2.1): 3 prtMarkerCounterUnit, 4 prtMarkerLifeCount (the marker's lifetime count).</summary>
+    public static readonly Oid MarkerCounterUnit = Oid.Parse("1.3.6.1.2.1.43.10.2.1.3"), MarkerLifeCount = Oid.Parse("1.3.6.1.2.1.43.10.2.1.4");
+
+    /// <summary>
+    /// PrtMarkerSuppliesSupplyUnitTC and PrtMarkerCounterUnitTC (RFC 3805) units that count pages: impressions(7) and sheets(8).
+    /// A supply counted in them has its level in pages left; a marker counting in them has its life count in pages.
+    /// </summary>
+    public const int UnitImpressions = 7, UnitSheets = 8;
+
+    public static bool CountsPages(int unit) => unit is UnitImpressions or UnitSheets;
+
+    /// <summary>prtConsoleDisplayBufferEntry (1.3.6.1.2.1.43.16.5.1): 2 prtConsoleDisplayBufferText, one row a line of the control panel's display.</summary>
+    public static readonly Oid ConsoleDisplayText = Oid.Parse("1.3.6.1.2.1.43.16.5.1.2");
 
     /// <summary>prtMarkerColorantEntry (1.3.6.1.2.1.43.12.1.1): 4 prtMarkerColorantValue ("black", "cyan"…).</summary>
     public static readonly Oid ColorantValue = Oid.Parse("1.3.6.1.2.1.43.12.1.1.4");

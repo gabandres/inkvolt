@@ -104,6 +104,9 @@ internal static class Ber
 
         public bool HasMore => _pos < end;
 
+        /// <summary>Where the next TLV starts.</summary>
+        public int Position => _pos;
+
         /// <summary>The next TLV: its tag and where its content is. Moves past it.</summary>
         public (byte Tag, int Start, int Length) Next()
         {

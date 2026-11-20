@@ -4,8 +4,11 @@ using InkvoltPrint.Core.Snmp;
 
 namespace InkvoltPrint.Core.Probe;
 
-/// <summary>Where a remembered printer is reached: its address, the eSCL and IPP addresses it gave, and (SNMP-only printers) what it said about itself.</summary>
-public sealed record PrinterWhere(string Host, Uri? EsclHint = null, Uri? IppHint = null, SnmpDevice? Snmp = null);
+/// <summary>
+/// Where a remembered printer is reached: its address, the eSCL and IPP addresses it gave, (SNMP-only printers) what it said
+/// about itself, and its web server when that isn't on port 80 or 443 (<see cref="WebHint"/>: scheme and port, on the address in use).
+/// </summary>
+public sealed record PrinterWhere(string Host, Uri? EsclHint = null, Uri? IppHint = null, SnmpDevice? Snmp = null, Uri? WebHint = null);
 
 /// <summary>
 /// The connection recipe: what every connection to a printer carries, the same for the first connection, a reconnection, an
@@ -106,7 +109,7 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
     public async Task<SessionStep> ConnectAsync(PrinterWhere where, CancellationToken ct)
     {
         var conn = await PrinterConnection.OpenAsync(where.Host, where.EsclHint, ct, recipe.Pin, recipe.Transport(), where.IppHint,
-            SnmpDevice.TransportFor(where.Snmp, recipe.Snmp), recipe.SnmpLogin?.Invoke()).ConfigureAwait(false);
+            SnmpDevice.TransportFor(where.Snmp, recipe.Snmp), recipe.SnmpLogin?.Invoke(), where.WebHint).ConfigureAwait(false);
         if (!conn.Probe.Reachable)
         {
             conn.Dispose();
@@ -150,7 +153,7 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
         if (Connection is not { OverSnmp: true } conn || _clock.GetUtcNow() - _upgradeTriedAt < UpgradeInterval) return null;
         _upgradeTriedAt = _clock.GetUtcNow();
         if (await StillThisPrinterAsync(conn, where, ct).ConfigureAwait(false) is { } elsewhere) return elsewhere;
-        var richer = await conn.TryRicherAsync(where.Snmp, where.EsclHint, where.IppHint, recipe.Pin, recipe.Transport(), ct).ConfigureAwait(false);
+        var richer = await conn.TryRicherAsync(where.Snmp, where.EsclHint, where.IppHint, recipe.Pin, recipe.Transport(), ct, where.WebHint).ConfigureAwait(false);
         if (richer is null) return null;
         if (Identify(where.Host, richer.Probe.ReportedUuids) == DeviceIdentity.Different)
         {
@@ -185,7 +188,7 @@ public sealed class PrinterSession(string id, PrinterRecipe recipe, Func<IEnumer
         try
         {
             ProbeResult probe;
-            using (var http = new DeviceHttp(host, recipe.Transport()))
+            using (var http = new DeviceHttp(host, recipe.Transport(), web: candidate.WebHint ?? current.WebHint))
                 probe = await PrinterConnection.ProbeAsync(http, candidate.EsclHint, ct, candidate.IppHint, SnmpDevice.TransportFor(current.Snmp, recipe.Snmp),
                         recipe.SnmpLogin?.Invoke())
                     .ConfigureAwait(false);

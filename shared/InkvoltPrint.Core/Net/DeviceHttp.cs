@@ -21,13 +21,17 @@ public sealed class DeviceHttp : IDisposable
     private readonly Dictionary<int, HttpClient> _tls = [];
     private string? _basicAuth;
 
-    public DeviceHttp(string host, HttpMessageHandler? handler = null, ICertificatePin? pin = null)
+    /// <param name="web">
+    /// The printer's web server when it isn't on port 80 or 443 (<see cref="Discovery.PrinterAddress.WebRoot"/>): its scheme and
+    /// port only, on <paramref name="host"/>. Its http or https base (LEDM, CDM, the web pages) moves there; null: the defaults.
+    /// </param>
+    public DeviceHttp(string host, HttpMessageHandler? handler = null, ICertificatePin? pin = null, Uri? web = null)
     {
         Host = host;
         _pin = pin;
         _ownTransport = handler is not null;
-        HttpBase = new UriBuilder(Uri.UriSchemeHttp, host).Uri;
-        HttpsBase = new UriBuilder(Uri.UriSchemeHttps, host).Uri;
+        HttpBase = new UriBuilder(Uri.UriSchemeHttp, host, web is { IsAbsoluteUri: true, Scheme: "http" } ? web.Port : -1).Uri;
+        HttpsBase = new UriBuilder(Uri.UriSchemeHttps, host, web is { IsAbsoluteUri: true, Scheme: "https" } ? web.Port : -1).Uri;
         _client = NewClient(handler ?? CreateHandler(host, (c, e) => ValidateCertificate(c, e, HttpsBase.Port)));
     }
 

@@ -159,22 +159,46 @@ public sealed class SnmpPrinterClient
         var alertColumns = new[] { PrinterMib.AlertSeverity, PrinterMib.AlertGroup, PrinterMib.AlertGroupIndex, PrinterMib.AlertCode, PrinterMib.AlertDescription };
         var alerts = Rows(await _client.WalkAsync(alertColumns.Select(c => c.Append(i)).ToList(), ct).ConfigureAwait(false));
         var supplyColumns = new[] { PrinterMib.SuppliesClass, PrinterMib.SuppliesType, PrinterMib.SuppliesDescription, PrinterMib.SuppliesMaxCapacity,
-            PrinterMib.SuppliesLevel, PrinterMib.SuppliesColorantIndex };
+            PrinterMib.SuppliesLevel, PrinterMib.SuppliesColorantIndex, PrinterMib.SuppliesUnit };
         var supplies = Rows(await _client.WalkAsync(supplyColumns.Select(c => c.Append(i)).ToList(), ct).ConfigureAwait(false));
         // Colorants belong to the marker, not the cartridge in it: read once.
         _colorants ??= Rows(await _client.WalkAsync([PrinterMib.ColorantValue.Append(i)], ct).ConfigureAwait(false))
             .Where(r => r.Value[0]?.Text is not null).ToDictionary(r => r.Key, r => r.Value[0]!.Text!);
+        // Extras: the page count and the panel's lines. A printer that times out or errs on them (an agent without the tables, a
+        // slow one) still gives its status and supplies: they're just missing.
+        var markers = await Extra(() => _client.WalkAsync([PrinterMib.MarkerCounterUnit.Append(i), PrinterMib.MarkerLifeCount.Append(i)], ct)) is { } m
+            ? Rows(m) : new SortedDictionary<int, SnmpValue?[]>();
+        // The panel's lines, rows indexed by the console's line (one display: its first index; a printer with two shows the first).
+        var panel = (await Extra(() => _client.WalkAsync([PrinterMib.ConsoleDisplayText.Append(i)], ct)))?[0]
+            .Where(r => r.Index.Length >= 1).Take(256).Select(r => r.Value.Text?.ReplaceLineEndings(" ").Trim()).OfType<string>()
+            .Where(t => t.Length > 0).Take(SnmpReading.MaxPanelLines).ToList() ?? [];
 
         return new SnmpReading(
             state[0].Value.Int,
             state[1].Value.Int,
             state[2].Value.Bytes ?? [],
             alerts.Select(r => new SnmpAlert(r.Key, Int(r.Value[0]), Int(r.Value[1]), Int(r.Value[2], -1), Int(r.Value[3]), r.Value[4]?.Text)).ToList(),
-            supplies.Select(r => new SnmpSupply(r.Key, Int(r.Value[0]), Int(r.Value[1]), r.Value[2]?.Text, Int(r.Value[3], -2), Int(r.Value[4], -2), Int(r.Value[5])))
-                .ToList(),
-            _colorants);
+            supplies.Select(r => new SnmpSupply(r.Key, Int(r.Value[0]), Int(r.Value[1]), r.Value[2]?.Text, Int(r.Value[3], -2), Int(r.Value[4], -2), Int(r.Value[5]))
+                { Unit = Int(r.Value[6]) }).ToList(),
+            _colorants)
+        {
+            PageCount = PageCount(markers.Values.FirstOrDefault()),
+            Panel = panel,
+        };
 
         static int Int(SnmpValue? v, int missing = 0) => v?.Int ?? missing;
+
+        // A read that's only extra: no answer, an error or an odd reply gives nothing (the caller's cancellation still stops it).
+        static async Task<T?> Extra<T>(Func<Task<T>> read) where T : class
+        {
+            try { return await read().ConfigureAwait(false); }
+            catch (Exception ex) when (ex is TimeoutException or SnmpErrorException or FormatException) { return null; }
+        }
+
+        // The first marker (a printer has one; a color one may count per marker, the first being the engine's): its life count
+        // when it counts pages and is a number (a Counter32 past int's range isn't a page count).
+        static int? PageCount(SnmpValue?[]? marker) =>
+            marker is [{ } unit, { IsNumber: true, Number: >= 0 and <= int.MaxValue } count] && unit.Int is { } u && PrinterMib.CountsPages(u) ? (int)count.Number : null;
     }
 
     /// <summary>Columns walked side by side → rows by their (single-arc) index, each with its value per column (null where missing).</summary>

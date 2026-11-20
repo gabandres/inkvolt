@@ -201,6 +201,8 @@
                                 <TextBlock Text="{Binding StatusMessage}" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding StatusDetail}" Style="{StaticResource Caption}" Margin="0,4,0,0"
                                            Visibility="{Binding StatusDetail, Converter={StaticResource VisibleWhen}}" />
+                                <TextBlock Text="{Binding StatusPanel}" Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                           Visibility="{Binding StatusPanel, Converter={StaticResource VisibleWhen}}" />
                                 <ItemsControl ItemsSource="{Binding Alerts}" Margin="0,8,0,0">
                                     <ItemsControl.ItemContainerStyle>
                                         <Style TargetType="ContentPresenter">

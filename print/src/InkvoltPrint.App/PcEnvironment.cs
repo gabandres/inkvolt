@@ -93,16 +93,22 @@ public abstract class PcEnvironment
     public abstract Task<string?> FindQueueAsync(string uuid, string? host, SpoolerQueue? listed, AppState state);
 
     /// <summary>
-    /// Where a queue printer's status comes from: Windows and the driver; for a queue whose port has the printer's address, the
-    /// printer itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one; for
-    /// the others (USB, WSD), the printer through Windows' IPP class driver (IPP over USB) or the driver over bidi when they answer.
+    /// Tells <paramref name="changed"/> when Windows adds, removes or renames a print queue (the spooler's change notices), so the
+    /// printer list follows without waiting for its next read; null where nothing changes (the made-up PC). Dispose to stop.
     /// </summary>
-    public IQueueStatusSource QueueStatus(SpoolerQueue q)
-    {
-        var windows = SpoolerStatus(q);
-        if (QueueKinds.SnmpAddress(q) is { } host) return new SnmpQueueStatusSource(windows, host, Snmp, q.PortCommunity);
-        return DeviceReaders(q) is { Count: > 0 } readers ? new DeviceQueueStatusSource(windows, readers) : windows;
-    }
+    public virtual IDisposable? WatchQueueChanges(Action changed) => null;
+
+    /// <summary>
+    /// Where a queue printer's status comes from (<see cref="QueueSources.For"/>, as the Fleet page's): Windows and the driver;
+    /// for a queue whose port has the printer's address, or a WSD queue whose device node is there and says it, the printer
+    /// itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one; for the others
+    /// (USB, WSD), the printer through Windows' IPP class driver (IPP over USB) or the driver over bidi when they answer. A WSD
+    /// printer that doesn't answer SNMP, or isn't this one, is still asked those ways.
+    /// </summary>
+    public IQueueStatusSource QueueStatus(SpoolerQueue q) => QueueSources.For(q, SpoolerStatus(q), () => DeviceReaders(q), Snmp, () => Latest(q));
+
+    /// <summary>The queue as last listed: its WSD device's presence and address (they move: DHCP, the printer switched off).</summary>
+    protected virtual SpoolerQueue Latest(SpoolerQueue q) => q;
 
     protected abstract IQueueStatusSource SpoolerStatus(SpoolerQueue q);
 
@@ -191,6 +197,10 @@ public abstract class PcEnvironment
         public override (IReadOnlyList<SpoolerQueue>, IReadOnlyList<WiaDeviceInfo>)? FixedDevices => null;
         public override DriverScanners Wia { get; } =WindowsTwain.BesideWia(Log.Write); // WIA scanners and TWAIN sources, one list
         public override bool HasWindowsQueues => true;
+
+        protected override SpoolerQueue Latest(SpoolerQueue q) => InstalledQueues.Latest(q);
+
+        public override IDisposable? WatchQueueChanges(Action changed) => new Windows.Printing.SpoolerChanges(changed, Log.Write);
 
         public override Core.Sharing.ShareEnvironment ScannerSharing => _sharing ??= new(new InkvoltPrint.Sharing.KestrelShareHost(),
             new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));

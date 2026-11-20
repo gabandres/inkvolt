@@ -41,6 +41,13 @@ public sealed record ProbeResult(
 
     public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null || Snmp is not null;
 
+    /// <summary>
+    /// The web server's root this probe was made with (<paramref name="web"/>, <see cref="DeviceHttp"/>'s <c>web</c>), kept only
+    /// when HP's LEDM or CDM answered there; null otherwise (nothing to keep, or nothing of the web server's answered there: a
+    /// port that isn't its web server, or one it left), so the next connection asks the default ports.
+    /// </summary>
+    public Uri? WebRootKept(Uri? web) => web is not null && (Ledm is not null || Cdm is not null) ? web : null;
+
     public string? Uuid =>
         Product?.Uuid ?? Scanner?.Uuid ?? Ipp?.Str("printer-uuid")?.Replace("urn:uuid:", "", StringComparison.OrdinalIgnoreCase);
 
@@ -156,10 +163,15 @@ public sealed class PrinterConnection : IDisposable
     /// nor IPP; null: SNMP isn't tried.
     /// </param>
     /// <param name="snmpLogin">The printer's SNMP login (its community); null: <see cref="SnmpLogin.Public"/>. Every SNMP read of the connection uses it.</param>
+    /// <param name="webHint">
+    /// The printer's web server when it isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD <c>adminurl</c>): LEDM, CDM
+    /// and its pages are asked there (<see cref="DeviceHttp"/>'s <c>web</c>).
+    /// </param>
     public static async Task<PrinterConnection> OpenAsync(string host, Uri? esclHint = null, CancellationToken ct = default,
-        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null, ISnmpTransport? snmp = null, SnmpLogin? snmpLogin = null)
+        ICertificatePin? pin = null, HttpMessageHandler? transport = null, Uri? ippHint = null, ISnmpTransport? snmp = null, SnmpLogin? snmpLogin = null,
+        Uri? webHint = null)
     {
-        var http = new DeviceHttp(host, transport, pin);
+        var http = new DeviceHttp(host, transport, pin, webHint);
         try
         {
             return new PrinterConnection(http, await ProbeAsync(http, esclHint, ct, ippHint, snmp, snmpLogin).ConfigureAwait(false), snmp);
@@ -183,7 +195,9 @@ public sealed class PrinterConnection : IDisposable
         var escl = Try<(ScannerCapabilities?, Uri?)>(async () =>
         {
             // The hint may be from before the printer moved: its port and path, on the address in use.
-            foreach (var root in new[] { http.Http("/eSCL/"), esclHint is null ? null : http.OnThisPrinter(esclHint) }.OfType<Uri>().Distinct())
+            // On a web server of its own port the scanner may still be on port 80: both are asked.
+            var plain = http.HttpBase.IsDefaultPort ? null : new UriBuilder(Uri.UriSchemeHttp, http.HttpBase.Host, -1, "/eSCL/").Uri;
+            foreach (var root in new[] { http.Http("/eSCL/"), plain, esclHint is null ? null : http.OnThisPrinter(esclHint) }.OfType<Uri>().Distinct())
             {
                 var caps = await Try(() => new EsclClient(http, root).GetCapabilitiesAsync(ct)).ConfigureAwait(false);
                 if (caps is not null) return (caps, root);
@@ -338,9 +352,9 @@ public sealed class PrinterConnection : IDisposable
     /// when both tell, agrees with <paramref name="known"/>); null otherwise. The caller switches to it and closes this one.
     /// </summary>
     public async Task<PrinterConnection?> TryRicherAsync(SnmpDevice? known, Uri? esclHint = null, Uri? ippHint = null, ICertificatePin? pin = null,
-        HttpMessageHandler? transport = null, CancellationToken ct = default)
+        HttpMessageHandler? transport = null, CancellationToken ct = default, Uri? webHint = null)
     {
-        var richer = await OpenAsync(Http.Host, esclHint, ct, pin, transport, ippHint).ConfigureAwait(false);
+        var richer = await OpenAsync(Http.Host, esclHint, ct, pin, transport, ippHint, webHint: webHint).ConfigureAwait(false);
         if (richer.Probe.Reachable && known?.Identify(richer.Probe.SerialNumber) != Model.DeviceIdentity.Different) return richer;
         richer.Dispose();
         return null;

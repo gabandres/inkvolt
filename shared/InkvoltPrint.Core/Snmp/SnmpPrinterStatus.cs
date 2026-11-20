@@ -8,6 +8,15 @@ public sealed record SnmpSupply(int Index, int Class, int Type, string? Descript
 {
     /// <summary>A receptacle that fills up (waste toner or ink), whose level is the room left in it (RFC 3805 prtMarkerSuppliesLevel).</summary>
     public bool IsReceptacle => Class == PrinterMib.ClassReceptacle || PrinterMib.SupplyKind(Type).StartsWith("waste", StringComparison.Ordinal);
+
+    /// <summary>prtMarkerSuppliesSupplyUnit (PrtMarkerSuppliesSupplyUnitTC): what the level and maximum count; 0 when not read.</summary>
+    public int Unit { get; init; }
+
+    /// <summary>The pages left, for a supply counted in impressions or sheets with a real level (not −1, −2, −3).</summary>
+    public int? PagesLeft => PrinterMib.CountsPages(Unit) && Level >= 0 && (MaxCapacity <= 0 || Level <= MaxCapacity) ? Level : null;
+
+    /// <summary>The pages a full one is rated for: the maximum of a supply counted in impressions or sheets.</summary>
+    public int? PageYield => PrinterMib.CountsPages(Unit) && MaxCapacity > 0 ? MaxCapacity : null;
 }
 
 /// <summary>One row of prtAlertTable (RFC 3805): severity, which sub-unit (group and its row), the code and the printer's words.</summary>
@@ -20,7 +29,20 @@ public sealed record SnmpReading(
     byte[] DetectedErrorState,
     IReadOnlyList<SnmpAlert> Alerts,
     IReadOnlyList<SnmpSupply> Supplies,
-    IReadOnlyDictionary<int, string> Colorants);
+    IReadOnlyDictionary<int, string> Colorants)
+{
+    /// <summary>
+    /// The printer's lifetime page count: the first marker's prtMarkerLifeCount when it counts impressions or sheets; null when
+    /// the printer has none (or counts something else, such as inches).
+    /// </summary>
+    public int? PageCount { get; init; }
+
+    /// <summary>The control panel's display, a line each (prtConsoleDisplayBufferText, empty lines left out), at most <see cref="MaxPanelLines"/>.</summary>
+    public IReadOnlyList<string> Panel { get; init; } = [];
+
+    /// <summary>Most panel lines kept (RFC 3805 lets a display have any number; a real one has 2 to 8).</summary>
+    public const int MaxPanelLines = 8;
+}
 
 /// <summary>
 /// A printer's SNMP objects as a <see cref="PrinterStatus"/> and <see cref="Consumable"/>s. The overall state follows RFC 3805
@@ -125,7 +147,10 @@ public static class SnmpPrinterStatus
         var top = alerts.FirstOrDefault(a => a.Severity == Severity.Error);
         var detail = alerts.Where(a => a.Severity == severityAll).Select(a => IppStatusText.Explain(a.Id)).FirstOrDefault(e => e is not null);
         // A stopped printer is best named by what stops it ("Paper jam"), as the spooler's and LEDM's headlines do.
-        return new PrinterStatus(code, code == "stopped" && top is not null && !offline ? top.Message : label, severityAll, alerts, detail);
+        return new PrinterStatus(code, code == "stopped" && top is not null && !offline ? top.Message : label, severityAll, alerts, detail)
+        {
+            PanelText = r.Panel.Count > 0 ? string.Join(" · ", r.Panel) : null,
+        };
     }
 
     /// <summary>
@@ -160,10 +185,13 @@ public static class SnmpPrinterStatus
                 : s.Level == -3 || percent is not null ? "ok"
                 : "unknown";
             var color = r.Colorants.TryGetValue(s.ColorantIndex, out var c) ? ColorCode(c) : null;
-            list.Add(new Consumable(name, kind, color, percent, supplyState, null, null, null, null, null));
+            list.Add(new Consumable(name, kind, color, percent, supplyState, null, null, null, s.PagesLeft, null) { PageYield = s.PageYield });
         }
         return list;
     }
+
+    /// <summary>The lifetime page count (<see cref="SnmpReading.PageCount"/>) as usage counters; null when the printer has none.</summary>
+    public static UsageCounters? ToUsage(SnmpReading r) => r.PageCount is { } pages ? new UsageCounters(pages, null, null, null, null) : null;
 
     /// <summary>prtMarkerColorantValue ("black", "cyan"…: RFC 3805 names them in lowercase English) → K, C, M, Y; null for other colors.</summary>
     public static string? ColorCode(string colorant) => colorant.Trim().ToLowerInvariant() switch

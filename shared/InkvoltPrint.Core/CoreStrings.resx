@@ -2363,13 +2363,13 @@
     <value>The printer doesn't know this SNMPv3 user name.</value>
   </data>
   <data name="Snmp_WrongAuthKey" xml:space="preserve">
-    <value>The printer refused the SNMPv3 authentication passphrase.</value>
+    <value>The printer refused the SNMPv3 authentication passphrase: check it and its protocol.</value>
   </data>
   <data name="Snmp_WrongPrivKey" xml:space="preserve">
-    <value>The printer couldn't read the request: check the SNMPv3 privacy passphrase.</value>
+    <value>The printer couldn't read the request: check the SNMPv3 privacy passphrase and its protocol.</value>
   </data>
   <data name="Snmp_SecurityLevel" xml:space="preserve">
-    <value>The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user.</value>
+    <value>The printer doesn't take SNMPv3 with authentication and privacy for this user.</value>
   </data>
   <data name="Snmp_EnterUserName" xml:space="preserve">
     <value>Enter the SNMPv3 user name.</value>

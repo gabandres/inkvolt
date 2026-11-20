@@ -81,8 +81,12 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   (`SupplyHistoryCsv`, formula-safe cells). Demo mode makes up a year per printer, so `--demo --snapshot` shows the
   chart. Tests: `SupplyHistoryTests` and `SupplyHistoryCsvTests` (the year with two changes, the wobble, the week
   offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
-  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM only for now (CDM,
-  IPP and SNMP counters not read). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
+  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM's, and since
+  2026-11-20 IPP's `printer-impressions-completed` and the Printer MIB's `prtMarkerLifeCount` (in impressions or sheets), from
+  the same request as the levels (CDM's counters not read: no capture of `/cdm/deviceUsage/v1/lifetimeCounters` and no published schema; README). **Pages left and yield beyond LEDM (2026-11-20):** CDM's
+  `capacity` in pages, IPP's `printer-supply` and the Printer MIB's supplies counted in impressions or sheets give each
+  supply's pages left and what a full one is rated for (`Consumable.PageYield`, `IppSupply`, `SnmpSupply.Unit`); the card
+  shows "About N pages left" and "Rated for about N pages" (`SupplyPagesTests`). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
   (README, "Not done"). Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore (2026-11-02: the store, the analysis, the
   chart's data, the card's lines, the alert's days left, the CSV behind Pro, the demo year; SupplyHistoryTests on the PC);
   the files in `history` beside the state file, fed through `SupplyHistoryFeed` by the printer monitor on each reading (a
@@ -120,7 +124,9 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   firmware, scanner, IPP attributes and reading; a recording sends only GETs and Get-Printer-Attributes; identifiers planted in
   LEDM, eSCL, IPP and SNMP replies, as Report a problem's tests use them, none left in any file, and the recording still one
   printer; versions, masks, models kept; an SNMP model line, a hex string or prtGeneralPrinterName carrying identifiers; a
-  reply that never ends stopping at 32 MB; `IppText` and the walk read back what they write). **Report a problem (built 2026-11-01):** the dialog
+  reply that never ends stopping at 32 MB; `IppText` and the walk read back what they write). **Kept whole since 2026-11-20:** IPP
+  collections (members nested under their attribute, to the codec's 8 levels) and dateTime values in `IppText`, served byte for byte
+  again; SNMP Counter64 (its unsigned value) and Opaque (its octets) in the walk; members are scrubbed as attributes are (RecordingTests +9). **Report a problem (built 2026-11-01):** the dialog
   has Record this printer, for the printer shown: `Core/Recording/ReportRecording` runs the same `PrinterRecorder`, so the same scrubbing and the same
   read-only rules, never scanned pages, into a new folder named by the clock (`Documents\Inkvolt Print recordings`) plus a .zip of it to attach; the details
   to copy get one scrubbed line (model, interfaces, the file's name); a failure's message is scrubbed; closing the window stops it and a failed or
@@ -583,6 +589,19 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   made-up agent discovered and read over v3 (GetBulk too), refusing a wrong user and each wrong key, a restarted agent's clock
   set again, a changed reply ignored; `SnmpV3ProTests`: a kept v3 user unused without a licence once the gate is on. **Done on
   Windows** (no hardware: never tried on a printer's agent).
+- **Now (Windows): the other SNMPv3 protocols, built 2026-11-20.** Beside each passphrase, the protocol the printer's agent uses:
+  HMAC-SHA-256-192 (default), HMAC-SHA-1-96, HMAC-MD5-96 (RFC 3414 §6, §7); AES-128 (default), AES-192, AES-256 in CFB mode
+  (draft-blumenthal-aes-usm-04), CBC-DES (RFC 3414 §8: key and pre-IV from the privacy key, salt of boots and a counter, whole
+  blocks); a note says MD5, SHA-1 and DES are weak. Both keys come from the authentication protocol's hash. **Key extension:** a
+  privacy key too short for AES-192/256 (after MD5 or SHA-1) is lengthened as Blumenthal's draft says (net-snmp's default; the
+  hash of the key so far appended) and, on a decryption error, once as Reeder's (Cisco IOS and pysnmp's `usmAesCfb192/256`:
+  password-to-key and localization run again over the key so far), kept for the connection; which one a printer maker's agent
+  uses isn't published, so a real printer is what confirms it. The protocols are kept with the login (`usm:…:Sha1:Aes256`; an
+  entry from before reads as SHA-256 and AES-128). .NET's own HMACMD5, HMACSHA1, AES and DES; no package. `SnmpV3ProtocolTests`
+  (RFC 2202's HMAC-MD5 and HMAC-SHA-1 cut to 96 bits, NIST SP 800-38A's CFB with AES-192 and AES-256, the textbook DES block,
+  RFC 3414's DES framing and both key extensions against Python's hashlib and cryptography, the made-up agent read with all 12
+  pairs, another protocol refused as its part, a Reeder agent read after one decryption error, DES blocks not whole, the kept
+  login). `--dialog snmp3` shows SHA-1 and AES-256 with the note (en, es). Never tried on a printer's agent.
 - **Now (Windows): SNMP access… asks the printer first, and a refused login is its own state, ported from the Mac 2026-11-17.**
   Save in the printer's menu › SNMP access… asks the printer at its address with the login (`SnmpLoginCheck`, Core): kept once it
   answers as itself; a refusal says which part and keeps nothing; another device keeps nothing; no answer says what to check and turns

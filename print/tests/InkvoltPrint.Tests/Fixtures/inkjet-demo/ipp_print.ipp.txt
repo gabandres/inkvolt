@@ -1,6 +1,6 @@
 # Get-Printer-Attributes response of a made-up inkjet multifunction printer (Inkvolt Print's demo inkjet).
 # Written by hand from the public specs, never captured from a device: RFC 8011 (printer-state, printer-state-reasons),
-# PWG 5100.13 (marker-*, printer-firmware-*, Identify-Printer, identify-actions-*, printer-supply-info-uri), PWG 5100.9 (printer-alert, printer-alert-description) and PWG 5100.14
+# PWG 5100.13 (marker-*, printer-firmware-*, Identify-Printer, identify-actions-*, printer-supply-info-uri, printer-supply), PWG 5100.22 (printer-impressions-completed), PWG 5100.9 (printer-alert, printer-alert-description) and PWG 5100.14
 # IPP Everywhere (ipp/print resource, printer-uuid). Address from RFC 5737's documentation range; example names only.
 # Format (IppText): <attribute> <syntax> <value>; the same attribute on the next line adds another value (1setOf).
 printer-uri-supported uri ipp://192.0.2.11:631/ipp/print
@@ -47,6 +47,13 @@ marker-high-levels integer 100
 marker-high-levels integer 100
 marker-high-levels integer 100
 marker-high-levels integer 90
+# printer-supply (PWG 5100.13): the same supplies as the Printer MIB rows behind them; inks count in percent, so no pages.
+printer-supply octetString index=1;class=supplyThatIsConsumed;type=inkCartridge;unit=percent;maxcapacity=100;level=72;colorantname=black;
+printer-supply octetString index=2;class=supplyThatIsConsumed;type=inkCartridge;unit=percent;maxcapacity=100;level=55;colorantname=cyan;
+printer-supply octetString index=3;class=supplyThatIsConsumed;type=inkCartridge;unit=percent;maxcapacity=100;level=63;colorantname=magenta;
+printer-supply octetString index=4;class=supplyThatIsConsumed;type=inkCartridge;unit=percent;maxcapacity=100;level=12;colorantname=yellow;
+printer-supply octetString index=5;class=receptacleThatIsFilled;type=wasteInk;unit=percent;maxcapacity=100;level=81;colorantname=unknown;
+printer-impressions-completed integer 1873
 printer-firmware-name name Main firmware
 printer-firmware-name name Network
 printer-firmware-string-version text 05.12.XA01
