@@ -148,6 +148,21 @@ public sealed partial class FolderIndex
     /// <summary>Pages looked at together, on several threads; their results then come out in order.</summary>
     private const int ConfirmRound = 256;
 
+    /// <summary>Pages of one file a thread takes at a time.</summary>
+    internal const int ConfirmChunk = 32;
+
+    /// <summary>
+    /// Where each chunk of a round starts, and the round's end last: a chunk is pages of one file, <see cref="ConfirmChunk"/>
+    /// at most.
+    /// </summary>
+    internal static void Chunks(IReadOnlyList<(int File, int Page)> round, List<int> starts)
+    {
+        starts.Clear();
+        for (var i = 0; i < round.Count; i++)
+            if (i == 0 || round[i].File != round[i - 1].File || i - starts[^1] >= ConfirmChunk) starts.Add(i);
+        starts.Add(round.Count);
+    }
+
     /// <summary>Threads confirming pages: a search is what the person is waiting for, but the PC has other work too.</summary>
     private static readonly int ConfirmThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 6);
 
@@ -183,11 +198,9 @@ public sealed partial class FolderIndex
                 }
 
                 var count = round.Count;
-                // A file's pages in the round go to one thread together: its text is read once, not once by each thread.
-                groups.Clear();
-                for (var i = 0; i < count; i++)
-                    if (i == 0 || round[i].File != round[i - 1].File) groups.Add(i);
-                groups.Add(count);
+                // A file's pages in the round go to a thread together, ConfirmChunk at a time: its text is read once a chunk,
+                // not once a page, and a folder of one big PDF still has every thread at work.
+                Chunks(round, groups);
                 try
                 {
                     Parallel.For(0, groups.Count - 1, parallel, () => readers.TryTake(out var r) ? r : new PageReader(state.Store.Handle), (g, _, reader) =>

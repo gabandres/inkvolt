@@ -99,6 +99,19 @@ public sealed class FolderIndexTests : IDisposable
     }
 
     [Fact]
+    public void A_big_files_pages_are_shared_among_the_threads_in_chunks()
+    {
+        // One PDF's 256 pages in a round: 8 chunks for the threads, not one; small files a chunk each.
+        var starts = new List<int>();
+        FolderIndex.Chunks([.. Enumerable.Range(0, 256).Select(p => (0, p))], starts);
+        Assert.Equal([0, 32, 64, 96, 128, 160, 192, 224, 256], starts);
+        FolderIndex.Chunks([(0, 0), (0, 1), (1, 0), (2, 0), (2, 1), (2, 2)], starts);
+        Assert.Equal([0, 2, 3, 6], starts);
+        FolderIndex.Chunks([], starts);
+        Assert.Equal([0], starts);
+    }
+
+    [Fact]
     public void Pages_of_many_files_and_long_pages_read_back_in_order()
     {
         // Pages read together by file on several threads, a page longer than the reading buffer, a file past a megabyte of
