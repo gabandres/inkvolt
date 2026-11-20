@@ -410,6 +410,19 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// Its web server's root when that isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD <c>adminurl</c>): LEDM, CDM and
+    /// its pages are asked there from the next connection. Network printers only.
+    /// </summary>
+    public Uri? WebRoot
+    {
+        get => _monitor?.Target.WebHint;
+        set
+        {
+            if (_monitor is { } m) m.Target = m.Target with { WebHint = value };
+        }
+    }
+
     /// <summary>Who made it (HP when its LEDM interface answers); Other until connected.</summary>
     [ObservableProperty] public partial PrinterBrand Brand { get; set; }
 
@@ -666,7 +679,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         var options = new Core.Recording.RecordOptions
         {
-            Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri,
+            Transport = _pc.DeviceTransport(), Snmp = _pc.Snmp, EsclHint = EsclRoot, IppHint = IppUri, WebHint = WebRoot,
             Login = SnmpLoginNow(),
         };
         return Core.Recording.ReportRecording.RunAsync(RecordHost ?? throw new InvalidOperationException("This printer has no address to record."), _pc.RecordingsFolder, options, DateTime.Now, ct);
@@ -759,7 +772,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     private async Task AnnouncedAsync(DiscoveredPrinter d)
     {
-        if (_monitor is not null && await _monitor.AnnouncedAsync(d.Host, d.EsclRoot, d.IppUri, d.Model)) Restart();
+        if (_monitor is not null && await _monitor.AnnouncedAsync(d.Host, d.EsclRoot, d.IppUri, d.Model, web: d.WebRoot)) Restart();
     }
 
     /// <summary>
@@ -1457,7 +1470,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenWebPage()
     {
-        if (Host is not null) _pc.Browser?.Invoke(_webPage?.AbsoluteUri ?? $"https://{Host}/");
+        if (Host is not null)
+            _pc.Browser?.Invoke(_webPage?.AbsoluteUri ?? (WebRoot is { } web ? new UriBuilder(web) { Host = Host }.Uri.AbsoluteUri : $"https://{Host}/"));
     }
 
     [RelayCommand]

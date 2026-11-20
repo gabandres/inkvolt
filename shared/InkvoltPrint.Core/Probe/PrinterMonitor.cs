@@ -234,16 +234,17 @@ public sealed class PrinterMonitor : IDisposable
     /// True when the caller should run the monitor again now: it moved, or it was seen again while offline and not connecting.
     /// </summary>
     /// <param name="model">The model the announcement names.</param>
-    public async Task<bool> AnnouncedAsync(string? host, Uri? escl, Uri? ipp, string? model, CancellationToken ct = default)
+    /// <param name="web">Its web server's root when the announcement names one on a port of its own (<see cref="PrinterWhere.WebHint"/>).</param>
+    public async Task<bool> AnnouncedAsync(string? host, Uri? escl, Uri? ipp, string? model, CancellationToken ct = default, Uri? web = null)
     {
         if (host is null || string.Equals(host, Target.Host, StringComparison.OrdinalIgnoreCase))
         {
-            TakeHints(escl, ipp);
+            TakeHints(escl, ipp, web);
             return !View.IsOnline && !View.IsConnecting && host is not null; // mDNS just saw it again; don't wait for the retry
         }
         try
         {
-            var check = await _session.CheckAddressAsync(Target, new PrinterWhere(host, escl, ipp), View.IsOnline && !View.IsElsewhere, model, ct);
+            var check = await _session.CheckAddressAsync(Target, new PrinterWhere(host, escl, ipp, WebHint: web), View.IsOnline && !View.IsElsewhere, model, ct);
             if (check == AddressCheck.Skipped) return false;
             if (check != AddressCheck.Move)
             {
@@ -254,7 +255,7 @@ public sealed class PrinterMonitor : IDisposable
             }
             if (string.Equals(host, Target.Host, StringComparison.OrdinalIgnoreCase)) return false;
             Move(host);
-            TakeHints(escl, ipp);
+            TakeHints(escl, ipp, web);
             return true;
         }
         catch (Exception ex)
@@ -428,7 +429,8 @@ public sealed class PrinterMonitor : IDisposable
         SetOffline(CoreStrings.Monitor_ElsewhereTitle, string.Format(CoreStrings.Monitor_ElsewhereDetail, Target.Host), elsewhere: true);
     }
 
-    private void TakeHints(Uri? escl, Uri? ipp) => Target = Target with { EsclHint = escl ?? Target.EsclHint, IppHint = ipp ?? Target.IppHint };
+    private void TakeHints(Uri? escl, Uri? ipp, Uri? web) =>
+        Target = Target with { EsclHint = escl ?? Target.EsclHint, IppHint = ipp ?? Target.IppHint, WebHint = web ?? Target.WebHint };
 
     private void Show(PrinterView v)
     {

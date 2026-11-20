@@ -3,10 +3,24 @@ namespace InkvoltPrint.Core.Discovery;
 /// <summary>
 /// What an address typed into Add a printer means: the printer's host and, when it names an IPP printer of its own (an
 /// <c>ipp://</c> or <c>ipps://</c> URL, or a port given), the IPP URL to ask first. A plain web address (the printer's web
-/// page) is just its host. <see cref="Error"/> says why it isn't an address.
+/// page) is just its host; one on a port of its own (<c>http://host:8080/</c>) is also where its web server is (<see cref="Web"/>:
+/// HP's LEDM and CDM, its pages), as well as an IPP server to try. <see cref="Error"/> says why it isn't an address.
 /// </summary>
 public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
 {
+    /// <summary>The printer's web server when it isn't on port 80 or 443 (<see cref="WebRoot"/>); null otherwise.</summary>
+    public Uri? Web { get; init; }
+
+    /// <summary>
+    /// A web address's scheme and port as the root of a printer's web server on <paramref name="host"/>, when that port isn't
+    /// the scheme's default; null for a default port, another scheme or anything that isn't a web address. Only the scheme and
+    /// port are taken: a printer's web server is on the printer, whatever host a link or announcement names.
+    /// </summary>
+    public static Uri? WebRoot(Uri? url, string host) =>
+        url is { IsAbsoluteUri: true, Scheme: "http" or "https" } && !url.IsDefaultPort && url.Port is > 0 and <= 65535
+        && Uri.CheckHostName(host.Trim('[', ']')) != UriHostNameType.Unknown
+            ? new UriBuilder(url.Scheme, host.Trim('[', ']'), url.Port, "/").Uri : null;
+
     /// <summary>IPP Everywhere's path, for a host and port given without one.</summary>
     private const string IppPath = "/ipp/print";
 
@@ -23,7 +37,7 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
                 "ipps" => FromIpp(url, Uri.UriSchemeHttps),
                 // The printer's web page: its host. On a port of its own, it's the IPP server there.
                 "http" or "https" when url.IsDefaultPort => new PrinterAddress(url.Host, null, null),
-                "http" or "https" => new PrinterAddress(url.Host, IppUrl(url.Scheme, url.Host, url.Port, url.AbsolutePath), null),
+                "http" or "https" => new PrinterAddress(url.Host, IppUrl(url.Scheme, url.Host, url.Port, url.AbsolutePath), null) { Web = WebRoot(url, url.Host) },
                 _ => Fail(CoreStrings.Net_UseAddress),
             };
         }

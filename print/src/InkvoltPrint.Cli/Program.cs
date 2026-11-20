@@ -220,7 +220,7 @@ switch (cmd)
                                                            driver, downloads and checks it, and asks before running it, --yes
                                                            without asking; then rescans and checks WIA lists the scanner)
             inkvoltprint snmp <host> [--community c] [--walk]   (read-only SNMP GETs: Printer MIB status, alerts, supplies)
-            inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--force]
+            inkvoltprint record <host> <folder> [--scan] [--community c] [--escl url] [--ipp url] [--web url] [--force]
                                                            (read-only: every reply the app reads, scrubbed, as test fixtures)
             inkvoltprint pair <endpoint-id> | unpair <endpoint-id>   (install / remove a Windows queue)
             inkvoltprint ocr <in.jpg> <out.pdf> [--dpi 300]   (offline: OCR + searchable PDF from a JPEG)
@@ -399,6 +399,7 @@ async Task Record(string h, string folder)
         Community = Opt("--community") ?? InkvoltPrint.Core.Snmp.SnmpClient.DefaultCommunity,
         EsclHint = Opt("--escl") is { } e ? new Uri(e) : null,
         IppHint = Opt("--ipp") is { } i ? new Uri(i) : null,
+        WebHint = Opt("--web") is { } w ? InkvoltPrint.Core.Discovery.PrinterAddress.WebRoot(new Uri(w), h) : null,
         Scan = args.Contains("--scan"),
     };
 }

@@ -95,6 +95,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Printers.Add(new PrinterViewModel(k.Uuid, k.Name, k.Model, k.Host, k.EsclRoot is null ? null : new Uri(k.EsclRoot), state, Presets, Remember, pc)
             {
                 IppUri = Uri.TryCreate(k.IppUri, UriKind.Absolute, out var ipp) ? ipp : null,
+                WebRoot = Uri.TryCreate(k.WebRoot, UriKind.Absolute, out var web) ? Core.Discovery.PrinterAddress.WebRoot(web, k.Host) : null,
                 SnmpDevice = k.Snmp,
             });
         // A queue printer chosen last time is listed a moment later (after the queues are read): selected then.
@@ -445,7 +446,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             if (vm is null)
             {
                 if (d.Host is null || _state.IsForgotten(d.Uuid)) continue;
-                vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Presets, Remember, _pc);
+                vm = new PrinterViewModel(d.Uuid, d.Name, d.Model, d.Host, d.EsclRoot, _state, Presets, Remember, _pc) { WebRoot = d.WebRoot };
                 Printers.Add(vm);
                 vm.Start();
                 Selected ??= vm;
@@ -761,7 +762,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     {
         if (p.Host is null || !Printers.Contains(p)) return;
         Reconcile(queues: false); // it just connected: with no eSCL, a scanner Windows has for it may stand in
-        _state.RememberPrinter(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.SnmpDevice));
+        _state.RememberPrinter(new KnownPrinter(p.Uuid, p.Name, p.Model, p.Host, p.EsclRoot?.AbsoluteUri, p.IppUri?.AbsoluteUri, p.SnmpDevice,
+            p.WebRoot?.AbsoluteUri));
     }
 
     [RelayCommand]

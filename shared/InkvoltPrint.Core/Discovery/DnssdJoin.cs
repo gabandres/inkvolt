@@ -50,6 +50,19 @@ public static class DnssdJoin
         return new UriBuilder(scheme, host, s.Port ?? (https ? 443 : 80), rs.Length == 0 ? "" : rs + "/").Uri;
     }
 
+    /// <summary>
+    /// The printer's web server from an <c>_ipp</c>/<c>_ipps</c> service's <c>adminurl</c> TXT key (Bonjour Printing 1.2: the
+    /// printer's configuration page), when it is on a port of its own (<see cref="PrinterAddress.WebRoot"/>) and names this
+    /// printer (the service's host name or address): its scheme and port on <paramref name="host"/>. Null otherwise.
+    /// </summary>
+    public static Uri? WebRoot(DnssdService s, string host) =>
+        s.Txt.TryGetValue("adminurl", out var admin) && admin.Length <= 2048 && Uri.TryCreate(admin.Trim(), UriKind.Absolute, out var url)
+        && (SameName(url.Host, s.HostName) || SameName(url.Host, s.IPv4) || SameName(url.Host, host))
+            ? PrinterAddress.WebRoot(url, host) : null;
+
+    private static bool SameName(string a, string? b) =>
+        b is not null && string.Equals(a.TrimEnd('.'), b.TrimEnd('.'), StringComparison.OrdinalIgnoreCase);
+
     private static bool SafePath(string path) =>
         !path.Split('/').Any(seg => seg is ".." or ".") && path.IndexOfAny(['?', '#', '\\', ':']) < 0;
 

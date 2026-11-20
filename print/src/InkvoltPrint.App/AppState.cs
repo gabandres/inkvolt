@@ -11,12 +11,16 @@ namespace InkvoltPrint.App;
 public sealed record WindowPlacement(double Left, double Top, double Width, double Height, bool Maximized);
 
 /// <param name="IppUri">The IPP URL the printer answered on last time (DNS-SD <c>rp</c>, IPPS), tried first on the next start.</param>
+/// <param name="WebRoot">
+/// Its web server's root when that isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD <c>adminurl</c>): LEDM, CDM
+/// and its pages are asked there.
+/// </param>
 /// <param name="Snmp">
 /// Set for a printer that answered only SNMP when it was added: what it said about itself (serial number, model, name), which
 /// tells whether the device at its address is still it. Only these printers are read over SNMP.
 /// </param>
 public sealed record KnownPrinter(string Uuid, string Name, string? Model, string Host, string? EsclRoot, string? IppUri = null,
-    Core.Snmp.SnmpDevice? Snmp = null);
+    Core.Snmp.SnmpDevice? Snmp = null, string? WebRoot = null);
 
 /// <summary>Remembered printers and preferences, so the app connects instantly on start instead of waiting for discovery.</summary>
 public sealed class AppState

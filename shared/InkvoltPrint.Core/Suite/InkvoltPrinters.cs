@@ -8,6 +8,9 @@ public sealed record InkvoltPrinter(string Uuid, string Name, string? Model, str
     /// <summary>The IPP URL it answered on last.</summary>
     public Uri? IppUri { get; init; }
 
+    /// <summary>Its web server's root when that isn't on port 80 or 443 (<see cref="Discovery.PrinterAddress.WebRoot"/>).</summary>
+    public Uri? WebRoot { get; init; }
+
     /// <summary>Set for a printer added as SNMP-only: what it said about itself, which tells whether the device at its address is still it.</summary>
     public Snmp.SnmpDevice? Snmp { get; init; }
 
@@ -89,6 +92,7 @@ public sealed class InkvoltPrinters
                     printers.Add(new InkvoltPrinter(uuid, Str(p, "Name") is { Length: > 0 } n ? n : host, Str(p, "Model"), host, escl)
                     {
                         IppUri = Uri.TryCreate(Str(p, "IppUri"), UriKind.Absolute, out var ipp) ? ipp : null,
+                        WebRoot = Uri.TryCreate(Str(p, "WebRoot"), UriKind.Absolute, out var web) ? Discovery.PrinterAddress.WebRoot(web, host) : null,
                         Snmp = p.TryGetProperty("Snmp", out var snmp) && snmp.ValueKind == JsonValueKind.Object
                             ? new Snmp.SnmpDevice(Str(snmp, "SerialNumber"), Str(snmp, "Model"), Str(snmp, "SystemName"), Str(snmp, "EngineId")) : null,
                         AcceptedUuids = Accepted(doc.RootElement, uuid),
