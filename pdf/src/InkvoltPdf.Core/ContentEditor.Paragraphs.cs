@@ -39,11 +39,21 @@ public sealed record TextParagraph(int PageIndex, IReadOnlyList<TextRun> Runs, I
     /// <summary>Runs of spaces only drawn on its lines (some generators draw each space on its own): they go with its text.</summary>
     internal IReadOnlyList<TextRun> Spaces { get; init; } = [];
 
-    /// <summary>Its type size on the page (points).</summary>
-    public double FontSize => Runs.Count > 0 ? Runs[0].FontSize : 0;
+    /// <summary>Its type size on the page (points): its own text's (<see cref="Lead"/>), not a bigger word's.</summary>
+    public double FontSize => Runs.Count > 0 ? Lead.FontSize : 0;
 
-    /// <summary>Its run in its own font and look (see <see cref="ContentEditor.PlainRun"/>): its font, style and color.</summary>
-    public TextRun Lead => ContentEditor.PlainRun(Runs);
+    /// <summary>Its run in its own font and look (see <see cref="ContentEditor.PlainRun"/>): its font, style, size and color.</summary>
+    public TextRun Lead
+    {
+        get
+        {
+            if (_lead is { } l && ReferenceEquals(l.Of, Runs)) return l.Run;
+            var run = ContentEditor.PlainRun(Runs);
+            _lead = (Runs, run);
+            return run;
+        }
+    }
+    private (IReadOnlyList<TextRun> Of, TextRun Run)? _lead;
 
     /// <summary>The stretches of <see cref="Text"/> an earlier edit gave a look of their own (font, size, color, bold, italic).</summary>
     public IReadOnlyList<TextSpan> Spans { get; init; } = [];
@@ -138,7 +148,8 @@ public static partial class ContentEditor
     {
         public readonly List<PLine> Lines = [first];
         public bool CanLeft = true, CanCenter = true, CanRight = true;
-        public double Step;
+        /// <summary>From its first line's baseline to the second's: as the paragraph's own (<see cref="PlainStep"/>), and as drawn.</summary>
+        public double Step, DrawnStep;
     }
 
     /// <summary>
@@ -227,7 +238,11 @@ public static partial class ContentEditor
             best.CanLeft = l;
             best.CanCenter = c;
             best.CanRight = r;
-            if (best.Lines.Count == 1) best.Step = PlainStep(best.Lines[0], line, line.Baseline - best.Lines[0].Baseline);
+            if (best.Lines.Count == 1)
+            {
+                best.DrawnStep = line.Baseline - best.Lines[0].Baseline;
+                best.Step = PlainStep(best.Lines[0], line, best.DrawnStep);
+            }
             best.Lines.Add(line);
         }
         return stacks;
@@ -256,8 +271,9 @@ public static partial class ContentEditor
 
     /// <summary>
     /// A paragraph's own font among its runs: of those in a page font (not a stand-in, not a look an edit gave), the
-    /// font with the most text, a regular face before a bold or italic one on a tie, as its first run in content order;
-    /// else the first run that isn't a stand-in, else the first.
+    /// font with the most text, a regular face before a bold or italic one on a tie; of its runs, those of the size and
+    /// color most of its text has (a bigger or colored word in the same font is a stretch of its own), the first in
+    /// content order; else the first run that isn't a stand-in, else the first.
     /// </summary>
     internal static TextRun PlainRun(IReadOnlyList<TextRun> runs) =>
         runs.Where(r => !r.StandIn && !r.Styled && r.Font is not null)
@@ -265,7 +281,10 @@ public static partial class ContentEditor
             .OrderByDescending(g => g.Sum(r => r.Text.Trim().Length))
             .ThenBy(g => g.Key.Bold || g.Key.Italic ? 1 : 0)
             .ThenBy(g => g.Min(r => Order(r.Id)))
-            .Select(g => g.MinBy(r => Order(r.Id))!)
+            .Select(g => g.GroupBy(r => (Math.Round(r.FontSize, 1), r.Color))
+                .OrderByDescending(s => s.Sum(r => r.Text.Trim().Length))
+                .ThenBy(s => s.Min(r => Order(r.Id)))
+                .First().MinBy(r => Order(r.Id))!)
             .FirstOrDefault()
         ?? runs.FirstOrDefault(r => !r.StandIn && !r.Styled) ?? runs.FirstOrDefault(r => !r.StandIn) ?? runs[0];
 
@@ -294,7 +313,10 @@ public static partial class ContentEditor
         if (step < 0.6 * size) return null;
         var gap = line.Box.Y - last.Box.Bottom;
         if (gap > 0.65 * size) return null;
-        if (s.Lines.Count >= 2 && Math.Abs(step - s.Step) > Math.Max(0.5, 0.1 * size)) return null;
+        // The same step as the lines before: as the paragraph's own (bigger text widened it), or as drawn (a generator
+        // that keeps its leading whatever the size of a word on the line).
+        var tol = Math.Max(0.5, 0.1 * size);
+        if (s.Lines.Count >= 2 && Math.Abs(step - s.Step) > tol && Math.Abs(line.Baseline - last.Baseline - s.DrawnStep) > tol) return null;
         if (line.Box.X >= last.Box.Right || line.Box.Right <= last.Box.X) return null;
         var (l, c, r) = Fits(s, line);
         return l || c || r ? Math.Max(0, gap) : null;
@@ -461,8 +483,36 @@ public static partial class ContentEditor
         // another family, is a stretch with a look of its own); else (an edit gave all of it another look) its first
         // run's. Another size or color on its lines can't be rewrapped with it.
         var own = PlainRun(runs);
-        if (blocked is null && !translating && runs.Any(r => !SameSizeAndColor(own, r)))
-            blocked = PdfStrings.Edit_BlockedMixedLooks;
+        // Another size or color on its lines is a stretch with a look of its own (as a bold word is); a smaller run set
+        // above or below its line's baseline a superscript or subscript. Text of another size set off its line otherwise,
+        // or another color that is a pattern's, can't be rewrapped with it.
+        var scripts = new Dictionary<TextRun, (TextScript Script, double Size, double Rise)>(ReferenceEqualityComparer.Instance);
+        if (blocked is null && !translating)
+            foreach (var l in lines)
+            {
+                var line = LineBaseline(l);
+                foreach (var r in l.Runs)
+                {
+                    if (r.Styled || SameSizeAndColor(own, r) || r.Text.Trim().Length == 0) continue;
+                    if (r.Color != own.Color && r.Info is { FillOp: null })
+                    {
+                        blocked = PdfStrings.Edit_BlockedMixedLooks;
+                        break;
+                    }
+                    if (Math.Abs(r.FontSize - own.FontSize) <= Math.Max(0.3, 0.05 * own.FontSize) || line.Size <= 0 || own.FontSize <= 0) continue;
+                    var drop = r.Origin.Y - line.Y; // page space: down is positive
+                    if (Math.Abs(drop) <= 0.05 * line.Size) continue;
+                    TextScript? script = r.FontSize > 0.85 * line.Size ? null : drop >= 0.08 * line.Size ? TextScript.Sub : drop <= -0.12 * line.Size ? TextScript.Super : null;
+                    if (script is not { } sc)
+                    {
+                        blocked = PdfStrings.Edit_BlockedMixedLooks;
+                        break;
+                    }
+                    var ratio = Math.Clamp(r.FontSize / own.FontSize, 0.4, 0.85);
+                    scripts[r] = (sc, Math.Round(ratio * own.FontSize / ScriptScale, 1), ScriptRise(sc, -drop / own.FontSize));
+                }
+                if (blocked is not null) break;
+            }
         // A run whose font can't be used (none was read for it): its words couldn't be written in it again.
         if (blocked is null && !translating && runs.Any(r => r.Font is null)) blocked = PdfStrings.Edit_BlockedNoFont;
         if (blocked is null && runs.Any(r => r.Info is null)) blocked = PdfStrings.Edit_BlockedPartUnreadable;
@@ -503,7 +553,7 @@ public static partial class ContentEditor
                 var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
-                if (looks is not null && to > from && TranslationLook(own, runs[0].FontSize, baseline, l.Runs[i]) is { } look)
+                if (looks is not null && to > from && TranslationLook(own, own.FontSize, baseline, l.Runs[i]) is { } look)
                 {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
                     var start = text.Length + from;
@@ -531,8 +581,11 @@ public static partial class ContentEditor
             }
             else if (r.Info is not null && Math.Abs(r.Angle) < 0.5) spaces.Add(r);
         }
-        // The line step as the paragraph's own: bigger text an edit gave part of it widened the steps around it.
-        var step = n > 1 ? Enumerable.Range(1, n - 1).Average(i => PlainStep(lines[i - 1], lines[i], lines[i].Baseline - lines[i - 1].Baseline)) : 1.2 * size;
+        // The line step as the paragraph's own: between lines of its own size when it has two, else as bigger text (an
+        // edit's, or a bigger word the page has) widened the steps around it.
+        var plainSteps = Enumerable.Range(1, Math.Max(0, n - 1)).Where(i => lines[i - 1].Scale <= 1.02 && lines[i].Scale <= 1.02).Select(i => lines[i].Baseline - lines[i - 1].Baseline).ToList();
+        var step = plainSteps.Count > 0 ? plainSteps.Average()
+            : n > 1 ? Enumerable.Range(1, n - 1).Average(i => PlainStep(lines[i - 1], lines[i], lines[i].Baseline - lines[i - 1].Baseline)) : 1.2 * size;
         var plain = own;
 
         // What follows below: the nearest other text or picture across the paragraph's width.
@@ -547,7 +600,7 @@ public static partial class ContentEditor
         {
             Below = below,
             Spaces = spaces,
-            Spans = looks ?? SpansOf(plain, text.ToString(), at),
+            Spans = looks ?? SpansOf(plain, text.ToString(), at, scripts),
             Kerning = blocked is null ? Kerning(runs.Where(r => !r.StandIn && !r.Styled && r.Info is not null && ReferenceEquals(r.Font, own.Font)).Select(r => r.Info!)) : null,
             Left = left,
             Right = right,
@@ -747,9 +800,16 @@ public static partial class ContentEditor
         return result;
     }
 
-    /// <summary>Where a paragraph's new text is written: its first run in content order in its own font and look.</summary>
-    private static TextRun Anchor(IReadOnlyList<TextRun> runs) =>
-        runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => Order(r.Id)) ?? runs.Where(r => !r.StandIn).MinBy(r => Order(r.Id)) ?? runs.MinBy(r => Order(r.Id))!;
+    /// <summary>
+    /// Where a paragraph's new text is written: its first run in content order in its own font and look, of its own size
+    /// and color (the color its lines go back to after a colored stretch).
+    /// </summary>
+    private static TextRun Anchor(IReadOnlyList<TextRun> runs)
+    {
+        var plain = PlainRun(runs);
+        return runs.Where(r => !r.StandIn && !r.Styled && SameSizeAndColor(plain, r)).MinBy(r => Order(r.Id))
+               ?? runs.Where(r => !r.StandIn && !r.Styled).MinBy(r => Order(r.Id)) ?? runs.Where(r => !r.StandIn).MinBy(r => Order(r.Id)) ?? runs.MinBy(r => Order(r.Id))!;
+    }
 
     /// <summary>
     /// A paragraph's new text in its own font's codes (a stretch in another face the page has, in that face's); the
@@ -874,7 +934,10 @@ public static partial class ContentEditor
                 if (!Faces.Contains(face.Name)) Faces.Add(face.Name);
             }
             Colored |= color is not null;
-            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page, rise);
+            // A color the paragraph's own text is drawn in (a red word as the page has it) is set again as the page set it
+            // (its gray, CMYK or named color space), not as RGB.
+            var fill = color is { } cc ? _p.Runs.FirstOrDefault(r => r.Color == cc && r.Info?.FillOp is not null)?.Info!.FillOp : null;
+            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page, rise) { Fill = fill };
             _resolved[look] = resolved;
             return resolved;
         }
@@ -1120,7 +1183,7 @@ public static partial class ContentEditor
             if (look?.Color != color)
             {
                 Close();
-                sb.Append(look?.Color is { } c ? RgbOp(c) : info.FillOp + " ");
+                sb.Append(look?.Color is { } c ? look.Fill is { } fill ? fill + " " : RgbOp(c) : info.FillOp + " ");
                 color = look?.Color;
             }
         }

@@ -3869,7 +3869,7 @@
     <comment>{0} = count, {1} = the characters</comment>
   </data>
   <data name="Edit_BlockedMixedLooks" xml:space="preserve">
-    <value>it mixes fonts, sizes or colors, and this version rewrites a paragraph in one font family only</value>
+    <value>it has text of another size set off its line, or painted with a pattern, that can't be rewrapped with the rest</value>
     <comment>Why a paragraph can't be rewritten: ends a sentence</comment>
   </data>
   <data name="Edit_BlockedPartUnreadable" xml:space="preserve">

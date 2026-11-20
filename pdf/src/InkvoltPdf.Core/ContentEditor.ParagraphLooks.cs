@@ -70,7 +70,11 @@ public static partial class ContentEditor
     /// page's own font it is drawn in when the paragraph has that face (a bold word's font; null: the paragraph's own).
     /// </summary>
     /// <param name="Rise">How far its baseline sits above the line's (a superscript) or below (negative, a subscript), in ems of the paragraph's text.</param>
-    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null, double Rise = 0);
+    internal sealed record PartLook(double Scale, int? Color, StandInFont? Face, TextLook Asked, TextRun? Page = null, double Rise = 0)
+    {
+        /// <summary>The page's own fill operators for <see cref="Color"/> when its text has that color (null: written as RGB).</summary>
+        public string? Fill { get; init; }
+    }
 
     /// <summary>A subscript's or superscript's size against its line's text, and how far its baseline moves (ems of the line's text, up positive).</summary>
     internal const double ScriptScale = 0.7, SubRise = -0.15, SuperRise = 0.35;
@@ -95,10 +99,13 @@ public static partial class ContentEditor
     /// <paramref name="text"/> (where <paramref name="at"/> says each run starts), its size and color as drawn, its font,
     /// bold and italic as its tag says; a run in another face of the paragraph's family (a bold word as the page's
     /// generator drew it) as bold or italic; a run in another family as that family (with bold or italic where its
-    /// face differs); a subscript or superscript as its tag says, at the size of the look it is in; spans of one look
-    /// next to each other or a space apart merged.
+    /// face differs); a subscript or superscript as its tag says, at the size of the look it is in; a run of the
+    /// paragraph's own face in another size or color (a bigger or red word as the page drew it) as that size and color,
+    /// a smaller one set off its line as the script <paramref name="scripts"/> says; spans of one look next to each other
+    /// or a space apart merged.
     /// </summary>
-    private static List<TextSpan> SpansOf(TextRun lead, string text, IEnumerable<(TextRun Run, int Start, int Length)> at)
+    private static List<TextSpan> SpansOf(TextRun lead, string text, IEnumerable<(TextRun Run, int Start, int Length)> at,
+        IReadOnlyDictionary<TextRun, (TextScript Script, double Size, double Rise)>? scripts = null)
     {
         var spans = new List<TextSpan>();
         foreach (var (r, start, length) in at)
@@ -106,13 +113,17 @@ public static partial class ContentEditor
             if (length <= 0) continue;
             var drawn = r.Tag?.Script is not null ? r.FontSize / ScriptScale : r.FontSize;
             var size = Math.Abs(drawn - lead.FontSize) > Math.Max(0.3, 0.05 * lead.FontSize) ? Math.Round(drawn, 1) : (double?)null;
+            int? color = r.Color != lead.Color ? r.Color : null;
             TextLook look;
-            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, r.Color != lead.Color ? r.Color : null, tag.Bold, tag.Italic, tag.Script, tag.Rise);
+            if (r.Tag is { } tag) look = new TextLook(tag.Font, size, color, tag.Bold, tag.Italic, tag.Script, tag.Rise);
             else if (!r.StandIn && r.Font is not null && !SameFamily(r, lead))
-                look = new TextLook(FontNames.Family(r.FontName), size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+                look = new TextLook(FontNames.Family(r.FontName), size, color, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
             else if (!r.StandIn && !ReferenceEquals(r.Font, lead.Font) && (r.Bold != lead.Bold || r.Italic != lead.Italic))
-                look = new TextLook(null, size, r.Color != lead.Color ? r.Color : null, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+                look = new TextLook(null, size, color, r.Bold != lead.Bold ? r.Bold : null, r.Italic != lead.Italic ? r.Italic : null);
+            else if (size is not null || color is not null) look = new TextLook(null, size, color);
             else continue;
+            if (r.Tag is null && scripts is not null && scripts.TryGetValue(r, out var script))
+                look = look with { Size = script.Size, Script = script.Script, Rise = script.Rise };
             if (look.IsPlain) continue;
             if (spans.Count > 0 && spans[^1].Look == look && JoinsAcrossSpace(spans[^1].End, start, i => text[i]))
                 spans[^1] = spans[^1] with { Length = start + length - spans[^1].Start };
