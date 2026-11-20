@@ -952,9 +952,18 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   own size and rise (a footnote mark and an exponent in one paragraph); the report's tag count judges as `Read` does
   (`TagsKept`; the 47 of 55 above recomputed from the run's saved answers, unchanged); a dead guard taken out; plain
   halves are made only when marked ones can't be.
-  **Still wrong, and why.** An underline that isn't a link's: it is a rule drawn under the words, told from a table's
-  rule, a strike-out or a field's line only by where it sits; reading it as a look needs that judged first (links' own
-  underlines are followed, above). A right-to-left translation is written plain: `LayOutRightToLeft` shapes each line
+  **Plain underlines (2026-11-20).** A rule the page draws under some words, no link's, is a look (`TextLook.Underline`,
+  `<u>`): one rectangle filled in a plain color by the page's own content, thin (a sixth of the text or a point), its top
+  from just above the baseline of the words over it to 0.4 em below, inside no /Link, and covered for 70% of its width by
+  the text on that baseline (`ContentEditor.PlainUnderlines`); that is what tells it from a strike-out (through the
+  words), a table's rule (wider than its text), a field's line (nothing over it) and a band. The runs half over it are
+  underlined. The copy blanks the old rule (its operator becomes "n") and draws one under each stretch the answer's
+  `<u>` marks, in its color, at its distance below the baseline and its thickness scaled with the text
+  (`RedrawUnderlines`, `ParagraphLayout.Underlined`); an answer that drops the tag leaves the words plain, with no rule
+  left under other words. The rule isn't an obstacle the paragraph keeps clear of. Not followed: an underline stroked
+  (`S`) or filled as a path of its own, several in one operator, in a form XObject, or under turned text: they stay as
+  drawn. `TranslationLooksTests` (+9, one with all five tags nested), `TranslationTests.An_underline_that_belongs_to_no_link_goes_with_its_words_as_a_look`.
+  **Still wrong, and why.** A right-to-left translation is written plain: `LayOutRightToLeft` shapes each line
   whole, and looks would need each run shaped and the runs ordered by direction. Two other looks in one paragraph (a red
   word and a word in Courier): the second is written in the paragraph's own. A script longer than 12 characters on its
   own band stays a paragraph of its own. The model's,

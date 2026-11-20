@@ -4,8 +4,8 @@ using System.Text.RegularExpressions;
 namespace InkvoltPdf.Core;
 
 /// <summary>
-/// A paragraph's looks as a translation request carries them (roadmap 3.1): its bold, italic, subscript and superscript
-/// stretches as &lt;b&gt;, &lt;i&gt;, &lt;sub&gt; and &lt;sup&gt; tags in the text, a stretch in another color or class of font
+/// A paragraph's looks as a translation request carries them (roadmap 3.1): its bold, italic, underlined, subscript and
+/// superscript stretches as &lt;b&gt;, &lt;i&gt;, &lt;u&gt;, &lt;sub&gt; and &lt;sup&gt; tags in the text, a stretch in another color or class of font
 /// as &lt;span&gt;, and the reply's tags read back as looks. A model drops, moves and invents tags: a reply whose markup
 /// can't be trusted comes back plain, with no tag left in its text.
 /// </summary>
@@ -17,16 +17,16 @@ internal static partial class TranslationMarkup
     /// <summary>The most tags read from a reply before it is given up on as plain.</summary>
     private const int MaxReplyTags = 4 * MaxStretches * 2 + 16;
 
-    /// <summary>The deepest tags nest: bold, italic, another look, then a script.</summary>
-    private const int MaxDepth = 4;
+    /// <summary>The deepest tags nest: bold, italic, underline, another look, then a script.</summary>
+    private const int MaxDepth = 5;
 
     [Flags]
-    private enum Kind : byte { None = 0, Bold = 1, Italic = 2, Other = 4, Sub = 8, Super = 16 }
+    private enum Kind : byte { None = 0, Bold = 1, Italic = 2, Other = 4, Sub = 8, Super = 16, Underline = 32 }
 
     private const Kind Scripts = Kind.Sub | Kind.Super;
     private const Kind Faces = Kind.Bold | Kind.Italic;
 
-    private static readonly (Kind Kind, string Name)[] Names = [(Kind.Bold, "b"), (Kind.Italic, "i"), (Kind.Other, "span"), (Kind.Sub, "sub"), (Kind.Super, "sup")];
+    private static readonly (Kind Kind, string Name)[] Names = [(Kind.Bold, "b"), (Kind.Italic, "i"), (Kind.Underline, "u"), (Kind.Other, "span"), (Kind.Sub, "sub"), (Kind.Super, "sup")];
 
     /// <summary>
     /// What a look sets apart from the paragraph's own: bold or italic either way (a bold word, or a regular one in a bold
@@ -34,7 +34,7 @@ internal static partial class TranslationMarkup
     /// </summary>
     private static Kind KindOf(TextLook? look) =>
         look is null ? Kind.None
-            : (look.Bold is not null ? Kind.Bold : 0) | (look.Italic is not null ? Kind.Italic : 0) | (OtherOf(look) is not null ? Kind.Other : 0)
+            : (look.Bold is not null ? Kind.Bold : 0) | (look.Italic is not null ? Kind.Italic : 0) | (look.Underline == true ? Kind.Underline : 0) | (OtherOf(look) is not null ? Kind.Other : 0)
             | (look.Script == TextScript.Sub ? Kind.Sub : look.Script == TextScript.Super ? Kind.Super : 0);
 
     /// <summary>A look's family and color where neither bold nor italic explains them (a name in Times among Arial, a red word); null when it has neither.</summary>
@@ -57,7 +57,7 @@ internal static partial class TranslationMarkup
     }
 
     /// <summary>
-    /// <paramref name="text"/> with its looks as tags, nested in one order (bold, italic, another look, then sub or sup);
+    /// <paramref name="text"/> with its looks as tags, nested in one order (bold, italic, underline, another look, then sub or sup);
     /// the text as it is when it has none or can't carry them (<see cref="Markable"/>), only its scripts when it has more
     /// than <see cref="MaxStretches"/> stretches, plain when even those are more.
     /// </summary>
@@ -149,7 +149,7 @@ internal static partial class TranslationMarkup
     private static Kind[] KindsOf(int length, IReadOnlyList<TextSpan> spans, Kind inverted)
     {
         var kinds = new Kind[length];
-        int[]? bold = null, italic = null, other = null, next = null;
+        int[]? bold = null, italic = null, under = null, other = null, next = null;
         for (var s = spans.Count - 1; s >= 0; s--)
         {
             var k = KindOf(spans[s].Look);
@@ -157,6 +157,7 @@ internal static partial class TranslationMarkup
             if (k == Kind.None || from >= to) continue;
             if ((k & Kind.Bold) != 0) Count(ref bold, from, to);
             if ((k & Kind.Italic) != 0) Count(ref italic, from, to);
+            if ((k & Kind.Underline) != 0) Count(ref under, from, to);
             if ((k & Kind.Other) != 0) Count(ref other, from, to);
             if ((k & Scripts) == 0) continue;
             // Latest span first: a character's script is the first one set; next[i] skips characters already set.
@@ -171,12 +172,13 @@ internal static partial class TranslationMarkup
                 next[i] = i + 1;
             }
         }
-        if (bold is null && italic is null && other is null && inverted == Kind.None) return kinds;
-        int b = 0, it = 0, o = 0;
+        if (bold is null && italic is null && under is null && other is null && inverted == Kind.None) return kinds;
+        int b = 0, it = 0, u = 0, o = 0;
         for (var i = 0; i < length; i++)
         {
             if ((bold is not null && (b += bold[i]) > 0) != ((inverted & Kind.Bold) != 0)) kinds[i] |= Kind.Bold;
             if ((italic is not null && (it += italic[i]) > 0) != ((inverted & Kind.Italic) != 0)) kinds[i] |= Kind.Italic;
+            if (under is not null && (u += under[i]) > 0) kinds[i] |= Kind.Underline;
             if (other is not null && (o += other[i]) > 0) kinds[i] |= Kind.Other;
         }
         return kinds;
@@ -344,7 +346,8 @@ internal static partial class TranslationMarkup
                     Bold: (rel & Kind.Bold) != 0 ? (inverted & Kind.Bold) == 0 : null,
                     Italic: (rel & Kind.Italic) != 0 ? (inverted & Kind.Italic) == 0 : null,
                     Script: (k & Kind.Sub) != 0 ? TextScript.Sub : (k & Kind.Super) != 0 ? TextScript.Super : null,
-                    Rise: rise)));
+                    Rise: rise,
+                    Underline: (rel & Kind.Underline) != 0 ? true : null)));
             }
             i = j;
         }
@@ -392,10 +395,10 @@ internal static partial class TranslationMarkup
             return closed.SequenceEqual(opened) ? m.Groups["space"].Value : m.Value;
         });
 
-    [GeneratedRegex(@"(?<close>(?:</(?:b|i|span|sub|sup)>){1,4})(?<space>\s+)(?<open>(?:<(?:b|i|span|sub|sup)>){1,4})", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<close>(?:</(?:b|i|u|span|sub|sup)>){1,5})(?<space>\s+)(?<open>(?:<(?:b|i|u|span|sub|sup)>){1,5})", RegexOptions.IgnoreCase)]
     private static partial Regex Seam();
 
-    [GeneratedRegex(@"</?(b|i|span|sub|sup)>", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"</?(b|i|u|span|sub|sup)>", RegexOptions.IgnoreCase)]
     private static partial Regex TagNames();
 
     /// <summary>Text read from markup: its characters (spaces collapsed, ends trimmed), each one's looks, and per look its stretches' lengths (not counting spaces).</summary>
@@ -518,12 +521,12 @@ internal static partial class TranslationMarkup
 
     // What is left of one of ours cut short or garbled: "<b", "</sub", "< sup>", "/b>", "/SUB >", "sup>", " i>". A lone
     // letter's '>' counts only when it touches the letter and no number or '=' follows: "i > 0", "b >= a", "i>0" are text.
-    [GeneratedRegex(@"<\s*/?\s*(?:b|i|span|sub|sup)\b(?:\s*>)?|/\s*(?:b|i|span|sub|sup)\s*>|(?<![\p{L}\p{N}])(?:b|i|span|sub|sup)>(?![\p{N}=])", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"<\s*/?\s*(?:b|i|u|span|sub|sup)\b(?:\s*>)?|/\s*(?:b|i|u|span|sub|sup)\s*>|(?<![\p{L}\p{N}])(?:b|i|u|span|sub|sup)>(?![\p{N}=])", RegexOptions.IgnoreCase)]
     private static partial Regex TagPiece();
 
     // The end of one of ours whose '<' is gone ("negrita/b>", "x /sub>", "word i>"); a whole tag ("<b>", "</b>") isn't one,
     // nor a comparison ("i > 0", "b >= a", "i>0").
-    [GeneratedRegex(@"(?<!<)/\s*(?:b|i|span|sub|sup)\s*>|(?<![\p{L}\p{N}</])(?:b|i|span|sub|sup)>(?![\p{N}=])", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?<!<)/\s*(?:b|i|u|span|sub|sup)\s*>|(?<![\p{L}\p{N}</])(?:b|i|u|span|sub|sup)>(?![\p{N}=])", RegexOptions.IgnoreCase)]
     private static partial Regex BrokenEnd();
 
     // A '<' that opens a tag never closed ("<span", "</").

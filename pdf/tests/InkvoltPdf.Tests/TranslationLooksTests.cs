@@ -121,6 +121,20 @@ public class TranslationLooksTests
         Assert.Equal("An <i>x</i><sup>2</sup> and a <b>bold <i>italic</i></b> word, H<sub>2</sub>O and e=mc<i><sup>2</sup></i>.", TranslationMarkup.Mark(text, spans));
     }
 
+    [Fact]
+    public void Every_look_at_once_nests_five_deep_and_comes_back()
+    {
+        const string text = "A word in all of them.";
+        var all = new TextLook(Color: 0xFF0000, Bold: true, Italic: true, Script: TextScript.Super, Underline: true);
+        List<TextSpan> spans = [Span(text, "word", all)];
+        const string marked = "A <b><i><u><span><sup>word</sup></span></u></i></b> in all of them.";
+        Assert.Equal(marked, TranslationMarkup.Mark(text, spans));
+        var (now, looks) = TranslationMarkup.Read("Una <b><i><u><span><sup>palabra</sup></span></u></i></b> en todas.", text, spans);
+        var look = Assert.Single(looks);
+        Assert.Equal("palabra", now.Substring(look.Start, look.Length));
+        Assert.Equal((true, true, true, TextScript.Super, 0xFF0000), (look.Look.Bold, look.Look.Italic, look.Look.Underline, look.Look.Script, look.Look.Color));
+    }
+
     [Theory]
     [InlineData("a < b and c")] // "< b" would be taken for a piece of a tag
     [InlineData("x <html> and c")]
@@ -745,6 +759,99 @@ public class TranslationLooksTests
         var red = Assert.Single(runs, q => q.Color == 0xFF0000);
         Assert.Equal("rojo", red.Text.Trim());
         Assert.All(runs.Where(q => q != red), q => Assert.Equal(0, q.Color));
+    }
+
+    // ---- Plain underlines ----
+
+    private const string UnderlinedLine = "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj (brown fox) Tj ( jumps over the lazy dog.) Tj ET";
+
+    /// <summary>The line above with a rule drawn as <paramref name="rule"/> places it: (left, right) of "brown fox", page points; its operators.</summary>
+    private static byte[] WithRule(Func<double, double, string> rule)
+    {
+        var words = Assert.Single(Runs(ContentEditPdf.Make(UnderlinedLine, fontText: Letters)), q => q.Text == "brown fox").Box;
+        return ContentEditPdf.Make(UnderlinedLine + " " + rule(words.X, words.Right), fontText: Letters);
+    }
+
+    /// <summary>"brown fox" underlined 2 points below the baseline, 0.8 thick, in red.</summary>
+    private static byte[] Underlined() => WithRule((l, r) => $"1 0 0 rg {l:0.###} 697.2 {r - l:0.###} 0.8 re f 0 g");
+
+    /// <summary>Each rectangle the page's content fills: x, y (PDF space), width, height.</summary>
+    private static List<(double X, double Y, double W, double H)> Filled(byte[] pdf) =>
+        [.. System.Text.RegularExpressions.Regex.Matches(ContentEditPdf.Content(pdf), @"(-?[\d.]+) (-?[\d.]+) (-?[\d.]+) (-?[\d.]+) re\s+f")
+            .Select(m => (double.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture), double.Parse(m.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture),
+                double.Parse(m.Groups[3].Value, System.Globalization.CultureInfo.InvariantCulture), double.Parse(m.Groups[4].Value, System.Globalization.CultureInfo.InvariantCulture)))];
+
+    [Fact]
+    public void An_underline_drawn_under_some_words_goes_to_the_model_as_markup()
+    {
+        var (plan, _) = Translate(Underlined(), t => t);
+        Assert.Equal("The quick <u>brown fox</u> jumps over the lazy dog.", Assert.Single(plan.Texts).Text);
+    }
+
+    [Fact]
+    public void An_underline_is_drawn_again_under_the_words_the_answer_underlines_and_the_old_one_goes()
+    {
+        var (_, r) = Translate(Underlined(), _ => "El zorro <u>marron rapido</u> salta sobre el perro.");
+        Assert.Equal(1, r.Report.Translated);
+        var words = Assert.Single(Runs(r.Data!), q => q.Text.Contains("marron", StringComparison.Ordinal));
+        Assert.Equal("marron rapido", words.Text.Trim());
+        var (x, y, w, h) = Assert.Single(Filled(r.Data!)); // the old rule's operator paints nothing now
+        Assert.Equal(words.Box.X, x, 0.5);
+        Assert.Equal(words.Box.Right, x + w, 1.0);
+        Assert.Equal(0.8, h, 0.01);
+        Assert.Equal(792 - words.Origin.Y - 2, y + h, 0.05); // 2 points below the baseline, as it was
+        Assert.Contains("1 0 0 rg", ContentEditPdf.Content(r.Data!)[^80..], StringComparison.Ordinal); // in its red
+        Assert.DoesNotContain("<u>", ContentEditPdf.Text(r.Data!), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void An_underline_the_answer_dropped_is_taken_off_and_not_drawn_again()
+    {
+        var (_, r) = Translate(Underlined(), _ => "El zorro marron rapido salta sobre el perro.");
+        Assert.Equal(1, r.Report.Translated);
+        Assert.Empty(Filled(r.Data!));
+    }
+
+    [Theory]
+    [InlineData("strike")] // through the words
+    [InlineData("field")] // a line running on past the words, to be written on
+    [InlineData("rule")] // a table's rule, much wider than the words over it
+    [InlineData("thick")] // a band, not a line
+    public void A_rule_that_isnt_an_underline_is_no_look_and_stays(string kind)
+    {
+        var pdf = WithRule((l, r) => kind switch
+        {
+            "strike" => $"{l:0.###} 703 {r - l:0.###} 0.8 re f",
+            "field" => $"{l:0.###} 697.2 {r - l + 400:0.###} 0.8 re f",
+            "rule" => $"40 697.2 520 0.8 re f",
+            _ => $"{l:0.###} 690 {r - l:0.###} 8 re f",
+        });
+        var (plan, r) = Translate(pdf, _ => "El zorro <u>marron rapido</u> salta sobre el perro.");
+        Assert.DoesNotContain("<u>", Assert.Single(plan.Texts).Text, StringComparison.Ordinal);
+        Assert.Single(Filled(r.Data!)); // as it was
+    }
+
+    [Fact]
+    public void A_links_underline_is_the_links_not_a_plain_one()
+    {
+        var pdf = Underlined();
+        var words = Assert.Single(Runs(pdf), q => q.Text == "brown fox").Box;
+        using (var d = PdfReader.Open(new MemoryStream(pdf), PdfDocumentOpenMode.Modify))
+        {
+            var link = new PdfSharp.Pdf.PdfDictionary(d);
+            link.Elements["/Type"] = new PdfSharp.Pdf.PdfName("/Annot");
+            link.Elements["/Subtype"] = new PdfSharp.Pdf.PdfName("/Link");
+            link.Elements["/Rect"] = PdfObj.Reals(d, words.X, 792 - words.Bottom - 3, words.Right, 792 - words.Y);
+            d.Internals.AddObject(link);
+            var annots = new PdfSharp.Pdf.PdfArray(d);
+            annots.Elements.Add(link.Reference!);
+            d.Pages[0].Elements["/Annots"] = annots;
+            using var ms = new MemoryStream();
+            d.Save(ms, false);
+            pdf = ms.ToArray();
+        }
+        var (plan, _) = Translate(pdf, t => t);
+        Assert.Equal("The quick brown fox jumps over the lazy dog.", Assert.Single(plan.Texts).Text);
     }
 
     [Fact]

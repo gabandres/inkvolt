@@ -503,7 +503,7 @@ public static partial class ContentEditor
                 var from = Math.Clamp(l.Starts[i] - lead, 0, t.Length);
                 var to = Math.Clamp(l.Starts[i] + l.Runs[i].Text.Length - lead, 0, t.Length);
                 at.Add((l.Runs[i], text.Length + from, to - from));
-                if (looks is not null && to > from && TranslationLook(own, runs[0].FontSize, baseline, l.Runs[i]) is { } look)
+                if (looks is not null && to > from && TranslationLook(own, runs[0].FontSize, baseline, l.Runs[i], content.UnderlinedRuns.Contains(l.Runs[i])) is { } look)
                 {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
                     var start = text.Length + from;
@@ -564,7 +564,36 @@ public static partial class ContentEditor
         text.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\t', ' ').TrimEnd();
 
     /// <summary>The lines placed; the check; for each page font written, its codes and the text they stand for (for <see cref="TextFont.Prepare"/>).</summary>
-    internal sealed record ParagraphLayout(List<(PointD Origin, List<Part> Parts)> Lines, ParagraphCheck Check, IReadOnlyList<(TextFont Font, IReadOnlyList<int> Codes, string Text)> Fonts);
+    internal sealed record ParagraphLayout(List<(PointD Origin, List<Part> Parts)> Lines, ParagraphCheck Check, IReadOnlyList<(TextFont Font, IReadOnlyList<int> Codes, string Text)> Fonts)
+    {
+        /// <summary>For a translated copy: where its underlined stretches are (page as shown, from their first glyph's start to their last one's ink), on which baseline.</summary>
+        public IReadOnlyList<(double Left, double Right, double Baseline)> Underlined { get; init; } = [];
+    }
+
+    /// <summary>
+    /// The underlined stretches of a laid line (parts with a look that is <see cref="TextLook.Underline"/>, the
+    /// adjustments between them included): from the first one's start to the last one's ink, page as shown.
+    /// </summary>
+    private static IEnumerable<(double Left, double Right, double Baseline)> UnderlinedIn(TextRun m, PointD origin, List<Part> parts)
+    {
+        double? from = null, to = null;
+        var k = 0;
+        foreach (var (start, end, ink) in m.Extents(parts))
+        {
+            var under = parts[k++].Look?.Asked.Underline == true;
+            if (under && ink)
+            {
+                from ??= start;
+                to = end;
+            }
+            else if (!under && from is not null)
+            {
+                yield return (origin.X + from.Value * m.Scale, origin.X + to!.Value * m.Scale, origin.Y);
+                from = to = null;
+            }
+        }
+        if (from is not null) yield return (origin.X + from.Value * m.Scale, origin.X + to!.Value * m.Scale, origin.Y);
+    }
 
     /// <summary>
     /// New text laid out in a paragraph's box, in its own font (<see cref="PlainRun"/>), size and spacing: words wrapped
@@ -702,7 +731,10 @@ public static partial class ContentEditor
             ? PdfStrings.Edit_SpecialInkColor
             : null;
         var check = new ParagraphCheck(box, placed.Count, [], overlaps) { Borrowed = enc.Borrowed, StandIns = enc.Names, Faces = enc.Faces, LookProblem = problem };
-        return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))]);
+        return new ParagraphLayout(placed, check, [.. enc.Written.Select(w => (w.Key, (IReadOnlyList<int>)w.Value.Codes, w.Value.Text.ToString()))])
+        {
+            Underlined = enc.Underlined ? [.. placed.SelectMany(l => UnderlinedIn(m, l.Item1, l.Item2))] : [],
+        };
     }
 
     /// <summary>
@@ -777,6 +809,8 @@ public static partial class ContentEditor
         public readonly List<string> Faces = [];
         /// <summary>A look asks for another color.</summary>
         public bool Colored;
+        /// <summary>A look is underlined (<see cref="ParagraphLayout.Underlined"/>).</summary>
+        public bool Underlined;
 
         /// <param name="oneFace">When the font lacks any character, the whole text, its spaces too, is drawn from one installed font, not a letter here and there: a translation shares few letters with the subset a page's font holds.</param>
         public MixedText(TextParagraph p, TextFont font, TextRun run, string text, TextLook?[] looks, bool oneFace = false)
@@ -874,7 +908,9 @@ public static partial class ContentEditor
                 if (!Faces.Contains(face.Name)) Faces.Add(face.Name);
             }
             Colored |= color is not null;
-            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null ? null : new PartLook(scale, color, face, look, page, rise);
+            var under = look.Underline == true;
+            Underlined |= under;
+            var resolved = scale == 1 && rise == 0 && color is null && face is null && page is null && !under ? null : new PartLook(scale, color, face, look, page, rise);
             _resolved[look] = resolved;
             return resolved;
         }
@@ -1091,6 +1127,7 @@ public static partial class ContentEditor
         var tokens = new List<string>();
         var codes = new List<int>();
         PartLook? tag = null;
+        var tagged = false; // the look's tag is open (an underline alone has none: the rule is drawn apart from the text)
         int? color = null; // null: the run's own
         // The page font and size in effect: the operator's own to begin with; false once a stand-in's Tf replaced it.
         (TextFont Font, bool Hex, double Size) cur = (run.Font!, hex, run.Size);
@@ -1113,8 +1150,9 @@ public static partial class ContentEditor
             if (!ReferenceEquals(look, tag))
             {
                 Close();
-                if (tag is not null) sb.Append("EMC ");
-                if (look is not null) sb.Append(LookTag.Write(look.Asked));
+                if (tagged) sb.Append("EMC ");
+                tagged = look is not null && !(look.Asked with { Underline = null }).IsPlain;
+                if (tagged) sb.Append(LookTag.Write(look!.Asked));
                 tag = look;
             }
             if (look?.Color != color)

@@ -1394,11 +1394,19 @@ public class TranslationCopyTests
     private const string KeepsQuickFox = "Now a lazy dog jumps over the brown fox, and the QUICK FOX 42 sits there until the end of the day.";
 
     [Fact]
-    public void An_underline_that_belongs_to_no_link_stays_as_drawn()
+    public void An_underline_that_belongs_to_no_link_goes_with_its_words_as_a_look()
     {
         var (pdf, underlines) = LinkedParagraph(["QUICK FOX 42"], annotate: false);
-        var (_, r) = Translate(pdf, _ => KeepsQuickFox);
-        Assert.True(BluePixels(r.Data!, Taller(underlines[0])) > 0);
+        const string marked = "<u><span>QUICK FOX 42</span></u>"; // underlined, and blue
+        var (plan, r) = Translate(pdf, _ => KeepsQuickFox.Replace("QUICK FOX 42", marked, StringComparison.Ordinal));
+        Assert.Contains(marked, Assert.Single(plan.Texts).Text, StringComparison.Ordinal);
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        var text = engine.GetText(0, cache: false);
+        var hit = text.Find("QUICK FOX 42", matchCase: true, wholeWord: false).Single();
+        var words = text.GetRects(hit.Start, hit.End).Aggregate((a, b) => a.Union(b));
+        Assert.True(BluePixels(r.Data!, RectD.FromEdges(words.X + 1, words.CenterY, words.Right - 1, words.Bottom + 6)) > 0);
+        if (Taller(underlines[0]).Intersect(RectD.FromEdges(words.X, words.Y, words.Right, words.Bottom + 6)) is not { Width: > 0, Height: > 0 })
+            Assert.Equal(0, BluePixels(r.Data!, Taller(underlines[0])));
     }
 
     [Fact]

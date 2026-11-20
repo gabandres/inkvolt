@@ -64,28 +64,41 @@ public sealed record TextRun(int PageIndex, int Id, string Text, RectD Box, doub
     /// <summary>To the end of the last glyph's ink, in text space (as <see cref="OldWidth"/> measures the run).</summary>
     internal double Width(IEnumerable<ContentEditor.Part> parts)
     {
-        double w = 0, end = 0;
+        double end = 0;
+        foreach (var (_, e, ink) in Extents(parts))
+            if (ink) end = e;
+        return end;
+    }
+
+    /// <summary>
+    /// Where each part reaches along the line from its start (text space, as <see cref="Width"/> measures): a glyph or a
+    /// stand-in's stretch from its start to the end of its ink (<c>Ink</c>), an adjustment the room it moves the next one by.
+    /// </summary>
+    internal IEnumerable<(double Start, double End, bool Ink)> Extents(IEnumerable<ContentEditor.Part> parts)
+    {
+        double w = 0;
         foreach (var p in parts)
         {
             var size = Size * (p.Look?.Scale ?? 1); // a part of another size is written at its own font size
+            var start = w;
             if (p.StandIn is { } s)
             {
                 // Drawn in a stand-in font, with no character spacing (see ContentEditor.WriteLine).
                 w += s.Width * size * HScale;
-                end = w;
+                yield return (start, w, true);
                 continue;
             }
             if (p.Code is not { } c)
             {
                 w -= p.Number / 1000 * size * HScale;
+                yield return (start, w, false);
                 continue;
             }
             var font = p.Look?.Page?.Font ?? Font!; // a stretch in another face of the page's family is measured in it
             var glyph = font.WidthOf(c) / 1000 * size * HScale;
-            end = w + glyph;
             w += glyph + (CharSpacing + (!font.TwoByte && c == 32 ? WordSpacing : 0)) * HScale;
+            yield return (start, start + glyph, true);
         }
-        return end;
     }
 }
 
@@ -116,6 +129,22 @@ public sealed record PageContent(IReadOnlyList<TextRun> Runs, IReadOnlyList<Page
 
     /// <summary>The page's text runs grouped into paragraphs (see <see cref="ContentEditor.GroupParagraphs"/>), turned text in its own direction.</summary>
     public IReadOnlyList<TextParagraph> Paragraphs { get; init; } = [];
+
+    /// <summary>For a translated copy: the rules the page draws under its words that are no link's (<see cref="ContentEditor.PlainUnderlines"/>).</summary>
+    internal IReadOnlyList<ContentEditor.Underline> Underlines
+    {
+        get => _underlines;
+        init
+        {
+            _underlines = value;
+            UnderlinedRuns = new HashSet<TextRun>(value.SelectMany(u => u.Runs), ReferenceEqualityComparer.Instance);
+        }
+    }
+
+    private readonly IReadOnlyList<ContentEditor.Underline> _underlines = [];
+
+    /// <summary>The runs <see cref="Underlines"/> underline (the same objects as in <see cref="Runs"/>).</summary>
+    internal IReadOnlySet<TextRun> UnderlinedRuns { get; private init; } = new HashSet<TextRun>();
 
     /// <summary>The paragraph a run belongs to, or null (only spaces).</summary>
     public TextParagraph? ParagraphOf(TextRun run) => Paragraphs.FirstOrDefault(p => p.Runs.Contains(run));

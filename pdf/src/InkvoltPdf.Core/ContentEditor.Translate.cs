@@ -40,12 +40,20 @@ public static partial class ContentEditor
 
     // ---- Finding the paragraphs ----
 
-    /// <summary>A page's text runs (an operator drawing columns a run for each, <see cref="ColumnStarts"/>) and pictures, for <see cref="TranslationSlots"/>.</summary>
+    /// <summary>A page's text runs (an operator drawing columns a run for each, <see cref="ColumnStarts"/>), pictures and plain underlines (<see cref="PlainUnderlines"/>), for <see cref="TranslationSlots"/>.</summary>
     /// <exception cref="ContentEditException">Its forms draw each other beyond any sensible amount: not all of it was read.</exception>
     internal static PageContent ReadRaw(PdfPage page, int pageIndex, CancellationToken cancel)
     {
-        var walk = Walk(page, pageIndex, Parse(page, cancel), cancel, columns: true);
-        return walk.CutShort ? throw new ContentEditException(PdfStrings.Edit_DrawingsTooDeep) : walk.Content;
+        var ops = Parse(page, cancel);
+        var walk = Walk(page, pageIndex, ops, cancel, columns: true);
+        return walk.CutShort ? throw new ContentEditException(PdfStrings.Edit_DrawingsTooDeep) : TranslationContent(page, walk, ops);
+    }
+
+    /// <summary>What a walk read of a page, with its plain underlines.</summary>
+    private static PageContent TranslationContent(PdfPage page, Walked walk, List<COp> ops)
+    {
+        var content = walk.Content;
+        return walk.PaintsCut ? content : content with { Underlines = PlainUnderlines(page, content, walk.Paints, ops) };
     }
 
     /// <summary>
@@ -82,7 +90,7 @@ public static partial class ContentEditor
             list.Add(r);
         }
         // A paragraph looks through the page's runs for spaces drawn on their own: only those, or a crowded page takes its count squared.
-        var spacesOnly = new PageContent([.. content.Runs.Where(r => r.Text.Trim().Length == 0)], []);
+        var spacesOnly = new PageContent([.. content.Runs.Where(r => r.Text.Trim().Length == 0)], []) { Underlines = content.Underlines };
         var slots = new List<TranslationSlot>();
         foreach (var (cell, runs) in groups)
         {
@@ -1088,7 +1096,10 @@ public static partial class ContentEditor
         var streams = Streams(page);
         var ops = ContentLexer.Parse(streams.Bytes, cancel);
         var walk = Walk(page, pageIndex, ops, cancel, columns: true);
-        var content = walk.Content;
+        var content = TranslationContent(page, walk, ops);
+        // A plain underline is the text's look, not a rule the new text keeps clear of.
+        if (content.Underlines.Count > 0)
+            obstacles = [.. obstacles.Where(o => !content.Underlines.Any(u => Math.Abs(o.X - u.Box.X) < 1 && Math.Abs(o.Right - u.Box.Right) < 1 && Math.Abs(o.CenterY - u.Box.CenterY) < 1))];
         var (pageWidth, pageHeight) = PdfObj.DisplaySize(page);
         var turned = TurnedParts(content, pageWidth, pageHeight, turnedCells);
         var slots = TranslationSlots(content, cells, cancel, turned);
@@ -1110,6 +1121,9 @@ public static partial class ContentEditor
         // Operators drawing columns, what each translated column of theirs became: written whole once the page is done.
         // An operator drawing columns is written once, each column as what became of it: new lines, nothing, or itself as it was.
         var columned = new Dictionary<(Target, int), (List<(int, int, string)> Edits, COp Op, int Id, string?[] Parts)>();
+        // Plain underlines drawn again under the new words (added after the content), and the old ones' operators taken off.
+        var underlines = new StringBuilder();
+        var blanked = new HashSet<int>();
 
         // Every paragraph laid out first: a column's then take one size (OneSizePerColumn) before any is written.
         var laid = new Laid?[slots.Count];
@@ -1241,7 +1255,11 @@ public static partial class ContentEditor
             foreach (var name in layout.Check.StandIns)
                 if (!writer.FontNames.Contains(name)) writer.FontNames.Add(name);
             written.Add(new TranslationWritten(i, fit, fits, dropped));
-            if (slots[i].Part is null) placed[i] = (layout.Check.Box, fit, [.. layout.Lines.Select(l => l.Origin)]);
+            if (slots[i].Part is null)
+            {
+                placed[i] = (layout.Check.Box, fit, [.. layout.Lines.Select(l => l.Origin)]);
+                if (content.Underlines.Count > 0) underlines.Append(RedrawUnderlines(page, p, content.Underlines, layout, fit, ops, pageEdits, blanked));
+            }
         }
 
         if (columned.Count > 0)
@@ -1257,6 +1275,7 @@ public static partial class ContentEditor
         foreach (var (font, codes, text) in fonts) font.Prepare(doc, codes, text);
         foreach (var (target, edits) in forms.Values) WriteTarget(doc, page, target, edits);
         if (pageEdits.Count > 0) WriteTarget(doc, page, pageTarget, pageEdits);
+        if (underlines.Length > 0) PdfObj.AppendContent(doc, page, underlines.ToString());
         foreach (var owner in owners) writer.NeedsFonts(owner);
         if (links.Count > 0) writer.LinksAfter(pageIndex, links);
         SignedEdits.NoteRemoval();
