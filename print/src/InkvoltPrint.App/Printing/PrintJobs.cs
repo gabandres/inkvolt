@@ -51,6 +51,20 @@ public sealed class WindowsJobQueueReader(Func<Task<string?>> findQueue) : IJobQ
 }
 
 /// <summary>
+/// Job alerts for a printer that may print without its Windows queue (roadmap 2.1): while jobs go straight to the printer
+/// (<paramref name="direct"/> says so, cheaply: it's asked every minute), the printer's own job list
+/// (<see cref="Core.Printing.Direct.DirectJobWatch"/>); else the Windows queue's. Never both: a printer with a queue on the IPP class
+/// driver lists the spooler's jobs too, under its own ids, and each would be told twice.
+/// </summary>
+public sealed class RoutedJobQueueReader(IJobQueueReader queue, Func<PrintTarget.Direct?> direct) : IJobQueueReader
+{
+    private readonly Core.Printing.Direct.DirectJobWatch _watch = new();
+
+    public async Task<Core.Alerts.JobQueueState?> ReadAsync() =>
+        direct() is { } d ? await _watch.ReadAsync(d.Ipp, d.User) : await queue.ReadAsync();
+}
+
+/// <summary>
 /// The print queue card of a printer that may print without its Windows queue (roadmap 2.1): while jobs go straight to the
 /// printer, the jobs the printer holds (Get-Jobs, Cancel-Job: <see cref="Core.Printing.Direct.PrinterJobs"/>); else the
 /// Windows queue's.

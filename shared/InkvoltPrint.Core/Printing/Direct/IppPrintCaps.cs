@@ -136,6 +136,17 @@ public sealed record IppPrintCaps
     /// <summary>A raster format it takes and the operation to send it.</summary>
     public bool CanPrint => PrintJob && Formats.Count > 0;
 
+    /// <summary>
+    /// The papers to choose from (Print photos, Batch print): each name once, its bordered entry where it has one, labelled by
+    /// size in the interface's words, a size listed under two names shown once.
+    /// </summary>
+    public IReadOnlyList<(DirectPaper Paper, string Label)> PaperChoices() =>
+        Papers.GroupBy(p => p.Name)
+            .Select(g => g.FirstOrDefault(p => !p.Borderless) ?? g.First())
+            .Select(p => (Paper: p, Label: Photos.PhotoPaperText.Paper(null, p.WidthInches, p.HeightInches)))
+            .DistinctBy(p => p.Label)
+            .ToList();
+
     /// <summary>The raster formats in <c>document-format-supported</c> alone (the status reading has that much).</summary>
     public static IReadOnlyList<RasterFormat> FormatsIn(IEnumerable<string> documentFormats)
     {

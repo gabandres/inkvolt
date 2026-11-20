@@ -164,7 +164,7 @@ internal static class StaThread
 /// A batch's jobs through the printer's Windows queue, the same XPS path as Print a PDF (<see cref="QueuePrinter"/>). Each job's ticket
 /// is checked before anything's drawn and again as it's spooled: a driver that wouldn't keep the copies, the side or the paper
 /// fails that file, never prints something else. Every page is drawn to disk before the job starts, as a half-written XPS job
-/// gets stuck in the queue and a page that can't be drawn should cost no paper. Roadmap 2.1 will be another <see cref="IBatchQueue"/>.
+/// gets stuck in the queue and a page that can't be drawn should cost no paper. Straight to the printer (roadmap 2.1): <see cref="RoutedBatchQueue"/>.
 /// </summary>
 public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQueue
 {
@@ -209,16 +209,7 @@ public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQue
             throw new BatchQueueException(string.Format(Strings.Print_QueueUnusable, ex.Message), mayHaveSent: false);
         }
 
-        using var pages = new DiskPages();
-        if (!pages.HasRoomFor(job.Pages.Count)) throw new BatchFileException(Strings.Print_NoDiskSpace);
-        for (var i = 0; i < job.Pages.Count; i++)
-        {
-            ct.ThrowIfCancellationRequested();
-            progress?.Report(string.Format(Strings.Print_PreparingPage, i + 1, job.Pages.Count));
-            pages.Add(await document.RenderAsync(job.Pages[i], ct).ConfigureAwait(false));
-        }
-        ct.ThrowIfCancellationRequested();
-        if (pages.Count != job.Pages.Count) throw new BatchFileException(Strings.Print_FewerPages);
+        using var pages = await DiskPages.DrawAsync(document, job, progress, ct).ConfigureAwait(false);
 
         // From here the job belongs to the spooler.
         onSpooling?.Invoke();
@@ -267,58 +258,116 @@ public sealed class WindowsBatchQueue(Func<Task<string?>> findQueue) : IBatchQue
         if (BatchTicketCheck.Problem(job.Copies, job.TwoSided, asked, valid.CopyCount, twoSided, got) is { } problem) throw new BatchSettingRefusedException(problem);
         return valid;
     }
+}
 
-    /// <summary>A job's pages on disk until it's written, so a long PDF doesn't sit in memory; read back one at a time as the job asks.</summary>
-    private sealed class DiskPages : IReadOnlyList<RenderedPage>, IDisposable
+/// <summary>
+/// A batch job's pages on disk until it's written, so a long PDF doesn't sit in memory; read back one at a time as the job asks.
+/// Every page is drawn before the job starts, to a Windows queue (a half-written XPS job gets stuck) or a printer (a page that
+/// can't be drawn should cost no paper).
+/// </summary>
+internal sealed class DiskPages : IReadOnlyList<RenderedPage>, IDisposable
+{
+    private const long RoomPerPage = 2L << 20;
+    private readonly string _folder = Directory.CreateDirectory(Path.Combine(PrintImages.Root, Guid.NewGuid().ToString("N"))).FullName;
+    private readonly List<(double Width, double Height)> _sizes = [];
+
+    /// <summary>Draws the job's pages of <paramref name="document"/>, in order.</summary>
+    /// <exception cref="BatchFileException">No room on disk, or a page wasn't drawn.</exception>
+    public static async Task<DiskPages> DrawAsync(IBatchDocument document, BatchPrintJob job, IProgress<string>? progress, CancellationToken ct)
     {
-        private const long RoomPerPage = 2L << 20;
-        private readonly string _folder = Directory.CreateDirectory(Path.Combine(PrintImages.Root, Guid.NewGuid().ToString("N"))).FullName;
-        private readonly List<(double Width, double Height)> _sizes = [];
-
-        public int Count => _sizes.Count;
-
-        public bool HasRoomFor(int pages)
+        var pages = new DiskPages();
+        try
         {
-            try
+            if (!pages.HasRoomFor(job.Pages.Count)) throw new BatchFileException(Strings.Print_NoDiskSpace);
+            for (var i = 0; i < job.Pages.Count; i++)
             {
-                return new DriveInfo(Path.GetPathRoot(_folder)!).AvailableFreeSpace > pages * RoomPerPage;
+                ct.ThrowIfCancellationRequested();
+                progress?.Report(string.Format(Strings.Print_PreparingPage, i + 1, job.Pages.Count));
+                pages.Add(await document.RenderAsync(job.Pages[i], ct).ConfigureAwait(false));
             }
-            catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
-            {
-                return true; // can't tell: writing the pages says so
-            }
+            ct.ThrowIfCancellationRequested();
+            if (pages.Count != job.Pages.Count) throw new BatchFileException(Strings.Print_FewerPages);
+            return pages;
         }
-
-        public void Add(BatchPrintPage page)
+        catch
         {
-            try
-            {
-                File.WriteAllBytes(Path.Combine(_folder, $"{_sizes.Count}.jpg"), page.Jpeg);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                throw new BatchFileException($"The file's pages can't be prepared on this PC's disk: {ex.Message}");
-            }
-            _sizes.Add((page.WidthInches, page.HeightInches));
+            pages.Dispose();
+            throw;
         }
+    }
 
-        public RenderedPage this[int index] => new(File.ReadAllBytes(Path.Combine(_folder, $"{index}.jpg")), _sizes[index].Width, _sizes[index].Height);
+    public int Count => _sizes.Count;
 
-        public IEnumerator<RenderedPage> GetEnumerator()
+    public bool HasRoomFor(int pages)
+    {
+        try
         {
-            for (var i = 0; i < Count; i++) yield return this[i];
+            return new DriveInfo(Path.GetPathRoot(_folder)!).AvailableFreeSpace > pages * RoomPerPage;
         }
-
-        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
-
-        public void Dispose()
+        catch (Exception ex) when (ex is IOException or ArgumentException or UnauthorizedAccessException)
         {
-            try { Directory.Delete(_folder, recursive: true); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                Log.Write($"Batch pages not removed: {ex.Message}"); // the next job removes them (PrintImages)
-            }
+            return true; // can't tell: writing the pages says so
         }
+    }
+
+    public void Add(BatchPrintPage page)
+    {
+        try
+        {
+            File.WriteAllBytes(Path.Combine(_folder, $"{_sizes.Count}.jpg"), page.Jpeg);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new BatchFileException($"The file's pages can't be prepared on this PC's disk: {ex.Message}");
+        }
+        _sizes.Add((page.WidthInches, page.HeightInches));
+    }
+
+    public RenderedPage this[int index] => new(File.ReadAllBytes(Path.Combine(_folder, $"{index}.jpg")), _sizes[index].Width, _sizes[index].Height);
+
+    public IEnumerator<RenderedPage> GetEnumerator()
+    {
+        for (var i = 0; i < Count; i++) yield return this[i];
+    }
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+
+    public void Dispose()
+    {
+        try { Directory.Delete(_folder, recursive: true); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"Batch pages not removed: {ex.Message}"); // the next job removes them (PrintImages)
+        }
+    }
+}
+
+/// <summary>
+/// A printer's batch jobs where its other prints go (<see cref="PrintTargets"/>): its Windows queue (<paramref name="queue"/>), or
+/// straight to the printer (<see cref="Core.Printing.Direct.DirectBatchQueue"/>, roadmap 2.1) when it has none or the person chose
+/// that. Asked again for each call, as the Windows queue is looked up for each.
+/// </summary>
+public sealed class RoutedBatchQueue(IBatchQueue queue, Func<Task<PrintTarget?>> findTarget, Func<string> printerName) : IBatchQueue
+{
+    private async Task<IBatchQueue> RouteAsync() =>
+        await findTarget().ConfigureAwait(false) is PrintTarget.Direct d
+            ? new Core.Printing.Direct.DirectBatchQueue(printerName(), d.Ipp, d.Caps, (document, job, request, progress, onSending, ct) => SendAsync(d, document, job, request, progress, onSending, ct))
+            : queue;
+
+    public async Task<BatchQueueInfo?> ReadAsync(CancellationToken ct) => await (await RouteAsync().ConfigureAwait(false)).ReadAsync(ct).ConfigureAwait(false);
+
+    public async Task<string?> ProblemAsync(CancellationToken ct) => await (await RouteAsync().ConfigureAwait(false)).ProblemAsync(ct).ConfigureAwait(false);
+
+    public async Task<BatchReceipt> SendAsync(IBatchDocument document, BatchPrintJob job, IProgress<string>? progress, Action? onSpooling, CancellationToken ct) =>
+        await (await RouteAsync().ConfigureAwait(false)).SendAsync(document, job, progress, onSpooling, ct).ConfigureAwait(false);
+
+    /// <summary>The file's pages drawn to disk as for a Windows queue, then each on its sheet as Print a PDF lays it out, followed to the job's end.</summary>
+    private static async Task SendAsync(PrintTarget.Direct target, IBatchDocument document, BatchPrintJob job, Core.Printing.Direct.DirectPrintRequest request,
+        IProgress<string>? progress, Action onSending, CancellationToken ct)
+    {
+        using var pages = await DiskPages.DrawAsync(document, job, progress, ct);
+        await DirectPrinter.PrintAsync(target, job.Name, request,
+            (paper, images) => QueuePrinter.PagesPaginator.OnePerSheet(pages, paper, document.Sizing, images), progress, ct, onSending, finishOnceSent: true);
     }
 }
 

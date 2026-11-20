@@ -102,12 +102,38 @@ public static class DirectJob
         {
             answer = await ipp.PrintJobAsync(PrintJobRequest(ipp.PrinterUri, user, jobName, plan), document, SendTimeout(document), ct).ConfigureAwait(false);
         }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or IOException or Net.DeviceHttpException or FormatException)
+        catch (Exception ex) when (NoAnswer(ex))
         {
             throw new DirectPrintException(CoreStrings.Direct_NoAnswer, mayHavePrinted: true);
         }
         if (!answer.Ok) throw new DirectPrintException(Refused(answer.StatusCode), mayHavePrinted: false) { IppStatus = answer.StatusCode };
         return (answer.Int("job-id") is { } id and > 0 ? id : 0, StateOf(answer));
+    }
+
+    /// <summary>The printer didn't answer, or not in a way that can be read: what a request to it throws besides a refusal.</summary>
+    public static bool NoAnswer(Exception ex) =>
+        ex is HttpRequestException or TimeoutException or IOException or Net.DeviceHttpException or FormatException
+        || ex is TaskCanceledException { InnerException: TimeoutException };
+
+    /// <summary>What <see cref="PrinterProblem"/> reads.</summary>
+    public static readonly string[] StateAttributes =
+        ["printer-state", "printer-state-reasons", "printer-state-message", "printer-is-accepting-jobs", "printer-alert", "printer-alert-description"];
+
+    /// <summary>
+    /// Why nothing should be sent to the printer now, in plain words, or null: it refused the question, isn't taking jobs, or is
+    /// stopped or reports an error (a jam, no paper, a door open). Warnings (low ink) don't stop anything. The printer's own words
+    /// are shortened to one line.
+    /// </summary>
+    public static string? PrinterProblem(IppResponse r)
+    {
+        if (!r.Ok) return Refused(r.StatusCode);
+        if (r.Attributes.TryGetValue("printer-is-accepting-jobs", out var accepting) && accepting.FirstOrDefault() is false) return CoreStrings.Direct_NotAccepting;
+        var status = IppClient.ToStatus(r);
+        if (status.Severity != Model.Severity.Error) return null;
+        var said = status.Alerts.FirstOrDefault(a => a.Severity == Model.Severity.Error)?.Message ?? status.Message;
+        said = said.ReplaceLineEndings(" ").Trim().TrimEnd('.');
+        if (said.Length > 120) said = said[..120] + "…";
+        return (said.Length == 0 ? CoreStrings.Status_Stopped : said) + ".";
     }
 
     /// <summary>A minute, and a minute more for every 20 MB (a busy printer reads slowly), at most 30 minutes.</summary>
@@ -165,7 +191,7 @@ public static class DirectJob
             {
                 break;
             }
-            catch (Exception ex) when (ex is HttpRequestException or TimeoutException or IOException or Net.DeviceHttpException or FormatException)
+            catch (Exception ex) when (NoAnswer(ex))
             {
                 if (++failures >= 5) break; // the printer stopped answering about it: it has the job
             }
@@ -184,7 +210,7 @@ public static class DirectJob
             // client-error-not-possible (it already ended), not-found, gone: nothing left to stop
             return r.Ok || r.StatusCode is 0x0404 or 0x0406 or 0x0407;
         }
-        catch (Exception ex) when (ex is HttpRequestException or TimeoutException or IOException or Net.DeviceHttpException or FormatException)
+        catch (Exception ex) when (NoAnswer(ex))
         {
             return false;
         }

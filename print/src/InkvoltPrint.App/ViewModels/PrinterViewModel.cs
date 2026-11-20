@@ -69,12 +69,14 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 line => Log.Write($"[{Name}] {line}"));
         Print = new PrintViewModel(PrintTargetAsync, state)
         {
-            Batch = new BatchPrintViewModel(pc.BatchQueue(uuid, FindQueueAsync), Printing.WindowsBatchDocuments.Instance, state),
+            Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
+                : new Printing.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), PrintTargetAsync, () => Name), Printing.WindowsBatchDocuments.Instance, state),
             PrintDirect = state.GetPrintDirect(uuid),
             DirectChosen = ChooseDirect,
         };
         Jobs = new PrintJobsViewModel(pc.IsDemo ? pc.PrintJobs(FindQueueAsync) : new Printing.RoutedPrintJobs(pc.PrintJobs(FindQueueAsync), PrintTargetAsync));
-        _jobQueue = pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync);
+        _jobQueue = pc.IsDemo ? pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync)
+            : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), DirectTargetNow);
         Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
         Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid));
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
@@ -318,6 +320,15 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             _ => null,
         };
     }
+
+    /// <summary>
+    /// Where jobs go straight to the printer now, for job alerts (asked every minute, also with the window closed): decided as
+    /// <see cref="PrintTargetAsync"/> decides, with the Windows queue as last looked up instead of looking again; null: the Windows queue.
+    /// </summary>
+    private Printing.PrintTarget.Direct? DirectTargetNow() =>
+        DirectIpp is { } ipp && Core.Printing.Direct.PrintRoutes.Choose(QueueInstalled, true, Print.PrintDirect) == Core.Printing.Direct.PrintRoute.Direct
+            ? new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp))
+            : null;
 
     private (Core.Ipp.IppClient Client, Core.Printing.Direct.IppCapsCache Caps)? _directCaps;
 
@@ -1086,7 +1097,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             return;
         }
         if (Scan is null || (Scan.ViaWindows != (scanner is WiaScanner) && !Scan.HasUnsavedPages))
-            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, FindQueueAsync, _pc);
+            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, PrintTargetAsync, _pc);
         else Scan.Rebind(scanner);
     }
 
