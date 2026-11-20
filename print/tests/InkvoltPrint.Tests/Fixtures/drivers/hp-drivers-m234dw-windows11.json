@@ -1,0 +1,200 @@
+{
+ "statusCode": 200,
+ "statusMessage": "Success",
+ "data": {
+  "softwareTypes": [
+   {
+    "accordionName": "Driver-Universal Scan Driver",
+    "accordionNameEn": "Driver-Universal Scan Driver",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP Universal Scan - Full Feature Software and Driver (ARM 64)",
+       "version": "63.8.6459",
+       "fileSize": "437.0 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/USS/ARM64_MFP/Full_Webpack-63.8.6459_ARM64-SJ0001_Full_Webpack.exe",
+       "detailInformation": {
+        "description": "Full webpack provides various scan functionalities. Supports OCR capabilities and Cloud Destinations.",
+        "fileName": "Full_Webpack-63.8.6459_ARM64-SJ0001_Full_Webpack.exe"
+       }
+      }
+     },
+     {
+      "latestVersionDriver": {
+       "title": "HP Universal Scan - Basic Feature Software and Driver (ARM 64)",
+       "version": "63.8.6459",
+       "fileSize": "118.7 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/USS/ARM64_MFP/Basic_Webpack_x64-63.8.6459_ARM64-SJ0001_Basicx64_Webpack.exe",
+       "detailInformation": {
+        "description": "This is the minimum Scan Software solution which provides basic Scan functionality, WIA and Twain support.Does not include OCR capabilities and Cloud Destinations. Download Full webpack for OCR capabilities.",
+        "fileName": "Basic_Webpack_x64-63.8.6459_ARM64-SJ0001_Basicx64_Webpack.exe"
+       }
+      }
+     },
+     {
+      "latestVersionDriver": {
+       "title": "HP Universal Scan - Full Feature Software and Driver",
+       "version": "63.8.6459",
+       "fileSize": "436.2 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/SJ0001/MFPs/Full_Webpack-63.8.6459-SJ0001_Full_Webpack.exe",
+       "detailInformation": {
+        "description": "Full webpack provides various scan functionalities. Supports OCR capabilities and Cloud Destinations.",
+        "fileName": "Full_Webpack-63.8.6459-SJ0001_Full_Webpack.exe"
+       }
+      }
+     },
+     {
+      "latestVersionDriver": {
+       "title": "HP Universal Scan - Basic Feature Software and Driver",
+       "version": "63.8.6459",
+       "fileSize": "113.9 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/SJ0001/MFPs/COL117462/Basic_Webpack_x64-63.8.6459-SJ0001_Basicx64_Webpack.exe",
+       "detailInformation": {
+        "description": "This is the minimum Scan Software solution which provides basic Scan functionality, WIA and Twain support.Does not include OCR capabilities and Cloud Destinations. Download Full webpack for OCR capabilities.",
+        "fileName": "Basic_Webpack_x64-63.8.6459-SJ0001_Basicx64_Webpack.exe"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Installation Software and Driver-Includes print, scan, latest features, and solutions",
+    "accordionNameEn": "Installation Software and Driver-Includes print, scan, latest features, and solutions",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP Easy Start Printer Setup Software (Internet connection required for driver installation)",
+       "version": "17.6.15",
+       "fileSize": "26.5 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/HPEasyStart/HPS1/HPEasyStart_17_6_15.exe",
+       "detailInformation": {
+        "description": "HP Easy Start provides guided setup and drivers for your HP printer.",
+        "fileName": "HPEasyStart_17_6_15.exe"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Printer Firmware-Keeps your printer updated with latest fixes",
+    "accordionNameEn": "Printer Firmware-Keeps your printer updated with latest fixes",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP LaserJet MFP M232-M237 Printer series Firmware Update Utility(not compatible with HP LaserJet MFP M234d/M235sdw Printer)",
+       "version": "20260530",
+       "fileSize": "6.4 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/M232_237/M232-M237_Series_FW_Update-20260530.exe",
+       "detailInformation": {
+        "description": "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 3.2//EN\"><html><head><title></title></head><body>NOTE: This firmware utility DOES NOT support <b>HP LaserJet MFP M234d and M235sdw Printer</b>. Please make sure to download the Firmware Update Utility specific to your Printer model. <br><br> This utility is for use on Microsoft Windows 32 and 64 bit operating systems. The utility can be used with a USB connection or network connection. Be sure to use the firmware utility that is specific to your printer model. This utility updates the printer firmware version to the latest version. The firmware version can be found on the Self Test/Configuration Page which can be printed from the printer&#39;s Reports menu. <p>Reminder: Dynamic security enabled printer. This Firmware includes dynamic security measures, which are used to block cartridges using a non-HP chip or modified or non-HP electronic circuitry. The printer is intended to work only with new or reused cartridges that have a new or reused HP chip or circuitry. Periodic firmware updates will maintain the effectiveness of the dynamic security measures and block cartridges that previously worked. More at: www.hp.com/learn/ds.</p></body></html>",
+        "fileName": "M232-M237_Series_FW_Update-20260530.exe"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Software",
+    "accordionNameEn": "Software",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "ReadIRIS Advanced OCR",
+       "version": "17.4.211",
+       "fileSize": "448.6 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/IRIS/Softwares/Readiris17-17.4.211_HP-cd25n005.exe",
+       "detailInformation": {
+        "description": "Exclusively for HP customers: Accelerate your digitization journey with ReadIRIS Advanced OCR. Convert paper documents, scanned images, and PDFs into fully editable and searchable digital files, making information easier to store, share, and manage.",
+        "fileName": "Readiris17-17.4.211_HP-cd25n005.exe"
+       }
+      }
+     },
+     {
+      "latestVersionDriver": {
+       "title": "ReadIRIS Advanced PDF",
+       "version": "27.0.577.2",
+       "fileSize": "532.8 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/IRIS/Softwares/Readiris_PDF-27.0.577.2-HP.msi",
+       "detailInformation": {
+        "description": "HP customers enjoy exclusive access to ReadIRIS Advanced PDF \u2013 your complete solution for digital document workflows. Merge, split, annotate, and secure PDFs effortlessly, helping you streamline processes and embrace a paperless future.",
+        "fileName": "Readiris_PDF-27.0.577.2-HP.msi"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Update",
+    "accordionNameEn": "Update",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP Scan OCR Add-on Software",
+       "version": "1.0.1020",
+       "fileSize": "224.9 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/OCRPlugin/Win7plus-1.0.1020-HPOCR_Win7plus.exe",
+       "detailInformation": {
+        "description": "HP Scan OCR Add-on Software provides OCR and OCR related functionalities and is designed to be used as a plugin for HP Scan Software. This add-on is already available as part of the HP Scan Full Webpack.",
+        "fileName": "Win7plus-1.0.1020-HPOCR_Win7plus.exe"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Installation Software and Driver",
+    "accordionNameEn": "Installation Software and Driver",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "Install HP app to complete setup and support",
+       "version": "N/A",
+       "fileSize": null,
+       "fileUrl": "https://apps.microsoft.com/detail/9N9PHDT62W94",
+       "detailInformation": {
+        "description": "<html>Install HP app to setup and use your Printer<br><ul><li>HP app will help you connect your printer, install driver, offer print, scan, fax, share files and Diagnose/Fix top issues. <a href=\"https://support.hp.com/document/ish_1716406-1413451-16\"  target=\"_blank\">Click here to learn how to setup your Printer successfully</a> (Recommended). </li><li>Creating an HP Account and registering is mandatory for HP+/Instant-ink customers. It also helps in accessing assisted support options and more.</li></ul><b>NOTE:</b><ul><li>Disconnect from Virtual Private Network (VPN) connection before downloading.</li><li>Creating an account on Microsoft Store to download HP app is optional.</li></ul><!-- 5-Aug-2022 - The following bogus href link is a work-around. It overrides a display link hardcoded by the Portal. Without this href line, the Portal displays 'undefined' below the button labeled 'Install'. Do not add clickable text after the href so that this link stays hidden. --></html>",
+        "fileName": null
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Driver-Smart Universal Print Driver",
+    "accordionNameEn": "Driver-Smart Universal Print Driver",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP Smart Universal Printing Driver for Windows V3 (32-bit)",
+       "version": "4.08.1.3348",
+       "fileSize": "25.1 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/SUPD/SUPD-4.08.1.3348-V3-x86.zip",
+       "detailInformation": {
+        "description": "<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 3.2//EN\"><html><head><title></title></head><body>This is the most current version of the V3 HP Smart Universal Printing Driver (SUPD) for Windows 32 bit systems. </body></html>",
+        "fileName": "SUPD-4.08.1.3348-V3-x86.zip"
+       }
+      }
+     }
+    ]
+   },
+   {
+    "accordionName": "Installation Software and Full/Basic Driver-Supports print and scan functionality only",
+    "accordionNameEn": "Installation Software and Full/Basic Driver-Supports print and scan functionality only",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP LaserJet MFP M232dw/dwc/sdw-M233dw/sdw-M234dw/sdw-M235dw/sdw-M236dw/sdw-dw/M237dw/sdw-dw/ EasyStart Software - Offline Use Only",
+       "version": "52.3.4930",
+       "fileSize": "297.7 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/LJM232-M237/HPEasyStart-16.2.4-LJM232-M237_UWWL_52_3_4930_Webpack.exe",
+       "detailInformation": {
+        "description": "The full solution software includes everything you need to install and use your HP printer. This collection of software includes the complete set of drivers, installer software, and other administrative tools.",
+        "fileName": "HPEasyStart-16.2.4-LJM232-M237_UWWL_52_3_4930_Webpack.exe"
+       }
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

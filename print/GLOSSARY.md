@@ -27,8 +27,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   A USB **scanner** with no working driver is listed the same way (`UsbScanners`): it has no "set up" stage.
 - **Get the driver**: the maker's own driver for a device that needs its driver, found on the maker's site for this model and
   this PC, downloaded from the maker's hosts only, kept only when its signature is valid and the maker's, and run on the user's
-  click; then Windows is asked to look again and whether it has the device now is checked (`DriverFlow`, `EpsonDrivers` in
-  `shared/InkvoltPrint.Core/Drivers`). Epson only for now.
+  click; then Windows is asked to look again and whether it has the device now is checked (`DriverFlow`; `EpsonDrivers`, `CanonDrivers`, `HpDrivers`, `BrotherDrivers`, `PfuDrivers` in
+  `shared/InkvoltPrint.Core/Drivers`). Epson, Canon, HP, Brother and PFU (fi and SP series; not ScanSnap).
 - **CUPS destination** (Mac): a print queue set up in macOS, as libcups lists it with its options (`CupsDestination`). A
   temporary destination (a printer Bonjour shows that nobody set up) isn't a queue.
 - **Set up in macOS** (Mac): creating the CUPS queue for a network printer macOS has none for, so every app prints to it:

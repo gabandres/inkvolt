@@ -26,8 +26,8 @@ public sealed class FetchException(FetchProblem problem, string? detail = null) 
 /// <summary>
 /// Reads a page or downloads a file from a maker's own site, everything it gets treated as hostile: https only, to hosts on the
 /// maker's list only (each redirect checked the same way, at most 5), bounded in size (the server's length is checked before a
-/// byte is read, and the bytes are counted as they come) and in time. Nothing is sent but the request for the address: no
-/// cookies, no identifiers. Redirects are never followed by the handler (<see cref="CreateHandler"/>), only here.
+/// byte is read, and the bytes are counted as they come) and in time. Nothing is sent but the request for the address (and for
+/// HP's driver list, the JSON naming the model and the Windows asked about): no cookies, no identifiers. Redirects are never followed by the handler (<see cref="CreateHandler"/>), only here.
 /// </summary>
 public sealed class BoundedHttp(HttpMessageHandler handler)
 {
@@ -47,6 +47,18 @@ public sealed class BoundedHttp(HttpMessageHandler handler)
     {
         using var buffer = new MemoryStream();
         await FetchAsync(uri, hosts, maxBytes, limit, buffer, null, ct).ConfigureAwait(false);
+        return System.Text.Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
+    }
+
+    /// <summary>
+    /// The answer (UTF-8) to a JSON request posted to a maker's site (HP's driver list asks this way), at most
+    /// <paramref name="maxBytes"/>, within <paramref name="limit"/>. Only <paramref name="json"/> is sent; a redirect isn't followed
+    /// (a post isn't sent again elsewhere): it is <see cref="FetchProblem.Unreachable"/>.
+    /// </summary>
+    public async Task<string> PostJsonAsync(Uri uri, string json, IReadOnlyCollection<string> hosts, long maxBytes, TimeSpan limit, CancellationToken ct)
+    {
+        using var buffer = new MemoryStream();
+        await FetchAsync(uri, hosts, maxBytes, limit, buffer, null, ct, json).ConfigureAwait(false);
         return System.Text.Encoding.UTF8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length);
     }
 
@@ -81,7 +93,7 @@ public sealed class BoundedHttp(HttpMessageHandler handler)
         && hosts.Contains(uri.IdnHost, StringComparer.OrdinalIgnoreCase);
 
     private async Task<Uri> FetchAsync(Uri uri, IReadOnlyCollection<string> hosts, long maxBytes, TimeSpan limit, Stream into, IProgress<long>? progress,
-        CancellationToken ct)
+        CancellationToken ct, string? postJson = null)
     {
         using var time = CancellationTokenSource.CreateLinkedTokenSource(ct);
         time.CancelAfter(limit);
@@ -91,11 +103,13 @@ public sealed class BoundedHttp(HttpMessageHandler handler)
             for (var hop = 0; ; hop++)
             {
                 if (!IsAllowed(at, hosts)) throw new FetchException(FetchProblem.NotMakersSite, at.IdnHost);
-                using var request = new HttpRequestMessage(HttpMethod.Get, at);
+                using var request = new HttpRequestMessage(postJson is null ? HttpMethod.Get : HttpMethod.Post, at);
                 request.Headers.UserAgent.ParseAdd("InkvoltPrint/1.0");
+                if (postJson is not null) request.Content = new StringContent(postJson, System.Text.Encoding.UTF8, "application/json");
                 using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, time.Token).ConfigureAwait(false);
                 if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is { } next)
                 {
+                    if (postJson is not null) throw new FetchException(FetchProblem.Unreachable, "a post redirected");
                     if (hop >= MaxRedirects) throw new FetchException(FetchProblem.TooManyRedirects);
                     at = next.IsAbsoluteUri ? next : new Uri(at, next);
                     continue;

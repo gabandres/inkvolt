@@ -7,7 +7,7 @@ using InkvoltPrint.Core.Drivers;
 namespace InkvoltPrint.Windows.Printing;
 
 /// <summary>
-/// "Get the driver" on this PC (<see cref="DriverFlow"/>): Epson's site through <see cref="BoundedHttp"/>, Authenticode through
+/// "Get the driver" on this PC (<see cref="DriverFlow"/>): the makers' sites (<see cref="Catalogs"/>) through <see cref="BoundedHttp"/>, Authenticode through
 /// <c>WinVerifyTrust</c>, the installer run with the shell (it raises its own prompt), Windows asked to look for devices again. The
 /// downloads go to their own folder under the app's data and are deleted once run or refused.
 /// </summary>
@@ -24,7 +24,11 @@ public static class WindowsDrivers
 
     /// <param name="mode">The app's: <see cref="DriverMode.OpenLink"/> in a Store package (it never downloads or runs anything).</param>
     public static DriverFlow Create(DriverMode mode = DriverMode.InstallForYou) =>
-        new(new MakerCatalogs(new EpsonDrivers(Http.Value)), Http.Value, new WindowsSignatures(), new WindowsDriverPc(), DownloadFolder, Arch, Windows, mode);
+        new(Catalogs(Http.Value), Http.Value, new WindowsSignatures(), new WindowsDriverPc(), DownloadFolder, Arch, Windows, mode);
+
+    /// <summary>Every maker whose drivers are looked up: Epson, Canon, HP, Brother and PFU.</summary>
+    public static MakerCatalogs Catalogs(BoundedHttp http) =>
+        new(new EpsonDrivers(http), new CanonDrivers(http), new HpDrivers(http), new BrotherDrivers(http), new PfuDrivers(http));
 
     /// <summary>Deletes downloads left from an earlier run (not touched for an hour); at start-up, off the UI thread.</summary>
     public static void SweepLeftovers()

@@ -16,6 +16,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - A scanner whose only driver is an old 32-bit TWAIN driver is now listed by its name and says why it can't be used here and which driver to install, instead of not showing at all.
 - Clean up's Whiten no longer makes faded pages harder to read once their colors are restored.
 - Batch scanning splits at QR codes too: a sheet with a QR code or barcode that says PATCHT (as Paperless-ngx prints them) starts a new file, like a patch code sheet. The separator sheet Inkvolt Print saves for you now carries one beside its bars.
+- Get the driver now finds Canon, HP and Brother drivers and PFU's (Fujitsu and Ricoh fi and SP scanners) too, each from the maker's own site and signed by the maker, as it does for Epson.
 
 ## 1.6.0
 - SNMP access… now asks the printer before saving: it says which part the printer refused, or that another device answered, and keeps nothing; when the printer doesn't answer, or the refusal may not come from your printer, Save anyway keeps it as it is.

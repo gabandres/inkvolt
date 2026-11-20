@@ -137,8 +137,8 @@ click. Read against Microsoft Store Policies **7.20** (2026-09-14), that would *
 **What each build does** (`Features.DriverMode`, decided by `DriverModes.For`, gated like the HP clean-up):
 
 - **Store package (default):** the app never downloads or runs anything. *Get the driver* finds the model's driver on the
-  maker's site and shows its title, version, size and host; **Download it from Epson** opens that file's own https address
-  (Epson's hosts only) in the browser, and the person runs Epson's installer themselves. The page then watches for the device
+  maker's site and shows its title, version, size and host; **Download it from Epson** (or Canon, HP, Brother, PFU) opens that file's own https address
+  (the maker's hosts only) in the browser, and the person runs the maker's installer themselves. The page then watches for the device
   (each read of the list after the PnP watcher or the 30 s timer: WIA for a scanner, the USB read for a printer) and says
   *Found it*, selecting a scanner in the Scan tab; **Look again** asks Windows to look for devices as the user (never elevated).
   In the certification notes: "the app opens the printer or scanner maker's own driver download page in the browser; it

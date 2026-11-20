@@ -1,0 +1,151 @@
+{
+ "statusCode": 200,
+ "data": {
+  "osAvailablePlatformsAnsOS": {
+   "osPlatforms": [
+    {
+     "id": "275027708611380099388405694207665",
+     "name": "Mac OS",
+     "osVersions": [
+      {
+       "id": "11212138891547151401399116411012148103724130",
+       "name": "macOS 26",
+       "osBitVersion": "not set"
+      }
+     ]
+    },
+    {
+     "id": "487192269364721453674728010296573",
+     "name": "Windows",
+     "osVersions": [
+      {
+       "id": "107115213661381410451019207301231013015321012",
+       "name": "Windows Server 2022",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "1117042031711110499111149613201312551119131",
+       "name": "Windows 11",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "16144137901514415411821122407512213166102",
+       "name": "Windows 11 on ARM (64-bit)",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "161471410523421014755858030763906811213",
+       "name": "Windows Server 2025",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "41696735586967302609327735059400",
+       "name": "Windows 10 (32-bit)",
+       "osBitVersion": "32"
+      },
+      {
+       "id": "792898937266030878164166465223921",
+       "name": "Windows 10 (64-bit)",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "840207183131829030726772749001956",
+       "name": "Windows 8.1 (32-bit)",
+       "osBitVersion": "32"
+      },
+      {
+       "id": "29481326718665025226218600797815",
+       "name": "Windows 8.1 (64-bit)",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "748205856755681968862396500802202",
+       "name": "Windows 8 (32-bit)",
+       "osBitVersion": "32"
+      },
+      {
+       "id": "560700542987999442956510595387501",
+       "name": "Windows 8 (64-bit)",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "880283482620668824320675631540580",
+       "name": "Windows 7 (32-bit)",
+       "osBitVersion": "32"
+      },
+      {
+       "id": "460644864015473348621734632283354",
+       "name": "Windows 7 (64-bit)",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "12417648478812541947724493481650",
+       "name": "Windows 2000",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "18613413571410644949132781204113513351011",
+       "name": "Windows Server 2019",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "746071178423029035283314077291835",
+       "name": "Windows Server 2016",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "746071178423029035659827274650915",
+       "name": "Windows Server 2012",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "248926700702692387560813937570582",
+       "name": "Windows Server 2012 R2",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "551449719812597267632047055786749",
+       "name": "Windows Server 2008 R2",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "717472968629972791106558651594111",
+       "name": "Windows Server 2008 W32",
+       "osBitVersion": "32"
+      },
+      {
+       "id": "717470868617672772591142046744014",
+       "name": "Windows Server 2008 x64",
+       "osBitVersion": "64"
+      },
+      {
+       "id": "621915406098921195547024799025081",
+       "name": "Windows Server 2008 Small Business",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "152281215306064238430559718334269",
+       "name": "Windows Server 2008 Itanium",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "312846975407845423749530762627087",
+       "name": "Windows Server 2008 Foundation Edition",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "618853186437737613857586734131300",
+       "name": "Windows Server 2008 Essential Business",
+       "osBitVersion": "not set"
+      },
+      {
+       "id": "746071178422929035401460829367034",
+       "name": "Windows Server 2003",
+       "osBitVersion": "64"
+      }
+     ]
+    }
+   ]
+  }
+ }
+}

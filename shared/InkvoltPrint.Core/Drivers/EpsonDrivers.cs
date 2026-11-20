@@ -136,12 +136,6 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
     [GeneratedRegex(@"Compatible systems\s*:\s*</p>\s*<p class=""sub-body"">(.{0,4000}?)</p>", RegexOptions.Singleline)]
     private static partial Regex Systems();
 
-    [GeneratedRegex(@"<[^>]{0,2000}>")]
-    private static partial Regex Tags();
-
-    [GeneratedRegex(@"\s+")]
-    private static partial Regex Spaces();
-
     /// <summary>
     /// Every download the page lists, in its order, each in the section it's under ("recommended", "driver", "utilities"…). At most
     /// 200; an entry missing its title, file or https address is left out; every text shortened.
@@ -167,18 +161,7 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
         return list;
     }
 
-    private static string Plain(string html, int max)
-    {
-        var s = Spaces().Replace(WebUtility.HtmlDecode(Tags().Replace(html, " ")).Replace(' ', ' '), " ").Trim();
-        return s.Length > max ? s[..max].TrimEnd() + "…" : s;
-    }
-
-    /// <summary>ARM as Epson and Microsoft write it: "ARM", "Arm64", "Windows on Arm", "arm-based".</summary>
-    [GeneratedRegex(@"\b(arm|arm64|aarch64)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex Arm();
-
-    [GeneratedRegex(@"\b(x64|x86-64|x86_64|amd64|intel|amd)\b", RegexOptions.IgnoreCase)]
-    private static partial Regex X64();
+    private static string Plain(string html, int max) => DriverPages.Plain(html, max);
 
     [GeneratedRegex(@"\bv(\d{1,4}(?:\.\d{1,6}){1,4})\b", RegexOptions.IgnoreCase)]
     private static partial Regex Version();
@@ -199,21 +182,12 @@ public sealed partial class EpsonDrivers(BoundedHttp http) : IDriverCatalog
                                         && !d.Title.Contains("Combo", StringComparison.OrdinalIgnoreCase)
                                         && (d.Systems.Length == 0 || d.Systems.Contains(os, StringComparison.OrdinalIgnoreCase))
                                         && BoundedHttp.IsAllowed(d.Href, Source.DownloadHosts)).ToList();
-        static bool ForArm(EpsonDownload d) => Arm().IsMatch(d.Title) || Arm().IsMatch(d.Description);
-        static bool ArmOnly(EpsonDownload d) => ForArm(d) && !X64().IsMatch(d.Title) && !X64().IsMatch(d.Description);
-        var pick = query.Arch == PcArch.Arm64 ? fits.FirstOrDefault(ForArm) : fits.FirstOrDefault(d => !ArmOnly(d));
+        var pick = query.Arch == PcArch.Arm64 ? fits.FirstOrDefault(d => DriverPages.ForArm(d.Title, d.Description))
+            : fits.FirstOrDefault(d => !DriverPages.ArmOnly(d.Title, d.Description));
         if (pick is null) return DriverLookup.None(fits.Count > 0 ? NoOffer.NoArm64 : NoOffer.NotFound, page);
         var title = Version().Replace(pick.Title, "").Trim();
         var version = Version().Match(pick.Title) is { Success: true } v ? v.Groups[1].Value : null;
-        return DriverLookup.Found(new DriverOffer(title.Length > 0 ? title : pick.Title, version, pick.SizeText, pick.Href, SafeFileName(pick.FileName, pick.Href), page));
-    }
-
-    /// <summary>The file's own name, kept to letters, digits, '.', '_' and '-', ending in .exe: never a path.</summary>
-    private static string SafeFileName(string name, Uri href)
-    {
-        var raw = Path.GetFileName(href.AbsolutePath);
-        var s = Regex.Replace(raw.Length > 0 ? raw : name, @"[^A-Za-z0-9._\-]", "_").Trim('.');
-        if (s.Length is 0 or > 100) s = "driver";
-        return s.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? s : s + ".exe";
+        return DriverLookup.Found(new DriverOffer(title.Length > 0 ? title : pick.Title, version, pick.SizeText, pick.Href,
+            DriverPages.SafeFileName(pick.FileName, pick.Href), page));
     }
 }
