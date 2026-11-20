@@ -22,11 +22,15 @@ public class PanelTextTests
     [InlineData("Ready", "Ready", null)] // says nothing more
     [InlineData("Ready", "ready.", null)]
     [InlineData("Ready", "Idle.", null)] // a plain "Idle" under the app's own word for it
+    [InlineData("Ready", "Prêt", null)] // the same in the panel's language
+    [InlineData("Ready", "Bereit.", null)]
+    [InlineData("Ready", "Lista para imprimir", "Lista para imprimir")] // three words: more than a state's name
+    [InlineData("Ready", "Tray 2", "Tray 2")] // a figure: not a state's name
     [InlineData("Sleeping", "Sleep mode is on.", "Sleep mode is on")]
     [InlineData("Ready", "  ", null)]
     [InlineData("Ready", null, null)]
     [InlineData("Ready", "Tray 2\r\nLoad A4\tplain", "Tray 2 Load A4 plain")] // one line
-    [InlineData("Ready", "‮regnad‬ ok", "regnad ok")] // no right-to-left override turning it round
+    [InlineData("Ready", "‮regnad‬ the tray", "regnad the tray")] // no right-to-left override turning it round
     public void The_panel_s_text_shows_when_it_says_more_than_the_status(string message, string? panel, string? shown) =>
         Assert.Equal(shown, Status(message, panel).PanelNote);
 

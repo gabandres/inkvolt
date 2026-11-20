@@ -83,7 +83,7 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
   trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM's, and since
   2026-11-20 IPP's `printer-impressions-completed` and the Printer MIB's `prtMarkerLifeCount` (in impressions or sheets), from
-  the same request as the levels (CDM's counters still not read). **Pages left and yield beyond LEDM (2026-11-20):** CDM's
+  the same request as the levels (CDM's counters not read: no capture of `/cdm/deviceUsage/v1/lifetimeCounters` and no published schema; README). **Pages left and yield beyond LEDM (2026-11-20):** CDM's
   `capacity` in pages, IPP's `printer-supply` and the Printer MIB's supplies counted in impressions or sheets give each
   supply's pages left and what a full one is rated for (`Consumable.PageYield`, `IppSupply`, `SnmpSupply.Unit`); the card
   shows "About N pages left" and "Rated for about N pages" (`SupplyPagesTests`). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer

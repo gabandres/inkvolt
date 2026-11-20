@@ -156,6 +156,33 @@ public class SupplyPagesTests
         Assert.Equal(pages, (await printer!.ReadAsync()).PageCount);
     }
 
+    /// <summary>The demo laser, answering an error (or garbage) to any request about the marker table or the panel's lines.</summary>
+    private sealed class OddExtras(SnmpAgent agent, bool garbage) : ISnmpTransport
+    {
+        private static readonly Oid Markers = Oid.Parse("1.3.6.1.2.1.43.10"), Console = Oid.Parse("1.3.6.1.2.1.43.16");
+
+        public Task<byte[]?> SendAsync(string host, byte[] request, TimeSpan timeout, CancellationToken ct)
+        {
+            var m = SnmpMessage.Decode(request);
+            if (!m.VarBinds.Any(v => v.Name.IsUnder(Markers) || v.Name.IsUnder(Console))) return agent.SendAsync(host, request, timeout, ct);
+            return Task.FromResult<byte[]?>(garbage ? [0x30, 0x03, 0x02, 0x01]
+                : (m with { Type = SnmpPduType.Response, ErrorStatus = SnmpMessage.GenErr, ErrorIndex = 1 }).Encode());
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task A_printer_that_errs_on_the_page_count_or_the_panel_still_gives_its_status_and_supplies(bool garbage)
+    {
+        var printer = await SnmpPrinterClient.ProbeAsync(new OddExtras(Laser(), garbage), "192.0.2.14");
+        var reading = await printer!.ReadAsync();
+        Assert.Equal(3, reading.Supplies.Count);
+        Assert.Null(reading.PageCount);
+        Assert.Empty(reading.Panel);
+        Assert.Equal("Ready", SnmpPrinterStatus.ToStatus(reading).Message);
+    }
+
     [Fact]
     public async Task A_printer_read_over_SNMP_gives_its_page_count_with_the_reading()
     {

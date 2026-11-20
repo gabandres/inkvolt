@@ -41,6 +41,13 @@ public sealed record ProbeResult(
 
     public bool Reachable => Ledm is not null || Scanner is not null || Ipp is not null || Cdm is not null || Snmp is not null;
 
+    /// <summary>
+    /// The web server's root this probe was made with (<paramref name="web"/>, <see cref="DeviceHttp"/>'s <c>web</c>), kept only
+    /// when HP's LEDM or CDM answered there; null otherwise (nothing to keep, or nothing of the web server's answered there: a
+    /// port that isn't its web server, or one it left), so the next connection asks the default ports.
+    /// </summary>
+    public Uri? WebRootKept(Uri? web) => web is not null && (Ledm is not null || Cdm is not null) ? web : null;
+
     public string? Uuid =>
         Product?.Uuid ?? Scanner?.Uuid ?? Ipp?.Str("printer-uuid")?.Replace("urn:uuid:", "", StringComparison.OrdinalIgnoreCase);
 

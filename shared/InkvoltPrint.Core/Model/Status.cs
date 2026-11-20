@@ -27,11 +27,18 @@ public sealed record PrinterStatus(string Code, string Message, Severity Severit
     /// <summary>
     /// The panel's text to show with the status: one clean line of at most <see cref="MaxPanelText"/> characters
     /// (<see cref="Fleet.FleetText.Clean"/>), only when it says more than the status line does (not the same words, ignoring case
-    /// and a final period, nor a plain "Idle" or "Ready" under the app's own word for it). Null otherwise.
+    /// and a final period, nor a plain "Idle" or "Ready" under the app's own word for it). A ready or idle printer's panel saying one
+    /// short line of a word or two is its state in the panel's language ("Prêt", "Bereit", "Lista"): not shown either. Null otherwise.
     /// </summary>
     public string? PanelNote =>
         Fleet.FleetText.Clean(PanelText, MaxPanelText) is { } text && Ipp.IppClient.Headline(text, Message) is var said
-        && !string.Equals(said.TrimEnd('.', '!'), Message.Trim().TrimEnd('.', '!'), StringComparison.OrdinalIgnoreCase) ? said : null;
+        && !string.Equals(said.TrimEnd('.', '!'), Message.Trim().TrimEnd('.', '!'), StringComparison.OrdinalIgnoreCase)
+        && !(Code is "ready" or "idle" && IsStateWord(said)) ? said : null;
+
+    /// <summary>One short line of one or two words, no figures: how a panel names its state, in whatever language.</summary>
+    private static bool IsStateWord(string text) =>
+        text.Length <= 20 && !text.Contains(" · ", StringComparison.Ordinal) && !text.Any(char.IsDigit)
+        && text.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length <= 2;
 
     /// <summary>
     /// One line for a list of printers: the state, then for a warning or error the worst alert's words ("Ready · Yellow ink

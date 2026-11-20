@@ -142,12 +142,8 @@ public sealed class DemoFleetPc(Func<HttpMessageHandler> transport, ISnmpTranspo
 
     public Task<IReadOnlyList<SpoolerQueue>> QueuesAsync(Func<SpoolerQueue, bool> needsPresence, CancellationToken ct) => Task.FromResult(DemoFleet.Queues);
 
-    public IQueueStatusSource QueueStatus(SpoolerQueue queue)
-    {
-        var windows = DemoFleet.QueueStatus(queue, current);
-        if (QueueKinds.SnmpAddress(queue) is { } host) return new SnmpQueueStatusSource(windows, host, snmp, queue.PortCommunity);
-        return DemoFleet.DeviceReaders(queue) is { Count: > 0 } readers ? new DeviceQueueStatusSource(windows, readers) : windows;
-    }
+    public IQueueStatusSource QueueStatus(SpoolerQueue queue) =>
+        QueueSources.For(queue, DemoFleet.QueueStatus(queue, current), () => DemoFleet.DeviceReaders(queue), snmp);
 
     public Task<IReadOnlyList<WiaDeviceInfo>> ScannersAsync(CancellationToken ct) => wia.ListScannersAsync(ct);
     public IWiaSystem Wia => wia;

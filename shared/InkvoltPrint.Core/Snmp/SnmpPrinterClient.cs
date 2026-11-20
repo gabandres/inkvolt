@@ -164,11 +164,14 @@ public sealed class SnmpPrinterClient
         // Colorants belong to the marker, not the cartridge in it: read once.
         _colorants ??= Rows(await _client.WalkAsync([PrinterMib.ColorantValue.Append(i)], ct).ConfigureAwait(false))
             .Where(r => r.Value[0]?.Text is not null).ToDictionary(r => r.Key, r => r.Value[0]!.Text!);
-        var markers = Rows(await _client.WalkAsync([PrinterMib.MarkerCounterUnit.Append(i), PrinterMib.MarkerLifeCount.Append(i)], ct).ConfigureAwait(false));
+        // Extras: the page count and the panel's lines. A printer that times out or errs on them (an agent without the tables, a
+        // slow one) still gives its status and supplies: they're just missing.
+        var markers = await Extra(() => _client.WalkAsync([PrinterMib.MarkerCounterUnit.Append(i), PrinterMib.MarkerLifeCount.Append(i)], ct)) is { } m
+            ? Rows(m) : new SortedDictionary<int, SnmpValue?[]>();
         // The panel's lines, rows indexed by the console's line (one display: its first index; a printer with two shows the first).
-        var panel = (await _client.WalkAsync([PrinterMib.ConsoleDisplayText.Append(i)], ct).ConfigureAwait(false))[0]
+        var panel = (await Extra(() => _client.WalkAsync([PrinterMib.ConsoleDisplayText.Append(i)], ct)))?[0]
             .Where(r => r.Index.Length >= 1).Take(256).Select(r => r.Value.Text?.ReplaceLineEndings(" ").Trim()).OfType<string>()
-            .Where(t => t.Length > 0).Take(SnmpReading.MaxPanelLines).ToList();
+            .Where(t => t.Length > 0).Take(SnmpReading.MaxPanelLines).ToList() ?? [];
 
         return new SnmpReading(
             state[0].Value.Int,
@@ -184,6 +187,13 @@ public sealed class SnmpPrinterClient
         };
 
         static int Int(SnmpValue? v, int missing = 0) => v?.Int ?? missing;
+
+        // A read that's only extra: no answer, an error or an odd reply gives nothing (the caller's cancellation still stops it).
+        static async Task<T?> Extra<T>(Func<Task<T>> read) where T : class
+        {
+            try { return await read().ConfigureAwait(false); }
+            catch (Exception ex) when (ex is TimeoutException or SnmpErrorException or FormatException) { return null; }
+        }
 
         // The first marker (a printer has one; a color one may count per marker, the first being the engine's): its life count
         // when it counts pages and is a number (a Counter32 past int's range isn't a page count).

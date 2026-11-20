@@ -22,6 +22,14 @@ public class QueueChangeTests
         Assert.Equal(relist, QueueChanges.NeedsRelist(change, flags, count));
 
     [Fact]
+    public void Notices_lost_ask_the_spooler_for_everything_again()
+    {
+        Assert.True(QueueChanges.NeedsRefresh(QueueChanges.InfoDiscarded)); // else it sends no more field changes
+        Assert.False(QueueChanges.NeedsRefresh(0));
+        Assert.Equal(1u, QueueChanges.OptionsRefresh); // PRINTER_NOTIFY_OPTIONS_REFRESH
+    }
+
+    [Fact]
     public void The_fields_asked_for_are_name_port_and_driver() =>
         Assert.Equal([QueueChanges.FieldPrinterName, QueueChanges.FieldPortName, QueueChanges.FieldDriverName], QueueChanges.Fields);
 

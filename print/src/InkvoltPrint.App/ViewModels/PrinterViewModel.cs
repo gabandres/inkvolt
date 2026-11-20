@@ -188,7 +188,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// For a queue printer's supplies: where its levels came from ("From the printer over USB", "From its driver"); null for a
     /// network printer or when the levels are Windows' own (SNMP shows its origin in the status note).
     /// </summary>
-    public string? SuppliesSource => _queueSource is DeviceQueueStatusSource { From: { } from } && Supplies.Count > 0 ? QueueDeviceText.Source(from) : null;
+    public string? SuppliesSource => QueueSources.SuppliesFrom(_queueSource) is { From: { } from } && Supplies.Count > 0 ? QueueDeviceText.Source(from) : null;
 
     /// <summary>A queue printer that answers and reports no supply levels by any route: the page says so instead of showing nothing.</summary>
     public bool SuppliesNotReported => IsQueuePrinter && IsOnline && Supplies.Count == 0;

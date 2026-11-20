@@ -97,15 +97,16 @@ public static partial class QueueKinds
 
     /// <summary>
     /// Where a queue's printer can be asked over SNMP: a network queue whose port has the printer's address (a Standard TCP/IP
-    /// or LPR port, an IPP URL, an address in the port's name), or a WSD queue whose device node says its address
-    /// (<see cref="SpoolerQueue.DeviceAddress"/>). Null for USB, a WSD queue whose address isn't known, queues shared from another
-    /// PC (the address there is the PC's) and the rest.
+    /// or LPR port, an IPP URL, an address in the port's name), or a WSD queue whose device node is present and says its address
+    /// (<see cref="SpoolerQueue.DeviceAddress"/>: a node Windows no longer sees keeps an address DHCP may have given another
+    /// device). Null for USB, a WSD queue whose printer isn't there or whose address isn't known, queues shared from another PC
+    /// (the address there is the PC's) and the rest. A WSD printer is read only once it says it is this one (<see cref="SameDevice"/>).
     /// </summary>
     public static string? SnmpAddress(SpoolerQueue q)
     {
         if (Connection(q) != QueueConnection.Network) return null;
         var port = q.PortName.Trim();
-        if (IsWsd(q)) return q.DeviceAddress is { } device && UsableIPv4(device) ? device : null;
+        if (IsWsd(q)) return q.DevicePresent == true && q.DeviceAddress is { } device && UsableIPv4(device) ? device : null;
         if (q.PortAddress?.Trim() is { Length: > 0 } address && Uri.CheckHostName(address) != UriHostNameType.Unknown) return address;
         if (Uri.TryCreate(port, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" or "ipp" or "ipps" && u.Host.Length > 0) return u.Host;
         var hosts = QueueMatch.HostsIn(port);
@@ -133,6 +134,33 @@ public static partial class QueueKinds
                    .Select(x => x.Length <= 2048 && Uri.TryCreate(x, UriKind.Absolute, out var u) && u.Scheme is "http" or "https" ? u.Host : null)
                    .FirstOrDefault(h => h is not null && UsableIPv4(h));
     }
+
+    /// <summary>
+    /// Whether the device that answered SNMP at a WSD queue's address is that queue's printer: the serial numbers agree when both
+    /// say one (PnP-X's against prtGeneralSerialNumber); else every model number in its SNMP model (a word with a digit, "M234dw")
+    /// is in the device node's model name or the queue's name. False when there's nothing to compare: another device that took
+    /// the address by DHCP is never read as this printer.
+    /// </summary>
+    public static bool SameDevice(SpoolerQueue q, Snmp.SnmpIdentity answered)
+    {
+        if (q.DeviceSerial?.Trim() is { Length: > 0 } serial && answered.SerialNumber?.Trim() is { Length: > 0 } said)
+            return string.Equals(serial, said, StringComparison.OrdinalIgnoreCase);
+        var numbers = Words(answered.Model).Where(w => w.Any(char.IsDigit)).ToList();
+        if (numbers.Count == 0) return false;
+        var mine = Words(q.DeviceModel).Concat(Words(q.Name)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return numbers.All(mine.Contains);
+
+        static string[] Words(string? text) =>
+            text is null || text.Length > 512 ? [] : text.Split([' ', '-', '_', '(', ')', ',', ';', '/', '.'], StringSplitOptions.RemoveEmptyEntries);
+    }
+
+    /// <summary>
+    /// The first word a WSD node (<c>SWD\DAFWSDProvider\…</c>) says in a text property (PnP-X's serial number, model name),
+    /// cleaned to one line of 64 characters at most (<see cref="Fleet.FleetText.Clean"/>); null when none says one.
+    /// </summary>
+    public static string? WsdText(IEnumerable<(string InstanceId, IReadOnlyList<string> Values)> nodes) =>
+        nodes.Where(n => n.InstanceId.StartsWith(@"SWD\DAFWSDProvider\", StringComparison.OrdinalIgnoreCase)).Take(16)
+            .SelectMany(n => n.Values.Take(4)).Select(v => Fleet.FleetText.Clean(v, 64)).FirstOrDefault(v => v is not null);
 
     /// <summary>A unicast IPv4 address a printer can have, written plainly: not 0.x, loopback, multicast or broadcast.</summary>
     private static bool UsableIPv4(string text) =>

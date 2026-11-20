@@ -14,7 +14,14 @@ SNMPv3 on a printer's agent with each protocol, and which key extension a maker'
 (both are tried); a printer whose web server is on another port, and whether its `adminurl` says so; what a real panel's lines
 hold; a WSD printer that answers SNMP (the PnP-X address was read here for one of the two WSD printers, which was away). The
 app's printer list following a queue added in Settings was checked through `queues --watch` (add, rename, remove: one notice
-each), not on screen. **Mac follow-up:** PrintCore has none of these (the .NET code is its spec; SNMPv3's other protocols need
+each), not on screen. **Review (10 findings) fixed in one commit:** WSD queues through one rule for the app, the Fleet page and
+`status --all` (`QueueSources`: SNMP only while the WSD node is present, only once the device says it is this printer by PnP-X's
+serial number or model, a new address a new source, the driver's levels and their caption kept when SNMP is silent); a web
+root kept only where LEDM or CDM answered and let go when they stop, never port 631 or `/ipp/`; the spooler asked for
+everything again after dropped notices; the page count and panel walks can fail alone; the watcher's stop event left to its
+thread; a ready printer's one-line panel state in any language hidden. **CDM lifetime counters: not done** (no reply of
+`/cdm/deviceUsage/v1/lifetimeCounters` in the repository and no published HP schema; a recording of a CDM printer is what makes
+it possible). **Mac follow-up:** PrintCore has none of these (the .NET code is its spec; SNMPv3's other protocols need
 `SnmpCrypto` to give MD5, SHA-1, DES and longer AES keys).
 
 # 2026-11-20: Translate's leftovers closed (Windows; branch worktree-agent-a11e03ded4fac60e7, not merged)

@@ -37,7 +37,12 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
                 "ipps" => FromIpp(url, Uri.UriSchemeHttps),
                 // The printer's web page: its host. On a port of its own, it's the IPP server there.
                 "http" or "https" when url.IsDefaultPort => new PrinterAddress(url.Host, null, null),
-                "http" or "https" => new PrinterAddress(url.Host, IppUrl(url.Scheme, url.Host, url.Port, url.AbsolutePath), null) { Web = WebRoot(url, url.Host) },
+                // Port 631 or a path under /ipp/ names the IPP server (IPP Everywhere's), not the web server: no web root there.
+                "http" or "https" => new PrinterAddress(url.Host, IppUrl(url.Scheme, url.Host, url.Port, url.AbsolutePath), null)
+                {
+                    Web = url.Port == 631 || url.AbsolutePath.StartsWith("/ipp/", StringComparison.OrdinalIgnoreCase) || url.AbsolutePath == "/ipp"
+                        ? null : WebRoot(url, url.Host),
+                },
                 _ => Fail(CoreStrings.Net_UseAddress),
             };
         }

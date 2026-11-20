@@ -12,7 +12,13 @@ namespace InkvoltPrint.Core.Queues;
 /// "ready" for a TCP/IP printer that's off) and asked every 20 s. A reply with an error or that can't be read means the printer
 /// is there: its last reading stays and it's asked again at the next read.
 /// </summary>
-public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string host, ISnmpTransport transport, string? community = null)
+/// <param name="isThePrinter">
+/// Whether the device that answered is this queue's printer (a WSD queue's address comes from Windows, which may be out of date:
+/// <see cref="QueueKinds.SameDevice"/>); asked when it first answers and every <see cref="ProbeInterval"/> after. Another device is
+/// never read: it counts as no answer. Null: the port's address is the printer's (TCP/IP, as set up).
+/// </param>
+public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string host, ISnmpTransport transport, string? community = null,
+    Func<SnmpIdentity, bool>? isThePrinter = null)
     : IQueueStatusSource
 {
     /// <summary>How long one SNMP read serves (the queue is read every few seconds; the printer needn't be).</summary>
@@ -44,7 +50,13 @@ public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string hos
 
     public string Origin => Answers ? CoreStrings.Queue_OriginSnmp : windows.Origin;
 
-    public bool HasSupplyLevels => Answers;
+    /// <summary>The printer's over SNMP while it answers; else what the source under it has (a WSD queue's IPP class driver or driver).</summary>
+    public bool HasSupplyLevels => Answers || windows.HasSupplyLevels;
+
+    /// <summary>The source under this one, read alone while the printer doesn't answer SNMP.</summary>
+    public IQueueStatusSource Inner => windows;
+
+    private DateTime _identityAt;
 
     public async Task<QueueStatusRead?> ReadAsync(CancellationToken ct)
     {
@@ -59,6 +71,18 @@ public sealed class SnmpQueueStatusSource(IQueueStatusSource windows, string hos
                 _client = await SnmpPrinterClient.ProbeAsync(transport, host, community is { Length: > 0 } c ? c : SnmpClient.DefaultCommunity, ct)
                     .ConfigureAwait(false);
                 if (_client is null) Missed(now);
+                else _identityAt = DateTime.MinValue; // a new answer: who it is, before anything is read
+            }
+            if (_client is not null && isThePrinter is not null && now - _identityAt >= ProbeInterval)
+            {
+                // Asked as the probe asks (it reports no error): nothing answering, or another device, is no reading.
+                if ((_identityAt == DateTime.MinValue ? _client.Identity : await _client.ReadIdentityAsync(ct).ConfigureAwait(false)) is { } said && isThePrinter(said))
+                    _identityAt = now;
+                else
+                {
+                    // Not this printer (or silent): Windows' and the driver's word alone, as for a printer that never answered.
+                    (_client, _answered, _lost, _nextProbe) = (null, false, false, now + ProbeInterval);
+                }
             }
             if (_client is not null)
             {

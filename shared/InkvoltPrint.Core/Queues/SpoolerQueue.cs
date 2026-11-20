@@ -32,6 +32,14 @@ public sealed record SpoolerQueue(string Name, string PortName, string? DriverNa
     /// over SNMP as a TCP/IP port's is (<see cref="QueueKinds.SnmpAddress"/>).
     /// </summary>
     public string? DeviceAddress { get; init; }
+
+    /// <summary>
+    /// What a WSD queue's device node says about the printer (PnP-X's serial number and model name), to tell the device that
+    /// answers SNMP at <see cref="DeviceAddress"/> is this printer (<see cref="QueueKinds.SameDevice"/>); null when not said.
+    /// </summary>
+    public string? DeviceSerial { get; init; }
+
+    public string? DeviceModel { get; init; }
 }
 
 /// <summary><c>PRINTER_STATUS_*</c> and <c>PRINTER_ATTRIBUTE_*</c> (winspool.h; the status bits are System.Printing's PrintQueueStatus).</summary>

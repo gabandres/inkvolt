@@ -20,6 +20,15 @@ public static class QueueChanges
     /// <summary>PRINTER_NOTIFY_INFO_DISCARDED: the spooler dropped notices (too many): what changed isn't known.</summary>
     public const uint InfoDiscarded = 0x1;
 
+    /// <summary>PRINTER_NOTIFY_OPTIONS_REFRESH: asks the spooler for everything again, which it needs after dropping notices.</summary>
+    public const uint OptionsRefresh = 0x1;
+
+    /// <summary>
+    /// After a notice whose info says notices were dropped, the spooler sends no more field changes until it is asked for
+    /// everything again (FindNextPrinterChangeNotification with <see cref="OptionsRefresh"/>).
+    /// </summary>
+    public static bool NeedsRefresh(uint infoFlags) => (infoFlags & InfoDiscarded) != 0;
+
     /// <summary>
     /// Whether one notice means reading the queues again: a queue added or deleted, one of <see cref="Fields"/> changed (the
     /// notice's info lists any), or notices lost. <paramref name="infoCount"/> and <paramref name="infoFlags"/> are the notice's

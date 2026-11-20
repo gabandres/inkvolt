@@ -32,17 +32,24 @@ public sealed class SpoolerChanges : IDisposable
 
     private void Run()
     {
-        while (!_stop.WaitOne(0))
+        try
         {
-            try
+            while (!_stop.WaitOne(0))
             {
-                Watch();
+                try
+                {
+                    Watch();
+                }
+                catch (Exception ex) when (ex is Win32Exception or ExternalException or InvalidOperationException)
+                {
+                    _log($"Spooler change notices stopped ({ex.Message}); trying again in {Retry.TotalSeconds:0} s");
+                }
+                if (_stop.WaitOne(Retry)) return;
             }
-            catch (Exception ex) when (ex is Win32Exception or ExternalException or InvalidOperationException)
-            {
-                _log($"Spooler change notices stopped ({ex.Message}); trying again in {Retry.TotalSeconds:0} s");
-            }
-            if (_stop.WaitOne(Retry)) return;
+        }
+        catch (ObjectDisposedException)
+        {
+            // stopped: nothing more to watch
         }
     }
 
@@ -76,6 +83,14 @@ public sealed class SpoolerChanges : IDisposable
                             FreePrinterNotifyInfo(info);
                         }
                         if (QueueChanges.NeedsRelist(what, flags, count)) _notices.Notice();
+                        if (QueueChanges.NeedsRefresh(flags))
+                        {
+                            // The spooler dropped notices: until asked for everything again (PRINTER_NOTIFY_OPTIONS_REFRESH) it
+                            // sends no more field changes. What it sends back isn't needed: the queues are read again anyway.
+                            var refresh = options with { Flags = QueueChanges.OptionsRefresh };
+                            if (!FindNextPrinterChangeNotification(change, out _, ref refresh, out var all)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                            if (all != IntPtr.Zero) FreePrinterNotifyInfo(all);
+                        }
                     }
                 }
                 finally
@@ -94,9 +109,10 @@ public sealed class SpoolerChanges : IDisposable
     public void Dispose()
     {
         _stop.Set();
-        if (!_thread.Join(TimeSpan.FromSeconds(2))) _log("Spooler change notices: the watcher didn't stop in time");
-        _notices.Dispose();
-        _stop.Dispose();
+        _notices.Dispose(); // no more calls, whatever the thread is doing
+        // The stop event is the thread's: closed only once it has ended (a thread still in winspool sees it set later and ends).
+        if (_thread.Join(TimeSpan.FromSeconds(2))) _stop.Dispose();
+        else _log("Spooler change notices: the watcher didn't stop in time");
     }
 
     /// <summary>PRINTER_NOTIFY_TYPE (the queue's own fields, not its jobs').</summary>
@@ -139,6 +155,9 @@ public sealed class SpoolerChanges : IDisposable
 
     [DllImport("winspool.drv", SetLastError = true)]
     private static extern bool FindNextPrinterChangeNotification(IntPtr change, out uint what, IntPtr options, out IntPtr info);
+
+    [DllImport("winspool.drv", SetLastError = true)]
+    private static extern bool FindNextPrinterChangeNotification(IntPtr change, out uint what, ref NotifyOptions options, out IntPtr info);
 
     [DllImport("winspool.drv", SetLastError = true)]
     private static extern bool FindClosePrinterChangeNotification(IntPtr change);

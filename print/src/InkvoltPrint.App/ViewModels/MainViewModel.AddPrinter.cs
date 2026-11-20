@@ -68,7 +68,7 @@ public partial class MainViewModel
         if (vm is null)
         {
             vm = new PrinterViewModel(uuid, probe.Model ?? host, probe.Model, host, probe.EsclRoot, _state, Presets, Remember, _pc)
-                { IppUri = probe.IppEndpoint, SnmpDevice = snmpOnly, WebRoot = web };
+                { IppUri = probe.IppEndpoint, SnmpDevice = snmpOnly, WebRoot = probe.WebRootKept(web) };
             Printers.Add(vm);
             vm.Start();
             NotifyEmpty();
@@ -76,7 +76,7 @@ public partial class MainViewModel
         else
         {
             vm.SnmpDevice ??= snmpOnly;
-            if (web is not null) vm.WebRoot = web;
+            vm.WebRoot = probe.WebRootKept(web); // added again by a plain address, or its web port no longer answers: the defaults again
         }
         Remember(vm);
         ShowPrinter(vm);

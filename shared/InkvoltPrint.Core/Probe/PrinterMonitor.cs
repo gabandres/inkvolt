@@ -342,7 +342,13 @@ public sealed class PrinterMonitor : IDisposable
         var p = conn.Probe;
         // Over SNMPv3 the engine that answered signed, as this printer, is remembered (the app keeps Target when it connects):
         // a later refusal is the printer's only from it.
-        Target = Target with { IppHint = p.IppEndpoint ?? Target.IppHint, Snmp = Target.Snmp is { } known && p.Snmp is { } said ? known.Answered(said) : Target.Snmp };
+        // A web root where neither LEDM nor CDM answers any more (the printer moved it back, or another port) is let go: the
+        // next connection asks the default ports (an announcement's adminurl gives it again).
+        Target = Target with
+        {
+            IppHint = p.IppEndpoint ?? Target.IppHint, Snmp = Target.Snmp is { } known && p.Snmp is { } said ? known.Answered(said) : Target.Snmp,
+            WebHint = p.WebRootKept(Target.WebHint),
+        };
         var notice = View.FirmwareNotice;
         if (_firmware is { } memory)
         {
