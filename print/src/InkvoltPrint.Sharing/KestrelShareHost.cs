@@ -51,8 +51,10 @@ public sealed class KestrelShareHost : IShareHost
                 // Before TLS: a device that may not connect gets nothing, not even the certificate.
                 lo.Use(next => async connection =>
                 {
-                    if (connection.RemoteEndPoint is not IPEndPoint { Address: var peer } || !listen.AllowPeer(peer)) return;
-                    var key = peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer;
+                    // Who it is, and where it came in: the address of this PC it reached says which interface (and network) it's on.
+                    if (connection.RemoteEndPoint is not IPEndPoint { Address: var peer } || connection.LocalEndPoint is not IPEndPoint { Address: var local }
+                        || !listen.AllowPeer(peer, local)) return;
+                    var key = SharePeers.Normal(peer);
                     if (perPeer.AddOrUpdate(key, 1, (_, n) => n + 1) > MaxConnectionsPerPeer)
                     {
                         Leave(perPeer, key);
@@ -104,7 +106,7 @@ public sealed class KestrelShareHost : IShareHost
     {
         var request = context.Request;
         var response = context.Response;
-        if (context.Connection.RemoteIpAddress is not { } peer || !listen.AllowPeer(peer))
+        if (context.Connection.RemoteIpAddress is not { } peer || context.Connection.LocalIpAddress is not { } local || !listen.AllowPeer(peer, local))
         {
             context.Abort();
             return;

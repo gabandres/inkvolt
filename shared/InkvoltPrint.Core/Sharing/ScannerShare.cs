@@ -45,8 +45,34 @@ public interface IShareNetworks
     event Action? Changed;
 }
 
-/// <summary>What the HTTPS server listens with: its address and port, certificate, who may connect, and the scanner it serves.</summary>
-public sealed record ShareListen(IPAddress Address, int Port, X509Certificate2 Certificate, Func<IPAddress, bool> AllowPeer, SharedScanner Scanner);
+/// <summary>
+/// What the HTTPS server listens with: its address and port, certificate, who may connect (the peer's address and this PC's address
+/// it arrived at: <see cref="SharePeers.Allows"/>), and the scanner it serves.
+/// </summary>
+public sealed record ShareListen(IPAddress Address, int Port, X509Certificate2 Certificate, Func<IPAddress, IPAddress, bool> AllowPeer, SharedScanner Scanner);
+
+/// <summary>What the Scan tab's card (and the notification-area menu) shows for one entry's Windows scanner.</summary>
+/// <param name="DeviceId">The scanner the card is about; null when it shows nothing.</param>
+/// <param name="Fingerprint">The certificate's fingerprint, 16 bytes a line, while this scanner is shared and listening.</param>
+public sealed record ShareCard(string? DeviceId, bool IsOn, string Text, string? Fingerprint)
+{
+    public static readonly ShareCard Hidden = new(null, false, "", null);
+
+    public bool IsShown => DeviceId is not null;
+}
+
+/// <summary>What turning sharing on did.</summary>
+public enum ShareSwitch
+{
+    /// <summary>Turned on (it listens once the scanner, Pro and a private network allow).</summary>
+    On,
+
+    /// <summary>Inkvolt Pro isn't unlocked: nothing changed; the app says what Pro is.</summary>
+    NeedsPro,
+
+    /// <summary>The scanner isn't connected, or is one Windows reaches over eSCL itself: nothing changed.</summary>
+    NoScanner,
+}
 
 /// <summary>A listening server. Disposing closes its port at once (and ends the requests under way).</summary>
 public interface IShareListener : IAsyncDisposable
@@ -147,7 +173,8 @@ public sealed class ScannerShare : IAsyncDisposable
     private ShareState _state = ShareState.Off;
     private string? _problem, _fingerprint, _note;
     private int? _port;
-    private bool _closed;
+    private bool _closed, _watchingNetworks;
+    private readonly CancellationTokenSource _closing = new();
     private volatile IReadOnlyList<LocalNetwork> _served = [];
     private (SharedScanner Server, IShareListener Listener, IAsyncDisposable? Advert, X509Certificate2 Certificate, string Networks)? _running;
 
@@ -165,7 +192,19 @@ public sealed class ScannerShare : IAsyncDisposable
         _log = log ?? (_ => { });
         _limits = limits;
         _time = time ?? TimeProvider.System;
-        if (!env.LoopbackOnly) env.Networks.Changed += OnNetworksChanged;
+    }
+
+    /// <summary>
+    /// Hears network changes only while a scanner is chosen to be shared (Windows' adapter then polls the networks' categories; with
+    /// sharing off nothing is polled). Inside <see cref="_calls"/>.
+    /// </summary>
+    private void WatchNetworks(bool on)
+    {
+        on &= !_env.LoopbackOnly && !Closed;
+        if (on == _watchingNetworks) return;
+        _watchingNetworks = on;
+        if (on) _env.Networks.Changed += OnNetworksChanged;
+        else _env.Networks.Changed -= OnNetworksChanged;
     }
 
     public event Action? Changed;
@@ -226,6 +265,36 @@ public sealed class ScannerShare : IAsyncDisposable
         };
     }
 
+    /// <summary>
+    /// The card for an entry's Windows scanner: the connected one, or the one the entry is known by while it's the shared one (so a
+    /// shared scanner that's off or unplugged can still be turned off); never one Windows reaches over eSCL itself (it's on the network
+    /// already). Hidden when the entry has neither.
+    /// </summary>
+    public ShareCard Card(WiaDeviceInfo? connected, WiaDeviceInfo? known)
+    {
+        var device = connected is { IsEscl: false } ? connected : known is { IsEscl: false } k && IsShared(k.Id) ? k : null;
+        if (device is null) return ShareCard.Hidden;
+        var on = IsShared(device.Id);
+        var fingerprint = on && State == ShareState.On && Fingerprint is { } f ? f.Length > 48 ? f[..48] + "\n" + f[48..] : f : null;
+        return new ShareCard(device.Id, on, Text(device.Id), fingerprint);
+    }
+
+    /// <summary>
+    /// Turns sharing on for <paramref name="scanner"/>, the entry's connected scanner: the one Pro check (<see cref="ShareSwitch.NeedsPro"/>
+    /// changes nothing), and none for a scanner that isn't connected or that Windows reaches over eSCL.
+    /// </summary>
+    public async Task<ShareSwitch> TurnOnAsync(WiaScanner? scanner)
+    {
+        if (scanner is not { Device.IsEscl: false }) return ShareSwitch.NoScanner;
+        if (!_allowed()) return ShareSwitch.NeedsPro;
+        await ShareAsync(scanner).ConfigureAwait(false);
+        return ShareSwitch.On;
+    }
+
+    /// <summary>An entry is forgotten: if one of its scanners (<paramref name="deviceIds"/>) is the shared one, sharing is turned off.</summary>
+    public Task ForgetAsync(IEnumerable<string?> deviceIds) =>
+        deviceIds.OfType<string>().Any(IsShared) ? StopAsync() : Task.CompletedTask;
+
     /// <summary>Shares <paramref name="scanner"/> (instead of any other): it listens once Pro, a private network and the scanner allow.</summary>
     public async Task ShareAsync(WiaScanner scanner)
     {
@@ -265,6 +334,7 @@ public sealed class ScannerShare : IAsyncDisposable
                 _choice = choice;
                 _scanner = null;
             }
+            WatchNetworks(false);
             await StopRunningAsync().ConfigureAwait(false);
             SetState(ShareState.Off);
             if (!Closed) _save(choice);
@@ -345,6 +415,7 @@ public sealed class ScannerShare : IAsyncDisposable
         ScannerShareChoice choice;
         WiaScanner? scanner;
         lock (_gate) (choice, scanner) = (_choice, _scanner);
+        WatchNetworks(choice.DeviceId is not null);
         if (choice.DeviceId is null)
         {
             await StopRunningAsync().ConfigureAwait(false);
@@ -409,9 +480,14 @@ public sealed class ScannerShare : IAsyncDisposable
             server = new SharedScanner(scanner, scanner.Capabilities, identity, _limits, _time, () => scanner.IsBusy, _log);
             var address = _env.LoopbackOnly ? IPAddress.Loopback : IPAddress.IPv6Any;
             var loopbackOnly = _env.LoopbackOnly;
-            var listener = await _env.Host.StartAsync(new ShareListen(address, _env.Port, certificate, peer =>
-                loopbackOnly ? IPAddress.IsLoopback(peer.IsIPv4MappedToIPv6 ? peer.MapToIPv4() : peer) : SharePeers.Allows(peer, _served), server),
-                CancellationToken.None).ConfigureAwait(false);
+            var listener = await _env.Host.StartAsync(new ShareListen(address, _env.Port, certificate, (peer, local) =>
+                loopbackOnly ? IPAddress.IsLoopback(SharePeers.Normal(peer)) : SharePeers.Allows(peer, local, _served), server),
+                _closing.Token).ConfigureAwait(false);
+            if (_closing.IsCancellationRequested)
+            {
+                await DisposeQuietlyAsync(listener).ConfigureAwait(false);
+                throw new OperationCanceledException(_closing.Token);
+            }
             var advert = _env.LoopbackOnly ? null : await AdvertiseAsync(server, scanner, listener.Port, served).ConfigureAwait(false);
             _running = (server, listener, advert, certificate, networks);
             lock (_gate)
@@ -442,7 +518,7 @@ public sealed class ScannerShare : IAsyncDisposable
     {
         try
         {
-            var advert = await _env.Advertiser.AdvertiseAsync(ShareDnssd.For(server.Identity, scanner.Capabilities, _computerName, port), served, CancellationToken.None)
+            var advert = await _env.Advertiser.AdvertiseAsync(ShareDnssd.For(server.Identity, scanner.Capabilities, _computerName, port), served, _closing.Token)
                 .ConfigureAwait(false);
             lock (_gate) _note = null;
             return advert;
@@ -467,8 +543,9 @@ public sealed class ScannerShare : IAsyncDisposable
             _note = null;
         }
         running.Server.Dispose(); // jobs cancelled first, so no request waits on a page
-        if (running.Advert is { } advert) await DisposeQuietlyAsync(advert).ConfigureAwait(false);
-        await DisposeQuietlyAsync(running.Listener).ConfigureAwait(false);
+        // The announcement and the port go together: neither waits on the other.
+        await Task.WhenAll(running.Advert is { } advert ? DisposeQuietlyAsync(advert) : Task.CompletedTask, DisposeQuietlyAsync(running.Listener))
+            .ConfigureAwait(false);
         running.Certificate.Dispose();
         _log("Scanner sharing: stopped listening.");
     }
@@ -496,14 +573,22 @@ public sealed class ScannerShare : IAsyncDisposable
         catch (Exception ex) { _log($"Scanner sharing: {ex.Message}"); }
     }
 
-    /// <summary>The app closes: the port closes and the announcement ends; the choice is kept for the next start.</summary>
+    /// <summary>
+    /// The app closes: a start or an announcement under way is cancelled at once (it doesn't run its time out), then the port closes and
+    /// the announcement ends together; the choice is kept for the next start.
+    /// </summary>
     public async ValueTask DisposeAsync()
     {
-        if (!_env.LoopbackOnly) _env.Networks.Changed -= OnNetworksChanged;
+        lock (_gate) _closed = true;
+        _closing.Cancel();
         await _calls.WaitAsync().ConfigureAwait(false);
         try
         {
-            lock (_gate) _closed = true;
+            if (_watchingNetworks)
+            {
+                _watchingNetworks = false;
+                _env.Networks.Changed -= OnNetworksChanged;
+            }
             await StopRunningAsync().ConfigureAwait(false);
             SetState(ShareState.Off);
         }

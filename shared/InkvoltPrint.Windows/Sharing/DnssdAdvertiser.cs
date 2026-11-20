@@ -16,30 +16,33 @@ public sealed class DnssdAdvertiser : IShareAdvertiser
 
     public async Task<IAsyncDisposable> AdvertiseAsync(ShareAdvert advert, IReadOnlyList<LocalNetwork> on, CancellationToken ct)
     {
-        var done = new List<Registration>();
-        Exception? failure = null;
-        foreach (var network in on.Where(n => n.Address.AddressFamily == AddressFamily.InterNetwork).GroupBy(n => n.InterfaceIndex).Select(g => g.First()))
+        // Every interface at once: one that's slow to confirm doesn't hold up the others, or the app's exit (which cancels ct).
+        var starts = on.Where(n => n.Address.AddressFamily == AddressFamily.InterNetwork).GroupBy(n => n.InterfaceIndex).Select(g => g.First())
+            .Select(network => Registration.StartAsync(advert, network, ct)).ToList();
+        try
         {
-            try
-            {
-                done.Add(await Registration.StartAsync(advert, network, ct).ConfigureAwait(false));
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                failure ??= ex;
-            }
+            await Task.WhenAll(starts).ConfigureAwait(false);
+        }
+        catch (Exception)
+        {
+            // Looked at one by one below.
+        }
+        var done = starts.Where(t => t.IsCompletedSuccessfully).Select(t => t.Result).ToList();
+        if (ct.IsCancellationRequested)
+        {
+            await new Registrations(done).DisposeAsync().ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
         }
         if (done.Count == 0)
-            throw failure ?? new InvalidOperationException("No private network with an IPv4 address to announce on.");
+            throw starts.FirstOrDefault(t => t.IsFaulted)?.Exception?.InnerException
+                ?? new InvalidOperationException("No private network with an IPv4 address to announce on.");
         return new Registrations(done);
     }
 
+    /// <summary>Taken back together, so the whole takes at most one registration's wait (two seconds).</summary>
     private sealed class Registrations(List<Registration> all) : IAsyncDisposable
     {
-        public async ValueTask DisposeAsync()
-        {
-            foreach (var r in all) await r.StopAsync().ConfigureAwait(false);
-        }
+        public async ValueTask DisposeAsync() => await Task.WhenAll(all.Select(r => r.StopAsync())).ConfigureAwait(false);
     }
 
     /// <summary>One service registered on one interface; its native request and instance live until Windows confirms it's taken back.</summary>

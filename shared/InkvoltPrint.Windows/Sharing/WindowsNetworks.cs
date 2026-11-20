@@ -9,33 +9,70 @@ namespace InkvoltPrint.Windows.Sharing;
 /// This PC's networks for a shared scanner (roadmap 3.1): each up interface's addresses and subnets (.NET's NetworkInterface), with
 /// the category Windows gives its network (Settings › Network: Public or Private), read from Windows' Network List Manager (COM,
 /// netlistmgr.h; no administrator rights). An interface the Network List Manager doesn't list, or one it can't be asked about, counts
-/// as public. <see cref="Changed"/> comes when an address changes, and when a category changes (checked every 15 s once read, since
-/// no address changes then).
+/// as public. <see cref="Changed"/> comes when an address changes, and when a category changes (checked every 15 s, since no address
+/// changes then). Both are watched only while someone listens (a scanner is chosen to be shared): with sharing off, no timer runs and
+/// nothing is subscribed.
 /// </summary>
 public sealed class WindowsNetworks : IShareNetworks, IDisposable
 {
     private readonly Lock _gate = new();
+    private Action? _changed;
     private Timer? _poll;
     private string? _last;
     private bool _disposed;
 
-    public WindowsNetworks()
+    public event Action? Changed
     {
-        NetworkChange.NetworkAddressChanged += OnAddressChanged;
+        add
+        {
+            lock (_gate)
+            {
+                if (_disposed || value is null) return;
+                var first = _changed is null;
+                _changed += value;
+                if (!first) return;
+                NetworkChange.NetworkAddressChanged += OnAddressChanged;
+                _poll = new Timer(_ => Poll(), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+            }
+        }
+        remove
+        {
+            lock (_gate)
+            {
+                _changed -= value;
+                if (_changed is null) Unwatch();
+            }
+        }
     }
 
-    public event Action? Changed;
+    /// <summary>Whether the 15 s category check runs now (for a check by hand: none while sharing is off).</summary>
+    public bool IsWatching
+    {
+        get { lock (_gate) return _poll is not null; }
+    }
 
-    private void OnAddressChanged(object? sender, EventArgs e) => Changed?.Invoke();
+    /// <summary>Inside <see cref="_gate"/>.</summary>
+    private void Unwatch()
+    {
+        NetworkChange.NetworkAddressChanged -= OnAddressChanged;
+        _poll?.Dispose();
+        _poll = null;
+        _last = null;
+    }
+
+    private void Raise()
+    {
+        Action? changed;
+        lock (_gate) changed = _changed;
+        changed?.Invoke();
+    }
+
+    private void OnAddressChanged(object? sender, EventArgs e) => Raise();
 
     public IReadOnlyList<LocalNetwork> Read()
     {
         var list = Snapshot();
-        lock (_gate)
-        {
-            _last = Key(list);
-            if (!_disposed) _poll ??= new Timer(_ => Poll(), null, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
-        }
+        lock (_gate) _last = Key(list);
         return list;
     }
 
@@ -50,7 +87,7 @@ public sealed class WindowsNetworks : IShareNetworks, IDisposable
                 changed = _last is not null && key != _last;
                 _last = key;
             }
-            if (changed) Changed?.Invoke();
+            if (changed) Raise();
         }
         catch (Exception)
         {
@@ -135,12 +172,11 @@ public sealed class WindowsNetworks : IShareNetworks, IDisposable
 
     public void Dispose()
     {
-        NetworkChange.NetworkAddressChanged -= OnAddressChanged;
         lock (_gate)
         {
             _disposed = true;
-            _poll?.Dispose();
-            _poll = null;
+            _changed = null;
+            Unwatch();
         }
     }
 

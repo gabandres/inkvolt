@@ -68,7 +68,7 @@ public static class ShareXml
 
     private static XElement Input(string name, InputCaps input)
     {
-        var resolutions = input.Resolutions.Count > 0 ? input.Resolutions : [300];
+        var resolutions = Resolutions(input);
         var max = resolutions.Max();
         return new XElement(Scan + name,
             new XElement(Scan + "MinWidth", input.MinWidth),
@@ -231,19 +231,40 @@ public static class ShareXml
         if (format.Length == 0) format = Jpeg;
         if (!Formats.Contains(format)) throw new ShareRequestException(409, "Format not offered.");
 
-        var resolution = Number(values, "XResolution", 1, 19200) ?? Number(values, "YResolution", 1, 19200) ?? 300;
+        // Only a resolution the capabilities list (both directions the same): a scanner whose driver gives none lists 300 dpi.
+        var offered = Resolutions(input);
+        var xRes = Number(values, "XResolution", 1, 19200);
+        var yRes = Number(values, "YResolution", 1, 19200);
+        if (xRes is { } rx && yRes is { } ry && rx != ry) throw new ShareRequestException(409, "Resolution not offered.");
+        var resolution = xRes ?? yRes ?? (offered.Contains(300) ? 300 : offered[0]);
+        if (!offered.Contains(resolution)) throw new ShareRequestException(409, "Resolution not offered.");
+
         var units = values.GetValueOrDefault("ContentRegionUnits");
         if (units is not (null or "" or "escl:ThreeHundredthsOfInches" or "ThreeHundredthsOfInches"))
             throw new ShareRequestException(400, "Region units not ThreeHundredthsOfInches.");
-        // Sizes past the source are clamped to it when the scan is planned (WiaCapabilities.Plan); here only the range a number may have.
-        const int MaxRegion = 300 * 1000; // 1,000 inches
+        const int MaxRegion = 300 * 1000; // 1,000 inches: what a number may be at all
         var width = Number(values, "Width", 1, MaxRegion);
         var height = Number(values, "Height", 1, MaxRegion);
         var x = Number(values, "XOffset", 0, MaxRegion);
         var y = Number(values, "YOffset", 0, MaxRegion);
+        // Kept inside the source before anything is planned (a client's rounding may overshoot by a little), and the page's pixels bounded.
+        x = x is { } ox ? Math.Min(ox, Math.Max(input.MaxWidth - 1, 0)) : null;
+        y = y is { } oy ? Math.Min(oy, Math.Max(input.MaxHeight - 1, 0)) : null;
+        width = width is { } w ? Math.Min(w, Math.Max(input.MaxWidth - (x ?? 0), 1)) : null;
+        height = height is { } h ? Math.Min(h, Math.Max(input.MaxHeight - (y ?? 0), 1)) : null;
+        if (Pixels(width ?? input.MaxWidth, resolution) > MaxPixels || Pixels(height ?? input.MaxHeight, resolution) > MaxPixels)
+            throw new ShareRequestException(409, "Region too large at that resolution.");
         var intent = values.GetValueOrDefault("Intent") is { Length: > 0 and <= 32 } i && i.All(char.IsAsciiLetterOrDigit) ? i : "Document";
         return new ShareScanSettings(new ScanRequest(source, color, resolution, intent, width, height, x is 0 ? null : x, y is 0 ? null : y), format);
     }
+
+    /// <summary>The most pixels a page may have across or down (JPEG's own limit), whatever the scanner offers.</summary>
+    public const int MaxPixels = 65_000;
+
+    /// <summary>The resolutions ScannerCapabilities lists for a source (300 dpi when the driver gives none).</summary>
+    public static IReadOnlyList<int> Resolutions(InputCaps input) => input.Resolutions.Count > 0 ? input.Resolutions : [300];
+
+    private static long Pixels(int threeHundredths, int dpi) => (long)threeHundredths * dpi / 300;
 
     private static int? Number(Dictionary<string, string> values, string name, int min, int max)
     {

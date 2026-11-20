@@ -575,9 +575,19 @@ public sealed class TrayController : IDisposable
         }
         // Scanner sharing (roadmap 3.1): each Windows scanner, ticked when it's the shared one; choosing it turns sharing on or off.
         var shareable = _vm.Printers.Where(p => p.Sharing is { IsShown: true }).ToList();
-        if (shareable.Count > 0)
+        // A shared scanner no entry shows (its entry gone for now): listed by its name, ticked, so it can still be turned off here.
+        var orphan = _vm.Share.IsOn && !shareable.Any(p => p.Sharing!.IsOn) ? _vm.Share.Choice : null;
+        if (shareable.Count > 0 || orphan is not null)
         {
             var share = new MenuItem { Header = Strings.Tray_ShareScanner };
+            if (orphan is not null)
+            {
+                var off = Item((orphan.Name ?? "").Replace("_", "__"), () => _ = StopSharingAsync());
+                off.IsChecked = true;
+                off.ToolTip = _vm.Share.Text(orphan.DeviceId!);
+                AutomationName(off, orphan.Name ?? "");
+                share.Items.Add(off);
+            }
             foreach (var printer in shareable)
             {
                 var card = printer.Sharing!;
@@ -607,6 +617,18 @@ public sealed class TrayController : IDisposable
         menu.Items.Add(new Separator());
         menu.Items.Add(Item(Strings.Tray_Quit, Quit));
         return menu;
+    }
+
+    private async Task StopSharingAsync()
+    {
+        try
+        {
+            await _vm.Share.StopAsync();
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"Scanner sharing not turned off: {ex.Message}");
+        }
     }
 
     private static MenuItem Item(string header, Action click)

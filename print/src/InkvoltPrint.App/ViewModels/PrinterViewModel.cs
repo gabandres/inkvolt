@@ -970,10 +970,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (_share is not null) return;
         _share = share;
-        Sharing = new ScannerShareViewModel(share, () => _wia, ScannerDevice, line => Log.Write($"[{Name}] {line}"));
+        Sharing = new ScannerShareViewModel(share, () => _wia, () => _wiaDevice ?? ScannerDevice, line => Log.Write($"[{Name}] {line}"));
         OnPropertyChanged(nameof(Sharing));
         if (_wia is { } connected) _ = OfferToShareAsync(connected.Device.Id, connected);
     }
+
+    /// <summary>Every Windows scanner this entry is known by (connected or not): a share of one stops when the entry is forgotten.</summary>
+    public IEnumerable<string?> WindowsScannerIds => [_wia?.Device.Id, _wiaDevice?.Id, ScannerDevice?.Id];
 
     /// <summary>The share gets this entry's Windows scanner (null: it's gone); only the shared one starts or stops anything.</summary>
     private async Task OfferToShareAsync(string deviceId, WiaScanner? scanner)
@@ -1104,6 +1107,8 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             return;
         }
         if (_wiaConnecting || (_wia is not null && string.Equals(_wia.Device.Id, device.Id, StringComparison.OrdinalIgnoreCase))) return;
+        // Another scanner than before (A, now B): the share is told A is gone, so it never serves A's scanner object again.
+        if (_wiaDevice is { } before && !string.Equals(before.Id, device.Id, StringComparison.OrdinalIgnoreCase)) _ = OfferToShareAsync(before.Id, null);
         _wiaDevice = device;
         _wiaConnecting = true;
         try

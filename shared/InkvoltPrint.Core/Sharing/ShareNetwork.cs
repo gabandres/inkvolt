@@ -33,14 +33,24 @@ public static class SharePeers
         return [.. usable.Where(n => lans.Contains(n.InterfaceIndex))];
     }
 
-    /// <summary>Whether <paramref name="peer"/> may connect: this PC, or a device on a served network's subnet.</summary>
-    public static bool Allows(IPAddress peer, IReadOnlyList<LocalNetwork> served)
+    /// <summary>An address as one family: an IPv4 address a dual-mode socket reports as IPv4-mapped IPv6 is the IPv4 address.</summary>
+    public static IPAddress Normal(IPAddress address) => address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+
+    /// <summary>
+    /// Whether a connection from <paramref name="peer"/>, arriving at this PC's <paramref name="local"/> address, may go on: this PC to
+    /// itself over loopback, or a device on a served network's subnet that came in on that same private interface (its arrival address
+    /// is one of the interface's served addresses). A public network that happens to use the same subnet, or a peer reaching a private
+    /// address through another interface, is refused.
+    /// </summary>
+    public static bool Allows(IPAddress peer, IPAddress local, IReadOnlyList<LocalNetwork> served)
     {
-        if (peer.IsIPv4MappedToIPv6) peer = peer.MapToIPv4();
-        if (IPAddress.IsLoopback(peer)) return true;
+        peer = Normal(peer);
+        local = Normal(local);
+        if (IPAddress.IsLoopback(peer)) return IPAddress.IsLoopback(local);
+        if (served.FirstOrDefault(n => SameAddress(n.Address, local)) is not { } arrival) return false;
         foreach (var n in served)
         {
-            if (n.Address.AddressFamily != peer.AddressFamily) continue;
+            if (n.InterfaceIndex != arrival.InterfaceIndex || n.Address.AddressFamily != peer.AddressFamily) continue;
             if (!SamePrefix(peer, n.Address, n.PrefixLength)) continue;
             // fe80::/64 is on every interface: only the one the peer came in on counts.
             if (peer.IsIPv6LinkLocal && peer.ScopeId != n.InterfaceIndex) continue;
@@ -48,6 +58,11 @@ public static class SharePeers
         }
         return false;
     }
+
+    /// <summary>The same address, a link-local one's interface aside (a socket's local address may not carry its scope).</summary>
+    private static bool SameAddress(IPAddress a, IPAddress b) =>
+        a.AddressFamily == b.AddressFamily && a.GetAddressBytes().AsSpan().SequenceEqual(b.GetAddressBytes())
+        && (!a.IsIPv6LinkLocal || b.ScopeId == 0 || a.ScopeId == 0 || a.ScopeId == b.ScopeId);
 
     private static bool SamePrefix(IPAddress a, IPAddress b, int bits)
     {

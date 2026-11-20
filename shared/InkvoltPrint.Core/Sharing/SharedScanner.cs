@@ -101,6 +101,11 @@ public sealed class SharedScanner : IDisposable
         get { lock (_gate) return _jobs.Count(j => j.IsActive); }
     }
 
+    private int _releasedJobs;
+
+    /// <summary>Jobs whose cancellation source has been disposed (forgotten, and their scan over): for tests.</summary>
+    internal int ReleasedJobs => Volatile.Read(ref _releasedJobs);
+
     /// <summary>Jobs kept now (active and recently finished).</summary>
     public int KeptJobs
     {
@@ -141,7 +146,9 @@ public sealed class SharedScanner : IDisposable
         lock (_gate)
         {
             scanning = _jobs.Any(j => j.State == "Processing");
-            lines = _jobs.Where(j => j.IsFrom(peer)).Select(j => j.Line(now)).ToList();
+            var mine = _jobs.Where(j => j.IsFrom(peer)).ToList();
+            foreach (var job in mine) job.Touch(now); // a device polling its jobs' status is still waiting for them
+            lines = mine.Select(j => j.Line(now)).ToList();
         }
         // The feeder's state only while idle: asked during a scan, the driver would answer after the page.
         var adf = scanning || _busyElsewhere() ? null : await AdfStateAsync(ct).ConfigureAwait(false);
@@ -191,7 +198,7 @@ public sealed class SharedScanner : IDisposable
             if (active == 0 && _busyElsewhere()) return ShareReply.Empty(503, 5); // this PC scans with it now
             while (_jobs.Count >= _limits.MaxJobs && _jobs.FirstOrDefault(j => !j.IsActive) is { } old) Forget(old);
             if (_jobs.Count >= _limits.MaxJobs) return ShareReply.Empty(503, 10);
-            job = new Job(Guid.NewGuid(), request.Peer, settings, now, _limits.PageBuffer, _closed.Token);
+            job = new Job(Guid.NewGuid(), request.Peer, settings, now, _limits.PageBuffer, _closed.Token, () => Interlocked.Increment(ref _releasedJobs));
             _jobs.Add(job);
         }
         _log(string.Format(System.Globalization.CultureInfo.InvariantCulture, "Shared scanner: a device on the network started a scan ({0}, {1} dpi, {2}).",
@@ -208,14 +215,15 @@ public sealed class SharedScanner : IDisposable
     private async Task RunAsync(Job job)
     {
         var entered = false;
+        var token = job.Token; // taken once: the job's source is disposed only after this run has ended
         try
         {
-            await _scanning.WaitAsync(job.Cancel.Token).ConfigureAwait(false);
+            await _scanning.WaitAsync(token).ConfigureAwait(false);
             entered = true;
             job.Start();
             var input = _caps.For(job.Settings.Request.Source);
             var dpi = input is null ? job.Settings.Request.Resolution : EsclXml.Resolution(job.Settings.Request, input);
-            await foreach (var page in _scanner.ScanAsync(job.Settings.Request, job.Cancel.Token).ConfigureAwait(false))
+            await foreach (var page in _scanner.ScanAsync(job.Settings.Request, token).ConfigureAwait(false))
             {
                 var info = Info(page);
                 byte[] document;
@@ -226,12 +234,12 @@ public sealed class SharedScanner : IDisposable
                     document = pdf.ToArray();
                 }
                 else document = page;
-                await job.Pages.Writer.WriteAsync((document, info), job.Cancel.Token).ConfigureAwait(false);
+                await job.Pages.Writer.WriteAsync((document, info), token).ConfigureAwait(false);
                 job.Wrote();
             }
             job.End("Completed", null, _time.GetUtcNow());
         }
-        catch (OperationCanceledException) when (job.Cancel.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             job.End("Canceled", "JobCanceledByUser", _time.GetUtcNow());
         }
@@ -248,6 +256,7 @@ public sealed class SharedScanner : IDisposable
         finally
         {
             if (entered) _scanning.Release();
+            job.RunEnded();
         }
         _log($"Shared scanner: the scan ended ({job.State.ToLowerInvariant()}, {job.Scanned} page(s) scanned).");
     }
@@ -268,8 +277,9 @@ public sealed class SharedScanner : IDisposable
     private async Task<ShareReply> NextDocumentAsync(string id, IPAddress peer, CancellationToken ct)
     {
         if (Find(id, peer) is not { } job) return ShareReply.Empty(404);
-        job.Touch(_time.GetUtcNow());
         if (!job.Reading.Wait(0, CancellationToken.None)) return ShareReply.Empty(503, 1); // one page asked at a time
+        // While the device waits here (a long poll, or a slow page at a high resolution), the job counts as asked about.
+        job.Asking(true, _time.GetUtcNow());
         try
         {
             using var wait = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -292,7 +302,7 @@ public sealed class SharedScanner : IDisposable
         }
         finally
         {
-            job.Touch(_time.GetUtcNow());
+            job.Asking(false, _time.GetUtcNow());
             job.Reading.Release();
         }
     }
@@ -307,7 +317,7 @@ public sealed class SharedScanner : IDisposable
     private ShareReply Delete(string id, IPAddress peer)
     {
         if (Find(id, peer) is not { } job) return ShareReply.Empty(404);
-        job.Cancel.Cancel();
+        job.Stop();
         return ShareReply.Empty(200);
     }
 
@@ -317,7 +327,10 @@ public sealed class SharedScanner : IDisposable
         lock (_gate) return _jobs.FirstOrDefault(j => j.Uuid == uuid && j.IsFrom(peer));
     }
 
-    /// <summary>Cancels jobs nobody asks about and forgets finished ones; runs every few seconds and on each request.</summary>
+    /// <summary>
+    /// Cancels jobs nobody asks about (no request for them under way, none for <see cref="ShareLimits.IdleLimit"/>) and those past
+    /// <see cref="ShareLimits.MaxJobLife"/>, and forgets finished ones; runs every few seconds and on each request.
+    /// </summary>
     private void Sweep()
     {
         var now = _time.GetUtcNow();
@@ -325,49 +338,53 @@ public sealed class SharedScanner : IDisposable
         lock (_gate)
         {
             foreach (var old in _jobs.Where(j => !j.IsActive && j.Ended is { } e && now - e >= _limits.KeepFinished).ToList()) Forget(old);
-            cancel = _jobs.Where(j => !j.Cancel.IsCancellationRequested
-                && (now - j.Created >= _limits.MaxJobLife || ((j.IsActive || j.HasUnread) && now - j.Touched >= _limits.IdleLimit))).ToList();
+            cancel = _jobs.Where(j => !j.IsStopped
+                && (now - j.Created >= _limits.MaxJobLife || ((j.IsActive || j.HasUnread) && !j.IsAsked && now - j.Touched >= _limits.IdleLimit))).ToList();
         }
         foreach (var job in cancel)
         {
-            job.Cancel.Cancel();
+            job.Stop();
             job.DropPages();
         }
     }
 
+    /// <summary>Inside <see cref="_gate"/>.</summary>
     private void Forget(Job job)
     {
         _jobs.Remove(job);
         job.DropPages();
+        job.Forgotten();
     }
 
     /// <summary>Stops: every job cancelled and its pages dropped; any later request is answered 503.</summary>
     public void Dispose()
     {
-        List<Job> jobs;
         lock (_gate)
         {
             if (_disposed) return;
             _disposed = true;
-            jobs = [.. _jobs];
-            _jobs.Clear();
         }
         _sweep.Dispose();
         _closed.Cancel();
-        foreach (var job in jobs) job.DropPages();
+        lock (_gate)
+            foreach (var job in _jobs.ToList()) Forget(job);
     }
 
     private sealed class Job
     {
         private readonly Lock _gate = new();
+        private readonly CancellationTokenSource _cancel;
+        private readonly Action _released;
 
-        public Job(Guid uuid, IPAddress owner, ShareScanSettings settings, DateTimeOffset now, int buffer, CancellationToken closed)
+        public Job(Guid uuid, IPAddress owner, ShareScanSettings settings, DateTimeOffset now, int buffer, CancellationToken closed, Action released)
         {
             Uuid = uuid;
-            Owner = Normal(owner);
+            Owner = SharePeers.Normal(owner);
             Settings = settings;
             Created = Touched = now;
-            Cancel = CancellationTokenSource.CreateLinkedTokenSource(closed);
+            _cancel = CancellationTokenSource.CreateLinkedTokenSource(closed);
+            Token = _cancel.Token;
+            _released = released;
             Pages = Channel.CreateBounded<(byte[], (int, int, int))>(new BoundedChannelOptions(Math.Max(buffer, 1)) { SingleReader = true, SingleWriter = true });
         }
 
@@ -376,7 +393,7 @@ public sealed class SharedScanner : IDisposable
         public IPAddress Owner { get; }
         public ShareScanSettings Settings { get; }
         public DateTimeOffset Created { get; }
-        public CancellationTokenSource Cancel { get; }
+        public CancellationToken Token { get; }
         public Channel<(byte[] Document, (int Width, int Height, int Components) Info)> Pages { get; }
         public SemaphoreSlim Reading { get; } = new(1, 1);
         public Task Run { get; set; } = Task.CompletedTask;
@@ -385,8 +402,9 @@ public sealed class SharedScanner : IDisposable
         private string? _reason;
         private DateTimeOffset _touched;
         private DateTimeOffset? _ended;
-        private int _images, _scanned;
+        private int _images, _scanned, _asking;
         private (int, int, int)? _last;
+        private bool _forgotten, _runEnded, _sourceGone;
 
         public string State { get { lock (_gate) return _state; } }
         public bool IsActive { get { lock (_gate) return _state is "Pending" or "Processing"; } }
@@ -394,6 +412,11 @@ public sealed class SharedScanner : IDisposable
         public int Images { get { lock (_gate) return _images; } }
         public int Scanned { get { lock (_gate) return _scanned; } }
         public bool HasUnread => Pages.Reader.Count > 0;
+        public bool IsStopped => Token.IsCancellationRequested;
+
+        /// <summary>A request for this job is under way (a NextDocument long poll): it isn't idle, however long that takes.</summary>
+        public bool IsAsked { get { lock (_gate) return _asking > 0; } }
+
         public (int Width, int Height, int Components)? LastImage { get { lock (_gate) return _last; } }
 
         public DateTimeOffset Touched
@@ -405,6 +428,22 @@ public sealed class SharedScanner : IDisposable
         public void Touch(DateTimeOffset now)
         {
             lock (_gate) _touched = now;
+        }
+
+        public void Asking(bool starts, DateTimeOffset now)
+        {
+            lock (_gate)
+            {
+                _asking += starts ? 1 : -1;
+                _touched = now;
+            }
+        }
+
+        /// <summary>Cancels the scan; nothing once the job's source is gone.</summary>
+        public void Stop()
+        {
+            lock (_gate)
+                if (!_sourceGone) _cancel.Cancel();
         }
 
         public void Start()
@@ -444,14 +483,40 @@ public sealed class SharedScanner : IDisposable
             while (Pages.Reader.TryRead(out _)) { }
         }
 
-        public bool IsFrom(IPAddress peer) => Normal(peer).Equals(Owner);
+        /// <summary>No longer listed: cancelled, and its source disposed once its scan has ended too.</summary>
+        public void Forgotten()
+        {
+            lock (_gate)
+            {
+                if (!_sourceGone) _cancel.Cancel();
+                _forgotten = true;
+            }
+            ReleaseIfDone();
+        }
+
+        public void RunEnded()
+        {
+            lock (_gate) _runEnded = true;
+            ReleaseIfDone();
+        }
+
+        private void ReleaseIfDone()
+        {
+            lock (_gate)
+            {
+                if (!_forgotten || !_runEnded || _sourceGone) return;
+                _sourceGone = true;
+                _cancel.Dispose();
+            }
+            _released();
+        }
+
+        public bool IsFrom(IPAddress peer) => SharePeers.Normal(peer).Equals(Owner);
 
         public ShareXml.JobLine Line(DateTimeOffset now)
         {
             lock (_gate)
                 return new(Path, Uuid, _state, (int)Math.Clamp((now - Created).TotalSeconds, 0, int.MaxValue), _images, _reason);
         }
-
-        private static IPAddress Normal(IPAddress a) => a.IsIPv4MappedToIPv6 ? a.MapToIPv4() : a;
     }
 }

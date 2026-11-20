@@ -362,23 +362,39 @@ public class ScannerSharingTests
     private static readonly LocalNetwork HomeUla = new(7, IPAddress.Parse("fd00:1:2:3::20"), 64, NetworkKind.Private);
 
     [Theory]
-    [InlineData("192.168.1.33", true)]
-    [InlineData("::ffff:192.168.1.33", true)] // IPv4 on a dual-mode socket
-    [InlineData("127.0.0.1", true)] // this PC
-    [InlineData("::1", true)]
-    [InlineData("192.168.2.33", false)] // another subnet
-    [InlineData("10.0.3.4", false)] // the public network's subnet
-    [InlineData("8.8.8.8", false)]
-    [InlineData("fe80::2%7", true)] // link-local on the private interface
-    [InlineData("fe80::2%9", false)] // link-local on another interface
-    [InlineData("fe80::2", false)] // no interface said
-    [InlineData("fd00:1:2:3::99", true)]
-    [InlineData("fd00:1:2:4::99", false)]
-    public void Only_this_PC_and_private_subnets_may_connect(string peer, bool allowed)
+    [InlineData("192.168.1.33", "192.168.1.20", true)]
+    [InlineData("::ffff:192.168.1.33", "::ffff:192.168.1.20", true)] // IPv4 on a dual-mode socket
+    [InlineData("127.0.0.1", "127.0.0.1", true)] // this PC
+    [InlineData("::1", "::1", true)]
+    [InlineData("127.0.0.1", "192.168.1.20", false)] // loopback arrives on loopback, nowhere else
+    [InlineData("192.168.2.33", "192.168.1.20", false)] // another subnet
+    [InlineData("10.0.3.4", "10.0.0.5", false)] // the public network's subnet
+    [InlineData("10.0.3.4", "192.168.1.20", false)]
+    [InlineData("8.8.8.8", "192.168.1.20", false)]
+    [InlineData("fe80::2%7", "fe80::1%7", true)] // link-local on the private interface
+    [InlineData("fe80::2%9", "fe80::1%7", false)] // link-local on another interface
+    [InlineData("fe80::2", "fe80::1%7", false)] // no interface said
+    [InlineData("fd00:1:2:3::99", "fd00:1:2:3::20", true)]
+    [InlineData("192.168.1.33", "192.168.1.21", false)] // an address this PC doesn't serve on
+    [InlineData("fd00:1:2:4::99", "fd00:1:2:3::20", false)]
+    public void Only_this_PC_and_private_subnets_may_connect(string peer, string local, bool allowed)
     {
         var served = SharePeers.Served([Home, Cafe, HomeV6, HomeUla]);
         Assert.DoesNotContain(Cafe, served);
-        Assert.Equal(allowed, SharePeers.Allows(IPAddress.Parse(peer), served));
+        Assert.Equal(allowed, SharePeers.Allows(IPAddress.Parse(peer), IPAddress.Parse(local), served));
+    }
+
+    [Fact]
+    public void A_public_network_with_the_same_subnet_as_the_private_one_is_refused()
+    {
+        // Home and the café both hand out 192.168.1.x: a device in the café reaches this PC's café address.
+        var cafeSameSubnet = new LocalNetwork(9, IPAddress.Parse("192.168.1.77"), 24, NetworkKind.Public);
+        var served = SharePeers.Served([Home, cafeSameSubnet]);
+        Assert.False(SharePeers.Allows(IPAddress.Parse("192.168.1.33"), IPAddress.Parse("192.168.1.77"), served));
+        Assert.True(SharePeers.Allows(IPAddress.Parse("192.168.1.33"), IPAddress.Parse("192.168.1.20"), served));
+        // And a peer on the private subnet whose connection came in on another interface (routed) isn't let in either.
+        var lab = new LocalNetwork(11, IPAddress.Parse("10.1.0.2"), 16, NetworkKind.Private);
+        Assert.False(SharePeers.Allows(IPAddress.Parse("192.168.1.33"), IPAddress.Parse("10.1.0.2"), SharePeers.Served([Home, lab])));
     }
 
     [Fact]
@@ -386,7 +402,7 @@ public class ScannerSharingTests
     {
         Assert.Empty(SharePeers.Served([Cafe, Home with { Kind = NetworkKind.Domain }, Home with { PrefixLength = 0 }, Home with { PrefixLength = 32 },
             new LocalNetwork(1, IPAddress.Loopback, 8, NetworkKind.Private)]));
-        Assert.False(SharePeers.Allows(IPAddress.Parse("192.168.1.33"), []));
+        Assert.False(SharePeers.Allows(IPAddress.Parse("192.168.1.33"), IPAddress.Parse("192.168.1.20"), []));
     }
 
     // ---------------------------------------------------------------- the certificate and the announcement
@@ -447,10 +463,41 @@ public class ScannerSharingTests
 
     private sealed class FakeNetworks : IShareNetworks
     {
+        private Action? _changed;
+
         public List<LocalNetwork> Now { get; set; } = [Home];
         public IReadOnlyList<LocalNetwork> Read() => Now;
-        public event Action? Changed;
-        public void Raise() => Changed?.Invoke();
+
+        public event Action? Changed
+        {
+            add { _changed += value; Listeners++; }
+            remove { _changed -= value; Listeners--; }
+        }
+
+        /// <summary>Who hears changes now (Windows' adapter polls only while someone does).</summary>
+        public int Listeners { get; private set; }
+
+        public void Raise() => _changed?.Invoke();
+    }
+
+    /// <summary>Announces nothing until cancelled (DNS-SD that never confirms).</summary>
+    private sealed class HangingAdvertiser : IShareAdvertiser
+    {
+        public bool Cancelled { get; private set; }
+
+        public async Task<IAsyncDisposable> AdvertiseAsync(ShareAdvert advert, IReadOnlyList<LocalNetwork> on, CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                Cancelled = true;
+                throw;
+            }
+            throw new InvalidOperationException("Never.");
+        }
     }
 
     private sealed class FakeListener(int port) : IShareListener
@@ -551,8 +598,8 @@ public class ScannerSharingTests
         Assert.NotNull(saved[^1].Uuid);
         Assert.Contains("9780", share.Text(Usb.Id));
         // Who may connect follows the private networks.
-        Assert.True(host.Started[0].Listen.AllowPeer(IPAddress.Parse("192.168.1.40")));
-        Assert.False(host.Started[0].Listen.AllowPeer(IPAddress.Parse("10.0.0.40")));
+        Assert.True(host.Started[0].Listen.AllowPeer(IPAddress.Parse("192.168.1.40"), Home.Address));
+        Assert.False(host.Started[0].Listen.AllowPeer(IPAddress.Parse("10.0.0.40"), Home.Address));
     }
 
     [Fact]
@@ -681,11 +728,11 @@ public class ScannerSharingTests
 
     // ---------------------------------------------------------------- over HTTPS on loopback, with our own eSCL client
 
-    private static async Task<(IShareListener Listener, SharedScanner Server, X509Certificate2 Cert)> Serve(WiaScanner scanner, Func<IPAddress, bool>? allow = null)
+    private static async Task<(IShareListener Listener, SharedScanner Server, X509Certificate2 Cert)> Serve(WiaScanner scanner, Func<IPAddress, IPAddress, bool>? allow = null)
     {
         var cert = ShareCertificate.Ephemeral("localhost", DateTimeOffset.UtcNow);
         var server = new SharedScanner(scanner, scanner.Capabilities, Identity, busyElsewhere: () => scanner.IsBusy);
-        var listener = await new KestrelShareHost().StartAsync(new ShareListen(IPAddress.Loopback, 0, cert, allow ?? IPAddress.IsLoopback, server), CancellationToken.None);
+        var listener = await new KestrelShareHost().StartAsync(new ShareListen(IPAddress.Loopback, 0, cert, allow ?? ((peer, local) => SharePeers.Allows(peer, local, [])), server), CancellationToken.None);
         return (listener, server, cert);
     }
 
@@ -787,7 +834,7 @@ public class ScannerSharingTests
     [Fact]
     public async Task A_device_that_may_not_connect_gets_nothing_not_even_TLS()
     {
-        var (listener, server, cert) = await Serve(await Open(Fake()), allow: _ => false);
+        var (listener, server, cert) = await Serve(await Open(Fake()), allow: (_, _) => false);
         await using (listener)
         using (server)
         using (cert)
@@ -876,6 +923,192 @@ public class ScannerSharingTests
         using var tcp = new TcpClient();
         await Assert.ThrowsAsync<SocketException>(() => tcp.ConnectAsync(IPAddress.Loopback, port));
         await share.DisposeAsync();
+    }
+
+    // ---------------------------------------------------------------- review of 4bf7e6c0
+
+    [Fact]
+    public async Task A_device_waiting_on_a_slow_page_or_polling_status_keeps_its_job()
+    {
+        var (scanner, _) = await Hung(); // a page that takes minutes (600 dpi on a slow flatbed)
+        var time = new ManualTime();
+        using var share = new SharedScanner(scanner, scanner.Capabilities, Identity,
+            new ShareLimits { IdleLimit = TimeSpan.FromSeconds(60), LongPoll = TimeSpan.FromMinutes(10) }, time);
+        var job = new Uri((await Ask(share, "POST", "/eSCL/ScanJobs", Settings(""))).Location!).AbsolutePath;
+        using var gone = new CancellationTokenSource();
+        var waiting = share.HandleAsync(new ShareRequest("GET", job + "/NextDocument", [], Peer), gone.Token); // the long poll
+        time.Advance(TimeSpan.FromMinutes(3));
+        await Ask(share, "GET", "/eSCL/ScannerCapabilities"); // sweeps
+        Assert.Equal(1, share.ActiveJobs); // in flight counts as asked about, however long it takes
+        Assert.False(waiting.IsCompleted);
+        gone.Cancel(); // the device stops waiting...
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
+        // ...but polls its status, as sane-airscan does between pages.
+        for (var i = 0; i < 4; i++)
+        {
+            time.Advance(TimeSpan.FromSeconds(50));
+            await Ask(share, "GET", "/eSCL/ScannerStatus");
+        }
+        Assert.Equal(1, share.ActiveJobs);
+        time.Advance(TimeSpan.FromSeconds(61)); // then silence: it's let go
+        await Ask(share, "GET", "/eSCL/ScannerCapabilities");
+        await WaitFor(() => share.ActiveJobs == 0);
+        // Another device's status polls don't keep it.
+        var other = new Uri((await Ask(share, "POST", "/eSCL/ScanJobs", Settings(""), OtherPeer)).Location!).AbsolutePath;
+        Assert.NotNull(other);
+        time.Advance(TimeSpan.FromSeconds(40));
+        await Ask(share, "GET", "/eSCL/ScannerStatus");
+        time.Advance(TimeSpan.FromSeconds(40));
+        await Ask(share, "GET", "/eSCL/ScannerStatus");
+        await WaitFor(() => share.ActiveJobs == 0);
+    }
+
+    [Fact]
+    public async Task A_forgotten_jobs_cancellation_is_disposed_once_its_scan_is_over()
+    {
+        var fake = Fake();
+        var scanner = await Open(fake);
+        var time = new ManualTime();
+        var share = new SharedScanner(scanner, scanner.Capabilities, Identity, new ShareLimits { KeepFinished = TimeSpan.FromMinutes(5) }, time);
+        var job = new Uri((await Ask(share, "POST", "/eSCL/ScanJobs", Settings(""))).Location!).AbsolutePath;
+        Assert.Equal(200, (await Ask(share, "GET", job + "/NextDocument")).Status);
+        Assert.Equal(404, (await Ask(share, "GET", job + "/NextDocument")).Status);
+        Assert.Equal(0, share.ReleasedJobs);
+        time.Advance(TimeSpan.FromMinutes(6));
+        await Ask(share, "GET", "/eSCL/ScannerCapabilities");
+        Assert.Equal(1, share.ReleasedJobs);
+        // A job still scanning when the server stops is released once its scan has ended.
+        fake.Hangs = true;
+        await Ask(share, "POST", "/eSCL/ScanJobs", Settings(""));
+        await WaitFor(() => scanner.IsBusy);
+        share.Dispose();
+        await WaitFor(() => share.ReleasedJobs == 2);
+    }
+
+    [Fact]
+    public async Task Only_advertised_resolutions_are_taken_and_pixels_are_bounded()
+    {
+        var caps = (await Open(Fake())).Capabilities; // 75, 100, 150, 200, 300, 400, 600, 1200
+        Assert.Equal(409, Assert.Throws<ShareRequestException>(() => ShareXml.ReadSettings(Settings("<scan:XResolution>250</scan:XResolution>"), caps)).Status);
+        Assert.Equal(409, Assert.Throws<ShareRequestException>(() => ShareXml.ReadSettings(Settings("<scan:XResolution>19200</scan:XResolution>"), caps)).Status);
+        Assert.Equal(409, Assert.Throws<ShareRequestException>(() => ShareXml.ReadSettings(
+            Settings("<scan:XResolution>300</scan:XResolution><scan:YResolution>600</scan:YResolution>"), caps)).Status);
+        Assert.Equal(600, ShareXml.ReadSettings(Settings("<scan:XResolution>600</scan:XResolution><scan:YResolution>600</scan:YResolution>"), caps).Request.Resolution);
+        // A driver that lists no resolution: 300 dpi is all that's offered, and all that's taken.
+        var none = (await Open(Fake(Mfp with { Resolutions = WiaValues.Only(0) }))).Capabilities;
+        Assert.Empty(none.Platen!.Resolutions);
+        Assert.Contains("<scan:XResolution>300</scan:XResolution>", Encoding.UTF8.GetString(ShareXml.Capabilities(none, Identity)));
+        Assert.Equal(300, ShareXml.ReadSettings(Settings(""), none).Request.Resolution);
+        Assert.Equal(409, Assert.Throws<ShareRequestException>(() => ShareXml.ReadSettings(Settings("<scan:XResolution>19200</scan:XResolution>"), none)).Status);
+        // A region past the source is kept inside it before planning; a page too many pixels across is refused.
+        var big = ShareXml.ReadSettings(Settings("<pwg:ScanRegions><pwg:ScanRegion><pwg:Width>299999</pwg:Width><pwg:Height>299999</pwg:Height>" +
+            "<pwg:XOffset>299999</pwg:XOffset></pwg:ScanRegion></pwg:ScanRegions>"), caps).Request;
+        Assert.Equal((2549, 1, 3507), (big.XOffset, big.Width, big.Height));
+        var huge = new ScannerCapabilities("x", "x", null, new InputCaps(0, 300 * 1000, 0, 300 * 1000, ["RGB24"], ["image/jpeg"], [1200], []), null, false);
+        Assert.Equal(409, Assert.Throws<ShareRequestException>(() => ShareXml.ReadSettings(Settings(""), huge)).Status);
+    }
+
+    [Fact]
+    public async Task A_shared_scanner_that_isnt_connected_keeps_its_card_and_can_be_turned_off()
+    {
+        var (share, host, _, _, saved) = Switch();
+        await share.ShareAsync(await Open(Fake()));
+        // The entry knows its scanner but it's off now: the card stays, ticked, waiting.
+        await share.OfferAsync(Usb.Id, null);
+        var card = share.Card(null, Usb);
+        Assert.True(card.IsShown);
+        Assert.True(card.IsOn);
+        Assert.Equal(CoreStrings.Share_WaitingForScanner, card.Text);
+        // A scanner that isn't the shared one and isn't connected shows nothing; one Windows reaches over eSCL never shows.
+        Assert.False(share.Card(null, Usb with { Id = "other" }).IsShown);
+        Assert.False(share.Card(Usb with { Id = "escl", Port = @"SWD\Escl\x" }, null).IsShown);
+        // Forgetting its entry turns sharing off, so re-adding it doesn't share it again.
+        await share.ForgetAsync([null, "other", Usb.Id]);
+        Assert.False(share.IsOn);
+        Assert.Null(saved[^1].DeviceId);
+        Assert.False(host.Listening);
+        Assert.False(share.Card(null, Usb).IsShown);
+    }
+
+    [Fact]
+    public async Task The_card_shows_the_fingerprint_only_while_listening_16_bytes_a_line()
+    {
+        var (share, _, _, nets, _) = Switch();
+        var scanner = await Open(Fake());
+        var off = share.Card(scanner.Device, null);
+        Assert.True(off.IsShown);
+        Assert.False(off.IsOn);
+        Assert.Null(off.Fingerprint);
+        await share.ShareAsync(scanner);
+        var on = share.Card(scanner.Device, null);
+        Assert.Equal(share.Fingerprint, on.Fingerprint!.Replace("\n", ""));
+        Assert.Equal(2, on.Fingerprint.Split('\n').Length);
+        nets.Now = [Cafe];
+        await share.RecheckAsync();
+        Assert.Null(share.Card(scanner.Device, null).Fingerprint);
+    }
+
+    [Fact]
+    public async Task Turning_on_asks_Pro_once_and_changes_nothing_without_it()
+    {
+        var allowed = false;
+        var (share, host, _, _, saved) = Switch(allowed: () => allowed);
+        var scanner = await Open(Fake());
+        Assert.Equal(ShareSwitch.NeedsPro, await share.TurnOnAsync(scanner));
+        Assert.False(share.IsOn);
+        Assert.Empty(saved);
+        Assert.Empty(host.Started);
+        Assert.Equal(ShareSwitch.NoScanner, await share.TurnOnAsync(null));
+        allowed = true;
+        Assert.Equal(ShareSwitch.On, await share.TurnOnAsync(scanner));
+        Assert.True(host.Listening);
+    }
+
+    [Fact]
+    public async Task Networks_are_watched_only_while_a_scanner_is_shared()
+    {
+        var (share, _, _, nets, _) = Switch();
+        Assert.Equal(0, nets.Listeners);
+        await share.RecheckAsync();
+        Assert.Equal(0, nets.Listeners);
+        await share.ShareAsync(await Open(Fake()));
+        Assert.Equal(1, nets.Listeners);
+        await share.StopAsync();
+        Assert.Equal(0, nets.Listeners);
+        await share.ShareAsync(await Open(Fake()));
+        await share.DisposeAsync();
+        Assert.Equal(0, nets.Listeners);
+    }
+
+    [Fact]
+    public async Task Closing_cancels_an_announcement_under_way_at_once()
+    {
+        var host = new FakeHost();
+        var ads = new HangingAdvertiser();
+        var share = new ScannerShare(new ShareEnvironment(host, new FakeNetworks(), ads, new EphemeralCertificates()), "OFFICE-PC", null, _ => { }, () => true);
+        var starting = share.ShareAsync(await Open(Fake()));
+        await WaitFor(() => host.Started.Count == 1);
+        var closing = System.Diagnostics.Stopwatch.StartNew();
+        await share.DisposeAsync().AsTask().WaitAsync(Timing.Limit(TimeSpan.FromSeconds(2)));
+        Assert.True(closing.Elapsed < Timing.Limit(TimeSpan.FromSeconds(1)));
+        await starting;
+        Assert.True(ads.Cancelled);
+        Assert.False(host.Listening);
+    }
+
+    [Fact]
+    public async Task An_entry_whose_scanner_changes_withdraws_the_old_one()
+    {
+        var (share, host, _, _, _) = Switch();
+        var a = await Open(Fake());
+        await share.ShareAsync(a);
+        var listening = host.Started[^1].Listen.Scanner;
+        // The entry's Windows scanner is now B: A is offered as gone (PrinterViewModel.UseWiaScannerAsync), and nothing serves A.
+        await share.OfferAsync(Usb.Id, null);
+        await share.OfferAsync("b", await Open(new FakeWiaScanner(Usb with { Id = "b" }, Mfp, (_, _) => [1])));
+        Assert.False(host.Listening);
+        Assert.Equal(503, (await listening.HandleAsync(new ShareRequest("GET", "/eSCL/ScannerCapabilities", [], Peer), CancellationToken.None)).Status);
+        Assert.Equal(ShareState.WaitingForScanner, share.State);
     }
 
     // ---------------------------------------------------------------- the Store package

@@ -139,6 +139,18 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Inkvolt Pro was entered or removed: sharing starts or stops as it now may.</summary>
     private void RecheckShare() => _ = RecheckShareAsync();
 
+    private async Task ForgetShareAsync(IReadOnlyList<string?> deviceIds)
+    {
+        try
+        {
+            await Share.ForgetAsync(deviceIds);
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"Scanner sharing not turned off for a forgotten entry: {ex.Message}");
+        }
+    }
+
     private async Task RecheckShareAsync()
     {
         try
@@ -763,7 +775,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         if (!Prompt.Ask(string.Format(Strings.Main_ForgetAsk, p.Name) + warning + "\n\n" + again, Strings.Common_Remove))
             return;
         p.ScanButton.Button.Seal(); // first: its scan button saves nothing from now on, so the choice removed below never comes back
-        if (p.Sharing is { IsOn: true } shared) shared.IsOn = false; // a forgotten scanner isn't shared on
+        _ = ForgetShareAsync(p.WindowsScannerIds.ToList()); // a forgotten scanner isn't shared on, connected or not
         _state.RemovePrinter(p.Uuid);
         _pc.History.Forget(p.Uuid);
         _pc.SnmpLogins.Delete(p.Uuid); // its community goes with it: Add a printer asks for it again

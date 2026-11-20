@@ -480,15 +480,18 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   it's turned off, or the app exits (`MainViewModel.Dispose` closes it first; the choice stays). **Server:** Kestrel
   (`print/src/InkvoltPrint.Sharing`, ASP.NET Core's shared framework, the owner's decision of 2026-11-18; no NuGet package) on
   **TCP 9780, HTTPS only** (TLS 1.2/1.3, HTTP/1.1), dual-stack; a connection from anything but this PC or a device on a served
-  subnet (`SharePeers`; IPv6 link-local only on its own interface) is closed before TLS. **eSCL** (`SharedScanner`, `ShareXml`):
+  subnet that came in on that private interface (`SharePeers`: the address of this PC it reached must be one of the interface's,
+  so a public network using the same subnet stays out; IPv6 link-local only on its own interface) is closed before TLS. **eSCL** (`SharedScanner`, `ShareXml`):
   ScannerCapabilities from the driver's own (`WiaCapabilities.From`: glass, feeder, both sides, sizes, color, grey, black and
   white, resolutions; JPEG and PDF), ScannerStatus (the feeder's state while idle, each device's own jobs), ScanJobs, NextDocument
   (a long poll, 503 to ask again), ScanImageInfo, DELETE. A region's offset reaches the driver now (`ScanRequest.XOffset`, WIA's
   `XPosition`, TWAIN's frame), for Image Capture's overview. **Hostile input:** ScanSettings without DTD, at most 16 KB, 200
   elements, 8 deep, 128 characters a value, every number in range, units checked, unknown sources, modes and formats refused
-  (409); nothing in a request names a file, a path or another device; request line, headers and body bounded; 32 connections,
+  (409), only an advertised resolution (300 dpi for a driver that lists none), the region kept inside the source and at most
+  65,000 pixels a side before anything is planned; nothing in a request names a file, a path or another device; request line, headers and body bounded; 32 connections,
   8 per device; one scan at a time, two waiting, two per device (503); a job reachable only from the device that started it
-  (its address kept in memory, never logged), cancelled after 60 s unread or 30 min in all, forgotten 5 min after it ends; the
+  (its address kept in memory, never logged), cancelled after 60 s with no request for it (a NextDocument long poll under way, or the device's status polls, keep it) or
+  30 min in all, forgotten 5 min after it ends; the
   scanner held against a scan from this PC meanwhile and the other way round (`WiaScanner`'s one job per device: "busy with
   another scan"). **Certificate:** self-signed ECDSA P-256 for this PC's `.local` name, 825 days, renewed 30 days before; its key
   made in the user's CNG key store, not exportable (`ShareCertificateStore`), the public certificate a file in the app's data
@@ -500,7 +503,8 @@ The seam (built with 1.6): the key format, its verification, the gate and the st
   **No PIN or allow-list:** eSCL clients send none (Apple's, Mopria's and sane-airscan's have no field for one), so the private
   network and the subnet are the gate. **Demo:** `--demo` shares a made-up scanner for real, to this PC only (127.0.0.1, any
   port, a certificate per run, nothing announced); `--share` turns it on, `--snapshot` shows the card. **Checked:**
-  `ScannerSharingTests` (69 cases): the documents round-trip through our parser; our client's ScanSettings read back as the same
+  `ScannerSharingTests` (82 cases; the review of 4bf7e6c0 added the card, forgetting, Pro, network watching, closing, a scanner
+  changing, resolutions and the slow-page cases): the documents round-trip through our parser; our client's ScanSettings read back as the same
   driver settings; hostile and unoffered settings (DTD, entities, depth, count, length, numbers, units, sources, modes,
   formats); jobs, queue, per-device limits, expiry, DELETE, a failed scan, a scan from this PC holding the scanner, closing;
   who may connect; the certificate, fingerprint and DNS-SD record (read back by `DnssdJoin`); the switch with fakes (off by
