@@ -34,7 +34,8 @@ public class Core2RedactionTests
             area = t.GetRects(s, e).Aggregate(default(RectD), (a, r) => a.Union(r)).Inflate(1);
         }
 
-        var redacted = Redaction.Apply(data, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [area] }, dpi: 150);
+        var pages = Redaction.Redact(data, null, new Dictionary<int, IReadOnlyList<RectD>> { [0] = [area] }, dpi: 150);
+        var redacted = pages.Data;
 
         using (var engine = PdfEngine.Open(redacted, InputFileTypes.PDF, null))
         {
@@ -44,7 +45,9 @@ public class Core2RedactionTests
             Assert.Contains("Second page stays", engine.GetText(1).Text);
             Assert.Equal(engine.GetPage(0).Width, rotate == 90 ? 792 : 612, 0.5);
         }
-        Assert.True(Core2Pdf.Ink(redacted, 0, area.Inflate(-2)) > 0.95, "area is black");
+        // "Code ▮ here": the line is laid out again, so the box is where the layout put it.
+        Assert.NotEmpty(pages.Blacked[0]);
+        foreach (var box in pages.Blacked[0]) Assert.True(Core2Pdf.Ink(redacted, 0, box.Inflate(-2)) > 0.95, "box is black");
         // The rest of the page is still visible as pixels ("Public heading" draws ink where it was).
         Assert.True(Core2Pdf.Ink(data, 0, HeadingArea(data)) > 0.05);
         Assert.True(Core2Pdf.Ink(redacted, 0, HeadingArea(data)) > 0.05);

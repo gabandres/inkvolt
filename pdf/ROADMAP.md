@@ -188,13 +188,20 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (exit 0, no lock or file left in `working`). Found and fixed (`CommandOutput`, tests in `CommandOutputTests`): MuPDF's
   output redirect took over .NET's console writers, so redirected lines ended "\r\r\n" and, typed in a terminal, 1.15.0's
   command line ended at once (0xC0000409) printing nothing. Left: a share on another PC over a real network (only this
-  PC's loopback SMB was tried), a run as a scheduled task; the memory a small file can ask for. The 200 MB stream (a
-  200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`, `BoundedFilters`), so nothing there
-  catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is decoded and packed again) and 760 MB in
-  a watermark or header and footer (measured, the copies not traced); rotate and text export stay under 100 MB. Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by its size on disk, so
-  such files run side by side with others. Lowering the limit would refuse real 200 MB scans; what it takes is pricing a
-  file by what it unpacks to (its streams' lengths counted as `BoundedFilters.InflatesPast` does, without keeping them)
-  before it is admitted, then finding which copies Reduce File Size and the page marks make and streaming the large ones.
+  PC's loopback SMB was tried), a run as a scheduled task. The 200 MB stream (a 200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`,
+  `BoundedFilters`), so nothing there catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is
+  decoded and packed again) and 760 MB in a watermark or header and footer (measured, the copies not traced); rotate and
+  text export stay under 100 MB. Done 2026-11-19: Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by the
+  larger of its size on disk and what its streams unpack to (`BatchRunner.Unpacked`: before the file is admitted, the
+  bytes after each `stream` keyword are inflated a chunk at a time and counted, kept nowhere, as
+  `BoundedFilters.InflatedLength` does for PDFsharp; a picture counts what its dictionary says it decodes to, width ×
+  height × components × bits, and isn't inflated; encrypted streams count nothing; counting stops past the budget or
+  50,000 streams, and when the batch is cancelled), 8 bytes a byte, so such a file runs alone instead of beside others
+  (`BatchTests.AFileIsPricedByWhatItsStreamsUnpackTo`: 64 MB in a 64 KB file weighs 512 MB, alone in a 256 MB budget).
+  The count runs ahead of the files' admission on a thread of its own. Reduce File Size's and the page marks' own copies
+  of a large stream are bounded by that price (8 bytes a byte covers the 1.6 GB measured) rather than streamed: the batch
+  stays under its budget, and a stream can't unpack past 256 MB anywhere. A picture whose data unpacks to far more than
+  its size says is priced by its size (only Reduce File Size's packing would unpack it, bounded at 256 MB).
 - **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
   imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
   "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the
@@ -218,7 +225,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   outlines it), what is wrong and what fixes it; the 48 human conditions are a 15-item checklist in the same pane; the
   report saves as one accessible HTML page; Batch's Check Accessibility action writes it beside each file and fails a
   file with failures. Not checked: 09-007, 09-008 (Ruby, Warichu), 28-018 (a printer's mark's appearance), 31-023
-  (veraPDF doesn't check these either); widths of CFF and Type 1 programs. Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
+  (veraPDF doesn't check these either). Widths (31-016) are checked against every kind of embedded program: TrueType's
+  hmtx, and (done 2026-11-19) CFF and Type 1 charstrings (`CffProgram`: the Type 2 width rule, local and global
+  subroutines followed, each glyph's Private DICT through FDSelect, FontMatrix; `Type1Program`: hsbw or sbw, div,
+  FontMatrix, lenIV; bounded against programs built to loop; tests on crafted fonts in `AccessibilityCheckTests`). Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
   OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
   conditions for 50 (wcag-table-word, long called a veraPDF inconsistency, was a later object stream PDFsharp missed; see
   the tool's README); veraPDF's own 297 PDF/UA-1 test
@@ -287,8 +297,30 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   picture. Fix redacts, sanitizes and rewrites. With 1.1's patterns it also looks for what they find outside the pages, and
   a part it couldn't search to the end is reported, not read as clean. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
   planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
-  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30). Still to
-  do: glyph-spacing inference around pixel redactions.
+  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30).
+  Glyph spacing around pixel redactions (Windows, done 2026-11-19): the redaction lays out again, in the page image,
+  each line an area cuts (`RedactionLines`, through `Redaction.Redact`): its words keep their letters and order, start
+  where the line started, a space of a quarter of the line's height between them, and each box takes a width rounded to
+  steps of twice the line's height; a line redacted whole is its rounded box; a block over several lines keeps its area.
+  So neither the text after a box (where the removed words ended), a justified line's spaces nor the box's own width
+  tells the removed width beyond its step. A line that would run into the next column or off the page narrows its
+  spaces. Where the boxes went (`RedactedPages.Blacked`) is what the check after Apply, Redact by Pattern and Batch are
+  told, the words that moved (`Moved`) where a kept hit is looked for, and the page's picture lists its boxes
+  (`/PdLaidOut`). The check also finds boxes drawn into pictures (another tool's pixel redaction, a scan's marker) with
+  text beside them (`GlyphSpacing`), not those of a line Inkvolt laid out. Tests (`RedactionLinesTests`,
+  `RedactionCheckTests`): two pages differing only in a name 22 pt wider, ragged and justified, give the same line to the
+  pixel (each word within one); a picture box beside text is flagged and fixed. After review (2026-11-20): a line keeps
+  its alignment edge (its start, its end when right-aligned, its middle when centred, told from the lines near it and,
+  alone, the page's middle); a line turned sideways is laid out along its own axis (read up the page, from its far end);
+  an area reaching past a line's end, or a tall one over several lines, leaves paper there, not black with its drawn
+  edges (a tall area is rows of lines; one that leaves no line beside it is a block, as drawn); the paper comes from
+  beside the line outside every area; every line is drawn from the page as it was (overlapping bands); an earlier
+  redaction's box on the line keeps its width and moves with it, and Batch moves its earlier boxes with the words;
+  a line whose space holds a rule or a picture is left in place with its boxes rounded as far as its words allow, and
+  isn't recorded as laid out (`/PdLaidOut` records every other box Inkvolt draws, blocks too), so the check reports it.
+  Limit: a moved word keeps the anti-aliased shading of where it was, a fraction of a pixel (0.24 pt at 300 dpi): MuPDF
+  renders on the pixel grid (a region's origin is rounded to a whole pixel), so a word can't be drawn again at a
+  sub-pixel offset, and thresholding its edges only coarsens the same trace. Mac: not yet.
 - **Effort** S. Windows with 1.1; Mac with its redaction.
 
 ### 1.6 Store update check (done 2026-10-27)

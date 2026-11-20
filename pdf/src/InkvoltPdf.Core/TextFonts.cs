@@ -386,8 +386,18 @@ internal sealed class TextFont
         TwoByte ? (_cidWidths.TryGetValue(code, out var w) ? w : _cidFont is not null ? _dw : null)
         : code is >= 0 and < 256 ? _widths[code] : null;
 
-    /// <summary>A code's advance in the embedded TrueType program, in thousandths of an em, or null.</summary>
-    internal double? ProgramWidth(int code) => _program is TrueTypeProgram tt && GidOf(code) is var g and >= 0 && g < tt.NumGlyphs ? tt.Advance(g) : null;
+    /// <summary>
+    /// A code's advance in the embedded program, in thousandths of an em, or null: TrueType by glyph index (hmtx); CFF and
+    /// Type 1 by the glyph's charstring, found by glyph name in a simple font, by CID in a composite one.
+    /// </summary>
+    internal double? ProgramWidth(int code) => _program switch
+    {
+        TrueTypeProgram tt => GidOf(code) is var g and >= 0 && g < tt.NumGlyphs ? tt.Advance(g) : null,
+        CffProgram cff when TwoByte => cff.AdvanceOfCid(code),
+        CffProgram { IsCid: false } cff => GlyphNameOf(code) is { } name ? cff.Advance(name) : null,
+        Type1Program t1 when !TwoByte => GlyphNameOf(code) is { } name ? t1.Advance(name) : null,
+        _ => null,
+    };
 
     /// <summary>Whether the font can draw a code: its glyph is in the embedded program, or the font isn't embedded.</summary>
     public bool HasGlyph(int code)
