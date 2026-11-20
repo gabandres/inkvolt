@@ -170,7 +170,8 @@ public sealed class IppClient
         };
         var severity = alerts.Count > 0 ? alerts.Max(a => a.Severity) : code == "stopped" ? Severity.Error : Severity.Info;
         var detail = alerts.Where(a => a.Severity == severity).Select(a => IppStatusText.Explain(a.Id)).FirstOrDefault(e => e is not null);
-        return new PrinterStatus(code, Headline(r.Str("printer-state-message"), label), severity, alerts, detail);
+        var message = r.Str("printer-state-message");
+        return new PrinterStatus(code, Headline(message, label), severity, alerts, detail) { PanelText = message };
     }
 
     /// <summary>

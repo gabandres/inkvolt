@@ -534,6 +534,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     [ObservableProperty] public partial BitmapSource? Image { get; set; }
     [ObservableProperty] public partial string? StatusDetail { get; set; }
 
+    /// <summary>"On the printer's panel: …" when the panel says more than the status (<see cref="PrinterStatus.PanelNote"/>); null otherwise.</summary>
+    [ObservableProperty] public partial string? StatusPanel { get; set; }
+
+    private static string? PanelLine(string? note) => note is null ? null : string.Format(Strings.Printer_PanelSays, note);
+
     /// <summary>"About this printer" rows: model, address, serial, firmware…</summary>
     public ObservableCollection<InfoRow> About { get; } = [];
 
@@ -885,6 +890,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _lastReading = DateTimeOffset.Now;
         StatusMessage = read.Status.Message;
         StatusDetail = read.Status.Detail;
+        StatusPanel = PanelLine(read.Status.PanelNote);
         StatusSeverity = read.Status.Severity;
         Sync(Alerts, read.Status.Alerts);
         OnPropertyChanged(nameof(SuppliesNotReported));
@@ -933,6 +939,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         IsOnline = v.IsOnline;
         StatusMessage = v.StatusMessage;
         StatusDetail = v.StatusDetail;
+        StatusPanel = PanelLine(v.StatusPanel);
         StatusSeverity = v.Severity;
         Sync(Alerts, v.Alerts);
         FirmwareNotice = v.FirmwareNotice;
@@ -1310,6 +1317,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         IsRefused = false; // can't reach it: Fix it…, not SNMP access…
         StatusMessage = message;
         StatusDetail = detail;
+        StatusPanel = null;
         StatusSeverity = Severity.Error;
         Alerts.Clear();
         OnPropertyChanged(nameof(ListStatus));

@@ -25,6 +25,10 @@ public sealed record PrinterView
 
     public string StatusMessage { get; init; } = CoreStrings.Monitor_Connecting;
     public string? StatusDetail { get; init; }
+
+    /// <summary>What the printer's control panel says, when it says more than the status (<see cref="PrinterStatus.PanelNote"/>); null otherwise.</summary>
+    public string? StatusPanel { get; init; }
+
     public Severity Severity { get; init; } = Severity.Info;
     public IReadOnlyList<PrinterAlert> Alerts { get; init; } = [];
 
@@ -379,7 +383,8 @@ public sealed class PrinterMonitor : IDisposable
             Usage = reading.Usage ?? View.Usage,
         };
         // An unusable reply (printer waking up) keeps the last good status instead of flashing an error.
-        if (!status.IsUnavailable) v = v with { StatusMessage = status.Message, StatusDetail = status.Detail, Severity = status.Severity, Alerts = status.Alerts };
+        if (!status.IsUnavailable)
+            v = v with { StatusMessage = status.Message, StatusDetail = status.Detail, StatusPanel = status.PanelNote, Severity = status.Severity, Alerts = status.Alerts };
         Show(v);
         _onEvent(new MonitorEvent.Read(reading));
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), true, status.IsUnavailable ? null : status, reading.Supplies)
@@ -395,7 +400,7 @@ public sealed class PrinterMonitor : IDisposable
         Show(View with
         {
             IsConnecting = false, IsOnline = false, IsRefused = false, IsElsewhere = elsewhere || View.IsElsewhere, StatusMessage = message,
-            StatusDetail = detail, Severity = Severity.Error, Alerts = [],
+            StatusDetail = detail, StatusPanel = null, Severity = Severity.Error, Alerts = [],
         });
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), false, null, null)));
     }
@@ -411,7 +416,7 @@ public sealed class PrinterMonitor : IDisposable
         Show(View with
         {
             IsConnecting = false, IsOnline = false, IsRefused = true, StatusMessage = CoreStrings.Monitor_RefusedTitle,
-            StatusDetail = string.Format(CoreStrings.Monitor_RefusedDetail, new SnmpAccessException(why).Message), Severity = Severity.Error, Alerts = [],
+            StatusDetail = string.Format(CoreStrings.Monitor_RefusedDetail, new SnmpAccessException(why).Message), StatusPanel = null, Severity = Severity.Error, Alerts = [],
         });
         _onEvent(new MonitorEvent.Observed(new PrinterSnapshot(_id, _name(), false, null, null) { LoginRefused = why }));
     }

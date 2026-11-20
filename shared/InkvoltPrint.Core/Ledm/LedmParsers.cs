@@ -33,7 +33,8 @@ public static class LedmParsers
 
         var severity = alerts.Count > 0 ? alerts.Max(a => a.Severity) : StatusText.SeverityOf(code);
         var detail = StatusText.Explain(alerts.FirstOrDefault(a => a.Severity == Severity.Error)?.Id ?? code);
-        return new PrinterStatus(code, message, severity, alerts, detail);
+        // LocString is the printer's own line for its state, in the panel's language: the panel's text.
+        return new PrinterStatus(code, message, severity, alerts, detail) { PanelText = status?.KidValue("LocString") };
     }
 
     public static IReadOnlyList<Consumable> ParseConsumables(XDocument doc, XDocument? usage = null)

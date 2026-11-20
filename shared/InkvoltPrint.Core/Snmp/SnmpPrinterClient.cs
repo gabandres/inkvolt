@@ -165,6 +165,10 @@ public sealed class SnmpPrinterClient
         _colorants ??= Rows(await _client.WalkAsync([PrinterMib.ColorantValue.Append(i)], ct).ConfigureAwait(false))
             .Where(r => r.Value[0]?.Text is not null).ToDictionary(r => r.Key, r => r.Value[0]!.Text!);
         var markers = Rows(await _client.WalkAsync([PrinterMib.MarkerCounterUnit.Append(i), PrinterMib.MarkerLifeCount.Append(i)], ct).ConfigureAwait(false));
+        // The panel's lines, rows indexed by the console's line (one display: its first index; a printer with two shows the first).
+        var panel = (await _client.WalkAsync([PrinterMib.ConsoleDisplayText.Append(i)], ct).ConfigureAwait(false))[0]
+            .Where(r => r.Index.Length >= 1).Take(256).Select(r => r.Value.Text?.ReplaceLineEndings(" ").Trim()).OfType<string>()
+            .Where(t => t.Length > 0).Take(SnmpReading.MaxPanelLines).ToList();
 
         return new SnmpReading(
             state[0].Value.Int,
@@ -176,6 +180,7 @@ public sealed class SnmpPrinterClient
             _colorants)
         {
             PageCount = PageCount(markers.Values.FirstOrDefault()),
+            Panel = panel,
         };
 
         static int Int(SnmpValue? v, int missing = 0) => v?.Int ?? missing;

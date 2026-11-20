@@ -15,6 +15,25 @@ public sealed record PrinterStatus(string Code, string Message, Severity Severit
     public bool IsUnavailable => Code == "unavailable";
 
     /// <summary>
+    /// What the printer's control panel says now, as the printer sends it (the Printer MIB's prtConsoleDisplayBufferText lines,
+    /// IPP's <c>printer-state-message</c>, LEDM's status text); null when it says nothing or wasn't read. CDM has no such text
+    /// that we know of.
+    /// </summary>
+    public string? PanelText { get; init; }
+
+    /// <summary>The longest panel text shown (a panel's few lines; a printer may send pages).</summary>
+    public const int MaxPanelText = 160;
+
+    /// <summary>
+    /// The panel's text to show with the status: one clean line of at most <see cref="MaxPanelText"/> characters
+    /// (<see cref="Fleet.FleetText.Clean"/>), only when it says more than the status line does (not the same words, ignoring case
+    /// and a final period, nor a plain "Idle" or "Ready" under the app's own word for it). Null otherwise.
+    /// </summary>
+    public string? PanelNote =>
+        Fleet.FleetText.Clean(PanelText, MaxPanelText) is { } text && Ipp.IppClient.Headline(text, Message) is var said
+        && !string.Equals(said.TrimEnd('.', '!'), Message.Trim().TrimEnd('.', '!'), StringComparison.OrdinalIgnoreCase) ? said : null;
+
+    /// <summary>
     /// One line for a list of printers: the state, then for a warning or error the worst alert's words ("Ready · Yellow ink
     /// is low") and how many more there are, so an amber or red dot is never left unexplained. An alert that repeats or
     /// extends the state's words takes its place.

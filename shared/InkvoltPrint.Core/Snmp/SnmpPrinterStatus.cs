@@ -36,6 +36,12 @@ public sealed record SnmpReading(
     /// the printer has none (or counts something else, such as inches).
     /// </summary>
     public int? PageCount { get; init; }
+
+    /// <summary>The control panel's display, a line each (prtConsoleDisplayBufferText, empty lines left out), at most <see cref="MaxPanelLines"/>.</summary>
+    public IReadOnlyList<string> Panel { get; init; } = [];
+
+    /// <summary>Most panel lines kept (RFC 3805 lets a display have any number; a real one has 2 to 8).</summary>
+    public const int MaxPanelLines = 8;
 }
 
 /// <summary>
@@ -141,7 +147,10 @@ public static class SnmpPrinterStatus
         var top = alerts.FirstOrDefault(a => a.Severity == Severity.Error);
         var detail = alerts.Where(a => a.Severity == severityAll).Select(a => IppStatusText.Explain(a.Id)).FirstOrDefault(e => e is not null);
         // A stopped printer is best named by what stops it ("Paper jam"), as the spooler's and LEDM's headlines do.
-        return new PrinterStatus(code, code == "stopped" && top is not null && !offline ? top.Message : label, severityAll, alerts, detail);
+        return new PrinterStatus(code, code == "stopped" && top is not null && !offline ? top.Message : label, severityAll, alerts, detail)
+        {
+            PanelText = r.Panel.Count > 0 ? string.Join(" · ", r.Panel) : null,
+        };
     }
 
     /// <summary>

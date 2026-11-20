@@ -2009,6 +2009,9 @@ Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un re
   <data name="Printer_SupplyYield" xml:space="preserve">
     <value>Rinde unas {0:N0} páginas</value>
   </data>
+  <data name="Printer_PanelSays" xml:space="preserve">
+    <value>En el panel de la impresora: {0}</value>
+  </data>
   <data name="Printer_SupplyFull" xml:space="preserve">
     <value>Lleno</value>
   </data>

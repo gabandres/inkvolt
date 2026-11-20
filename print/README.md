@@ -404,9 +404,13 @@ trademark guidance: [packaging/README.md](packaging/README.md). Icons and MSIX i
   vectors from RFC 2202, NIST SP 800-38A and Python's own hashlib and cryptography). Which key extension a printer maker's
   agent uses for AES-192/256 after MD5 or SHA-1 isn't documented anywhere we found: both are tried, so a real printer only
   confirms it.
+- The control panel's text (2026-11-20): the Printer MIB's `prtConsoleDisplayBufferText` lines (8 at most, joined), IPP's
+  `printer-state-message` and LEDM's status text (`LocString`) show under the status as "On the printer's panel: …" when they say
+  more than the status line (`PrinterStatus.PanelNote`: one clean line, 160 characters, not a plain "Idle" or the same words;
+  `PanelTextTests`). CDM has no such text in the replies we know of. Seen with the demo printers only: what a real panel's lines
+  hold (a menu? a blank line?), and how often a printer's IPP message is more than its state, only real printers show.
 - Backlog: SNMP supply levels for IPP printers whose
-  `marker-*` attributes are missing; the front panel's text (`prtConsoleDisplayBufferText`)
-  as the status detail; SNMP for WSD queues (the device's address from its PnP properties); queue
+  `marker-*` attributes are missing; SNMP for WSD queues (the device's address from its PnP properties); queue
   changes as Windows notifies them (`FindFirstPrinterChangeNotification`) instead of reading every 5 s; QR code / barcode separator sheets (ZXing.Net, Apache-2.0); CDM page counts (`/cdm/deviceUsage/v1/lifetimeCounters`); photos: color management (ICC profiles), text or date on prints, saving a photo layout as a preset, a sheet of mixed sizes; maintenance: follow an alignment or cleaning to its end (the session's `Location`, the printer's state), offer the cleaning check page right after a cleaning, read the calibration paths from its manifest, CDM maintenance for newer HP models.
 - Scanners through Windows (WIA): built test-first against a fake (`FakeWiaSystem`: capabilities, settings, feeder loop,
   empty feeder, a jam part way, cancel, a driver that never says empty, one that refuses the feeder, one that scans the glass

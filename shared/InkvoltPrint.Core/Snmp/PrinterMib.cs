@@ -35,6 +35,9 @@ public static class PrinterMib
 
     public static bool CountsPages(int unit) => unit is UnitImpressions or UnitSheets;
 
+    /// <summary>prtConsoleDisplayBufferEntry (1.3.6.1.2.1.43.16.5.1): 2 prtConsoleDisplayBufferText, one row a line of the control panel's display.</summary>
+    public static readonly Oid ConsoleDisplayText = Oid.Parse("1.3.6.1.2.1.43.16.5.1.2");
+
     /// <summary>prtMarkerColorantEntry (1.3.6.1.2.1.43.12.1.1): 4 prtMarkerColorantValue ("black", "cyan"…).</summary>
     public static readonly Oid ColorantValue = Oid.Parse("1.3.6.1.2.1.43.12.1.1.4");
 

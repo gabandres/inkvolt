@@ -2469,6 +2469,10 @@ Only do this if it really is this printer, for example after a repair, a reset o
     <value>Rated for about {0:N0} pages</value>
     <comment>what a full cartridge gives, from the printer; {0} = pages</comment>
   </data>
+  <data name="Printer_PanelSays" xml:space="preserve">
+    <value>On the printer's panel: {0}</value>
+    <comment>the printer's control panel text, as the printer sends it; {0} = that text</comment>
+  </data>
   <data name="Printer_SupplyFull" xml:space="preserve">
     <value>Full</value>
     <comment>waste box state</comment>
