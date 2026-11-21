@@ -8,9 +8,9 @@ review of both diffs: two findings, fixed in c270fb77 (a WIA 2.0 page's stated s
 gives up after a minute without a byte). Final `tools/test.ps1` on d81c8abe: Print 3103, PDF 3262 (two timing tests failed
 under load and passed alone). Bench (`pdf/tools/bench/RESULTS.md`): every target met but `drawings.pdf` (the accepted limit)
 and one `scan.pdf` page at 232 ms; folder search lists 500 pages of two common words in 0.77 s. Packed with the smoke test
-(both passed), uploaded, release notes en and es through the API, committed 2026-11-21 (CommitStarted); tags and GitHub
-releases `pdf-v1.16.0.0`, `print-v1.7.0.0`. **Left:** once both are Published, the website's `softwareVersion` (1.16.0, 1.7.0)
-and `firebase deploy --only hosting`, and the GitHub releases' "in certification" line.
+(both passed), uploaded, release notes en and es through the API, committed and **Published** 2026-11-21; tags and GitHub
+releases `pdf-v1.16.0.0`, `print-v1.7.0.0`; the website's `softwareVersion` is 1.16.0 and 1.7.0, deployed. Nothing left on
+Windows but the owner's checks below.
 
 **For the owner, hardware:** a WIA 2.0 scanner (page progress, Stop, a PDF-only WIA driver), a PC with only a 32-bit TWAIN
 driver, a jam partway through a feeder scan; a printed QR separator sheet scanned for real; real installs through Get the
