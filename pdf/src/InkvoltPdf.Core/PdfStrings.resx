@@ -6981,4 +6981,20 @@
     <value>Tesseract took too long to read a page, so it was stopped. Try again with fewer pages or one language.</value>
     <comment>Message</comment>
   </data>
+  <data name="Form_MaxLengthInvalid" xml:space="preserve">
+    <value>Type the most characters as a whole number (0: no limit).</value>
+  </data>
+  <data name="Form_ValueTaken" xml:space="preserve">
+    <value>Another button of "{0}" already stands for "{1}": give this one a value of its own.</value>
+    <comment>{0} is the field name, {1} the value</comment>
+  </data>
+  <data name="Form_NoChoices" xml:space="preserve">
+    <value>Type at least one choice.</value>
+  </data>
+  <data name="Form_AlreadyFirst" xml:space="preserve">
+    <value>This field is already filled first on its page.</value>
+  </data>
+  <data name="Form_AlreadyLast" xml:space="preserve">
+    <value>This field is already filled last on its page.</value>
+  </data>
 </root>

@@ -7,12 +7,6 @@ using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App.Viewer;
 
-/// <summary>A field drawn with a field tool of Prepare Form (page space).</summary>
-public sealed record DesignPlacement(DesignFieldKind Kind, int PageIndex, RectD Rect);
-
-/// <summary>What the user asked for on the selected field or suggestion.</summary>
-public enum DesignAction { Delete, Duplicate, Properties, Accept, Reject }
-
 /// <summary>
 /// Prepare Form on top of the page view (<see cref="ViewerTool.PrepareForm"/>): every form field shows as a named box;
 /// with a field tool (<see cref="DesignKind"/>) a drag (or a click, for the kind's usual size) places a new field; with
