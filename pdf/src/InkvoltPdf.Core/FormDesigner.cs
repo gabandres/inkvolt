@@ -121,6 +121,9 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     public bool IsDragging => _drag is not null || _box is not null;
     public bool HasNudge => _nudged != default;
 
+    /// <summary>The page of the press under way (a new field's box, or the field moved or resized).</summary>
+    public int? PressPage => _box?.Page ?? _drag?.Field.PageIndex;
+
     /// <summary>The rectangle being drawn for a new field, on its page.</summary>
     public (int Page, RectD Rect)? NewBoxRect => _box is { } b ? (b.Page, RectD.FromEdges(b.Start.X, b.Start.Y, b.End.X, b.End.Y)) : null;
 

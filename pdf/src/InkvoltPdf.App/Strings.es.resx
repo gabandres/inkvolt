@@ -3087,16 +3087,6 @@
     <value>Duplicar {0}</value>
     <comment>An edit you can undo (shown after Undo/Redo); {0} is the field kind in lower case</comment>
   </data>
-  <data name="FormDesign_MaxLengthInvalid" xml:space="preserve">
-    <value>Escribe el máximo de caracteres como un número entero (0: sin límite).</value>
-  </data>
-  <data name="FormDesign_ValueTaken" xml:space="preserve">
-    <value>Otro botón de "{0}" ya representa "{1}": dale a este un valor propio.</value>
-    <comment>{0} is the field name, {1} the value</comment>
-  </data>
-  <data name="FormDesign_NoChoices" xml:space="preserve">
-    <value>Escribe al menos una opción.</value>
-  </data>
   <data name="FormDesign_PdfOnly" xml:space="preserve">
     <value>Solo se pueden preparar formularios en archivos PDF.</value>
   </data>
@@ -3144,12 +3134,6 @@
   <data name="FormDesign_DetectFound_Many" xml:space="preserve">
     <value>Se encontraron {0} posibles campos (punteados): Enter agrega uno, Del lo omite, o agrégalos todos desde el panel.</value>
     <comment>Enter and Del are keys</comment>
-  </data>
-  <data name="FormDesign_AlreadyFirst" xml:space="preserve">
-    <value>Este campo ya es el primero que se llena en su página.</value>
-  </data>
-  <data name="FormDesign_AlreadyLast" xml:space="preserve">
-    <value>Este campo ya es el último que se llena en su página.</value>
   </data>
   <data name="FormDesign_SuggestedCount_One" xml:space="preserve">
     <value>{0} campo sugerido (punteado en la página).</value>

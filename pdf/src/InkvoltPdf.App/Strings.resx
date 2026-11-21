@@ -3088,16 +3088,6 @@
     <value>Duplicate {0}</value>
     <comment>An edit you can undo (shown after Undo/Redo); {0} is the field kind in lower case</comment>
   </data>
-  <data name="FormDesign_MaxLengthInvalid" xml:space="preserve">
-    <value>Type the most characters as a whole number (0: no limit).</value>
-  </data>
-  <data name="FormDesign_ValueTaken" xml:space="preserve">
-    <value>Another button of "{0}" already stands for "{1}": give this one a value of its own.</value>
-    <comment>{0} is the field name, {1} the value</comment>
-  </data>
-  <data name="FormDesign_NoChoices" xml:space="preserve">
-    <value>Type at least one choice.</value>
-  </data>
   <data name="FormDesign_PdfOnly" xml:space="preserve">
     <value>Forms can be prepared in PDF files only.</value>
   </data>
@@ -3145,12 +3135,6 @@
   <data name="FormDesign_DetectFound_Many" xml:space="preserve">
     <value>Found {0} possible fields (dashed): Enter adds one, Del skips it, or add them all from the panel.</value>
     <comment>Enter and Del are keys</comment>
-  </data>
-  <data name="FormDesign_AlreadyFirst" xml:space="preserve">
-    <value>This field is already filled first on its page.</value>
-  </data>
-  <data name="FormDesign_AlreadyLast" xml:space="preserve">
-    <value>This field is already filled last on its page.</value>
   </data>
   <data name="FormDesign_SuggestedCount_One" xml:space="preserve">
     <value>{0} suggested field (dashed on the page).</value>
