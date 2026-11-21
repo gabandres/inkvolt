@@ -70,7 +70,7 @@ public partial class DocumentTab
         Viewer.ToolChanged += (_, _) => UpdateFormDesignUi();
         Viewer.DesignSelectionChanged += (_, _) => ShowDesignSelection();
         Viewer.DesignFieldDrawn += (_, p) => _ = AddDrawnField(p);
-        Viewer.DesignFieldMoved += (_, f) => _ = UpdateDesignFields(Strings.FormDesign_UndoMove, [f]);
+        Viewer.DesignFieldMoved += (_, f) => _ = MoveDesignField(f);
         Viewer.DesignActionRequested += (_, a) => _ = OnDesignAction(a);
 
         FieldFormatBox.ItemsSource = FormatLabels;
@@ -288,7 +288,8 @@ public partial class DocumentTab
 
     // ───────────────────────────── Edits ─────────────────────────────
 
-    private async Task AddDrawnField(DesignPlacement p)
+    /// <summary>Adds the field a field tool drew (DevScript's addfield runs it too).</summary>
+    internal async Task AddDrawnField(DesignPlacement p)
     {
         if (!DesignIsCurrent()) return;
         var f = FormDesignRules.PlacedField(p, Viewer.DesignFields, Viewer.SelectedDesignField);
@@ -303,6 +304,9 @@ public partial class DocumentTab
         if (!ok) _designSelectAfter = null;
         return ok;
     }
+
+    /// <summary>Writes a field moved or resized on the page (DevScript's movefield runs it too).</summary>
+    internal Task<bool> MoveDesignField(DesignField moved) => UpdateDesignFields(Strings.FormDesign_UndoMove, [moved]);
 
     private async Task<bool> UpdateDesignFields(string label, IReadOnlyList<DesignField> changes)
     {
@@ -324,7 +328,8 @@ public partial class DocumentTab
         return false;
     }
 
-    private async Task OnDesignAction(DesignAction action)
+    /// <summary>Runs what the user asked for on the selected field or suggestion (DevScript's fieldaction runs it too).</summary>
+    internal async Task OnDesignAction(DesignAction action)
     {
         Viewer.FlushDesignNudge();
         var f = Viewer.SelectedDesignField;

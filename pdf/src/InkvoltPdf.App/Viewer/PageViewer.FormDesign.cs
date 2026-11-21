@@ -332,16 +332,4 @@ public sealed partial class PageViewer
         dc.DrawRoundedRectangle(accent, null, new Rect(c.X - d / 2, c.Y - 8, d, 16), 8, 8);
         dc.DrawText(ft, new Point(c.X - ft.Width / 2, c.Y - ft.Height / 2));
     }
-
-    // ───────────────────────────── Dev entries ─────────────────────────────
-
-    internal void DevDrawField(DesignFieldKind kind, int page, RectD rect) => DesignFieldDrawn?.Invoke(this, new DesignPlacement(kind, page, rect));
-
-    internal void DevMoveField(string id, RectD rect)
-    {
-        if (DesignFields.FirstOrDefault(f => f.Id == id) is not { } f) return;
-        DesignFieldMoved?.Invoke(this, f with { Rect = rect });
-    }
-
-    internal void DevDesignAction(DesignAction action) => DesignActionRequested?.Invoke(this, action);
 }

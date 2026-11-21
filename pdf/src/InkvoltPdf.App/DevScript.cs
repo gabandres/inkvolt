@@ -628,10 +628,11 @@ internal static class DevScript
             case "designkind": v!.DesignKind = DesignKindOf(arg); break;
             case "addfield":
             {
-                // addfield text|check|radio|combo|list|signature|button p x y w h: draw a field with a field tool
+                // addfield text|check|radio|combo|list|signature|button p x y w h: add the field a field tool would draw there
+                // (what a press, drag and release make is FormDesigner's, tested; "drag" draws one with the mouse)
                 var a = arg.Split(' ');
-                v!.DevDrawField(DesignKindOf(a[0]) ?? Core.DesignFieldKind.Text, int.Parse(a[1]) - 1, new Core.RectD(Num(a[2]), Num(a[3]), Num(a[4]), Num(a[5])));
-                await DesignSettle(tab!);
+                await tab!.AddDrawnField(new DesignPlacement(DesignKindOf(a[0]) ?? Core.DesignFieldKind.Text, int.Parse(a[1]) - 1, new Core.RectD(Num(a[2]), Num(a[3]), Num(a[4]), Num(a[5]))));
+                await DesignSettle(tab);
                 log.Add($"fields: {tab!.DevDesignFields()}");
                 break;
             }
@@ -647,16 +648,17 @@ internal static class DevScript
             }
             case "movefield":
             {
-                // movefield i x y w h
+                // movefield i x y w h: write field i at that place and size, as a drag or handle drag does
                 var a = arg.Split(' ');
-                v!.DevMoveField(v.DesignFields[int.Parse(a[0])].Id, new Core.RectD(Num(a[1]), Num(a[2]), Num(a[3]), Num(a[4])));
-                await DesignSettle(tab!);
+                var field = v!.DesignFields[int.Parse(a[0])];
+                await tab!.MoveDesignField(field with { Rect = new Core.RectD(Num(a[1]), Num(a[2]), Num(a[3]), Num(a[4])) });
+                await DesignSettle(tab);
                 log.Add($"fields: {tab!.DevDesignFields()}");
                 break;
             }
             case "fieldaction":
-                v!.DevDesignAction(Enum.Parse<DesignAction>(arg, true));
-                await DesignSettle(tab!);
+                await tab!.OnDesignAction(Enum.Parse<DesignAction>(arg, true));
+                await DesignSettle(tab);
                 log.Add($"design: {tab!.DevDesignState()}");
                 break;
             case "detect": await tab!.DevDetect(); log.Add($"suggestions: {tab.DevSuggestions()}"); break;
