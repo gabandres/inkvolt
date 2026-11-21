@@ -388,7 +388,9 @@ internal static partial class DocLayout
             // Pieces that touch are one word split by MuPDF (at a capital's accent: "PREDICACIÓ" "N"): no space between.
             var touching = b.Box.X - a.Box.Right < 0.15 * Math.Max(a.Size, b.Size);
             var needsSpace = !touching && !char.IsWhiteSpace(a.Text.LastOrDefault(' ')) && !char.IsWhiteSpace(b.Text.FirstOrDefault(' '));
-            if (needsSpace) spans[^1] = spans[^1] with { Text = spans[^1].Text + " " };
+            // After a link the space between is its own run, linked to nothing: the link stops at its last word.
+            if (needsSpace && spans[^1].Link is not null) spans.Add(spans[^1] with { Text = " ", Link = null, Box = new RectD(a.Box.Right, a.Box.Y, 0, a.Box.Height) });
+            else if (needsSpace) spans[^1] = spans[^1] with { Text = spans[^1].Text + " " };
             spans.AddRange(b.Spans);
             return ExportLine.Of(spans);
         }
@@ -991,7 +993,7 @@ internal static partial class DocLayout
             foreach (var g in group.Skip(1))
             {
                 var first = g.Line!.Spans[0];
-                spans.Add(first with { Text = "\t", Box = new RectD(g.Box.X, g.Box.Y, 0, g.Box.Height) });
+                spans.Add(first with { Text = "\t", Link = null, Box = new RectD(g.Box.X, g.Box.Y, 0, g.Box.Height) }); // a link stays on its words
                 spans.AddRange(g.Line.Spans);
             }
             var line = ExportLine.Of(spans);
@@ -1121,6 +1123,8 @@ internal static partial class DocLayout
                     runs[^1] = runs[^1] with { Text = last[..^1] };                // a hyphenation point: "educa­" + "tion"
                 else if (last.Length >= 2 && last[^1] == '-' && char.IsLetter(last[^2]) && next.Length > 0 && char.IsLower(next[0]))
                     runs[^1] = runs[^1] with { Text = last[..^1] + LineHyphen };   // "exam-" + "ple": Dehyphenate decides
+                else if (!char.IsWhiteSpace(runs[^1].Text.LastOrDefault(' ')) && runs[^1].Link is not null)
+                    runs.Add(runs[^1] with { Text = " ", Link = null });             // a link stops at the line's last word
                 else if (!char.IsWhiteSpace(runs[^1].Text.LastOrDefault(' ')))
                     runs[^1] = runs[^1] with { Text = runs[^1].Text + " " };
             }
@@ -1187,7 +1191,8 @@ internal static partial class DocLayout
     private static void Add(List<ExportSpan> runs, ExportSpan s)
     {
         if (s.Text.Length == 0) return;
-        if (runs.Count > 0 && (runs[^1].SameLook(s) || string.IsNullOrWhiteSpace(s.Text)))
+        // Space joins the run before it, but never carries a link onto text that has none (or another).
+        if (runs.Count > 0 && (runs[^1].SameLook(s) || string.IsNullOrWhiteSpace(s.Text) && runs[^1].Link == s.Link))
             runs[^1] = runs[^1] with { Text = runs[^1].Text + s.Text, Box = runs[^1].Box.Union(s.Box) };
         else runs.Add(s);
     }

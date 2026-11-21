@@ -12,9 +12,34 @@ public sealed record ExportSpan(string Text, string Font, double Size, bool Bold
     /// <summary>Where the run is on the page as shown, when something needs that after a page was turned (<see cref="DocLayout.AnalyzeForTags"/>).</summary>
     public RectD? PageBox { get; init; }
 
-    /// <summary>Same look as <paramref name="other"/> (text and position aside).</summary>
+    /// <summary>Where the run leads when clicked, from the page's link annotations (PowerPoint and HTML carry it); null for none.</summary>
+    public ExportLink? Link { get; init; }
+
+    /// <summary>Same look and link as <paramref name="other"/> (text and position aside): one run can hold both.</summary>
     public bool SameLook(ExportSpan other) =>
-        Font == other.Font && Math.Abs(Size - other.Size) < 0.25 && Bold == other.Bold && Italic == other.Italic && Color == other.Color;
+        Font == other.Font && Math.Abs(Size - other.Size) < 0.25 && Bold == other.Bold && Italic == other.Italic && Color == other.Color
+        && Link == other.Link;
+}
+
+/// <summary>
+/// Where a run of text leads: a web or mail address (<see cref="Uri"/>, only what <see cref="Links.IsSafe"/> passes), or
+/// another exported page (<see cref="Page"/>: its place among the exported pages, 0-based; -1 for an address).
+/// </summary>
+public sealed record ExportLink(string? Uri, int Page)
+{
+    /// <summary>Longest address carried over; a longer one is dropped.</summary>
+    public const int MaxUri = 2048;
+
+    /// <summary>A link to <paramref name="uri"/> as it must be sent (escaped); null for one that isn't http, https or mailto, or is too long.</summary>
+    public static ExportLink? Web(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri) || uri.Length > MaxUri || !Links.IsSafe(uri.Trim())) return null;
+        var absolute = new Uri(uri.Trim(), UriKind.Absolute).AbsoluteUri;
+        return absolute.Length > MaxUri ? null : new ExportLink(absolute, -1);
+    }
+
+    /// <summary>A link to the exported page at <paramref name="position"/>.</summary>
+    public static ExportLink ToPage(int position) => new(null, position);
 }
 
 /// <summary>

@@ -11,7 +11,8 @@ namespace InkvoltPdf.Core;
 /// title, tables as tables, pictures as pictures, simple shapes as shapes. A slide's order is its reading order, shapes and
 /// pictures that lie under something first. A presentation has one slide size: the size most pages have. Pages of another
 /// size are shrunk to fit it, type included, and centered. Pictures are stored as they are added (<see cref="AddImage"/>),
-/// so a long document's images needn't all be held in memory.
+/// so a long document's images needn't all be held in memory. A run's link (<see cref="ExportSpan.Link"/>) is a hyperlink
+/// to its address or a jump to its slide.
 /// </summary>
 internal sealed class PptxWriter : IDisposable
 {
@@ -66,13 +67,14 @@ internal sealed class PptxWriter : IDisposable
         };
         for (var i = 0; i < slides.Count; i++)
         {
-            var slide = new SlideXml(slides[i], width, height, lang);
+            var slide = new SlideXml(slides[i], width, height, lang, slides.Count);
             Entry($"ppt/slides/slide{i + 1}.xml", slide.Write);
             Entry($"ppt/slides/_rels/slide{i + 1}.xml.rels", w => OpenXmlParts.Relationships(w,
             [
                 ("rIdLayout", RelBase + "slideLayout", $"../slideLayouts/slideLayout{(slide.HasTitle ? 1 : 2)}.xml"),
                 .. slide.Pictures.Distinct().Select(id => (id, RelBase + "image", _targets[id])),
-            ]));
+                .. slide.Jumps.Select(j => (j.Id, RelBase + "slide", $"slide{(j.Slide + 1).ToString(CultureInfo.InvariantCulture)}.xml")),
+            ], slide.Hyperlinks));
             parts.Add(($"/ppt/slides/slide{i + 1}.xml", ContentBase + "slide+xml"));
         }
         Entry("ppt/presentation.xml", w => Presentation(w, slides.Count, width, height));
@@ -165,13 +167,20 @@ internal sealed class PptxWriter : IDisposable
     // ---- one slide ----
 
     /// <summary>One slide's XML, and which pictures it uses.</summary>
-    private sealed class SlideXml(SlidePage page, double slideWidth, double slideHeight, string? lang)
+    private sealed class SlideXml(SlidePage page, double slideWidth, double slideHeight, string? lang, int slideCount)
     {
         private readonly double _scale = Math.Min(1, Math.Min(slideWidth / Math.Max(1, page.Layout.Width), slideHeight / Math.Max(1, page.Layout.Height)));
         private readonly DocParagraph? _title = TitleOf(page);
+        private readonly Dictionary<ExportLink, string> _links = [];
         private int _id = 1;
 
         public List<string> Pictures { get; } = [];
+
+        /// <summary>The web and mail addresses the slide's text links to, by relationship id.</summary>
+        public List<(string Id, string Uri)> Hyperlinks { get; } = [];
+
+        /// <summary>The slides its text jumps to (0-based), by relationship id.</summary>
+        public List<(string Id, int Slide)> Jumps { get; } = [];
         public bool HasTitle => _title is not null;
 
         private double Dx => (slideWidth - page.Layout.Width * _scale) / 2;
@@ -562,7 +571,34 @@ internal sealed class PptxWriter : IDisposable
                     w.WriteEndElement();
                 }
             }
+            if (LinkId(s.Link) is { } id)
+            {
+                w.WriteStartElement("hlinkClick", A);
+                w.WriteAttributeString("id", R, id);
+                if (s.Link!.Uri is null) w.WriteAttributeString("action", "ppaction://hlinksldjump");
+                w.WriteEndElement();
+            }
             w.WriteEndElement();
+        }
+
+        /// <summary>
+        /// The relationship id of what a run links to, made on first use; null for none, an address that isn't http, https
+        /// or mailto (<see cref="ExportLink.Web"/>, checked again here) or a slide that isn't there.
+        /// </summary>
+        private string? LinkId(ExportLink? link)
+        {
+            if (link is null) return null;
+            if (_links.TryGetValue(link, out var known)) return known;
+            var id = $"rIdLink{(_links.Count + 1).ToString(CultureInfo.InvariantCulture)}";
+            if (link.Uri is not null)
+            {
+                if (ExportLink.Web(link.Uri)?.Uri is not { } safe) return null;
+                Hyperlinks.Add((id, safe));
+            }
+            else if (link.Page >= 0 && link.Page < slideCount) Jumps.Add((id, link.Page));
+            else return null;
+            _links[link] = id;
+            return id;
         }
 
         private string Hundredths(double size) => Math.Clamp((int)Math.Round(size * _scale * 100), 100, 400000).ToString(CultureInfo.InvariantCulture);

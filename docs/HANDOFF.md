@@ -573,8 +573,9 @@ directly in `/Annots`. Inkvolt PDF for Mac 1.4.0 ships it. First thing when the 
 - 3.4 Long-term validation: PAdES B-LT and B-LTA pass EU DSS run locally (`pdf/tools/pades-check`). Not checked: Acrobat's "LTV enabled",
   real certificate authorities, smart cards. Certifying with a choice of fields to lock isn't built.
 - 3.5 Folder search: 10,000 generated PDFs, a word in 3-114 ms, a changed file found in 3.4 s. Not checked: real PDFs at that scale, a
-  hostile PDF, an MSIX install, network drives, OneDrive placeholders. One run took 569 s to index, not explained; a two-word phrase
-  takes 3-4 s to list 500 pages.
+  hostile PDF, an MSIX install, network drives, OneDrive placeholders. The slow index runs (569 s once) are Windows Defender
+  scanning each file a worker opens while it is busy (pdf/ROADMAP.md 3.5, 2026-11-20, with numbers); a two-word phrase now lists
+  500 pages in 0.45-0.84 s on the bench (was 3-5 s; processor 7-8 s → 2-3 s; all processors but two, ROADMAP 3.5 has each case).
 
 **Print wave 2 on master, not released.** 2.6 Fleet page, 2.4 Batch print, 2.3 Scan cleanup and Unicode OCR layer. Each has its checks and
 limits in `print/ROADMAP.md`.
@@ -724,6 +725,9 @@ ratings); publish releases without asking; every new agent on Opus 5.5 (PPE inst
 
 - PDF 2.2 Better OCR (deskew, cleanup, optional Tesseract, correction of low-confidence words).
 - PDF 2.1 leftovers: paragraphs in turned text, paragraphs mixing font families (edit line by line today).
+- Mac: port the scan cleanup's which-way-up fix (`Upright.MaxLineRatio`, 2026-11-20: a page with a large shaded picture
+  was read upside down) to `ScanCleanup.swift`, with the folder-search and export-link changes (mac/docs/PLAN.md, "Windows
+  ahead, to port").
 - PDF 3.6 misses: Find 9.7 s (worker processes, see decision 8), drawing-set scroll 848 ms/sheet, first Find on the
   drawing set 164 s; re-run `pdf/tools/bench` on a quiet PC before the next release and commit RESULTS.md.
 - PDF wave 3: 3.1 translate, 3.2 PowerPoint/HTML export, 3.3 compare Office files and scans, 3.4 LTV signatures,

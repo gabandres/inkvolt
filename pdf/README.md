@@ -935,13 +935,15 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   text: boxes with text in them, vertical rules, curves and scanned pages without OCR text find nothing; a table of
   empty cells becomes a field per cell.
 - Compare: text is matched in the order the pages store it (multi-column layouts can show reordered text as changes),
-  and Thai, Lao or Khmer text (no spaces between words) is compared in long runs. Visual compare lines up scans for shift and
-  skew, not for a page scanned at another size or turned a quarter turn, and pages made by a program aren't lined up, so a page
-  shifted by a few points looks different all over. Windows' recognizer now and then skips a whole line that is on the page:
+  and Thai, Lao or Khmer text (no spaces between words) is compared in long runs. Visual compare lines up scans for shift,
+  skew, another size (a third to three times) and a quarter turn, the last two from where most of each page's ink lies: a
+  page with ink in a band under a twenty-fifth of the page either way, or whose ink is cut differently (a margin note on one
+  scan only), stays at its size and way up. Pages made by a program aren't lined up, so a page shifted by a few points looks
+  different all over. Windows' recognizer now and then skips a whole line that is on the page:
   it is listed as removed, marked as maybe misread. A scan against a page made by a program isn't checked visually (they differ
   all over), only by its words. The annotated copy needs the permissions password of a
   protected changed file. XPS, EPUB and the other formats Inkvolt PDF opens aren't taken.
-- **PowerPoint and HTML export**: a presentation has one slide size, so pages of another size are shrunk. Fonts that aren't on the PC are replaced by one of their kind, and a wider one wraps sooner, so dense forms come out crowded. PowerPoint's tabs have no leaders, so a contents page loses its dots. Only lines, rectangles and ellipses become shapes: rounded, dashed or see-through ones stay pictures, and are left out where text lies on them; a path reaching more than a page's size off the page is only its part on the page (a fill a rectangle there, an outline a picture, a line cut at the edges). HTML keeps no page layout, colors or fonts, only structure and emphasis; a picture on a page that was turned upright stays unturned there. Neither carries links. Alternate text comes from Figure tags: matched by their box, or in order when a page has as many tags without a box as pictures left. Pictures in the HTML are held in memory until the file is written. Checked in PowerPoint and the W3C validator; LibreOffice and a screen reader haven't been run (`tools/export-corpus` runs LibreOffice when it is installed).
+- **PowerPoint and HTML export**: a presentation has one slide size, so pages of another size are shrunk. Fonts that aren't on the PC are replaced by one of their kind, and a wider one wraps sooner, so dense forms come out crowded. PowerPoint's tabs have no leaders, so a contents page loses its dots. Only lines, rectangles and ellipses become shapes: rounded, dashed or see-through ones stay pictures, and are left out where text lies on them; a path reaching more than a page's size off the page is only its part on the page (a fill a rectangle there, an outline a picture, a line cut at the edges). HTML keeps no page layout, colors or fonts, only structure and emphasis; a picture on a page that was turned upright stays unturned there. Links come along on the words they cover (a character whose middle is in one of the link's /QuadPoints boxes, or in its area when that holds one line; a link over several lines without /QuadPoints is left out, as its area also covers the words before and after it): web and mail addresses (http, https, mailto only; others stay text) and jumps to a page that is exported too (a slide, or the page's part of the HTML); a link on a picture or a shape, or on a scan's recognized words, isn't carried, nor are links in a Word export. Alternate text comes from Figure tags: matched by their box, or in order when a page has as many tags without a box as pictures left. Pictures in the HTML are held in memory until the file is written. Checked in PowerPoint and the W3C validator; LibreOffice and a screen reader haven't been run (`tools/export-corpus -LibreOffice` opens the .docx, .xlsx and .pptx in it where it is installed).
 - Export to Word rebuilds the layout from what the pages draw, so it is a starting point for editing, not a copy:
   text flows in one column (multi-column pages become their columns one after another, not Word columns); text boxes,
   callouts and text over pictures become ordinary paragraphs where they fall; a paragraph split across pages or
@@ -1086,7 +1088,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   custom script) and submit buttons; detect comb boxes and table rows as one field each.
 - Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
   over pictures, charts and shapes as drawings, pictures cut out of scanned pages, numbered lists as Word numbering;
-  links in PowerPoint and HTML.
+  links in Word (PowerPoint and HTML carry them since 2026-11-20).
 - AI assistant: send pictures of pages to vision models; answers with tables; search by meaning (embeddings, with a
   local model) for Ask on long documents; save a conversation; summaries written into the document as a comment.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).

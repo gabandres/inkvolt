@@ -8,7 +8,8 @@ namespace InkvoltPdf.Core;
 /// Writes one self-contained HTML5 file from laid-out pages: real headings (never skipping a level), paragraphs, lists,
 /// tables and pictures embedded as data, in reading order, with nothing that fixes the page's width, so it reflows. A
 /// running header and footer appear once. Everything from the PDF (text, alt text, the title) is escaped, and the file has
-/// no script, link or request of any kind; its Content-Security-Policy says so as well, in case a browser ever disagrees.
+/// no script or request of any kind; its Content-Security-Policy says so as well, in case a browser ever disagrees. The
+/// PDF's links stay links the reader clicks: to an http, https or mailto address, or to an exported page ("#page-3").
 /// </summary>
 internal static partial class HtmlWriter
 {
@@ -255,10 +256,14 @@ internal static partial class HtmlWriter
         static string Px(double pt) => Math.Max(1, (int)Math.Round(pt * 96 / 72)).ToString(CultureInfo.InvariantCulture);
     }
 
-    /// <summary>Runs as text with what they stress: strong, em and code. Runs that look alike (or are only space) share the tags.</summary>
+    /// <summary>
+    /// Runs as text with what they stress: strong, em and code, inside the link they are (outermost). Runs that look alike
+    /// (or are only space) share the tags.
+    /// </summary>
     private static string Inline(IReadOnlyList<ExportSpan> runs, bool bold = true)
     {
         var sb = new StringBuilder();
+        ExportLink? link = null;        // the link open: its <a> is written
         var open = new List<string>();  // outermost first, always in the order strong, em, code
         void Set(bool nb, bool ni, bool nm)
         {
@@ -274,17 +279,39 @@ internal static partial class HtmlWriter
         {
             var text = Text(run.Text);
             if (text.Length == 0) continue;
-            if (string.IsNullOrWhiteSpace(run.Text))
+            var to = Anchor(run.Link) is null ? null : run.Link;
+            var space = string.IsNullOrWhiteSpace(run.Text);
+            // Space with another link than the one open (none, mostly) closes it first: a link ends on its last word.
+            if (to != link && (!space || link is not null))
             {
-                sb.Append(text);
+                Set(false, false, false);
+                if (link is not null) sb.Append("</a>");
+                link = space ? null : to;
+                if (link is not null) sb.Append(Anchor(link));
+            }
+            if (space)
+            {
+                sb.Append(text); // in the stress around it: runs that look alike share the tags
                 continue;
             }
             Set(bold && run.Bold, run.Italic, run.Mono);
             sb.Append(text);
         }
         Set(false, false, false);
+        if (link is not null) sb.Append("</a>");
         return sb.ToString();
     }
+
+    /// <summary>
+    /// A link's opening tag: an address the PDF gave (only http, https or mailto, see <see cref="ExportLink.Web"/>; checked
+    /// again here, since this is the one thing a reader clicks) or the exported page it jumps to.
+    /// </summary>
+    private static string? Anchor(ExportLink? link) => link switch
+    {
+        { Uri: { } uri } => ExportLink.Web(uri)?.Uri is { } safe ? $"<a href=\"{Attr(safe)}\" rel=\"noopener noreferrer\">" : null,
+        { Page: >= 0 and < int.MaxValue } => $"<a href=\"#page-{(link.Page + 1).ToString(CultureInfo.InvariantCulture)}\">",
+        _ => null,
+    };
 
     /// <summary>Text for element content: cleaned and escaped; a line break stays one and a tab becomes a space.</summary>
     private static string Text(string s) => Escape(Clean(s)).Replace("\t", " ").Replace("\n", "<br>");

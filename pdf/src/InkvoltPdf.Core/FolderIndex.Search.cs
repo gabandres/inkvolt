@@ -146,10 +146,44 @@ public sealed partial class FolderIndex
     }
 
     /// <summary>Pages looked at together, on several threads; their results then come out in order.</summary>
-    private const int ConfirmRound = 128;
+    private const int ConfirmRound = 256;
 
-    /// <summary>Threads confirming pages: a search is what the person is waiting for, but the PC has other work too.</summary>
-    private static readonly int ConfirmThreads = Math.Clamp(Environment.ProcessorCount / 2, 1, 6);
+    /// <summary>Most pages of one file a thread takes at a time.</summary>
+    internal const int ConfirmChunk = 32;
+
+    /// <summary>Fewest pages of one file a thread takes at a time, unless the file has fewer in the round.</summary>
+    internal const int ConfirmChunkMin = 4;
+
+    /// <summary>
+    /// Where each chunk of a round starts, and the round's end last: a chunk is pages of one file, at most
+    /// <see cref="ConfirmChunk"/>. In a round of fewer files than <paramref name="threads"/>, a file's pages are shared among
+    /// them (at least <see cref="ConfirmChunkMin"/> each), so a round of one big PDF keeps every thread at work.
+    /// </summary>
+    internal static void Chunks(IReadOnlyList<(int File, int Page)> round, List<int> starts, int threads)
+    {
+        starts.Clear();
+        // A round of as many files as threads keeps them at work file by file: a file is cut only into ConfirmChunk pages.
+        var files = 0;
+        for (var i = 0; i < round.Count; i++)
+            if (i == 0 || round[i].File != round[i - 1].File) files++;
+        for (var i = 0; i < round.Count;)
+        {
+            var end = i + 1;
+            while (end < round.Count && round[end].File == round[i].File) end++;
+            var size = files >= threads ? ConfirmChunk
+                : Math.Clamp((end - i + threads - 1) / Math.Max(1, threads), ConfirmChunkMin, ConfirmChunk);
+            for (var at = i; at < end; at += size) starts.Add(at);
+            i = end;
+        }
+        starts.Add(round.Count);
+    }
+
+    /// <summary>
+    /// Threads confirming pages: a search is what the person is waiting for, so all but two of the processors (twelve at
+    /// most), the two left for the window and the PC's other work. A phrase of common words reads every page (inflating each is
+    /// most of it): on the bench's 10,000 files, 0.64-1.24 s on 6 threads, 0.48-0.95 s on 11 (ROADMAP 3.5).
+    /// </summary>
+    private static readonly int ConfirmThreads = Math.Clamp(Environment.ProcessorCount - 2, 1, 12);
 
     /// <summary>
     /// Runs Find on each proposed page's text, in order of path and page, a round of pages at a time on several threads. The words of a
@@ -160,8 +194,10 @@ public sealed partial class FolderIndex
     {
         var listed = 0;
         var round = new List<(int File, int Page)>(ConfirmRound);
+        var groups = new List<int>(); // where each file's pages start in the round, and the round's end
         var results = new FolderHit?[ConfirmRound];
         var readers = new System.Collections.Concurrent.ConcurrentBag<PageReader>();
+        var directories = new System.Collections.Concurrent.ConcurrentDictionary<int, PageDirectory>(); // the round's files'
         var file = 0;
         var parallel = new ParallelOptions { MaxDegreeOfParallelism = ConfirmThreads, CancellationToken = cancel };
         var filter = terms.Count > 1 ? terms : null;
@@ -182,12 +218,19 @@ public sealed partial class FolderIndex
                 }
 
                 var count = round.Count;
+                // A file's pages in the round go to the threads in chunks, its list of pages read once for them all: a folder
+                // of one big PDF keeps every thread at work.
+                Chunks(round, groups, ConfirmThreads);
+                directories.Clear();
                 try
                 {
-                    Parallel.For(0, count, parallel, () => readers.TryTake(out var r) ? r : new PageReader(state.Store.Handle), (i, _, reader) =>
+                    Parallel.For(0, groups.Count - 1, parallel, () => readers.TryTake(out var r) ? r : new PageReader(state.Store.Handle, directories), (g, _, reader) =>
                     {
-                        var (fileAt, pageAt) = round[i];
-                        results[i] = Check(reader, map.Files[fileAt], pageAt, query, options, filter);
+                        for (var i = groups[g]; i < groups[g + 1]; i++)
+                        {
+                            var (fileAt, pageAt) = round[i];
+                            results[i] = Check(reader, map.Files[fileAt], pageAt, query, options, filter);
+                        }
                         return reader;
                     }, readers.Add);
                 }
@@ -208,8 +251,12 @@ public sealed partial class FolderIndex
 
     private static FolderHit? Check(PageReader reader, IndexedFile f, int page, string query, FolderSearchOptions options, List<string>? filter)
     {
-        var text = reader.Page(f, page);
-        if (filter is not null && !SideBySide(text, filter)) return null;
+        var bytes = reader.PageBytes(f, page);
+        // A phrase: told on the bytes of a page of plain ASCII, without making it a string; Find on what is left.
+        var quick = filter is null ? null : SideBySideAscii(bytes, filter, ref reader.Lowered);
+        if (quick == false) return null;
+        var text = Encoding.UTF8.GetString(bytes);
+        if (filter is not null && quick is null && !SideBySide(text, filter)) return null;
         var hits = PageText.FindIn(text, query, options.MatchCase, options.WholeWord, options.IgnoreAccents);
         if (hits.Count == 0) return null;
         var (start, end) = hits[0];
@@ -218,10 +265,57 @@ public sealed partial class FolderIndex
     }
 
     /// <summary>
+    /// <see cref="SideBySide"/> on a page's UTF-8 when it is quick to tell: the page and the terms plain ASCII (letters and digits
+    /// are then words as <see cref="IndexTerms"/> reads them, lowercased), no word broken at a line's end ("-\n", which Find
+    /// joins) and no term that may be a word cut short. The last term is looked for (vectorized) where a word starts, and the
+    /// words before it read backwards. Null when it can't say: ask <see cref="SideBySide"/>. <paramref name="lowered"/>: a
+    /// buffer to reuse, grown to the page.
+    /// </summary>
+    internal static bool? SideBySideAscii(ReadOnlySpan<byte> text, IReadOnlyList<string> terms, ref byte[] lowered)
+    {
+        if (terms.Count < 2 || !System.Text.Ascii.IsValid(text) || text.IndexOf("-\n"u8) >= 0) return null;
+        foreach (var t in terms)
+            if (MayBeCut(t) || t.Length == 0 || !System.Text.Ascii.IsValid(t)) return null;
+        if (lowered.Length < text.Length) lowered = new byte[Math.Max(text.Length, lowered.Length * 2)];
+        var page = lowered.AsSpan(0, text.Length);
+        System.Text.Ascii.ToLower(text, page, out _);
+
+        Span<byte> last = stackalloc byte[IndexTerms.MaxChars];
+        last = last[..System.Text.Encoding.ASCII.GetBytes(terms[^1], last)];
+        for (var from = 0; from < page.Length;)
+        {
+            var at = page[from..].IndexOf(last);
+            if (at < 0) return false;
+            at += from;
+            from = at + 1;
+            if (at > 0 && IsWordByte(page[at - 1])) continue; // not where a word starts
+            var end = at;
+            var ok = true;
+            for (var k = terms.Count - 2; k >= 0 && ok; k--)
+            {
+                while (end > 0 && !IsWordByte(page[end - 1])) end--;  // what breaks the words
+                var start = end;
+                while (start > 0 && IsWordByte(page[start - 1])) start--;
+                var word = page[start..end];
+                var term = terms[k];
+                ok = word.Length > 0 && (k == 0
+                    ? word.Length >= term.Length && System.Text.Ascii.Equals(word[^term.Length..], term)
+                    : System.Text.Ascii.Equals(word, term));
+                end = start;
+            }
+            if (ok) return true;
+        }
+        return false;
+
+        static bool IsWordByte(byte b) => b is >= (byte)'a' and <= (byte)'z' or >= (byte)'0' and <= (byte)'9';
+    }
+
+    /// <summary>
     /// Whether a page has a phrase's terms one right after the other: the first the end of a word, the last the start of one, those between whole.
     /// Whatever Find finds has that (they are the same words, folded), so a page without it needs no asking. A query's word longer than a term
     /// is cut to one (<see cref="IndexTerms.Of"/>) while a page's words are read whole: a term between is matched by the word's start as it
-    /// would be cut, the first term anywhere inside the word when it may have been cut (the rest of the query's word is unknown).
+    /// would be cut, the first term anywhere inside the word when it may have been cut (the rest of the query's word is unknown), and any
+    /// first term at all on a page's run longer than <see cref="IndexTerms.MaxRun"/> (only its start is read).
     /// </summary>
     internal static bool SideBySide(string text, IReadOnlyList<string> terms)
     {
@@ -242,7 +336,8 @@ public sealed partial class FolderIndex
                     if (at + 1 == terms.Count) found = true;
                     else next.Add(at + 1);
                 }
-            if (headCut ? Inside(word, head, skips!) : word.EndsWith(head, StringComparison.Ordinal)) next.Add(1);
+            // A run longer than is read (its first MaxRun units) may end in the head: its end is unknown here, so it may.
+            if (word.Length >= IndexTerms.MaxRun - 1 || (headCut ? Inside(word, head, skips!) : word.EndsWith(head, StringComparison.Ordinal))) next.Add(1);
             (ends, next) = (next, ends);
         });
         return found;
@@ -284,38 +379,12 @@ public sealed partial class FolderIndex
         return skips;
     }
 
-    /// <summary>Reads one page's kept text, holding on to the last file's list of pages.</summary>
-    private sealed class PageReader(Microsoft.Win32.SafeHandles.SafeFileHandle file)
+    /// <summary>Where a file's pages' packed texts are in the index file, and how long each is.</summary>
+    private sealed record PageDirectory(long[] Offsets, int[] Lengths)
     {
-        private readonly Cursor _cursor = new(file);
-        private int _id = -1;
-        private int[] _lengths = [];
-        private long _blobs;
-
-        public string Page(IndexedFile f, int page)
+        /// <summary>The list of page lengths at the start of a file's text: a count and a length a page, five bytes each at most.</summary>
+        public static PageDirectory Read(ReadOnlySpan<byte> head, IndexedFile f)
         {
-            if (f.TextLength == 0) return "";
-            if (f.Id != _id) ReadDirectory(f);
-            if (page >= _lengths.Length) throw new FolderIndexDamagedException("A page out of range.");
-            if (_lengths[page] == 0) return "";
-            var at = _blobs;
-            for (var i = 0; i < page; i++) at += _lengths[i];
-            var packed = _cursor.Read(at, _lengths[page]).ToArray();
-            try
-            {
-                using var zip = new ZLibStream(new MemoryStream(packed), CompressionMode.Decompress);
-                using var text = new StreamReader(zip, Encoding.UTF8);
-                return text.ReadToEnd();
-            }
-            catch (InvalidDataException)
-            {
-                throw new FolderIndexDamagedException("A page's text doesn't read back.");
-            }
-        }
-
-        private void ReadDirectory(IndexedFile f)
-        {
-            var head = _cursor.Read(f.TextOffset, (int)Math.Min(f.TextLength, 1 << 20));
             var r = new VarReader(head);
             var pages = r.Int();
             if (pages != f.Pages) throw new FolderIndexDamagedException("A file's pages out of range.");
@@ -324,13 +393,74 @@ public sealed partial class FolderIndex
             for (var i = 0; i < pages; i++)
             {
                 lengths[i] = r.Int();
+                if (lengths[i] < 0) throw new FolderIndexDamagedException("A page's length out of range.");
                 total += lengths[i];
             }
             var used = f.TextLength - total;
             if (used < 0) throw new FolderIndexDamagedException("A file's text out of range.");
-            _lengths = lengths;
-            _blobs = f.TextOffset + used;
-            _id = f.Id;
+            var offsets = new long[pages];
+            var at = f.TextOffset + used;
+            for (var i = 0; i < pages; i++)
+            {
+                offsets[i] = at;
+                at += lengths[i];
+            }
+            return new PageDirectory(offsets, lengths);
+        }
+    }
+
+    /// <summary>
+    /// Reads pages' kept text. A file's list of pages is read once a round, whichever thread asks first
+    /// (<paramref name="directories"/>, shared); a thread reads a file's text from where it starts, 256 KB at a time, as its
+    /// pages of a file come one after another.
+    /// </summary>
+    private sealed class PageReader(Microsoft.Win32.SafeHandles.SafeFileHandle file, System.Collections.Concurrent.ConcurrentDictionary<int, PageDirectory> directories)
+    {
+        private readonly Cursor _cursor = new(file, ahead: 0);
+
+        private const int MaxPageBytes = 3 * 32 * 1048576;
+        private byte[] _text = new byte[16 << 10];
+
+        /// <summary>Lowercase ASCII of the page last read, for <see cref="SideBySideAscii"/>; as long as the page.</summary>
+        public byte[] Lowered = new byte[16 << 10];
+
+        /// <summary>A page's kept text as UTF-8, in a buffer of this reader's that the next page reuses.</summary>
+        public ReadOnlySpan<byte> PageBytes(IndexedFile f, int page)
+        {
+            if (f.TextLength == 0) return [];
+            if (!directories.TryGetValue(f.Id, out var directory))
+            {
+                // Read with the file's text after it (256 KB at most): this thread's pages of the file are then in hand.
+                var head = _cursor.Read(f.TextOffset, (int)Math.Min(f.TextLength, 5L * (f.Pages + 1)), (int)Math.Min(f.TextLength, 256 << 10));
+                directory = directories.GetOrAdd(f.Id, PageDirectory.Read(head, f));
+            }
+            if (page >= directory.Lengths.Length) throw new FolderIndexDamagedException("A page out of range.");
+            if (directory.Lengths[page] == 0) return [];
+            // On a miss, the rest of the file's text, 256 KB at most: a chunk's pages are mostly read in one go.
+            var offset = directory.Offsets[page];
+            var packed = _cursor.Read(offset, directory.Lengths[page], (int)Math.Clamp(f.TextOffset + f.TextLength - offset, 0, 256 << 10)).ToArray();
+            try
+            {
+                using var zip = new ZLibStream(new MemoryStream(packed), CompressionMode.Decompress);
+                var length = 0;
+                while (true)
+                {
+                    if (length == _text.Length)
+                    {
+                        // A file's kept text is at most 32 million characters, 3 bytes each at most: more is a damaged index.
+                        if (_text.Length >= MaxPageBytes) throw new FolderIndexDamagedException("A page's text is too long.");
+                        Array.Resize(ref _text, Math.Min(MaxPageBytes, _text.Length * 2));
+                    }
+                    var n = zip.Read(_text, length, _text.Length - length);
+                    if (n == 0) break;
+                    length += n;
+                }
+                return _text.AsSpan(0, length);
+            }
+            catch (InvalidDataException)
+            {
+                throw new FolderIndexDamagedException("A page's text doesn't read back.");
+            }
         }
     }
 }

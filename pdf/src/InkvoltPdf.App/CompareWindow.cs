@@ -1144,7 +1144,7 @@ internal sealed class CompareWindow : Window
     /// <summary>For DevScript: the summary, the list and the selection.</summary>
     internal string DevDescribe() =>
         $"compare: busy={_busy.Visibility == Visibility.Visible} '{_summary.Text}' rows=[{string.Join("; ", _rows.Select(r => r.Label))}] " +
-        $"items={_items.Count} [{string.Join(" | ", _items.Take(DevListed))}] areas={_visualAreas.Sum(a => a.Boxes.Count)} aligned=[{string.Join("; ", _alignments.Select(a => $"{a.Key}: {a.Value.Dx:0.#},{a.Value.Dy:0.#} {a.Value.Angle:0.##}°"))}] selected={_list.SelectedIndex} visual={_visual} zoom={_zoom:0.##} report={_report.IsEnabled}";
+        $"items={_items.Count} [{string.Join(" | ", _items.Take(DevListed))}] areas={_visualAreas.Sum(a => a.Boxes.Count)} aligned=[{string.Join("; ", _alignments.Select(a => $"{a.Key}: {a.Value.Dx:0.#},{a.Value.Dy:0.#} {a.Value.Angle:0.##}° ×{a.Value.Scale:0.###}"))}] selected={_list.SelectedIndex} visual={_visual} zoom={_zoom:0.##} report={_report.IsEnabled}";
 
     internal Task DevReportAsync() => MakeReportAsync();
 

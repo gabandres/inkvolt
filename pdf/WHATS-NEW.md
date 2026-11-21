@@ -24,6 +24,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
 - Accessibility Check compares the widths a PDF gives its characters with the font's own for every kind of embedded font, not just TrueType: CFF and Type 1 fonts too (most PDFs from InDesign, LaTeX and Acrobat).
 - Batch runs a small file that unpacks to far more than its size (a 200 KB file holding 200 MB) on its own, so it no longer takes memory from the files beside it.
+- Export to PowerPoint and HTML keeps the PDF's links: web and email links still open, and a link to another page goes to that slide or that part of the page. Only the words the link covers are linked.
+- Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.
+- Search Folders finds a phrase of common words several times faster: one that had to look through every page of 10,000 files took 3 to 5 seconds and now takes under a second.
+- Recognize Text and Compare Files no longer read a scanned page upside down because of a large picture or shaded box on it.
 - Edit Text & Images rewraps a paragraph that mixes sizes or colors (a bigger word, a word in red, a subscript) as one paragraph: each part keeps its size, color and height, and a color stays exactly as the PDF had it.
 - New letter pairs typed into kerned text get the font's own kerning ("To", "AV"), so edited lines are set as tightly as the lines around them.
 - A small picture on a paragraph's line, between its words, now moves with its words when you edit the paragraph. It shows as ￼ in the editor; delete the mark to take the picture off. Picture… on the editor's bar adds a new one where the cursor is.

@@ -59,6 +59,81 @@ public class CompareAlignTests
         Assert.True(diff.Regions.All(r => Math.Min(r.Width, r.Height) <= 2), $"left over {string.Join(", ", diff.Regions)}, {a}");
     }
 
+    /// <summary>
+    /// The page scanned <paramref name="quarter"/> quarter turns clockwise off, at <paramref name="size"/> times its size
+    /// (on a page that much larger), a little crooked by <paramref name="angle"/> and off by (<paramref name="dx"/>,
+    /// <paramref name="dy"/>) pixels; and where its points really went.
+    /// </summary>
+    private static (RenderedImage Image, PageAlignment Truth) Rescanned(int quarter, double size, double angle = 0, double dx = 0, double dy = 0,
+        Func<double, double, bool>? extra = null)
+    {
+        var (nw, nh) = quarter % 2 == 0 ? ((int)Math.Round(W * size), (int)Math.Round(H * size)) : ((int)Math.Round(H * size), (int)Math.Round(W * size));
+        var (cx, cy) = (W / 2.0 / Scale, H / 2.0 / Scale);
+        var truth = new PageAlignment(nw / 2.0 / Scale - cx + dx / Scale, nh / 2.0 / Scale - cy + dy / Scale, quarter * 90 + angle, cx, cy, size);
+        var pixels = new byte[nw * nh * 3];
+        for (var y = 0; y < nh; y++)
+            for (var x = 0; x < nw; x++)
+            {
+                var (ox, oy) = truth.ToOld((x + 0.5) / Scale, (y + 0.5) / Scale);
+                var (sx, sy) = (ox * Scale, oy * Scale);
+                var v = (byte)(Inked(sx, sy) || extra?.Invoke(sx, sy) == true ? 30 : 245);
+                var i = (y * nw + x) * 3;
+                pixels[i] = pixels[i + 1] = pixels[i + 2] = v;
+            }
+        return (new RenderedImage(nw, nh, pixels), truth);
+    }
+
+    [Theory]
+    [InlineData(1, 1.0, 0, 0, 0)]
+    [InlineData(2, 1.0, 0.8, 9, -6)]
+    [InlineData(3, 1.0, -1.4, 0, 12)]
+    [InlineData(0, 0.8, 0, 0, 0)]
+    [InlineData(0, 1.3, 1.1, -10, 0)]
+    [InlineData(3, 0.85, 0, 0, 0)]
+    [InlineData(1, 1.2, -2, 7, 7)]
+    public void AScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp(int quarter, double size, double angle, double dx, double dy)
+    {
+        var old = Scan();
+        var (changed, truth) = Rescanned(quarter, size, angle, dx, dy);
+
+        var a = CompareAlign.Find(old, changed, Scale);
+        Assert.Equal(truth.Angle, a.Angle, 0.3);
+        Assert.Equal(size, a.Scale, 0.015);
+        // Every corner of the text lands where it really went, to a point or two.
+        foreach (var (x, y) in new[] { (90.0, 90.0), (760.0, 90.0), (90.0, 1010.0), (760.0, 1010.0) })
+        {
+            var (fx, fy) = a.ToNew(x / Scale, y / Scale);
+            var (tx, ty) = truth.ToNew(x / Scale, y / Scale);
+            Assert.True(Math.Abs(fx - tx) < 2 && Math.Abs(fy - ty) < 2, $"({x}, {y}): found ({fx:F1}, {fy:F1}), was ({tx:F1}, {ty:F1}); {a}");
+        }
+        var diff = Overlay(old, Aligned(changed, a));
+        Assert.True(diff.ChangedShare < 0.005, $"left over {diff.ChangedShare:P2}, {a}");
+    }
+
+    [Fact]
+    public void WhatReallyChangedStillShowsOnAScanAQuarterTurnOff()
+    {
+        static bool Stamp(double x, double y) => x is > 500 and < 580 && y is > 1030 and < 1070;
+        var (changed, _) = Rescanned(1, 0.9, 0.6, 5, -3, Stamp);
+        var a = CompareAlign.Find(Scan(), changed, Scale);
+        var diff = Overlay(Scan(), Aligned(changed, a));
+        var region = Assert.Single(diff.Regions, r => r.Width * r.Height > 100);
+        Assert.InRange(region.CenterX, 500, 580);
+        Assert.InRange(region.CenterY, 1030, 1070);
+    }
+
+    [Fact]
+    public void AScaledAlignmentGoesThereAndBack()
+    {
+        var a = new PageAlignment(12, -7, 92.5, 300, 400, 0.8);
+        var (x, y) = a.ToOld(a.ToNew(120, 640).X, a.ToNew(120, 640).Y);
+        Assert.Equal(120, x, 6);
+        Assert.Equal(640, y, 6);
+        Assert.False(a.IsNone);
+        Assert.False((PageAlignment.None with { Scale = 1.5 }).IsNone);
+        Assert.Equal((5.0, 6.0), default(PageAlignment).ToNew(5, 6)); // a default one moves nothing
+    }
+
     [Fact]
     public void WhatReallyChangedStillShowsAfterAligning()
     {

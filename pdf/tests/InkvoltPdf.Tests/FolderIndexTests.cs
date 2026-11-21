@@ -99,6 +99,57 @@ public sealed class FolderIndexTests : IDisposable
     }
 
     [Fact]
+    public void A_big_files_pages_are_shared_among_the_threads_in_chunks()
+    {
+        // One PDF's 256 pages in a round: a chunk for each of the threads, not one; small files a chunk each.
+        var starts = new List<int>();
+        List<(int, int)> big = [.. Enumerable.Range(0, 256).Select(p => (0, p))];
+        foreach (var threads in new[] { 1, 6, 10, 12 })
+        {
+            FolderIndex.Chunks(big, starts, threads);
+            Assert.Equal(Math.Max(threads, 256 / FolderIndex.ConfirmChunk), starts.Count - 1);
+            Assert.Equal(256, starts[^1]);
+            Assert.All(starts.Zip(starts.Skip(1)), s => Assert.InRange(s.Second - s.First, FolderIndex.ConfirmChunkMin, FolderIndex.ConfirmChunk));
+        }
+        FolderIndex.Chunks([(0, 0), (0, 1), (1, 0), (2, 0), (2, 1), (2, 2)], starts, 10);
+        Assert.Equal([0, 2, 3, 6], starts);
+        FolderIndex.Chunks([.. Enumerable.Range(0, 20).Select(p => (0, p))], starts, 10);
+        Assert.Equal([0, 4, 8, 12, 16, 20], starts); // 4 pages at least: a thread's work is worth handing out
+        // As many files as threads or more: a file a chunk, as long as it is no longer than ConfirmChunk.
+        FolderIndex.Chunks([.. Enumerable.Range(0, 12).SelectMany(f => Enumerable.Range(0, 20).Select(p => (f, p)))], starts, 10);
+        Assert.Equal([.. Enumerable.Range(0, 13).Select(f => f * 20)], starts);
+        FolderIndex.Chunks([], starts, 10);
+        Assert.Equal([0], starts);
+    }
+
+    [Fact]
+    public void Pages_of_many_files_and_long_pages_read_back_in_order()
+    {
+        // Pages read together by file on several threads, a page longer than the reading buffer, a file past a megabyte of
+        // text: each page's own text, in path and page order.
+        using var index = FolderIndex.Open(Base);
+        var filler = string.Join(' ', Enumerable.Range(0, 12_000).Select(i => $"w{i % 997}"));
+        Commit(index, b =>
+        {
+            for (var f = 0; f < 40; f++)
+                Add(b, $"f{f:D2}.pdf", [.. Enumerable.Range(0, 1 + f % 7).Select(p => $"page {p} of file {f}: by the lantern{(p == f % 7 ? " last" : "")}")]);
+            Add(b, "g-long.pdf", "start " + filler + " by the lantern end");
+            // Random letters hardly compress: 40 pages of 60,000 are well past a megabyte kept.
+            var rng = new Random(3);
+            Add(b, "h-big.pdf", [.. Enumerable.Range(0, 40).Select(p =>
+                string.Concat(Enumerable.Range(0, 60_000).Select(i => i % 9 == 8 ? ' ' : (char)('a' + rng.Next(26)))) + $" page{p} the lantern")]);
+        });
+        var hits = Search(index, "the lantern");
+        Assert.Equal(Enumerable.Range(0, 40).Sum(f => 1 + f % 7) + 1 + 40, hits.Count);
+        Assert.True(index.Files["h-big.pdf"].TextLength > 1 << 20, $"{index.Files["h-big.pdf"].TextLength}");
+        Assert.Equal(hits.OrderBy(h => h.RelativePath, StringComparer.Ordinal).ThenBy(h => h.Page).Select(h => $"{h.RelativePath}#{h.Page}"),
+            hits.Select(h => $"{h.RelativePath}#{h.Page}"));
+        Assert.All(hits.Where(h => h.RelativePath.StartsWith('f')), h => Assert.Contains($"file {int.Parse(h.RelativePath[1..3])}", h.Excerpt));
+        Assert.Contains(hits, h => h.RelativePath == "h-big.pdf" && h.Page == 39 && h.Excerpt.Contains("page39"));
+        Assert.Equal(["f03.pdf#4"], Where(index, "lantern last").Where(w => w.StartsWith("f03"))); // pages from 1
+    }
+
+    [Fact]
     public void A_phrase_needs_its_words_side_by_side_and_options_are_Finds()
     {
         using var index = FolderIndex.Open(Base);
@@ -125,8 +176,58 @@ public sealed class FolderIndexTests : IDisposable
     [InlineData("foo-bar baz", "foo bar  baz", true)] // a phrase by terms: Find itself still says no to this one
     [InlineData("東京 都", "東京 都", true)]
     [InlineData("the the", "and the the end", true)]
-    public void Side_by_side_reads_a_phrase_as_terms(string query, string page, bool expected) =>
+    public void Side_by_side_reads_a_phrase_as_terms(string query, string page, bool expected)
+    {
         Assert.Equal(expected, FolderIndex.SideBySide(page, IndexTerms.Of(query)));
+        // The quick reading of a plain-ASCII page says the same, or leaves it to the full one.
+        var quick = OnBytes(page, query);
+        Assert.True(quick is null || quick == expected, $"quick {quick}");
+        Assert.Equal(page.All(char.IsAscii), quick is not null);
+    }
+
+    private static bool? OnBytes(string page, string query)
+    {
+        var buffer = Array.Empty<byte>();
+        return FolderIndex.SideBySideAscii(System.Text.Encoding.UTF8.GetBytes(page), IndexTerms.Of(query), ref buffer);
+    }
+
+    [Fact]
+    public void A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found()
+    {
+        // Only a run's first 1,024 units are read as a word; its end, here the phrase's "the", isn't. A page with an accent
+        // goes the full way, a plain one the quick way: both say yes, as Find does.
+        foreach (var lead in new[] { "café ", "cafe " })
+        {
+            var page = lead + new string('x', 1500) + "the lantern glows";
+            Assert.NotEmpty(PageText.FindIn(page, "the lantern", false, false, true));
+            Assert.True(FolderIndex.SideBySide(page, IndexTerms.Of("the lantern")), lead);
+            Assert.True(OnBytes(page, "the lantern") ?? true, lead);
+        }
+    }
+
+    [Fact]
+    public void The_quick_phrase_reading_agrees_with_the_full_one()
+    {
+        // Pages of a few words, cases and breaks, phrases of their words: every answer the same (or left to the full reading).
+        var rng = new Random(7);
+        string[] words = ["the", "lantern", "lanterns", "other", "a", "an", "bathe", "THE", "Lantern", "x1", "1x", "the2"];
+        string[] breaks = [" ", "  ", "\n", ", ", ". ", "-", "—", "-\n", "'", "\t", "(", "é "];
+        var told = 0;
+        for (var n = 0; n < 4000; n++)
+        {
+            var page = string.Concat(Enumerable.Range(0, rng.Next(1, 12)).Select(_ => words[rng.Next(words.Length)] + breaks[rng.Next(breaks.Length)]));
+            var query = string.Join(' ', Enumerable.Range(0, rng.Next(2, 4)).Select(_ => words[rng.Next(words.Length)]));
+            if (rng.Next(3) == 0) query = query[rng.Next(query.IndexOf(' '))..]; // the first word's end only
+            if (IndexTerms.Of(query).Count < 2) continue;
+            var full = FolderIndex.SideBySide(page, IndexTerms.Of(query));
+            if (OnBytes(page, query) is not { } quick) continue;
+            told++;
+            Assert.True(quick == full, $"\"{query}\" on \"{page}\": quick {quick}, full {full}");
+        }
+        Assert.True(told > 300, $"only {told} told quickly");
+        Assert.Null(OnBytes("by the lan-\ntern", "the lantern"));     // a word broken at the line's end: Find joins it
+        Assert.Null(OnBytes("by the lantern", "the " + new string('l', 60))); // a word that may have been cut to a term
+    }
 
     [Theory]
     [InlineData("bye bye baby", "bye bye bye baby")]

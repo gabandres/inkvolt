@@ -89,7 +89,11 @@ public static class DocumentExport
         options ??= new ExportOptions();
         var pages = options.Pages ?? [.. Enumerable.Range(0, engine.PageCount)];
         var tags = format is ExportFormat.PowerPoint or ExportFormat.Html ? ExportTags.Read(options.Source, options.SourcePassword) : ExportTags.None;
-        var run = new Run(engine, pages, format is ExportFormat.Word or ExportFormat.PowerPoint or ExportFormat.Html, format == ExportFormat.PowerPoint, tags, options, cancel);
+        var run = new Run(engine, pages, format is ExportFormat.Word or ExportFormat.PowerPoint or ExportFormat.Html, format == ExportFormat.PowerPoint, tags, options, cancel)
+        {
+            Links = format is ExportFormat.PowerPoint or ExportFormat.Html,
+            Quads = format is ExportFormat.PowerPoint or ExportFormat.Html ? LinkQuads(options.Source, options.SourcePassword) : new Dictionary<int, List<LinkInfo>>(),
+        };
         var tables = 0;
         bool saved;
         switch (format)
@@ -155,14 +159,53 @@ public static class DocumentExport
         }
     }
 
+    /// <summary>The PDF's links that have /QuadPoints, by page; none when there are no bytes or they don't read (the links then go by their areas).</summary>
+    private static Dictionary<int, List<LinkInfo>> LinkQuads(byte[]? source, string? password)
+    {
+        if (source is null) return [];
+        try
+        {
+            return Links.ReadForExport(source, password).Where(l => l.Quads.Count > 0).GroupBy(l => l.PageIndex).ToDictionary(g => g.Key, g => g.ToList());
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            return []; // a file PDFsharp can't read: as without the bytes
+        }
+    }
+
     /// <summary>Reads the pages one at a time (lazily: Word stores each page's pictures as it arrives), counting as it goes.</summary>
     private sealed class Run(PdfEngine engine, IReadOnlyList<int> pages, bool images, bool shapes, ExportTags tags, ExportOptions options, CancellationToken cancel)
     {
         public int Recognized, NoText, NoTextWithPictures, WithShapes, SuspectWords;
         public readonly List<ExportProblem> Unreadable = [], RecognitionFailed = [];
 
+        /// <summary>
+        /// Carry the pages' links onto their text: web and mail addresses, and jumps to a page that is exported too (to
+        /// its place among them; a jump to a page left out is dropped).
+        /// </summary>
+        public bool Links { get; init; }
+
+        /// <summary>
+        /// The links with /QuadPoints, by page, from the PDF's own bytes (<see cref="ExportOptions.Source"/>): MuPDF gives
+        /// a link's area only, which for a link over two lines also covers the words before and after it.
+        /// </summary>
+        public IReadOnlyDictionary<int, List<LinkInfo>> Quads { get; init; } = new Dictionary<int, List<LinkInfo>>();
+
         public IEnumerable<(int Number, ExportPage Page)> Read()
         {
+            var position = new Dictionary<int, int>();
+            for (var i = 0; i < pages.Count; i++) position.TryAdd(pages[i], i);
+            Func<PageLink, (ExportLink, IReadOnlyList<RectD>)?>? LinksOn(int p) => Links ? l =>
+            {
+                var to = l.Uri is not null ? ExportLink.Web(l.Uri) : position.TryGetValue(l.PageIndex, out var k) ? ExportLink.ToPage(k) : null;
+                if (to is null) return null;
+                // The same annotation as MuPDF's: on this page, where it is to a point.
+                var info = Quads.TryGetValue(p, out var onPage)
+                    ? onPage.FirstOrDefault(q => Math.Abs(q.Rect.X - l.Area.X) < 1 && Math.Abs(q.Rect.Y - l.Area.Y) < 1
+                                                 && Math.Abs(q.Rect.Right - l.Area.Right) < 1 && Math.Abs(q.Rect.Bottom - l.Area.Bottom) < 1)
+                    : null;
+                return (to, info?.Quads ?? []);
+            } : null;
             for (var i = 0; i < pages.Count; i++)
             {
                 cancel.ThrowIfCancellationRequested();
@@ -172,7 +215,7 @@ public static class DocumentExport
                 var readable = true;
                 try
                 {
-                    page = tags.OnPictures(engine.GetExportPage(p, images, cancel, shapes: shapes), p);
+                    page = tags.OnPictures(engine.GetExportPage(p, images, cancel, shapes: shapes, links: LinksOn(p)), p);
                 }
                 catch (Exception ex) when (ex is MuPDFException or PageRefusedException)
                 {

@@ -1368,6 +1368,20 @@ CompareContractTests ported with their names (camelCase, as CompareTests), then 
 `VisualCompare` and `CompareReport`. The contract test reads Word's two PDFs in place from `pdf/tests/InkvoltPdf.Tests/Data`
 and lists the 30 planted changes (8 changed, 5 inserted, 5 removed, 4 moves, 8 formatting), none extra, as on Windows.
 
+**Windows ahead, to port (2026-11-20):** `CompareAlign` lines up a scan at another size or a quarter turn off
+(`PageAlignment.Scale`, the frames tried per quarter turn, the sizing at 2 pixels; CompareAlignTests'
+`AScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp`, `WhatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
+`AScaledAlignmentGoesThereAndBack`), and Compare reads scans with the language's dictionary. E15's exports carry links
+(`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests). Folder search's phrase reading (2026-11-20): a file's
+pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
+`SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
+`Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
+(`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
+(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). The scan cleanup's which-way-up test leaves
+out a run of ink rows over 3 times the page's lines' height (the lower middle of runs of 6 rows or more, a tight run cut
+between its bands first), then reads the lines again without it (`Upright.MaxLineRatio`, `MinLineRows`; PrintTests' `UprightTests`, ScanTextTests'
+`APageWithALargeShadedPictureIsTurnedTheRightWayUp`): `ScanCleanup.swift` has the old reading.
+
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`
   (its precheck, the question for a file from the internet, the converter's own process, time limit and Cancel) behind a

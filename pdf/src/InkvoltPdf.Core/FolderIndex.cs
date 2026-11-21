@@ -337,7 +337,8 @@ public sealed partial class FolderIndex : IDisposable
 
     private static Store CreateStore(string path, long stamp)
     {
-        var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess);
+        // Overlapped: a search's threads read pages at once, where a synchronous handle takes one read at a time.
+        var handle = File.OpenHandle(path, FileMode.Create, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess | FileOptions.Asynchronous);
         RandomAccess.Write(handle, Header(stamp), 0);
         RandomAccess.FlushToDisk(handle);
         return new Store(path, handle);
@@ -379,7 +380,7 @@ public sealed partial class FolderIndex : IDisposable
         SafeFileHandle? handle = null;
         try
         {
-            handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess);
+            handle = File.OpenHandle(path, FileMode.Open, FileAccess.ReadWrite, FileShare.Read | FileShare.Delete, FileOptions.RandomAccess | FileOptions.Asynchronous); // as CreateStore's
             var size = RandomAccess.GetLength(handle);
             Span<byte> header = stackalloc byte[HeaderSize];
             if (size < HeaderSize || RandomAccess.Read(handle, header, 0) != HeaderSize || !header.SequenceEqual(Header(stamp)))
@@ -701,21 +702,28 @@ public sealed partial class FolderIndex : IDisposable
 
     // ---- Small tools ----
 
-    /// <summary>Reads through a file in order with one buffer (and back, which reads again).</summary>
-    private sealed class Cursor(SafeFileHandle file)
+    /// <summary>
+    /// Reads through a file in order with one buffer (and back, which reads again). A read past the buffer fills it from there
+    /// (<paramref name="ahead"/> bytes, or what was asked when more): ahead for reading on in order, little for reading here and
+    /// there (a search's pages: a megabyte read for each page of 2 KB made a phrase search read gigabytes).
+    /// </summary>
+    private sealed class Cursor(SafeFileHandle file, int ahead = 1 << 20)
     {
-        private byte[] _buffer = new byte[1 << 20];
+        private byte[] _buffer = new byte[Math.Max(ahead, 4096)];
         private long _start = long.MinValue / 2;
         private int _length;
 
-        public ReadOnlySpan<byte> Read(long offset, int count)
+        /// <param name="reach">Bytes to read from <paramref name="offset"/> on a miss, when the caller knows (a file's text to its end); else the cursor's own.</param>
+        public ReadOnlySpan<byte> Read(long offset, int count, int? reach = null)
         {
             if (offset >= _start && offset + count <= _start + _length) return _buffer.AsSpan((int)(offset - _start), count);
-            if (count > _buffer.Length) _buffer = new byte[count];
+            var size = Math.Max(count, reach ?? 0);
+            if (size > _buffer.Length) _buffer = new byte[size];
+            var want = Math.Max(count, reach ?? Math.Min(ahead, _buffer.Length));
             var read = 0;
-            while (read < _buffer.Length)
+            while (read < want)
             {
-                var n = RandomAccess.Read(file, _buffer.AsSpan(read), offset + read);
+                var n = RandomAccess.Read(file, _buffer.AsSpan(read, want - read), offset + read);
                 if (n == 0) break;
                 read += n;
             }

@@ -40,13 +40,22 @@ public class ExportHtmlTests
 
     private static string TextOf(XElement e) => string.Concat(e.DescendantNodes().OfType<XText>().Select(t => t.Value));
 
-    /// <summary>What no export may hold: anything that runs or fetches.</summary>
+    /// <summary>
+    /// What no export may hold: anything that runs or fetches. A link is the one thing a reader may click: an a with an
+    /// http, https or mailto address or an exported page's anchor, and nothing else on it.
+    /// </summary>
     private static void AssertInert(XElement root)
     {
-        string[] banned = ["script", "iframe", "object", "embed", "link", "base", "form", "svg", "math", "video", "audio", "source", "a", "input", "button", "frame", "applet"];
+        string[] banned = ["script", "iframe", "object", "embed", "link", "base", "form", "svg", "math", "video", "audio", "source", "input", "button", "frame", "applet"];
         foreach (var e in root.DescendantsAndSelf())
         {
             Assert.DoesNotContain(e.Name.LocalName, banned);
+            if (e.Name.LocalName == "a")
+            {
+                Assert.Matches(@"^(https?://|mailto:|#page-[0-9]+$)", (string?)e.Attribute("href") ?? "");
+                Assert.All(e.Attributes(), a => Assert.Contains(a.Name.LocalName, new[] { "href", "rel" }));
+                continue;
+            }
             foreach (var a in e.Attributes())
             {
                 Assert.False(a.Name.LocalName.StartsWith("on", StringComparison.OrdinalIgnoreCase), $"{e.Name} has {a.Name}");
@@ -352,5 +361,166 @@ public class ExportHtmlTests
         var pdf = ExportTestPdf.Make();
         var root = Dom(Html(pdf, options: new ExportOptions { Source = [1, 2, 3] }));
         Assert.NotEmpty(All(root, "h1"));
+    }
+
+    [Fact]
+    public void Links_stay_links_on_the_words_they_cover()
+    {
+        var root = Dom(Html(ExportTestPdf.Linked()));
+        AssertInert(root);
+        var links = All(root, "a").Select(a => (Text: TextOf(a).Trim(), Href: (string?)a.Attribute("href"))).ToList();
+        Assert.Equal(
+            [("guide", ExportTestPdf.LinkUriEscaped), ("Next page", "#page-2"), ("Mail us", "mailto:a@example.com")],
+            links);
+        Assert.Equal("noopener noreferrer", (string?)All(root, "a").First().Attribute("rel"));
+        // The words around a link stay outside it, and the page it jumps to is there.
+        Assert.Contains(All(root, "p"), p => TextOf(p).Replace("  ", " ") == "See the guide for details.");
+        Assert.NotNull(root.Descendants("div").SingleOrDefault(d => (string?)d.Attribute("id") == "page-2"));
+        // A javascript: address is only text.
+        Assert.Contains(All(root, "p"), p => TextOf(p) == "Do not run this" && !p.Descendants("a").Any());
+    }
+
+    [Fact]
+    public void A_link_to_a_page_left_out_is_dropped()
+    {
+        var root = Dom(Html(ExportTestPdf.Linked(), options: new ExportOptions { Pages = [0] }));
+        Assert.DoesNotContain(All(root, "a"), a => ((string?)a.Attribute("href"))!.StartsWith('#'));
+        Assert.Equal(2, All(root, "a").Count());
+    }
+
+    [Fact]
+    public void A_link_over_two_lines_covers_its_quads_words_only()
+    {
+        var pdf = ExportTestPdf.TwoLineLink(quads: true);
+        var root = Dom(Html(pdf, options: new ExportOptions { Source = pdf }));
+        AssertInert(root);
+        Assert.Equal(["guide", "to setup"], All(root, "a").Select(TextOf));
+        Assert.Equal("Read our full guide to setup and more.", string.Join(' ', All(root, "p").Select(p => TextOf(p).Trim())));
+    }
+
+    [Fact]
+    public void A_link_over_two_lines_without_quads_is_left_out()
+    {
+        // Its area alone would link "Read our full" and "and more." too; without the PDF's bytes the quads aren't read either.
+        var pdf = ExportTestPdf.TwoLineLink(quads: false);
+        Assert.Empty(All(Dom(Html(pdf, options: new ExportOptions { Source = pdf })), "a"));
+        Assert.Empty(All(Dom(Html(ExportTestPdf.TwoLineLink(quads: true))), "a"));
+    }
+
+    /// <summary>"Visit the site" linked to https://example.com/ by <paramref name="links"/> links sharing one /QuadPoints of <paramref name="quads"/> boxes, each over the whole line.</summary>
+    private static byte[] SharedQuads(int links, int quads)
+    {
+        var box = string.Concat(Enumerable.Repeat("70 714 200 714 70 694 200 694 ", quads));
+        var refs = string.Join(' ', Enumerable.Range(0, links).Select(i => $"{7 + i} 0 R"));
+        return Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [{refs}] >>",
+            Core2Pdf.Stream("BT /F1 12 Tf 72 700 Td (Visit the site) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            $"[{box}]",
+            .. Enumerable.Range(0, links).Select(_ => "<< /Type /Annot /Subtype /Link /Rect [70 694 200 714] /QuadPoints 6 0 R /A << /S /URI /URI (https://example.com/) >> >>"),
+        ]);
+    }
+
+    [Fact]
+    public void A_link_with_more_boxes_than_are_read_goes_by_its_area()
+    {
+        var pdf = SharedQuads(1, Links.MaxQuads + 6);
+        Assert.Equal(Links.MaxQuads + 1, Links.ReadForExport(pdf, null).Single().Quads.Count);
+        var root = Dom(Html(pdf, options: new ExportOptions { Source = pdf }));
+        Assert.Equal(["Visit the site"], All(root, "a").Select(TextOf));
+    }
+
+    [Fact]
+    public void Links_sharing_a_huge_list_of_boxes_are_read_a_few_boxes_each()
+    {
+        // 2,000 links, one list of 20,000 boxes: read in full for each, about 1.3 GB.
+        var pdf = SharedQuads(2_000, 20_000);
+        var read = Links.ReadForExport(pdf, null);
+        Assert.Equal(Links.MaxPerPage, read.Count);
+        Assert.All(read, l => Assert.Equal(Links.MaxQuads + 1, l.Quads.Count));
+        Assert.DoesNotContain(Links.Read(pdf, null), l => l.Quads.Count > 0); // the Link tool doesn't read them at all
+        var root = Dom(Html(pdf, options: new ExportOptions { Source = pdf }));
+        Assert.Equal("Visit the site", TextOf(All(root, "a").Single()));
+    }
+
+    [Fact]
+    public void Links_that_are_dropped_dont_count_against_a_pages_cap()
+    {
+        // 600 javascript: links before the page's one web link: the cap of 500 is for links carried.
+        const int bad = 600;
+        var annots = string.Join(' ', Enumerable.Range(0, bad + 1).Select(i => $"{6 + i} 0 R"));
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [{annots}] >>",
+            Core2Pdf.Stream("BT /F1 12 Tf 72 700 Td (Visit the site) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            .. Enumerable.Range(0, bad).Select(i => $"<< /Type /Annot /Subtype /Link /Rect [{300 + i % 200} 100 {301 + i % 200} 101] /A << /S /URI /URI (javascript:x{i}) >> >>"),
+            "<< /Type /Annot /Subtype /Link /Rect [70 694 160 714] /A << /S /URI /URI (https://example.com/) >> >>",
+        ]);
+        var root = Dom(Html(pdf));
+        Assert.Equal("https://example.com/", (string?)All(root, "a").Single().Attribute("href"));
+    }
+
+    [Fact]
+    public void The_space_a_line_break_or_a_join_makes_stays_outside_a_link()
+    {
+        var link = ExportLink.Web("https://example.com/");
+        ExportSpan S(string text, double x, double y, bool linked) =>
+            new(text, "Arial", 11, false, false, 0, new RectD(x, y, text.Length * 5.5, 13)) { Link = linked ? link : null };
+        // A link to the end of one line and from the start of the next; and two pieces of a line MuPDF read apart.
+        var wrapped = new[] { ExportLine.Of([S("See the ", 72, 72, false), S("guide", 116, 72, true)]), ExportLine.Of([S("here", 72, 86, true), S(" now.", 94, 86, false)]) };
+        var html = Html([new ExportPage(612, 792, wrapped, [], [])]);
+        Assert.Contains("See the <a href=\"https://example.com/\" rel=\"noopener noreferrer\">guide</a> <a href=\"https://example.com/\" rel=\"noopener noreferrer\">here</a> now.", html);
+        var pieces = new[] { ExportLine.Of([S("Read", 72, 200, true)]), ExportLine.Of([S("more", 110, 200, false)]) };
+        html = Html([new ExportPage(612, 792, pieces, [], [])]);
+        Assert.Contains("<a href=\"https://example.com/\" rel=\"noopener noreferrer\">Read</a> more", html);
+    }
+
+    [Fact]
+    public void Space_with_no_link_closes_the_link_before_it()
+    {
+        var link = ExportLink.Web("https://example.com/");
+        var spans = new List<ExportSpan>
+        {
+            new("one", "Arial", 11, true, false, 0, new RectD(72, 60, 15, 12)) { Link = link },
+            new(" ", "Arial", 11, true, false, 0, new RectD(87, 60, 3, 12)),
+            new("two", "Arial", 11, true, false, 0, new RectD(90, 60, 15, 12)),
+        };
+        var html = Html([new ExportPage(612, 792, [new ExportLine(spans, new RectD(72, 60, 33, 12))], [], [])]);
+        Assert.Contains("<a href=\"https://example.com/\" rel=\"noopener noreferrer\"><strong>one</strong></a><strong> two</strong>", html);
+        AssertInert(Dom(html));
+    }
+
+    [Fact]
+    public void A_link_keeps_its_runs_stress_inside_it()
+    {
+        var link = ExportLink.Web("https://example.com/");
+        var spans = new List<ExportSpan>
+        {
+            new("Plain ", "Arial", 11, false, false, 0, new RectD(72, 60, 30, 12)),
+            new("bold", "Arial", 11, true, false, 0, new RectD(102, 60, 20, 12)) { Link = link },
+            new(" and ", "Arial", 11, false, false, 0, new RectD(122, 60, 20, 12)) { Link = link },
+            new("italic", "Arial", 11, false, true, 0, new RectD(142, 60, 30, 12)),
+        };
+        var html = Html([new ExportPage(612, 792, [ExportLine.Of(spans)], [], [])]);
+        Assert.Contains("Plain <a href=\"https://example.com/\" rel=\"noopener noreferrer\"><strong>bold</strong> and </a><em>italic</em>", html);
+        AssertInert(Dom(html));
+    }
+
+    [Fact]
+    public void Only_web_and_mail_addresses_become_links()
+    {
+        Assert.Null(ExportLink.Web("javascript:alert(1)"));
+        Assert.Null(ExportLink.Web("file:///C:/Windows/notepad.exe"));
+        Assert.Null(ExportLink.Web("data:text/html,<script>alert(1)</script>"));
+        Assert.Null(ExportLink.Web("https://example.com/" + new string('a', ExportLink.MaxUri)));
+        Assert.Null(ExportLink.Web("  "));
+        Assert.Equal("https://example.com/a%20b%22%3C", ExportLink.Web(" https://example.com/a b\"< ")!.Uri);
+        Assert.Equal("mailto:a@example.com", ExportLink.Web("mailto:a@example.com")!.Uri);
     }
 }

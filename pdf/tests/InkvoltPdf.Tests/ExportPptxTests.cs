@@ -427,6 +427,40 @@ public class ExportPptxTests
         var line = Assert.Single(Slides(doc)[0].Descendants<P.ConnectionShape>());
         Assert.Equal(612 * Emu, line.ShapeProperties!.Transform2D!.Extents!.Cx!.Value);
     }
+
+    [Fact]
+    public void Links_stay_links_on_the_words_they_cover()
+    {
+        var bytes = Pptx(ExportTestPdf.Linked());
+        ExportSamples.Save("links.pptx", bytes);
+        using var doc = PresentationDocument.Open(new MemoryStream(bytes), false);
+        AssertValid(doc);
+        var parts = SlideParts(doc);
+        var linked = parts[0].Slide.Descendants<A.Run>()
+            .Where(r => r.RunProperties?.GetFirstChild<A.HyperlinkOnClick>() is not null)
+            .Select(r => (Text: r.Text!.Text.Trim(), Click: r.RunProperties!.GetFirstChild<A.HyperlinkOnClick>()!)).ToList();
+        Assert.Equal(["guide", "Next page", "Mail us"], linked.Select(l => l.Text));
+        // The web and mail addresses are hyperlinks outside the file; the jump goes to the second slide.
+        var web = parts[0].HyperlinkRelationships.ToDictionary(h => h.Id, h => h.Uri.OriginalString);
+        Assert.Equal(ExportTestPdf.LinkUriEscaped, web[linked[0].Click.Id!.Value!]);
+        Assert.Equal("mailto:a@example.com", web[linked[2].Click.Id!.Value!]);
+        Assert.Equal("ppaction://hlinksldjump", linked[1].Click.Action?.Value);
+        Assert.Same(parts[1], parts[0].GetPartById(linked[1].Click.Id!.Value!));
+        // The words around a link and a javascript: one are plain text.
+        Assert.Contains(parts[0].Slide.Descendants<A.Run>(), r => r.Text!.Text.Contains("See the") && r.RunProperties?.GetFirstChild<A.HyperlinkOnClick>() is null);
+        Assert.Contains(parts[0].Slide.Descendants<A.Run>(), r => r.Text!.Text.Contains("Do not run this") && r.RunProperties?.GetFirstChild<A.HyperlinkOnClick>() is null);
+        Assert.Equal(2, web.Count);
+    }
+
+    [Fact]
+    public void A_link_to_a_slide_left_out_is_dropped()
+    {
+        using var doc = PresentationDocument.Open(new MemoryStream(Pptx(ExportTestPdf.Linked(), options: new ExportOptions { Pages = [0] })), false);
+        AssertValid(doc);
+        var clicks = Slides(doc)[0].Descendants<A.HyperlinkOnClick>().ToList();
+        Assert.Equal(2, clicks.Count);
+        Assert.All(clicks, c => Assert.Null(c.Action));
+    }
 }
 
 /// <summary>Saves an export where <c>INKVOLTPDF_SAMPLES</c> says, to open by hand.</summary>
