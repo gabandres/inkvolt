@@ -192,6 +192,45 @@ public static class IndexWorkers
 
         private static TimeSpan Max(TimeSpan a, TimeSpan b) => a > b ? a : b;
 
+        /// <summary>A tick in which the worker only waited for its turn on a processor counts this much less toward a stall (<see cref="Watch"/>).</summary>
+        private const int StarvedShare = 4;
+
+        private static bool Worked(ProcessThread t)
+        {
+            try
+            {
+                return t.TotalProcessorTime >= MinWork;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+            {
+                return false; // ended meanwhile
+            }
+        }
+
+        /// <summary>
+        /// Whether one of the worker's working threads is ready to run and waiting for a processor (or running): it wants to
+        /// work and the PC hasn't given it a turn. A working thread has done work (its own processor time past
+        /// <see cref="MinWork"/>): the runtime's idle helpers of a hung worker wake now and then, and on a busy PC wait for
+        /// their turn too. Read only in a quiet spell short of work (a snapshot of the PC's threads).
+        /// </summary>
+        private static bool WaitsForATurn(Process? process)
+        {
+            if (process is null) return false;
+            try
+            {
+                process.Refresh();
+                foreach (ProcessThread t in process.Threads)
+                    if (t.ThreadState is System.Diagnostics.ThreadState.Ready or System.Diagnostics.ThreadState.Running or System.Diagnostics.ThreadState.Standby
+                        && Worked(t))
+                        return true;
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or NotSupportedException)
+            {
+                // Ended, or its threads can't be read: as quiet as it looks.
+            }
+            return false;
+        }
+
         /// <summary>Why this link was ended from outside (the watchdog); null: it wasn't.</summary>
         public volatile string? EndedFor;
 
@@ -220,7 +259,7 @@ public static class IndexWorkers
 
         /// <summary>
         /// For the watchdog, about every tick of <paramref name="tick"/>: the processor time this file has taken, and how long the worker has said nothing
-        /// and done no work (a quarter of that time on the processor) while the PC was awake; null while it isn't reading. Not the clock on the wall: at low priority on a busy PC a file may take
+        /// and done no work (a quarter of that time on the processor) while the PC was awake (a tick it only waited for a turn on one counts a quarter); null while it isn't reading. Not the clock on the wall: at low priority on a busy PC a file may take
         /// a long time without being any trouble, and nothing counts while a laptop sleeps.
         /// </summary>
         public (TimeSpan Cpu, TimeSpan Quiet)? Watch(TimeSpan tick)
@@ -245,10 +284,17 @@ public static class IndexWorkers
             // Work is a sign of life too: a worker at low priority on a busy PC can go long without a page to say (starting
             // up, a big first page), and isn't stuck while it works. Work, not a tick now and then: a hung worker's runtime
             // threads still take 15 ms at times, so the quiet spell ends only once the worker has used a quarter of it
-            // (50 ms at least) on the processor.
-            _quiet = signs == _seenSigns ? _quiet + tick : TimeSpan.Zero;
-            if (_quiet == TimeSpan.Zero) _cpuSeen = cpu ?? _cpuSeen;
-            else if (cpu is { } now && now - _cpuSeen >= Max(_quiet / 4, MinWork)) (_quiet, _cpuSeen) = (TimeSpan.Zero, now);
+            // (50 ms at least) on the processor. Short of that, a worker with a thread waiting for its turn (the PC's
+            // processors taken by other work: a busy worker given a fifth of one) counts a quarter of the tick: a stuck one's
+            // threads wait on nothing the processor gives and count all of it. A starved worker that only ticks still waits
+            // for its turns, so it is given up too, at worst four stalls on.
+            if (signs != _seenSigns)
+            {
+                _quiet = TimeSpan.Zero;
+                _cpuSeen = cpu ?? _cpuSeen;
+            }
+            else if (cpu is { } now && now - _cpuSeen >= Max((_quiet + tick) / 4, MinWork)) (_quiet, _cpuSeen) = (TimeSpan.Zero, now);
+            else _quiet += WaitsForATurn(process) ? tick / StarvedShare : tick;
             _seenSigns = signs;
             return (cpu is { } used ? used - _cpuAtStart : TimeSpan.Zero, _quiet);
         }
