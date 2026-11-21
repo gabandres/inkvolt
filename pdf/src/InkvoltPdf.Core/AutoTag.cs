@@ -345,8 +345,12 @@ public static partial class AutoTag
     /// (1: before its first piece); back on its own page it is its own page's piece again. The plan unchanged when there is
     /// no such page.
     /// </summary>
-    public static TagPlan MoveToPage(TagPlan plan, int index, int by)
+    public static TagPlan MoveToPage(TagPlan plan, int index, int by) => MoveToPage(plan, index, by, out _);
+
+    /// <summary><see cref="MoveToPage(TagPlan, int, int)"/>, and the block's index in the new plan (<paramref name="index"/> when unchanged).</summary>
+    public static TagPlan MoveToPage(TagPlan plan, int index, int by, out int movedTo)
     {
+        movedTo = index;
         if (index < 0 || index >= plan.Blocks.Count || by is not (-1 or 1)) return plan;
         var b = plan.Blocks[index];
         var page = ReadingPage(b) + by;
@@ -357,7 +361,8 @@ public static partial class AutoTag
         // Pieces are kept in page order of their reading page: after the last one read with a page before or on it, or
         // before the first one read with a page after it.
         var at = by < 0 ? blocks.FindLastIndex(x => ReadingPage(x) <= page) + 1 : blocks.FindIndex(x => ReadingPage(x) >= page);
-        blocks.Insert(at < 0 ? blocks.Count : at, moved);
+        movedTo = at < 0 ? blocks.Count : at;
+        blocks.Insert(movedTo, moved);
         return plan with { Blocks = blocks };
     }
 

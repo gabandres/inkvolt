@@ -460,9 +460,20 @@
                                  HorizontalContentAlignment="Stretch" AllowDrop="True"
                                  AutomationProperties.Name="{x:Static loc:Strings.Tab_ReadingOrderList}">
                             <ListBox.ItemTemplate>
-                                <DataTemplate DataType="{x:Type app:ReadingOrderItem}">
+                                <DataTemplate DataType="{x:Type core:ReadingOrderItem}">
                                     <DockPanel Margin="0,3">
-                                        <Border DockPanel.Dock="Left" MinWidth="22" Height="18" CornerRadius="3" Background="{Binding Badge}" Margin="0,0,8,0" VerticalAlignment="Top">
+                                        <Border DockPanel.Dock="Left" MinWidth="22" Height="18" CornerRadius="3" Margin="0,0,8,0" VerticalAlignment="Top">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#0067C0" />
+                                                    <Style.Triggers>
+                                                        <!-- A picture still without alternate text: the warning color. -->
+                                                        <DataTrigger Binding="{Binding NeedsAlt}" Value="True">
+                                                            <Setter Property="Background" Value="#C42B1C" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
                                             <TextBlock Text="{Binding Number}" Foreground="White" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center"
                                                        VerticalAlignment="Center" Margin="4,0" />
                                         </Border>

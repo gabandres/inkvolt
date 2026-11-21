@@ -4656,6 +4656,157 @@
   <data name="Measure_Lengths" xml:space="preserve">
     <value>Las dos longitudes deben ser mayores que 0.</value>
   </data>
+  <data name="Measure_DraftPoints" xml:space="preserve">
+    <value>{0} punto(s), {1}</value>
+    <comment>A measurement under way: {0} points clicked, {1} its value</comment>
+  </data>
+  <data name="Measure_AreaPerimeter" xml:space="preserve">
+    <value>{0} · perímetro {1}</value>
+    <comment>{0} an area, {1} a length</comment>
+  </data>
+  <data name="ReadingOrder_Heading" xml:space="preserve">
+    <value>Encabezado {0}</value>
+    <comment>A piece in the reading order list; {0} is the heading level</comment>
+  </data>
+  <data name="ReadingOrder_List_One" xml:space="preserve">
+    <value>Lista ({0} elemento)</value>
+  </data>
+  <data name="ReadingOrder_List_Many" xml:space="preserve">
+    <value>Lista ({0} elementos)</value>
+  </data>
+  <data name="ReadingOrder_ListNested_One" xml:space="preserve">
+    <value>Lista ({0} elemento, anidada)</value>
+  </data>
+  <data name="ReadingOrder_ListNested_Many" xml:space="preserve">
+    <value>Lista ({0} elementos, anidada)</value>
+  </data>
+  <data name="ReadingOrder_Table_One" xml:space="preserve">
+    <value>Tabla ({0} fila{1})</value>
+    <comment>{0} is the row count; {1} is empty or one of ReadingOrder_Table*Headers</comment>
+  </data>
+  <data name="ReadingOrder_Table_Many" xml:space="preserve">
+    <value>Tabla ({0} filas{1})</value>
+    <comment>{0} is the row count; {1} is empty or one of ReadingOrder_Table*Headers</comment>
+  </data>
+  <data name="ReadingOrder_TableColumnHeaders" xml:space="preserve">
+    <value>, encabezados de columna</value>
+    <comment>Ends ReadingOrder_Table_One/_Many: keep the leading comma and space</comment>
+  </data>
+  <data name="ReadingOrder_TableRowHeaders" xml:space="preserve">
+    <value>, encabezados de fila</value>
+    <comment>Ends ReadingOrder_Table_One/_Many: keep the leading comma and space</comment>
+  </data>
+  <data name="ReadingOrder_TableBothHeaders" xml:space="preserve">
+    <value>, encabezados de columna y de fila</value>
+    <comment>Ends ReadingOrder_Table_One/_Many: keep the leading comma and space</comment>
+  </data>
+  <data name="ReadingOrder_Caption" xml:space="preserve">
+    <value>Leyenda</value>
+  </data>
+  <data name="ReadingOrder_Footnote" xml:space="preserve">
+    <value>Nota al pie</value>
+  </data>
+  <data name="ReadingOrder_Contents_One" xml:space="preserve">
+    <value>Tabla de contenido ({0} entrada)</value>
+  </data>
+  <data name="ReadingOrder_Contents_Many" xml:space="preserve">
+    <value>Tabla de contenido ({0} entradas)</value>
+  </data>
+  <data name="ReadingOrder_Formula" xml:space="preserve">
+    <value>Fórmula</value>
+  </data>
+  <data name="ReadingOrder_PictureDecorative" xml:space="preserve">
+    <value>Imagen (decorativa)</value>
+  </data>
+  <data name="ReadingOrder_PictureNeedsAlt" xml:space="preserve">
+    <value>Imagen: necesita texto alternativo</value>
+  </data>
+  <data name="ReadingOrder_Picture" xml:space="preserve">
+    <value>Imagen</value>
+  </data>
+  <data name="ReadingOrder_ParagraphLang" xml:space="preserve">
+    <value>Párrafo ({0})</value>
+    <comment>{0} is a language code (es-PR)</comment>
+  </data>
+  <data name="ReadingOrder_Paragraph" xml:space="preserve">
+    <value>Párrafo</value>
+  </data>
+  <data name="ReadingOrder_FromPage" xml:space="preserve">
+    <value> · de la página {0}</value>
+    <comment>Appended to a piece read with another page: keep the leading space</comment>
+  </data>
+  <data name="ReadingOrder_Stale" xml:space="preserve">
+    <value>El documento cambió desde que se hizo este orden de lectura. Elige Hacer accesible otra vez para leerlo de nuevo.</value>
+  </data>
+  <data name="ReadingOrder_Summary_One" xml:space="preserve">
+    <value>{0} parte en la página {1}, en el orden en que la lee un lector de pantalla.</value>
+    <comment>{0} is the count, {1} the page</comment>
+  </data>
+  <data name="ReadingOrder_Summary_Many" xml:space="preserve">
+    <value>{0} partes en la página {1}, en el orden en que las lee un lector de pantalla.</value>
+    <comment>{0} is the count, {1} the page</comment>
+  </data>
+  <data name="ReadingOrder_ReadElsewhere_One" xml:space="preserve">
+    <value>{0} parte de aquí se lee con otra página.</value>
+  </data>
+  <data name="ReadingOrder_ReadElsewhere_Many" xml:space="preserve">
+    <value>{0} partes de aquí se leen con otra página.</value>
+  </data>
+  <data name="ReadingOrder_AllAlt" xml:space="preserve">
+    <value>Todas las imágenes tienen texto alternativo o son decorativas.</value>
+  </data>
+  <data name="ReadingOrder_MissingAlt_One" xml:space="preserve">
+    <value>{0} imagen necesita texto alternativo.</value>
+  </data>
+  <data name="ReadingOrder_MissingAlt_Many" xml:space="preserve">
+    <value>{0} imágenes necesitan texto alternativo.</value>
+  </data>
+  <data name="ReadingOrder_Tagged" xml:space="preserve">
+    <value>El documento está etiquetado así.</value>
+  </data>
+  <data name="ReadingOrder_ApplyToTag" xml:space="preserve">
+    <value>Aplica los cambios para etiquetar el documento así.</value>
+  </data>
+  <data name="ReadingOrder_FormulaRead" xml:space="preserve">
+    <value>Cómo se lee la fórmula {0}</value>
+    <comment>Label above the box; {0} is the piece number</comment>
+  </data>
+  <data name="ReadingOrder_AltFor" xml:space="preserve">
+    <value>Texto alternativo de la imagen {0}</value>
+    <comment>Label above the box; {0} is the piece number</comment>
+  </data>
+  <data name="ReadingOrder_ReadWith" xml:space="preserve">
+    <value>Se lee con la página {0}, posición {1}</value>
+    <comment>Screen reader announcement</comment>
+  </data>
+  <data name="ReadingOrder_PagePieces_One" xml:space="preserve">
+    <value>Página {1}: {0} parte</value>
+    <comment>Screen reader announcement; {0} is the count, {1} the page</comment>
+  </data>
+  <data name="ReadingOrder_PagePieces_Many" xml:space="preserve">
+    <value>Página {1}: {0} partes</value>
+    <comment>Screen reader announcement; {0} is the count, {1} the page</comment>
+  </data>
+  <data name="ReadingOrder_MovedTo" xml:space="preserve">
+    <value>Movida a la posición {0}</value>
+    <comment>Screen reader announcement</comment>
+  </data>
+  <data name="ReadingOrder_KindList" xml:space="preserve">
+    <value>Lista</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindContents" xml:space="preserve">
+    <value>Índice</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindTable" xml:space="preserve">
+    <value>Tabla</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
+  <data name="ReadingOrder_KindChanged" xml:space="preserve">
+    <value>La pieza {0} es ahora: {1}</value>
+    <comment>Reading order pane: the selected piece kind</comment>
+  </data>
   <data name="Compare_NoteInserted" xml:space="preserve">
     <value>Insertado (no está en {0})</value>
     <comment>Comment in the compare report; {0} = the old file's name</comment>
