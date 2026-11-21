@@ -1050,13 +1050,48 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   ("الثعلبالبني…"), their letters in order. It makes spaces only from gaps as the glyphs go right, and a line written in
   reading order goes back for each glyph. Writing such lines left to right (visual order) was tried: pdf.js then read
   the spaces, but MuPDF, the app's own reading (search, copy, export), read a real model's Arabic lines with figures
-  backwards ("5202"), a line with brackets turned back, and a label run into the value beside it, so the lines stay in
-  reading order with their directions marked, and pdf.js's missing spaces in right-to-left text are a known limit. Kept
+  backwards ("5202"), a line with brackets turned back, and a label run into the value beside it, so the lines stayed in
+  reading order with their directions marked (pdf.js's missing spaces: closed below, "pdf.js reads the spaces"). Kept
   from it: the editor's reading puts right-to-left letters an operator draws left to right (Word's Arabic PDFs, Make Text
   Editable's and the OCR layer's lines) back in reading order, as MuPDF does (`Bidi.ToReadingOrder`, the line's
   direction that of most of its letters; `DrawnLeftToRight`), and a glyph standing for several letters of a run written
   left to right holds them backwards, so a reader reversing the run character by character gets "لى" right (MuPDF read
   "إىل" for "إلى"). `ParagraphEditTests`' and `OcrLayerSearchTests`' pdf.js helpers are one (`PdfJs`).
+  **pdf.js reads the spaces in right-to-left copies (2026-11-20).** Read from both readers' code (pdf.js 6.4's text
+  layer, MuPDF 1.25.2's `stext-device.c` and `pdf-op-run.c`): pdf.js makes a space only where the next glyph lies to the
+  right of the one before inside one item (one font and size; a step back starts a new item and forgets the space), and
+  turns each item's text into reading order itself; it skips a space glyph's own text, so a real space (the shaper's, in
+  the font, mapped to U+0020) changes nothing, and it ignores /ActualText. MuPDF gives each character a direction from its
+  class (Arabic and Hebrew letters and Arabic digits right to left; Latin letters, European digits, "+", "-", "%" left to
+  right; spaces and punctuation that of the one before), and on a line whose right-to-left glyphs go right it turns each
+  stretch of right-to-left characters around where it stands, never past a left-to-right run: so figures and Latin words
+  in a line written all left to right came out of place. A line is now written in stretches (`GlyphOrder.Stretches`):
+  each right-to-left stretch left to right, the stretches and the figures and Latin words between them in reading
+  order, an invisible direction mark at each (as before), a "-" or "%" MuPDF reads left to right inside a stretch on its
+  own (two side by side, "--", one by one in reading order: each a short step back MuPDF keeps on the line). Review:
+  a version in Arabic ("2.0-beta", "3.5-rc2") is drawn whole, left to right, as typed: the bidi rules left its "-" right
+  to left, drawing "beta-2.0", which MuPDF read as three lines in either order ("2.0", "-", "beta") and Find missed; now
+  MuPDF, Find and pdf.js read "2.0-beta" (`JoinLeftToRight`: punctuation inside a word between Latin letters or
+  European digits). A "-" between an Arabic word and a Latin one ("ال-withdrawal") still makes MuPDF start a new line
+  there, as the line written in reading order did. Wrapping measures without ordering the glyphs
+  (`TextShaper.Measure`). Both read it in order, MuPDF as before or better, pdf.js with the spaces between the right-to-left words. What
+  can't be had in one content stream, and stays: pdf.js runs a right-to-left word and the figure or Latin word beside it
+  together ("في عام2024والكلب"), since it would need the figure written before the words on its right and MuPDF after
+  them; and a line with a bold, other-font or raised word inside right-to-left text keeps reading order (pdf.js's items
+  break at the font change and would come right to left), so its words still run together in pdf.js. Tried and dropped:
+  /ActualText over a line written left to right (MuPDF gives its characters one per glyph in written order and then
+  turns them around: "الرسلا ينبلا…", and Find marked the wrong place), and, not built, writing the figures twice (drawn
+  for pdf.js under an empty /ActualText, an invisible copy mapped to a format character for MuPDF, its /ActualText the
+  digits backwards): it would read right in both, but tell Acrobat, which reads /ActualText, the figures backwards, and
+  leave visible text MuPDF (and so the redaction check) doesn't see. Found, not changed: MuPDF reads Arabic-Indic digits ("٢٠٢٤") backwards and breaks the line
+  around them in any order (it reads them right to left; such a line keeps reading order). In the app (`--script`, one stand-in Arabic answer for each of fw9 p. 1's 67
+  paragraphs): the copy opens beside the original and Find reads "في عام 2024 فوق" in it 66 times. `TranslationPdfJsTests` +3
+  cases (plain Hebrew with brackets and a year, Arabic with a red word, a hyphen and a Latin word, Arabic with
+  "2.0-beta" and "--") read word by word with their spaces, the cases with a bold word letter by letter as before, all
+  9 pages in order;
+  `TranslationTests.Arabic_stretches_go_right_and_read_in_order_with_their_figures_brackets_and_latin_words` (MuPDF and
+  Find read the line; the pieces go right and come in reading order; a bold word keeps reading order),
+  `Arabic_with_a_version_or_dashes_reads_in_order_in_MuPDF_and_Find` (2: "2.0-beta" and "3.5-rc2", "--" and " - ").
   **Real model, five languages (2026-11-20).** Qwen3 4B Instruct 2507 (Q4_0), llama.cpp's llama-server on this PC's GPU
   (8,192 tokens), `TranslationRealModelTests` (now runs every page and names each failure at the end; saves each language's
   copy apart): NIST p. 1, attn-v7 p. 3 and fw9 p. 1 into Spanish, French, German, Arabic and Japanese, 30 to 155 s a page.

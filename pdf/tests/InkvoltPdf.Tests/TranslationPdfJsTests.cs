@@ -23,6 +23,31 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
     /// <summary>The answer's words as a reader should find them: its tags taken out (a reply's tags never reach a page, ours or not).</summary>
     private static string Shown(string answer) => Words(TranslationMarkup.Plain(answer));
 
+    /// <summary>Right-to-left copies pdf.js should read with the spaces between their right-to-left words: no stretch in two fonts.</summary>
+    private static readonly HashSet<string> Spaced = ["arabic plain", "arabic red", "arabic version", "hebrew plain"];
+
+    /// <summary>
+    /// Right-to-left text as pdf.js reads a line written in stretches (<see cref="GlyphOrder.Stretches"/>): without the
+    /// spaces between a right-to-left letter and a Latin letter, a figure, or a "-", "+" or "%" MuPDF reads left to right
+    /// (written on its own).
+    /// </summary>
+    private static string Glued(string s)
+    {
+        static bool Is(char c, params Bidi.Cls[] classes) => classes.Contains(Bidi.Classify(c));
+        var sb = new StringBuilder();
+        for (var i = 0; i < s.Length; i++)
+        {
+            if (s[i] == ' ' && i > 0 && i + 1 < s.Length)
+            {
+                char a = s[i - 1], b = s[i + 1];
+                Bidi.Cls[] rtl = [Bidi.Cls.R, Bidi.Cls.AL], ltr = [Bidi.Cls.L, Bidi.Cls.EN, Bidi.Cls.ES, Bidi.Cls.ET];
+                if (Is(a, rtl) && Is(b, ltr) || Is(a, ltr) && Is(b, rtl)) continue;
+            }
+            sb.Append(s[i]);
+        }
+        return sb.ToString();
+    }
+
     [Fact]
     public void Translated_copies_read_the_same_in_pdfjs()
     {
@@ -46,7 +71,15 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
                 faces: true, fontText: Letters), 0, "ar", _ => "الثعلب <b>البني</b> السريع <span>أحمر</span> ويقفز فوق الكلب الكسول."),
             ("arabic plain", ContentEditPdf.Make("BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the 2024 dog.) Tj ET", fontText: Letters), 0, "ar",
                 _ => "الثعلب البني السريع يقفز فوق الكلب الكسول في عام 2024 والكلب (الكسول)."),
+            // A red word is a color, not a font: its line is still written in stretches.
+            ("arabic red", ContentEditPdf.Make(
+                "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and jumps over the lazy dog.) Tj ET",
+                faces: true, fontText: Letters), 0, "ar", _ => "قال ابن-سينا إن الثعلب <span>أحمر</span> ويقفز فوق fox الكلب."),
+            // A version kept whole left to right ("2.0-beta"), two hyphens MuPDF reads left to right, one by one.
+            ("arabic version", ContentEditPdf.Make("BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the 2024 dog.) Tj ET", fontText: Letters), 0, "ar",
+                _ => "صدر الإصدار 2.0-beta أمس -- قبل الموعد."),
             ("hebrew", TranslationPdf.Report(1), 0, "he", _ => "השועל החום המהיר <b>קופץ</b> מעל הכלב העצלן."),
+            ("hebrew plain", TranslationPdf.Report(1), 0, "he", _ => "השועל החום המהיר קופץ מעל הכלב [העצלן] בשנת 2025."),
             ("japanese", TranslationPdf.Report(1), 0, "ja", t => "素早い茶色の狐が怠惰な犬を飛び越えた。" + TranslationMarkup.Plain(t).Length),
         };
         var corpus = new HashSet<string>();
@@ -92,10 +125,13 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
                 var want = Shown(answers.Done[sent]);
                 // Word by word in order; where only the spaces differ (a bold "risk—" drawn apart from "About"), letter by letter
                 // (Japanese has no spaces to read by: its characters in order, whatever pdf.js puts between its items).
-                // Right-to-left text letter by letter: its lines are written in reading order, as MuPDF reads them, and pdf.js,
-                // which makes spaces only from gaps as the glyphs go right, reads their words in order without the spaces.
-                var miss = solid.Contains(Solid(want), StringComparison.Ordinal) ? null
-                    : want.Contains(' ', StringComparison.Ordinal) && !want.Any(c => c is >= '֐' and <= 'ࣿ') ? PdfJs.FirstMiss(want, got) : $"“{want}” not read whole";
+                // Right-to-left text word by word, each stretch's words with their spaces; pdf.js reads a stretch and the
+                // number or Latin word beside it together (GlyphOrder.Stretches). A line with a stretch in two fonts (a bold
+                // word) is written in reading order: its letters in order, without the spaces.
+                var rtl = want.Any(c => c is >= '֐' and <= 'ࣿ');
+                var miss = rtl && Spaced.Contains(name) ? PdfJs.FirstMiss(Glued(want), Glued(got)) // a line may end where pdf.js glues
+                    : solid.Contains(Solid(want), StringComparison.Ordinal) ? null
+                    : want.Contains(' ', StringComparison.Ordinal) && !rtl ? PdfJs.FirstMiss(want, got) : $"“{want}” not read whole";
                 if (miss is null) read++;
                 else
                 {
