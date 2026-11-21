@@ -4656,6 +4656,14 @@
   <data name="Measure_Lengths" xml:space="preserve">
     <value>Both lengths must be more than 0.</value>
   </data>
+  <data name="Measure_DraftPoints" xml:space="preserve">
+    <value>{0} point(s), {1}</value>
+    <comment>A measurement under way: {0} points clicked, {1} its value</comment>
+  </data>
+  <data name="Measure_AreaPerimeter" xml:space="preserve">
+    <value>{0} · perimeter {1}</value>
+    <comment>{0} an area, {1} a length</comment>
+  </data>
   <data name="ReadingOrder_Heading" xml:space="preserve">
     <value>Heading {0}</value>
     <comment>A piece in the reading order list; {0} is the heading level</comment>

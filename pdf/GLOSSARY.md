@@ -145,8 +145,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Measuring scale** (`Core/Measurement.cs`, `MeasureScale`): what a length on the page stands for ("1 in = 10 ft"),
   kept by a page in a viewport (/VP, the PDF's own way; several per page for details, the last listed wins where they
   overlap) and by each **measurement** (a Line, PolyLine or Polygon comment with /Measure, labeled with its value).
-  Without one, values are real size. The Mac calls a measurement still being clicked a **measurement under way**
-  (`MeasureDraft`, in PdfCore; Windows keeps it in `PageViewer.Measure`).
+  Without one, values are real size. A measurement still being clicked is a **measurement under way** (`MeasureDraft`:
+  Windows `Core/MeasureDraft.cs`, the Mac in PdfCore): its points on one page, the pointer's spot, the value so far and
+  what is drawn; `PageViewer.Measure` only feeds it the mouse and keys and draws it.
 - **Vertex draft** (`Core/VertexDraft.cs`, Windows; the Mac keeps it in its page view's `vertices`): a polygon or
   polyline still being clicked with the Polygon or Polyline tool, its corners on one page so far, and what the next click,
   Enter, Backspace or Esc does to it. Finished, it becomes the comment `Annotations.AddPolygon` adds.

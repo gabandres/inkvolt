@@ -5409,14 +5409,6 @@ Modificado {1:g}</value>
     <value>Campo {0}: {1}</value>
     <comment>Screen reader: {0} field name, {1} its value</comment>
   </data>
-  <data name="Viewer_MeasurePoints" xml:space="preserve">
-    <value>{0} punto(s), {1}</value>
-    <comment>A measurement under way: {0} points clicked, {1} its value</comment>
-  </data>
-  <data name="Viewer_AreaPerimeter" xml:space="preserve">
-    <value>{0} · perímetro {1}</value>
-    <comment>{0} an area, {1} a length</comment>
-  </data>
   <data name="Print_NotResponding" xml:space="preserve">
     <value>No responde</value>
     <comment>A printer's status</comment>
