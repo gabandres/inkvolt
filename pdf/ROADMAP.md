@@ -20,7 +20,7 @@ platforms. Second engines and other additions with no known demand wait for it. 
 
 **Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
 PLAN.md's E1-E16. Done on the Mac since: 3.3 and 3.5 (2026-11-07), 2.1 and 3.1 (2026-11-10), 1.1's additions of 2026-11-01 and 3.4
-(2026-11-11); what is left is in the ranked list in `docs/HANDOFF.md`.
+(2026-11-11). No Mac since 2026-11-17: what the Mac still lacks waits for the new one (`docs/HANDOFF.md`, the newest entry).
 
 **Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
 person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac

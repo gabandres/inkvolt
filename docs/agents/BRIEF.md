@@ -14,6 +14,9 @@ Your task's own prompt says what to build; this says how every Inkvolt agent wor
 
 - A long command runs in the background (`run_in_background`, or the Monitor tool for a condition); you are told when it
   ends. On the Mac: `mac.sh bg <name> '<cmd>'`, then `mac.sh wait <name>` as a background command.
+- Your work ends with every process you started ended: background commands, Monitors, the apps you drove. Search with
+  Grep or Glob, inside the repo; a `find` over a whole drive ran for 3.5 hours after its agent was done and failed other
+  agents' timing tests.
 
 ## Checks
 

@@ -23,7 +23,7 @@ It also checks the same documents' **PowerPoint and HTML** exports, written besi
 | .html | The text reads in the plain-text export's order | Always |
 | .html | The W3C's Nu validator, errors only | When Java and `.cache\vnu` are there: `npm install --prefix pdf\tools\export-corpus\.cache\vnu vnu-jar --ignore-scripts` |
 
-A check that can't run says so and doesn't count. Everything runs on this PC; no document goes to an online service.
+A check that can't run says so, doesn't count, and is named again in the last line ("Not run here: ..."). Everything runs on this PC; no document goes to an online service.
 `-SkipWord` leaves out Word's page count. **Last run, 2026-11-20, 7 documents, 174 pages:** the validator, PowerPoint
 (16.0) and the Nu validator pass on all, the HTML carries 869 links (all web, mail or page anchors; a link over two lines is two), and 3,617 of 3,641
 lines read in order (the rest are repeated lines and rows the two exports break differently). Word's page counts are the

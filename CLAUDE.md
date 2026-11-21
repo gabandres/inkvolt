@@ -11,7 +11,7 @@ and named as flaky).
   Upload only a package whose smoke test passed. The release steps in order (bench, What's New, upload, release notes,
   tag, website), identities and certification history: `pdf/packaging/README.md` "Upload", `print/packaging/README.md`.
 - **Agents**: `docs/agents/BRIEF.md` (how every agent works and reports). **Review** of a diff before a merge:
-  `CODING_STANDARDS.md`.
+  `CODING_STANDARDS.md`. **Merge** a reviewed agent branch: `tools/merge-agent.ps1 <branch> -Summary "..."`.
 - **In a worktree** (agents): change files with Edit or Write, and run a script saved as a file (`python -I <file>`):
   the worktree guard refuses heredocs and generated input piped into python, sed or xxd.
 - **Driving the apps**: Inkvolt PDF's `--script steps.txt` (step list at the top of `pdf/src/InkvoltPdf.App/DevScript.cs`),

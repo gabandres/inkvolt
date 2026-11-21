@@ -94,6 +94,9 @@ if (-not $SkipWord) {
 # ---- PowerPoint and HTML ----
 
 $failures = [Collections.Generic.List[string]]::new()
+# Every check that didn't run here, named again at the end (a gap shows in the summary, not only in the log above)
+$notRun = [Collections.Generic.List[string]]::new()
+if ($SkipWord) { $notRun.Add("Word's page count (-SkipWord)") }
 $checks = foreach ($i in $items) {
     $pptx = [IO.Path]::ChangeExtension($i.Docx, '.pptx')
     $html = [IO.Path]::ChangeExtension($i.Docx, '.html')
@@ -138,7 +141,7 @@ if ($pptExe) {
         [void][Runtime.InteropServices.Marshal]::ReleaseComObject($ppt)
     }
 }
-else { Write-Host 'PowerPoint: not installed, not checked.' }
+else { Write-Host 'PowerPoint: not installed, not checked.'; $notRun.Add('PowerPoint (not installed)') }
 
 # Excel itself: opens each .xlsx (written only when the document has tables) read-only, without a window or a prompt. A
 # file it would repair fails to open here or comes back with fewer sheets or filled cells than the file holds, so both
@@ -184,7 +187,7 @@ if ($excelExe) {
         [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl)
     }
 }
-else { Write-Host 'Excel: not installed, not checked.' }
+else { Write-Host 'Excel: not installed, not checked.'; $notRun.Add('Excel (not installed)') }
 
 # LibreOffice (opt-in): converts each .docx, .xlsx and .pptx to PDF, headless. A file it can't open makes no PDF (or
 # times out after 5 minutes); an empty PDF is a failure too. Its own profile in .cache, so a LibreOffice the user has
@@ -212,8 +215,9 @@ if ($LibreOffice) {
             foreach ($r in $results | Where-Object { $_ -notlike '* ok' }) { $failures.Add("$($c.Document): LibreOffice can't open the $r") }
         }
     }
-    else { Write-Host 'LibreOffice: not installed (or -Soffice not found), not checked.' }
+    else { Write-Host 'LibreOffice: not installed (or -Soffice not found), not checked.'; $notRun.Add('LibreOffice (not installed)') }
 }
+else { $notRun.Add('LibreOffice (opt-in: -LibreOffice)') }
 
 $checks | Select-Object Document, Slides, Shapes, 'SDK errors', PowerPoint, Excel, LibreOffice, 'HTML lines in order' | Format-Table -AutoSize | Out-Host
 
@@ -224,7 +228,7 @@ if ((Test-Path $vnu) -and (Get-Command java -ErrorAction SilentlyContinue)) {
     if ($LASTEXITCODE -ne 0) { $failures.Add("HTML validator: $(($result | Select-Object -First 5) -join ' | ')") }
     else { Write-Host "HTML validator: $($result | Select-Object -Last 1)" }
 }
-else { Write-Host "HTML validator: not run. It needs Java and: npm install --prefix `"$cache\vnu`" vnu-jar --ignore-scripts" }
+else { Write-Host "HTML validator: not run. It needs Java and: npm install --prefix `"$cache\vnu`" vnu-jar --ignore-scripts"; $notRun.Add('the HTML validator (Java or .cache\vnu missing)') }
 
 $regressions = 0
 $rows = foreach ($i in $items) {
@@ -239,6 +243,7 @@ $rows = foreach ($i in $items) {
 }
 $rows | Format-Table -AutoSize | Out-Host
 Write-Host "Exports: $out"
+Write-Host $(if ($notRun.Count) { "Not run here: $($notRun -join '; ')." } else { 'Every check ran.' })
 
 if ($UpdateBaseline) {
     $new = [ordered]@{}

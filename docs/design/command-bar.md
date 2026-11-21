@@ -1,7 +1,7 @@
 # Command bar: familiar groups, one click
 
 Status: **approved by the owner 2026-11-08 and built for Windows** on branch `t3/2df29816` (not merged; the Mac comes
-next, as its own task). The owner's brief is `docs/HANDOFF.md`, "Owner, 2026-11-08 (evening)", item 2.
+next, as its own task). The owner's brief is `docs/handoff/ARCHIVE.md`, "Owner, 2026-11-08 (evening)", item 2.
 
 ## 1. Map: where the others put each task
 

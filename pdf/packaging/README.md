@@ -105,13 +105,15 @@ A release, in order (the owner says when; Inkvolt Print's the same with its own 
 3. Pack with the smoke test (Build, above; `-SmokeSideBySide` while the Store copy is installed).
 4. `msstore publish pdf/publish/msix/InkvoltPdf_<ver>.msixupload -id 9MXDTSFJ9W28 -nc -ut 3000`: the package goes up as
    a draft, not committed.
-5. `msstore submission get 9MXDTSFJ9W28 > draft.txt`; in its JSON (after the first `{`) set each listing's
-   `BaseListing.ReleaseNotes` (en-us and es, under 1,500 characters, from the WHATS-NEW entry) and any description change;
-   `msstore submission update 9MXDTSFJ9W28 -p payload.json`; `get` again to check (no U+FFFD).
-6. `msstore submission publish 9MXDTSFJ9W28`; `msstore submission status 9MXDTSFJ9W28` until `Published` (CommitStarted,
+5. Write `notes.json`, `{"en-us": "...", "es": "..."}`: the Store's short notes from the WHATS-NEW entry, under 1,500
+   characters each, the Spanish in the voice of the app's `docs/SPANISH-REVIEW.md` (*tú*, "tu PC", the app's command names). `packaging/store-release.ps1 -App Pdf -Notes
+   notes.json` puts them in the draft, checks them (length, every listing, no U+FFFD) and reads them back. A description
+   change goes in by hand (`msstore submission get`, `update -p`).
+6. `store-release.ps1 -App Pdf -Publish`, then `-Wait` as a background command, until `Published` (CommitStarted,
    Certification, Release; under two hours so far).
-7. Commit, tag `pdf-v<ver>`, `gh release create` with the WHATS-NEW lines; the website's `softwareVersion`
-   (`Z:\portfolio`, `firebase deploy --only hosting`) once Published; `docs/HANDOFF.md`.
+7. Commit and push; `store-release.ps1 -App Pdf -GitHub -Version <ver>` creates the release `pdf-v<ver>` from the WHATS-NEW
+   lines (again with `-Published <date>` once Published); the website's `softwareVersion` (`Z:\portfolio`,
+   `firebase deploy --only hosting`) once Published; `docs/HANDOFF.md`.
 
 A draft edited in Partner Center's pages can't be updated through the API afterwards (Spanish listing, below). By hand,
 the first time:
