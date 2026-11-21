@@ -73,7 +73,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
                 : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), Routing.Router,
                     ipp => Printing.DirectBatchJobs.For(Name, new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp)))),
-                Printing.WindowsBatchDocuments.Instance, state),
+                Printing.WindowsBatchDocuments.Instance, state)
+            {
+                Routing = Routing,
+            },
             Routing = Routing,
         };
         Jobs = new PrintJobsViewModel(pc.IsDemo ? pc.PrintJobs(FindQueueAsync) : new Printing.RoutedPrintJobs(pc.PrintJobs(FindQueueAsync), PrintTargetAsync))
@@ -772,7 +775,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             Trace.WriteLine($"[{Name}] queue lookup failed: {ex.Message}");
             return;
         }
-        await Routing.QueueLookedUpAsync(found);
+        _ = Routing.QueueLookedUpAsync(found); // told at once; the route is decided after (its failures are its own)
         OnPropertyChanged(nameof(SetupNeedsAdmin));
         OnPropertyChanged(nameof(SetupInSettings));
     }
@@ -1377,9 +1380,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
             {
                 SetupMessage = Strings.Printer_ReadyToPrint;
-                await Routing.QueueSetUpAsync(made: true);
                 if (ScanEndpointId is { } scan && !ScannerInstalled)
                     _ = QueueInstaller.InstallAsync(scan, timeout: TimeSpan.FromSeconds(90)); // best effort
+                _ = Routing.QueueSetUpAsync(made: true); // the banner goes at once; the route is decided after
             }
             else
             {
@@ -1418,7 +1421,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 if (result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled) break;
             }
             var made = result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled;
-            await Routing.QueueSetUpAsync(made);
+            _ = Routing.QueueSetUpAsync(made); // told at once, without holding the queue busy for the decision
             return made ? null : string.Format(Strings.Printer_ReinstallFailed, result.Message);
         }
         catch (Exception ex)

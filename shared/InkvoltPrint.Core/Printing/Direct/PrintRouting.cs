@@ -16,18 +16,18 @@ public enum PrintRouteNote
 }
 
 /// <summary>
-/// A printer's print routing (roadmap 2.1, print/GLOSSARY.md): what the tabs that print (Print a PDF, Copy, Print photos, the
+/// A printer's print routing (roadmap 2.1, print/GLOSSARY.md): what the tabs that print (Print a PDF, Batch print, Copy, Print photos, the
 /// print queue card) know of where its jobs go, kept in one place. Whether Windows has a queue for it (<see cref="HasQueue"/>),
 /// whether it can be set up in Windows (<see cref="CanSetUp"/>, <see cref="NeedsSetup"/>), whether it takes jobs straight and the
 /// person may choose that (<see cref="CanChooseDirect"/>, <see cref="ChoseDirect"/>), the route last decided and its note.
-/// <see cref="Changed"/> is raised once when any of it changes, or when the queue was made again; every tab hears it, none is
-/// told by hand. The decision is the router's (<see cref="Router"/>), which every print asks afresh; this keeps the last one the
-/// app asked for, when what it's made from changed: discovery's word, a queue lookup, a queue set up, a connection, the person's
-/// choice. Continues on the caller's context, like the router: the app's tabs hear it on the dispatcher.
+/// <see cref="Changed"/> is raised when any of it changes, or when the queue was made again; every tab hears it, none is told by
+/// hand. The decision is the router's (<see cref="Router"/>), which every print asks afresh; this keeps the last one the app asked
+/// for, when what it's made from changed: discovery's word, a queue lookup, a queue set up, a connection, the person's choice.
+/// What's known of the queue is told at once, the decision when it's made (a lookup can take seconds). Continues on the caller's
+/// context, like the router: the app's tabs hear it on the dispatcher.
 /// </summary>
 public sealed class PrintRouting
 {
-    private readonly Func<IppClient?> _rasterIpp;
     private readonly Action<bool> _rememberChoice;
     private readonly Action<string>? _log;
     private readonly bool _hasAddress;
@@ -41,7 +41,6 @@ public sealed class PrintRouting
     public PrintRouting(Func<Task<string?>> findQueue, Func<IppClient?> rasterIpp, bool hasAddress, bool choseDirect, Action<bool> rememberChoice,
         Action<string>? log = null)
     {
-        _rasterIpp = rasterIpp;
         _hasAddress = hasAddress;
         _rememberChoice = rememberChoice;
         _log = log;
@@ -52,7 +51,10 @@ public sealed class PrintRouting
     /// <summary>Decides where each print, batch and job alert goes (<see cref="PrintRouter"/>), with the person's choice kept here.</summary>
     public PrintRouter Router { get; }
 
-    /// <summary>Something here changed, or the Windows queue was made again: what a tab read of the old route is stale.</summary>
+    /// <summary>
+    /// Something here changed, or the Windows queue was made again: what a tab read of the old route is stale. Each subscriber is
+    /// called on its own: one that throws is logged and the rest still hear it.
+    /// </summary>
     public event Action? Changed;
 
     /// <summary>
@@ -83,7 +85,7 @@ public sealed class PrintRouting
     public PrintRouteNote Note { get; private set; }
 
     /// <summary>What it's made from may have changed (a connection): decide again.</summary>
-    public Task DecideAsync() => DecideAsync(Current, always: false);
+    public Task DecideAsync() => DecideAsync(Current);
 
     /// <summary>Discovery's word: whether Windows has a queue paired with it, and whether it can pair one.</summary>
     public Task DiscoveredAsync(bool queueInstalled, bool pairs)
@@ -102,13 +104,16 @@ public sealed class PrintRouting
         return QueueSaid(before);
     }
 
-    /// <summary>Its Windows queue was set up or made again (<paramref name="made"/>), or that failed: decided again and always told.</summary>
+    /// <summary>
+    /// Its Windows queue was set up or made again (<paramref name="made"/>), or that failed: always told at once (the queue is new),
+    /// then decided again.
+    /// </summary>
     public Task QueueSetUpAsync(bool made)
     {
-        var before = Current;
         _queueKnown = true;
         _foundQueue = made;
-        return DecideAsync(before, always: true);
+        Tell();
+        return DecideAsync(Current);
     }
 
     /// <summary>The person chose straight to the printer, or the Windows queue: kept, decided again, told.</summary>
@@ -118,39 +123,57 @@ public sealed class PrintRouting
         var before = Current;
         ChoseDirect = direct;
         _rememberChoice(direct);
-        return DecideAsync(before, always: false);
+        return DecideAsync(before);
     }
 
-    /// <summary>A change of whether it has a queue decides again; any other change is told at once.</summary>
+    /// <summary>What's known of the queue is told at once; a change of whether it has one decides again.</summary>
     private Task QueueSaid(Facts before)
     {
         _queueKnown = true;
-        if (HasQueue != before.HasQueue) return DecideAsync(before, always: false);
-        Tell(before, always: false);
-        return Task.CompletedTask;
+        var decide = HasQueue != before.HasQueue;
+        if (Current != before) Tell();
+        return decide ? DecideAsync(Current) : Task.CompletedTask;
     }
 
-    private async Task DecideAsync(Facts before, bool always)
+    /// <summary>
+    /// Decides as a print decides, from one look at the queue and the connection. A decision that fails changes nothing: the route,
+    /// its note and whether the printer takes jobs straight stay as the last one left them, and the next print decides again.
+    /// </summary>
+    private async Task DecideAsync(Facts before)
     {
-        _takesDirect = _rasterIpp() is not null;
+        RouteChoice choice;
         try
         {
-            var choice = await Router.ChooseAsync();
-            var queue = choice.Queue is not null;
-            CanChooseDirect = _takesDirect && queue;
-            Route = choice.Route;
-            Note = choice.Route != PrintRoute.Direct ? PrintRouteNote.None : queue ? PrintRouteNote.DirectChosen : PrintRouteNote.Direct;
+            choice = await Router.ChooseAsync();
         }
         catch (Exception ex)
         {
-            _log?.Invoke($"Print route: {ex.Message}"); // the route and its note stay as they were; the next print decides again
+            _log?.Invoke($"Print route: {ex.Message}");
+            if (Current != before) Tell(); // a choice made just before (ChooseDirectAsync) is still news
+            return;
         }
-        Tell(before, always);
+        var queue = choice.Queue is not null;
+        _takesDirect = choice.Ipp is not null;
+        CanChooseDirect = _takesDirect && queue;
+        Route = choice.Route;
+        Note = choice.Route != PrintRoute.Direct ? PrintRouteNote.None : queue ? PrintRouteNote.DirectChosen : PrintRouteNote.Direct;
+        if (Current != before) Tell();
     }
 
-    private void Tell(Facts before, bool always)
+    private void Tell()
     {
-        if (always || Current != before) Changed?.Invoke();
+        if (Changed is not { } changed) return;
+        foreach (var hear in changed.GetInvocationList().Cast<Action>())
+        {
+            try
+            {
+                hear();
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"Print route: a tab failed to follow the change: {ex.Message}");
+            }
+        }
     }
 
     /// <summary>Everything a tab reads, to tell whether it changed.</summary>

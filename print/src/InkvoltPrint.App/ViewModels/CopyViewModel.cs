@@ -32,8 +32,6 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
     private ScannerCapabilities? _caps;
     private CancellationTokenSource? _cts;
     private RenderedPage? _front;
-    private bool _twoSidedChecked;
-    private bool _twoSidedAsked;
 
     /// <summary>The last copy that didn't reach the queue, kept (scans included) so it can be sent again without rescanning.</summary>
     private Func<Task>? _printAgain;
@@ -298,12 +296,11 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
         OnPropertyChanged(nameof(UnavailableReason));
         OnPropertyChanged(nameof(IsAvailable));
         CopyCommand.NotifyCanExecuteChanged();
-        _twoSidedChecked = false;
-        if (_twoSidedAsked) _ = RefreshTwoSidedAsync();
+        TwoSidedRead.RouteChanged();
     }
 
     /// <summary>The Copy tab is on screen: find out (once) whether the queue prints two-sided.</summary>
-    public void Shown() => _ = RefreshTwoSidedAsync();
+    public void Shown() => _ = TwoSidedRead.AskAsync();
 
     private bool CanCopy() => IsAvailable && !IsBusy && !AwaitingBack;
 
@@ -602,10 +599,14 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
         }
     }
 
-    private async Task RefreshTwoSidedAsync()
+    /// <summary>Whether the printer can do two-sided, asked once the tab shows and again after a change of route (<see cref="RouteRead"/>).</summary>
+    private RouteRead TwoSidedRead => field ??= new(CheckTwoSidedAsync);
+
+    /// <summary>Asks the Windows queue (or the printer) whether it can do two-sided. True when it answered (the demo's needs no asking).</summary>
+    private async Task<bool> CheckTwoSidedAsync()
     {
-        _twoSidedAsked = true;
-        if (_twoSidedChecked || demoPrint is not null) return;
+        if (demoPrint is not null) return true;
+        var answered = false;
         try
         {
             if (await findTarget() is not { } target)
@@ -616,7 +617,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
             {
                 if (target is PrintTarget.Queue { Name: var queue } && state.GetTwoSided(queue) is { } known) CanTwoSided = known;
                 CanTwoSided = await PrintTargets.SupportsTwoSidedAsync(target, state);
-                _twoSidedChecked = true;
+                answered = true;
             }
         }
         catch (Exception ex)
@@ -625,6 +626,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
             CanTwoSided = false;
         }
         if (!CanTwoSided) TwoSided = false;
+        return answered;
     }
 
     private ScanColor Color => IsColor ? ScanColor.Color : ScanColor.Grayscale;

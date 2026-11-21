@@ -19,6 +19,7 @@ public class PrintRoutingTests
         public string? Queue;
         public IppClient? Raster;
         public Exception? LookupFails;
+        public TaskCompletionSource<string?>? Slow; // a lookup that answers when the test says
         public int Lookups;
         public readonly List<bool> Remembered = [];
         public readonly List<string> Logged = [];
@@ -30,7 +31,7 @@ public class PrintRoutingTests
         private Task<string?> FindQueue()
         {
             Lookups++;
-            return LookupFails is { } fails ? Task.FromException<string?>(fails) : Task.FromResult(Queue);
+            return Slow is { } slow ? slow.Task : LookupFails is { } fails ? Task.FromException<string?>(fails) : Task.FromResult(Queue);
         }
     }
 
@@ -168,9 +169,56 @@ public class PrintRoutingTests
         await routing.DecideAsync(); // reconnected without raster: back to the queue
         Assert.All(tabs, t => Assert.Equal(3, t.Heard));
         pc.Queue = null;
-        await routing.QueueLookedUpAsync(found: false); // the queue was removed: nowhere
+        await routing.QueueLookedUpAsync(found: false); // the queue was removed: told at once, then the route (nowhere)
         Assert.Equal(PrintRoute.None, routing.Route);
-        Assert.All(tabs, t => Assert.Equal(4, t.Heard));
+        Assert.All(tabs, t => Assert.Equal(5, t.Heard));
+    }
+
+    [Fact]
+    public async Task A_queue_set_up_is_told_at_once_and_the_route_when_it_is_decided()
+    {
+        var pc = new FakePc();
+        var routing = pc.Printer();
+        await routing.DiscoveredAsync(queueInstalled: false, pairs: true);
+        var told = new List<(bool NeedsSetup, PrintRoute Route)>();
+        routing.Changed += () => told.Add((routing.NeedsSetup, routing.Route));
+
+        pc.Slow = new TaskCompletionSource<string?>();
+        var setUp = routing.QueueSetUpAsync(made: true);
+        Assert.False(setUp.IsCompleted); // the lookup takes its time...
+        Assert.Equal([(false, PrintRoute.None)], told); // ...the setup banner doesn't wait for it
+        pc.Slow.SetResult("Office inkjet");
+        await setUp;
+        Assert.Equal([(false, PrintRoute.None), (false, PrintRoute.Queue)], told);
+    }
+
+    [Fact]
+    public async Task Whether_it_takes_jobs_straight_comes_from_the_decision_it_goes_with()
+    {
+        var pc = new FakePc();
+        var routing = pc.Printer();
+        await routing.DiscoveredAsync(queueInstalled: false, pairs: false);
+        Assert.False(routing.HasRoute);
+
+        pc.Slow = new TaskCompletionSource<string?>();
+        var deciding = routing.DecideAsync(); // started before the connection...
+        pc.Raster = RasterClient; // ...which offers raster before the lookup ends: the router sees it
+        pc.Slow.SetResult(null);
+        await deciding;
+        Assert.Equal(PrintRoute.Direct, routing.Route);
+        Assert.True(routing.HasRoute);
+    }
+
+    [Fact]
+    public async Task A_tab_that_fails_to_follow_doesnt_stop_the_others_or_the_setup()
+    {
+        var pc = new FakePc { Queue = "Office inkjet" };
+        var routing = pc.Printer();
+        routing.Changed += () => throw new InvalidOperationException("A tab broke.");
+        var other = new Tab(routing);
+        await routing.QueueSetUpAsync(made: true); // completes: the queue was made whatever a tab does
+        Assert.Equal(2, other.Heard); // the queue at once, then its route
+        Assert.Contains(pc.Logged, line => line.Contains("A tab broke."));
     }
 
     [Fact]
@@ -205,28 +253,28 @@ public class PrintRoutingTests
         var tab = new Tab(routing);
         await routing.DiscoveredAsync(queueInstalled: false, pairs: true);
         Assert.True(routing.NeedsSetup);
-        var heard = tab.Heard;
+        Assert.Equal(1, tab.Heard); // no queue; the route stays nowhere
 
         pc.Queue = "Office inkjet";
-        await routing.QueueSetUpAsync(made: true); // Set up
+        await routing.QueueSetUpAsync(made: true); // Set up: the queue, then its route
         Assert.False(routing.NeedsSetup);
         Assert.Equal(PrintRoute.Queue, routing.Route);
-        Assert.Equal(heard + 1, tab.Heard);
+        Assert.Equal(3, tab.Heard);
 
         var lookups = pc.Lookups;
         await routing.QueueSetUpAsync(made: true); // re-created (the HP clean-up): the same facts, a new queue
-        Assert.Equal(heard + 2, tab.Heard);
+        Assert.Equal(4, tab.Heard);
         Assert.Equal(lookups + 1, pc.Lookups);
 
         pc.Queue = null;
-        await routing.QueueSetUpAsync(made: false); // removed and not made again
+        await routing.QueueSetUpAsync(made: false); // removed and not made again: told, then the route (nowhere)
         Assert.True(routing.NeedsSetup);
         Assert.Equal(PrintRoute.None, routing.Route);
-        Assert.Equal(heard + 3, tab.Heard);
+        Assert.Equal(6, tab.Heard);
     }
 
     [Fact]
-    public async Task A_decision_that_fails_keeps_the_route_and_note_and_still_tells_what_changed()
+    public async Task A_decision_that_fails_changes_nothing_until_one_succeeds()
     {
         var pc = new FakePc { Raster = RasterClient };
         var routing = pc.Printer();
@@ -235,15 +283,19 @@ public class PrintRoutingTests
         var tab = new Tab(routing);
 
         pc.LookupFails = new InvalidOperationException("The spooler stopped.");
-        await routing.DecideAsync(); // nothing changed: not told
-        Assert.Equal(0, tab.Heard);
-        Assert.Contains("Print route: The spooler stopped.", pc.Logged);
-
-        pc.Raster = null;
+        pc.Raster = null; // disconnected meanwhile
         await routing.DecideAsync();
-        Assert.Equal(PrintRoute.Direct, routing.Route); // the next print decides again
+        Assert.Contains("Print route: The spooler stopped.", pc.Logged);
+        Assert.Equal(PrintRoute.Direct, routing.Route); // as the last decision left it, all of it
         Assert.Equal(PrintRouteNote.Direct, routing.Note);
-        Assert.False(routing.HasRoute); // no raster now: Copy has nowhere to print
+        Assert.True(routing.HasRoute);
+        Assert.Equal(0, tab.Heard);
+
+        pc.LookupFails = null;
+        await routing.DecideAsync(); // the next one decides: nowhere now
+        Assert.Equal(PrintRoute.None, routing.Route);
+        Assert.Equal(PrintRouteNote.None, routing.Note);
+        Assert.False(routing.HasRoute);
         Assert.Equal(1, tab.Heard);
     }
 }

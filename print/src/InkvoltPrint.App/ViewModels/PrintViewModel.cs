@@ -25,7 +25,6 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     private PdfSource? _pdf;
     private CancellationTokenSource? _cts;
     private int _openGeneration;
-    private bool _twoSidedChecked;
 
     public ObservableCollection<PdfThumbnail> Thumbnails { get; } = [];
 
@@ -193,7 +192,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             PaperText = PaperName(w, h);
             OnPropertyChanged(nameof(Summary));
             PrintCommand.NotifyCanExecuteChanged();
-            _ = RefreshTwoSidedAsync();
+            _ = TwoSidedRead.AskAsync();
             await LoadThumbnailsAsync(pdf, generation);
         }
         catch (PdfOpenException ex)
@@ -238,15 +237,13 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         _ => null,
     };
 
-    /// <summary>The route, the choice or the Windows queue changed: show it, and check again what the printer can do.</summary>
+    /// <summary>The route, the choice or the Windows queue changed: show it, and check two-sided again once it was checked (Batch hears it itself).</summary>
     private void RoutingChanged()
     {
         OnPropertyChanged(nameof(CanChooseDirect));
         OnPropertyChanged(nameof(PrintDirect));
         OnPropertyChanged(nameof(RouteNote));
-        Batch?.QueueChanged();
-        _twoSidedChecked = false;
-        if (_pdf is not null) _ = RefreshTwoSidedAsync();
+        TwoSidedRead.RouteChanged();
     }
 
     private async Task LoadThumbnailsAsync(PdfSource pdf, int generation)
@@ -266,10 +263,13 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         }
     }
 
-    /// <summary>Asks the Windows queue once whether the printer can do two-sided (off the UI thread).</summary>
-    private async Task RefreshTwoSidedAsync()
+    /// <summary>Whether the printer can do two-sided, asked once a PDF is open and again after a change of route (<see cref="RouteRead"/>).</summary>
+    private RouteRead TwoSidedRead => field ??= new(CheckTwoSidedAsync);
+
+    /// <summary>Asks the Windows queue (or the printer) whether it can do two-sided, off the UI thread. True when it answered.</summary>
+    private async Task<bool> CheckTwoSidedAsync()
     {
-        if (_twoSidedChecked) return;
+        var answered = false;
         try
         {
             var target = await findTarget();
@@ -282,7 +282,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
                 // Asking the driver can take several seconds (it queries the printer): show the last known answer now.
                 if (target is PrintTarget.Queue { Name: var queue } && state.GetTwoSided(queue) is { } known) CanTwoSided = known;
                 CanTwoSided = await PrintTargets.SupportsTwoSidedAsync(target, state);
-                _twoSidedChecked = true;
+                answered = true;
             }
         }
         catch (Exception ex)
@@ -291,6 +291,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             CanTwoSided = false;
         }
         if (!CanTwoSided) TwoSided = false;
+        return answered;
     }
 
     /// <summary>The printer's Windows queue is being re-created (HP clean-up): hold printing until it's back.</summary>

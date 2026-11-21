@@ -8,6 +8,7 @@ using Microsoft.Win32;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core;
 using InkvoltPrint.Core.Printing;
+using InkvoltPrint.Core.Printing.Direct;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -26,8 +27,6 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     public static BatchPaper DefaultPaper => new("", Strings.Batch_DefaultPaper);
 
     private BatchQueueInfo? _info;
-    private bool _infoRead;
-    private bool _infoAsked;
     private CancellationTokenSource? _run, _estimate, _watch;
     private bool _declinedPassword;
 
@@ -153,22 +152,25 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
 
     // ------------------------------------------------------------------ the printer
 
-    /// <summary>The tab came into view: learn what the printer takes, once, off the UI thread.</summary>
-    public void Shown()
+    /// <summary>Where the printer's jobs go (<see cref="PrintRouting"/>): what the printer takes is read again when it changes.</summary>
+    public required PrintRouting Routing
     {
-        if (!_infoRead) _ = ReadQueueAsync();
+        get;
+        init
+        {
+            field = value;
+            value.Changed += QueueRead.RouteChanged;
+        }
     }
 
-    /// <summary>The printer's route or Windows queue changed (the Print tab hears it): read again, once it was read.</summary>
-    public void QueueChanged()
-    {
-        _infoRead = false;
-        if (_infoAsked) _ = ReadQueueAsync();
-    }
+    /// <summary>What the printer takes, read once asked and again after a change of route (<see cref="RouteRead"/>).</summary>
+    private RouteRead QueueRead => field ??= new(async () => await ReadQueueAsync() is not null);
+
+    /// <summary>The tab came into view: learn what the printer takes, once, off the UI thread.</summary>
+    public void Shown() => _ = QueueRead.AskAsync();
 
     private async Task<BatchQueueInfo?> ReadQueueAsync()
     {
-        _infoAsked = true;
         try
         {
             _info = await queue.ReadAsync(CancellationToken.None);
@@ -178,7 +180,6 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
             Log.Write($"Batch: reading the queue: {ex}");
             _info = null;
         }
-        _infoRead = _info is not null;
         CanTwoSided = _info?.CanTwoSided ?? true;
         // Only when they differ: taking the selected item out of a box clears its selection.
         if (_info is { } read && !read.Papers.SequenceEqual(Papers.Skip(1)))
@@ -294,7 +295,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         _estimate = new CancellationTokenSource();
         try
         {
-            await (_infoRead ? Task.CompletedTask : ReadQueueAsync());
+            await QueueRead.AskAsync();
             while (Rows.FirstOrDefault(r => r.Measure is null) is { } row)
             {
                 Progress = string.Format(Strings.Batch_LookingAt, BatchPrintText.Clean(row.Name));
