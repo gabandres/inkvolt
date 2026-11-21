@@ -279,6 +279,48 @@ public class TesseractTests
         }
     }
 
+    /// <summary>A body that sends its first bytes, then nothing, ever (it ends only when its read is cancelled).</summary>
+    private sealed class StallingStream(byte[] first) : Stream
+    {
+        private bool _sent;
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancel = default)
+        {
+            if (!_sent)
+            {
+                _sent = true;
+                first.CopyTo(buffer);
+                return first.Length;
+            }
+            await Task.Delay(Timeout.Infinite, cancel);
+            return 0;
+        }
+    }
+
+    [Fact]
+    public async Task AServerThatGoesQuietMidFileIsGivenUp()
+    {
+        using var temp = new TempFolder();
+        var path = Path.Combine(temp.Path, "x.traineddata");
+        using var http = new HttpClient(new FakeServer(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new StreamContent(new StallingStream(new byte[10])) }));
+        var ex = await Assert.ThrowsAsync<PinnedDownloadException>(() =>
+            PinnedDownload.FetchAsync(http, Url, 100_000, new string('0', 64), path, idleLimit: TimeSpan.FromMilliseconds(300))
+                .WaitAsync(Timing.Limit(TimeSpan.FromSeconds(30))));
+        Assert.Equal(DownloadProblem.Network, ex.Problem);
+        Assert.False(File.Exists(path));
+        Assert.Empty(Directory.GetFiles(temp.Path, "*.part"));
+    }
+
     [Fact]
     public async Task TwoDownloadsOfOneFileAtOnceEachWriteTheirOwnPart()
     {

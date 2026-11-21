@@ -28,9 +28,13 @@ public sealed class PinnedDownloadException(DownloadProblem problem, string mess
 /// </summary>
 public static class PinnedDownload
 {
+    /// <summary>How long the body may send nothing before the download is given up.</summary>
+    public static readonly TimeSpan IdleLimit = TimeSpan.FromSeconds(60);
+
     public static async Task FetchAsync(HttpClient http, Uri url, long size, string sha256, string destination,
-        IProgress<long>? progress = null, CancellationToken cancel = default)
+        IProgress<long>? progress = null, CancellationToken cancel = default, TimeSpan? idleLimit = null)
     {
+        var quiet = idleLimit ?? IdleLimit;
         if (url.Scheme != Uri.UriSchemeHttps) throw new ArgumentException("Pinned downloads are https only.", nameof(url));
         var part = $"{destination}.{Guid.NewGuid():N}.part"; // its own: two downloads of one file never write into each other
         try
@@ -70,13 +74,17 @@ public static class PinnedDownload
                     }
                     await using (body)
                     {
+                        // The client's Timeout ends with the headers (ResponseHeadersRead): a server gone quiet mid-file is
+                        // given up after IdleLimit without a byte.
+                        using var idle = CancellationTokenSource.CreateLinkedTokenSource(cancel);
                         var buffer = new byte[1 << 16];
                         while (true)
                         {
                             int n;
                             try
                             {
-                                n = await body.ReadAsync(buffer, cancel).ConfigureAwait(false);
+                                idle.CancelAfter(quiet);
+                                n = await body.ReadAsync(buffer, idle.Token).ConfigureAwait(false);
                             }
                             catch (Exception ex) when (ex is HttpRequestException or IOException || (ex is OperationCanceledException && !cancel.IsCancellationRequested))
                             {

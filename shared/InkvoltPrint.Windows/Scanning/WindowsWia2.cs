@@ -268,6 +268,9 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
     /// A BMP, PNG or TIFF page (a TIFF's first frame) as a JPEG at quality 90 through WIC (Windows.Graphics.Imaging), grey kept grey;
     /// on the thread pool, so waiting here never blocks a call WIC makes back to this STA thread.
     /// </summary>
+    internal const uint MaxPageSide = 65_000;
+    internal const long MaxPagePixels = 400_000_000;
+
     internal static byte[] PictureToJpeg(byte[] picture)
     {
         try
@@ -278,6 +281,10 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
                 await input.WriteAsync(picture.AsBuffer());
                 input.Seek(0);
                 var decoder = await BitmapDecoder.CreateAsync(input);
+                // The size is the driver's word: checked before WIC allocates the page (a few bytes can claim 60,000 a side).
+                if (decoder.PixelWidth is 0 or > MaxPageSide || decoder.PixelHeight is 0 or > MaxPageSide
+                    || (long)decoder.PixelWidth * decoder.PixelHeight > MaxPagePixels)
+                    throw new WiaException(WiaErrors.InvalidDriverResponse, $"The driver sent a page of {decoder.PixelWidth} x {decoder.PixelHeight} pixels.");
                 var format = decoder.BitmapPixelFormat == BitmapPixelFormat.Gray8 ? BitmapPixelFormat.Gray8 : BitmapPixelFormat.Bgra8;
                 using var bitmap = await decoder.GetSoftwareBitmapAsync(format, BitmapAlphaMode.Ignore);
                 using var output = new InMemoryRandomAccessStream();
@@ -291,7 +298,7 @@ internal sealed class Wia2Device : IWiaDevice, IDisposable
                 return bytes;
             }).GetAwaiter().GetResult();
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not WiaException)
         {
             throw new WiaException(WiaErrors.InvalidDriverResponse, "The page couldn't be read: " + ex.Message);
         }
