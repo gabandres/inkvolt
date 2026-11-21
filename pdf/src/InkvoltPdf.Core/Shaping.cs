@@ -12,7 +12,7 @@ namespace InkvoltPdf.Core;
 internal readonly record struct PlacedGlyph(TrueTypeFont Font, int Glyph, double X, double Y, string Text, bool Rtl = false, double Scale = 1, int? Color = null);
 
 /// <summary>
-/// How a stretch of a styled line is drawn (<see cref="TextShaper.Shape(string, TrueTypeFont?, IReadOnlyList{GlyphStyle}, int[])"/>): the
+/// How a stretch of a styled line is drawn (<see cref="TextShaper.Shape(string, TrueTypeFont?, IReadOnlyList{GlyphStyle}, int[], GlyphOrder)"/>): the
 /// font it asks for (null: the line's), its size against the line's, how far its baseline rises (ems of the line's
 /// size, down negative), its color (null: the text's own).
 /// </summary>
@@ -63,6 +63,13 @@ internal static class TextShaper
 {
     public static double Measure(string text, TrueTypeFont? primary) => Shape(text, primary).Width;
 
+    /// <summary>
+    /// The advance width in ems of the line <see cref="Shape(string, TrueTypeFont?, IReadOnlyList{GlyphStyle}, int[], GlyphOrder)"/>
+    /// draws, without putting its glyphs in the order they are written (wrapping measures many candidate lines).
+    /// </summary>
+    public static double Measure(string text, TrueTypeFont? primary, IReadOnlyList<GlyphStyle>? styles, int[]? styleAt, GlyphOrder written) =>
+        Shape(text, primary, styles, styleAt, written, measure: true).Width;
+
     /// <param name="visualOrder">Write the glyphs left to right (visual order) instead of in logical order. MuPDF turns
     /// right-to-left runs written that way back into logical order itself; it is the sturdier choice for stretched
     /// (Tz) text, where MuPDF would see gaps inside a right-to-left word written last glyph first.</param>
@@ -76,10 +83,15 @@ internal static class TextShaper
     /// bold or red word inside right-to-left text sits where it reads.
     /// </summary>
     /// <param name="written">The order the glyphs are written in.</param>
-    public static ShapedLine Shape(string text, TrueTypeFont? primary, IReadOnlyList<GlyphStyle>? styles, int[]? styleAt, GlyphOrder written = GlyphOrder.Logical)
+    public static ShapedLine Shape(string text, TrueTypeFont? primary, IReadOnlyList<GlyphStyle>? styles, int[]? styleAt, GlyphOrder written = GlyphOrder.Logical) =>
+        Shape(text, primary, styles, styleAt, written, measure: false);
+
+    /// <param name="measure">Only the width is wanted: the glyphs aren't put in written order.</param>
+    private static ShapedLine Shape(string text, TrueTypeFont? primary, IReadOnlyList<GlyphStyle>? styles, int[]? styleAt, GlyphOrder written, bool measure)
     {
         if (text.Length == 0) return new ShapedLine(text, [], 0, false);
         var (levels, para) = Bidi.Levels(text);
+        if (written == GlyphOrder.Stretches) JoinLeftToRight(text, levels);
         int StyleOf(int i) => styles is null || styleAt is null || i >= styleAt.Length || styleAt[i] < 0 || styleAt[i] >= styles.Count ? -1 : styleAt[i];
 
         // Itemize: maximal runs of one font at one level, in one style.
@@ -138,8 +150,7 @@ internal static class TextShaper
             var rtl = r.Level % 2 == 1;
             var upem = r.Font.UnitsPerEm;
             var look = r.Style >= 0 ? styles![r.Style] : new GlyphStyle(null);
-            var scale = look.Scale > 0 && double.IsFinite(look.Scale) ? look.Scale : 1;
-            var rise = double.IsFinite(look.Rise) ? look.Rise : 0;
+            var (scale, rise) = SizeOf(look);
             var runFrom = pen;
             using var buffer = new HarfBuzzSharp.Buffer();
             buffer.AddUtf16(text, r.Start, r.Length);
@@ -181,6 +192,7 @@ internal static class TextShaper
                 glyphs.Add(new PlacedGlyph(r.Font, p.Glyph, p.X, p.Y, t, rtl, scale, look.Color));
             }
         }
+        if (measure) return new ShapedLine(text, [], pen, para == 1);
         var stretches = written == GlyphOrder.Stretches && runs.Any(r => r.Level % 2 == 1)
             && StretchesRead([.. runs.Select(r => (r.Level, r.Font, r.Style))], byRun, styles);
         if (written == GlyphOrder.Visual || stretches)
@@ -224,7 +236,7 @@ internal static class TextShaper
     /// </summary>
     private static bool StretchesRead(List<(int Level, TrueTypeFont Font, int Style)> runs, List<PlacedGlyph>[] byRun, IReadOnlyList<GlyphStyle>? styles)
     {
-        (double, double) Size(int style) => style >= 0 && styles is not null ? (styles[style].Scale, styles[style].Rise) : (1, 0);
+        (double, double) Size(int style) => SizeOf(style >= 0 && styles is not null ? styles[style] : new GlyphStyle(null));
         for (var i = 0; i < runs.Count; i++)
         {
             if (runs[i].Level > 2) return false;
@@ -235,6 +247,32 @@ internal static class TextShaper
             else if (i > 0 && runs[i - 1].Level % 2 == 1 && (runs[i - 1].Font != runs[i].Font || Size(runs[i - 1].Style) != Size(runs[i].Style))) return false;
         }
         return true;
+    }
+
+    /// <summary>A style's size against the line's and its rise as drawn: a size not above zero or not finite is the line's, a rise not finite none.</summary>
+    private static (double Scale, double Rise) SizeOf(GlyphStyle look) =>
+        (look.Scale > 0 && double.IsFinite(look.Scale) ? look.Scale : 1, double.IsFinite(look.Rise) ? look.Rise : 0);
+
+    /// <summary>
+    /// For a line written <see cref="GlyphOrder.Stretches"/>: punctuation inside a word between a Latin letter or a
+    /// European digit on either side ("2.0-beta", "3.5-rc2", "a_b") goes with them, left to right, as one run. The bidi
+    /// rules leave such a "-" or "_" right to left between a number and a word in right-to-left text, drawing "beta-2.0",
+    /// and MuPDF, which reads them all left to right, can read that only as a new line ("2.0", "-", "beta"); kept whole it
+    /// reads "2.0-beta" in MuPDF and pdf.js, as typed.
+    /// </summary>
+    private static void JoinLeftToRight(string text, byte[] levels)
+    {
+        static bool LeftToRight(char c) => Bidi.Classify(c) is Bidi.Cls.L or Bidi.Cls.EN;
+        static bool Between(char c) => !char.IsWhiteSpace(c) && Bidi.Classify(c) is Bidi.Cls.ES or Bidi.Cls.ET or Bidi.Cls.CS or Bidi.Cls.ON;
+        for (var i = 1; i < text.Length; i++)
+        {
+            if (levels[i] % 2 == 0 || !Between(text[i]) || levels[i - 1] % 2 == 1 || !LeftToRight(text[i - 1])) continue;
+            var j = i;
+            while (j < text.Length && levels[j] % 2 == 1 && Between(text[j])) j++;
+            if (j < text.Length && levels[j] % 2 == 0 && LeftToRight(text[j]))
+                for (var k = i; k < j; k++) levels[k] = Math.Min(levels[i - 1], levels[j]);
+            i = j - 1;
+        }
     }
 
     /// <summary>
@@ -253,7 +291,10 @@ internal static class TextShaper
     /// A line's glyphs in <see cref="GlyphOrder.Stretches"/> order: <paramref name="byRun"/> holds each run's glyphs left to
     /// right, <paramref name="visual"/> the runs left to right. A character MuPDF always reads left to right inside a
     /// right-to-left stretch (a hyphen between two Arabic words) goes on its own, marked left to right, between the pieces
-    /// of the stretch on either side of it, in reading order.
+    /// of the stretch on either side of it, in reading order. Two or more side by side ("--") go one by one in reading
+    /// order too: each a short step back, which MuPDF keeps on the line (written left to right, it would read them
+    /// backwards). Such a character at a stretch's end before a Latin word ("ال-withdrawal") is the step back of a whole
+    /// word: MuPDF starts a new line there, as it did for the line written in reading order.
     /// </summary>
     private static List<PlacedGlyph> InStretches(int[] levels, List<int> visual, List<PlacedGlyph>[] byRun)
     {

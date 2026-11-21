@@ -2,7 +2,8 @@
 
 Translate writes a right-to-left line in stretches (`GlyphOrder.Stretches` in `Shaping.cs`, `pdf/ROADMAP.md` 3.1 "pdf.js
 reads the spaces"): each right-to-left stretch left to right, the stretches and the figures and Latin words between them in
-reading order. MuPDF reads it exactly as before; pdf.js now reads the spaces between right-to-left words. What one content
+reading order. MuPDF reads it as before; pdf.js now reads the spaces between right-to-left words. After review, a version
+inside Arabic ("2.0-beta") is drawn whole left to right, so MuPDF and Find read it (before, three lines). What one content
 stream can't give both readers, now documented with the reason from their code: pdf.js runs a right-to-left word and a
 figure or Latin word beside it together, and a line with a bold, other-font or raised word inside right-to-left text stays
 in reading order (no spaces in pdf.js). Found, not changed: MuPDF reads Arabic-Indic digits backwards in any order.

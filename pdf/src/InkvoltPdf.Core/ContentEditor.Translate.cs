@@ -797,11 +797,10 @@ public static partial class ContentEditor
             styleAt[i] = k;
         }
         var styled = styles.Count > 0;
-        ShapedLine ShapeOf(int start, int end, GlyphOrder written) =>
-            TextShaper.Shape(text[start..end], primary, styled ? styles : null, styled ? styleAt[start..end] : null, written);
+        ShapedLine ShapeOf(int start, int end) =>
+            TextShaper.Shape(text[start..end], primary, styled ? styles : null, styled ? styleAt[start..end] : null, GlyphOrder.Stretches);
         var em = m.Size * m.HScale * m.Scale;
-        // Measured as shaped (the order the glyphs go out in changes nothing of the width).
-        double W(int start, int end) => ShapeOf(start, end, GlyphOrder.Logical).Width * em;
+        double W(int start, int end) => TextShaper.Measure(text[start..end], primary, styled ? styles : null, styled ? styleAt[start..end] : null, GlyphOrder.Stretches) * em;
 
         // A word with no spaces can be the whole answer: longer than any line, it isn't measured whole for every line it breaks into.
         const int longest = 1024;
@@ -846,7 +845,7 @@ public static partial class ContentEditor
             // reading: search, copy, export) and pdf.js read it in order, pdf.js with the spaces between its right-to-left
             // words. Written all left to right, MuPDF read a real model's Arabic lines with figures backwards and brackets
             // the wrong way; all in reading order, pdf.js read their words run together.
-            var shaped = ShapeOf(start, end, GlyphOrder.Stretches);
+            var shaped = ShapeOf(start, end);
             foreach (var g in shaped.Glyphs)
                 Name(ReferenceEquals(g.Font, primary) ? ranked!.Name : styles.FindIndex(s => ReferenceEquals(s.Font, g.Font)) is >= 0 and var k && styleNames[k] is { } n ? n : StandInFonts.Pretty(g.Font.Family));
             var w = shaped.Width * em;

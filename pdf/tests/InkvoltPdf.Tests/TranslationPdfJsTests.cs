@@ -24,11 +24,12 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
     private static string Shown(string answer) => Words(TranslationMarkup.Plain(answer));
 
     /// <summary>Right-to-left copies pdf.js should read with the spaces between their right-to-left words: no stretch in two fonts.</summary>
-    private static readonly HashSet<string> Spaced = ["arabic plain", "arabic red", "hebrew plain"];
+    private static readonly HashSet<string> Spaced = ["arabic plain", "arabic red", "arabic version", "hebrew plain"];
 
     /// <summary>
     /// Right-to-left text as pdf.js reads a line written in stretches (<see cref="GlyphOrder.Stretches"/>): without the
-    /// spaces between a right-to-left letter and a Latin letter or a figure.
+    /// spaces between a right-to-left letter and a Latin letter, a figure, or a "-", "+" or "%" MuPDF reads left to right
+    /// (written on its own).
     /// </summary>
     private static string Glued(string s)
     {
@@ -39,7 +40,8 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
             if (s[i] == ' ' && i > 0 && i + 1 < s.Length)
             {
                 char a = s[i - 1], b = s[i + 1];
-                if (Is(a, Bidi.Cls.R, Bidi.Cls.AL) && Is(b, Bidi.Cls.L, Bidi.Cls.EN) || Is(a, Bidi.Cls.L, Bidi.Cls.EN) && Is(b, Bidi.Cls.R, Bidi.Cls.AL)) continue;
+                Bidi.Cls[] rtl = [Bidi.Cls.R, Bidi.Cls.AL], ltr = [Bidi.Cls.L, Bidi.Cls.EN, Bidi.Cls.ES, Bidi.Cls.ET];
+                if (Is(a, rtl) && Is(b, ltr) || Is(a, ltr) && Is(b, rtl)) continue;
             }
             sb.Append(s[i]);
         }
@@ -73,6 +75,9 @@ public class TranslationPdfJsTests(ITestOutputHelper output)
             ("arabic red", ContentEditPdf.Make(
                 "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and jumps over the lazy dog.) Tj ET",
                 faces: true, fontText: Letters), 0, "ar", _ => "قال ابن-سينا إن الثعلب <span>أحمر</span> ويقفز فوق fox الكلب."),
+            // A version kept whole left to right ("2.0-beta"), two hyphens MuPDF reads left to right, one by one.
+            ("arabic version", ContentEditPdf.Make("BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick brown fox jumps over the lazy dog and the 2024 dog.) Tj ET", fontText: Letters), 0, "ar",
+                _ => "صدر الإصدار 2.0-beta أمس -- قبل الموعد."),
             ("hebrew", TranslationPdf.Report(1), 0, "he", _ => "השועל החום המהיר <b>קופץ</b> מעל הכלב העצלן."),
             ("hebrew plain", TranslationPdf.Report(1), 0, "he", _ => "השועל החום המהיר קופץ מעל הכלב [העצלן] בשנת 2025."),
             ("japanese", TranslationPdf.Report(1), 0, "ja", t => "素早い茶色の狐が怠惰な犬を飛び越えた。" + TranslationMarkup.Plain(t).Length),

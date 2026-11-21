@@ -972,6 +972,31 @@ public class TranslationCopyTests
     }
 
     [Theory]
+    // A version: the bidi rules leave its "-" right to left, drawing "beta-2.0", which MuPDF reads only as a new line.
+    [InlineData("صدر الإصدار 2.0-beta أمس مع 3.5-rc2 الجديد", "2.0-beta", "3.5-rc2")]
+    // Two hyphens MuPDF reads left to right inside right-to-left text, one by one in reading order.
+    [InlineData("كلمة -- كلمة أخرى وكلمة - أخيرة", "كلمة -- كلمة", "وكلمة - أخيرة")]
+    public void Arabic_with_a_version_or_dashes_reads_in_order_in_MuPDF_and_Find(string ar, string first, string second)
+    {
+        var pdf = Page(Lines(40, 700, 10, 14, "Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024!"));
+        var (_, r) = Translate(pdf, _ => ar, "ar");
+        Assert.Equal(1, r.Report.Translated);
+        using var engine = PdfEngine.Open(r.Data!, MuPDFCore.InputFileTypes.PDF, null);
+        var text = engine.GetText(0, cache: false);
+        Assert.Contains(ar, text.Text, StringComparison.Ordinal);
+        Assert.Single(text.Find(first, matchCase: true, wholeWord: false));
+        Assert.Single(text.Find(second, matchCase: true, wholeWord: false));
+        // The version is drawn as typed, left to right.
+        var shaped = TextShaper.Shape(ar, SystemFonts.Get("arial.ttf"), null, null, GlyphOrder.Stretches);
+        if (first == "2.0-beta")
+        {
+            var two = shaped.Glyphs.First(g => g.Text == "2");
+            var b = shaped.Glyphs.First(g => g.Text == "b");
+            Assert.True(two.X < b.X, $"{two.X} {b.X}");
+        }
+    }
+
+    [Theory]
     [InlineData("في عام 2024 والكلب")] // figures stay left to right inside it
     [InlineData("الثعلب يقفز فوق fox الكلب")] // an English word inside
     [InlineData("الثعلب الكلب fox")] // an English word at its left end: still a right-to-left line

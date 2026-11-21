@@ -1068,7 +1068,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   in a line written all left to right came out of place. A line is now written in stretches (`GlyphOrder.Stretches`):
   each right-to-left stretch left to right, the stretches and the figures and Latin words between them in reading
   order, an invisible direction mark at each (as before), a "-" or "%" MuPDF reads left to right inside a stretch on its
-  own. Both read it in order, MuPDF exactly as before, pdf.js with the spaces between the right-to-left words. What
+  own (two side by side, "--", one by one in reading order: each a short step back MuPDF keeps on the line). Review:
+  a version in Arabic ("2.0-beta", "3.5-rc2") is drawn whole, left to right, as typed: the bidi rules left its "-" right
+  to left, drawing "beta-2.0", which MuPDF read as three lines in either order ("2.0", "-", "beta") and Find missed; now
+  MuPDF, Find and pdf.js read "2.0-beta" (`JoinLeftToRight`: punctuation inside a word between Latin letters or
+  European digits). A "-" between an Arabic word and a Latin one ("ال-withdrawal") still makes MuPDF start a new line
+  there, as the line written in reading order did. Wrapping measures without ordering the glyphs
+  (`TextShaper.Measure`). Both read it in order, MuPDF as before or better, pdf.js with the spaces between the right-to-left words. What
   can't be had in one content stream, and stays: pdf.js runs a right-to-left word and the figure or Latin word beside it
   together ("في عام2024والكلب"), since it would need the figure written before the words on its right and MuPDF after
   them; and a line with a bold, other-font or raised word inside right-to-left text keeps reading order (pdf.js's items
@@ -1079,11 +1085,13 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   digits backwards): it would read right in both, but tell Acrobat, which reads /ActualText, the figures backwards, and
   leave visible text MuPDF (and so the redaction check) doesn't see. Found, not changed: MuPDF reads Arabic-Indic digits ("٢٠٢٤") backwards and breaks the line
   around them in any order (it reads them right to left; such a line keeps reading order). In the app (`--script`, one stand-in Arabic answer for each of fw9 p. 1's 67
-  paragraphs): the copy opens beside the original and Find reads "في عام 2024 فوق" in it 66 times. `TranslationPdfJsTests` +2
-  cases (plain Hebrew with brackets and a year, Arabic with a red word, a hyphen and a Latin word) read word by word with
-  their spaces, the cases with a bold word letter by letter as before, all 8 pages in order;
+  paragraphs): the copy opens beside the original and Find reads "في عام 2024 فوق" in it 66 times. `TranslationPdfJsTests` +3
+  cases (plain Hebrew with brackets and a year, Arabic with a red word, a hyphen and a Latin word, Arabic with
+  "2.0-beta" and "--") read word by word with their spaces, the cases with a bold word letter by letter as before, all
+  9 pages in order;
   `TranslationTests.Arabic_stretches_go_right_and_read_in_order_with_their_figures_brackets_and_latin_words` (MuPDF and
-  Find read the line; the pieces go right and come in reading order; a bold word keeps reading order).
+  Find read the line; the pieces go right and come in reading order; a bold word keeps reading order),
+  `Arabic_with_a_version_or_dashes_reads_in_order_in_MuPDF_and_Find` (2: "2.0-beta" and "3.5-rc2", "--" and " - ").
   **Real model, five languages (2026-11-20).** Qwen3 4B Instruct 2507 (Q4_0), llama.cpp's llama-server on this PC's GPU
   (8,192 tokens), `TranslationRealModelTests` (now runs every page and names each failure at the end; saves each language's
   copy apart): NIST p. 1, attn-v7 p. 3 and fw9 p. 1 into Spanish, French, German, Arabic and Japanese, 30 to 155 s a page.
