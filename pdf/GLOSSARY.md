@@ -150,9 +150,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Vertex draft** (`Core/VertexDraft.cs`, Windows; the Mac keeps it in its page view's `vertices`): a polygon or
   polyline still being clicked with the Polygon or Polyline tool, its corners on one page so far, and what the next click,
   Enter, Backspace or Esc does to it. Finished, it becomes the comment `Annotations.AddPolygon` adds.
-- **Reading order state** (`ReadingOrder.state`, `ReadingOrderState`; Mac, in PdfCore): what the Reading Order pane shows for a
-  tag plan on a page: its pieces numbered, the boxes on every page, the summary, what can be done. Windows keeps the same rules
-  in `DocumentTab.ReadingOrder`.
+- **Reading order state** (`ReadingOrderState`; Windows `ReadingOrderPane.State` in `Core/ReadingOrderPane.cs`, the Mac
+  `ReadingOrder.state` in PdfCore): what the Reading Order pane shows for a tag plan on a page: its pieces numbered, the
+  boxes on every page, the summary, what can be done. `ReadingOrderPane` also holds what each action does to the plan
+  (a move, a drop, another page, a kind, alternate text, decorative) and which are Pro; `DocumentTab.ReadingOrder` only
+  shows them. (Core's `ReadingOrder` is another thing: the order of fields and links on a page.)
 - **What is sent, where** (`AiActions.ConfirmSend`; on the Mac `AiConfirmSheet` over PdfCore's `AiConsent`): the window before each send of the AI assistant, with where the text goes, how much, and every message under a disclosure. **Reach** (`AiReach`) is where an endpoint keeps text, as its address is written: this PC or this Mac, your network, or the internet; a connection only ever goes to an address that keeps that promise.
 - **Prepare Form's designer** (`FormDesigner`, with `FormDesignRules`; Mac, in PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does. Windows keeps
   the same rules in `PageViewer.FormDesign` and `DocumentTab.FormDesign`. It hands over the edits; `FormDesign` makes them.

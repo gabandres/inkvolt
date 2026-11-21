@@ -5,9 +5,6 @@ using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App.Viewer;
 
-/// <summary>A numbered box of the reading order panel: where a piece is, its place in its page's order, and how it shows.</summary>
-public readonly record struct ReadingOrderBox(int Page, RectD Box, int Number, bool Selected, bool NeedsAlt);
-
 /// <summary>
 /// The reading order overlay (Review › Reading Order and Alt Text): each piece Make Accessible tags is outlined on its
 /// page with its number in the page's reading order; the selected one is drawn stronger, a picture still without

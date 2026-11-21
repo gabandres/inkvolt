@@ -1,62 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
-using InkvoltPdf.App.Viewer;
 using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
-
-/// <summary>One piece of a page in the reading order panel: its number, what it is, the start of its text.</summary>
-public sealed class ReadingOrderItem(int index, int number, TagBlock block)
-{
-    private static readonly Brush Normal = Freeze(Color.FromRgb(0x00, 0x67, 0xC0));
-    private static readonly Brush Warn = Freeze(Color.FromRgb(0xC4, 0x2B, 0x1C));
-
-    /// <summary>The block's index in the plan.</summary>
-    public int Index { get; } = index;
-    public TagBlock Block { get; } = block;
-    public int Number { get; } = number;
-
-    public bool NeedsAlt => Block.Kind == TagBlockKind.Figure && !Block.Decorative && string.IsNullOrWhiteSpace(Block.Alt);
-
-    public string Kind => Block.Kind switch
-    {
-        TagBlockKind.Heading => Loc.Format(Strings.ReadingOrder_Heading, Block.Level),
-        TagBlockKind.List => Block.Items.Any(i => i.Level > 0)
-            ? Loc.Plural(Block.Items.Count, Strings.ReadingOrder_ListNested_One, Strings.ReadingOrder_ListNested_Many)
-            : Loc.Plural(Block.Items.Count, Strings.ReadingOrder_List_One, Strings.ReadingOrder_List_Many),
-        TagBlockKind.Table => Loc.Plural(Block.Rows.Count, Strings.ReadingOrder_Table_One, Strings.ReadingOrder_Table_Many,
-            (Block.HeaderRow, Block.HeaderColumn) switch
-            {
-                (true, true) => Strings.ReadingOrder_TableBothHeaders,
-                (true, false) => Strings.ReadingOrder_TableColumnHeaders,
-                (false, true) => Strings.ReadingOrder_TableRowHeaders,
-                _ => "",
-            }),
-        TagBlockKind.Caption => Strings.ReadingOrder_Caption,
-        TagBlockKind.Note => Strings.ReadingOrder_Footnote,
-        TagBlockKind.Contents => Loc.Plural(Block.Items.Count, Strings.ReadingOrder_Contents_One, Strings.ReadingOrder_Contents_Many),
-        TagBlockKind.Formula => Strings.ReadingOrder_Formula,
-        TagBlockKind.Figure when Block.Decorative => Strings.ReadingOrder_PictureDecorative,
-        TagBlockKind.Figure => NeedsAlt ? Strings.ReadingOrder_PictureNeedsAlt : Strings.ReadingOrder_Picture,
-        _ => Block.Lang is { } lang ? Loc.Format(Strings.ReadingOrder_ParagraphLang, lang) : Strings.ReadingOrder_Paragraph,
-    } + (Block.ReadWith is null ? "" : Loc.Format(Strings.ReadingOrder_FromPage, Block.Page + 1));
-
-    public string Preview => Block.Kind is TagBlockKind.Figure or TagBlockKind.Formula ? Block.Alt ?? Block.Text : Block.Text.Replace('\n', ' ');
-
-    public Brush Badge => NeedsAlt ? Warn : Normal;
-
-    /// <summary>What a screen reader says for the item.</summary>
-    public string Spoken => $"{Number}. {Kind}. {(Preview.Length > 120 ? Preview[..120] : Preview)}";
-
-    private static Brush Freeze(Color c)
-    {
-        var b = new SolidColorBrush(c);
-        b.Freeze();
-        return b;
-    }
-}
 
 /// <summary>
 /// Review › Reading Order and Alt Text: the plan Make Accessible writes (<see cref="AutoTag"/>), page by page, as a list
@@ -65,6 +12,8 @@ public sealed class ReadingOrderItem(int index, int number, TagBlock block)
 /// marked decorative, or suggested by the user's own AI model (after the usual "what is sent, where" window), a formula
 /// how it is read. Everything works from the keyboard: Page Up/Down shows the page before or after, Enter or F2 goes to
 /// the selected piece's alternate text and Esc back to the list. Apply changes writes the tags again as one undo step.
+/// What the panel shows and what each action does to the plan is Core's <see cref="ReadingOrderPane"/>; this file turns
+/// clicks, keys and drags into its inputs and shows what it says.
 /// </summary>
 public partial class DocumentTab
 {
@@ -112,7 +61,7 @@ public partial class DocumentTab
                     MoveSelectedToPage(key == Key.PageUp ? -1 : 1);
                     break;
                 case (ModifierKeys.None, Key.PageUp or Key.PageDown):
-                    ShowReadingPage(Viewer.CurrentPage + (key == Key.PageUp ? -1 : 1));
+                    ShowReadingPage(key == Key.PageUp ? -1 : 1);
                     break;
                 case (ModifierKeys.None, Key.Enter or Key.F2) when RoFigure.Visibility == Visibility.Visible:
                     (RoAlt.IsEnabled ? (UIElement)RoAlt : RoDecorative).Focus();
@@ -142,15 +91,15 @@ public partial class DocumentTab
         {
             if (e.Data.GetData(typeof(ReadingOrderItem)) is not ReadingOrderItem dragged || _tagPlan is null) return;
             var target = (e.OriginalSource as DependencyObject) is { } d ? ItemsControl.ContainerFromElement(RoList, d) as ListBoxItem : null;
-            if (target?.DataContext is not ReadingOrderItem over || over.Index == dragged.Index || !MayFixOrder()) return;
-            SetPlan(AutoTag.Move(_tagPlan, dragged.Index, over.Index - dragged.Index), select: over.Index);
+            if (target?.DataContext is not ReadingOrderItem over || over.Index == dragged.Index || !MayFix(ReadingOrderEdit.Drop)) return;
+            SetPlan(ReadingOrderPane.Dropped(_tagPlan, dragged.Index, over.Index), select: over.Index);
             e.Handled = true;
         };
         RoAlt.TextChanged += (_, _) =>
         {
-            if (_roUpdating || RoList.SelectedItem is not ReadingOrderItem { Block.Kind: TagBlockKind.Figure or TagBlockKind.Formula } item || _tagPlan is null) return;
-            var text = RoAlt.Text;
-            SetPlan(AutoTag.With(_tagPlan, item.Index, b => b with { Alt = text }), select: item.Index, keepFigureEditor: true);
+            if (_roUpdating || RoList.SelectedItem is not ReadingOrderItem item || _tagPlan is null) return;
+            var plan = ReadingOrderPane.WithAlt(_tagPlan, item.Index, RoAlt.Text);
+            if (!ReferenceEquals(plan, _tagPlan)) SetPlan(plan, select: item.Index, keepFigureEditor: true);
         };
         RoKind.SelectionChanged += (_, _) =>
         {
@@ -159,9 +108,9 @@ public partial class DocumentTab
         };
         RoDecorative.Click += (_, _) =>
         {
-            if (RoList.SelectedItem is not ReadingOrderItem { Block.Kind: TagBlockKind.Figure } item || _tagPlan is null) return;
-            var decorative = RoDecorative.IsChecked == true;
-            SetPlan(AutoTag.With(_tagPlan, item.Index, b => b with { Decorative = decorative }), select: item.Index);
+            if (RoList.SelectedItem is not ReadingOrderItem item || _tagPlan is null) return;
+            var plan = ReadingOrderPane.WithDecorative(_tagPlan, item.Index, RoDecorative.IsChecked == true);
+            if (!ReferenceEquals(plan, _tagPlan)) SetPlan(plan, select: item.Index);
         };
         Viewer.CurrentPageChanged += (_, _) =>
         {
@@ -224,105 +173,47 @@ public partial class DocumentTab
         FillReadingOrder(select, keepFigureEditor);
     }
 
-    /// <summary>The list for the current page, the boxes on every page, the summary and the buttons.</summary>
+    /// <summary>The list for the current page, the boxes on every page, the summary and the buttons (<see cref="ReadingOrderPane.State"/>).</summary>
     private void FillReadingOrder(int? select = null, bool keepFigureEditor = false)
     {
         if (_tagPlan is not { } plan) return;
         var stale = !ReferenceEquals(Session.Data, _tagPlanFor);
-        var page = Math.Clamp(Viewer.CurrentPage, 0, Math.Max(0, plan.Pages - 1));
-        var items = new List<ReadingOrderItem>();
-        var boxes = new List<ReadingOrderBox>();
-        var numbers = new Dictionary<int, int>();
         var selected = select ?? _roSelect ?? (RoList.SelectedItem as ReadingOrderItem)?.Index;
-        var written = AutoTag.EvenHeadings(plan.Blocks); // heading levels as they are written
-        var readElsewhere = 0;
-        for (var i = 0; i < plan.Blocks.Count; i++)
-        {
-            // Numbered among the pieces read with its page (a piece moved to another page is numbered there; its box
-            // stays where its content is).
-            var b = written[i];
-            var reading = AutoTag.ReadingPage(b);
-            var n = numbers[reading] = numbers.GetValueOrDefault(reading) + 1;
-            var item = new ReadingOrderItem(i, n, b);
-            if (reading == page)
-            {
-                items.Add(item);
-                if (i == _roSelect) _roSelect = null; // shown: done waiting for the viewer to turn
-            }
-            else if (b.Page == page) readElsewhere++;
-            if (!stale) boxes.Add(new ReadingOrderBox(b.Page, b.Box, n, i == selected, item.NeedsAlt));
-        }
+        var s = ReadingOrderPane.State(plan, Viewer.CurrentPage, selected, stale, _tagPlanWritten);
+        if (_roSelect is { } waiting && s.Items.Any(x => x.Index == waiting)) _roSelect = null; // shown: done waiting for the viewer to turn
         _roUpdating = true;
         try
         {
-            RoList.ItemsSource = items;
-            RoList.SelectedItem = items.FirstOrDefault(x => x.Index == selected);
+            RoList.ItemsSource = s.Items;
+            RoList.SelectedItem = s.Items.FirstOrDefault(x => x.Index == selected);
             if (!keepFigureEditor) ShowSelectedPiece();
         }
         finally
         {
             _roUpdating = false;
         }
-        Viewer.SetReadingOrder(boxes);
-        var missing = plan.FiguresWithoutAlt;
-        RoSummary.Text = stale
-            ? Strings.ReadingOrder_Stale
-            : string.Join(" ", new[]
-            {
-                Loc.Plural(items.Count, Strings.ReadingOrder_Summary_One, Strings.ReadingOrder_Summary_Many, page + 1),
-                readElsewhere == 0 ? null : Loc.Plural(readElsewhere, Strings.ReadingOrder_ReadElsewhere_One, Strings.ReadingOrder_ReadElsewhere_Many),
-                missing == 0 ? Strings.ReadingOrder_AllAlt : Loc.Plural(missing, Strings.ReadingOrder_MissingAlt_One, Strings.ReadingOrder_MissingAlt_Many),
-                _tagPlanWritten ? Strings.ReadingOrder_Tagged : Strings.ReadingOrder_ApplyToTag,
-            }.OfType<string>());
-        RoUp.IsEnabled = RoDown.IsEnabled = RoList.IsEnabled = RoFigure.IsEnabled = RoPiece.IsEnabled = !stale;
-        RoPageBefore.IsEnabled = !stale && page > 0;
-        RoPageAfter.IsEnabled = !stale && page < plan.Pages - 1;
-        RoApply.IsEnabled = !stale && !_tagPlanWritten;
+        Viewer.SetReadingOrder(s.Boxes);
+        RoSummary.Text = s.Summary;
+        RoUp.IsEnabled = RoDown.IsEnabled = RoList.IsEnabled = RoFigure.IsEnabled = RoPiece.IsEnabled = s.Editable;
+        RoPageBefore.IsEnabled = s.CanMoveToPageBefore;
+        RoPageAfter.IsEnabled = s.CanMoveToPageAfter;
+        RoApply.IsEnabled = s.CanApply;
         UpdatePaneDetail();
-    }
-
-    /// <summary>A kind the selected piece can be made, as the kind list shows it.</summary>
-    internal sealed record PieceKind(TagBlockKind Kind, int Level, string Label);
-
-    /// <summary>The kinds a piece can be made (<see cref="AutoTag.KindsFor"/>), a heading at each level.</summary>
-    private static List<PieceKind> KindsOf(TagBlock b)
-    {
-        var list = new List<PieceKind>();
-        foreach (var k in AutoTag.KindsFor(b))
-        {
-            if (k == TagBlockKind.Heading)
-            {
-                for (var level = 1; level <= 6; level++) list.Add(new PieceKind(k, level, Loc.Format(Strings.ReadingOrder_Heading, level)));
-                continue;
-            }
-            list.Add(new PieceKind(k, 0, k switch
-            {
-                TagBlockKind.List => Strings.ReadingOrder_KindList,
-                TagBlockKind.Contents => Strings.ReadingOrder_KindContents,
-                TagBlockKind.Table => Strings.ReadingOrder_KindTable,
-                TagBlockKind.Caption => Strings.ReadingOrder_Caption,
-                TagBlockKind.Note => Strings.ReadingOrder_Footnote,
-                TagBlockKind.Formula => Strings.ReadingOrder_Formula,
-                TagBlockKind.Figure => Strings.ReadingOrder_Picture,
-                _ => Strings.ReadingOrder_Paragraph,
-            }));
-        }
-        return list;
     }
 
     /// <summary>Makes the selected piece another kind (a Pro fix, as moving it is), keeps it selected and says what it is now.</summary>
     private void ChangeSelectedKind(PieceKind kind)
     {
         if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item) return;
-        if (!MayFixOrder())
+        if (!MayFix(ReadingOrderEdit.Kind))
         {
             ShowSelectedPiece(); // the list goes back to the kind it is
             return;
         }
-        var plan = AutoTag.WithKind(_tagPlan, item.Index, kind.Kind, Math.Max(1, kind.Level));
+        var plan = ReadingOrderPane.WithKind(_tagPlan, item.Index, kind);
         if (ReferenceEquals(plan, _tagPlan)) return;
         SetPlan(plan, select: item.Index);
-        AiActions.Announce(RoKind, Loc.Format(Strings.ReadingOrder_KindChanged, item.Number, kind.Label));
+        AiActions.Announce(RoKind, ReadingOrderPane.KindChanged(item.Number, kind.Label));
     }
 
     /// <summary>Dev script: makes the selected piece <paramref name="kind"/> ("heading 2", "paragraph", "figure"…) as the kind list does.</summary>
@@ -334,32 +225,25 @@ public partial class DocumentTab
         if (RoKind.Items.OfType<PieceKind>().FirstOrDefault(x => x.Kind == k && x.Level == level) is { } choice) RoKind.SelectedItem = choice;
     }
 
+    /// <summary>The selected piece's kind, to change it, and a picture's or formula's alternate text (<see cref="ReadingOrderPane.Piece"/>).</summary>
     private void ShowSelectedPiece()
     {
-        // The selected piece's kind, to change it.
-        var selected = RoList.SelectedItem as ReadingOrderItem;
-        RoPiece.Visibility = selected is null ? Visibility.Collapsed : Visibility.Visible;
-        if (selected is not null)
-        {
-            var wasUpdating = _roUpdating;
-            _roUpdating = true;
-            var kinds = KindsOf(selected.Block);
-            RoKind.ItemsSource = kinds;
-            RoKind.SelectedItem = kinds.FirstOrDefault(x => x.Kind == selected.Block.Kind && (x.Kind != TagBlockKind.Heading || x.Level == Math.Clamp(selected.Block.Level, 1, 6)));
-            _roUpdating = wasUpdating;
-        }
-        // A picture's alternate text (or decorative), a formula's (what a screen reader says for it: its text to begin with).
-        var figure = RoList.SelectedItem is ReadingOrderItem { Block.Kind: TagBlockKind.Figure or TagBlockKind.Formula } item ? item : null;
-        RoFigure.Visibility = figure is null ? Visibility.Collapsed : Visibility.Visible;
-        if (figure is null) return;
-        var formula = figure.Block.Kind == TagBlockKind.Formula;
+        var piece = RoList.SelectedItem is ReadingOrderItem selected ? ReadingOrderPane.Piece(selected) : null;
+        RoPiece.Visibility = piece is null ? Visibility.Collapsed : Visibility.Visible;
+        RoFigure.Visibility = piece is { HasAlt: true } ? Visibility.Visible : Visibility.Collapsed;
+        if (piece is null) return;
         var was = _roUpdating;
         _roUpdating = true;
-        RoAlt.Text = figure.Block.Alt ?? (formula ? figure.Block.Text : "");
-        RoAlt.IsEnabled = !figure.Block.Decorative;
-        RoDecorative.IsChecked = figure.Block.Decorative;
-        RoDecorative.Visibility = RoSuggest.Visibility = formula ? Visibility.Collapsed : Visibility.Visible;
-        RoAltLabel.Text = Loc.Format(formula ? Strings.ReadingOrder_FormulaRead : Strings.ReadingOrder_AltFor, figure.Number);
+        RoKind.ItemsSource = piece.Kinds;
+        RoKind.SelectedItem = piece.CurrentKind is { } current ? piece.Kinds[current] : null;
+        if (piece.HasAlt)
+        {
+            RoAlt.Text = piece.AltText;
+            RoAlt.IsEnabled = piece.AltEditable;
+            RoDecorative.IsChecked = piece.Decorative;
+            RoDecorative.Visibility = RoSuggest.Visibility = piece.OffersDecorative ? Visibility.Visible : Visibility.Collapsed;
+            RoAltLabel.Text = piece.AltLabel;
+        }
         _roUpdating = was;
     }
 
@@ -370,35 +254,30 @@ public partial class DocumentTab
     internal void RoMoveToPage(int by) => MoveSelectedToPage(by);
 
     /// <summary>Dev script: Page Up (-1) or Page Down (1) in the list.</summary>
-    internal void RoShowPage(int by) => ShowReadingPage(Viewer.CurrentPage + by);
+    internal void RoShowPage(int by) => ShowReadingPage(by);
 
     /// <summary>Reads the selected piece with the page before (-1: after its last piece) or after (1: before its first), and shows that page.</summary>
     private void MoveSelectedToPage(int by)
     {
-        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item || !MayFixOrder()) return;
-        var moved = AutoTag.MoveToPage(_tagPlan, item.Index, by);
-        if (ReferenceEquals(moved, _tagPlan)) return;
-        var block = moved.Blocks.First(b => b.Box == item.Block.Box && b.Page == item.Block.Page && b.Kind == item.Block.Kind);
-        var index = moved.Blocks.ToList().IndexOf(block);
-        var page = AutoTag.ReadingPage(block);
-        SetPlan(moved, select: index);
-        _roSelect = index;
-        if (Viewer.CurrentPage != page) Viewer.GoToPage(page);
-        FillReadingOrder(select: index);
+        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item || !MayFix(ReadingOrderEdit.MoveToPage)) return;
+        if (ReadingOrderPane.MovedToPage(_tagPlan, item.Index, by) is not { } moved) return;
+        SetPlan(moved.Plan, select: moved.Index);
+        _roSelect = moved.Index;
+        if (Viewer.CurrentPage != moved.Page) Viewer.GoToPage(moved.Page);
+        FillReadingOrder(select: moved.Index);
         FocusSelectedPiece();
-        var item2 = RoList.SelectedItem as ReadingOrderItem;
-        AiActions.Announce(RoList, Loc.Format(Strings.ReadingOrder_ReadWith, page + 1, item2?.Number));
+        AiActions.Announce(RoList, ReadingOrderPane.ReadWith(moved.Page, (RoList.SelectedItem as ReadingOrderItem)?.Number));
     }
 
-    /// <summary>Shows another page's pieces (keyboard: Page Up/Down in the list), the first one selected.</summary>
-    private void ShowReadingPage(int page)
+    /// <summary>Shows the page before (-1) or after (1) in the list (keyboard: Page Up/Down), its first piece selected.</summary>
+    private void ShowReadingPage(int by)
     {
-        if (_tagPlan is not { } plan || page < 0 || page >= plan.Pages || page == Viewer.CurrentPage) return;
-        _roSelect = plan.Blocks.ToList().FindIndex(b => AutoTag.ReadingPage(b) == page) is var first and >= 0 ? first : null;
+        if (_tagPlan is not { } plan || ReadingOrderPane.PageShown(plan, Viewer.CurrentPage, by) is not { } page) return;
+        _roSelect = ReadingOrderPane.FirstPiece(plan, page);
         Viewer.GoToPage(page);
         FillReadingOrder();
         FocusSelectedPiece();
-        AiActions.Announce(RoList, Loc.Plural(RoList.Items.Count, Strings.ReadingOrder_PagePieces_One, Strings.ReadingOrder_PagePieces_Many, page + 1));
+        AiActions.Announce(RoList, ReadingOrderPane.PagePieces(RoList.Items.Count, page));
     }
 
     /// <summary>Keyboard focus on the selected piece in the list (its row, so arrows and Alt+arrows go on from there).</summary>
@@ -410,23 +289,23 @@ public partial class DocumentTab
         else RoList.Focus();
     }
 
-    /// <summary>Fixing the reading order is Pro (<see cref="ProFeature.ReadingOrder"/>); looking at it and its alternate text stays free.</summary>
-    private bool MayFixOrder() => Window.GetWindow(this) is { } owner && ProGate.Check(owner, ProFeature.ReadingOrder);
+    /// <summary>Whether <paramref name="edit"/> may run: the panel's fixes are Pro (<see cref="ReadingOrderPane.IsFix"/>, the Pro window asks); looking at it and its alternate text stays free.</summary>
+    private bool MayFix(ReadingOrderEdit edit) =>
+        !ReadingOrderPane.IsFix(edit) || (Window.GetWindow(this) is { } owner && ProGate.Check(owner, ProFeature.ReadingOrder));
 
     private void MoveSelected(int by)
     {
-        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item || !MayFixOrder()) return;
-        var moved = AutoTag.Move(_tagPlan, item.Index, by);
-        if (ReferenceEquals(moved, _tagPlan)) return;
-        SetPlan(moved, select: item.Index + Math.Sign(by));
+        if (_tagPlan is null || RoList.SelectedItem is not ReadingOrderItem item || !MayFix(ReadingOrderEdit.Move)) return;
+        if (ReadingOrderPane.Moved(_tagPlan, item.Index, by) is not { } moved) return;
+        SetPlan(moved.Plan, select: moved.Index);
         if (RoList.ItemContainerGenerator.ContainerFromItem(RoList.SelectedItem) is ListBoxItem c) c.Focus();
-        AiActions.Announce(RoList, Loc.Format(Strings.ReadingOrder_MovedTo, (RoList.SelectedItem as ReadingOrderItem)?.Number));
+        AiActions.Announce(RoList, ReadingOrderPane.MovedTo((RoList.SelectedItem as ReadingOrderItem)?.Number));
     }
 
     /// <summary>Writes the tags from the plan as it is now (title and language asked first when they never were).</summary>
     private async Task ApplyReadingOrderAsync()
     {
-        if (_tagPlan is not { } plan || !PlanCurrent || Window.GetWindow(this) is not MainWindow host || !ProGate.Check(host, ProFeature.ReadingOrder)) return;
+        if (_tagPlan is not { } plan || !PlanCurrent || Window.GetWindow(this) is not MainWindow host || !MayFix(ReadingOrderEdit.Apply)) return;
         await AccessibleActions.WriteAsync(host, this, plan, ask: !_tagPlanConfirmed);
     }
 
