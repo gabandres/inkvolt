@@ -405,8 +405,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   the family reads back as a bold or italic span; typed again, such a stretch, or new text given bold or italic, is
   written in the page's own face when the paragraph has one (`PartLook.Page`: encoded in that font, its widths,
   its /Widths and ToUnicode extended as needed) and only otherwise in an installed face; the operator's own font is
-  set back after the lines. A word in another family still blocks the paragraph (edited line by line), and a line
-  that begins with another family doesn't join at all. `ParagraphEditTests.Mixed` (3). Turned text (2026-11-04):
+  set back after the lines. A word in another family then still blocked the paragraph (edited line by line), and a line
+  that began with another family didn't join at all (both fixed 2026-11-04, "Mixed families" below). `ParagraphEditTests.Mixed` (3). Turned text (2026-11-04):
   runs of one direction (within half a degree; at most 16 directions a page, those with the most runs) are turned
   upright about the page's origin (`ContentEditor.Turned.cs`: each run's reach along and across its baseline,
   `TextRun.Reach`, gives it its own upright box there; mirrored or slanted text has none and stays line by line),
@@ -501,7 +501,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   own font (its encoding from Unicode's mapping) instead of Adobe's AFM, Symbol with macOS's Symbol. pdf.js reads the 8
   sample pages (with a Mac case for looks) and 15 export-corpus pages in order; the corpus check passes; the app's
   `--only-paragraph-edit` self-test passes in English and Spanish. See `mac/docs/PLAN.md`, "Paragraph editing".
-- **Effort** L. Windows done but for the Still to do above; the Mac done (2026-11-10) but for the Windows additions of 2026-11-20 (mixed sizes and colors, the font's own kerning, pictures in the flow, crop), still to port.
+- **Effort** L. Windows done; the Mac done (2026-11-10) but for the Windows additions of 2026-11-20 (mixed sizes and colors, the font's own kerning, pictures in the flow, crop), still to port.
 
 ### 2.2 Better OCR
 - **Leader.** ABBYY FineReader PDF: about 190 OCR languages ([Wikipedia](https://en.wikipedia.org/wiki/ABBYY_FineReader)),
@@ -524,7 +524,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   that is plainly on the page; `ScanText` finds the cleaned page's ink no word covers, in line-sized bands that look like
   type (not specks, rules, blocks or pictures, nor beside a word read on the same row), reads each again alone (at most
   12 places and 60 readings a page; what a place leaves unread is read word by word), and puts the words in reading
-  order. Recognize Text and Redact by Pattern both read through it. The corpus's scans have no skipped line (numbers
+  order. Recognize Text, Redact by Pattern and Compare's scans read through it. The corpus's scans have no skipped line (numbers
   unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. **"1111"**
   (2026-11-04): what made it skip them is four 1s in a row, which Windows' recognizer never reads (alone or in a line, any
   size, margin or font tried: Helvetica, Times, Courier 9-18 pt) and for which it leaves out the whole line; one 1 alone it
@@ -845,7 +845,8 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   original goes in the split view's second pane on the left (`ShowBeside`), scrolling and zooming with it. Progress and
   Cancel come from `ProgressPrompt`; stopping offers the part done as a copy.
   Decisions: text the editor refuses (mixed fonts, right-to-left, a raised mark on its lines) is translated here, since all of it
-  is replaced: a bold word or a superscript inside a paragraph loses its look, and a raised mark joins the text sent. A
+  is replaced: a bold word or a superscript inside a paragraph lost its look (superseded: looks are kept since
+  2026-11-06, "Looks" below), and a raised mark joins the text sent. A
   bullet of its own stays where it is. A line comes apart at a gap over 1.5 ems or where its size changes. A single line's
   alignment comes from its place on the page or in its cell. White text stays in its box (past it, on a band we can't see,
   it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
@@ -1225,7 +1226,7 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   (`INKVOLTPDF_WORD` makes them again). The app compared the two .docx files through Word and listed the same 30. The edited
   PDF against a synthetic scan of itself (200 dpi, turned 1.3°, shifted) found 1.3° and the shift to a tenth of a point.
   **Not checked:** a real scan. **Known:** on that synthetic scan Windows' recognizer skipped a whole line, listed as removed and
-  marked as maybe misread, and lost one "."; re-reading the bands with ink but no words is queued in `docs/HANDOFF.md`.
+  marked as maybe misread, and lost one "."; such a line is now read again (`MissedLines`, 2.2, 2026-11-03).
   **Another size or a quarter turn** (2026-11-20): `CompareAlign` also brings the new page to the old one's size and way up
   before the shift and skew: each quarter turn whose ink box has the old one's proportions is tried coarsely, the best
   sized to the pixel pair (±5%), then lined up as before; kept only when the ink agrees better. `CompareAlignTests`: turned
@@ -1604,9 +1605,10 @@ Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `
   Mac (`WHATS-NEW.es.md`, the appcast's `xml:lang="es"` notes). Checked: `PdfStringsTests` on the PC, `--self-test
   --strings` complete and the self-test passing in both languages on `ignia-mac` (but Vision's known flake) (mac/docs/PLAN.md, 3.7). The Mac-only
   wording: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
-- **Next:** the owner reviews the wording (`pdf/docs/SPANISH-REVIEW.md`, the Mac's section too); the Store listing loses
-  "La aplicación está en inglés." and "What's in This PDF" becomes "Qué hay en este PDF" when it ships; What's New in
-  Spanish on Windows.
+- **Done since:** the owner approved the Windows wording (2026-11-04); the Store listing lost "La aplicación está en
+  inglés." in 1.7.0.0 and names "Qué hay en este PDF" since 1.8.0.0 (`pdf/packaging/README.md`, "Spanish listing (es)");
+  `pdf/WHATS-NEW.es.md` gives the Store's es release notes. **Next:** the app's What's New in Spanish on Windows (it shows
+  the English); the owner's review of the Mac-only wording (`pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac").
 
 ## Where we already win
 

@@ -168,8 +168,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   the installed font closest to it, named under the editor, never silently; characters no font on the PC has are
   refused by name. Kerning outside the change is kept; a word space the font
   has no glyph for becomes a gap; new characters the font has but the PDF didn't use yet get their widths and their
-  text (so copying and search still work). Text in a paragraph (lines of one font, size and color at a steady line
-  step, their left edges, centers or right edges lined up, as Export to Word reads them) frames the whole paragraph,
+  text (so copying and search still work). Text in a paragraph (lines at a steady line step, their left edges, centers
+  or right edges lined up, as Export to Word reads them; upright or turned to any angle, a word in another font family
+  part of it) frames the whole paragraph,
   and a click opens it in a multi-line editor: the text rewraps in the paragraph's box with its alignment (left, right,
   centered or justified) and line spacing, Shift+Enter starts a new line, and the note says how many lines it takes
   and, live, when it would run into the text or picture below; then Enter asks before writing it there. A bar above
@@ -323,7 +324,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Word reads: headings (H1-H6, the first an H1, none skipped; numbered section titles at their depth), paragraphs, lists
   (L, LI, LBody; an indented item's list inside the item before's LBody), tables (TR; TH with a column scope for a bold
   first row or words over numbers, two header rows when a header spans columns over others, TH with a row scope for a
-  bold first column or words in front of numbers; TD; column spans), captions (Caption: "Figure 2:", "Table 1." next to
+  bold first column or words in front of numbers; TD; column and row spans), captions (Caption: "Figure 2:", "Table 1." next to
   its figure or table, inside the table), footnotes (Note with an ID), a table of contents (TOC, TOCI, nested by
   indent; lines ending in page numbers after dot leaders), display math (Formula, read as its text until you write
   otherwise), pictures and charts (Figure with its box; a diagram's labels and a chart's numbers are part of it, not a
@@ -344,7 +345,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Enter goes to a picture's or formula's text and Esc back. A picture gets its alternate text typed, is marked
   Decorative (screen readers skip it), or **Suggest with AI…** asks your own AI model (AI Assistant Settings; a vision
   model) to describe it: the picture and the text near it are sent only after the window that shows what goes where, and
-  the answer lands in the box for you to check; a formula gets how it is read. **Apply changes** writes the tags again
+  the answer lands in the box for you to check; a formula gets how it is read. The Kind list under the pieces makes a
+  piece a paragraph, a heading 1-6, a caption, footnote, formula or picture. **Apply changes** writes the tags again
   (one undo step). After Make Accessible and alternate text, the untagged LaTeX files of the accessibility corpus pass
   PDF/UA-1, in the checker and in veraPDF.
 - **Sanitize Document** (Review menu, command palette): removes what a document carries besides its pages. The dialog
@@ -393,7 +395,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   cut from the page; Correct to (Enter, or one of the spelling suggestions) or Keep as read writes the text layer again,
   one undo step each, and search finds the corrected word. The words, their boxes and suspect marks are kept in the
   layer itself (comment lines at its start), so the review works after saving and reopening. Batch, Export and Scan
-  clean pages the same way but don't mark suspect words. Tesseract gives a confidence per word: a word it read under 60
+  clean pages the same way and mark suspect words too: Batch and Scan keep them in the text layer for the pane (their
+  notes and message count them), an export counts them in its message. Tesseract gives a confidence per word: a word it read under 60
   of 100 is a suspect word too ("the recognizer wasn't sure of it").
 - **Tesseract** (roadmap 2.2): the languages Windows has no recognizer for (Hindi, Thai, Hebrew, Ukrainian, Vietnamese,
   …) are listed after Windows' own in Recognize Text, marked "Tesseract, N MB to download". Nothing is downloaded until
@@ -671,7 +674,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   pages or file size, a Cancel that keeps what's done, and your file is only read. Each paragraph stays in its box: it wraps,
   uses the white space below it, then shrinks (to half its size or 5 points at most); one that still doesn't fit, or stays
   untranslated, gets a comment saying why, and the summary lists the pages. When the page's font lacks a letter the
-  paragraph is drawn in the closest installed font, named in the summary. Scanned pages and turned text stay as they are and are named;
+  paragraph is drawn in the closest installed font, named in the summary. Bold, italic, sub- and superscripts, plain underlines and up to three other colors or families a
+  paragraph keep their look.
+  Sideways and upside-down text is translated; scanned pages and text turned other than by a quarter turn stay as they are and are named;
   comments, form fields and bookmarks aren't translated. A model's answer is used only as plain text: reasoning, markup and
   control characters come out, an answer in several paragraphs or far too long is asked for once more and then left out.
   Code: `Core/Translation.cs`, `Core/ContentEditor.Translate.cs`, `App/DocumentTab.Translate.cs`. Dev steps: `translate`,
@@ -869,7 +874,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   comments and attachments removed from a signed file stay recoverable from its signed revision until the file is
   flattened (offered after such a removal; breaks the signatures). Revocation is checked online only on request.
 - Signing: encrypted PDFs can't be signed or take long-term data (save an unprotected copy first). A signature field's
-  /Lock is honored and enforced, but certifying doesn't let you pick fields to lock. A self-signed ID shows as untrusted on
+  /Lock is honored and enforced, and certifying a form can lock all its fields, the ones picked, or all but those (Lock
+  form fields; Acrobat's view of the lock isn't checked). A self-signed ID shows as untrusted on
   other PCs until they trust it, and long-term data can't change that.
 - Long-term validation goes without a proxy, since a proxy would connect out of sight of the checks on where it may
   connect: on a network that only lets traffic out through one, it fails with a message. An internal certificate authority
@@ -894,13 +900,14 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Redact by Pattern reads scanned pages and pictures through Windows' OCR, which can misread words and miss lines: such
   a page is always flagged to be looked at by hand, and a value OCR can't read is found only by a person. Month names are
   English; a nine-digit number that follows the SSN rules is marked as one, and IPv4 matches version numbers such as 1.2.3.4.
-- OCR uses Windows' built-in recognizer: it needs an OCR language installed in Windows (your display language, else
-  English, unless another installed one is chosen), one language per run, and reads printed text only (not handwriting).
+- OCR uses Windows' built-in recognizer, or Tesseract (downloaded on request) for a language Windows lacks: Windows' needs
+  an OCR language installed (your display language, else English, unless another installed one is chosen), two
+  languages a run at most (a Second language), and reads printed text only (not handwriting).
   Straightening goes up to 15°; curved lines (a book's spine) and trapezoids (a photo of a page) aren't corrected, and a
   page with too little text to show its lines stays as it is. Suspect words are a heuristic, not a confidence: a misread
   word that is itself a real word ("form" for "from") isn't caught unless the scan before cleaning read it differently,
-  and names or terms the dictionary lacks are listed though right. Pages recognized before this version, or by Batch,
-  Export or Scan, have no suspect words to review. A correction replaces one word with one word; the cleaned pages are
+  and names or terms the dictionary lacks are listed though right. Pages recognized by an older version have no suspect
+  words to review; an export counts its suspect words but has no text layer to review them in. A correction replaces one word with one word; the cleaned pages are
   stored losslessly (Flate), so a replaced page can be larger than the JPEG scan it replaces.
 - Form scripts run in a sandbox (Jint: no network, files or other apps; time and memory limits) with Acrobat's form
   object model only: calculate, format, keystroke and validate events, document-level helpers, app.alert as a toast.
@@ -908,7 +915,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Right-to-left text with explicit bidi controls (embeddings, overrides, isolates) isn't laid out in new annotations,
   stamps and fields.
 - Edit Text & Images: a paragraph with bigger text set off its line (a raised word that isn't a superscript), text
-  painted with a pattern, right-to-left text, or other text on its lines that isn't part of it (a footnote mark raised
+  painted with a pattern, right-to-left text, mirrored or slanted text, or other text on its lines that isn't part of it (a footnote mark raised
   past a quarter of the line), and a single piece of text on one line are edited one text operator at a time (often a
   line, sometimes a word or a letter), without reflow. A look in a family that isn't installed, or isn't TrueType, is
   drawn in the closest installed font. New letter pairs get the font's own kerning only in text the PDF kerned (text set
@@ -925,8 +932,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   in a drawing drawn through another drawing that the page or other pages use more than once, Type 3
   fonts, vertical text, CJK fonts with predefined CMaps, invisible OCR text, or text carrying ActualText. Simple CFF
   (Type 1C) fonts without a readable glyph list are checked against the PDF's widths and ToUnicode table only. A
-  replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing: no polygon tool (existing polygons and polylines can be moved, resized and
-  restyled), each pen stroke is its own annotation, and pen pressure is ignored.
+  replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing:
+  each pen stroke is its own annotation, and pen pressure is ignored.
 - Prepare Form: one field selected at a time (no multi-select, align or distribute); no calculated fields, submit
   buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
   and actions). New fields use Helvetica (other scripts get an embedded font when filled). A field shown in several
@@ -939,8 +946,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   skew, another size (a third to three times) and a quarter turn, the last two from where most of each page's ink lies: a
   page with ink in a band under a twenty-fifth of the page either way, or whose ink is cut differently (a margin note on one
   scan only), stays at its size and way up. Pages made by a program aren't lined up, so a page shifted by a few points looks
-  different all over. Windows' recognizer now and then skips a whole line that is on the page:
-  it is listed as removed, marked as maybe misread. A scan against a page made by a program isn't checked visually (they differ
+  different all over. A line Windows' recognizer skips is read again on its own, as in Recognize Text (12 places a
+  page at most); one it still misses is listed as removed, marked as maybe misread. A scan against a page made by a program isn't checked visually (they differ
   all over), only by its words. The annotated copy needs the permissions password of a
   protected changed file. XPS, EPUB and the other formats Inkvolt PDF opens aren't taken.
 - **PowerPoint and HTML export**: a presentation has one slide size, so pages of another size are shrunk. Fonts that aren't on the PC are replaced by one of their kind, and a wider one wraps sooner, so dense forms come out crowded. PowerPoint's tabs have no leaders, so a contents page loses its dots. Only lines, rectangles and ellipses become shapes: rounded, dashed or see-through ones stay pictures, and are left out where text lies on them; a path reaching more than a page's size off the page is only its part on the page (a fill a rectangle there, an outline a picture, a line cut at the edges). HTML keeps no page layout, colors or fonts, only structure and emphasis; a picture on a page that was turned upright stays unturned there. Links come along on the words they cover (a character whose middle is in one of the link's /QuadPoints boxes, or in its area when that holds one line; a link over several lines without /QuadPoints is left out, as its area also covers the words before and after it): web and mail addresses (http, https, mailto only; others stay text) and jumps to a page that is exported too (a slide, or the page's part of the HTML); a link on a picture or a shape, or on a scan's recognized words, isn't carried, nor are links in a Word export. Alternate text comes from Figure tags: matched by their box, or in order when a page has as many tags without a box as pictures left. Pictures in the HTML are held in memory until the file is written. Checked in PowerPoint and the W3C validator; LibreOffice and a screen reader haven't been run (`tools/export-corpus -LibreOffice` opens the .docx, .xlsx and .pptx in it where it is installed).
@@ -991,8 +998,9 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   installed on Windows 10).
 - Search Folders: a word is looked up by its letters and digits, so a query of only punctuation is refused (Find in the open
   document takes it). A phrase is checked page by page among those with all its words, so when those are common and rarely side by
-  side it takes seconds, results coming as they are found. 500 pages are listed at most. Terms are cut at 48 characters, so a word
-  inside a longer run than that isn't found past there. The text of a changed or removed file stays in the index file, shown by no search, until the file is compacted
+  side it takes seconds, results coming as they are found. 500 pages are listed at most. A run of letters and digits longer than 48
+  characters (an identifier, a hash) is filed in overlapping pieces, so a word inside it is found, but only within its
+  first 1,024 characters. The text of a changed or removed file stays in the index file, shown by no search, until the file is compacted
   (within about 2 minutes, while the app is open). A file only in a cloud drive isn't downloaded for this: it is counted, and read once it is on the PC. A moved or renamed file
   is read again. A file's comments aren't indexed, as Find doesn't search them.
 - Batch: printing isn't one of its actions (print a file from its tab); nor are page edits that need a page range or a
@@ -1015,10 +1023,11 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   a grid of words can still read as a table; a bold numbered line as a heading; inline math split over lines can come
   out as small formulas); check the order in the Reading order pane. Content inside a form XObject goes with the tag of
   the place it is drawn (one tag for the whole form). Captions, footnotes, contents and formulas are found by how they
-  look (see above), so others stay paragraphs; row spans aren't read (column spans are). Unicode is given only where
+  look (see above), so others stay paragraphs; row spans in a table without lines are read only from a first column of
+  group labels. Unicode is given only where
   it can be told (TeX's math fonts, the Adobe glyph names, empty glyphs); fonts that aren't embedded stay so. Scanned
-  pages without text get only their pictures tagged (run Recognize Text first). The Reading order pane doesn't change a
-  piece's kind. Make Accessible, the pane's fixes and PDF/A-2a ask the Inkvolt Pro check; enforcement is off, so they
+  pages without text get only their pictures tagged (run Recognize Text first). The Reading order pane's Kind list
+  makes nothing a table or a list from a paragraph (their cells and entries aren't known). Make Accessible, the pane's fixes and PDF/A-2a ask the Inkvolt Pro check; enforcement is off, so they
   are free for now.
 - Accessibility Check: checks; Make Accessible fixes tagging, reading order and alternate text. Not
   checked: Ruby and Warichu tags (09-007, 09-008), printer's marks' appearances (28-018), a TrueType font's Differences
