@@ -41,8 +41,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>A network printer's monitor (the one with an address); null for a queue printer or a scanner on its own.</summary>
     private readonly PrinterMonitor? _monitor;
-    private bool _discoveredQueue;
-    private bool _windowsQueue;
     private readonly List<string> _previousHosts = [];
     private readonly IQueueStatusSource? _queueSource;
     private readonly IWiaSystem? _wiaSystem;
@@ -61,7 +59,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _state = state;
         _remember = remember;
         _pc = pc;
-        _router = new Core.Printing.Direct.PrintRouter(FindQueueAsync, () => DirectIpp, () => Print?.PrintDirect ?? false);
+        Routing = new Core.Printing.Direct.PrintRouting(FindQueueAsync, () => DirectIpp, hasAddress: host is not null, state.GetPrintDirect(uuid),
+            direct => state.SetPrintDirect(uuid, direct), line => Log.Write(line));
+        Routing.Changed += RoutingChanged;
         if (host is not null)
             _monitor = new PrinterMonitor(uuid, () => Name, new PrinterWhere(host, esclRoot),
                 new PrinterRecipe(pc.DeviceTransport, pc.Snmp, new PinStore(state, uuid), SnmpLogin: () => pc.SnmpLogins.Usable(uuid)),
@@ -71,17 +71,22 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Print = new PrintViewModel(PrintTargetAsync, state)
         {
             Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
-                : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), _router,
+                : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), Routing.Router,
                     ipp => Printing.DirectBatchJobs.For(Name, new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp)))),
-                Printing.WindowsBatchDocuments.Instance, state),
-            PrintDirect = state.GetPrintDirect(uuid),
-            DirectChosen = ChooseDirect,
+                Printing.WindowsBatchDocuments.Instance, state)
+            {
+                Routing = Routing,
+            },
+            Routing = Routing,
         };
-        Jobs = new PrintJobsViewModel(pc.IsDemo ? pc.PrintJobs(FindQueueAsync) : new Printing.RoutedPrintJobs(pc.PrintJobs(FindQueueAsync), PrintTargetAsync));
+        Jobs = new PrintJobsViewModel(pc.IsDemo ? pc.PrintJobs(FindQueueAsync) : new Printing.RoutedPrintJobs(pc.PrintJobs(FindQueueAsync), PrintTargetAsync))
+        {
+            Routing = Routing,
+        };
         _jobQueue = pc.IsDemo ? pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync)
-            : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), _router, pc.UserName);
-        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { HasQueue = QueueInstalled };
-        Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid));
+            : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), Routing.Router, pc.UserName);
+        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { Routing = Routing };
+        Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid)) { Routing = Routing };
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
             canElevate: Features.ElevatedRepairs);
         Maintenance = new MaintenanceViewModel(uuid, name, state, OpenWebPage, pc);
@@ -128,7 +133,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         _wiaSystem = wia;
         ScannerDevice = scanner;
-        QueueInstalled = false;
+        _ = Routing.QueueLookedUpAsync(found: false); // a scanner on its own has no queue to print to
         Jobs.CanFix = false;
         Sync(About, new InfoRow?[]
         {
@@ -306,8 +311,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Print photos and other pictures with layouts, through the Windows queue.</summary>
     public PhotosViewModel Photos { get; }
 
-    partial void OnQueueInstalledChanged(bool value) => UpdatePrintRoute();
-
     /// <summary>The printer's IPP client when it takes PWG raster, Apple raster or PCLm (roadmap 2.1), else null.</summary>
     private Core.Ipp.IppClient? DirectIpp =>
         _monitor?.Connection is { Ipp: { } ipp, Probe.Ipp: { } attributes }
@@ -319,7 +322,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// </summary>
     public async Task<Printing.PrintTarget?> PrintTargetAsync()
     {
-        var choice = await _router.ChooseAsync();
+        var choice = await Routing.Router.ChooseAsync();
         return choice switch
         {
             { Route: Core.Printing.Direct.PrintRoute.Direct, Ipp: { } ipp } => new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp), _pc.MadeUpPrint),
@@ -328,8 +331,20 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         };
     }
 
-    /// <summary>Where this printer's jobs go, decided in one place for prints, batches and job alerts (<see cref="Core.Printing.Direct.PrintRouter"/>).</summary>
-    private readonly Core.Printing.Direct.PrintRouter _router;
+    /// <summary>
+    /// Where this printer's jobs go, decided in one place for prints, batches and job alerts (its <see cref="Core.Printing.Direct.PrintRouter"/>),
+    /// and what the tabs that print know of it: each hears its one change event itself.
+    /// </summary>
+    public Core.Printing.Direct.PrintRouting Routing { get; }
+
+    /// <summary>The setup banner and its command follow the routing.</summary>
+    private void RoutingChanged()
+    {
+        OnPropertyChanged(nameof(QueueInstalled));
+        OnPropertyChanged(nameof(NeedsSetup));
+        OnPropertyChanged(nameof(SetupResult));
+        SetUpCommand.NotifyCanExecuteChanged();
+    }
 
     private (Core.Ipp.IppClient Client, Core.Printing.Direct.IppCapsCache Caps)? _directCaps;
 
@@ -340,41 +355,6 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         var caps = Printing.PrintTarget.Direct.CapsOf(ipp);
         _directCaps = (ipp, caps);
         return caps;
-    }
-
-    /// <summary>The Print tab's choice and note, and whether Copy has somewhere to print, after a connection or a queue change.</summary>
-    private void UpdatePrintRoute() => _ = UpdatePrintRouteAsync();
-
-    /// <summary>
-    /// Decided as a print decides (<see cref="PrintTargetAsync"/>), so the note says where the next job goes and job alerts watch
-    /// where the jobs go (the router keeps this decision).
-    /// </summary>
-    private async Task UpdatePrintRouteAsync()
-    {
-        var direct = DirectIpp is not null;
-        Copy.HasQueue = QueueInstalled || direct;
-        Core.Printing.Direct.RouteChoice choice;
-        try { choice = await _router.ChooseAsync(); }
-        catch (Exception ex)
-        {
-            Log.Write($"Print route: {ex.Message}");
-            return; // the note stays as it was; the next print decides again
-        }
-        var queue = choice.Queue is not null;
-        Print.CanChooseDirect = direct && queue;
-        Print.RouteNote = choice.Route == Core.Printing.Direct.PrintRoute.Direct
-            ? (queue ? Strings.Print_RouteDirectChosen : Strings.Print_RouteDirect)
-            : null;
-    }
-
-    private void ChooseDirect(bool direct)
-    {
-        _state.SetPrintDirect(Uuid, direct);
-        UpdatePrintRoute();
-        Print.QueueChanged();
-        Copy.QueueChanged();
-        Photos.QueueChanged();
-        Jobs.QueueChanged();
     }
 
     /// <summary>This printer's Windows print queue (a card on the Overview).</summary>
@@ -594,14 +574,11 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public ObservableCollection<SupplyViewModel> Supplies { get; } = [];
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult), nameof(SetupNeedsAdmin), nameof(SetupInSettings))]
-    [NotifyCanExecuteChangedFor(nameof(SetUpCommand))]
+    [NotifyPropertyChangedFor(nameof(SetupNeedsAdmin), nameof(SetupInSettings))]
     public partial string? PrintEndpointId { get; set; }
 
-    /// <summary>A Windows print queue exists for this printer (seen by discovery or found among installed queues).</summary>
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(NeedsSetup), nameof(SetupResult))]
-    public partial bool QueueInstalled { get; set; } = true;
+    /// <summary>A Windows print queue exists for this printer (seen by discovery or found among installed queues): <see cref="Routing"/>'s word.</summary>
+    public bool QueueInstalled => Routing.HasQueue;
 
     [ObservableProperty] public partial string? ScanEndpointId { get; set; }
     [ObservableProperty] public partial bool ScannerInstalled { get; set; } = true;
@@ -618,7 +595,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public string? SetupResult => NeedsSetup ? null : SetupMessage;
 
     /// <summary>No Windows queue yet. Discovered printers pair; printers added by address get an IPP queue (one UAC prompt).</summary>
-    public bool NeedsSetup => !QueueInstalled && (PrintEndpointId is not null || Host is not null);
+    public bool NeedsSetup => Routing.NeedsSetup;
 
     /// <summary>True when setup will need administrator permission (printer added by address).</summary>
     public bool SetupNeedsAdmin => PrintEndpointId is null && Features.ElevatedQueueSetup;
@@ -762,8 +739,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public void ApplyDiscovery(DiscoveredPrinter d)
     {
         PrintEndpointId = d.PrintEndpointId;
-        _discoveredQueue = d.QueueInstalled;
-        QueueInstalled = _discoveredQueue || _windowsQueue;
+        _ = Routing.DiscoveredAsync(d.QueueInstalled, pairs: d.PrintEndpointId is not null);
         ScanEndpointId = d.ScanEndpointId;
         ScannerInstalled = d.ScannerInstalled;
         Model ??= d.Model;
@@ -789,16 +765,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Looks for an installed Windows queue for this printer.</summary>
     public async Task RefreshQueueAsync()
     {
+        bool found;
         try
         {
-            _windowsQueue = await FindQueueAsync() is not null;
+            found = await FindQueueAsync() is not null;
         }
         catch (Exception ex)
         {
             Trace.WriteLine($"[{Name}] queue lookup failed: {ex.Message}");
             return;
         }
-        QueueInstalled = _discoveredQueue || _windowsQueue;
+        _ = Routing.QueueLookedUpAsync(found); // told at once; the route is decided after (its failures are its own)
         OnPropertyChanged(nameof(SetupNeedsAdmin));
         OnPropertyChanged(nameof(SetupInSettings));
     }
@@ -808,19 +785,12 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         try
         {
-            for (var i = 0; i < 120 && !QueueInstalled; i++)
+            for (var i = 0; i < 120 && !Routing.HasQueue; i++)
             {
                 await Task.Delay(TimeSpan.FromSeconds(5), ct);
                 await RefreshQueueAsync();
             }
-            if (QueueInstalled)
-            {
-                SetupMessage = Strings.Printer_ReadyToPrint;
-                Print.QueueChanged();
-                Copy.QueueChanged();
-                Photos.QueueChanged();
-                Jobs.QueueChanged();
-            }
+            if (Routing.HasQueue) SetupMessage = Strings.Printer_ReadyToPrint; // the tabs heard the routing change
         }
         catch (OperationCanceledException) { }
     }
@@ -1064,7 +1034,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             new(Strings.Printer_AboutConnectedVia, string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
-        UpdatePrintRoute();
+        _ = Routing.DecideAsync(); // the connection may take jobs straight now, or no longer
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
 
         BindScanner();
@@ -1366,7 +1336,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         foreach (var s in source) target.Add(s);
     }
 
-    private bool CanSetUp() => !IsInstalling && (PrintEndpointId is not null || Host is not null);
+    private bool CanSetUp() => !IsInstalling && Routing.CanSetUp;
 
     /// <summary>
     /// One click. Discovered printers: pairs the IPP endpoint (no prompt), then adds the Windows scanner in the
@@ -1409,15 +1379,10 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
             if (print.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled)
             {
-                _windowsQueue = true;
-                QueueInstalled = true;
                 SetupMessage = Strings.Printer_ReadyToPrint;
-                Print.QueueChanged();
-                Copy.QueueChanged();
-                Photos.QueueChanged();
-                Jobs.QueueChanged();
                 if (ScanEndpointId is { } scan && !ScannerInstalled)
                     _ = QueueInstaller.InstallAsync(scan, timeout: TimeSpan.FromSeconds(90)); // best effort
+                _ = Routing.QueueSetUpAsync(made: true); // the banner goes at once; the route is decided after
             }
             else
             {
@@ -1455,13 +1420,9 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 result = await QueueInstaller.InstallAsync(endpoint);
                 if (result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled) break;
             }
-            _windowsQueue = result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled;
-            QueueInstalled = _discoveredQueue || _windowsQueue;
-            Print.QueueChanged();
-            Copy.QueueChanged();
-            Photos.QueueChanged();
-            Jobs.QueueChanged();
-            return _windowsQueue ? null : string.Format(Strings.Printer_ReinstallFailed, result.Message);
+            var made = result.Outcome is InstallOutcome.Installed or InstallOutcome.AlreadyInstalled;
+            _ = Routing.QueueSetUpAsync(made); // told at once, without holding the queue busy for the decision
+            return made ? null : string.Format(Strings.Printer_ReinstallFailed, result.Message);
         }
         catch (Exception ex)
         {

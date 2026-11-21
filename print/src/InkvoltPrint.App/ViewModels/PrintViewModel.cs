@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Printing;
+using InkvoltPrint.Core.Printing.Direct;
 using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.App.ViewModels;
@@ -24,7 +25,6 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     private PdfSource? _pdf;
     private CancellationTokenSource? _cts;
     private int _openGeneration;
-    private bool _twoSidedChecked;
 
     public ObservableCollection<PdfThumbnail> Thumbnails { get; } = [];
 
@@ -192,7 +192,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             PaperText = PaperName(w, h);
             OnPropertyChanged(nameof(Summary));
             PrintCommand.NotifyCanExecuteChanged();
-            _ = RefreshTwoSidedAsync();
+            _ = TwoSidedRead.AskAsync();
             await LoadThumbnailsAsync(pdf, generation);
         }
         catch (PdfOpenException ex)
@@ -208,26 +208,42 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         }
     }
 
+    /// <summary>Where the printer's jobs go (<see cref="PrintRouting"/>): this tab hears when that changes.</summary>
+    public required PrintRouting Routing
+    {
+        get;
+        init
+        {
+            field = value;
+            value.Changed += RoutingChanged;
+        }
+    }
+
     /// <summary>The printer takes PWG raster, Apple raster or PCLm and it has a Windows queue too: the person may choose (roadmap 2.1).</summary>
-    [ObservableProperty] public partial bool CanChooseDirect { get; set; }
+    public bool CanChooseDirect => Routing.CanChooseDirect;
 
     /// <summary>Print straight to the printer rather than through its Windows queue (kept per printer).</summary>
-    [ObservableProperty] public partial bool PrintDirect { get; set; }
+    public bool PrintDirect
+    {
+        get => Routing.ChoseDirect;
+        set => _ = Routing.ChooseDirectAsync(value);
+    }
 
     /// <summary>The line saying pages go straight to the printer, or null when they go through the Windows queue.</summary>
-    [ObservableProperty] public partial string? RouteNote { get; set; }
-
-    /// <summary>Set by the printer: saves <see cref="PrintDirect"/> and re-checks the route.</summary>
-    public Action<bool>? DirectChosen { get; set; }
-
-    partial void OnPrintDirectChanged(bool value) => DirectChosen?.Invoke(value);
-
-    /// <summary>The printer's Windows queue was just created or removed: re-check what it can do.</summary>
-    public void QueueChanged()
+    public string? RouteNote => Routing.Note switch
     {
-        Batch?.QueueChanged();
-        _twoSidedChecked = false;
-        if (_pdf is not null) _ = RefreshTwoSidedAsync();
+        PrintRouteNote.Direct => Strings.Print_RouteDirect,
+        PrintRouteNote.DirectChosen => Strings.Print_RouteDirectChosen,
+        _ => null,
+    };
+
+    /// <summary>The route, the choice or the Windows queue changed: show it, and check two-sided again once it was checked (Batch hears it itself).</summary>
+    private void RoutingChanged()
+    {
+        OnPropertyChanged(nameof(CanChooseDirect));
+        OnPropertyChanged(nameof(PrintDirect));
+        OnPropertyChanged(nameof(RouteNote));
+        TwoSidedRead.RouteChanged();
     }
 
     private async Task LoadThumbnailsAsync(PdfSource pdf, int generation)
@@ -247,10 +263,13 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         }
     }
 
-    /// <summary>Asks the Windows queue once whether the printer can do two-sided (off the UI thread).</summary>
-    private async Task RefreshTwoSidedAsync()
+    /// <summary>Whether the printer can do two-sided, asked once a PDF is open and again after a change of route (<see cref="RouteRead"/>).</summary>
+    private RouteRead TwoSidedRead => field ??= new(CheckTwoSidedAsync);
+
+    /// <summary>Asks the Windows queue (or the printer) whether it can do two-sided, off the UI thread. True when it answered.</summary>
+    private async Task<bool> CheckTwoSidedAsync()
     {
-        if (_twoSidedChecked) return;
+        var answered = false;
         try
         {
             var target = await findTarget();
@@ -263,7 +282,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
                 // Asking the driver can take several seconds (it queries the printer): show the last known answer now.
                 if (target is PrintTarget.Queue { Name: var queue } && state.GetTwoSided(queue) is { } known) CanTwoSided = known;
                 CanTwoSided = await PrintTargets.SupportsTwoSidedAsync(target, state);
-                _twoSidedChecked = true;
+                answered = true;
             }
         }
         catch (Exception ex)
@@ -272,6 +291,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             CanTwoSided = false;
         }
         if (!CanTwoSided) TwoSided = false;
+        return answered;
     }
 
     /// <summary>The printer's Windows queue is being re-created (HP clean-up): hold printing until it's back.</summary>

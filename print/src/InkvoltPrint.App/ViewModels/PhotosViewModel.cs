@@ -8,6 +8,7 @@ using Microsoft.Win32;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Photos;
 using InkvoltPrint.Core.Printing;
+using InkvoltPrint.Core.Printing.Direct;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -66,8 +67,17 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     private PaperSetup? _setup;
     private int _sheetCount;
     private int _paperGeneration;
-    private bool _optionsRead;
-    private bool _loadingOptions;
+
+    /// <summary>Where the printer's jobs go (<see cref="PrintRouting"/>): this tab hears when it changes.</summary>
+    public required PrintRouting Routing
+    {
+        get;
+        init
+        {
+            field = value;
+            value.Changed += RoutingChanged;
+        }
+    }
 
     public ObservableCollection<PhotoItemViewModel> Photos { get; } = [];
     public ObservableCollection<PhotoSheetPreview> Sheets { get; } = [];
@@ -284,7 +294,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         }
         else SetMessage(null);
         if (added > 0) Prompt.Announce(Added(added) + " " + Summary);
-        if (!_optionsRead) _ = ReadOptionsAsync();
+        _ = OptionsRead.AskAsync();
     }
 
     private static string Reason(string path, Exception ex) => ex switch
@@ -366,30 +376,24 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     // ---------------- The printer's options ----------------
 
     /// <summary>The Photos tab is on screen: read the queue's paper sizes, types and quality (once).</summary>
-    public void Shown()
-    {
-        if (!_optionsRead) _ = ReadOptionsAsync();
-    }
+    public void Shown() => _ = OptionsRead.AskAsync();
 
-    /// <summary>The printer's Windows queue appeared or went away: read its options again.</summary>
-    public void QueueChanged()
-    {
-        _optionsRead = false;
-        _ = ReadOptionsAsync();
-    }
+    /// <summary>The route or the Windows queue changed: its options again, once they were asked for.</summary>
+    private void RoutingChanged() => OptionsRead.RouteChanged();
 
-    private async Task ReadOptionsAsync()
+    /// <summary>The printer's paper sizes, types and quality, read once asked and again after a change of route (<see cref="RouteRead"/>).</summary>
+    private RouteRead OptionsRead => field ??= new(ReadOptionsAsync);
+
+    /// <summary>Reads the options; always counts as read (none: the fallback paper until the route changes).</summary>
+    private async Task<bool> ReadOptionsAsync()
     {
-        if (_loadingOptions) return;
-        _loadingOptions = true;
         IsReadingOptions = true;
         try
         {
             PhotoQueueOptions? options;
             if (demo is not null) options = demo.Options;
             else options = await findTarget() is { } target ? await PhotoPrinting.ReadOptionsAsync(target) : null;
-            _optionsRead = true;
-            if (options is null) return; // not set up in Windows yet: the fallback paper until it is
+            if (options is null) return true; // not set up in Windows yet: the fallback paper until it is
             Papers = options.Papers.Count > 0 ? options.Papers : [FallbackPaper];
             MediaTypes = options.MediaTypes;
             Qualities = options.Qualities;
@@ -405,13 +409,12 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         {
             // A driver that can't answer: print with its defaults on the fallback paper.
             Log.Write($"Photo options failed: {ex}");
-            _optionsRead = true;
         }
         finally
         {
-            _loadingOptions = false;
             IsReadingOptions = false;
         }
+        return true;
     }
 
     /// <summary>Borderless support and margins for the chosen paper, then the sheets again.</summary>
