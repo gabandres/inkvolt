@@ -154,8 +154,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   tag plan on a page: its pieces numbered, the boxes on every page, the summary, what can be done. Windows keeps the same rules
   in `DocumentTab.ReadingOrder`.
 - **What is sent, where** (`AiActions.ConfirmSend`; on the Mac `AiConfirmSheet` over PdfCore's `AiConsent`): the window before each send of the AI assistant, with where the text goes, how much, and every message under a disclosure. **Reach** (`AiReach`) is where an endpoint keeps text, as its address is written: this PC or this Mac, your network, or the internet; a connection only ever goes to an address that keeps that promise.
-- **Prepare Form's designer** (`FormDesigner`, with `FormDesignRules`; Mac, in PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does. Windows keeps
-  the same rules in `PageViewer.FormDesign` and `DocumentTab.FormDesign`. It hands over the edits; `FormDesign` makes them.
+- **Prepare Form's designer** (`FormDesigner`, with `FormDesignRules`; Windows in Core, `FormDesigner.cs`, the Mac in
+  PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does.
+  `PageViewer.FormDesign` and `DocumentTab.FormDesign` (the Mac's view and window) are adapters: they pass on the mouse,
+  keys and typed values and draw what it says (ADR 1). On Windows its handles, resizes and arrow keys follow the view's
+  turn. It hands over the edits; `FormDesign` makes them.
 - **Document command table** (`DocumentCommands`; Mac, in PdfCore `Ux/DocumentCommands.swift`): every menu bar command
   once, each a **document command** (title, key, the action it sends, its place in the menus, its plain-words note and
   what it **needs**, a `Requirement`), from which the app builds the menu bar (`MainMenu`) and decides what can run over a
