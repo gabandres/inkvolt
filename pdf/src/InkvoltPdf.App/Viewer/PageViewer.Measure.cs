@@ -109,13 +109,28 @@ public sealed partial class PageViewer
         MeasureRequested?.Invoke(this, new MeasureRequest(done.Page, _tool, done.Points));
     }
 
-    /// <summary>For the dev script: a measurement as if clicked, a point a click (and Enter when the clicks didn't end it).</summary>
-    internal void DevMeasure(int page, ViewerTool tool, IReadOnlyList<PointD> points)
+    /// <summary>
+    /// For the dev script: measurements as if clicked, a point a click kept on the page as a real click is (and Enter after
+    /// the last). Each one the clicks finish goes to the host, <paramref name="settled"/> awaited after each (the host takes
+    /// one edit at a time, as from a person's clicks); the number of them (0: the points make none).
+    /// </summary>
+    internal async Task<int> DevMeasureAsync(int page, ViewerTool tool, IReadOnlyList<PointD> points, Func<Task> settled)
     {
+        if (_engine is null || page < 0 || page >= _engine.PageCount) return 0;
         var draft = new MeasureDraft(MeasureToolOf(tool) ?? MeasureTool.Distance);
-        MeasureDone? done = null;
-        foreach (var p in points) done = draft.Click(page, p) ?? done;
-        if ((done ?? draft.Finish()) is { } d) MeasureRequested?.Invoke(this, new MeasureRequest(d.Page, tool, d.Points));
+        var finished = new List<MeasureDone>();
+        foreach (var p in points)
+        {
+            var pt = ClampToPage(page, new Point(p.X, p.Y));
+            if (draft.Click(page, new PointD(pt.X, pt.Y)) is { } done) finished.Add(done);
+        }
+        if (draft.Finish() is { } last) finished.Add(last);
+        foreach (var d in finished)
+        {
+            MeasureRequested?.Invoke(this, new MeasureRequest(d.Page, tool, d.Points));
+            await settled();
+        }
+        return finished.Count;
     }
 
     private void PaintMeasure(DrawingContext dc, int page)

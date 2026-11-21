@@ -187,16 +187,9 @@ public static class ReadingOrderPane
     /// </summary>
     public static (TagPlan Plan, int Index, int Page)? MovedToPage(TagPlan plan, int index, int by)
     {
-        if (index < 0 || index >= plan.Blocks.Count) return null;
-        var moved = AutoTag.MoveToPage(plan, index, by);
-        if (ReferenceEquals(moved, plan)) return null;
-        var was = plan.Blocks[index];
-        for (var i = 0; i < moved.Blocks.Count; i++)
-        {
-            var b = moved.Blocks[i];
-            if (b.Box == was.Box && b.Page == was.Page && b.Kind == was.Kind) return (moved, i, AutoTag.ReadingPage(b));
-        }
-        return null;
+        // Its index from where the move put it: two pieces can share a box, page and kind.
+        var moved = AutoTag.MoveToPage(plan, index, by, out var at);
+        return ReferenceEquals(moved, plan) ? null : (moved, at, AutoTag.ReadingPage(moved.Blocks[at]));
     }
 
     /// <summary>The plan with the piece at <paramref name="from"/> dropped on the piece at <paramref name="onto"/> (a drag in the list, within a page).</summary>

@@ -1439,10 +1439,11 @@ internal static class DevScript
                 var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var tool = a[0] switch { "perimeter" => ViewerTool.MeasurePerimeter, "area" => ViewerTool.MeasureArea, "calibrate" => ViewerTool.MeasureCalibrate, _ => ViewerTool.MeasureDistance };
                 var nums = a.Skip(2).Select(n => double.Parse(n, System.Globalization.CultureInfo.InvariantCulture)).ToList();
-                tab!.PageView.DevMeasure(int.Parse(a[1]) - 1, tool, [.. Enumerable.Range(0, nums.Count / 2).Select(i => new Core.PointD(nums[2 * i], nums[2 * i + 1]))]);
-                await Task.Delay(400);
-                await tab.SettleAsync();
-                log.Add(tab.DevMeasurements());
+                var mt = tab!;
+                if (await mt.PageView.DevMeasureAsync(int.Parse(a[1]) - 1, tool, [.. Enumerable.Range(0, nums.Count / 2).Select(i => new Core.PointD(nums[2 * i], nums[2 * i + 1]))],
+                        async () => { await Task.Delay(400); await mt.SettleAsync(); }) == 0)
+                    log.Add($"measure: the points make no {a[0]} measurement");
+                log.Add(mt.DevMeasurements());
                 break;
             }
             case "setscale":

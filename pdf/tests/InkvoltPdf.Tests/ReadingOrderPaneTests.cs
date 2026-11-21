@@ -93,6 +93,26 @@ public class ReadingOrderPaneTests
         Assert.Equal("Read with page 1, place 4", ReadingOrderPane.ReadWith(0, 4));
     }
 
+    /// <summary>Two pieces with the same box, page and kind (text drawn twice in one place): the one moved stays selected.</summary>
+    [Fact]
+    public void A_piece_moved_to_another_page_is_found_by_where_it_went_not_by_its_box()
+    {
+        var box = new RectD(72, 100, 200, 20);
+        TagBlock Piece(int page, string text) => new(page, TagBlockKind.Paragraph, box) { Text = text };
+        var plan = new TagPlan([Piece(0, "A"), Piece(1, "B"), Piece(1, "C")], [[], [], []]);
+        var after = ReadingOrderPane.MovedToPage(plan, 2, 1);
+        Assert.NotNull(after);
+        Assert.Equal((2, 2), (after.Value.Index, after.Value.Page));
+        Assert.Equal("C", after.Value.Plan.Blocks[after.Value.Index].Text);
+        var before = ReadingOrderPane.MovedToPage(plan, 2, -1);
+        Assert.NotNull(before);
+        Assert.Equal((1, 0), (before.Value.Index, before.Value.Page));
+        Assert.Equal("C", before.Value.Plan.Blocks[before.Value.Index].Text);
+        var back = ReadingOrderPane.MovedToPage(before.Value.Plan, before.Value.Index, 1);
+        Assert.Equal("C", back!.Value.Plan.Blocks[back.Value.Index].Text);
+        Assert.Null(back.Value.Plan.Blocks[back.Value.Index].ReadWith); // on its own page again
+    }
+
     [Fact]
     public void A_drop_moves_within_the_page_only()
     {
