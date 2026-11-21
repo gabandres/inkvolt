@@ -3,7 +3,7 @@
 # that wrap, spacing that grows. Needs Word (the page count is Word's own layout).
 #
 # It then checks the same documents' PowerPoint and HTML exports. PowerPoint (.pptx): the Open XML SDK's validator, then
-# PowerPoint itself when it is installed; a check that can't run here says so and doesn't count. HTML: no active content
+# PowerPoint itself when it is installed, and Excel opens each .xlsx when it is installed; a check that can't run here says so and doesn't count. HTML: no active content
 # (links only to web or mail addresses and the file's own pages), reads in order, and the W3C's Nu validator when it is in
 # .cache\vnu (the install line is printed). -LibreOffice also has LibreOffice open every .docx, .xlsx and .pptx (converted
 # to PDF, headless, with a profile of its own). Everything runs on this PC: no document goes to an online service.
@@ -107,7 +107,7 @@ $checks = foreach ($i in $items) {
     $m = [regex]::Match("$page", 'lines=(\d+) found=(\d+) inOrder=(\d+)')
     [pscustomobject]@{
         Document = $i.Name; Pptx = $pptx; Html = $html; Slides = [int]$slides; Shapes = [int]$shapes; 'SDK errors' = [int]$errors
-        'HTML lines in order' = "$($m.Groups[3].Value)/$($m.Groups[1].Value)"; PowerPoint = 'not run'; LibreOffice = 'not run'
+        'HTML lines in order' = "$($m.Groups[3].Value)/$($m.Groups[1].Value)"; PowerPoint = 'not run'; Excel = 'not run'; LibreOffice = 'not run'
     }
 }
 
@@ -140,6 +140,52 @@ if ($pptExe) {
 }
 else { Write-Host 'PowerPoint: not installed, not checked.' }
 
+# Excel itself: opens each .xlsx (written only when the document has tables) read-only, without a window or a prompt. A
+# file it would repair fails to open here or comes back with fewer sheets or filled cells than the file holds, so both
+# count as failures. If Excel is already open (someone's work) it is left running.
+$excelExe = @("$env:ProgramFiles\Microsoft Office\root\Office16\EXCEL.EXE", "${env:ProgramFiles(x86)}\Microsoft Office\root\Office16\EXCEL.EXE") | Where-Object { Test-Path $_ } | Select-Object -First 1
+if ($excelExe) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $wasOpen = @(Get-Process EXCEL -ErrorAction SilentlyContinue).Count -gt 0
+    $xl = New-Object -ComObject Excel.Application
+    $xl.Visible = $false
+    $xl.DisplayAlerts = $false
+    try {
+        foreach ($c in $checks) {
+            $file = [IO.Path]::ChangeExtension($c.Pptx, '.xlsx')
+            if (-not (Test-Path $file)) { $c.Excel = 'no tables'; continue }
+            # What the file holds: its sheets, and the cells with a value (a number, a shared string or inline text)
+            $zip = [IO.Compression.ZipFile]::OpenRead($file)
+            try {
+                $written = @(foreach ($e in $zip.Entries | Where-Object FullName -like 'xl/worksheets/sheet*.xml') {
+                    $r = [IO.StreamReader]::new($e.Open()); $xml = $r.ReadToEnd(); $r.Dispose()
+                    [regex]::Matches($xml, '<c\b[^>]*?(?<!/)>.*?</c>', 'Singleline') | Where-Object { $_.Value -match '<v>|<is>' } | Measure-Object | Select-Object -ExpandProperty Count
+                })
+            }
+            finally { $zip.Dispose() }
+            $writtenCells = ($written | Measure-Object -Sum).Sum
+            try {
+                $wb = $xl.Workbooks.Open($file, 0, $true) # no link updates, read-only
+                $cells = 0
+                foreach ($ws in $wb.Worksheets) { $cells += [int]$xl.WorksheetFunction.CountA($ws.UsedRange) }
+                $sheets = $wb.Worksheets.Count
+                $wb.Close($false)
+                $c.Excel = if ($sheets -eq $written.Count -and $cells -eq $writtenCells) { "opens: $sheets sheets, $cells cells" } else { "CHANGED: $sheets sheets, $cells cells" }
+                if ($c.Excel -like 'CHANGED*') { $failures.Add("$($c.Document): Excel repaired it? $($c.Excel), written $($written.Count) sheets, $writtenCells cells") }
+            }
+            catch {
+                $c.Excel = 'FAILED'
+                $failures.Add("$($c.Document): Excel can't open it: $($_.Exception.Message)")
+            }
+        }
+    }
+    finally {
+        if (-not $wasOpen) { $xl.Quit() }
+        [void][Runtime.InteropServices.Marshal]::ReleaseComObject($xl)
+    }
+}
+else { Write-Host 'Excel: not installed, not checked.' }
+
 # LibreOffice (opt-in): converts each .docx, .xlsx and .pptx to PDF, headless. A file it can't open makes no PDF (or
 # times out after 5 minutes); an empty PDF is a failure too. Its own profile in .cache, so a LibreOffice the user has
 # open, and their settings, are left alone.
@@ -169,7 +215,7 @@ if ($LibreOffice) {
     else { Write-Host 'LibreOffice: not installed (or -Soffice not found), not checked.' }
 }
 
-$checks | Select-Object Document, Slides, Shapes, 'SDK errors', PowerPoint, LibreOffice, 'HTML lines in order' | Format-Table -AutoSize | Out-Host
+$checks | Select-Object Document, Slides, Shapes, 'SDK errors', PowerPoint, Excel, LibreOffice, 'HTML lines in order' | Format-Table -AutoSize | Out-Host
 
 # The W3C's Nu validator, run here (it takes files, and sends nothing anywhere).
 $vnu = Join-Path $cache 'vnu\node_modules\vnu-jar\build\dist\vnu.jar'
@@ -204,5 +250,5 @@ elseif ($regressions) {
     throw "$regressions document(s) export to more Word pages than the baseline: open them in .cache\out beside the PDF."
 }
 if ($failures.Count) {
-    throw "PowerPoint or HTML checks failed:`n$($failures -join "`n")"
+    throw "PowerPoint, Excel or HTML checks failed:`n$($failures -join "`n")"
 }

@@ -22,7 +22,9 @@ CDM lifetime counters be done. The M234dw has no LEDM walk-up scan, so HP's Scan
 links in an exported PowerPoint and in a browser; Compare's overlay on a real scan; Arabic and Japanese translated copies in
 Firefox (copy a line, search a phrase) and Acrobat; Open Log Folder in both Store copies; a multi-file Explorer conversion
 while the running copy doesn't answer; the Spanish of both apps' new What's New lines (PDF's older entries were translated
-in one go). Optional: install LibreOffice and run `pdf/tools/export-corpus` with `-LibreOffice` (never run).
+in one go). Exports in Office: done 2026-11-21. `pdf/tools/export-corpus` now has Excel open every .xlsx (read-only,
+no window; a file Excel would repair fails to open, tried on three broken ones). 7 documents: Word's page counts are the
+baseline's, PowerPoint and Excel open every file with every slide, shape, sheet and cell. LibreOffice is still optional (`-LibreOffice`, never run).
 **Known limits, not action items:** `drawings.pdf` Find and scroll speed (MuPDFCore 2.0.1); pdf.js runs a right-to-left word
 into a figure or Latin word beside it, and loses spaces on right-to-left lines with another look inside; MuPDF reads
 Arabic-Indic digits backwards; Canon models sold only in the US or Europe aren't found and ScanSnap has no driver lookup;

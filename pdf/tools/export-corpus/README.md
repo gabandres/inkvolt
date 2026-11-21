@@ -17,6 +17,7 @@ It also checks the same documents' **PowerPoint and HTML** exports, written besi
 |---|---|---|
 | .pptx | Open XML SDK validator; as many slides as pages | Always |
 | .pptx | PowerPoint opens it without a window, with every slide and shape that was written (a repair fails to open or loses shapes) | When PowerPoint is installed |
+| .xlsx | Excel opens it read-only, without a window or a prompt, with every sheet and filled cell the file holds (Excel refuses a file it would repair: a cut-off file, an unclosed cell, an unknown cell type or style all fail) | When Excel is installed |
 | .docx, .xlsx, .pptx | LibreOffice opens each and converts it to PDF, headless, with a profile of its own in `.cache` (the .xlsx is written only when the document has tables) | With `-LibreOffice`, where it is installed (or `-Soffice C:\path\soffice.exe`) |
 | .html | No active content (script, event attribute, a `src` that isn't an embedded picture); a link only as `<a href>` to an http, https or mailto address (with `rel="noopener noreferrer"`) or a `#page-N` anchor | Always |
 | .html | The text reads in the plain-text export's order | Always |
@@ -26,7 +27,8 @@ A check that can't run says so and doesn't count. Everything runs on this PC; no
 `-SkipWord` leaves out Word's page count. **Last run, 2026-11-20, 7 documents, 174 pages:** the validator, PowerPoint
 (16.0) and the Nu validator pass on all, the HTML carries 869 links (all web, mail or page anchors; a link over two lines is two), and 3,617 of 3,641
 lines read in order (the rest are repeated lines and rows the two exports break differently). Word's page counts are the
-baseline's. **LibreOffice isn't installed on that PC, so `-LibreOffice` hasn't been run** (it said so). No screen reader
+baseline's. **2026-11-21, Excel (16.0) added:** it opens all 6 workbooks (the seventh document has no tables) with every
+sheet and cell, 132 sheets and 14,241 cells in all; the rest as above. **LibreOffice isn't installed on that PC, so `-LibreOffice` hasn't been run** (it said so). No screen reader
 has been run either.
 
 Run it after changing `DocLayout`, `DocxWriter`, `PptxWriter`, `HtmlWriter`, `DocumentExport`, or the glyph reading in `PdfEngine`. Fewer pages is
