@@ -132,7 +132,6 @@ Each of these could reasonably go another way; the first word is what the app sa
 
 ## What stays in English
 
-- **What's New**: the dialog is translated, its text is `pdf/WHATS-NEW.md`, in English.
 - **The command line** (`--batch`, `--watch`, `--fill`) and the Office conversion helper's messages: scripts read them.
 - Logs, dev scripts and the UIA audit, the Report a problem details, file formats and their columns (the redaction
   report's CSV, XFDF, FDF, form data CSV and JSON), the JavaScript form prelude's alerts, prompts sent to the AI.
