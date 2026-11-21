@@ -49,8 +49,8 @@ public readonly record struct DesignCursor(DesignCursorKind Kind, int Handle = -
     public static DesignCursor Resize(int handle) => new(DesignCursorKind.Resize, handle);
 }
 
-/// <summary>What Esc does.</summary>
-public enum DesignEscape { DroppedTool, Deselected, Leave }
+/// <summary>What Esc does: during a press, cancels it; else lets go of the tool, then the selection, then Prepare Form.</summary>
+public enum DesignEscape { CancelledPress, DroppedTool, Deselected, Leave }
 
 /// <summary>The keys Prepare Form acts on.</summary>
 public enum DesignKey { Tab, Delete, Backspace, Enter, D, Left, Right, Up, Down, Escape }
@@ -92,7 +92,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
 
     private sealed record Drag(DesignField Field, int Handle, PointD Press, PointD Offset, RectD Rect, bool Dragged);
 
-    private sealed record NewBox(int Page, PointD Start, PointD End, bool Dragged);
+    private sealed record NewBox(DesignFieldKind Kind, int Page, PointD Start, PointD End, bool Dragged);
 
     private Dictionary<int, List<DesignField>> _byPage = [];
     private List<DesignField> _fields = [];
@@ -135,6 +135,9 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         _fields = [.. list.OrderBy(f => f.PageIndex).ThenBy(f => f.TabIndex)];
         _pending.Clear();
         if (SelectedId is { } id && !list.Any(f => f.Id == id)) SelectedId = null;
+        // A move or resize under way goes on from the field as now read (the document caught up with an earlier move);
+        // when the field is gone (deleted, or its positional id changed), the press ends.
+        if (_drag is { } d) _drag = list.FirstOrDefault(f => f.Id == d.Field.Id) is { } now ? d with { Field = now } : null;
     }
 
     public void SetSuggestions(IReadOnlyList<FieldSuggestion> list)
@@ -238,10 +241,10 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
             SelectSuggestion(s);
             return clicks >= 2 ? DesignPress.Accept : DesignPress.Selected;
         }
-        if (Kind is not null)
+        if (Kind is { } tool)
         {
             var start = OnPage(pageIndex, p);
-            _box = new NewBox(pageIndex, start, start, false);
+            _box = new NewBox(tool, pageIndex, start, start, false);
             return DesignPress.None;
         }
         Select(null);
@@ -313,7 +316,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         if (_box is { } b)
         {
             _box = null;
-            var kind = Kind ?? DesignFieldKind.Text;
+            var kind = b.Kind; // the tool the press started with
             var rect = RectD.FromEdges(b.Start.X, b.Start.Y, b.End.X, b.End.Y);
             if (!b.Dragged || rect.Width < MinSize || rect.Height < MinSize)
             {
@@ -358,6 +361,13 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// <summary>What <paramref name="key"/> does in Prepare Form; null when it isn't Prepare Form's (it goes on to the view).</summary>
     public DesignKeyResult? Key(DesignKey key, DesignModifiers mods)
     {
+        // During a press only Esc acts, and it cancels the press; any other key would act on a field being moved or drawn.
+        if (IsDragging)
+        {
+            if (key != DesignKey.Escape || mods != DesignModifiers.None) return new DesignKeyResult();
+            CancelDrag();
+            return new DesignKeyResult(Escape: DesignEscape.CancelledPress);
+        }
         var field = SelectedField;
         var suggestion = SelectedSuggestion;
         switch (key)

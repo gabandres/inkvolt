@@ -319,7 +319,7 @@ public partial class DocumentTab
             newIds.Clear();
             return FormDesign.Update(d, pw, changes, newIds);
         }, contentOnly: true, quiet: true);
-        if (selected is not null && newIds.TryGetValue(selected, out var renamed)) _designSelectAfter = renamed;
+        _designSelectAfter = FormDesignRules.FollowedId(selected, newIds);
         if (outcome is EditOutcome.Done or EditOutcome.NoChange) return true;
         // Not made: show the fields as the document has them (a dragged field goes back).
         _designSelectAfter = null;
@@ -362,7 +362,7 @@ public partial class DocumentTab
                 var i = Viewer.SelectedSuggestionIndex;
                 var rest = Viewer.Suggestions.Where(x => !ReferenceEquals(x, s)).ToList();
                 Viewer.SetSuggestions(rest);
-                if (rest.Count > 0) Viewer.SelectSuggestion(Math.Min(i, rest.Count - 1), reveal: true);
+                if (FormDesignRules.SuggestionAfter(i, rest.Count) is var next and >= 0) Viewer.SelectSuggestion(next, reveal: true);
                 break;
             }
         }
@@ -378,8 +378,8 @@ public partial class DocumentTab
         if (!await RunEdit(label, (d, pw) => FormDesign.Add(d, pw, fields), contentOnly: true)) return;
         var rest = Viewer.Suggestions.Where(x => !picked.Contains(x)).ToList();
         Viewer.SetSuggestions(rest);
-        // Reviewing one by one: go on with the next suggestion.
-        if (rest.Count > 0 && picked.Count == 1) Viewer.SelectSuggestion(Math.Clamp(index, 0, rest.Count - 1), reveal: true);
+        // Reviewing one by one: go on with the next suggestion; the last one accepted, its new field.
+        if (FormDesignRules.SuggestionAfter(index, rest.Count, picked.Count) is var next and >= 0) Viewer.SelectSuggestion(next, reveal: true);
         else if (picked.Count == 1) _designSelectAfter = fields[0].Id;
     }
 
@@ -458,8 +458,7 @@ public partial class DocumentTab
             newIds.Clear();
             return FormDesign.SetTabOrder(d, pw, f.PageIndex, ids, newIds);
         }, contentOnly: true, quiet: true);
-        if (ok && newIds.TryGetValue(f.Id, out var renamed)) _designSelectAfter = renamed;
-        if (!ok) _designSelectAfter = null;
+        _designSelectAfter = ok ? FormDesignRules.FollowedId(f.Id, newIds) : null;
         DesignTabNumbers.IsChecked = Viewer.ShowTabOrder = true;
     }
 

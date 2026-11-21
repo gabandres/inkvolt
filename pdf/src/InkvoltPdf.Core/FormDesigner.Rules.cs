@@ -141,6 +141,18 @@ public static class FormDesignRules
         return order.Skip(i + 1).Concat(order.Take(Math.Max(0, i))).FirstOrDefault(x => x.Id != f.Id && !IsPositionalId(x.Id))?.Id;
     }
 
+    /// <summary>
+    /// The suggestion to select once <paramref name="removed"/> left the list (accepted or rejected) from
+    /// <paramref name="index"/>, with <paramref name="left"/> still there: reviewing one by one goes on with the one now
+    /// in its place (the last when it was last); -1 when none is left or several went at once (Accept All).
+    /// </summary>
+    public static int SuggestionAfter(int index, int left, int removed = 1) => removed != 1 || left <= 0 ? -1 : Math.Clamp(index, 0, left - 1);
+
+    /// <summary>The selected field's id after an edit that gave some fields new ids (<paramref name="newIds"/>, old to new:
+    /// positional ids shift when a page's /Annots change): the new one, else as it was.</summary>
+    public static string? FollowedId(string? id, IReadOnlyDictionary<string, string> newIds) =>
+        id is not null && newIds.TryGetValue(id, out var renamed) ? renamed : id;
+
     /// <summary>An id made from the widget's position ("p0:3"), which changes when the page's /Annots do.</summary>
     public static bool IsPositionalId(string id) => System.Text.RegularExpressions.Regex.IsMatch(id, @"^p\d+:\d+$");
 

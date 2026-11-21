@@ -307,6 +307,75 @@ public class FormDesignerTests
     }
 
     [Fact]
+    public void DuringAPressEscCancelsItAndOtherKeysWait()
+    {
+        // Drawing a check box: Esc cancels the box, the tool stays, and the release places nothing.
+        var d = Designer(Field());
+        d.Kind = DesignFieldKind.CheckBox;
+        Press(d, 300, 300);
+        Drag(d, 330, 330);
+        Assert.Equal(DesignEscape.CancelledPress, d.Key(DesignKey.Escape, DesignModifiers.None)?.Escape);
+        Assert.Equal(DesignFieldKind.CheckBox, d.Kind);
+        Assert.Null(d.Release());
+
+        // The box keeps the tool it started with.
+        Press(d, 300, 300);
+        Drag(d, 330, 330);
+        d.Kind = DesignFieldKind.Text;
+        Assert.Equal(DesignFieldKind.CheckBox, Placed(d.Release()).Kind);
+
+        // Moving a field: Delete, Tab, arrows and Enter do nothing until the release, which writes the move.
+        d.Kind = null;
+        Press(d, 150, 110);
+        Drag(d, 160, 130);
+        foreach (var key in new[] { DesignKey.Delete, DesignKey.Tab, DesignKey.Right, DesignKey.Enter })
+        {
+            var r = d.Key(key, DesignModifiers.None);
+            Assert.True(r is { Action: null, Reveal: null, Written: null, Nudged: false, Escape: null });
+        }
+        Assert.Equal("a", d.SelectedId);
+        Assert.False(d.HasNudge);
+        Assert.Equal(new RectD(110, 120, 100, 20), Moved(d.Release()).Rect);
+
+        // Esc during a move: the field goes back and the release writes nothing.
+        Press(d, 150, 130);
+        Drag(d, 200, 200);
+        Assert.Equal(DesignEscape.CancelledPress, d.Key(DesignKey.Escape, DesignModifiers.None)?.Escape);
+        Assert.Equal(new RectD(110, 120, 100, 20), d.ShownRect(d.Fields[0]));
+        Assert.Null(d.Release());
+        Assert.Equal("a", d.SelectedId);
+    }
+
+    [Fact]
+    public void ReReadingDuringAMoveGoesOnFromTheFieldAsRead()
+    {
+        // Moved to r1 (the edit still running), pressed again; the document catches up mid-drag.
+        var d = Designer(Field());
+        Press(d, 150, 110);
+        Drag(d, 160, 130);
+        Assert.Equal(new RectD(110, 120, 100, 20), Moved(d.Release()).Rect);
+        Press(d, 150, 130);
+        d.SetFields([Field(rect: new RectD(110, 120, 100, 20))]);
+        Drag(d, 160, 130);
+        Assert.Equal(new RectD(120, 120, 100, 20), d.ShownRect(d.Fields[0]));
+        Assert.Equal(new RectD(120, 120, 100, 20), Moved(d.Release()).Rect);
+
+        // The edit wasn't made (the field read back where it was): the drag goes on from there.
+        Press(d, 150, 130);
+        d.SetFields([Field()]);
+        Drag(d, 160, 130);
+        Assert.Equal(new RectD(110, 100, 100, 20), Moved(d.Release()).Rect);
+
+        // The field went away: the press ends and writes nothing.
+        d.SetFields([Field()]);
+        Press(d, 150, 110);
+        d.SetFields([]);
+        Assert.False(d.IsDragging);
+        Assert.False(d.Move(new PointD(200, 200), false, true));
+        Assert.Null(d.Release());
+    }
+
+    [Fact]
     public void ASignedFieldTakesOnlyEnterAndEsc()
     {
         var d = Designer(Field(DesignFieldKind.Signature, new RectD(100, 100, 200, 40)) with { Signed = true });
@@ -401,6 +470,25 @@ public class FormDesignerTests
         Assert.True(FormDesignRules.IsPositionalId("p12:3"));
         Assert.False(FormDesignRules.IsPositionalId("page:3"));
         Assert.False(FormDesignRules.IsPositionalId("InkvoltPdf-abc"));
+    }
+
+    [Fact]
+    public void ReviewingSuggestionsGoesOnWithTheNextOne()
+    {
+        Assert.Equal(1, FormDesignRules.SuggestionAfter(1, left: 3));
+        Assert.Equal(1, FormDesignRules.SuggestionAfter(2, left: 2)); // the last went: the one before it
+        Assert.Equal(0, FormDesignRules.SuggestionAfter(-1, left: 2));
+        Assert.Equal(-1, FormDesignRules.SuggestionAfter(0, left: 0));
+        Assert.Equal(-1, FormDesignRules.SuggestionAfter(0, left: 2, removed: 3)); // Accept All: nothing more to review
+    }
+
+    [Fact]
+    public void TheSelectionFollowsAFieldsNewId()
+    {
+        var newIds = new Dictionary<string, string> { ["p0:2"] = "p0:1" };
+        Assert.Equal("p0:1", FormDesignRules.FollowedId("p0:2", newIds));
+        Assert.Equal("a", FormDesignRules.FollowedId("a", newIds));
+        Assert.Null(FormDesignRules.FollowedId(null, newIds));
     }
 
     [Fact]

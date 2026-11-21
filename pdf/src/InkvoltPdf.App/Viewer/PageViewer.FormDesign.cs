@@ -230,6 +230,7 @@ public sealed partial class PageViewer
         if (result.Reveal is not null || before != (SelectedDesignField?.Id, SelectedSuggestionIndex)) DesignSelectionChanged?.Invoke(this, EventArgs.Empty);
         switch (result.Escape)
         {
+            case DesignEscape.CancelledPress: UpdateCursor(Mouse.GetPosition(_surface)); break; // the release that follows writes nothing
             case DesignEscape.DroppedTool: OnDesignKindChanged(); break;
             case DesignEscape.Leave: Tool = ViewerTool.Hand; break;
         }
