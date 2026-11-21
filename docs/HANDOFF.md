@@ -1,3 +1,33 @@
+# 2026-11-21: Inkvolt PDF 1.16.0.0 and Inkvolt Print 1.7.0.0 submitted (Windows roadmaps concluded)
+
+Every Windows branch of 2026-11-19..21 is merged (the "not merged" entries below are on master now): Print scanners, PDF
+test stability, Translate leftovers and pdf.js spaces in Arabic and Hebrew, the PDF editing backlog (real crop, Picture…),
+Export links, Compare at another size or turn, folder search under 1 s, Print printer data, QR separator sheets, driver
+lookups for Canon, HP, Brother and PFU, What's New in Spanish in both apps, the stale doc entries. Pre-release hostile-input
+review of both diffs: two findings, fixed in c270fb77 (a WIA 2.0 page's stated size capped before WIC; the Tesseract download
+gives up after a minute without a byte). Final `tools/test.ps1` on d81c8abe: Print 3103, PDF 3262 (two timing tests failed
+under load and passed alone). Bench (`pdf/tools/bench/RESULTS.md`): every target met but `drawings.pdf` (the accepted limit)
+and one `scan.pdf` page at 232 ms; folder search lists 500 pages of two common words in 0.77 s. Packed with the smoke test
+(both passed), uploaded, release notes en and es through the API, committed 2026-11-21 (CommitStarted); tags and GitHub
+releases `pdf-v1.16.0.0`, `print-v1.7.0.0`. **Left:** once both are Published, the website's `softwareVersion` (1.16.0, 1.7.0)
+and `firebase deploy --only hosting`, and the GitHub releases' "in certification" line.
+
+**For the owner, hardware:** a WIA 2.0 scanner (page progress, Stop, a PDF-only WIA driver), a PC with only a 32-bit TWAIN
+driver, a jam partway through a feeder scan; a printed QR separator sheet scanned for real; real installs through Get the
+driver from Canon, HP, Brother and PFU (and PFU's licence page in the Store copy); the M234dw's IPP and SNMP page counts, its
+panel text, SNMPv3 against it, a WSD printer that answers SNMP, a queue added in Settings appearing on the printer list; a
+printer whose web page is on another port; a recording of a CDM printer's `/cdm/deviceUsage/v1/lifetimeCounters` would let
+CDM lifetime counters be done. The M234dw has no LEDM walk-up scan, so HP's Scan to Computer can't be confirmed on it.
+**For the owner, eyes:** Crop Picture's handles, the ￼ mark and Picture… (the editor stays open behind the file dialog);
+links in an exported PowerPoint and in a browser; Compare's overlay on a real scan; Arabic and Japanese translated copies in
+Firefox (copy a line, search a phrase) and Acrobat; Open Log Folder in both Store copies; a multi-file Explorer conversion
+while the running copy doesn't answer; the Spanish of both apps' new What's New lines (PDF's older entries were translated
+in one go). Optional: install LibreOffice and run `pdf/tools/export-corpus` with `-LibreOffice` (never run).
+**Known limits, not action items:** `drawings.pdf` Find and scroll speed (MuPDFCore 2.0.1); pdf.js runs a right-to-left word
+into a figure or Latin word beside it, and loses spaces on right-to-left lines with another look inside; MuPDF reads
+Arabic-Indic digits backwards; Canon models sold only in the US or Europe aren't found and ScanSnap has no driver lookup;
+the slow index runs are Windows Defender scanning each file (ROADMAP 3.5); the others in the 2026-11-19 entry.
+
 # 2026-11-20: pdf.js reads the spaces in Arabic and Hebrew translations (Windows; branch worktree-agent-a89a2b9072fde6c80, not merged)
 
 Translate writes a right-to-left line in stretches (`GlyphOrder.Stretches` in `Shaping.cs`, `pdf/ROADMAP.md` 3.1 "pdf.js
