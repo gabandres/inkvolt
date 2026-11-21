@@ -17,7 +17,10 @@ public sealed record DriverQuery(string Maker, string Model, NeedsDriverKind Kin
 
 /// <summary>A download a maker's page offers for the model: what the confirmation shows, and where it comes from.</summary>
 /// <param name="SizeText">The size as the page says it ("29.5 MB"): shown only; the file's own length is what's checked.</param>
-public sealed record DriverOffer(string Title, string? Version, string? SizeText, Uri Download, string FileName, Uri Page);
+/// <param name="Licence">The maker's page with the licence the download is under, when the maker asks for it to be accepted before
+/// downloading (Brother's EULA, Canon's disclaimer): shown before the download, which the user's click accepts; a Store copy opens
+/// this page instead of the file. Null when the maker asks for none.</param>
+public sealed record DriverOffer(string Title, string? Version, string? SizeText, Uri Download, string FileName, Uri Page, Uri? Licence = null);
 
 /// <summary>Why no download was offered.</summary>
 public enum NoOffer
@@ -55,16 +58,32 @@ public interface IDriverCatalog
 /// The makers whose downloads Inkvolt Print may fetch: the hosts its pages and files come from (https, exactly these names) and the
 /// organizations that sign its installers. Nothing else is downloaded or run.
 /// </summary>
-public sealed record MakerSource(string Maker, IReadOnlyList<string> PageHosts, IReadOnlyList<string> DownloadHosts, IReadOnlyList<string> Signers)
+/// <param name="Aliases">Other names a device of this maker's goes by (a PFU scanner reports Fujitsu's vendor id).</param>
+public sealed record MakerSource(string Maker, IReadOnlyList<string> PageHosts, IReadOnlyList<string> DownloadHosts, IReadOnlyList<string> Signers,
+    IReadOnlyList<string>? Aliases = null)
 {
     public static readonly MakerSource Epson = new("Epson",
         ["epson.com", "www.epson.com"],
         ["ftp.epson.com", "download.epson.com", "download.ebz.epson.net", "download2.ebz.epson.net", "download3.ebz.epson.net"],
         ["Epson America, Inc.", "Seiko Epson Corporation", "Epson Europe B.V."]);
 
-    public static IReadOnlyList<MakerSource> All { get; } = [Epson];
+    /// <summary>Canon's Asia site (the US and European sites refuse programs); the files come from Canon's download servers.</summary>
+    public static readonly MakerSource Canon = new("Canon", ["asia.canon"], ["pdisp01.c-wss.com", "gdlp01.c-wss.com"], ["Canon Inc."]);
 
-    public static MakerSource? For(string? maker) => All.FirstOrDefault(m => string.Equals(m.Maker, maker, StringComparison.OrdinalIgnoreCase));
+    public static readonly MakerSource Hp = new("HP", ["support.hp.com"], ["ftp.hp.com", "ftp.ext.hp.com"], ["HP Inc.", "Hewlett-Packard Company"]);
+
+    public static readonly MakerSource Brother = new("Brother", ["support.brother.com"], ["download.brother.com"], ["Brother Industries, Ltd."]);
+
+    /// <summary>PFU (a Ricoh company, formerly Fujitsu's): fi and SP series scanners.</summary>
+    public static readonly MakerSource Pfu = new("PFU", ["www.pfu.ricoh.com"], ["origin.pfultd.com"], ["PFU Limited"], ["Fujitsu", "Ricoh PFU"]);
+
+    public static IReadOnlyList<MakerSource> All { get; } = [Epson, Canon, Hp, Brother, Pfu];
+
+    public static MakerSource? For(string? maker) => All.FirstOrDefault(m => m.Is(maker));
+
+    /// <summary>This maker, by its name or an alias (case aside).</summary>
+    public bool Is(string? maker) =>
+        string.Equals(Maker, maker, StringComparison.OrdinalIgnoreCase) || (Aliases ?? []).Any(a => string.Equals(a, maker, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The signer is one of this maker's (the organization in the signing certificate, case and spacing aside).</summary>
     public bool IsSigner(string? organization) =>

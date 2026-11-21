@@ -69,7 +69,7 @@ $apps = @{
     }
     Print = @{
         Folder = 'print'; Name = 'InkvoltPrint'; IdentityName = 'BermudezSystems.InkvoltPrint'; DisplayName = 'Inkvolt Print'
-        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll')
+        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'zxing.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll')
         Extras = @('THIRD-PARTY-NOTICES.md', 'LICENSE')
     }
 }
@@ -93,6 +93,10 @@ $notesVersion = ($Version.Split('.')[0..2] -join '.')
 $notesFile = Join-Path $appRoot 'WHATS-NEW.md'
 if (-not (Select-String -Path $notesFile -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
     Write-Warning "$notesFile has no '## $notesVersion' heading: the app's What's New will show nothing for this update (rename '## Next')."
+}
+$notesEs = Join-Path $appRoot 'WHATS-NEW.es.md'
+if ((Test-Path $notesEs) -and -not (Select-String -Path $notesEs -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
+    Write-Warning "$notesEs has no '## $notesVersion' heading: What's New in Spanish will show nothing for this update (rename '## Next')."
 }
 if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }

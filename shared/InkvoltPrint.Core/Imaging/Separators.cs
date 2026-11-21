@@ -3,8 +3,8 @@ namespace InkvoltPrint.Core.Imaging;
 /// <summary>What starts a new file in a batch scan (one feeder run split into several files).</summary>
 public enum SplitAt { None, PatchCode, BlankPage, PatchCodeOrBlankPage }
 
-/// <summary>How a page came to be a separator: a patch code, a blank page, or marked in the review.</summary>
-public enum SeparatorKind { None, PatchCode, BlankPage, ByHand, SheetBack }
+/// <summary>How a page came to be a separator: a patch code, a QR code or barcode saying PATCHT, a blank page, or marked in the review.</summary>
+public enum SeparatorKind { None, PatchCode, BlankPage, ByHand, SheetBack, QrCode, Barcode }
 
 /// <summary>A separator sheet found on a page: what kind, and for a patch code, which.</summary>
 public readonly record struct SeparatorFound(SeparatorKind Kind, PatchCode? Code = null)
@@ -13,6 +13,9 @@ public readonly record struct SeparatorFound(SeparatorKind Kind, PatchCode? Code
 
     public bool IsSeparator => Kind != SeparatorKind.None;
 
+    /// <summary>A sheet printed to separate (a patch code, or a code saying PATCHT): in a two-sided scan its other side is part of it.</summary>
+    public bool IsSheet => Kind is SeparatorKind.PatchCode or SeparatorKind.QrCode or SeparatorKind.Barcode;
+
     /// <summary>"Patch T sheet", "blank page", or "".</summary>
     public string Description => Kind switch
     {
@@ -20,17 +23,27 @@ public readonly record struct SeparatorFound(SeparatorKind Kind, PatchCode? Code
         SeparatorKind.BlankPage => CoreStrings.Imaging_BlankPage,
         SeparatorKind.ByHand => CoreStrings.Imaging_MarkedByHand,
         SeparatorKind.SheetBack => CoreStrings.Imaging_SheetBack,
+        SeparatorKind.QrCode => CoreStrings.Imaging_QrCodeSheet,
+        SeparatorKind.Barcode => CoreStrings.Imaging_BarcodeSheet,
         _ => "",
     };
 }
 
-/// <summary>Separator sheets: a page with a separating patch code (<see cref="PatchCodes"/>) or a blank page (<see cref="BlankPage"/>).</summary>
+/// <summary>
+/// Separator sheets: a page with a separating patch code (<see cref="PatchCodes"/>) or a code saying PATCHT
+/// (<see cref="SeparatorCodes"/>; split at patch codes, it finds both), or a blank page (<see cref="BlankPage"/>).
+/// </summary>
 public static class Separators
 {
     public static SeparatorFound Detect(GrayImage img, double pixelsPerInch, SplitAt splitAt)
     {
-        if (splitAt is SplitAt.PatchCode or SplitAt.PatchCodeOrBlankPage && PatchCodes.Find(img, pixelsPerInch) is { } code && PatchCodes.Separates(code))
-            return new(SeparatorKind.PatchCode, code);
+        if (splitAt is SplitAt.PatchCode or SplitAt.PatchCodeOrBlankPage)
+        {
+            // An image-control patch (1, 4 or 6) separates nothing, whatever else is on its sheet.
+            if (PatchCodes.Find(img, pixelsPerInch) is { } code)
+                return PatchCodes.Separates(code) ? new(SeparatorKind.PatchCode, code) : SeparatorFound.None;
+            if (SeparatorCodes.Find(img) is { } kind) return new(kind);
+        }
         if (splitAt is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage && BlankPage.IsBlank(img))
             return new(SeparatorKind.BlankPage);
         return SeparatorFound.None;
@@ -96,12 +109,12 @@ public static class BatchSplit
     }
 
     /// <summary>
-    /// A two-sided scan's pages come front, back, front, back…: the other side of each patch code sheet belongs to the sheet.
+    /// A two-sided scan's pages come front, back, front, back…: the other side of each patch code (or PATCHT code) sheet belongs to the sheet.
     /// When the run has an even number of pages that order holds, so the other side is the sheet's whatever is on it (light
     /// through a thin sheet can make its back look printed); with an odd number (a scanner that dropped a side) only an other
     /// side that looks blank is taken. Returns the indexes to treat as separators too.
     /// </summary>
-    /// <param name="patch">Each page is a patch code sheet.</param>
+    /// <param name="patch">Each page is a separator sheet printed as one (<see cref="SeparatorFound.IsSheet"/>).</param>
     /// <param name="blank">Each page looks blank.</param>
     public static List<int> DuplexSeparatorBacks(IReadOnlyList<bool> patch, IReadOnlyList<bool> blank)
     {

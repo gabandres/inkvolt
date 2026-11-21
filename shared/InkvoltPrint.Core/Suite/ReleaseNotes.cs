@@ -44,6 +44,13 @@ public static class ReleaseNotes
             : [.. notes.Where(n => n.Version == now)];
     }
 
+    /// <summary>
+    /// The notes in the interface language: <paramref name="spanish"/> (its WHATS-NEW.es.md) when the interface is in Spanish and
+    /// it has entries, else <paramref name="english"/>.
+    /// </summary>
+    public static IReadOnlyList<ReleaseNote> For(string english, string? spanish, System.Globalization.CultureInfo ui) =>
+        ui.TwoLetterISOLanguageName == "es" && spanish is not null && Parse(spanish) is { Count: > 0 } es ? es : Parse(english);
+
     public static string Format(IEnumerable<ReleaseNote> notes) =>
         string.Join(Environment.NewLine + Environment.NewLine,
             notes.Select(n => string.Join(Environment.NewLine, n.Items.Select(i => "• " + i).Prepend(string.Format(CoreStrings.Suite_Version, n.Version)))));

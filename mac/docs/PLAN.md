@@ -35,7 +35,7 @@ Notify left out for printers that don't keep it.
 Since (2026-10-27, not in a build yet): the glass photos' boxes adjusted by hand (Photos…: move, resize, turn, draw,
 keyboard), and Print Photos' paper type, quality and color, sent with the job straight to the printer's queue.
 
-Not on the Mac: HP clean-up (nothing like it on macOS), WIA. (Open in Inkvolt PDF came with Inkvolt PDF for Mac: roadmap 3.5.)
+Not on the Mac: HP clean-up (nothing like it on macOS), WIA. Not yet: separator sheets marked with a QR code or barcode saying PATCHT and the QR code on the printed sheet (Windows 2026-11-20, `SeparatorCodes` through ZXing.Net; on the Mac, Vision's barcode request would read them), so the Mac's choice still says "Patch codes" and `SeparatorCodeTests` has no Mac port. (Open in Inkvolt PDF came with Inkvolt PDF for Mac: roadmap 3.5.)
 
 ## Layout
 

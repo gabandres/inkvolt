@@ -2726,10 +2726,10 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>página en blanco</value>
   </data>
   <data name="Preset_SplitPatchOrBlank" xml:space="preserve">
-    <value>hoja con código patch o página en blanco</value>
+    <value>hoja con código patch o QR, o página en blanco</value>
   </data>
   <data name="Preset_SplitPatch" xml:space="preserve">
-    <value>hoja con código patch</value>
+    <value>hoja con código patch o QR</value>
   </data>
   <data name="Preset_ColorDpi" xml:space="preserve">
     <value>color, {0} ppp</value>
@@ -2924,16 +2924,16 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>marcada a mano</value>
   </data>
   <data name="Imaging_SheetBack" xml:space="preserve">
-    <value>reverso de la hoja patch</value>
+    <value>reverso de la hoja separadora</value>
   </data>
   <data name="Imaging_SplitPatchCodes" xml:space="preserve">
-    <value>Códigos patch</value>
+    <value>Códigos patch o QR</value>
   </data>
   <data name="Imaging_SplitBlankPages" xml:space="preserve">
     <value>Páginas en blanco</value>
   </data>
   <data name="Imaging_SplitPatchOrBlank" xml:space="preserve">
-    <value>Códigos patch o páginas en blanco</value>
+    <value>Códigos patch o QR, o páginas en blanco</value>
   </data>
   <data name="Imaging_SplitNone" xml:space="preserve">
     <value>No dividir</value>
@@ -2960,7 +2960,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
     <value>Pon una copia delante de cada documento en el alimentador, boca arriba como las páginas.</value>
   </data>
   <data name="Pdf_SeparatorChoose" xml:space="preserve">
-    <value>En la pestaña Escanear, elige "Dividir en archivos en: Códigos patch".</value>
+    <value>En la pestaña Escanear, elige "Dividir en archivos en: Códigos patch o QR".</value>
   </data>
   <data name="Pdf_SeparatorActualSize" xml:space="preserve">
     <value>Imprímela a tamaño real (100 %, no "ajustar a la página"), en negro. Mantén limpia la zona de las barras.</value>
@@ -3561,5 +3561,23 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Twain_Only32Bit" xml:space="preserve">
     <value>Este escáner solo tiene un controlador TWAIN de 32 bits, que una aplicación de 64 bits no puede usar. Instala el controlador TWAIN de 64 bits del fabricante o su controlador de Windows (WIA), o usa la aplicación del propio escáner.</value>
+  </data>
+  <data name="Imaging_QrCodeSheet" xml:space="preserve">
+    <value>hoja con código QR</value>
+  </data>
+  <data name="Imaging_BarcodeSheet" xml:space="preserve">
+    <value>hoja con código de barras</value>
+  </data>
+  <data name="GetDriver_LicenceNote" xml:space="preserve">
+    <value>{0} pide que aceptes su licencia para esta descarga. Descargarla significa que la aceptas.</value>
+  </data>
+  <data name="GetDriver_ReadLicence" xml:space="preserve">
+    <value>Leer la licencia de {0}</value>
+  </data>
+  <data name="GetDriver_AcceptButton" xml:space="preserve">
+    <value>Aceptar y descargar</value>
+  </data>
+  <data name="GetDriver_LicenceLinkNote" xml:space="preserve">
+    <value>Se abre la página de {0} con su licencia: acéptala allí para descargar el controlador.</value>
   </data>
 </root>

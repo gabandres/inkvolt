@@ -1,0 +1,38 @@
+{
+ "statusCode": 200,
+ "statusMessage": "Success",
+ "data": {
+  "softwareTypes": [
+   {
+    "accordionName": "Driver-Universal Scan Driver",
+    "accordionNameEn": "Driver-Universal Scan Driver",
+    "softwareDriversList": [
+     {
+      "latestVersionDriver": {
+       "title": "HP Universal Scan - Full Feature Software and Driver (ARM 64)",
+       "version": "63.8.6459",
+       "fileSize": "437.0 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/USS/ARM64_MFP/Full_Webpack-63.8.6459_ARM64-SJ0001_Full_Webpack.exe",
+       "detailInformation": {
+        "description": "Full webpack provides various scan functionalities. Supports OCR capabilities and Cloud Destinations.",
+        "fileName": "Full_Webpack-63.8.6459_ARM64-SJ0001_Full_Webpack.exe"
+       }
+      }
+     },
+     {
+      "latestVersionDriver": {
+       "title": "HP Universal Scan - Basic Feature Software and Driver (ARM 64)",
+       "version": "63.8.6459",
+       "fileSize": "118.7 MB",
+       "fileUrl": "https://ftp.hp.com/pub/softlib/software13/printers/USS/ARM64_MFP/Basic_Webpack_x64-63.8.6459_ARM64-SJ0001_Basicx64_Webpack.exe",
+       "detailInformation": {
+        "description": "This is the minimum Scan Software solution which provides basic Scan functionality, WIA and Twain support.Does not include OCR capabilities and Cloud Destinations. Download Full webpack for OCR capabilities.",
+        "fileName": "Basic_Webpack_x64-63.8.6459_ARM64-SJ0001_Basicx64_Webpack.exe"
+       }
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

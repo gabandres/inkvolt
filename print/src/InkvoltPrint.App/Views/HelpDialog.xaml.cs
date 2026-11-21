@@ -69,7 +69,8 @@ public partial class HelpDialog : Window
 
     private void LogFolder_Click(object sender, RoutedEventArgs e)
     {
-        var folder = Path.GetDirectoryName(Log.FilePath)!;
+        // The folder the log is really written to: a Store copy's is redirected into its package (Explorer sees only that path).
+        var folder = Path.GetDirectoryName(InkvoltPrint.Windows.AppPackage.WrittenPath(Log.FilePath))!;
         Directory.CreateDirectory(folder);
         Shell.Open(folder);
     }

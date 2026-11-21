@@ -29,6 +29,7 @@ New in English. Same headings and lines as `WHATS-NEW.md`, from the release afte
 - Una imagen pequeña en la línea de un párrafo, entre sus palabras, ahora se mueve con sus palabras al editar el párrafo. En el editor aparece como ￼; borra la marca para quitar la imagen. Imagen… en la barra del editor agrega una nueva donde está el cursor.
 - Recorta una imagen: selecciónala, elige Recortar imagen (o pulsa C) y arrastra sus controladores hacia dentro. Lo que recortas se quita del archivo, no solo se oculta, así que nadie puede recuperarlo del PDF; Deshacer quita el recorte mientras trabajas.
 - Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.
+- Ayuda › Abrir la carpeta de registros en la versión de Microsoft Store abre la carpeta donde de verdad se guarda su registro, que Windows guarda en la carpeta del paquete de la app.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.

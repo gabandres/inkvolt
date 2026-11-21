@@ -249,4 +249,43 @@ public class SuiteTests
         Assert.Null(whole.Width);
         Assert.Null(whole.Height);
     }
+
+    // ---- Open log folder: where a Store copy's log really is
+
+    private const string Local = @"C:\Users\u\AppData\Local";
+    private const string Family = "BermudezSystems.InkvoltPrint_0000000000000";
+    private const string Plain = Local + @"\InkvoltPrint\logs\inkvoltprint.log";
+    private const string Redirected = Local + @"\Packages\" + Family + @"\LocalCache\Local\InkvoltPrint\logs\inkvoltprint.log";
+
+    private static Func<string, DateTime?> Written(params (string Path, int Minute)[] files) =>
+        path => files.Where(f => f.Path == path).Select(f => (DateTime?)new DateTime(2026, 11, 20, 12, f.Minute, 0, DateTimeKind.Utc)).FirstOrDefault();
+
+    [Fact]
+    public void An_unpackaged_copys_log_is_where_it_says() =>
+        Assert.Equal(Plain, InkvoltPaths.WrittenPath(Plain, Local, null, Written((Redirected, 5))));
+
+    [Fact]
+    public void A_store_copys_log_is_in_its_package()
+    {
+        Assert.Equal(Redirected, InkvoltPaths.WrittenPath(Plain, Local, Family, Written((Redirected, 5))));
+        // Inside the package the plain path shows the redirected file: the same file, the same time.
+        Assert.Equal(Redirected, InkvoltPaths.WrittenPath(Plain, Local, Family, Written((Plain, 5), (Redirected, 5))));
+        // Nothing written yet: where Windows will put it.
+        Assert.Equal(Redirected, InkvoltPaths.WrittenPath(Plain, Local, Family, Written()));
+    }
+
+    [Fact]
+    public void A_store_copy_writing_an_existing_plain_folder_opens_that()
+    {
+        Assert.Equal(Plain, InkvoltPaths.WrittenPath(Plain, Local, Family, Written((Plain, 9))));
+        Assert.Equal(Plain, InkvoltPaths.WrittenPath(Plain, Local, Family, Written((Plain, 9), (Redirected, 5))));
+        Assert.Equal(Redirected, InkvoltPaths.WrittenPath(Plain, Local, Family, Written((Plain, 5), (Redirected, 9))));
+    }
+
+    [Theory]
+    [InlineData(@"D:\Elsewhere\log.txt", Family)]
+    [InlineData(Plain, @"..\..\Windows")]
+    [InlineData(Plain, "")]
+    public void A_path_outside_local_app_data_or_an_odd_family_is_left_as_it_is(string path, string family) =>
+        Assert.Equal(path, InkvoltPaths.WrittenPath(path, Local, family, Written()));
 }

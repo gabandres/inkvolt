@@ -299,7 +299,7 @@
     <value>Imprimir una hoja separadora…</value>
   </data>
   <data name="ScanTab_PrintSeparatorTip" xml:space="preserve">
-    <value>Guarda una hoja Patch T como PDF para imprimirla a tamaño real</value>
+    <value>Guarda una hoja separadora (Patch T y un código QR) como PDF para imprimirla a tamaño real</value>
   </data>
   <data name="ScanTab_DragHint" xml:space="preserve">
     <value>Arrastra las páginas para reordenarlas. Haz clic derecho en una página para ver más.</value>

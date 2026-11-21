@@ -7,6 +7,7 @@ read from each NuGet package's metadata).
 | Component | Version | License | Copyright | Source |
 |---|---|---|---|---|
 | CommunityToolkit.Mvvm | 8.4.2 | MIT | (c) .NET Foundation and Contributors | https://github.com/CommunityToolkit/dotnet |
+| ZXing.Net (zxing.dll; QR codes and barcodes on scan separator sheets) | 0.16.11 | Apache-2.0 | Michael Jahn; ZXing authors | https://github.com/micjahn/ZXing.Net |
 | .NET runtime and WPF (self-contained) | 10.0 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/runtime, https://github.com/dotnet/wpf |
 | ASP.NET Core shared framework (Kestrel, self-contained; scanner sharing) | 10.0 | MIT | .NET Foundation and Contributors | https://github.com/dotnet/aspnetcore |
 | Windows SDK projection (Microsoft.Windows.SDK.NET) | 10.0.22621 | Microsoft Windows SDK license | Microsoft Corporation | https://aka.ms/WinSDKLicenseURL |
@@ -17,6 +18,7 @@ Windows.Data.Pdf, Windows.Media.Ocr); they are part of Windows and are not shipp
 ## Full license texts
 
 - MIT: https://opensource.org/license/mit
+- Apache-2.0: https://www.apache.org/licenses/LICENSE-2.0
 - Microsoft Windows SDK: https://aka.ms/WinSDKLicenseURL
 
 ## Trademarks

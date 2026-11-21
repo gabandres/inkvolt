@@ -1,0 +1,54 @@
+{
+ "matches": [
+  {
+   "name": "HP LaserJet MFP M234dw Trade Printer",
+   "pmClass": "pm_name_value",
+   "productId": 2100125466
+  },
+  {
+   "name": "HP LaserJet MFP M234dw Printer",
+   "pmClass": "pm_name_value",
+   "productId": 30836604
+  },
+  {
+   "name": "HP LaserJet MFP M234dwe Printer",
+   "pmClass": "pm_name_value",
+   "productId": 36120178
+  },
+  {
+   "name": "HP LaserJet MFP M234dwe Loyal Printer",
+   "pmClass": "pm_name_value",
+   "productId": 2100125465
+  },
+  {
+   "name": "6GW99A",
+   "pmClass": "pm_number_value",
+   "productId": 30836606
+  },
+  {
+   "name": "6GW99E",
+   "pmClass": "pm_number_value",
+   "productId": 34370709
+  },
+  {
+   "name": "6GW99AR",
+   "pmClass": "pm_number_value",
+   "productId": 2100487302
+  },
+  {
+   "name": "9YF88F",
+   "pmClass": "pm_number_value",
+   "productId": 34370711
+  },
+  {
+   "name": "6GW99ER",
+   "pmClass": "pm_number_value",
+   "productId": 2100487308
+  },
+  {
+   "name": "9YF91E",
+   "pmClass": "pm_number_value",
+   "productId": 34370715
+  }
+ ]
+}
