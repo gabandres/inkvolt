@@ -6,6 +6,8 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+
+## 1.16.0
 - Escanear: un ajuste predefinido con limpieza (creado en Inkvolt Print: recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar colores desvaídos) ahora limpia cada página de la misma manera aquí.
 - Traducir con IA conserva más del aspecto de un párrafo: una palabra normal en un párrafo en negrita, una palabra en otro color o en otro tipo de letra (un nombre en Times entre Arial, código en letra de máquina de escribir), los subíndices y superíndices con su propio tamaño y altura, y un superíndice más largo que una llamada de nota, por largo que sea (una lista de referencias elevada tras una palabra queda entera). Un párrafo largo enviado por partes también conserva su aspecto, igual que un texto con su propio "<" o ">" (p < 0,05). Una línea con un superíndice o un subíndice recibe el espacio que necesita, para que no choque con la línea de arriba o de abajo. Las notas al pie que empiezan cada una con su llamada se traducen por separado, sin juntarse.
 - Traducir con IA mantiene subrayadas las palabras subrayadas: la línea dibujada debajo pasa a las palabras que las traducen, con su color y su grosor.
@@ -35,6 +37,7 @@ here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own wor
 - Recorta una imagen: selecciónala, elige Recortar imagen (o pulsa C) y arrastra sus controladores hacia dentro. Lo que recortas se quita del archivo, no solo se oculta, así que nadie puede recuperarlo del PDF; Deshacer quita el recorte mientras trabajas.
 - Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.
 - Ayuda › Abrir la carpeta de registros en la versión de Microsoft Store abre la carpeta donde de verdad se guarda su registro, que Windows guarda en la carpeta del paquete de la app.
+- Las novedades se muestran en español cuando Inkvolt PDF está en español.
 
 ## 1.15.0
 - Mueve una nota, un resaltado, un subrayado o un tachado con la herramienta mano: arrastra una nota; haz clic en una marca de texto para seleccionarla y luego arrástrala (arrastrar en otro sitio sigue desplazando la página). Las flechas del teclado desplazan lo seleccionado. Sus respuestas se mueven con él.

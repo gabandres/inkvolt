@@ -6,6 +6,8 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+
+## 1.7.0
 - Imprime en una impresora de red que no está configurada en Windows: Imprimir un PDF, Copiar e Imprimir fotos ahora envían las páginas directamente a la impresora por la red, en su propio formato, sin controlador y sin administrador. Si Windows tiene una cola para ella, la cola sigue siendo la opción predeterminada e Imprimir también ofrece "Imprimir directamente en la impresora". Ves imprimirse cada página, y la tarjeta de la cola de impresión muestra los trabajos de la propia impresora.
 - La impresión en lote, el "imprimir una copia" de un ajuste de escaneo y los avisos de trabajos también funcionan con esas impresoras: cada archivo de un lote va directamente a la impresora, uno tras otro, y un trabajo que la impresora detiene termina el lote ahí para que nada se imprima dos veces; los avisos de trabajos te dicen cuándo la impresora abandona tu trabajo o deja de avanzar. La línea de comandos también imprime en ellas: indica el nombre de la impresora o su dirección como ipp://….
 - Copia con la propia impresora: una impresora HP que acepta pedidos de copia puede copiar por su cuenta cuando pulsas Copiar, con la configuración de su panel de control, y no necesita una cola de Windows. A través de este PC sigue siendo la opción para tus propias copias, la intercalación, las dos caras y la vista previa.

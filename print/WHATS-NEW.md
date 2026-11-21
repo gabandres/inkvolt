@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.7.0
 - Print to a network printer that isn't set up in Windows: Print a PDF, Copy and Print photos now send the pages straight to the printer over the network, in its own format, with no driver and no administrator. Where Windows has a queue for it, the queue stays the default and Print offers "Print straight to the printer" too. You see each page print, and the print queue card lists the printer's own jobs.
 - Batch print, a scan preset's "print a copy" and job notifications work with those printers too: each file of a batch goes straight to the printer, one after the other, and a job the printer stops ends the batch there so nothing prints twice; job notifications tell you when the printer gives up on your job or it stops moving. The command line prints to them too: give the printer's name, or its address as ipp://….
 - Copy with the printer itself: an HP printer that takes copy requests can copy on its own when you press Copy, with the settings on its control panel, and needs no Windows queue. Through this PC stays the choice for your own copies, collating and two-sided settings and the preview.

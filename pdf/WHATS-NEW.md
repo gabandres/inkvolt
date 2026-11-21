@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.
 - Translate with AI keeps more of a paragraph's look: a regular word in a bold paragraph, a word in another color or another kind of font (a name in Times among Arial, code in a typewriter font), subscripts and superscripts at their own size and height, and a superscript longer than a footnote mark, however long (a list of references raised after a word stays whole). A long paragraph sent in parts keeps its look too, and so does text with a "<" or ">" of its own (p < 0.05). A line with a superscript or subscript gets the room it needs, so it doesn't run into the line above or below. Footnotes that each start with their own mark are translated apart, not run together.
 - Translate with AI keeps underlined words underlined: the line drawn under them moves to the words that translate them, in its color and thickness.
@@ -34,6 +36,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Crop a picture: select it, choose Crop Picture (or press C) and drag its handles in. What you cut off is removed from the file, not just hidden, so nobody can bring it back from the PDF; Undo takes the crop back while you work.
 - Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.
 - Help › Open Log Folder in the Microsoft Store version opens the folder its log is really kept in, which Windows keeps in the app's package folder.
+- What's New is in Spanish when Inkvolt PDF is.
 
 ## 1.15.0
 - Move a sticky note, a highlight, an underline or a strike-out with the hand tool: drag a note; click a text mark to select it, then drag it (dragging elsewhere still scrolls the page). The arrow keys nudge what's selected. Its replies come along.
