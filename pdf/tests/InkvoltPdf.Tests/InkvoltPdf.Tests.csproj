@@ -20,6 +20,8 @@
   <ItemGroup>
     <!-- PDFs Word made (CompareContractTests) -->
     <None Include="Data\**" CopyToOutputDirectory="PreserveNewest" />
+    <!-- What's New and its Spanish, line for line (WhatsNewSpanishTests) -->
+    <None Include="..\..\WHATS-NEW.md;..\..\WHATS-NEW.es.md" Link="WhatsNew\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <!-- The OCR corpus's generator and word error rate (pdf/tools/ocr-corpus; its runner needs Windows' recognizer) -->
