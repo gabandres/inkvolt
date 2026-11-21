@@ -9,6 +9,7 @@ using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Ledm;
 using InkvoltPrint.Core.Pdf;
 using InkvoltPrint.Core.Printing;
+using InkvoltPrint.Core.Printing.Direct;
 using InkvoltPrint.Core.Suite;
 using InkvoltPrint.Windows.Printing;
 
@@ -32,6 +33,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
     private CancellationTokenSource? _cts;
     private RenderedPage? _front;
     private bool _twoSidedChecked;
+    private bool _twoSidedAsked;
 
     /// <summary>The last copy that didn't reach the queue, kept (scans included) so it can be sent again without rescanning.</summary>
     private Func<Task>? _printAgain;
@@ -58,10 +60,16 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
     [NotifyCanExecuteChangedFor(nameof(CopyCommand))]
     public partial bool HasScanner { get; set; }
 
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(UnavailableReason), nameof(IsAvailable))]
-    [NotifyCanExecuteChangedFor(nameof(CopyCommand))]
-    public partial bool HasQueue { get; set; }
+    /// <summary>Where the printer's jobs go (<see cref="PrintRouting"/>): whether a copy has somewhere to print. This tab hears when it changes.</summary>
+    public required PrintRouting Routing
+    {
+        get;
+        init
+        {
+            field = value;
+            value.Changed += RoutingChanged;
+        }
+    }
 
     /// <summary>Another device answers at the printer's address: copying is off until the printer is back (<see cref="Attach"/>).</summary>
     [ObservableProperty]
@@ -126,7 +134,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
 
     public string? UnavailableReason =>
         Blocked is { } blocked ? blocked
-        : CopyRoute.Blocker(OnPrinter, ScannerChecked, HasScanner, HasQueue || demoPrint is not null) switch
+        : CopyRoute.Blocker(OnPrinter, ScannerChecked, HasScanner, Routing.HasRoute || demoPrint is not null) switch
         {
             CopyBlocker.Connecting => Strings.Copy_Connecting,
             CopyBlocker.NoScanner => Strings.Copy_NoScanner,
@@ -284,11 +292,14 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
         Source = Sources.FirstOrDefault();
     }
 
-    /// <summary>The printer's Windows queue appeared or went away: re-check two-sided printing.</summary>
-    public void QueueChanged()
+    /// <summary>The route or the Windows queue changed: whether there's somewhere to print, and two-sided again once it was asked.</summary>
+    private void RoutingChanged()
     {
+        OnPropertyChanged(nameof(UnavailableReason));
+        OnPropertyChanged(nameof(IsAvailable));
+        CopyCommand.NotifyCanExecuteChanged();
         _twoSidedChecked = false;
-        _ = RefreshTwoSidedAsync();
+        if (_twoSidedAsked) _ = RefreshTwoSidedAsync();
     }
 
     /// <summary>The Copy tab is on screen: find out (once) whether the queue prints two-sided.</summary>
@@ -593,6 +604,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
 
     private async Task RefreshTwoSidedAsync()
     {
+        _twoSidedAsked = true;
         if (_twoSidedChecked || demoPrint is not null) return;
         try
         {

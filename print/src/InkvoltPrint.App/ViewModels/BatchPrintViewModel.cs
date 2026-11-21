@@ -27,6 +27,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
 
     private BatchQueueInfo? _info;
     private bool _infoRead;
+    private bool _infoAsked;
     private CancellationTokenSource? _run, _estimate, _watch;
     private bool _declinedPassword;
 
@@ -158,15 +159,16 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
         if (!_infoRead) _ = ReadQueueAsync();
     }
 
-    /// <summary>The printer's Windows queue was just created or removed.</summary>
+    /// <summary>The printer's route or Windows queue changed (the Print tab hears it): read again, once it was read.</summary>
     public void QueueChanged()
     {
         _infoRead = false;
-        _ = ReadQueueAsync();
+        if (_infoAsked) _ = ReadQueueAsync();
     }
 
     private async Task<BatchQueueInfo?> ReadQueueAsync()
     {
+        _infoAsked = true;
         try
         {
             _info = await queue.ReadAsync(CancellationToken.None);

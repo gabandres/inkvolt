@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Printing;
+using InkvoltPrint.Core.Printing.Direct;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -56,8 +57,16 @@ public sealed partial class PrintJobsViewModel(IPrintJobs source) : ObservableOb
     public bool IsEmpty => HasQueue && Jobs.Count == 0;
     public bool NoQueue => IsLoaded && !HasQueue && LoadError is null;
 
-    /// <summary>The printer's Windows queue was set up, re-created or removed.</summary>
-    public void QueueChanged() => source.QueueChanged();
+    /// <summary>Where the printer's jobs go (<see cref="PrintRouting"/>): the card looks its queue up again when that changes.</summary>
+    public required PrintRouting Routing
+    {
+        get;
+        init
+        {
+            field = value;
+            value.Changed += source.QueueChanged; // set up, re-created or removed, or the route changed
+        }
+    }
 
     /// <summary>Starts or stops the refresh loop; called whenever the card's visibility may have changed.</summary>
     public void SetVisible(bool visible)

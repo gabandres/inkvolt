@@ -8,6 +8,7 @@ using Microsoft.Win32;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Photos;
 using InkvoltPrint.Core.Printing;
+using InkvoltPrint.Core.Printing.Direct;
 
 namespace InkvoltPrint.App.ViewModels;
 
@@ -67,7 +68,19 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     private int _sheetCount;
     private int _paperGeneration;
     private bool _optionsRead;
+    private bool _optionsAsked;
     private bool _loadingOptions;
+
+    /// <summary>Where the printer's jobs go (<see cref="PrintRouting"/>): this tab hears when it changes.</summary>
+    public required PrintRouting Routing
+    {
+        get;
+        init
+        {
+            field = value;
+            value.Changed += RoutingChanged;
+        }
+    }
 
     public ObservableCollection<PhotoItemViewModel> Photos { get; } = [];
     public ObservableCollection<PhotoSheetPreview> Sheets { get; } = [];
@@ -371,15 +384,16 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         if (!_optionsRead) _ = ReadOptionsAsync();
     }
 
-    /// <summary>The printer's Windows queue appeared or went away: read its options again.</summary>
-    public void QueueChanged()
+    /// <summary>The route or the Windows queue changed: its options again, once they were asked for.</summary>
+    private void RoutingChanged()
     {
         _optionsRead = false;
-        _ = ReadOptionsAsync();
+        if (_optionsAsked) _ = ReadOptionsAsync();
     }
 
     private async Task ReadOptionsAsync()
     {
+        _optionsAsked = true;
         if (_loadingOptions) return;
         _loadingOptions = true;
         IsReadingOptions = true;
