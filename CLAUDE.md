@@ -4,6 +4,7 @@ Folders, licenses and build commands are in `README.md`. The tests that `.github
 push: `pwsh -NoProfile -File tools/test.ps1` (`dotnet test Inkvolt.slnx`; a test that fails under load is run again alone
 and named as flaky).
 
+- **Decisions** not to re-open without the reason they name: `docs/adr/`.
 - **Domain terms** and the modules named after them (edit transaction, document export; printer status, printer session,
   printer list, environment): `pdf/GLOSSARY.md`, `print/GLOSSARY.md`.
 - **Store release**: `pwsh -NoProfile -File packaging/pack-msix.ps1 -App Pdf|Print -Version x.y.z.0` packs the app, then installs
