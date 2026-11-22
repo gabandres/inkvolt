@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Xml;
+using InkvoltPrint.Core.Office;
 
 namespace InkvoltPdf.Core;
 
@@ -103,7 +104,7 @@ internal sealed class PptxWriter : IDisposable
             ("rId3", RelBase + "extended-properties", "docProps/app.xml"),
         ]));
         Entry("docProps/core.xml", w => OpenXmlParts.CoreProperties(w, title));
-        Entry("docProps/app.xml", OpenXmlParts.AppProperties);
+        Entry("docProps/app.xml", w => OpenXmlParts.AppProperties(w, "Inkvolt PDF"));
         Entry("[Content_Types].xml", w => OpenXmlParts.ContentTypes(w, parts));
     }
 

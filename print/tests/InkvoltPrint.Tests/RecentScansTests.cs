@@ -80,6 +80,9 @@ public class RecentScansTests
     [InlineData("", false)]
     [InlineData(@"C:\Scans\page 1.JPG", true)]
     [InlineData(@"C:\Scans\b.jpeg", true)]
+    [InlineData(@"C:\Scans\Invoice 2026-03-04.docx", true)] // a scan saved as Word or text (roadmap 4.14)
+    [InlineData(@"C:\Scans\Invoice 2026-03-04.txt", true)]
+    [InlineData(@"C:\Scans\macro.docm", false)]
     [InlineData(@"C:\Users\x\Downloads\setup.exe", false)] // Open runs it through the shell: only a scan's kinds of file
     [InlineData(@"\\host\share\run.bat", false)]
     [InlineData(@"C:\Scans\a"".pdf", false)]

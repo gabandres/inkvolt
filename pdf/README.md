@@ -131,6 +131,17 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Print, Export and the page commands work. Shown by the WebView2 runtime Windows provides (as PDF from Web Page), with
   page scripts off and nothing loaded but its own page (Core: `Reflow`, `ReflowPosition`; `DocumentTab.Reflow.cs`); dev
   steps `reflow on|off`, `reflowstate`, `reflowscroll N`, `reflowlink url`, `reflowshot out.png`, `reflowcan Cmd,…`.
+- **Rulers, guides, a grid and snapping** (View › Rulers, Ctrl+R; View › Grid, Ctrl+U; View › Guides and Snapping):
+  rulers along the top and left of the view count from the current page's top-left as shown, in the page's measurement
+  scale when it has one ("1 in = 10 ft": feet), else inches or millimeters as the region uses (Ruler Units goes through
+  in, mm, cm and pt). Drag from a ruler onto a page for a guide (across from the top ruler, down from the left one); with
+  the hand or select tool drag a guide to move it, or back onto a ruler to remove it; Clear Guides removes them all.
+  Guides are kept while the document is open, never written into the PDF (they go when pages are added or deleted). The
+  grid (Grid Spacing…: ¼, ½ or 1 inch, 5 mm, 1 cm, 10 points) shows over each page. Fields in Prepare Form (drawn, moved,
+  resized, several at once), shapes and lines, signature and picture stamps and measuring points snap to guides, the grid
+  (while it shows) and other objects' edges and middles (fields, comments, stamps), each with its own switch; the line
+  it snapped to shows while the button is down, and Alt held lets go of snapping (Core: `LayoutAids`, `PageGuides`,
+  `Snapper`; `PageViewer.Layout`).
 - **Split view** (View › Split View: Top and Bottom, or Side by Side): two places of the same document at once, each
   pane with its own page, scroll, zoom, layout and view rotation; drag the bar between them to resize. The active pane
   has an accent frame: page and zoom commands, the page pill, thumbnails and bookmarks move it. Click a pane, or press
@@ -174,7 +185,16 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   choices (one per line, "Shown text = value" when they differ), the value a check box or radio button stands for (each
   radio button of a group its own), a push button's label and action (reset the form or
   print), text size (or auto), alignment, border and fill; plus Tab earlier / later (the order Tab fills them, shown as
-  numbers with "Tab order"). **Detect Fields** looks at every page (in the background, with Cancel) for lines to write
+  numbers with "Tab order"). **Calculate** (text fields): the sum, product, average, minimum or maximum of fields you
+  tick, or simplified field notation as Acrobat's ("Price * Qty + Shipping", a backslash before a space in a name),
+  written as Acrobat writes them (`AFSimple_Calculate`, `/** BVCALC … EVCALC **/`) so Acrobat's Calculate tab reads them
+  back; a form's own calculate script is kept as it is. **Calculation Order…** (the panel, or Edit › Forms) sets the
+  order calculated fields work out in (/CO). More number formats: negatives in brackets, 1.234,56 and euros. **Several
+  fields**: Ctrl+click adds a field to the selection (the first one picked, with a solid corner, is the anchor); drag or
+  arrow keys move them together, Del deletes them, and the panel or Edit › Forms › Arrange Fields lines them up with the
+  anchor (left, centers, right, top, middles, bottom), gives them its width, height or both, or spaces three or more
+  evenly across or down, each one undo step (Core: `FormCalculations`, `FormDesignRules` in `FormDesigner.Layout.cs`).
+  **Detect Fields** looks at every page (in the background, with Cancel) for lines to write
   on, empty boxes, small squares, ☐ characters and runs of underscores ("Name: ______"), names each suggestion after
   the text beside it, and shows it dashed: Enter or Add field takes one, Del or Skip leaves it out, or Add all. Fields
   are real AcroForm fields with their own appearances (/DA, /DR fonts), so they show and fill in Acrobat, browsers and
@@ -211,6 +231,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   cut off is removed from the file, not just hidden; Esc ends), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
   Replace Picture… (or a double-click) puts another picture file in its box, upright and in its own proportions; other
   places that show the same picture don't change. Tab goes through the page's text and pictures (Enter edits the text).
+  **Turn** a picture or the text you clicked (its paragraph) to any angle: drag the round handle out from its top-right
+  corner (Shift: 15° steps; the turned outline and its angle show as you drag), or type the angle in the bar's Angle box
+  (Edit › Turn to Angle…), about the middle of its box. A paragraph keeps its glyphs, spacing and kerning (each piece is
+  drawn again from a turned text matrix, `ContentEditor.RotateParagraph`; a picture gets a turn in front of its placement,
+  `RotateImage`), stays an editable paragraph in its new direction, and what follows it on the page stays where it was.
   Each change is one undo step; a signed file gets it appended (with the usual warning), a protected one keeps its
   protection.
 - **Spell check** where you type: the paragraph and text editors of Edit Text & Images, sticky notes, text boxes, callouts
@@ -900,14 +925,16 @@ scanners and choices, with `later`), `scanselect text` and `scanchoose glass|fee
 (choose its scanner and settings; `-` keeps one), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
 `comparegroup wording|moved|formatting|visual on|off`, `comparelist n`, `comparetext old|new page`, `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
-Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
+Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldsadd i,j,…`, `arrange AlignLeft|…|SpaceDown`,
+`calc sum|product|average|minimum|maximum|notation|none fields-or-notation`, `calcorder a,b,…`, `calcstate`; rulers and snapping:
+`rulers on|off`, `grid on|off [step]`, `snap guides|grid|objects on|off`, `guide p top|left pos`, `clearguides`, `snappoint p x y`, `layoutstate`; `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
 Recognize Text: `dialogok RecognizeText combo1=N check4=on` (combo0 the pages, combo1 the language in Windows' order,
 check0 clean first, check1 a photographed page straightened, check2 bent lines flattened, check3 suspect words, check4 replace the scans), then `suspects` (the Suspect words pane: opens it,
 logs its words), `suspectsel i`, `suspectfix text|keep`, `findcount word` (how often search finds it); scans to try it on:
 `pdf/tools/ocr-corpus` (`make`; `photos` for photographed and bent pages). Make Text Editable: `dialogok MakeTextEditable [combo0=N] [check0=on]` (combo0 the pages, check0 keep the scan showing), then `paragraphs 1` and `editpara`. Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`, `ExportPowerPoint`, `ExportHtml`; `check0` is OCR,
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
-`key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
+`key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `turnangle degrees`, `turndrag dx dy [shift]`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
 from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); spell check: `spellstate`, `spellmenu offset`, `spellchoose Header`,
 `spelling on|off` (a dev run's Add to dictionary never writes Windows' user dictionary); Find and Replace: `replacedialog`
 (drive it with `later`), `replacesearch find|with[|case,whole]`, `replacestate`, `replacesel i`, `replacetoggle i`, `replaceone`,
@@ -1050,8 +1077,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   (Type 1C) fonts without a readable glyph list are checked against the PDF's widths and ToUnicode table only. A
   replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing:
   each pen stroke is its own annotation, and pen pressure is ignored.
-- Prepare Form: one field selected at a time (no multi-select, align or distribute); no calculated fields, submit
-  buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
+- Prepare Form: several fields are selected on one page only, and resized one at a time; a calculation's custom
+  script can be kept but not written here (Acrobat's JavaScript editor); no submit buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
   and actions). New fields use Helvetica (other scripts get an embedded font when filled). A field shown in several
   places (same name) can't be made here, except radio buttons. Tab order follows the page's annotation order once
   changed; a page ordered by its structure tree is shown in annotation order. Detect Fields reads drawn lines, boxes and
@@ -1197,7 +1224,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
 
-- Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement
+- Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's own drawn lines and corners (points
+  snap to guides, the grid and objects' edges, 4.19), a measurement
   summary to export (CSV), geospatial (GEO) scales.
 - PDF/A: PDF/A-1b and 3b, CMYK documents (a CMYK output intent), embedding installed
   fonts other than the standard ones.
@@ -1214,8 +1242,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   tab shows no picture of it under the pointer.
 - Sanitize: find text hidden in white, under images or outside the page; remove alternate text and a structure
   tree's hidden content; save a report of what was removed.
-- Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,
-  custom script) and submit buttons; detect comb boxes and table rows as one field each.
+- Prepare Form: write a custom calculate script; submit buttons; detect comb boxes and table rows as one field each.
 - Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
   over pictures, charts and shapes as drawings, pictures cut out of scanned pages, numbered lists as Word numbering;
   links in Word (PowerPoint and HTML carry them).

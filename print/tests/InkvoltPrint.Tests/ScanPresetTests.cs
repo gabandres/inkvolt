@@ -60,11 +60,11 @@ public class FileNameTemplateTests
     [Theory]
     [InlineData("{preset} {date}", null)]
     [InlineData("{n:000} {date:yyyy-MM}", null)]
-    [InlineData("{pagez}", "Unknown token {pagez}. Use {date}, {time}, {preset}, {printer}, {n} or {pages}.")]
+    [InlineData("{pagez}", "Unknown token {pagez}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}.")]
     [InlineData("{date", "A { has no closing }. Type {{ for a brace.")]
     [InlineData("a } b", "A } has no opening {. Type }} for a brace.")]
     [InlineData("{preset:x}", "{preset} takes no format.")]
-    [InlineData("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n} or {pages}.")]
+    [InlineData("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}.")]
     public void Validates(string template, string? problem) => Assert.Equal(problem, FileNameTemplate.Problem(template));
 
     [Fact]

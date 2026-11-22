@@ -156,8 +156,16 @@
                                   ToolTip="{x:Static loc:Strings.Presets_WhitenTip}" />
                         <CheckBox Content="{x:Static loc:Strings.Scan_Descreen}" IsChecked="{Binding DescreenPages}" Margin="0,0,24,6" AutomationProperties.Name="{x:Static loc:Strings.Scan_Descreen}"
                                   ToolTip="{x:Static loc:Strings.Scan_DescreenTip}" />
-                        <CheckBox Content="{x:Static loc:Strings.Scan_RestoreColors}" IsChecked="{Binding RestoreColors}" Margin="0,0,0,6" AutomationProperties.Name="{x:Static loc:Strings.Scan_RestoreColors}"
+                        <CheckBox Content="{x:Static loc:Strings.Scan_RestoreColors}" IsChecked="{Binding RestoreColors}" Margin="0,0,24,6" AutomationProperties.Name="{x:Static loc:Strings.Scan_RestoreColors}"
                                   ToolTip="{x:Static loc:Strings.Scan_RestoreColorsTip}" />
+                        <CheckBox Content="{x:Static loc:Strings.Scan_RemoveHoles}" IsChecked="{Binding RemoveHoles}" Margin="0,0,24,6" AutomationProperties.Name="{x:Static loc:Strings.Scan_RemoveHoles}"
+                                  ToolTip="{x:Static loc:Strings.Scan_RemoveHolesTip}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <CheckBox Content="{x:Static loc:Strings.Scan_DropColor}" IsChecked="{Binding DropPageColor}" VerticalAlignment="Center" AutomationProperties.Name="{x:Static loc:Strings.Scan_DropColor}"
+                                      ToolTip="{x:Static loc:Strings.Scan_DropColorTip}" />
+                            <ComboBox ItemsSource="{Binding DropColors}" SelectedItem="{Binding DropColorChoice}" IsEnabled="{Binding DropPageColor}" Margin="8,0,0,0" MinWidth="120"
+                                      VerticalAlignment="Center" AutomationProperties.Name="{x:Static loc:Strings.Scan_DropColorWhich}" />
+                        </StackPanel>
                     </WrapPanel>
                     <StackPanel Margin="0,4,0,0" Visibility="{Binding HasOcrLanguageChoice, Converter={StaticResource VisibleWhen}}">
                         <TextBlock Text="{x:Static loc:Strings.Presets_TextLanguage}" Style="{StaticResource Label}" />
@@ -205,6 +213,7 @@
                     <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap">
                         <Run Text="{x:Static loc:Strings.Presets_Tokens}" /> <Run Text="{x:Static vm:ScanPresetsViewModel.TokenHelp}" FontFamily="Consolas" />
                         <LineBreak /><Run Text="{x:Static loc:Strings.Presets_CounterHelp}" />
+                        <LineBreak /><Run Text="{x:Static loc:Strings.Presets_TextTokensHelp}" />
                     </TextBlock>
                     <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap">
                         <Run Text="{x:Static loc:Strings.Presets_NextFile}" /> <Run Text="{Binding Example, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />

@@ -1916,6 +1916,39 @@ public partial class MainWindow : Window
             (_, e) => { e.CanExecute = _tabs.Count > 1; e.Handled = true; }));
         CommandBindings.Add(new CommandBinding(Cmd.ReopenClosed, (_, e) => { _ = ReopenClosedAsync(); e.Handled = true; },
             (_, e) => { e.CanExecute = _closedTabs.Count > 0; e.Handled = true; }));
+        // Rulers, guides, a grid and snapping: app settings, on every tab's views (DocumentTab.Layout.cs).
+        void Layout(Action<AppSettings> change)
+        {
+            change(AppSettings.Current);
+            AppSettings.Current.Save();
+            foreach (var t in Tabs) t.ApplyLayoutAids();
+            UpdateUi();
+        }
+        BindAlways(Cmd.ShowRulers, () => Layout(s => s.ShowRulers = !s.ShowRulers));
+        BindAlways(Cmd.ShowGrid, () => Layout(s => s.ShowGrid = !s.ShowGrid));
+        BindAlways(Cmd.SnapToGuides, () => Layout(s => s.SnapToGuides = !s.SnapToGuides));
+        BindAlways(Cmd.SnapToGrid, () => Layout(s => s.SnapToGrid = !s.SnapToGrid));
+        BindAlways(Cmd.SnapToObjects, () => Layout(s => s.SnapToObjects = !s.SnapToObjects));
+        BindAlways(Cmd.GridSpacing, () =>
+        {
+            if (DocumentTab.AskGridStep(this) is not { } step) return;
+            Layout(s =>
+            {
+                s.GridStep = step;
+                s.ShowGrid = true;
+            });
+        });
+        BindAlways(Cmd.RulerUnits, () =>
+        {
+            Layout(s =>
+            {
+                var i = RulerUnit.Choices.ToList().IndexOf(s.RulerUnit);
+                s.RulerUnit = RulerUnit.Choices[(i + 1) % RulerUnit.Choices.Count];
+                s.ShowRulers = true;
+            });
+            ActiveTab?.SayRulerUnit();
+        });
+        Bind(Cmd.ClearGuides, t => t.ClearGuides(), t => t.HasGuides);
         BindAlways(Cmd.DarkPages, () =>
         {
             AppSettings.Current.DarkPages = !AppSettings.Current.DarkPages;
@@ -2066,7 +2099,14 @@ public partial class MainWindow : Window
         Bind(Cmd.ToolLink, t => ToggleTool(t, ViewerTool.AddLink), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.PrepareForm, t => _ = t.SetFormDesign(!t.IsDesigningForm), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.EditContent, t => t.SetEditContent(!t.IsEditingContent), t => t.Session.IsPdf && t.PageView.PageCount > 0);
+        Bind(Cmd.TurnContent, t => t.FocusTurnAngle(), t => t.CanTurnContent && !t.IsBusy);
         Bind(Cmd.DetectFields, t => _ = t.DetectFieldsCommand(), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsBusy);
+        foreach (var (command, how) in Cmd.ArrangeCommands)
+        {
+            var h = how;
+            Bind(command, t => _ = t.ArrangeFields(h), t => t.CanArrangeFields(h) && !t.IsBusy);
+        }
+        Bind(Cmd.CalculationOrder, t => _ = t.EditCalculationOrder(), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsBusy);
         Bind(Cmd.LinkSelection, t => _ = t.LinkSelection(), t => t.CanMarkup);
         Bind(Cmd.LinkAddresses, t => _ = t.LinkAddresses(), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.HighlightAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.Highlight), t => !t.IsOrganizing && t.Session.IsPdf);
@@ -2661,6 +2701,12 @@ public partial class MainWindow : Window
         OrganizeMenu.IsChecked = t?.IsOrganizing == true;
         ReflowMenu.IsChecked = t?.IsReflowing == true;
         DarkPagesMenu.IsChecked = AppSettings.Current.DarkPages;
+        RulersMenu.IsChecked = AppSettings.Current.ShowRulers;
+        GridMenu.IsChecked = AppSettings.Current.ShowGrid;
+        SnapGuidesMenu.IsChecked = AppSettings.Current.SnapToGuides;
+        SnapGridMenu.IsChecked = AppSettings.Current.SnapToGrid;
+        SnapObjectsMenu.IsChecked = AppSettings.Current.SnapToObjects;
+        t?.ApplyLayoutAids(); // a split's second pane too
         ThemeSystemMenu.IsChecked = AppSettings.Current.Theme is not ("Light" or "Dark");
         ThemeLightMenu.IsChecked = AppSettings.Current.Theme == "Light";
         ThemeDarkMenu.IsChecked = AppSettings.Current.Theme == "Dark";

@@ -67,6 +67,9 @@ public sealed class AppState
     /// <summary>What the Scan tab cleans each scanned page up with (<see cref="Core.Imaging.PageFilters"/>, as a number).</summary>
     public int ScanCleanup { get; set; }
 
+    /// <summary>The color the Scan tab's "Drop a color" drops, "#RRGGBB" (<see cref="Core.Imaging.DropColor.Hex"/>); null: red.</summary>
+    public string? ScanDropColor { get; set; }
+
     /// <summary>The OCR language the Scan tab reads in (a BCP-47 tag); null: Windows' first display language that has OCR.</summary>
     public string? ScanOcrLanguage { get; set; }
 

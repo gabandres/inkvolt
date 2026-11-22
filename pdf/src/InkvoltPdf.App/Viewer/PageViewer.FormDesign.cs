@@ -23,12 +23,16 @@ public sealed partial class PageViewer
     {
         var g = _engine!.GetPage(p);
         return new DesignPage(g.Width, g.Height, _viewRotation);
-    });
+    })
+    {
+        SnapFor = (page, without) => SnapperFor(page, without),
+    };
 
     public event EventHandler<DesignPlacement>? DesignFieldDrawn;
 
-    /// <summary>A field was moved or resized: the field with its new <see cref="DesignField.Rect"/>.</summary>
-    public event EventHandler<DesignField>? DesignFieldMoved;
+    /// <summary>Fields were moved or resized: each with its new <see cref="DesignField.Rect"/> (several dragged or
+    /// nudged together are one edit).</summary>
+    public event EventHandler<IReadOnlyList<DesignField>>? DesignFieldMoved;
 
     public event EventHandler? DesignSelectionChanged;
     public event EventHandler<DesignAction>? DesignActionRequested;
@@ -67,6 +71,18 @@ public sealed partial class PageViewer
     public IReadOnlyList<DesignField> DesignFields => Designer.Fields;
     public IReadOnlyList<FieldSuggestion> Suggestions => Designer.Suggestions;
     public DesignField? SelectedDesignField => Designer.SelectedField;
+
+    /// <summary>The selected fields, the anchor (the first picked) first.</summary>
+    public IReadOnlyList<DesignField> SelectedDesignFields => Designer.SelectedFields;
+
+    /// <summary>Selects several fields (the first is the anchor), as Ctrl+click does.</summary>
+    public void SelectDesignFields(IReadOnlyList<string> ids)
+    {
+        FlushDesignNudge();
+        Designer.SelectAll(ids);
+        _surface.InvalidateVisual();
+        DesignSelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
     public FieldSuggestion? SelectedSuggestion => Designer.SelectedSuggestion;
     public int SelectedSuggestionIndex => Designer.SelectedSuggestionIndex;
 
@@ -126,7 +142,8 @@ public sealed partial class PageViewer
         if (page < 0) return true;
         FlushDesignNudge();
         var hadSelection = SelectedDesignField is not null || SelectedSuggestion is not null;
-        var press = Designer.Press(page, ToPointD(ToPagePoint(page, sp)), e.ClickCount, DesignReach);
+        var toggle = (Keyboard.Modifiers & ModifierKeys.Control) != 0;
+        var press = Designer.Press(page, ToPointD(ToPagePoint(page, sp)), e.ClickCount, DesignReach, toggle);
         if (Designer.IsDragging) _surface.CaptureMouse();
         _surface.InvalidateVisual();
         switch (press)
@@ -160,7 +177,8 @@ public sealed partial class PageViewer
         switch (release)
         {
             case DesignRelease.Placed p: DesignFieldDrawn?.Invoke(this, p.Placement); break;
-            case DesignRelease.Moved m: DesignFieldMoved?.Invoke(this, m.Field); break;
+            case DesignRelease.Moved m: DesignFieldMoved?.Invoke(this, [m.Field]); break;
+            case DesignRelease.MovedAll all: DesignFieldMoved?.Invoke(this, all.Fields); break;
         }
         return true;
     }
@@ -212,7 +230,7 @@ public sealed partial class PageViewer
         var mods = Keyboard.Modifiers;
         var designMods = ((mods & ModifierKeys.Shift) != 0 ? DesignModifiers.Shift : 0) | ((mods & ModifierKeys.Control) != 0 ? DesignModifiers.Control : 0)
                          | ((mods & ModifierKeys.Alt) != 0 ? DesignModifiers.Alt : 0) | ((mods & ModifierKeys.Windows) != 0 ? DesignModifiers.Windows : 0);
-        var before = (SelectedDesignField?.Id, SelectedSuggestionIndex);
+        var before = (string.Join("|", Designer.SelectedIds), SelectedSuggestionIndex);
         if (Designer.Key(key.Value, designMods) is not { } result) return false;
         if (result.Nudged)
         {
@@ -224,10 +242,10 @@ public sealed partial class PageViewer
         {
             _designNudgeTimer?.Stop();
         }
-        if (result.Written is { } written) DesignFieldMoved?.Invoke(this, written);
+        if (result.WrittenAll is { Count: > 0 } written) DesignFieldMoved?.Invoke(this, written);
         if (result.Reveal is { } reveal) EnsureVisible(reveal.Page, reveal.Rect);
         _surface.InvalidateVisual();
-        if (result.Reveal is not null || before != (SelectedDesignField?.Id, SelectedSuggestionIndex)) DesignSelectionChanged?.Invoke(this, EventArgs.Empty);
+        if (result.Reveal is not null || before != (string.Join("|", Designer.SelectedIds), SelectedSuggestionIndex)) DesignSelectionChanged?.Invoke(this, EventArgs.Empty);
         switch (result.Escape)
         {
             case DesignEscape.CancelledPress: UpdateCursor(Mouse.GetPosition(_surface)); break; // the release that follows writes nothing
@@ -249,7 +267,7 @@ public sealed partial class PageViewer
     public void FlushDesignNudge()
     {
         _designNudgeTimer?.Stop();
-        if (Designer.FlushNudge() is not { } moved) return;
+        if (Designer.FlushNudgeAll() is not { Count: > 0 } moved) return;
         _surface.InvalidateVisual();
         DesignFieldMoved?.Invoke(this, moved);
     }
@@ -276,7 +294,7 @@ public sealed partial class PageViewer
             foreach (var f in fields)
             {
                 var r = ToSurfaceRect(page, Designer.ShownRect(f));
-                var selected = f.Id == Designer.SelectedId;
+                var selected = Designer.IsSelected(f.Id);
                 if (f.Kind == DesignFieldKind.Radio)
                     dc.DrawEllipse(fill, selected ? selPen : fieldPen, new Point(r.X + r.Width / 2, r.Y + r.Height / 2), r.Width / 2, r.Height / 2);
                 dc.DrawRectangle(f.Kind == DesignFieldKind.Radio ? null : fill, selected ? selPen : fieldPen, r);
@@ -284,7 +302,9 @@ public sealed partial class PageViewer
                 if (f.Kind is not (DesignFieldKind.CheckBox or DesignFieldKind.Radio)) Label(dc, f.Name, r, accent, labelSize, dpi, inside: true);
                 else if (selected) Label(dc, f.Kind == DesignFieldKind.Radio ? $"{f.Name}: {f.ExportValue}" : f.Name, r, accent, labelSize, dpi, inside: false);
                 if (Designer.ShowTabOrder) TabBadge(dc, f.TabIndex + 1, r, accent, dpi);
-                if (!selected || f.Signed) continue;
+                // Of several, the anchor (what Align and Same Size go by) has a solid corner.
+                if (selected && Designer.HasSeveral && f.Id == Designer.SelectedId) dc.DrawRectangle(accent, null, new Rect(r.X - 4, r.Y - 4, 8, 8));
+                if (!selected || f.Signed || Designer.HasSeveral) continue;
                 var frame = new RectD(r.X, r.Y, r.Width, r.Height);
                 for (var i = 0; i < 8; i++)
                 {

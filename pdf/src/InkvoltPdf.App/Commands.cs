@@ -98,9 +98,32 @@ public static class Cmd
     // Forms: authoring (see DocumentTab.FormDesign)
     public static readonly RoutedUICommand PrepareForm = Make(Strings.Cmd_PrepareForm, nameof(PrepareForm), K(Key.F, ModifierKeys.Control | ModifierKeys.Alt));
     public static readonly RoutedUICommand DetectFields = Make(Strings.Cmd_DetectFields, nameof(DetectFields));
+    // Prepare Form: several fields lined up with the first one picked, and the calculation order (roadmap 4.12)
+    public static readonly RoutedUICommand AlignLeft = Make(Strings.Cmd_AlignLeft, nameof(AlignLeft));
+    public static readonly RoutedUICommand AlignCenter = Make(Strings.Cmd_AlignCenter, nameof(AlignCenter));
+    public static readonly RoutedUICommand AlignRight = Make(Strings.Cmd_AlignRight, nameof(AlignRight));
+    public static readonly RoutedUICommand AlignTop = Make(Strings.Cmd_AlignTop, nameof(AlignTop));
+    public static readonly RoutedUICommand AlignMiddle = Make(Strings.Cmd_AlignMiddle, nameof(AlignMiddle));
+    public static readonly RoutedUICommand AlignBottom = Make(Strings.Cmd_AlignBottom, nameof(AlignBottom));
+    public static readonly RoutedUICommand SameWidth = Make(Strings.Cmd_SameWidth, nameof(SameWidth));
+    public static readonly RoutedUICommand SameHeight = Make(Strings.Cmd_SameHeight, nameof(SameHeight));
+    public static readonly RoutedUICommand SameSize = Make(Strings.Cmd_SameSize, nameof(SameSize));
+    public static readonly RoutedUICommand SpaceAcross = Make(Strings.Cmd_SpaceAcross, nameof(SpaceAcross));
+    public static readonly RoutedUICommand SpaceDown = Make(Strings.Cmd_SpaceDown, nameof(SpaceDown));
+    public static readonly RoutedUICommand CalculationOrder = Make(Strings.Cmd_CalculationOrder, nameof(CalculationOrder));
+
+    /// <summary>Arrange Fields' commands and what each does.</summary>
+    public static IReadOnlyList<(RoutedUICommand Command, FieldArrange How)> ArrangeCommands =>
+    [
+        (AlignLeft, FieldArrange.AlignLeft), (AlignCenter, FieldArrange.AlignCenter), (AlignRight, FieldArrange.AlignRight),
+        (AlignTop, FieldArrange.AlignTop), (AlignMiddle, FieldArrange.AlignMiddle), (AlignBottom, FieldArrange.AlignBottom),
+        (SameWidth, FieldArrange.SameWidth), (SameHeight, FieldArrange.SameHeight), (SameSize, FieldArrange.SameSize),
+        (SpaceAcross, FieldArrange.SpaceAcross), (SpaceDown, FieldArrange.SpaceDown),
+    ];
 
     // Edit Text & Images (see DocumentTab.EditContent)
     public static readonly RoutedUICommand EditContent = Make(Strings.Cmd_EditContent, nameof(EditContent));
+    public static readonly RoutedUICommand TurnContent = Make(Strings.Cmd_TurnContent, nameof(TurnContent));
 
     // View
     public static readonly RoutedUICommand ZoomIn = Make(Strings.Cmd_ZoomIn, nameof(ZoomIn), K(Key.OemPlus, ModifierKeys.Control, "Ctrl+="), K(Key.Add, ModifierKeys.Control));
@@ -113,7 +136,16 @@ public static class Cmd
     public static readonly RoutedUICommand LayoutFacing = Make(Strings.Cmd_LayoutFacing, nameof(LayoutFacing), K(Key.D6, ModifierKeys.Control));
     // Reflow (4.16): Acrobat's is Ctrl+4, which is Single Page here; Ctrl+3 sits beside the zoom keys
     public static readonly RoutedUICommand Reflow = Make(Strings.Cmd_Reflow, nameof(Reflow), K(Key.D3, ModifierKeys.Control));
-    public static readonly RoutedUICommand LayoutCover =Make(Strings.Cmd_LayoutCover, nameof(LayoutCover), K(Key.D7, ModifierKeys.Control));
+    public static readonly RoutedUICommand LayoutCover = Make(Strings.Cmd_LayoutCover, nameof(LayoutCover), K(Key.D7, ModifierKeys.Control));
+    // Rulers, guides, a grid and snapping (roadmap 4.19; DocumentTab.Layout.cs)
+    public static readonly RoutedUICommand ShowRulers = Make(Strings.Cmd_ShowRulers, nameof(ShowRulers), K(Key.R, ModifierKeys.Control));
+    public static readonly RoutedUICommand ShowGrid = Make(Strings.Cmd_ShowGrid, nameof(ShowGrid), K(Key.U, ModifierKeys.Control));
+    public static readonly RoutedUICommand SnapToGuides = Make(Strings.Cmd_SnapToGuides, nameof(SnapToGuides));
+    public static readonly RoutedUICommand SnapToGrid = Make(Strings.Cmd_SnapToGrid, nameof(SnapToGrid));
+    public static readonly RoutedUICommand SnapToObjects = Make(Strings.Cmd_SnapToObjects, nameof(SnapToObjects));
+    public static readonly RoutedUICommand GridSpacing = Make(Strings.Cmd_GridSpacing, nameof(GridSpacing));
+    public static readonly RoutedUICommand RulerUnits = Make(Strings.Cmd_RulerUnits, nameof(RulerUnits));
+    public static readonly RoutedUICommand ClearGuides = Make(Strings.Cmd_ClearGuides, nameof(ClearGuides));
     public static readonly RoutedUICommand RotateViewRight = Make(Strings.Cmd_RotateViewRight, nameof(RotateViewRight), K(Key.OemPlus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift++"), K(Key.Add, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand RotateViewLeft = Make(Strings.Cmd_RotateViewLeft, nameof(RotateViewLeft), K(Key.OemMinus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift+-"), K(Key.Subtract, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand NavPane = Make(Strings.Cmd_NavPane, nameof(NavPane), K(Key.F4));

@@ -98,7 +98,7 @@ public sealed partial class PageViewer
         if (_tool == ViewerTool.PlaceSignature)
         {
             _sigBoxPage = page;
-            _sigBoxStart = _sigBoxEnd = pt;
+            _sigBoxStart = _sigBoxEnd = SnapPoint(page, pt);
             Capture();
             return true;
         }
@@ -140,7 +140,7 @@ public sealed partial class PageViewer
         if (_sigBoxPage >= 0)
         {
             var g = _engine!.GetPage(_sigBoxPage);
-            var pt = ToPagePoint(_sigBoxPage, sp);
+            var pt = SnapPoint(_sigBoxPage, ToPagePoint(_sigBoxPage, sp));
             _sigBoxEnd = new Point(Math.Clamp(pt.X, 0, g.Width), Math.Clamp(pt.Y, 0, g.Height));
             _surface.InvalidateVisual();
             return true;
@@ -160,8 +160,10 @@ public sealed partial class PageViewer
         }
         else
         {
-            var x = Math.Clamp(d.Rect.X + p.X - d.Start.X, 0, Math.Max(0, gp.Width - d.Rect.Width));
-            var y = Math.Clamp(d.Rect.Y + p.Y - d.Start.Y, 0, Math.Max(0, gp.Height - d.Rect.Height));
+            // Snapped by an edge or its middle, then kept on the page.
+            var moved = SnapMove(page, d.Rect with { X = d.Rect.X + p.X - d.Start.X, Y = d.Rect.Y + p.Y - d.Start.Y }, d.Rect, d.Stamp.Id);
+            var x = Math.Clamp(moved.X, 0, Math.Max(0, gp.Width - d.Rect.Width));
+            var y = Math.Clamp(moved.Y, 0, Math.Max(0, gp.Height - d.Rect.Height));
             r = d.Rect with { X = x, Y = y };
         }
         _sigDrag = d with { Stamp = d.Stamp with { Rect = r } };

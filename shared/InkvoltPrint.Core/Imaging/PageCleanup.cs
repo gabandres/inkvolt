@@ -18,18 +18,25 @@ public enum PageFilters
     /// <summary>Restore a faded print's range and colors (<see cref="FadedColors"/>).</summary>
     RestoreColors = 8,
 
+    /// <summary>Drop a pen or form color to white (<see cref="ColorDropout"/>; which color: <see cref="PageEdits.Drop"/>).</summary>
+    DropColor = 16,
+
+    /// <summary>Fill punch holes near the edges with the paper's color (<see cref="Imaging.PunchHoles"/>).</summary>
+    PunchHoles = 32,
+
     /// <summary>The filters that change pixels.</summary>
-    PixelFilters = Whiten | Descreen | RestoreColors,
+    PixelFilters = Whiten | Descreen | RestoreColors | DropColor | PunchHoles,
 
     All = CropToPaper | PixelFilters,
 }
 
-/// <summary>What <see cref="PageCleanup.Apply"/> gives: the page, what really changed it, and the specks removed.</summary>
-public sealed record CleanedPage(byte[] Pixels, PageFilters Done, int Specks);
+/// <summary>What <see cref="PageCleanup.Apply"/> gives: the page, what really changed it, the specks and punch holes removed.</summary>
+public sealed record CleanedPage(byte[] Pixels, PageFilters Done, int Specks, int Holes = 0);
 
 /// <summary>
-/// The review's filters on a page's pixels: descreen, then restore colors, then whiten, each on what the one before left.
-/// Pixels in, new pixels out: the input (the scan) is never written to. Rows of width × channels bytes, no padding; 1 = grey, 3 = BGR.
+/// The review's filters on a page's pixels: descreen, then restore colors, then drop a color, then remove punch holes, then
+/// whiten, each on what the one before left. Pixels in, new pixels out: the input (the scan) is never written to. Rows of
+/// width × channels bytes, no padding; 1 = grey, 3 = BGR.
 /// </summary>
 public static class PageCleanup
 {
@@ -41,27 +48,39 @@ public static class PageCleanup
 
     public static bool TooLarge(int width, int height) => (long)width * height > MaxPixels;
 
-    public static CleanedPage Apply(byte[] pixels, int width, int height, int channels, int dpi, PageFilters filters, CancellationToken cancel = default)
+    /// <summary>What <paramref name="filters"/> can do on a page: one scanned in grey (<paramref name="grey"/>) has no color to drop.</summary>
+    public static PageFilters For(PageFilters filters, bool grey) => grey ? filters & ~PageFilters.DropColor : filters;
+
+    /// <param name="drop">The color <see cref="PageFilters.DropColor"/> drops; red when not given.</param>
+    public static CleanedPage Apply(byte[] pixels, int width, int height, int channels, int dpi, PageFilters filters, CancellationToken cancel = default,
+        DropColor? drop = null)
     {
         cancel.ThrowIfCancellationRequested();
         if ((filters & PageFilters.PixelFilters) == 0 || TooLarge(width, height) || width < 1 || height < 1) return new CleanedPage(pixels, PageFilters.None, 0);
         var page = (byte[])pixels.Clone();
         var done = PageFilters.None;
-        var specks = 0;
+        var (specks, holes) = (0, 0);
         if (filters.HasFlag(PageFilters.Descreen) && Descreen.Apply(page, width, height, channels, dpi, cancel)) done |= PageFilters.Descreen;
         if (filters.HasFlag(PageFilters.RestoreColors) && FadedColors.Restore(page, width, height, channels, cancel)) done |= PageFilters.RestoreColors;
+        if (filters.HasFlag(PageFilters.DropColor) && ColorDropout.Apply(page, width, height, channels, drop ?? DropColor.Red, cancel)) done |= PageFilters.DropColor;
+        if (filters.HasFlag(PageFilters.PunchHoles) && (holes = Imaging.PunchHoles.Remove(page, width, height, channels, dpi, cancel)) > 0) done |= PageFilters.PunchHoles;
         if (filters.HasFlag(PageFilters.Whiten) && PageBackground.Whiten(page, width, height, channels, dpi, out specks, cancel)) done |= PageFilters.Whiten;
-        return new CleanedPage(page, done, specks);
+        return new CleanedPage(page, done, specks, holes);
     }
 
-    /// <summary>"cropped to the paper, whitened": what a set of filters does, in the review's words. Empty for none.</summary>
-    public static string Describe(PageFilters filters)
+    /// <summary>
+    /// "cropped to the paper, whitened, red dropped": what a set of filters does, in the review's words. Empty for none.
+    /// <paramref name="drop"/>: the color <see cref="PageFilters.DropColor"/> drops (red when not given).
+    /// </summary>
+    public static string Describe(PageFilters filters, DropColor? drop = null)
     {
         var parts = new List<string>();
         if (filters.HasFlag(PageFilters.CropToPaper)) parts.Add(CoreStrings.Imaging_Cropped);
         if (filters.HasFlag(PageFilters.Whiten)) parts.Add(CoreStrings.Imaging_Whitened);
         if (filters.HasFlag(PageFilters.Descreen)) parts.Add(CoreStrings.Imaging_Descreened);
         if (filters.HasFlag(PageFilters.RestoreColors)) parts.Add(CoreStrings.Imaging_ColorsRestored);
+        if (filters.HasFlag(PageFilters.DropColor)) parts.Add(string.Format(CoreStrings.Imaging_ColorDropped, (drop ?? DropColor.Red).Name));
+        if (filters.HasFlag(PageFilters.PunchHoles)) parts.Add(CoreStrings.Imaging_HolesRemoved);
         return string.Join(", ", parts);
     }
 }

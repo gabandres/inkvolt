@@ -10,7 +10,8 @@ namespace InkvoltPrint.Core.Presets;
 /// <summary>Where a preset scans from. Auto: the feeder when it holds pages, else the glass.</summary>
 public enum PresetSource { Auto, Glass, Feeder }
 
-public enum PresetFileType { Pdf, SearchablePdf, Jpeg }
+/// <summary>What a preset saves: a PDF, a searchable PDF, JPEG pictures, or the text read from the pages as a Word document or plain text (roadmap 4.14).</summary>
+public enum PresetFileType { Pdf, SearchablePdf, Jpeg, Word, Text }
 
 /// <summary>The folder a preset saves into; sync folders (OneDrive, Dropbox) are <see cref="Custom"/> paths.</summary>
 public enum PresetFolder { Documents, Pictures, Custom }
@@ -63,6 +64,9 @@ public sealed record ScanPreset
 
     /// <summary>What each page is cleaned up with (crop to the paper, whiten, descreen, restore colors); none by default.</summary>
     public PageFilters Cleanup { get; init; }
+
+    /// <summary>The color <see cref="PageFilters.DropColor"/> drops, "#RRGGBB" (<see cref="Imaging.DropColor.Hex"/>); null: red.</summary>
+    public string? DropColor { get; init; }
 
     /// <summary>The OCR language (a BCP-47 tag) for a searchable PDF; null: Windows' first display language that has one.</summary>
     public string? OcrLanguage { get; init; }
@@ -161,6 +165,7 @@ public static partial class ScanPresets
                 After = Enum.IsDefined(raw.After) ? raw.After : PresetAfter.None,
                 SplitAt = Enum.IsDefined(raw.SplitAt) ? raw.SplitAt : SplitAt.None,
                 Cleanup = raw.Cleanup & PageFilters.All,
+                DropColor = Imaging.DropColor.Parse(raw.DropColor)?.Hex,
                 Folder = Enum.IsDefined(raw.Folder) && !(raw.Folder == PresetFolder.Custom && string.IsNullOrWhiteSpace(raw.FolderPath))
                     ? raw.Folder : PresetFolder.Documents,
                 Resolution = Math.Clamp(raw.Resolution, MinResolution, MaxResolution),
@@ -272,8 +277,20 @@ public static partial class ScanPresets
     /// as the preset says (glass when it says glass).
     /// </summary>
     public static bool SavesSmallerFile(ScanPreset p, ScanSource? source = null) =>
-        p.SmallerFile && p.FileType != PresetFileType.Jpeg
+        p.SmallerFile && IsPdf(p.FileType)
         && !(p.FindPhotos && (source is { } s ? s == ScanSource.Platen : p.Source == PresetSource.Glass));
+
+    /// <summary>A PDF (searchable or not): what opens in Inkvolt PDF and can be saved in black and white.</summary>
+    public static bool IsPdf(PresetFileType type) => type is PresetFileType.Pdf or PresetFileType.SearchablePdf;
+
+    /// <summary>The saved file's extension: ".pdf", ".jpg", ".docx" or ".txt".</summary>
+    public static string Extension(PresetFileType type) => type switch
+    {
+        PresetFileType.Jpeg => ".jpg",
+        PresetFileType.Word => ".docx",
+        PresetFileType.Text => ".txt",
+        _ => ".pdf",
+    };
 
     private static string Cut(string name) => name.Length > MaxNameLength ? name[..MaxNameLength] : name;
 
@@ -287,6 +304,8 @@ public static class ScanPresetText
     {
         PresetFileType.SearchablePdf => CoreStrings.Preset_SearchablePdf,
         PresetFileType.Jpeg => CoreStrings.Preset_JpegImages,
+        PresetFileType.Word => CoreStrings.Preset_WordDocument,
+        PresetFileType.Text => CoreStrings.Preset_TextFile,
         _ => "PDF",
     };
 
@@ -343,7 +362,7 @@ public static class ScanPresetText
         if (p.TwoSided && p.TurnStack && p.Source != PresetSource.Glass) parts.Add(CoreStrings.Preset_TurnStackShort);
         if (p.SplitAt != SplitAt.None) parts.Add(string.Format(CoreStrings.Preset_NewFileAtEach, SplitText(p.SplitAt)));
         if (p.FindPhotos) parts.Add(CoreStrings.Preset_EachPhoto);
-        if (PageCleanup.Describe(p.Cleanup) is { Length: > 0 } cleanup) parts.Add(cleanup);
+        if (PageCleanup.Describe(p.Cleanup, Imaging.DropColor.Parse(p.DropColor)) is { Length: > 0 } cleanup) parts.Add(cleanup);
         if (p.Review) parts.Add(CoreStrings.Preset_ReviewFirst);
         if (p.After != PresetAfter.None) parts.Add(string.Format(CoreStrings.Preset_Then, After(p.After)));
         return string.Join(" · ", parts);

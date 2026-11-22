@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.17.0
 - Spell check where you type: edited text, sticky notes, text boxes, callouts and form fields underline misspelled words in red, in the document's language. Right-click a word for suggestions, Ignore or Add to dictionary. Turn it off in Settings.
 - Find and Replace (Edit › Replace…, Ctrl+H): change a word or phrase across the document, one match at a time or all at once (one undo step), with Match case and Whole words only. Each match is listed with its page and the words around it. A replacement that can't be made as asked (a character no font has, a paragraph that would run into the text below) is listed afterwards.
 - Interleave Pages (Organize): two-sided sheets scanned one side at a time come back in order, front 1, back 1, front 2… The backs can be pages of the same file or another PDF, in reverse order (a stack turned over) or not. Scan the Backs (File menu, and Scan & OCR on the bar) scans the backs straight into place.
@@ -22,6 +24,10 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Save an AI answer: the Save button on an answer, or Review › AI Assistant › Save AI Answer and Save AI Conversation, saves it as a Word document or a PDF, with what you asked, its page references and the model's name, or puts it into the document as a note on the page it cites. The conversation stays with the document while it's open.
 - Two documents side by side: File › New Window (Ctrl+N), New Window in the taskbar's jump list, or drag a tab out of the tab bar and it becomes a window of its own, ready for Windows Snap. Drag a tab onto another window's tabs to move it there; it keeps its page, panes, undo and unsaved changes. Right-click a tab for Move to New Window and Move to Window. A file already open in one window comes forward there instead of opening twice, and closing a window asks only about its own documents.
 - Reflow (View › Reflow, Ctrl+3): read the document as one column of text that fits the window, handy on a small screen or when you need larger text. It follows Windows' text size and Dark pages, Zoom In and Zoom Out change the text size, links work, and you come back to Pages at the page you were reading.
+- Calculated form fields (Prepare Form): a text field can add up, multiply, average, or take the lowest or highest of the fields you tick, or work out a formula like Price * Quantity. They update as the form is filled, here and in Acrobat, which reads them back as its own. Calculation Order sets which ones work out first. New number formats: negatives in brackets, 1.234,56 and euros.
+- Several fields at once (Prepare Form): Ctrl+click fields to select them together, then move them, delete them, line them up with the first one you picked, give them its width or height, or space them evenly across or down.
+- Turn a picture or a block of text to any angle (Edit Text & Images): drag the round handle by its corner (hold Shift for 15° steps), or type the angle in the bar. Text stays text you can edit and search, and the rest of the page stays put.
+- Rulers, guides and a grid (View menu, Ctrl+R and Ctrl+U): drag a guide from a ruler, and form fields, shapes, stamps and measuring points snap to guides, the grid and the edges and middles of what's already on the page. The rulers count in the page's drawing scale when it has one. Hold Alt to place something without snapping.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

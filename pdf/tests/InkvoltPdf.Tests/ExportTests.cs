@@ -5,6 +5,7 @@ using DocumentFormat.OpenXml.Wordprocessing;
 using InkvoltPdf.Core;
 using MuPDFCore;
 using X = DocumentFormat.OpenXml.Spreadsheet;
+using InkvoltPrint.Core.Office;
 
 namespace InkvoltPdf.Tests;
 

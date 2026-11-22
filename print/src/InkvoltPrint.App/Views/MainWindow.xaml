@@ -889,6 +889,21 @@
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_RestoreColorsCaption}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
                             </StackPanel>
                         </CheckBox>
+                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_DropColor}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_DropColorHelp}" IsChecked="{Binding DropPageColor}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_DropColor}" />
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_DropColorCaption}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
+                        <ComboBox ItemsSource="{Binding DropColors}" SelectedItem="{Binding TabDropColor}" Margin="28,4,0,0" HorizontalAlignment="Stretch"
+                                  AutomationProperties.Name="{x:Static loc:Strings.Scan_DropColorWhich}"
+                                  Visibility="{Binding DropPageColor, Converter={StaticResource VisibleWhen}}" />
+                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_RemoveHoles}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_RemoveHolesHelp}" IsChecked="{Binding RemoveHoles}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_RemoveHoles}" />
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_RemoveHolesCaption}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
                         <!-- Batch scanning: one feeder run, several files -->
                         <TextBlock Text="{x:Static loc:Strings.ScanTab_SplitAt}" Margin="0,12,0,4" />
                         <ComboBox ItemsSource="{Binding SplitChoices}" SelectedItem="{Binding SplitMode}" HorizontalAlignment="Stretch"
@@ -919,6 +934,13 @@
                                 <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_DragHint}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap"
                                            Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
+                                <!-- A preset that names the file from the page's text: the name, to change before saving -->
+                                <StackPanel Margin="0,8,0,0" Visibility="{Binding ShowsSaveName, Converter={StaticResource VisibleWhen}}">
+                                    <TextBlock Text="{x:Static loc:Strings.ScanTab_FileName}" Margin="0,0,0,4" />
+                                    <TextBox Text="{Binding SaveName, UpdateSourceTrigger=PropertyChanged}" MinWidth="280" MaxWidth="460" HorizontalAlignment="Left" MaxLength="120"
+                                             AutomationProperties.Name="{x:Static loc:Strings.ScanTab_FileName}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_FileNameHelp}" />
+                                    <TextBlock Text="{x:Static loc:Strings.ScanTab_FileNameHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
                             </StackPanel>
                             <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <!-- Puts back the last change to the pages (delete, turn, crop, move, file start): the tooltip says which -->
