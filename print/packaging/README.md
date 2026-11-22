@@ -175,20 +175,21 @@ Inkvolt PDF, the suite's other app, is Store ID `9MXDTSFJ9W28` (`BermudezSystems
 
 Version: four numbers, the last one 0 (the Store reserves it), higher than every earlier submission.
 
-Published: 1.7.0.0 (submitted and Published 2026-11-21, release notes en and es through the API, GitHub release
-`print-v1.7.0.0`); 1.6.0.0 (submitted 2026-11-17, Published by 2026-11-19; submission 1152921505702430623, GitHub release
-`print-v1.6.0.0`; release notes en and es through the API); 1.5.0.0 (submitted 2026-11-08, submission 1152921505702349302, GitHub release `print-v1.5.0.0`;
-its certification notes add the Get the driver sentence above); 1.4.0.0 on 2026-11-06 (GitHub release `print-v1.4.0.0`;
-1.3.0.0 was published 2026-11-03 without a tag or GitHub release).
+Last Published: 1.7.0.0 (2026-11-21, GitHub release `print-v1.7.0.0`). The certification notes carry the Get the driver
+sentence above.
 
 ## Upload
+
+The release steps in order (bench, What's New, upload, release notes en and es through `packaging/store-release.ps1`,
+tag and GitHub release `print-v<ver>`, the website's `softwareVersion`, `docs/HANDOFF.md`) are Inkvolt PDF's:
+`pdf/packaging/README.md`, "Upload", with `-App Print`. By hand in Partner Center:
 
 1. Partner Center > the app > **Start your submission**.
 2. **Packages**: drop `InkvoltPrint_<ver>.msixupload`. Device families: Windows 10/11 Desktop.
 3. **Properties**: category Utilities & tools (or Productivity); privacy policy URL (below); support contact.
 4. **Age ratings**: the questionnaire (no user-generated content shared, no purchases, talks only to printers on the
    local network).
-5. **Store listings** (en-us): description (draft below), at least one screenshot.
+5. **Store listings** (en-us and es): the description (below), at least one screenshot each.
 6. **Submission options > Restricted capabilities**: explain `runFullTrust` (text below).
 7. Submit. Certification normally takes 1-3 business days.
 
@@ -208,22 +209,26 @@ Inkvolt Print is not an HP product. In every Store text and image:
 - Name: "Inkvolt Print" alone. No "HP" in the app name, the reserved name, the logo or the publisher name.
 - Say what it works with: "for HP printers", "works with HP LaserJet printers". Not "HP Inkvolt Print", "official", or
   anything suggesting HP made or endorses it, and no HP logo.
-- Keep the disclaimer in the description (draft below). Don't use "HP Smart" as a search term.
+- Keep the disclaimer in the description (below). Don't use "HP Smart" as a search term.
 - Screenshots: the app shows the printer's own picture and details. Use a test printer or redact the serial number,
   product number and IP address ("About this printer" card) before uploading; never publish a real device's identifiers.
 
-### Draft Store description
+### Store listing (en-us and es)
+
+The live listing is the source: `msstore submission get` prints it (en-us and es). The en-us text as last submitted:
 
 Short description:
 
-> Printer status, ink and toner, scanning, copying and printing for HP, Canon, Epson, Brother and other network
-> printers. No account, no cloud, no telemetry.
+> Printer status, ink and toner levels, scan to PDF, copy, print and fix an offline printer, for HP, Canon, Epson,
+> Brother and any AirPrint, Mopria or IPP Everywhere printer. No account, no cloud, no ads, no telemetry.
 
 Description:
 
-> Inkvolt Print is a lean, private app for your printers. Made for HP printers, it also works with Canon, Epson,
-> Brother and other AirPrint, Mopria or IPP Everywhere printers. It finds your printer on the network and shows what
-> matters: ready or sleeping, ink or toner levels, paper problems, and usage counts, updated live.
+> Inkvolt Print is a free, lean app for your printer and scanner: live status, ink and toner levels, scan to a
+> searchable PDF, copy, print and fix a paused or offline printer, with no printer-maker account, no cloud service, no
+> ads and no telemetry. Made for HP printers, it also works with Canon, Epson, Brother and other AirPrint, Mopria or
+> IPP Everywhere printers. It finds your printer on the network and shows what matters: ready or sleeping, ink or toner
+> levels, paper problems, and usage counts, updated live.
 >
 > - Find printers automatically, or add one by IP address. Printers already set up in Windows show up too, USB ones
 >   included, with the status their driver reports. Older network printers get status and toner over SNMP.
@@ -234,6 +239,7 @@ Description:
 > - Print PDFs with copies, page ranges and two-sided printing. Drag a PDF onto the window, or right-click a PDF in
 >   File Explorer and open it with Inkvolt Print.
 > - See and cancel jobs in the print queue, and fix common problems such as a paused or offline printer.
+> - Works with Inkvolt PDF: scan straight into it, and check the printer before printing from it.
 > - Change the printer's own settings, with the admin password kept in Windows Credential Manager if you choose.
 >
 > No HP account, no cloud service, no ads, no telemetry, no background services. Inkvolt Print talks only to your printer,
@@ -245,95 +251,33 @@ Description:
 > HP and LaserJet are trademarks of HP Inc. Canon, Epson and Brother are trademarks of their owners. They are used only
 > to describe the printers Inkvolt Print works with.
 
-Partner Center sits behind a web firewall that rejects a listing save (403 "Access Denied", shown as "We are unable to
-save listing") when the text looks like SQL: "; drop a PDF" did. Keep semicolons away from words like drop, delete,
-select or insert.
+The Spanish (es) listing is the same text in Spanish, in the voice of `print/docs/SPANISH-REVIEW.md` ("sin cuenta del
+fabricante", "escanear a PDF con texto buscable"); when the en-us text changes, change it to match. It covers every
+Spanish market (Spanish (Americas), `es-019`, was removed).
 
-### Spanish listing (es)
+**Keywords** (at most 30 characters each). People search for their problem or for the maker's app they want to replace;
+the makers' names stay out of the keywords (trademarks, and "HP Smart" is ruled out above), and "for HP, Canon, Epson
+and Brother printers" stays in the short description, which the Store searches too.
 
-**Since 1.3.0.0** (submitted 2026-11-03) the app has a Spanish interface and the live Spanish description no longer says "La aplicación está en inglés."; the quoted text below is older.
+- en-us (7): `printer`, `scanner`, `scan to pdf`, `ink level`, `toner level`, `print queue`, `printer offline`.
+  Alternates: `network printer`, `printer status`, `copy`, `airprint`, `ipp everywhere`.
+- es (7): `impresora`, `escáner`, `escanear a pdf`, `nivel de tinta`, `tóner`, `cola de impresión`,
+  `impresora sin conexión`. Alternates: `impresora de red`, `estado de impresora`, `copiar`.
 
-Live since 2026-10-30 (Submission 11, Published; `msstore submission get` lists `en-us` and `es`), submitted with the en-us screenshots and the text below; plain Spanish only, which covers every Spanish market (Spanish (Americas), `es-019`, was removed). Partner Center refuses a listing language without its own screenshots (`NoScreenshotsOfAnyType`), and once a draft has been edited in Partner Center the submission API refuses it (409 InvalidState, "in the state 'None'"), so a listing change goes through the Partner Center pages. Their keyword box keeps only one new keyword at a time and drops one that begins a suggestion of its own ("firmar PDF" against "firmar PDF digitalmente"): add one, save, reload, reselect any it dropped from the list, save again, and check the result with `msstore submission get`. When the en-us description changes, change this one to match. The app itself is in English, and the description says so.
+**Gotchas in Partner Center:**
 
-Short description:
+- Its web firewall rejects a listing save (403 "Access Denied", shown as "We are unable to save listing") when the text
+  looks like SQL: "; drop a PDF" did. Keep semicolons away from words like drop, delete, select or insert.
+- A listing language without its own screenshots is refused (`NoScreenshotsOfAnyType`).
+- Once a draft has been edited in Partner Center's pages, the submission API refuses it (409 InvalidState, "in the state
+  'None'"), so a listing change goes through the Partner Center pages (or Export listings and Import listings on the
+  draft, which reshuffles the screenshots: `pdf/packaging/README.md` has how).
+- The keyword box keeps only one new keyword at a time and drops one that begins a suggestion of its own ("firmar PDF"
+  against "firmar PDF digitalmente"): add one, save, reload, reselect any it dropped from the list, save again, and check
+  the result with `msstore submission get`.
 
-> Estado de la impresora, tinta y tóner, escaneo, copias e impresión para impresoras de red HP, Canon, Epson, Brother y otras. Sin cuenta, sin nube, sin telemetría.
-
-Description:
-
-> Inkvolt Print es una aplicación ligera y privada para tus impresoras. Hecha para impresoras HP, también funciona con Canon, Epson, Brother y otras impresoras AirPrint, Mopria o IPP Everywhere. Encuentra tu impresora en la red y muestra lo importante: si está lista o en reposo, los niveles de tinta o tóner, los problemas de papel y los contadores de uso, actualizados al momento.
->
-> • Encuentra impresoras automáticamente o agrega una por su dirección IP. También aparecen las impresoras ya configuradas en Windows, incluidas las USB, con el estado que informa su controlador. Las impresoras de red más antiguas muestran estado y tóner por SNMP.
-> • Configura la impresora en Windows con un clic, con el controlador del propio Windows: no hay que descargar controladores.
-> • Escanea desde el cristal o el alimentador de documentos (AirScan, o el controlador de Windows del escáner), varias páginas a la vez; revisa y recorta las páginas, omite las que estén en blanco y guarda como JPEG o como PDF con texto que se puede buscar (el reconocimiento de texto se hace en tu PC). Ajustes de escaneo de un clic.
-> • Copia, incluidas copias de identificaciones en una sola hoja, e imprime fotos en tamaños estándar.
-> • Imprime PDF con copias, rangos de páginas e impresión a doble cara. Arrastra un PDF a la ventana, o haz clic derecho en un PDF en el Explorador de archivos y ábrelo con Inkvolt Print.
-> • Mira y cancela trabajos en la cola de impresión, y resuelve problemas comunes como una impresora en pausa o sin conexión.
-> • Cambia la configuración de la propia impresora, guardando la contraseña de administrador en el Administrador de credenciales de Windows si así lo eliges.
->
-> Sin cuenta de HP, sin servicio en la nube, sin anuncios, sin telemetría, sin servicios en segundo plano. Inkvolt Print solo se comunica con tu impresora, en tu red.
->
-> La aplicación está en inglés.
->
-> Gratis y de código abierto (licencia MIT). Código fuente: https://github.com/gabandres/inkvolt
->
-> Inkvolt Print es un proyecto independiente, sin relación con HP Inc., Canon, Seiko Epson ni Brother, y sin su respaldo. HP y LaserJet son marcas comerciales de HP Inc. Canon, Epson y Brother son marcas comerciales de sus dueños. Se mencionan solo para describir las impresoras con las que funciona Inkvolt Print.
-
-Features:
-
-> - Encuentra impresoras automáticamente o agrega una por su dirección IP; también las ya configuradas en Windows, incluidas las USB.
-> - Configura la impresora en Windows con un clic, con el controlador del propio Windows: no hay que descargar controladores.
-> - Escanea desde el cristal o el alimentador, revisa y recorta las páginas, omite las que estén en blanco y guarda como JPEG o PDF con texto buscable.
-> - Copia, incluidas copias de identificaciones en una sola hoja, e imprime fotos en tamaños estándar.
-> - Imprime PDF con copias, rangos de páginas e impresión a doble cara; arrastra un PDF a la ventana o ábrelo desde el Explorador de archivos.
-> - Mira y cancela trabajos en la cola de impresión, y resuelve problemas comunes como una impresora en pausa o sin conexión.
-> - Cambia la configuración de la propia impresora, con la contraseña de administrador guardada en el Administrador de credenciales de Windows.
-
-Keywords: impresora, escáner, escanear a PDF, tinta y tóner, imprimir PDF, copiar, impresora de red.
-
-License terms: Inkvolt Print es de código abierto bajo la licencia MIT. Código fuente y licencia: https://github.com/gabandres/inkvolt
-
-### Listing proposals 2026-10-30
-
-Submitted 2026-10-30 (Submission 13, a listing-only update of the published 1.1.0.0), in en-us and es with the 1.1.0
-Spanish release notes, through Export listings and Import listings on the draft (how, and the screenshots the import
-reshuffles: "Listing proposals 2026-10-30" in `pdf/packaging/README.md`). As submitted: `msstore submission get`, which
-also replaces the older text under "Spanish listing (es)" above. Reasoning: people looking for this
-app search for their problem ("printer offline", "ink level", "scan to pdf") or for the maker's app they want to
-replace; the maker's names stay out of the keywords (trademarks, and "HP Smart" is ruled out above), so the keywords
-are the tasks, and "for HP, Canon, Epson and Brother printers" stays in the short description, where the Store
-searches it too. Each keyword is at most 30 characters.
-
-Keywords (en-us, 7): `printer`, `scanner`, `scan to pdf`, `ink level`, `toner level`, `print queue`, `printer offline`.
-Alternates: `network printer`, `printer status`, `copy`, `airprint`, `ipp everywhere`.
-
-Keywords (es, 7): `impresora`, `escáner`, `escanear a pdf`, `nivel de tinta`, `tóner`, `cola de impresión`,
-`impresora sin conexión`. Alternates: `impresora de red`, `estado de impresora`, `copiar`.
-
-Short description (en-us):
-
-> Printer status, ink and toner levels, scan to PDF, copy, print and fix an offline printer, for HP, Canon, Epson,
-> Brother and any AirPrint, Mopria or IPP Everywhere printer. No account, no cloud, no ads, no telemetry.
-
-Description (en-us): the live text, with two changes. The first paragraph opens with the search terms and the reason
-to switch:
-
-> Inkvolt Print is a free, lean app for your printer and scanner: live status, ink and toner levels, scan to a
-> searchable PDF, copy, print and fix a paused or offline printer, with no printer-maker account, no cloud service, no
-> ads and no telemetry. Made for HP printers, it also works with Canon, Epson, Brother and other AirPrint, Mopria or
-> IPP Everywhere printers. It finds your printer on the network and shows what matters: ready or sleeping, ink or toner
-> levels, paper problems, and usage counts, updated live.
-
-And a bullet after the print queue one:
-
-> - Works with Inkvolt PDF: scan straight into it, and check the printer before printing from it.
-
-The trademark disclaimer stays as it is. Spanish: the same two changes in the live Spanish text ("sin cuenta del
-fabricante", "escanear a PDF con texto buscable"). Keep semicolons away from drop, delete, select and insert (the
-firewall note above).
-
-What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type, 30 days after the change,
-against the baseline in `docs/VISIBILITY.md`.
+**To measure** (open): Partner Center › Insights › Acquisitions, "Page views" by source type, 30 days after the listing
+change of 2026-10-30, against the baseline in `docs/VISIBILITY.md`.
 
 ### Privacy policy
 
@@ -373,7 +317,7 @@ trust the certificate, then add the package (elevated PowerShell for the first c
 
 ```powershell
 Import-Certificate publish\msix\InkvoltPrint-TestSigning.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
-Add-AppxPackage publish\msix\InkvoltPrint_1.0.0.0.msixbundle
+Add-AppxPackage publish\msix\InkvoltPrint_<ver>.msixbundle
 # Remove afterwards:
 Get-AppxPackage BermudezSystems.InkvoltPrint | Remove-AppxPackage
 Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq 'CN=1CC7D6EF-8A48-4BDE-AF19-4FEC30D5613B' | Remove-Item
@@ -398,7 +342,7 @@ If an unpackaged Inkvolt Print is installed too, both appear under "Open with"; 
   there into `%LOCALAPPDATA%\Packages\<family>\LocalCache\Local\InkvoltPrint`, so a packaged and an unpackaged copy keep
   separate state (the log: `…\LocalCache\Local\InkvoltPrint\logs\inkvoltprint.log`). Uninstalling the package removes it.
   Except when `%LOCALAPPDATA%\InkvoltPrint` already exists (an unpackaged copy ran here): Windows doesn't redirect that
-  folder, and the packaged copy reads and writes it too (seen 2026-11-08 on 1.5.0.0's side-by-side copy, whose log went there). Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
+  folder, and the packaged copy reads and writes it too (a side-by-side smoke copy's log goes there). Inkvolt PDF reads Inkvolt Print's remembered printers from whichever
   copy was written last (`InkvoltPaths.StateFiles` in `../shared/InkvoltPrint.Core/Suite/InkvoltPaths.cs`). Saved printer passwords
   live in Windows Credential Manager, which isn't redirected.
 - `InkvoltApps.Find` (`../shared/InkvoltPrint.Windows/Suite/InkvoltApps.cs`) finds the other Inkvolt app through its execution alias

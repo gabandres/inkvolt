@@ -6,7 +6,7 @@ source, with **no account, no ads, no telemetry and no cloud**: your files stay 
 <p>
   <a href="https://apps.microsoft.com/detail/9MXDTSFJ9W28"><b>Get Inkvolt PDF</b></a> ·
   <a href="https://apps.microsoft.com/detail/9PNR76HJ62SK"><b>Get Inkvolt Print</b></a> (Microsoft Store, Windows 10 and 11, x64 and native ARM64) ·
-  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.10.0">Inkvolt PDF for Mac</a> ·
+  <a href="https://github.com/gabandres/inkvolt/releases/tag/pdf-mac-v1.12.1">Inkvolt PDF for Mac</a> ·
   <a href="https://bermudezsystems.com/products/inkvolt/">Website</a>
 </p>
 
@@ -126,7 +126,7 @@ and install together.
 | `shared/` | `InkvoltPrint.Core` (protocols: eSCL, IPP, LEDM, CDM, SNMP, scan options, remembered printers) and `InkvoltPrint.Windows` (discovery, Windows queues, WIA): used by both apps; tested by `print/tests` | MIT |
 | `packaging/` | `pack-msix.ps1`: MSIX packages and Store upload files for either app (`-App Pdf` or `-App Print`) | MIT |
 | `tools/` | `test.ps1`: the tests CI runs, a test that fails under load run again alone and named as flaky | MIT |
-| [`mac/`](mac/README.md) | **Inkvolt for macOS**, native Swift: Inkvolt PDF for Mac (released, a notarized download) and Inkvolt Print for Mac (1.1 in the [Mac App Store](https://apps.apple.com/app/id6827219248)) | MIT (`mac/LICENSE`); Inkvolt PDF's Mac app is AGPL-3.0 (MuPDF) |
+| [`mac/`](mac/README.md) | **Inkvolt for macOS**, native Swift: Inkvolt PDF for Mac (released, a notarized download) and Inkvolt Print for Mac (in the [Mac App Store](https://apps.apple.com/app/id6827219248)) | MIT (`mac/LICENSE`); Inkvolt PDF's Mac app is AGPL-3.0 (MuPDF) |
 
 The license of each folder is in its `LICENSE`. At the top level, [LICENSE](LICENSE) is the AGPL-3.0 text (Inkvolt
 PDF's) and [LICENSE-MIT](LICENSE-MIT) the MIT text, which covers the top-level scripts. Inkvolt PDF's
@@ -170,7 +170,7 @@ pwsh -NoProfile -File packaging/pack-msix.ps1 -App Pdf -Version x.y.z.0      # �
 pwsh -NoProfile -File packaging/pack-msix.ps1 -App Print -Version x.y.z.0    # → print/publish/msix
 ```
 
-Partner Center values, Store policy notes and listing drafts: [`pdf/packaging/README.md`](pdf/packaging/README.md),
+Partner Center values, Store policy notes, the listings and the release steps: [`pdf/packaging/README.md`](pdf/packaging/README.md),
 [`print/packaging/README.md`](print/packaging/README.md).
 
 ### History

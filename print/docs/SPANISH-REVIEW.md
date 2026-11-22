@@ -1,6 +1,6 @@
 # Inkvolt Print in Spanish: wording review
 
-For the owner, to review the wording quickly. The app's text is in `print/src/InkvoltPrint.App/Strings.es.resx` and `shared/InkvoltPrint.Core/CoreStrings.es.resx` (2,210 strings in all); change a value there, keep its `{0}`, `{1}` (`LocalizationTests` checks them). Shots of the screens: [`docs/ux-review/spanish/`](../../docs/ux-review/spanish/).
+The voice and the word choices of Inkvolt Print in Spanish. The owner approved the Windows wording; the Mac-only wording below waits for the owner's review. The app's text is in `print/src/InkvoltPrint.App/Strings.es.resx` and `shared/InkvoltPrint.Core/CoreStrings.es.resx`; change a value there, keep its `{0}`, `{1}` (`LocalizationTests` checks them). Shots of the screens: [`docs/ux-review/spanish/`](../../docs/ux-review/spanish/).
 
 The voice is the Store listing's: plain, neutral Spanish for every market, informal *tú*, sentence case. Names of products and protocols, shortcuts (key names included) and whatever the printer itself sends stay as they are, so a demo printer's "Yellow ink is low" is correct.
 
@@ -137,7 +137,8 @@ Each of these could reasonably go another way; the first word is what the app sa
 
 ## What stays in English
 
-- **What's New**: the dialog is translated, its text is `print/WHATS-NEW.md`, in English.
+What's New is in Spanish (`print/WHATS-NEW.es.md`, line for line with `print/WHATS-NEW.md`) when the interface is.
+
 - **The command lines** (`inkvoltprint`, and `InkvoltPrint.exe print` and `status --all`): scripts read them.
 - Logs, the Report a problem details, export file columns, file-type names in the registry and print job names sent to Windows.
 - Whatever a printer sends: its name, its status messages, the supply names of IPP and SNMP printers.
@@ -145,7 +146,7 @@ Each of these could reasonably go another way; the first word is what the app sa
 
 ## Inkvolt Print for Mac
 
-The Mac app's text is in `mac/InkvoltPrint/Resources/Localizable.xcstrings` (the app, 599 strings) and `CoreStrings.xcstrings` (what PrintCore and PrintMac show, 906); open either in Xcode, or change a `"value"` in the JSON and keep its `%@`, `%lld`, `{0}` (`check-strings.sh` and `CoreStringsTests` check them). Where Windows has the same English sentence, its Spanish above is used word for word; the strings below are the Mac's own, in the same voice (*tú*). macOS's own menus (Edit, Window, the app menu) and panels (Open, Save, Print) come from macOS in its language.
+The Mac app's text is in `mac/InkvoltPrint/Resources/Localizable.xcstrings` (the app) and `CoreStrings.xcstrings` (what PrintCore and PrintMac show); open either in Xcode, or change a `"value"` in the JSON and keep its `%@`, `%lld`, `{0}` (`check-strings.sh` and `CoreStringsTests` check them). Where Windows has the same English sentence, its Spanish above is used word for word; the strings below are the Mac's own, in the same voice (*tú*). macOS's own menus (Edit, Window, the app menu) and panels (Open, Save, Print) come from macOS in its language.
 
 ### The Mac's own words
 
@@ -187,5 +188,5 @@ The Mac app's text is in `mac/InkvoltPrint/Resources/Localizable.xcstrings` (the
 
 ### What stays in English on the Mac
 
-- The same as Windows: what printers send, the command lines (`status --all`, `print`), logs, Report a Problem's details, recordings, export columns, What's New.
+- The same as Windows: what printers send, the command lines (`status --all`, `print`), logs, Report a Problem's details, recordings, export columns. What's New has its Spanish in `mac/InkvoltPrint/WHATS-NEW.es.md` for the App Store listing.
 - The `--report` check's own labels (a developer aid); the values it lists are in the app's language.
