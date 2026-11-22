@@ -5,15 +5,23 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## Current state
 
-- **Released:** Inkvolt Print 1.8.0.0 and Inkvolt PDF 1.17.0.0 (Wave 4 Batches A and B), both Published in the
-  Microsoft Store 2026-11-22 (GitHub releases `print-v1.8.0.0`, `pdf-v1.17.0.0`; the website's `softwareVersion` 1.8.0
-  and 1.17.0). The next submission of each must be higher. PDF 1.17's bench ran on a loaded PC (`pdf/tools/bench/RESULTS.md`
-  says so): run it again idle before the next PDF release.
-- **Release gotcha:** a branch merged after `## Next` became `## x.y.z` can put its What's New lines under the released
-  version (it happened with 1.17.0; fixed by hand). After each merge during a release, check `## Next` still holds them.
-- **Windows roadmaps:** Waves 1-3 of `pdf/ROADMAP.md` and `print/ROADMAP.md` are built and merged. **Wave 4** (a market
-  check, 2026-11-21; the owner: do all of it and release it) is under way in its batches, each released to the Store as
-  it is merged and reviewed: Print 1.8.0.0 and PDF 1.17.0.0 carried A and B; Batch C is on master for the next releases.
+- **Released:** Wave 4 (a market check of 2026-11-21; the owner: "do all of them", release them) is built, reviewed and
+  in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0 (1.18 submitted 2026-11-22; check it
+  reached Published, then `store-release.ps1 -App Pdf -GitHub -Version 1.18.0.0 -Published <date>` and the website's
+  `softwareVersion` 1.18.0 in `Z:\portfolio`). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
+  `pdf-v1.18.0.0`. The next submission of each must be higher. Every Wave 4 item is Done on Windows in both roadmaps; the
+  Mac halves wait (`mac/docs/PLAN.md`, "Open").
+- **Release gotchas:** a branch merged after `## Next` became `## x.y.z` can put its What's New lines under the released
+  version (it happened with 1.17.0; fixed by hand): after each merge during a release, check `## Next` still holds them.
+  Each release ran a hostile-input review of the diff since the last tag before packing; keep doing it. The bench needs an
+  idle PC; on-screen fps on 2026-11-22 was below 1.16's run for the 1.16 app too (this PC, not the app).
+- **Flaky under load (timing):** `EditableTextTests.MakingPagesEditable…`, `PipedChildTests.AChildWithPipes…`,
+  `TranslationLooksTests.Thousands_of_rules…`, the two new `Release118HostileTests` linear-time tests; `tools/test.ps1`
+  names them.
+- **Next session (owner turned on T3 Agent device access, 2026-11-22):** the phone tests. Phone scanning (TCP 9781) and
+  printer sharing (TCP 9782, mDNS on UDP 5353) start only on a Private network: this PC's Ethernet was Public (the owner
+  switches it). adb isn't installed (the owner decides). Then: the OnePlus scans the QR code (Chrome's certificate warning
+  is expected; the PC explains it), takes pages, Done; Android printing to a shared printer (print to a file queue first).
 - **The Mac waits** (owner, 2026-11-17: no Mac any more; all work is Windows). Every Mac half in both roadmaps waits for
   a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. PrintCore has none of Inkvolt Print's printer-data work
   of 2026-11-20 (pages left and yield from CDM, IPP and the Printer MIB; recordings keeping IPP collections and SNMP
@@ -22,6 +30,10 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## For the owner: hardware
 
+- Wave 4 on paper and devices: two-sided printing by hand on the M234dw (start with `--hand-duplex`; 1, 2, 5 pages and
+  2 copies of 3; each sheet's back right way up); a booklet folded, a poster joined, a card folded; an iPhone and an
+  Android printing to a shared printer; Set up a new printer on a new or reset printer; a real punched sheet, an A3
+  original joined from two halves; a webcam page; a week of the print log against the printers' page counts.
 - Scanners: a WIA 2.0 scanner (page progress, Stop, a PDF-only WIA driver); a PC with only a 32-bit TWAIN driver; a jam
   partway through a feeder scan; a printed QR separator sheet scanned for real; scanner sharing from an iPhone or a Mac on
   a Private network with a real USB scanner behind it.
@@ -37,6 +49,10 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## For the owner: eyes
 
+- Wave 4's windows on screen (both apps) and their Spanish; spell check's underline at different zooms; Reflow with a
+  screen reader; dragging tabs between windows and monitors; the AI features against a real model (Suggest Redactions,
+  Ask Across Folders, Search by meaning, Edit by Asking, Summary to Audio); JBIG2 pages in Acrobat and Edge; a copied
+  table pasted into Excel.
 - Inkvolt PDF: Crop Picture's handles, the ￼ mark and Picture… (the editor stays open behind the file dialog); links in
   an exported PowerPoint and in a browser; Compare's overlay on a real scan; Arabic and Japanese translated copies in
   Firefox (copy a line, search a phrase) and Acrobat; Make Text Editable on an Arabic scan; Tesseract's language list and
