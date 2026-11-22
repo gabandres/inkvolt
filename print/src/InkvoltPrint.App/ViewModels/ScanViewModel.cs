@@ -1538,7 +1538,7 @@ public sealed partial class ScanViewModel : ObservableObject
         foreach (var p in kept)
         {
             if (p.HasPhotos) pages.AddRange((await p.ImagesAsync()).Select(jpeg => new PdfPage(jpeg, p.Dpi)));
-            else if (p.OneBit) pages.Add(PdfPage.BlackAndWhite(await p.BitsAsync(), p.Dpi, await p.OcrAsync()));
+            else if (p.SavesOneBit) pages.Add(PdfPage.BlackAndWhite(await p.BitsAsync(), p.Dpi, await p.OcrAsync()));
             else pages.Add(new PdfPage(await p.JpegAsync(), p.Dpi, await p.OcrAsync()));
         }
         return pages;
@@ -1979,6 +1979,12 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     /// <summary>Saved in a PDF in black and white (1 bit, <see cref="Bilevel"/>): scanned for a smaller file, or in black and white.</summary>
     public bool OneBit { get; init; }
+
+    /// <summary>
+    /// Saved at 1 bit: <see cref="OneBit"/> and the page small enough to decode for it (a tenth spare for straightening). A
+    /// larger page, or a header claiming one, is saved as its JPEG instead of decoded to gigabytes before the size check.
+    /// </summary>
+    public bool SavesOneBit => OneBit && (long)_size.Width * _size.Height <= BitImage.MaxPixels / 10 * 9;
 
     /// <summary>The quarter turns the scan's check gave the page to stand it upright (<see cref="PageUpright"/>); 0 when none.</summary>
     public int UprightTurns { get; private set; }

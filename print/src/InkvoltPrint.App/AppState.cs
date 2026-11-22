@@ -484,13 +484,13 @@ public sealed class AppState
             state.NoFirmwareNotify ??= [];
             state.DirectPrinters = (state.DirectPrinters ?? []).OfType<string>().ToList();
             state.RecentScans = [.. Core.History.RecentScans.Clean(state.RecentScans)];
-            state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
-            state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
-            state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
-            state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
-            state.OutputFaces = new((state.OutputFaces ?? []).Where(kv => kv.Value is not null).Take(256), StringComparer.OrdinalIgnoreCase);
-            state.ScanButtons = new((state.ScanButtons ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
-            state.Firmware = new((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }), StringComparer.OrdinalIgnoreCase);
+            state.AcceptedUuids = Keyed((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null));
+            state.CertificatePins = Keyed(state.CertificatePins ?? []);
+            state.QueueNames = Keyed(state.QueueNames ?? []);
+            state.TwoSidedQueues = Keyed(state.TwoSidedQueues ?? []);
+            state.OutputFaces = Keyed((state.OutputFaces ?? []).Where(kv => kv.Value is not null).Take(256));
+            state.ScanButtons = Keyed((state.ScanButtons ?? []).Where(kv => kv.Value is not null));
+            state.Firmware = Keyed((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }));
             state.Tray?.Repair();
             return state;
         }
@@ -499,6 +499,17 @@ public sealed class AppState
             Log.Write($"State file unreadable, starting fresh: {ex.Message}");
             return new();
         }
+    }
+
+    /// <summary>
+    /// A dictionary keyed without case, from what the file holds: keys that differ only in case (a hand-edited file) keep the
+    /// first rather than throwing, which would stop the app from starting.
+    /// </summary>
+    private static Dictionary<string, T> Keyed<T>(IEnumerable<KeyValuePair<string, T>> pairs)
+    {
+        var keyed = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in pairs) if (key is not null) keyed.TryAdd(key, value);
+        return keyed;
     }
 
     public void Save()

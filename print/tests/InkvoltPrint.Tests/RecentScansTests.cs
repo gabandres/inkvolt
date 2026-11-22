@@ -78,6 +78,11 @@ public class RecentScansTests
     [InlineData("https://example.com/a.pdf", false)]
     [InlineData(@"C:\Scans\", false)] // a folder
     [InlineData("", false)]
+    [InlineData(@"C:\Scans\page 1.JPG", true)]
+    [InlineData(@"C:\Scans\b.jpeg", true)]
+    [InlineData(@"C:\Users\x\Downloads\setup.exe", false)] // Open runs it through the shell: only a scan's kinds of file
+    [InlineData(@"\\host\share\run.bat", false)]
+    [InlineData(@"C:\Scans\a"".pdf", false)]
     public void Only_plain_full_paths_are_kept(string path, bool kept) => Assert.Equal(kept, RecentScans.Usable(path));
 
     [Fact]
