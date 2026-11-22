@@ -55,19 +55,7 @@ public static class SeparatorCodes
     /// The QR code of <see cref="Text"/> as its modules, true for dark, <c>[row, column]</c>, without its quiet zone (four
     /// modules of white around it). The highest error correction (H, 30%), so smudges and a punched hole still read.
     /// </summary>
-    public static bool[,] QrModules()
-    {
-        var matrix = new QRCodeWriter().encode(Text, BarcodeFormat.QR_CODE, 0, 0, new Dictionary<EncodeHintType, object>
-        {
-            [EncodeHintType.ERROR_CORRECTION] = ErrorCorrectionLevel.H,
-            [EncodeHintType.MARGIN] = 0,
-        });
-        var modules = new bool[matrix.Height, matrix.Width];
-        for (var y = 0; y < matrix.Height; y++)
-            for (var x = 0; x < matrix.Width; x++)
-                modules[y, x] = matrix[x, y];
-        return modules;
-    }
+    public static bool[,] QrModules() => QrCodes.Modules(Text, high: true);
 
     private static bool Says(Result? result) =>
         result?.Text is { Length: <= 64 } text && string.Equals(text.Trim(), Text, StringComparison.OrdinalIgnoreCase);

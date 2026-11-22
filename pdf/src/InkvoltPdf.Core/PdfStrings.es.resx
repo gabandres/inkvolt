@@ -7226,6 +7226,22 @@
   <data name="Form_AlreadyLast" xml:space="preserve">
     <value>Este campo ya es el último que se llena en su página.</value>
   </data>
+  <data name="Bar_CopyAreaTextDesc" xml:space="preserve">
+    <value>Las palabras de un recuadro, aunque esté escaneado</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_CopyAreaTableDesc" xml:space="preserve">
+    <value>Filas y columnas de un recuadro, para Excel</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_LinkAddressesDesc" xml:space="preserve">
+    <value>Convierte en vínculos las direcciones del texto</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_HighlightAllDesc" xml:space="preserve">
+    <value>Resalta cada coincidencia de tu búsqueda</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
   <data name="Annot_NoProofText" xml:space="preserve">
     <value>No hay texto que insertar.</value>
   </data>

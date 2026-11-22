@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Scan with your phone, no scanner needed: Scan with your phone in the sidebar (or a scanner's Scan tab) shows a code; point your phone's camera at it and take a photo of each page in its browser. No app and no internet: the photos come straight to this PC over your Wi-Fi, each page straightened and sized like a scan, ready to review and save, with your scan settings or a preset.
+- Scan with a camera: Use a camera, next to Use your phone, shows your webcam or document camera live; Capture page takes each page, straightened and sized like a scan, ready to review and save.
 
 ## 1.8.0
 - Both sides on a feeder that scans one side: check Both sides: turn the stack over (or the preset option), scan the fronts, turn the stack over when asked and scan the backs. The pages come out in order; if your scanner's tray reverses the stack, Backs in the other order fixes it, and the review says when the fronts and backs don't match up.

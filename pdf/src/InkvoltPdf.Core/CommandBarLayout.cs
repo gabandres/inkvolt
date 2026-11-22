@@ -107,6 +107,7 @@ public static class CommandBarLayout
              new("Replace", "\uE8AB", Description: PdfStrings.Bar_FindReplaceDesc),
              new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
              new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
+             new("LinkAddresses", "\uE71B", Description: PdfStrings.Bar_LinkAddressesDesc),
              new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc, StartsSection: true),
              new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)], "\uE70F"),
         // The editable formats run at once (name.docx next to the PDF, opened); pictures and PDF/A ask, as in the menus.
@@ -122,6 +123,7 @@ public static class CommandBarLayout
             [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc, AtOnce: true), // no selection: the highlighter
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
              new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
+             new("HighlightAllMatches", "\uE7E6", Description: PdfStrings.Bar_HighlightAllDesc),
              new("InsertText", "\uE8D2", Description: PdfStrings.Bar_InsertTextDesc),
              new("ReplaceText", "\uE8AC", Description: PdfStrings.Bar_ReplaceTextDesc),
              new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
@@ -161,7 +163,9 @@ public static class CommandBarLayout
              new("InsertFromScanner", "\uE8B5", Description: PdfStrings.Bar_ScanInsertDesc),
              new("ScanBacks", "\uE8AB", Description: PdfStrings.Bar_ScanBacksDesc),
              new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc, StartsSection: true),
-             new("MakeTextEditable", "\uE8AC", Description: PdfStrings.Bar_MakeEditableDesc)],""),
+             new("MakeTextEditable", "\uE8AC", Description: PdfStrings.Bar_MakeEditableDesc),
+             new("CopyAreaText", "\uE8C8", Description: PdfStrings.Bar_CopyAreaTextDesc, StartsSection: true),
+             new("CopyAreaTable", "\uE80A", Description: PdfStrings.Bar_CopyAreaTableDesc)],""),
     ]);
 
     /// <summary>Always in the overflow, after what didn't fit: page commands and the rest of the old bar.</summary>

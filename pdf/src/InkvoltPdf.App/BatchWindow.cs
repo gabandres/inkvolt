@@ -534,6 +534,7 @@ internal sealed class BatchWindow : Window
         dlg.AddNote(Strings.Batch_ReduceNote);
         var qualities = FileTools.Qualities;
         var quality = dlg.AddChoice(Strings.File_ImageQuality, qualities.Select(q => q.Name), Math.Max(0, Array.FindIndex(qualities, q => q.Dpi == o.MaxImageDpi)));
+        var blackAndWhite = dlg.AddCheck(Strings.File_BlackAndWhiteScans, o.BlackAndWhiteScans);
         dlg.Add(Strings.File_Also, new StackPanel());
         var thumbs = dlg.AddCheck(Strings.File_RemoveThumbs, o.RemoveThumbnails);
         var pieces = dlg.AddCheck(Strings.File_RemovePieces, o.RemovePieceInfo);
@@ -545,6 +546,7 @@ internal sealed class BatchWindow : Window
         {
             MaxImageDpi = q.Dpi,
             JpegQuality = q.Quality,
+            BlackAndWhiteScans = blackAndWhite.IsChecked == true,
             RemoveThumbnails = thumbs.IsChecked == true,
             RemovePieceInfo = pieces.IsChecked == true,
             DeduplicateStreams = dedupe.IsChecked == true,
@@ -657,6 +659,7 @@ internal sealed class BatchWindow : Window
         {
             case OptimizeStep o:
                 var q = FileTools.Qualities.FirstOrDefault(x => x.Dpi == o.Options.MaxImageDpi).Name ?? "";
+                if (o.Options.BlackAndWhiteScans) q = Loc.Format(Strings.Batch_DescBlackAndWhite, q);
                 return o.Options.RemoveMetadata ? Loc.Format(Strings.Batch_DescMetadata, q) : q;
             case ProtectStep { NeedsPasswords: true }:
                 return Strings.Batch_DescNoPasswords;

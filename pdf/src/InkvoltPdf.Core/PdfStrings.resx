@@ -7226,6 +7226,22 @@
   <data name="Form_AlreadyLast" xml:space="preserve">
     <value>This field is already filled last on its page.</value>
   </data>
+  <data name="Bar_CopyAreaTextDesc" xml:space="preserve">
+    <value>Words in a box you draw, read if scanned</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_CopyAreaTableDesc" xml:space="preserve">
+    <value>Rows and columns in a box, for Excel</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_LinkAddressesDesc" xml:space="preserve">
+    <value>Make printed web and email addresses links</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_HighlightAllDesc" xml:space="preserve">
+    <value>Highlight every match of your search</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
   <data name="Annot_NoProofText" xml:space="preserve">
     <value>There's no text to insert.</value>
   </data>

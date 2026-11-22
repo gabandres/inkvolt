@@ -330,6 +330,24 @@ internal static class PdfObj
         return ms.ToArray();
     }
 
+    /// <summary><see cref="Deflate"/> undone, reading no more than <paramref name="length"/> bytes; null when the data isn't zlib.</summary>
+    public static byte[]? Inflate(byte[] data, long length)
+    {
+        if (length < 0 || length > System.Array.MaxLength) return null;
+        var result = new byte[length];
+        try
+        {
+            using var z = new ZLibStream(new MemoryStream(data, writable: false), CompressionMode.Decompress);
+            var read = 0;
+            while (read < result.Length && z.Read(result, read, result.Length - read) is var n and > 0) read += n;
+            return read == result.Length ? result : result[..read];
+        }
+        catch (InvalidDataException)
+        {
+            return null;
+        }
+    }
+
     public static PdfDictionary FormXObject(PdfDocument doc, byte[] content, double x1, double y1, double x2, double y2, PdfDictionary? resources, PdfArray? matrix = null)
     {
         var form = AddStream(doc, content);
