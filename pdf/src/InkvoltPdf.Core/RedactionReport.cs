@@ -24,7 +24,10 @@ public sealed record RedactionRemoval(int Page, RedactionPattern Pattern, string
 {
     public string OutcomeText => RedactionReport.OutcomeText(Outcome);
 
-    public string PatternName => RedactionPatterns.Name(Pattern);
+    public string PatternName => Label ?? RedactionPatterns.Name(Pattern);
+
+    /// <summary>The hit's own name (<see cref="RedactionMatch.Label"/>: a suggestion's kind), shown instead of its pattern's.</summary>
+    public string? Label { get; init; }
 }
 
 /// <summary>What was done to one file. It holds no unmasked value at any point: it is built only from <see cref="RedactionReport.Mask"/>.</summary>
@@ -112,7 +115,7 @@ public sealed class RedactionReport(IReadOnlyList<RedactionFileReport> files)
 
     /// <summary>What a match looks like in a report.</summary>
     public static RedactionRemoval Row(RedactionMatch match, RedactionOutcome outcome) =>
-        new(match.Page, match.Pattern, Mask(match.Pattern, match.Normalized), outcome);
+        new(match.Page, match.Pattern, Mask(match.Pattern, match.Normalized), outcome) { Label = match.Label };
 
     public static string OutcomeText(RedactionOutcome outcome) => outcome switch
     {

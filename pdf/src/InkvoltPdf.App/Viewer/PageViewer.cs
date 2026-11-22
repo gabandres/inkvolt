@@ -272,6 +272,7 @@ public sealed partial class PageViewer : ScrollViewer
             if (_tool == value) return;
             CommitEditor();
             _tool = value;
+            _lastClick = null;
             CancelMeasure();
             IsManipulationEnabled = value == ViewerTool.Hand;
             if (value != ViewerTool.SelectText && !_caretBrowsing) ClearSelection();
@@ -316,6 +317,7 @@ public sealed partial class PageViewer : ScrollViewer
         _failed.Clear();
         _tooSlow.Clear();
         _failedTiles.Clear();
+        _lastClick = null; // Insert Text never goes to a place clicked in other content
         if (!contentOnly)
         {
             _links.Clear();
@@ -1388,6 +1390,7 @@ public sealed partial class PageViewer : ScrollViewer
                 if (TryGetPageText(p) is not { } text) break; // still loading (the cursor stays an arrow until it arrives)
                 var pt = ToPagePoint(p, sp);
                 var caret = text.HitTest(pt.X, pt.Y);
+                _downOverText = text.IsOverText(pt.X, pt.Y);
                 if (e.ClickCount == 2 || e.ClickCount == 3)
                 {
                     var (s, en) = e.ClickCount == 2 ? text.WordAt(caret) : text.LineAt(caret);
@@ -1569,6 +1572,7 @@ public sealed partial class PageViewer : ScrollViewer
 
         if (wasSelecting)
         {
+            if (_selAnchor == _selActive) _lastClick = _downOverText ? _selActive : null; // where Insert Text goes without a selection: a click on text only
             if (_selAnchor == _selActive && !_caretBrowsing) _selAnchor = _selActive = null; // caret browsing: the click placed the caret
             _surface.InvalidateVisual();
             SelectionChanged?.Invoke(this, EventArgs.Empty);
