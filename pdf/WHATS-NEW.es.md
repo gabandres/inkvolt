@@ -6,6 +6,8 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+
+## 1.17.0
 - Revisión ortográfica mientras escribes: el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario subrayan en rojo las palabras mal escritas, en el idioma del documento. Haz clic con el botón derecho en una palabra para ver sugerencias, Omitir o Agregar al diccionario. Puedes desactivarla en Configuración.
 - Buscar y reemplazar (Edición › Reemplazar…, Ctrl+H): cambia una palabra o frase en todo el documento, una coincidencia cada vez o todas a la vez (un solo paso de deshacer), con Mayúsculas y minúsculas y Solo palabras completas. Cada coincidencia aparece con su página y las palabras de alrededor. Un reemplazo que no se puede hacer como se pidió (un carácter que ninguna fuente tiene, un párrafo que chocaría con el texto de debajo) aparece en una lista al final.
 - Intercalar páginas (Organizar): las hojas a doble cara escaneadas primero por un lado y luego por el otro vuelven a quedar en orden: anverso 1, reverso 1, anverso 2… Los reversos pueden ser páginas del mismo archivo o de otro PDF, en orden inverso (una pila a la que se le dio la vuelta) o no. Escanear los reversos (menú Archivo, y Escanear y OCR en la barra) escanea los reversos directamente en su lugar.
