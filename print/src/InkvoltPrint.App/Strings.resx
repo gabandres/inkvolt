@@ -5005,4 +5005,10 @@ The files stay where they are.</value>
   <data name="PrintLog_Cleared" xml:space="preserve">
     <value>The print log is empty.</value>
   </data>
+  <data name="PrintTab_Share" xml:space="preserve">
+    <value>Share with phones</value>
+  </data>
+  <data name="PrintTab_ShareSwitch" xml:space="preserve">
+    <value>Share this printer on the network</value>
+  </data>
 </root>

@@ -70,9 +70,15 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         // One scanner shared on the network at a time (roadmap 3.1): each entry with a Windows scanner shows its card and hands it the
         // connected scanner; it listens only once that scanner is connected.
         Share = new ScannerShare(pc.ScannerSharing, pc.ComputerName, state.ScannerShare, state.SetScannerShare, line => Log.Write(line));
+        // Queues shared with phones (roadmap 4.10): off until a printer's card turns one on; served once its queue is listed.
+        PrinterShares = new PrinterShare(pc.PrinterSharing, pc.ComputerName, state.PrinterShares, state.SetPrinterShares, line => Log.Write(line));
         Printers.CollectionChanged += (_, e) =>
         {
-            foreach (var p in e.NewItems?.OfType<PrinterViewModel>() ?? []) p.UseShare(Share);
+            foreach (var p in e.NewItems?.OfType<PrinterViewModel>() ?? [])
+            {
+                p.UseShare(Share);
+                p.UsePrinterShare(PrinterShares);
+            }
         };
         // The print log (roadmap 4.9): every job this PC's spooler sees while the app runs, unless turned off.
         PrintLog = new Core.History.PrintLogKeeper(pc.PrintLog) { On = !state.PrintLogOff };
@@ -120,6 +126,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             _scanners = scanners;
             _scannersRead = true;
             Reconcile(queues: true);
+            _ = OfferPrinterSharesAsync(queues);
             _ = ReadNeedsDriverAsync(queues, _queueWatch.Token);
             return;
         }
@@ -145,6 +152,22 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The scanner shared on the network (roadmap 3.1, free): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
     public ScannerShare Share { get; }
+
+    /// <summary>Windows queues shared with phones (roadmap 4.10, free): off by default; a queue printer's Print tab card turns each on.</summary>
+    public PrinterShare PrinterShares { get; }
+
+    /// <summary>This PC's queues as last listed, for the shared printers (a shared queue that's gone stops being served).</summary>
+    private async Task OfferPrinterSharesAsync(IReadOnlyList<SpoolerQueue> queues)
+    {
+        try
+        {
+            await PrinterShares.OfferAsync(queues.Where(PrinterShare.CanShare).Select(q => q.Name));
+        }
+        catch (Exception ex) // fire and forget: never unobserved
+        {
+            Log.Write($"Printer sharing not updated: {ex.Message}");
+        }
+    }
 
     /// <summary>The print log (roadmap 4.9): on by default; Views.PrintLogDialog shows it and turns it off.</summary>
     public Core.History.PrintLogKeeper PrintLog { get; }
@@ -642,6 +665,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     _queues = queues;
                     if (DateTime.UtcNow - started > SweepLimit) _sweepDone = true;
                     Reconcile(queues: true, QueueKinds.Renamed(before, queues));
+                    _ = OfferPrinterSharesAsync(queues);
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
@@ -839,6 +863,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         try
         {
             if (!Task.Run(() => Share.DisposeAsync().AsTask()).Wait(TimeSpan.FromSeconds(4))) Log.Write("Scanner sharing took too long to stop.");
+            if (!Task.Run(() => PrinterShares.DisposeAsync().AsTask()).Wait(TimeSpan.FromSeconds(4))) Log.Write("Printer sharing took too long to stop.");
         }
         catch (AggregateException ex)
         {

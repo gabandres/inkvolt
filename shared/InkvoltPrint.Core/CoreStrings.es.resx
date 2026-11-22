@@ -3628,4 +3628,37 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Palette_PrintLog" xml:space="preserve">
     <value>Registro de impresión…</value>
   </data>
+  <data name="PrinterShare_Off" xml:space="preserve">
+    <value>Desactivado. Actívalo para imprimir en esta impresora desde teléfonos, tabletas y otros equipos de esta red.</value>
+  </data>
+  <data name="PrinterShare_WaitingForPrinter" xml:space="preserve">
+    <value>Activado, esperando la cola de esta impresora en Windows.</value>
+  </data>
+  <data name="PrinterShare_NoPrivateNetwork" xml:space="preserve">
+    <value>Activado, esperando una red privada: las impresoras se comparten solo en redes que Windows llama privadas (Configuración › Red e Internet).</value>
+  </data>
+  <data name="PrinterShare_Starting" xml:space="preserve">
+    <value>Iniciando…</value>
+  </data>
+  <data name="PrinterShare_On" xml:space="preserve">
+    <value>Se comparte como "{0}" en el puerto {1}. Los teléfonos Android (Imprimir, Mopria), los Mac y otros equipos de esta red privada pueden imprimir en ella mientras Inkvolt Print esté abierto aquí.</value>
+  </data>
+  <data name="PrinterShare_OnThisPc" xml:space="preserve">
+    <value>Demo: se comparte como "{0}" solo con este equipo, en el puerto {1}.</value>
+  </data>
+  <data name="PrinterShare_Failed" xml:space="preserve">
+    <value>No se pudo empezar a compartir. El registro dice por qué.</value>
+  </data>
+  <data name="PrinterShare_PortInUse" xml:space="preserve">
+    <value>No se pudo empezar a compartir: otro programa usa el puerto {0}.</value>
+  </data>
+  <data name="PrinterShare_NotAnnounced" xml:space="preserve">
+    <value>No se pudo anunciar en la red, así que es posible que los teléfonos no la encuentren solos.</value>
+  </data>
+  <data name="PrinterShare_InstanceName" xml:space="preserve">
+    <value>{0} en {1}</value>
+  </data>
+  <data name="PrinterShare_JobName" xml:space="preserve">
+    <value>Impreso desde un teléfono</value>
+  </data>
 </root>

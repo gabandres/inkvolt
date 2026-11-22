@@ -1114,13 +1114,16 @@ public class ScannerSharingTests
         Assert.DoesNotContain("internetClientServer", capabilities);
         XNamespace desktop2 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/2";
         var rules = manifest.Descendants(desktop2 + "Rule").ToList();
-        var rule = Assert.Single(rules);
-        Assert.Equal("in", rule.Attribute("Direction")!.Value);
-        Assert.Equal("TCP", rule.Attribute("IPProtocol")!.Value);
-        Assert.Equal("private", rule.Attribute("Profile")!.Value);
-        Assert.Equal(ScannerShare.DefaultPort.ToString(), rule.Attribute("LocalPortMin")!.Value);
-        Assert.Equal(ScannerShare.DefaultPort.ToString(), rule.Attribute("LocalPortMax")!.Value);
-        Assert.Equal("InkvoltPrint.exe", rule.Parent!.Attribute("Executable")!.Value);
+        // The shared scanner's port and the shared printers' (roadmap 4.10), nothing else.
+        Assert.Equal([ScannerShare.DefaultPort.ToString(), PrinterShare.DefaultPort.ToString()], rules.Select(r => r.Attribute("LocalPortMin")!.Value));
+        foreach (var rule in rules)
+        {
+            Assert.Equal("in", rule.Attribute("Direction")!.Value);
+            Assert.Equal("TCP", rule.Attribute("IPProtocol")!.Value);
+            Assert.Equal("private", rule.Attribute("Profile")!.Value);
+            Assert.Equal(rule.Attribute("LocalPortMin")!.Value, rule.Attribute("LocalPortMax")!.Value);
+            Assert.Equal("InkvoltPrint.exe", rule.Parent!.Attribute("Executable")!.Value);
+        }
     }
 
     // ---------------------------------------------------------------- helpers

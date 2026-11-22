@@ -89,6 +89,29 @@ internal static class Demo
 
         // A made-up scanner shared for real, but to this PC only: 127.0.0.1, any free port, nothing announced, no key kept.
         public override Core.Sharing.ShareEnvironment ScannerSharing { get; } = Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost());
+        // Made-up queues shared for real, to this PC only (127.0.0.1, any free port, nothing announced); jobs "print" on the made-up queue.
+        public override Core.Sharing.PrinterShareEnvironment PrinterSharing => _printerSharing ??= new(new InkvoltPrint.Sharing.KestrelPrinterHost(),
+            Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost()).Networks, new NoAdverts(),
+            (name, _) => Task.FromResult(empty || !Queues.Any(q => q.Name == name) ? null : (Core.Sharing.SharedQueue?)new Core.Sharing.SharedQueue(name, Color: true, TwoSided: true)),
+            new DemoSharedPrints(), 0, LoopbackOnly: true);
+        private Core.Sharing.PrinterShareEnvironment? _printerSharing;
+
+        private sealed class NoAdverts : Core.Sharing.IShareAdvertiser
+        {
+            public Task<IAsyncDisposable> AdvertiseAsync(Core.Sharing.ShareAdvert advert, IReadOnlyList<Core.Sharing.LocalNetwork> on, CancellationToken ct) =>
+                throw new InvalidOperationException("demo mode announces nothing");
+        }
+
+        /// <summary>A shared printer's job in demo mode: its pages drawn as for a real queue, then counted on the made-up queue.</summary>
+        private sealed class DemoSharedPrints : Core.Sharing.ISharedPrintSink
+        {
+            public async Task PrintAsync(Core.Sharing.SharedPrintJob job, CancellationToken ct)
+            {
+                var pages = await Printing.SharedQueuePrinting.PagesAsync(job, ct);
+                Demo.PrintJobs.Add(job.JobName, pages.Count * job.Copies);
+            }
+        }
+
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
         protected override IReadOnlyList<Core.Queues.IQueueDeviceReader> DeviceReaders(Core.Queues.SpoolerQueue q) => Core.Fleet.DemoFleet.DeviceReaders(q);

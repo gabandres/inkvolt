@@ -14,6 +14,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Print the clipboard: in the Print tab, Print the clipboard prints text you copied (laid out on pages, with the usual options), a copied picture through Photos, or files you copied in File Explorer.
 - Recent scans: the Scan tab's Recent scans… lists your last saved scans from every scanner, to open, show in their folder, email again or print. The list stays on this PC.
 - Print log: the sidebar's Print log lists every job this PC printed while Inkvolt Print was running, from any app, with each month's pages per printer and per person. It stays on this PC, and you can turn it off or clear it. Saving it as a CSV file is part of Inkvolt Pro.
+- Share a printer with phones: a USB printer (or any printer set up in Windows) can take print jobs from Android phones, Macs and other computers on your home network. Turn on Share this printer on the network in its Print tab; it's off until you turn it on, works only on networks Windows calls Private and only while Inkvolt Print runs, and it's free.
 
 ## 1.7.0
 - Print to a network printer that isn't set up in Windows: Print a PDF, Copy and Print photos now send the pages straight to the printer over the network, in its own format, with no driver and no administrator. Where Windows has a queue for it, the queue stays the default and Print offers "Print straight to the printer" too. You see each page print, and the print queue card lists the printer's own jobs.

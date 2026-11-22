@@ -5,7 +5,8 @@ using InkvoltPrint.Core.Sharing;
 namespace InkvoltPrint.Windows.Sharing;
 
 /// <summary>
-/// Announces a shared scanner over DNS-SD (Bonjour, multicast DNS) with Windows' own responder: <c>DnsServiceRegister</c> (windns.h,
+/// Announces a shared scanner (<c>_uscans._tcp</c>) or printer (<c>_ipp._tcp</c>, roadmap 4.10) over DNS-SD (Bonjour, multicast DNS) with
+/// Windows' own responder: <c>DnsServiceRegister</c> (windns.h,
 /// dnsapi.dll, Windows 10 1809 and later; no package, no administrator rights). One registration per private interface, with that
 /// interface's IPv4 address, so nothing is announced on a public network. Disposing takes every registration back
 /// (<c>DnsServiceDeRegister</c>), waiting up to two seconds for Windows to confirm each.
@@ -65,7 +66,7 @@ public sealed class DnssdAdvertiser : IShareAdvertiser
             var ip4 = BitConverter.ToUInt32(network.Address.GetAddressBytes()); // IP4_ADDRESS: the bytes in network order
             var keys = advert.Txt.Select(kv => kv.Key).ToArray();
             var values = advert.Txt.Select(kv => kv.Value).ToArray();
-            r._instance = DnsServiceConstructInstance($"{advert.Instance}.{ShareAdvert.Service}.local", advert.Host, ref ip4, IntPtr.Zero,
+            r._instance = DnsServiceConstructInstance($"{advert.Instance}.{advert.Kind}.local", advert.Host, ref ip4, IntPtr.Zero,
                 (ushort)advert.Port, 0, 0, (uint)keys.Length, keys, values);
             if (r._instance == IntPtr.Zero) throw new InvalidOperationException("DnsServiceConstructInstance failed.");
             r._self = GCHandle.Alloc(r);

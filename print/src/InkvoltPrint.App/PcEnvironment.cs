@@ -80,6 +80,13 @@ public abstract class PcEnvironment
     public abstract Core.Sharing.ShareEnvironment ScannerSharing { get; }
 
     /// <summary>
+    /// Where shared printers (roadmap 4.10) listen, announce themselves and print: Kestrel (plain IPP) on the network's private side, Windows'
+    /// DNS-SD responder, Windows' network categories, the queues read and printed through System.Printing; on the made-up PC, Kestrel on
+    /// 127.0.0.1 only, nothing announced, its made-up queues, and jobs that "print" on its made-up queue.
+    /// </summary>
+    public abstract Core.Sharing.PrinterShareEnvironment PrinterSharing { get; }
+
+    /// <summary>
     /// Network printers' Windows queues are looked up (whether one is set up, and setting one up). False on the made-up PC,
     /// where every printer's queue counts as set up and is never looked for.
     /// </summary>
@@ -232,6 +239,10 @@ public abstract class PcEnvironment
             new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));
         private Core.Sharing.ShareEnvironment? _sharing;
 
+        public override Core.Sharing.PrinterShareEnvironment PrinterSharing => _printerSharing ??= new(new InkvoltPrint.Sharing.KestrelPrinterHost(),
+            new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), SharedQueuePrinting.DescribeAsync, new SharedQueuePrinting());
+        private Core.Sharing.PrinterShareEnvironment? _printerSharing;
+
         public override async Task<string?> FindQueueAsync(string uuid, string? host, SpoolerQueue? listed, AppState state)
         {
             if (listed is not null) return listed.Name;
@@ -257,8 +268,7 @@ public abstract class PcEnvironment
         public override bool PairsAnyPrinter => false;
         public override IPrinterPasswords Passwords { get; } = new CredentialManager();
         public override Core.Snmp.ISnmpLogins SnmpLogins => InkvoltPrint.Windows.Security.SnmpLoginStore.Instance;
-        public override Action<string>? Browser => Shell.Open;
-        public override bool OpensOtherApps => true;
+        public override Action<string>? Browser => Shell.Open;        public override bool OpensOtherApps => true;
         public override string RecordingsFolder =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents ? documents : AppState.DataDirectory, "Inkvolt Print recordings");
         public override string UserName => Environment.UserName;

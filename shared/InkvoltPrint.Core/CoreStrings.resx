@@ -4352,4 +4352,37 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Palette_PrintLog" xml:space="preserve">
     <value>Print log…</value>
   </data>
+  <data name="PrinterShare_Off" xml:space="preserve">
+    <value>Off. Turn it on to print to this printer from phones, tablets and other computers on this network.</value>
+  </data>
+  <data name="PrinterShare_WaitingForPrinter" xml:space="preserve">
+    <value>On, waiting for this printer's queue in Windows.</value>
+  </data>
+  <data name="PrinterShare_NoPrivateNetwork" xml:space="preserve">
+    <value>On, waiting for a private network: printers are shared only on networks Windows calls Private (Settings › Network &amp; internet).</value>
+  </data>
+  <data name="PrinterShare_Starting" xml:space="preserve">
+    <value>Starting…</value>
+  </data>
+  <data name="PrinterShare_On" xml:space="preserve">
+    <value>Shared as "{0}" on port {1}. Android phones (Print, Mopria), Macs and other computers on this private network can print to it while Inkvolt Print is open here.</value>
+  </data>
+  <data name="PrinterShare_OnThisPc" xml:space="preserve">
+    <value>Demo: shared as "{0}" to this PC only, on port {1}.</value>
+  </data>
+  <data name="PrinterShare_Failed" xml:space="preserve">
+    <value>Sharing couldn't start. The log says why.</value>
+  </data>
+  <data name="PrinterShare_PortInUse" xml:space="preserve">
+    <value>Sharing couldn't start: port {0} is in use by another program.</value>
+  </data>
+  <data name="PrinterShare_NotAnnounced" xml:space="preserve">
+    <value>It couldn't be announced on the network, so phones may not find it on their own.</value>
+  </data>
+  <data name="PrinterShare_InstanceName" xml:space="preserve">
+    <value>{0} on {1}</value>
+  </data>
+  <data name="PrinterShare_JobName" xml:space="preserve">
+    <value>Printed from a phone</value>
+  </data>
 </root>

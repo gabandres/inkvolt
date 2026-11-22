@@ -49,6 +49,12 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   certificate and the announcement; `SharedScanner`: the eSCL documents and **jobs** a device starts, one scanning at a time,
   each its device's alone). It listens only on networks Windows calls Private, to **served** devices on their subnets
   (`SharePeers`), and is **announced** over DNS-SD as `_uscans._tcp` (`ShareDnssd`).
+- **Printer sharing** (roadmap 4.10, free): Windows queues offered to phones and other computers as IPP printers, each a **shared
+  printer** (`PrinterShare`: the switches, one server for all, when it may listen, the announcements; `SharedPrinter`: one queue's IPP
+  attributes and the **jobs** a device sends, one printing at a time, each its device's alone). Served and announced (`_ipp._tcp`,
+  `PrinterDnssd`) as the shared scanner is; a queue that saves a file or hands the job to an app **can't be shared** (`CanShare`).
+  A job's document is taken as what its **sniffed** first bytes show, never only what the device says; its pages are fitted to the
+  queue's paper.
 - **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
   queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight

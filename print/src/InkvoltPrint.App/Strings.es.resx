@@ -4146,4 +4146,10 @@ Los archivos se quedan donde están.</value>
   <data name="PrintLog_Cleared" xml:space="preserve">
     <value>El registro de impresión está vacío.</value>
   </data>
+  <data name="PrintTab_Share" xml:space="preserve">
+    <value>Compartir con teléfonos</value>
+  </data>
+  <data name="PrintTab_ShareSwitch" xml:space="preserve">
+    <value>Compartir esta impresora en la red</value>
+  </data>
 </root>

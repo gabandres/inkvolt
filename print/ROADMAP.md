@@ -192,8 +192,7 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 - **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
   original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
   Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or
-  document camera as a scan source. 4.10 Share a USB printer with phones (AirPrint, Mopria;
-  Pro). 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A,
+  document camera as a scan source. 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A,
   a password, booklet, poster, pages per sheet.
   - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
@@ -201,6 +200,13 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     CSV Pro (README, "Print log"; `PrintLog`, `PrintLogRecorder`). Checked on this PC with a job to Microsoft Print to PDF.
     **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared printer) against the printers' own counts;
     the Mac half waits (CUPS keeps a page log of its own).
+  - **4.10 Share a USB printer with phones.** Done on Windows, free (the owner, 2026-11-22): a switch per queue printer, off by
+    default, private networks only; announced as `_ipp._tcp` with Mopria's and AirPrint's keys, IPP on TCP 9781 (Get-Printer-Attributes,
+    Validate-Job, Print-Job with PDF, JPEG, PWG Raster, Apple Raster), printed on the Windows queue (README, "Share a printer with
+    phones"; `PrinterShare`, `SharedPrinter`, `RasterReader`). Checked with our own IPP client over the real server on loopback and in
+    demo mode. **Next:** an Android phone's default print service and Mopria, a Mac, and an iPhone (Windows' DNS-SD API can't
+    register AirPrint's `_universal` subtype: an iPhone may need our own responder, the owner's call); IPPS; the Mac half waits
+    (macOS shares printers itself).
 - **The owner's call first:** 4.17 setting up a new printer's Wi-Fi out of the box (each maker's own way, risky without
   each maker's hardware).
 

@@ -232,6 +232,16 @@ public sealed class AppState
     /// <summary>The print log (roadmap 4.9) turned off: it's on by default (false here), kept on this PC only.</summary>
     public bool PrintLogOff { get; set; }
 
+    /// <summary>The Windows queues shared with phones (roadmap 4.10): none by default; each keeps the UUID it's announced with.</summary>
+    public List<Core.Sharing.PrinterShareChoice> PrinterShares { get; set; } = [];
+
+    /// <summary>Keeps the list and saves.</summary>
+    public void SetPrinterShares(IReadOnlyList<Core.Sharing.PrinterShareChoice> choices)
+    {
+        lock (_gate) PrinterShares = [.. choices];
+        Save();
+    }
+
     /// <summary>The scanner shared on the network (roadmap 3.1): none by default; the UUID it's announced with is kept once made.</summary>
     public Core.Sharing.ScannerShareChoice? ScannerShare { get; set; }
 
@@ -487,6 +497,7 @@ public sealed class AppState
             state.NoFirmwareNotify ??= [];
             state.DirectPrinters = (state.DirectPrinters ?? []).OfType<string>().ToList();
             state.RecentScans = [.. Core.History.RecentScans.Clean(state.RecentScans)];
+            state.PrinterShares = (state.PrinterShares ?? []).Where(c => c is { Queue.Length: > 0 and <= 260 }).Take(Core.Sharing.PrinterShare.MaxShared).ToList();
             state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
