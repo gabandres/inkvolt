@@ -108,32 +108,27 @@ A release, in order (the owner says when; Inkvolt Print's the same with its own 
 5. Write `notes.json`, `{"en-us": "...", "es": "..."}`: the Store's short notes from the WHATS-NEW entry, under 1,500
    characters each, the Spanish in the voice of the app's `docs/SPANISH-REVIEW.md` (*tú*, "tu PC", the app's command names). `packaging/store-release.ps1 -App Pdf -Notes
    notes.json` puts them in the draft, checks them (length, every listing, no U+FFFD) and reads them back. A description
-   change goes in by hand (`msstore submission get`, `update -p`).
+   change goes in by hand (`msstore submission get`, `update -p`; below).
 6. `store-release.ps1 -App Pdf -Publish`, then `-Wait` as a background command, until `Published` (CommitStarted,
    Certification, Release; under two hours so far).
 7. Commit and push; `store-release.ps1 -App Pdf -GitHub -Version <ver>` creates the release `pdf-v<ver>` from the WHATS-NEW
    lines (again with `-Published <date>` once Published); the website's `softwareVersion` (`Z:\portfolio`,
    `firebase deploy --only hosting`) once Published; `docs/HANDOFF.md`.
 
-A draft edited in Partner Center's pages can't be updated through the API afterwards (Spanish listing, below). By hand,
-the first time:
-
-1. Partner Center > the app > **Start your submission**.
-2. **Packages**: drop `InkvoltPdf_<ver>.msixupload`. Device families: Windows 10/11 Desktop. Partner Center validates the
-   identity values against the reservation; a mismatch is reported here.
-3. **Properties**: category Productivity (or Business); privacy policy URL (see below); support contact.
-4. **Age ratings**: the questionnaire (no user-generated content shared, no purchases, opens links in the browser).
-5. **Store listings** (en-us): description, at least one screenshot, optional logos and trailers.
-6. **Submission options > Restricted capabilities**: explain `runFullTrust` (text below).
-7. Submit. Certification normally takes 1-3 business days.
+A draft edited in Partner Center's pages can't be updated through the API afterwards (409 InvalidState, "in the state
+'None'"): finish such a submission in Partner Center. There, a submission is: **Packages** (drop the `.msixupload`;
+Windows 10/11 Desktop; Partner Center checks the identity values against the reservation), **Properties** (Productivity;
+privacy policy URL; support contact), **Age ratings** (no user-generated content shared, no purchases, opens links in
+the browser), **Store listings**, **Submission options > Restricted
+capabilities** (`runFullTrust`, text below), the generative AI declaration (policy 11.16), then Submit.
 
 ### Visual C++ runtime
 
 MuPDF's native engine (`MuPDFWrapper.dll`) links MSVCP140, VCRUNTIME140 and (x64) VCRUNTIME140_1. Windows doesn't
 ship them, so the manifest declares the `Microsoft.VCLibs.140.00.UWPDesktop` framework (MinVersion 14.0.30704.0), which
 the Store installs with the app. Without it, every file open fails with "Unable to load DLL 'MuPDFWrapper'" on a PC
-without the VC++ redistributable: certification failed 1.0.0.0 for this (10.1.2.10, Oct 2026). A sideloaded test
-needs the framework installed (`Get-AppxPackage Microsoft.VCLibs.140.00.UWPDesktop`).
+without the VC++ redistributable (certification failed 1.0.0.0 for this, 10.1.2.10); `pack-msix.ps1` now refuses such a
+layout. A sideloaded test needs the framework installed (`Get-AppxPackage Microsoft.VCLibs.140.00.UWPDesktop`).
 
 ### runFullTrust justification
 
@@ -144,116 +139,36 @@ needs the framework installed (`Get-AppxPackage Microsoft.VCLibs.140.00.UWPDeskt
 > (automation of a separate, hidden Office instance) and from web pages through the system WebView2 runtime, and sign documents with certificates from the user's Windows certificate store and
 > smart cards, and (only when the user turns it on) send text the user picks to an AI endpoint the user configures. It installs no services or drivers, needs no administrator rights, and changes no system settings.
 
-### Store description before 2026-10-30 (replaced by the text under "Listing proposals 2026-10-30")
+### Changing the listing
 
-Short description:
+The listing as it is live: `msstore submission get` (en-us and es; plain Spanish only, which covers every Spanish market).
+The text below is what was last submitted ("Listing proposals 2026-10-30", Submission 13; the es description with
+1.8.0.0); keep it in step with what goes in.
 
-> A fast, private PDF reader and editor: fill and sign forms, comment, draw, organize pages, redact and OCR. No account,
-> no ads, no telemetry.
-
-Description:
-
-> Inkvolt PDF opens big documents instantly and keeps your files on your PC. Read, fill, sign, mark up and rearrange
-> PDFs with a clean Windows 11 interface, in tabs, in light or dark.
->
-> - Read comfortably: continuous or two-page layouts, fast search, bookmarks, dark pages for night reading, Read Aloud.
-> - Fill & Sign: fill any form, type anywhere on a page, and add a handwritten signature or initials.
-> - Digital signatures: sign with a certificate or smart card, add a trusted timestamp, and check every signature's
->   status in detail.
-> - Comment and draw: highlight, underline, sticky notes, pen, shapes, arrows, text boxes and callouts.
-> - Edit text and images on the page, add links, stamps, headers and footers, watermarks.
-> - Create forms: add text fields, check boxes, lists and signature fields, or detect them on a page.
-> - Organize: reorder, rotate, insert, extract, split and merge pages. Make PDFs from images, the clipboard, Office files
->   (with your installed Microsoft Office) and web pages.
-> - Redact for real: removes the text and images underneath, not just a black box on top. Sanitize hidden data.
-> - Make scans searchable with Windows' own text recognition, export to Word, Excel or text, protect files with a
->   password, reduce their size and save as PDF/A for archiving.
-> - Compare two versions of a document, measure distances and areas on drawings, and process many files at once.
-> - Scan straight into a PDF with Inkvolt Print.
->
-> Optional AI assistant (off by default): connect an AI you choose, such as Ollama or LM Studio on your PC or a service
-> with your own API key, to summarize, ask questions about a document or explain a passage. Answers are generated live
-> by that AI model and may be wrong. Inkvolt PDF includes no AI of its own and shows exactly what text will be sent, and
-> where, before anything goes.
->
-> No account, no ads, no telemetry. Your documents stay on your PC unless you send text to an AI service you set up.
->
-> Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt
-
-Keywords (up to 7): PDF, PDF editor, fill and sign, digital signature, annotate, merge PDF, OCR.
-
-The AI paragraph is the metadata disclosure Store policy 11.16 (Live Generative AI Content, policies 7.20) asks for. Also
-tick the generative AI question in Partner Center when submitting (below).
-
-### Spanish listing (es)
-
-Live since 2026-10-30 (Submission 11, Published; `msstore submission get` lists `en-us` and `es`), submitted with the en-us screenshots and the text below; plain Spanish only, which covers every Spanish market (Spanish (Americas), `es-019`, was removed). Partner Center refuses a listing language without its own screenshots (`NoScreenshotsOfAnyType`), and once a draft has been edited in Partner Center the submission API refuses it (409 InvalidState, "in the state 'None'"), so a listing change goes through the Partner Center pages. Their keyword box keeps only one new keyword at a time and drops one that begins a suggestion of its own ("firmar PDF" against "firmar PDF digitalmente"): add one, save, reload, reselect any it dropped from the list, save again, and check the result with `msstore submission get`. When the en-us description changes, change this one to match. The app itself is in English, and the description says so.
-
-**Since 1.7.0.0** (submitted 2026-11-04 through the API: `msstore submission get`, the JSON's release notes and descriptions changed, `msstore submission update <id> -p payload.json`, `msstore submission publish <id>`) the app has a Spanish interface, the es description no longer says "La aplicación está en inglés.", and both descriptions say "Scan straight into a PDF from network, USB and TWAIN scanners." Since 1.8.0.0 the es description names them as the app does, "Qué hay en este PDF" and "Limpiar documento" ("Listing proposal 2026-11-04 (es description)" below). The quoted text below is older.
-
-Short description:
-
-> Lector y editor de PDF rápido y privado: llena y firma formularios, comenta, dibuja, organiza páginas, elimina información confidencial y aplica OCR. Sin cuenta, sin anuncios, sin telemetría.
-
-Description:
-
-> Inkvolt PDF abre documentos grandes al instante y mantiene tus archivos en tu PC. Lee, llena, firma, anota y reorganiza PDF con una interfaz limpia de Windows 11, en pestañas, en modo claro u oscuro.
->
-> • Lectura cómoda: vista continua o a dos páginas, búsqueda rápida, marcadores, páginas oscuras para leer de noche y lectura en voz alta.
-> • Llenar y firmar: llena cualquier formulario, escribe en cualquier parte de la página y agrega tu firma a mano o tus iniciales.
-> • Firmas digitales: firma con un certificado o una tarjeta inteligente, agrega una marca de tiempo confiable y revisa en detalle el estado de cada firma.
-> • Comentarios y dibujo: resaltado, subrayado, notas, pluma, formas, flechas, cuadros de texto y llamadas.
-> • Organizar: reordena, gira, inserta, extrae, divide y combina páginas; crea PDF a partir de imágenes o del portapapeles.
-> • Editar texto: haz clic en un párrafo para reescribirlo con su propia fuente, o cambia la fuente, el tamaño o el color de una parte.
-> • Eliminar información confidencial de verdad: se borran el texto y las imágenes que hay debajo, no solo se tapan con un recuadro negro. What's in This PDF muestra cada script, enlace, archivo adjunto y elemento oculto que lleva un archivo antes de compartirlo.
-> • Haz que los documentos escaneados se puedan buscar con el reconocimiento de texto de Windows, protege archivos con contraseña y reduce su tamaño.
-> • Escanea directamente a un PDF con Inkvolt Print.
->
-> Sin cuenta, sin nube, sin anuncios, sin telemetría. Tus documentos nunca salen de tu PC.
->
-> La aplicación está en inglés.
->
-> Gratis y de código abierto (AGPL-3.0). Código fuente: https://github.com/gabandres/inkvolt
-
-Features:
-
-> - Lectura cómoda: vista continua o a dos páginas, búsqueda rápida, marcadores, páginas oscuras para leer de noche y lectura en voz alta.
-> - Llenar y firmar: llena cualquier formulario, escribe en cualquier parte de la página y agrega tu firma a mano o tus iniciales.
-> - Firmas digitales: firma con un certificado o una tarjeta inteligente, agrega una marca de tiempo confiable y revisa el estado de cada firma.
-> - Comentarios y dibujo: resaltado, subrayado, notas, pluma, formas, flechas, cuadros de texto y llamadas.
-> - Organizar: reordena, gira, inserta, extrae, divide y combina páginas; crea PDF a partir de imágenes o del portapapeles.
-> - Editar texto: haz clic en un párrafo para reescribirlo con su propia fuente, o cambia la fuente, el tamaño o el color de una parte.
-> - Eliminar información confidencial de verdad: se borran el texto y las imágenes que hay debajo, no solo se tapan con un recuadro negro.
-> - Haz que los escaneos se puedan buscar con el reconocimiento de texto de Windows, protege archivos con contraseña y reduce su tamaño.
-> - Escanea directamente a un PDF con Inkvolt Print.
-> - What's in This PDF: mira cada script, enlace, archivo adjunto y elemento oculto que lleva un archivo antes de compartirlo.
-
-Keywords: PDF, editor de PDF, llenar y firmar, firma digital, anotar PDF, unir PDF, OCR.
-
-License terms: Inkvolt PDF es software libre bajo la Licencia Pública General Affero de GNU v3.0. Código fuente y licencia: https://github.com/gabandres/inkvolt
-
-### Listing proposals 2026-10-30
-
-Submitted 2026-10-30 (Submission 13, a listing-only update of the published 1.3.0.0), in en-us and es with the 1.3.0
-Spanish release notes, through Partner Center's Export listings and Import listings on the draft: export the .csv, change
-its text and SearchTerm rows, import it. That takes all seven keywords at once, without the keyword box's limits. The
-import reshuffles the screenshots whatever the file's order (the draft's tiles and the next export show the new order),
-so drag the tiles back on each language's listing page (a drop swaps two tiles), save, and check by exporting again. Edit a draft
-this way only when it is going to be submitted from Partner Center: the API refuses it afterwards. Reasoning: the Store
-searches the title, the short description and the seven keywords, and the title already
-holds "PDF", so a keyword of just "PDF" is wasted; the apps on the comparison page (Acrobat Reader, Foxit, PDF-XChange,
-PDFgear) lead their listings with "PDF editor", "PDF reader", "edit", "convert to Word", "merge", "sign" and "OCR", which
-is what people type; the differentiators (redaction, no account, no telemetry, open source) go in the first lines of the
-descriptions, where a person reads them, not in the keyword slots. The Store's own keyword suggestions appear only in a
-draft's keyword box; open one only with the 1.3.0.0 draft and swap a proposal for a suggestion that is close to it.
-Each keyword is at most 30 characters.
+- **Through the API** (descriptions, release notes): `msstore submission get`, change the JSON (list items start "• ",
+  as the listing has them), `msstore submission update <id> -p payload.json`, `msstore submission publish <id>`; check the
+  result with `msstore submission get` (no U+FFFD).
+- **Keywords and other fields in Partner Center**: Export listings, change the .csv's text and SearchTerm rows, Import
+  listings. That takes all seven keywords at once; the keyword box itself keeps only one new keyword at a time and drops
+  one that begins a suggestion of its own ("firmar PDF" against "firmar PDF digitalmente"). The import reshuffles the
+  screenshots whatever the file's order: drag the tiles back on each language's listing page (a drop swaps two tiles),
+  save, and check by exporting again. Edit a draft this way only when it is going to be submitted from Partner Center:
+  the API refuses it afterwards.
+- Partner Center refuses a listing language without its own screenshots (`NoScreenshotsOfAnyType`): es uses the en-us
+  ones. When the en-us description changes, change the es one to match.
+- **Why these keywords:** the Store searches the title, the short description and the seven keywords, and the title
+  already holds "PDF", so a keyword of just "PDF" is wasted; the apps on the comparison page (Acrobat Reader, Foxit,
+  PDF-XChange, PDFgear) lead with "PDF editor", "PDF reader", "edit", "convert to Word", "merge", "sign" and "OCR", which is
+  what people type; the differentiators (redaction, no account, no telemetry, open source) go in the first lines of the
+  descriptions, where a person reads them. The Store's own suggestions show only in a draft's keyword box. Each keyword is
+  at most 30 characters.
+- The AI paragraph is the metadata disclosure Store policy 11.16 (Live Generative AI Content, policies 7.20) asks for;
+  also tick the generative AI question in Partner Center when submitting.
+- What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type (Store search vs. links), against
+  the baseline in `docs/VISIBILITY.md`.
 
 Keywords (en-us, 7): `pdf editor`, `pdf reader`, `edit pdf`, `pdf to word`, `merge pdf`, `fill and sign`, `ocr`.
 Alternates if the box drops one: `sign pdf`, `redact pdf`, `scan to pdf`, `compress pdf`, `pdf converter`.
-
-Keywords (es, 7): `editor de pdf`, `lector de pdf`, `editar pdf`, `pdf a word`, `unir pdf`, `llenar y firmar`, `ocr`.
-Alternates: `firmar pdf` (the box drops it for its own "firmar PDF digitalmente"; try last), `comprimir pdf`,
-`convertir pdf`, `escanear a pdf`.
 
 Short description (en-us):
 
@@ -285,7 +200,7 @@ Description (en-us):
 >   share it. Sanitize removes them.
 > - Protect with a password, reduce file size, save as PDF/A, compare two versions, check accessibility (PDF/UA), and
 >   run batches over many files.
-> - Scan straight into a PDF with Inkvolt Print.
+> - Scan straight into a PDF from network, USB and TWAIN scanners.
 >
 > Optional AI assistant (off by default): connect an AI you choose, such as Ollama or LM Studio on your PC or a service
 > with your own API key, to summarize, ask questions about a document or explain a passage. Answers are generated live
@@ -297,30 +212,21 @@ Description (en-us):
 > Free and open source (AGPL-3.0). Source code: https://github.com/gabandres/inkvolt. Also for Mac:
 > https://bermudezsystems.com/products/inkvolt/
 
-For the next listing: "Scan straight into a PDF with Inkvolt Print" is out of date (Inkvolt PDF scans by itself, File ›
-Scan, sharing only Inkvolt Print's code); write "Scan straight into a PDF from network, USB and TWAIN scanners."
+### Spanish listing (es)
+
+In the voice and with the command names of the app (`pdf/docs/SPANISH-REVIEW.md`): **Qué hay en este PDF**, **Limpiar
+documento**, **Eliminar por patrón**, **En lote**, **Configuración › Idioma**.
+
+Keywords (es, 7): `editor de pdf`, `lector de pdf`, `editar pdf`, `pdf a word`, `unir pdf`, `llenar y firmar`, `ocr`.
+Alternates: `firmar pdf` (the box drops it for its own "firmar PDF digitalmente"; try last), `comprimir pdf`,
+`convertir pdf`, `escanear a pdf`.
 
 Short description (es):
 
 > Editor y lector de PDF gratis: edita texto, llena y firma formularios, une y organiza páginas, convierte PDF a Word y
 > Excel, OCR, y elimina información confidencial de verdad. Sin cuenta, sin anuncios, sin telemetría, código abierto.
 
-Description (es): the en-us text above in the Spanish of the listing (its vocabulary: "llenar y firmar", "eliminar
-información confidencial", "reconocimiento de texto"), with the same bullets in the same order and the line "La
-aplicación está en inglés." before the license line. As submitted: `msstore submission get`, which also replaces the
-older text under "Spanish listing (es)" above.
-
-What to measure: Partner Center › Insights › Acquisitions, "Page views" by source type (Store search vs. links), 30
-days after the change, against the baseline in `docs/VISIBILITY.md`.
-
-### Listing proposal 2026-11-04 (es description)
-
-Submitted with 1.8.0.0 (2026-11-05, through the API as 1.7.0.0 was, its list items with "• " as the listing has them;
-checked with `msstore submission get`, no U+FFFD). It is the en-us description above in Spanish, with the interface's own names (`pdf/docs/SPANISH-REVIEW.md`):
-**Qué hay en este PDF** and **Limpiar documento** in place of What's in This PDF and Sanitize, **Eliminar por patrón**,
-**En lote**, **Configuración › Idioma**; "Scan straight into a PDF" as the line under the en-us text says; and a line
-saying the app speaks Spanish, where "La aplicación está en inglés." was. The short description, features and keywords
-stay as submitted. About 3,100 characters (the Store allows 10,000).
+Description (es):
 
 > Inkvolt PDF es un editor y lector de PDF gratis para Windows 10 y 11 (x64 y ARM64). Abre documentos grandes al
 > instante, en pestañas, en modo claro u oscuro; edita, llena, firma, convierte, organiza y elimina información
@@ -362,17 +268,22 @@ stay as submitted. About 3,100 characters (the Store allows 10,000).
 > Gratis y de código abierto (AGPL-3.0). Código fuente: https://github.com/gabandres/inkvolt. También para Mac:
 > https://bermudezsystems.com/products/inkvolt/
 
+License terms (es): Inkvolt PDF es software libre bajo la Licencia Pública General Affero de GNU v3.0. Código fuente y
+licencia: https://github.com/gabandres/inkvolt
+
 ### Privacy policy
 
 Partner Center asks for a privacy policy URL; publish a short page (e.g. on the product site or a public gist) saying:
 
 - Inkvolt PDF collects no personal data and has no telemetry, analytics, ads or accounts.
-- Documents are processed on the PC (rendering, search, OCR with Windows' own recognizer).
+- Documents are processed on the PC (rendering, search, OCR with Windows' own recognizer, or Tesseract once the user
+  downloads it).
 - Store installs ask Windows' own Store service whether an update is ready, about 30 s after startup (Settings turns it
   off); only this app's package is named. Other network use happens only on the user's action: an RFC 3161 timestamp when signing with "Add a timestamp" or adding a
   document timestamp (only a hash goes to the timestamp server in the field, Sectigo's free one unless the user enters another); Add Verification
   Information, signing for the long term and Check Signatures Online, which ask the OCSP and CRL addresses a certificate names
-  (they learn which certificate is asked about, never the document), each after a window listing them; and links in documents,
+  (they learn which certificate is asked about, never the document), each after a window listing them; Tesseract and its
+  language files, downloaded from GitHub only when the user chooses a language and confirms; and links in documents,
   which open in the default browser after the user clicks (and confirms for anything but http/https/mailto).
 - PDF from Web Page loads the address the user types (or a local file) in a private WebView2 session, as a browser
   would; nothing else is sent. PDF from Office File uses the Office installed on the PC; the file stays on the PC.
