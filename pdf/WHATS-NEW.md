@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Interleave Pages (Organize): two-sided sheets scanned one side at a time come back in order, front 1, back 1, front 2… The backs can be pages of the same file or another PDF, in reverse order (a stack turned over) or not. Scan the Backs (File menu, and Scan & OCR on the bar) scans the backs straight into place.
+- Remove Blank Pages (Organize) finds the pages that are almost all paper, shows them for you to untick any you want to keep, and deletes them in one step Undo puts back. Split at Blank Pages saves the pages between blank separator sheets as separate PDFs. Both are Batch actions too.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

@@ -5212,6 +5212,81 @@ Modified {1:g}</value>
     <value>Interleave {0} scanned backs</value>
     <comment>An edit's name</comment>
   </data>
+  <data name="Cmd_RemoveBlankPages" xml:space="preserve">
+    <value>Remove Bl_ank Pages…</value>
+  </data>
+  <data name="Cmd_SplitAtBlankPages" xml:space="preserve">
+    <value>Split at Blan_k Pages…</value>
+  </data>
+  <data name="Organize_FindingBlank" xml:space="preserve">
+    <value>Looking for blank pages…</value>
+  </data>
+  <data name="Organize_NoBlankTitle" xml:space="preserve">
+    <value>No blank pages</value>
+  </data>
+  <data name="Organize_NoBlankBody" xml:space="preserve">
+    <value>No page of this document looks blank. A page with as little as a short word on it is kept.</value>
+  </data>
+  <data name="Organize_RemoveBlankTitle" xml:space="preserve">
+    <value>Remove Blank Pages</value>
+  </data>
+  <data name="Organize_SplitBlankTitle" xml:space="preserve">
+    <value>Split at Blank Pages</value>
+  </data>
+  <data name="Organize_BlankFound_One" xml:space="preserve">
+    <value>1 page looks blank. Untick it to keep it.</value>
+  </data>
+  <data name="Organize_BlankFound_Many" xml:space="preserve">
+    <value>{0} pages look blank. Untick any you want to keep.</value>
+  </data>
+  <data name="Organize_BlankThen" xml:space="preserve">
+    <value>What to do with them</value>
+  </data>
+  <data name="Organize_BlankDelete" xml:space="preserve">
+    <value>Delete them</value>
+  </data>
+  <data name="Organize_BlankSplit" xml:space="preserve">
+    <value>Split the document at them into separate PDFs (they're left out)</value>
+  </data>
+  <data name="Organize_BlankPageName" xml:space="preserve">
+    <value>Page {0}</value>
+  </data>
+  <data name="Organize_BlankNoneTicked" xml:space="preserve">
+    <value>Tick at least one page.</value>
+  </data>
+  <data name="Organize_BlankAllPages" xml:space="preserve">
+    <value>Every page is ticked, and a document keeps at least one page. Untick one to keep it.</value>
+  </data>
+  <data name="Organize_BlankSplitNothing" xml:space="preserve">
+    <value>Nothing is left between the blank pages to save.</value>
+  </data>
+  <data name="Organize_EditRemoveBlank_One" xml:space="preserve">
+    <value>Remove 1 blank page</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_EditRemoveBlank_Many" xml:space="preserve">
+    <value>Remove {0} blank pages</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_SaveSplitBlankTo" xml:space="preserve">
+    <value>Choose where to save the parts</value>
+  </data>
+  <data name="Organize_BlankPartName" xml:space="preserve">
+    <value>{0} - part {1}</value>
+    <comment>File name of a part; {0} is the document's name, {1} the part's number</comment>
+  </data>
+  <data name="Batch_ItemRemoveBlank" xml:space="preserve">
+    <value>Remove blank pages</value>
+  </data>
+  <data name="Batch_ItemSplitBlank" xml:space="preserve">
+    <value>Split at blank pages</value>
+  </data>
+  <data name="Batch_DescRemoveBlank" xml:space="preserve">
+    <value>Pages that are almost all paper go; a file of blank pages only is kept</value>
+  </data>
+  <data name="Batch_DescSplitBlank" xml:space="preserve">
+    <value>A PDF for each part between blank separator pages</value>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>
     <comment>Dialog title</comment>

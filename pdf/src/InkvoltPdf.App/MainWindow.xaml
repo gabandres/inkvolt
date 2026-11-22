@@ -248,8 +248,10 @@
                                     <Separator />
                                     <MenuItem Command="app:Cmd.DeletePages" />
                                     <MenuItem Command="app:Cmd.DeleteSelected" />
+                                    <MenuItem Command="app:Cmd.RemoveBlankPages" />
                                     <MenuItem Command="app:Cmd.ExtractPages" />
                                     <MenuItem Command="app:Cmd.SplitDocument" />
+                                    <MenuItem Command="app:Cmd.SplitAtBlankPages" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.MovePages" />
                                     <MenuItem Command="app:Cmd.DuplicatePages" />

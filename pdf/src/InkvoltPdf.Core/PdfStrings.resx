@@ -962,6 +962,42 @@
     <value>Rotate pages</value>
     <comment>Batch action name</comment>
   </data>
+  <data name="Batch_StepRemoveBlank" xml:space="preserve">
+    <value>Remove blank pages</value>
+    <comment>Batch action name</comment>
+  </data>
+  <data name="Batch_StepSplitBlank" xml:space="preserve">
+    <value>Split at blank pages</value>
+    <comment>Batch action name</comment>
+  </data>
+  <data name="Batch_AllBlank" xml:space="preserve">
+    <value>Every page looks blank: the pages were kept.</value>
+  </data>
+  <data name="Batch_NoBlank" xml:space="preserve">
+    <value>No blank page found: nothing was split.</value>
+  </data>
+  <data name="Batch_BlankRemoved_One" xml:space="preserve">
+    <value>1 blank page removed.</value>
+  </data>
+  <data name="Batch_BlankRemoved_Many" xml:space="preserve">
+    <value>{0} blank pages removed.</value>
+  </data>
+  <data name="Batch_SplitParts_One" xml:space="preserve">
+    <value>1 part saved.</value>
+  </data>
+  <data name="Batch_SplitParts_Many" xml:space="preserve">
+    <value>{0} parts saved.</value>
+  </data>
+  <data name="Batch_PartName" xml:space="preserve">
+    <value>{0} - part {1}</value>
+    <comment>File name of a part; {0} is the result's name, {1} the part's number</comment>
+  </data>
+  <data name="Batch_LookingForBlank" xml:space="preserve">
+    <value>Looking for blank pages ({0} of {1})…</value>
+  </data>
+  <data name="Bar_RemoveBlankDesc" xml:space="preserve">
+    <value>Find blank pages and delete them</value>
+  </data>
   <data name="Batch_StepFlatten" xml:space="preserve">
     <value>Flatten</value>
     <comment>Batch action name</comment>

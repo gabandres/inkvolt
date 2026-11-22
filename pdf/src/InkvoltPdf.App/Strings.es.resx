@@ -5211,6 +5211,81 @@ Modificado {1:g}</value>
     <value>Intercalar {0} reversos escaneados</value>
     <comment>An edit's name</comment>
   </data>
+  <data name="Cmd_RemoveBlankPages" xml:space="preserve">
+    <value>Quitar páginas en _blanco…</value>
+  </data>
+  <data name="Cmd_SplitAtBlankPages" xml:space="preserve">
+    <value>Dividir en las páginas en blanc_o…</value>
+  </data>
+  <data name="Organize_FindingBlank" xml:space="preserve">
+    <value>Buscando páginas en blanco…</value>
+  </data>
+  <data name="Organize_NoBlankTitle" xml:space="preserve">
+    <value>No hay páginas en blanco</value>
+  </data>
+  <data name="Organize_NoBlankBody" xml:space="preserve">
+    <value>Ninguna página de este documento parece estar en blanco. Una página con aunque sea una palabra corta se conserva.</value>
+  </data>
+  <data name="Organize_RemoveBlankTitle" xml:space="preserve">
+    <value>Quitar páginas en blanco</value>
+  </data>
+  <data name="Organize_SplitBlankTitle" xml:space="preserve">
+    <value>Dividir en las páginas en blanco</value>
+  </data>
+  <data name="Organize_BlankFound_One" xml:space="preserve">
+    <value>1 página parece estar en blanco. Desmárcala para conservarla.</value>
+  </data>
+  <data name="Organize_BlankFound_Many" xml:space="preserve">
+    <value>{0} páginas parecen estar en blanco. Desmarca las que quieras conservar.</value>
+  </data>
+  <data name="Organize_BlankThen" xml:space="preserve">
+    <value>Qué hacer con ellas</value>
+  </data>
+  <data name="Organize_BlankDelete" xml:space="preserve">
+    <value>Eliminarlas</value>
+  </data>
+  <data name="Organize_BlankSplit" xml:space="preserve">
+    <value>Dividir el documento por ellas en varios PDF (no se incluyen)</value>
+  </data>
+  <data name="Organize_BlankPageName" xml:space="preserve">
+    <value>Página {0}</value>
+  </data>
+  <data name="Organize_BlankNoneTicked" xml:space="preserve">
+    <value>Marca al menos una página.</value>
+  </data>
+  <data name="Organize_BlankAllPages" xml:space="preserve">
+    <value>Están marcadas todas las páginas y un documento conserva al menos una. Desmarca una para conservarla.</value>
+  </data>
+  <data name="Organize_BlankSplitNothing" xml:space="preserve">
+    <value>No queda nada entre las páginas en blanco para guardar.</value>
+  </data>
+  <data name="Organize_EditRemoveBlank_One" xml:space="preserve">
+    <value>Quitar 1 página en blanco</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_EditRemoveBlank_Many" xml:space="preserve">
+    <value>Quitar {0} páginas en blanco</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_SaveSplitBlankTo" xml:space="preserve">
+    <value>Elige dónde guardar las partes</value>
+  </data>
+  <data name="Organize_BlankPartName" xml:space="preserve">
+    <value>{0} - parte {1}</value>
+    <comment>File name of a part; {0} is the document's name, {1} the part's number</comment>
+  </data>
+  <data name="Batch_ItemRemoveBlank" xml:space="preserve">
+    <value>Quitar páginas en blanco</value>
+  </data>
+  <data name="Batch_ItemSplitBlank" xml:space="preserve">
+    <value>Dividir en las páginas en blanco</value>
+  </data>
+  <data name="Batch_DescRemoveBlank" xml:space="preserve">
+    <value>Se quitan las páginas que son casi solo papel; un archivo solo de páginas en blanco se conserva</value>
+  </data>
+  <data name="Batch_DescSplitBlank" xml:space="preserve">
+    <value>Un PDF por cada parte entre páginas separadoras en blanco</value>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>
     <comment>Dialog title</comment>

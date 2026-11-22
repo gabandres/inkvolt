@@ -506,6 +506,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   (backs), the backs reversed (a stack turned over) or not; uneven counts are asked about and the pages left over follow
   (`PageEditor.InterleaveOrder`). **Scan the Backs** (File, Organize, Scan & OCR) scans the backs into the document after
   their fronts, keeping blank backs so each stays beside its front. One undo step each.
+- **Remove Blank Pages** and **Split at Blank Pages** (Organize): pages that are almost all paper, by File › Scan's own
+  test (`BlankPages` over the shared `BlankPage`: a short line of text is not blank), shown with pictures to untick, then
+  deleted as one undo step or used as separator sheets: the runs between them saved as `name - part 1.pdf` and on. Batch
+  has both as actions.
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
   the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
   by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can
@@ -618,7 +622,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Check Redaction (a file with anything recoverable left fails and isn't saved; after Redact Patterns it also looks for
   what that action redacted), Check Accessibility (PDF/UA-1's machine checks: a report, "name accessibility.html", beside each
   file; a file that fails any, or can't be checked in full, isn't saved and counts as failed, its notes saying what wasn't checked), Report What's in Each File ("name contents.html" and "name contents.json"
-  beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
+  beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages, Remove Blank Pages, Split at Blank Pages (a PDF per part between blank separator pages),
   Flatten, Recognize Text (OCR), Make Accessible (Tag) (the proposed title, else the file name, and language; the notes
   say how many pictures need alternate text), Save as PDF/A-2b or PDF/A-2a (Tagged) (last of the changes; a file that
   can't be made PDF/A fails, saying why), Add Long-Term Validation Data (Pro, as Add Verification Information, a document

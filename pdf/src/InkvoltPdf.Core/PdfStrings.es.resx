@@ -962,6 +962,42 @@
     <value>Girar páginas</value>
     <comment>Batch action name</comment>
   </data>
+  <data name="Batch_StepRemoveBlank" xml:space="preserve">
+    <value>Quitar páginas en blanco</value>
+    <comment>Batch action name</comment>
+  </data>
+  <data name="Batch_StepSplitBlank" xml:space="preserve">
+    <value>Dividir en las páginas en blanco</value>
+    <comment>Batch action name</comment>
+  </data>
+  <data name="Batch_AllBlank" xml:space="preserve">
+    <value>Todas las páginas parecen estar en blanco: se conservaron.</value>
+  </data>
+  <data name="Batch_NoBlank" xml:space="preserve">
+    <value>No se encontró ninguna página en blanco: no se dividió nada.</value>
+  </data>
+  <data name="Batch_BlankRemoved_One" xml:space="preserve">
+    <value>Se quitó 1 página en blanco.</value>
+  </data>
+  <data name="Batch_BlankRemoved_Many" xml:space="preserve">
+    <value>Se quitaron {0} páginas en blanco.</value>
+  </data>
+  <data name="Batch_SplitParts_One" xml:space="preserve">
+    <value>Se guardó 1 parte.</value>
+  </data>
+  <data name="Batch_SplitParts_Many" xml:space="preserve">
+    <value>Se guardaron {0} partes.</value>
+  </data>
+  <data name="Batch_PartName" xml:space="preserve">
+    <value>{0} - parte {1}</value>
+    <comment>File name of a part; {0} is the result's name, {1} the part's number</comment>
+  </data>
+  <data name="Batch_LookingForBlank" xml:space="preserve">
+    <value>Buscando páginas en blanco ({0} de {1})…</value>
+  </data>
+  <data name="Bar_RemoveBlankDesc" xml:space="preserve">
+    <value>Busca las páginas en blanco y elimínalas</value>
+  </data>
   <data name="Batch_StepFlatten" xml:space="preserve">
     <value>Acoplar</value>
     <comment>Batch action name</comment>

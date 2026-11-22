@@ -237,6 +237,26 @@ public sealed record RotateStep(int Degrees) : BatchStep
     public override string Title => PdfStrings.Batch_StepRotate;
 }
 
+/// <summary>
+/// Remove Blank Pages (<see cref="BlankPages"/>): pages that are almost all paper go, with the bookmarks and links to them.
+/// A file whose pages are all blank keeps them (a document keeps a page), and the notes say so.
+/// </summary>
+public sealed record RemoveBlankPagesStep : BatchStep
+{
+    public override string Title => PdfStrings.Batch_StepRemoveBlank;
+}
+
+/// <summary>
+/// Split at Blank Pages (<see cref="BlankPages.SplitAt"/>): a PDF for each run of pages between blank separator sheets,
+/// named "name - part 1.pdf" and on, the blank pages left out. The file itself isn't changed.
+/// </summary>
+public sealed record SplitAtBlankPagesStep : BatchStep
+{
+    public override bool ChangesPdf => false;
+
+    public override string Title => PdfStrings.Batch_StepSplitBlank;
+}
+
 public sealed record FlattenStep(FlattenOptions Options) : BatchStep
 {
     public override string Title => PdfStrings.Batch_StepFlatten;
@@ -377,7 +397,7 @@ public sealed record BatchPlan
     public bool WritesPdf(BatchFile file) => file.IsImage || Steps.Any(s => s.ChangesPdf);
 
     /// <summary>Some action renders pages (page images, OCR, redaction), which takes far more memory than the file's size says.</summary>
-    public bool RendersPages => Steps.Any(s => s is OcrStep or RedactPatternsStep or CheckRedactionStep or ExportStep { IsImages: true });
+    public bool RendersPages => Steps.Any(s => s is OcrStep or RedactPatternsStep or CheckRedactionStep or ExportStep { IsImages: true } or RemoveBlankPagesStep or SplitAtBlankPagesStep);
 
     /// <summary>Bates numbers run on across files, or long-term data is asked for (one client, one request at a time): the
     /// files are done one at a time, in order.</summary>
@@ -940,6 +960,21 @@ public static class BatchRunner
                         case AddLongTermStep longTerm:
                             data = await AddLongTermAsync(data, longTerm).ConfigureAwait(false);
                             break;
+                        case RemoveBlankPagesStep:
+                        {
+                            var blanks = await Task.Run(() => FindBlank(data), cancel).ConfigureAwait(false);
+                            if (blanks.Length >= PageCount) _notes.Add(PdfStrings.Batch_AllBlank);
+                            else if (blanks.Length > 0)
+                            {
+                                data = await EditAsync(data, (d, pw) => BlankPages.Remove(d, pw, blanks)).ConfigureAwait(false);
+                                PageCount = Pages(data);
+                                _notes.Add(Loc.Plural(blanks.Length, PdfStrings.Batch_BlankRemoved_One, PdfStrings.Batch_BlankRemoved_Many));
+                            }
+                            break;
+                        }
+                        case SplitAtBlankPagesStep:
+                            await Task.Run(() => SplitAtBlanks(data), cancel).ConfigureAwait(false);
+                            break;
                         default:
                             data = await EditAsync(data, (d, pw) => Apply(step, d, pw)).ConfigureAwait(false);
                             AfterStep(step);
@@ -1277,6 +1312,33 @@ public static class BatchRunner
         {
             using var engine = PdfEngine.Open(data, InputFileTypes.PDF, _password);
             return engine.PageCount;
+        }
+
+        private int[] FindBlank(byte[] data)
+        {
+            using var engine = PdfEngine.Open(data, InputFileTypes.PDF, _password);
+            return BlankPages.Find(engine, progress: new DirectProgress<(int Done, int Total)>(p =>
+                Report(Loc.Format(PdfStrings.Batch_LookingForBlank, Math.Min(p.Done + 1, p.Total), p.Total), (double)p.Done / Math.Max(1, p.Total))), cancel: cancel);
+        }
+
+        /// <summary>A PDF beside the result for each run of pages between blank ones; a file without a blank page gets a note, no parts.</summary>
+        private void SplitAtBlanks(byte[] data)
+        {
+            var blanks = FindBlank(data);
+            var parts = BlankPages.SplitAt(PageCount, blanks);
+            if (blanks.Length == 0 || parts.Count == 0)
+            {
+                _notes.Add(blanks.Length == 0 ? PdfStrings.Batch_NoBlank : PdfStrings.Batch_AllBlank);
+                return;
+            }
+            for (var i = 0; i < parts.Count; i++)
+            {
+                cancel.ThrowIfCancellationRequested();
+                var part = parts[i];
+                _outputs.Add(names.Place(_folder, Loc.Format(PdfStrings.Batch_PartName, _baseName, i + 1) + ".pdf",
+                    temp => File.WriteAllBytes(temp, PageEditor.Extract(data, _password, part))));
+            }
+            _notes.Add(Loc.Plural(parts.Count, PdfStrings.Batch_SplitParts_One, PdfStrings.Batch_SplitParts_Many));
         }
 
         private RecognizedPages Recognize(byte[] data)
