@@ -1,17 +1,29 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
+using InkvoltPrint.Core.Imaging;
 
 namespace InkvoltPrint.Core.Pdf;
 
 /// <summary>A recognised word, in image pixel coordinates (origin top-left).</summary>
 public readonly record struct OcrWord(string Text, double X, double Y, double Width, double Height);
 
-/// <summary>One scanned page: a JPEG plus optional OCR words for an invisible, searchable text layer.</summary>
-public sealed record PdfPage(byte[] Jpeg, int Dpi, IReadOnlyList<OcrWord>? Words = null);
+/// <summary>
+/// One scanned page: a JPEG plus optional OCR words for an invisible, searchable text layer; or, made with
+/// <see cref="BlackAndWhite"/>, a 1-bit image (<see cref="Bits"/>) in place of the JPEG, for a small file.
+/// </summary>
+public sealed record PdfPage(byte[] Jpeg, int Dpi, IReadOnlyList<OcrWord>? Words = null)
+{
+    /// <summary>The page in black and white; when set, it is the page's image and <see cref="Jpeg"/> is unused.</summary>
+    public BitImage? Bits { get; init; }
+
+    /// <summary>A black-and-white page: written as CCITT G4, or as 1-bit Flate when that is smaller (<see cref="PdfWriter.OneBit"/>).</summary>
+    public static PdfPage BlackAndWhite(BitImage bits, int dpi, IReadOnlyList<OcrWord>? words = null) => new([], dpi, words) { Bits = bits };
+}
 
 /// <summary>
-/// Minimal PDF 1.4 writer: JPEG pages embedded as-is (DCTDecode, no re-encode) plus an invisible text layer (render mode 3)
+/// Minimal PDF 1.4 writer: JPEG pages embedded as-is (DCTDecode, no re-encode), black-and-white pages at 1 bit
+/// (<see cref="OneBit"/>), plus an invisible text layer (render mode 3)
 /// so the PDF is searchable and selectable in any script: a CID font with a /ToUnicode map (<see cref="OcrFont"/>), the words
 /// as hex strings of its codes, so nothing a word holds can reach the file's syntax.
 /// </summary>
@@ -44,7 +56,7 @@ public static class PdfWriter
         for (var p = 0; p < pages.Count; p++)
         {
             var page = pages[p];
-            var (pxW, pxH, comps) = JpegInfo(page.Jpeg);
+            var (pxW, pxH, comps) = page.Bits is { } bits ? (bits.Width, bits.Height, 1) : JpegInfo(page.Jpeg);
             var scale = 72.0 / page.Dpi;
             double ptW = pxW * scale, ptH = pxH * scale;
             int pageId = pageIds[p], imgId = pageId + 1, contentId = pageId + 2;
@@ -57,14 +69,43 @@ public static class PdfWriter
 
             w.Obj(pageId, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(ptW)} {F(ptH)}] " +
                           $"/Resources << /XObject << /Im0 {imgId} 0 R >>{(layer.Length > 0 ? $" /Font << /F1 {fontId} 0 R >>" : "")} >> /Contents {contentId} 0 R >>");
-            var cs = comps switch { 1 => "/DeviceGray", 4 => "/DeviceCMYK", _ => "/DeviceRGB" };
-            w.Stream(imgId, $"<< /Type /XObject /Subtype /Image /Width {pxW} /Height {pxH} /ColorSpace {cs} " +
-                            $"/BitsPerComponent 8 /Filter /DCTDecode /Length {page.Jpeg.Length} >>", page.Jpeg);
+            if (page.Bits is { } oneBit)
+            {
+                var (filter, data) = OneBit(oneBit);
+                w.Stream(imgId, $"<< /Type /XObject /Subtype /Image /Width {pxW} /Height {pxH} /ColorSpace /DeviceGray " +
+                                $"/BitsPerComponent 1 {filter} /Length {data.Length} >>", data);
+            }
+            else
+            {
+                var cs = comps switch { 1 => "/DeviceGray", 4 => "/DeviceCMYK", _ => "/DeviceRGB" };
+                w.Stream(imgId, $"<< /Type /XObject /Subtype /Image /Width {pxW} /Height {pxH} /ColorSpace {cs} " +
+                                $"/BitsPerComponent 8 /Filter /DCTDecode /Length {page.Jpeg.Length} >>", page.Jpeg);
+            }
             w.Stream(contentId, $"<< /Length {contentBytes.Length} >>", contentBytes);
         }
         if (!font.IsEmpty) font.Write(w.Obj, w.Stream, fontId, fontId + 1);
 
         w.Finish(rootId: 1, infoId: infoId);
+    }
+
+    /// <summary>
+    /// A black-and-white image's stream for a /DeviceGray image at 1 bit: the filter entries (with their parameters) and the
+    /// data, CCITT G4 (<see cref="CcittG4"/>) or Flate of the rows (0 black), whichever is smaller. G4 wins on text; Flate
+    /// can on a page of fine, even patterns (a halftone), where G4's runs are short.
+    /// </summary>
+    public static (string Filter, byte[] Data) OneBit(BitImage image)
+    {
+        var g4 = CcittG4.Encode(image);
+        byte[] flate;
+        using (var ms = new MemoryStream())
+        {
+            using (var z = new System.IO.Compression.ZLibStream(ms, System.IO.Compression.CompressionLevel.Optimal, leaveOpen: true))
+                z.Write(image.Inverted());
+            flate = ms.ToArray();
+        }
+        return g4.Length <= flate.Length
+            ? ($"/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns {image.Width} /Rows {image.Height} >>", g4)
+            : ("/Filter /FlateDecode", flate);
     }
 
     /// <summary>
