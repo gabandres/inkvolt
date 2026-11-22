@@ -35,7 +35,7 @@ namespace InkvoltPdf.App;
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
 /// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare|suggest] ·
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
-/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · translate Language [pages] · translatestate ·
+/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · aiconversation · aisave last|all [word|pdf|comment [path]] · translate Language [pages] · translatestate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
@@ -1331,6 +1331,16 @@ internal static class DevScript
                 break;
             case "aiexplain": await tab!.AiExplainSelection(); log.Add(tab.DevAiState()); break;
             case "aistate": log.Add(tab!.DevAiState()); break;
+            case "aiconversation": log.Add(tab!.DevAiConversation()); break;
+            case "aisave":
+            {
+                // aisave last|all [word|pdf|comment [path]]: Save AI Answer (no target: its dialog, answer it with "later")
+                var a = arg.Split(' ', 3);
+                IReadOnlyList<AiExchange>? chosen = a[0] == "all" ? null : tab!.LastAiAnswer is { } last ? [last] : [];
+                AiSaveTarget? target = a.Length > 1 ? a[1] switch { "word" => AiSaveTarget.Word, "pdf" => AiSaveTarget.Pdf, _ => AiSaveTarget.Comment } : null;
+                log.Add($"aisave: {await tab!.SaveAiAnswers(chosen, target, a.Length > 2 ? a[2] : null)}");
+                break;
+            }
             // Translate: translate Language [pages] (the whole job; answer its windows with "later") · translatestate
             case "translate":
             {

@@ -59,6 +59,8 @@ public partial class MainWindow
             if (AiReady()) t.ShowAiPane();
         }, t => t.PageView.PageCount > 0);
         Bind(Cmd.AiExplain, t => _ = t.AiExplainSelection(), t => t.PageView.HasSelection && !t.IsAiBusy);
+        Bind(Cmd.AiSaveAnswer, t => { if (t.LastAiAnswer is { } last) _ = t.SaveAiAnswers([last]); }, t => t.HasAiAnswers);
+        Bind(Cmd.AiSaveConversation, t => _ = t.SaveAiAnswers(null), t => t.HasAiAnswers);
         Bind(Cmd.AiTranslate, t =>
         {
             if (!AiReady()) return;

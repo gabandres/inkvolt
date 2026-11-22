@@ -12064,4 +12064,70 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Redact_SuggestFailed" xml:space="preserve">
     <value>No hay sugerencias</value>
   </data>
+  <data name="Cmd_AiSaveAnswer" xml:space="preserve">
+    <value>_Guardar la respuesta de IA…</value>
+  </data>
+  <data name="Cmd_AiSaveConversation" xml:space="preserve">
+    <value>Guardar la _conversación con la IA…</value>
+  </data>
+  <data name="Ai_SaveConversation" xml:space="preserve">
+    <value>Guardar la conversación</value>
+  </data>
+  <data name="Ai_SaveAnswer" xml:space="preserve">
+    <value>Guardar esta respuesta</value>
+  </data>
+  <data name="TabAi_NothingToSave" xml:space="preserve">
+    <value>Todavía no hay ninguna respuesta de IA que guardar: primero pregunta, resume o explica algo.</value>
+  </data>
+  <data name="TabAi_SaveAnswerTitle" xml:space="preserve">
+    <value>Guardar la respuesta de IA</value>
+  </data>
+  <data name="TabAi_SaveConversationTitle" xml:space="preserve">
+    <value>Guardar la conversación con la IA</value>
+  </data>
+  <data name="TabAi_SaveAnswerNote" xml:space="preserve">
+    <value>La respuesta a «{0}».</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_One" xml:space="preserve">
+    <value>{0} respuesta, con lo que se preguntó.</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_Many" xml:space="preserve">
+    <value>{0} respuestas, cada una con lo que se preguntó.</value>
+  </data>
+  <data name="TabAi_SaveAs" xml:space="preserve">
+    <value>Guardar como</value>
+  </data>
+  <data name="TabAi_SaveAsWord" xml:space="preserve">
+    <value>Un documento de Word (.docx)</value>
+  </data>
+  <data name="TabAi_SaveAsPdf" xml:space="preserve">
+    <value>Un PDF</value>
+  </data>
+  <data name="TabAi_SaveAsComment" xml:space="preserve">
+    <value>Un comentario en la página {0} de este documento</value>
+  </data>
+  <data name="TabAi_SaveMarked" xml:space="preserve">
+    <value>Indica que lo escribió un modelo de IA, y cuál; puede contener errores. Un comentario va en la primera página que cita la respuesta.</value>
+  </data>
+  <data name="TabAi_SaveCommentUndo" xml:space="preserve">
+    <value>Agregar la respuesta de IA como comentario</value>
+  </data>
+  <data name="TabAi_SavedComment" xml:space="preserve">
+    <value>La respuesta es ahora un comentario en la página {0}.</value>
+  </data>
+  <data name="TabAi_SavedFileName" xml:space="preserve">
+    <value>{0} - respuestas de IA</value>
+  </data>
+  <data name="TabAi_CantSave" xml:space="preserve">
+    <value>No se guardó</value>
+  </data>
+  <data name="TabAi_CantSaveBody" xml:space="preserve">
+    <value>No se pudo escribir el archivo. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo.</value>
+  </data>
+  <data name="TabAi_SavedFile" xml:space="preserve">
+    <value>Se guardó {0}.</value>
+  </data>
+  <data name="TabAi_OpenSaved" xml:space="preserve">
+    <value>Abrir</value>
+  </data>
 </root>

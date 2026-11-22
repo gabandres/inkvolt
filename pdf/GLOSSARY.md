@@ -194,3 +194,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   proposals are searched for as phrases (`SearchOptions`, `RedactionSearch.Find`), each hit **labelled** by its kind
   (`RedactionMatch.Label`), and go the Redact Patterns run's way: the review list, apply, read-back with the same phrases,
   the check and the report.
+- **AI conversation** (`Core/AiAnswers.cs`: `AiConversation`, `AiExchange`; `DocumentSession.AiConversation`): the AI
+  assistant's answers about one document (each an **exchange**: what the pane showed as asked, what a follow-up sends as
+  that turn, the answer, the model, when), kept with its document session until cleared or closed. Follow-up questions
+  send it again (`Turns`); **Save an AI answer** (`AiAnswerExport`) writes one exchange or all of them to Word or a PDF,
+  or one as a note on the first page it cites, always naming the model and saying it may be wrong.

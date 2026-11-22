@@ -12067,4 +12067,70 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Redact_SuggestFailed" xml:space="preserve">
     <value>No suggestions</value>
   </data>
+  <data name="Cmd_AiSaveAnswer" xml:space="preserve">
+    <value>Save AI _Answer…</value>
+  </data>
+  <data name="Cmd_AiSaveConversation" xml:space="preserve">
+    <value>Save AI C_onversation…</value>
+  </data>
+  <data name="Ai_SaveConversation" xml:space="preserve">
+    <value>Save the conversation</value>
+  </data>
+  <data name="Ai_SaveAnswer" xml:space="preserve">
+    <value>Save this answer</value>
+  </data>
+  <data name="TabAi_NothingToSave" xml:space="preserve">
+    <value>No AI answer to save yet: ask, summarize or explain first.</value>
+  </data>
+  <data name="TabAi_SaveAnswerTitle" xml:space="preserve">
+    <value>Save AI answer</value>
+  </data>
+  <data name="TabAi_SaveConversationTitle" xml:space="preserve">
+    <value>Save AI conversation</value>
+  </data>
+  <data name="TabAi_SaveAnswerNote" xml:space="preserve">
+    <value>The answer to “{0}”.</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_One" xml:space="preserve">
+    <value>{0} answer, with what was asked.</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_Many" xml:space="preserve">
+    <value>{0} answers, each with what was asked.</value>
+  </data>
+  <data name="TabAi_SaveAs" xml:space="preserve">
+    <value>Save as</value>
+  </data>
+  <data name="TabAi_SaveAsWord" xml:space="preserve">
+    <value>A Word document (.docx)</value>
+  </data>
+  <data name="TabAi_SaveAsPdf" xml:space="preserve">
+    <value>A PDF</value>
+  </data>
+  <data name="TabAi_SaveAsComment" xml:space="preserve">
+    <value>A comment on page {0} of this document</value>
+  </data>
+  <data name="TabAi_SaveMarked" xml:space="preserve">
+    <value>It says it was written by an AI model, and which one; it may be wrong. A comment goes on the first page the answer cites.</value>
+  </data>
+  <data name="TabAi_SaveCommentUndo" xml:space="preserve">
+    <value>Add AI answer as comment</value>
+  </data>
+  <data name="TabAi_SavedComment" xml:space="preserve">
+    <value>The answer is now a comment on page {0}.</value>
+  </data>
+  <data name="TabAi_SavedFileName" xml:space="preserve">
+    <value>{0} - AI answers</value>
+  </data>
+  <data name="TabAi_CantSave" xml:space="preserve">
+    <value>Not saved</value>
+  </data>
+  <data name="TabAi_CantSaveBody" xml:space="preserve">
+    <value>The file couldn't be written. Check that the folder exists and the file isn't open in another app, then try again.</value>
+  </data>
+  <data name="TabAi_SavedFile" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="TabAi_OpenSaved" xml:space="preserve">
+    <value>Open</value>
+  </data>
 </root>

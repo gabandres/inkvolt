@@ -265,6 +265,9 @@ public static class Cmd
     public static readonly RoutedUICommand AiAsk = Make(Strings.Cmd_AiAsk, nameof(AiAsk));
     public static readonly RoutedUICommand AiExplain = Make(Strings.Cmd_AiExplain, nameof(AiExplain));
     public static readonly RoutedUICommand AiTranslate = Make(Strings.Cmd_AiTranslate, nameof(AiTranslate));
+    // Save an AI answer (DocumentTab.AiSave): the last answer or the conversation, to Word, a PDF or a comment
+    public static readonly RoutedUICommand AiSaveAnswer = Make(Strings.Cmd_AiSaveAnswer, nameof(AiSaveAnswer));
+    public static readonly RoutedUICommand AiSaveConversation = Make(Strings.Cmd_AiSaveConversation, nameof(AiSaveConversation));
     public static readonly RoutedUICommand AiSettings = Make(Strings.Cmd_AiSettings, nameof(AiSettings));
 
     // Read Aloud (Ctrl+Shift+Y, as in Acrobat)

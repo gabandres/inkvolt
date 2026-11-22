@@ -7285,4 +7285,14 @@
     <value>Names and more, found by your AI or your list</value>
     <comment>The command bar's Protect group</comment>
   </data>
+  <data name="Ai_SavedTitle" xml:space="preserve">
+    <value>AI answers about {0}</value>
+    <comment>The title of a saved AI answer (Word or PDF); {0} is the document's name</comment>
+  </data>
+  <data name="Ai_SavedNote" xml:space="preserve">
+    <value>Written by an AI model ({0}) on {1}; it may be wrong. Check it against the document.</value>
+  </data>
+  <data name="Ai_NothingToSave" xml:space="preserve">
+    <value>There's no AI answer to save.</value>
+  </data>
 </root>

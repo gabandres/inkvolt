@@ -332,6 +332,9 @@
                                         <MenuItem Command="app:Cmd.AiExplain" />
                                         <MenuItem Command="app:Cmd.AiTranslate" />
                                         <Separator />
+                                        <MenuItem Command="app:Cmd.AiSaveAnswer" />
+                                        <MenuItem Command="app:Cmd.AiSaveConversation" />
+                                        <Separator />
                                         <MenuItem Command="app:Cmd.AiSettings" />
                                     </MenuItem>
                                 </MenuItem>

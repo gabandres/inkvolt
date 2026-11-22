@@ -743,7 +743,12 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   parts that share the most words with the question go), **Explain selection**. Answers stream in, are marked
   "AI-generated, may be wrong", have a Copy button, and their page citations ([p. 3]) are links to the pages.
   **Suggest Redactions** (Pro) asks the same endpoint what to redact, its send window always shown (see Redact by Pattern
-  above).
+  above). **Save an answer**: each answer's Save button, the pane's Save (the whole conversation), or Review › AI Assistant ›
+  Save AI Answer… / Save AI Conversation… save it as a Word document or a PDF (a title, each question as a heading, the
+  answer's headings, bullets, bold and [p. N] citations, and a line naming the model and saying it may be wrong; the PDF
+  opens in a tab), or put one answer into the document as a note on the first page it cites (one undo step). The
+  conversation (summaries, questions, explanations) is kept with the document while it is open, through edits, until
+  you clear it (Core: `AiConversation` on `DocumentSession`, `AiAnswerExport`).
   **What is sent, where**: before each send a window shows the destination (host and model, and in amber when the text
   leaves this PC), how much (characters, an estimate of tokens, the number of requests) and, expandable, exactly the
   text of every message. Only the text you asked about (with Ask, also the conversation's earlier questions and
@@ -818,7 +823,7 @@ Make Accessible (the plan, the title and language window, writing it) + `Documen
 pane, alternate text, the AI suggestion) + `Viewer/PageViewer.ReadingOrder.cs` (the numbered boxes) (Core: `AutoTag.cs`:
 the plan from `DocLayout`; `AutoTag.Write.cs`: marked content, the structure tree; `AutoTag.Language.cs`); `CommentFileActions.cs` Export / Import / Summarize Comments; `FormDataActions.cs` Export / Import Form Data and Fill Forms from CSV |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner: eSCL, WIA and TWAIN scanners, blank pages, presets; shared logic in `InkvoltPrint.Core/Suite/ScanRun`, `ScannerList`, `Wia`, `Twain`), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
-| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain), `RedactionSuggestions` + `RedactionTerms` (Suggest Redactions). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`, `DocumentTab.RedactSuggest.cs` + `RedactSuggestActions.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `redact-suggest names,orgs,terms` (`redactterms a;b`), `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
+| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain), `RedactionSuggestions` + `RedactionTerms` (Suggest Redactions), `AiAnswers.cs` (`AiConversation`, `AiAnswerExport`: Save AI Answer). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`, `DocumentTab.RedactSuggest.cs` + `RedactSuggestActions.cs`, `DocumentTab.AiSave.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `redact-suggest names,orgs,terms` (`redactterms a;b`), `aiconversation`, `aisave last\|all word\|pdf\|comment [path]`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
 `InkvoltPdf.App` references the libraries it shares with Inkvolt Print, in `../shared` (MIT): `InkvoltPrint.Core` (eSCL,
