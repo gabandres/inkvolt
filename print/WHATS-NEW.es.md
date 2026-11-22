@@ -6,6 +6,8 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Escanear con tu teléfono, sin necesidad de escáner: Escanear con tu teléfono en la barra lateral (o en la pestaña Escanear de un escáner) muestra un código; apunta la cámara del teléfono hacia él y toma una foto de cada página en su navegador. Sin app y sin Internet: las fotos llegan directamente a este PC por tu Wi-Fi, cada página enderezada y con su tamaño como un escaneo, lista para revisar y guardar, con tu configuración de escaneo o un ajuste.
+- Escanear con una cámara: Usar una cámara, junto a Usar tu teléfono, muestra tu cámara web o de documentos en vivo; Capturar página toma cada página, enderezada y con su tamaño como un escaneo, lista para revisar y guardar.
 
 ## 1.8.0
 - Ambas caras en un alimentador que escanea una sola cara: marca Ambas caras: dar la vuelta a la pila (o la opción del ajuste), escanea los anversos, dale la vuelta a la pila cuando se te pida y escanea los reversos. Las páginas salen en orden; si la bandeja de tu escáner invierte la pila, Reversos en el otro orden lo corrige, y la revisión te avisa cuando los anversos y los reversos no coinciden.
@@ -16,8 +18,6 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 - Doble cara en una impresora que imprime por un solo lado: Imprimir un PDF, En lote y Copiar ofrecen Imprimir a doble cara a mano. Se imprimen los anversos, luego la aplicación te muestra cómo volver a poner la pila para tu impresora (te pregunta hacia dónde salió la cara impresa) e imprime los reversos.
 - Imprimir el portapapeles: en la pestaña Imprimir, Imprimir el portapapeles imprime el texto que copiaste (colocado en páginas, con las opciones de siempre), una imagen copiada a través de Fotos, o los archivos que copiaste en el Explorador de archivos.
 - Escaneos recientes: Escaneos recientes… en la pestaña Escanear muestra tus últimos escaneos guardados de todos los escáneres, para abrirlos, mostrarlos en su carpeta, enviarlos de nuevo por correo o imprimirlos. La lista se queda en este PC.
-- Escanear con tu teléfono, sin necesidad de escáner: Escanear con tu teléfono en la barra lateral (o en la pestaña Escanear de un escáner) muestra un código; apunta la cámara del teléfono hacia él y toma una foto de cada página en su navegador. Sin app y sin Internet: las fotos llegan directamente a este PC por tu Wi-Fi, cada página enderezada y con su tamaño como un escaneo, lista para revisar y guardar, con tu configuración de escaneo o un ajuste.
-- Escanear con una cámara: Usar una cámara, junto a Usar tu teléfono, muestra tu cámara web o de documentos en vivo; Capturar página toma cada página, enderezada y con su tamaño como un escaneo, lista para revisar y guardar.
 
 ## 1.7.0
 - Imprime en una impresora de red que no está configurada en Windows: Imprimir un PDF, Copiar e Imprimir fotos ahora envían las páginas directamente a la impresora por la red, en su propio formato, sin controlador y sin administrador. Si Windows tiene una cola para ella, la cola sigue siendo la opción predeterminada e Imprimir también ofrece "Imprimir directamente en la impresora". Ves imprimirse cada página, y la tarjeta de la cola de impresión muestra los trabajos de la propia impresora.
