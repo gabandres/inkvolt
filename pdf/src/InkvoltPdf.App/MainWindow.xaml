@@ -131,6 +131,7 @@
                                     <MenuItem Command="app:Cmd.Print" />
                                     <MenuItem Command="app:Cmd.PrintWithOptions" Header="{x:Static loc:Strings.Main_MenuPrintWithOptions}" />
                                     <MenuItem Command="app:Cmd.Scan" />
+                                    <MenuItem Command="app:Cmd.ScanBacks" />
                                     <MenuItem x:Name="InkvoltPrintMenu" Header="{x:Static loc:Strings.Main_MenuPrinterSettings}" Click="OnOpenInkvoltPrint" Visibility="Collapsed" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuExport}">
                                         <MenuItem Command="app:Cmd.ExportWord" Header="{x:Static loc:Strings.Main_MenuExportWord}" />
@@ -242,6 +243,8 @@
                                     <MenuItem Command="app:Cmd.InsertPages" />
                                     <MenuItem Command="app:Cmd.InsertBlank" />
                                     <MenuItem Command="app:Cmd.InsertFromScanner" />
+                                    <MenuItem Command="app:Cmd.ScanBacks" />
+                                    <MenuItem Command="app:Cmd.InterleavePages" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.DeletePages" />
                                     <MenuItem Command="app:Cmd.DeleteSelected" />

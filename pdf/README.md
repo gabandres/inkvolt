@@ -501,6 +501,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   default shortcut, since it changes the file), delete, insert from file or blank,
   extract (new tab, one file, or a file per page), split (by count, ranges, or bookmarks), move, duplicate, reverse,
   crop/uncrop, combine files. Drag thumbnails onto another tab to copy pages; drop PDFs onto thumbnails to insert them.
+- **Interleave Pages** (Organize menu, the Organize view's right-click, the bar's Organize group): the fronts and backs of
+  two-sided sheets scanned one side at a time, as two ranges of the document or as the document (fronts) and another PDF
+  (backs), the backs reversed (a stack turned over) or not; uneven counts are asked about and the pages left over follow
+  (`PageEditor.InterleaveOrder`). **Scan the Backs** (File, Organize, Scan & OCR) scans the backs into the document after
+  their fronts, keeping blank backs so each stays beside its front. One undo step each.
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
   the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
   by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can

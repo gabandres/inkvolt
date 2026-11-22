@@ -25,7 +25,7 @@ public sealed record PdfSource(byte[] Data, string? Password, string Name);
 /// bring their bookmarks, links and form fields along (never hidden copies of pages they lead to). Page labels follow
 /// their pages.
 /// </summary>
-public static class PageEditor
+public static partial class PageEditor
 {
     public static byte[] Delete(byte[] data, string? password, IReadOnlyCollection<int> pages)
     {
@@ -45,17 +45,22 @@ public static class PageEditor
         {
             if (order.Count != doc.PageCount || order.Distinct().Count() != order.Count || order.Any(i => i < 0 || i >= doc.PageCount))
                 throw new ArgumentException(PdfStrings.Page_OrderPermutation, nameof(order));
-
-            var current = Enumerable.Range(0, doc.PageCount).ToList();
-            for (var target = 0; target < order.Count; target++)
-            {
-                var from = current.IndexOf(order[target]);
-                if (from == target) continue;
-                doc.Pages.MovePage(from, target);
-                current.RemoveAt(from);
-                current.Insert(target, order[target]);
-            }
+            ApplyOrder(doc, order);
         });
+    }
+
+    /// <summary>Moves the pages into <paramref name="order"/>, a permutation of 0..n-1 already checked.</summary>
+    private static void ApplyOrder(PdfDocument doc, IReadOnlyList<int> order)
+    {
+        var current = Enumerable.Range(0, doc.PageCount).ToList();
+        for (var target = 0; target < order.Count; target++)
+        {
+            var from = current.IndexOf(order[target]);
+            if (from == target) continue;
+            doc.Pages.MovePage(from, target);
+            current.RemoveAt(from);
+            current.Insert(target, order[target]);
+        }
     }
 
     /// <summary>The page order after moving <paramref name="pages"/> so they sit before original page <paramref name="before"/> (count = end).</summary>

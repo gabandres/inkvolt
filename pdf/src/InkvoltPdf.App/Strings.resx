@@ -5146,6 +5146,72 @@ Modified {1:g}</value>
     <value>Reverse page order</value>
     <comment>Edit name</comment>
   </data>
+  <data name="Cmd_InterleavePages" xml:space="preserve">
+    <value>Inter_leave Pages…</value>
+  </data>
+  <data name="Cmd_ScanBacks" xml:space="preserve">
+    <value>Scan the _Backs…</value>
+  </data>
+  <data name="Organize_InterleaveTitle" xml:space="preserve">
+    <value>Interleave Pages</value>
+  </data>
+  <data name="Organize_InterleaveButton" xml:space="preserve">
+    <value>Interleave</value>
+  </data>
+  <data name="Organize_InterleaveNote" xml:space="preserve">
+    <value>For two-sided sheets scanned one side at a time: the fronts, then the backs. The pages become front 1, back 1, front 2, back 2, and so on.</value>
+  </data>
+  <data name="Organize_InterleaveBacksFrom" xml:space="preserve">
+    <value>The backs are</value>
+  </data>
+  <data name="Organize_InterleaveThisDoc" xml:space="preserve">
+    <value>Pages of this document</value>
+  </data>
+  <data name="Organize_InterleaveOtherFile" xml:space="preserve">
+    <value>In another PDF (this document has the fronts)</value>
+  </data>
+  <data name="Organize_InterleaveFronts" xml:space="preserve">
+    <value>Fronts (pages)</value>
+  </data>
+  <data name="Organize_InterleaveBacks" xml:space="preserve">
+    <value>Backs (pages)</value>
+  </data>
+  <data name="Organize_InterleaveReversed" xml:space="preserve">
+    <value>The backs are in reverse order (the stack was turned over to scan them)</value>
+  </data>
+  <data name="Organize_InterleavePick" xml:space="preserve">
+    <value>Choose the PDF with the backs</value>
+  </data>
+  <data name="Organize_InterleaveUnevenTitle" xml:space="preserve">
+    <value>The two sides don't match</value>
+  </data>
+  <data name="Organize_InterleaveUnevenBody" xml:space="preserve">
+    <value>There are {0} fronts and {1} backs. The pages left over go after the others.</value>
+  </data>
+  <data name="Organize_InterleaveAnyway" xml:space="preserve">
+    <value>Interleave anyway</value>
+  </data>
+  <data name="Organize_EditInterleave" xml:space="preserve">
+    <value>Interleave pages</value>
+    <comment>Edit name</comment>
+  </data>
+  <data name="Scan_BacksTitle" xml:space="preserve">
+    <value>Scan the Backs</value>
+  </data>
+  <data name="Scan_BacksNote" xml:space="preserve">
+    <value>Put the stack in again to scan the backs of this document's pages. Each back goes after its front. Blank backs are kept, so each lands next to its front.</value>
+  </data>
+  <data name="Scan_BacksFinish" xml:space="preserve">
+    <value>Interleave Pages</value>
+  </data>
+  <data name="Scan_BacksLabel_One" xml:space="preserve">
+    <value>Interleave {0} scanned back</value>
+    <comment>An edit's name</comment>
+  </data>
+  <data name="Scan_BacksLabel_Many" xml:space="preserve">
+    <value>Interleave {0} scanned backs</value>
+    <comment>An edit's name</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>
     <comment>Dialog title</comment>

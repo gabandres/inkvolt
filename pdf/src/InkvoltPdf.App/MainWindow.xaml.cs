@@ -1928,6 +1928,8 @@ public partial class MainWindow : Window
         BindEdit(Cmd.DuplicatePages, Organize.Duplicate, Organize.HasSelection);
         BindEdit(Cmd.ReversePages, Organize.Reverse, t => t.PageView.PageCount > 1);
         BindEdit(Cmd.CropPages, t => Organize.Crop(this, t));
+        BindEdit(Cmd.InterleavePages, t => Organize.Interleave(this, t));
+        BindEdit(Cmd.ScanBacks, t => Scanning.ScanBacks(this, t));
 
         // Review: panes, text markup, notes, redaction
         Bind(Cmd.ShowComments, t => t.ShowReviewPane(ReviewPane.Comments), t => t.Session.IsPdf);

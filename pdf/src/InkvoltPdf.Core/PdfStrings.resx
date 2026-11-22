@@ -4990,6 +4990,12 @@
   <data name="Page_NoneSelected" xml:space="preserve">
     <value>No pages selected.</value>
   </data>
+  <data name="Page_InterleaveEmpty" xml:space="preserve">
+    <value>Choose pages for both the fronts and the backs.</value>
+  </data>
+  <data name="Page_InterleaveOverlap" xml:space="preserve">
+    <value>A page can't be both a front and a back.</value>
+  </data>
   <data name="Page_NothingToCombine" xml:space="preserve">
     <value>Nothing to combine.</value>
   </data>
@@ -7115,6 +7121,12 @@
   <data name="Bar_ScanInsertDesc" xml:space="preserve">
     <value>Scanned pages added to this PDF</value>
     <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanBacksDesc" xml:space="preserve">
+    <value>Scan the backs, put after their fronts</value>
+  </data>
+  <data name="Bar_InterleaveDesc" xml:space="preserve">
+    <value>Fronts and backs scanned apart, in order</value>
   </data>
   <data name="Bar_SuspectWordsDesc" xml:space="preserve">
     <value>Check the words OCR wasn't sure of</value>

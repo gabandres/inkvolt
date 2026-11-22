@@ -4990,6 +4990,12 @@
   <data name="Page_NoneSelected" xml:space="preserve">
     <value>No hay páginas seleccionadas.</value>
   </data>
+  <data name="Page_InterleaveEmpty" xml:space="preserve">
+    <value>Elige páginas para los anversos y para los reversos.</value>
+  </data>
+  <data name="Page_InterleaveOverlap" xml:space="preserve">
+    <value>Una página no puede ser anverso y reverso a la vez.</value>
+  </data>
   <data name="Page_NothingToCombine" xml:space="preserve">
     <value>No hay nada que combinar.</value>
   </data>
@@ -7115,6 +7121,12 @@
   <data name="Bar_ScanInsertDesc" xml:space="preserve">
     <value>Páginas escaneadas agregadas a este PDF</value>
     <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanBacksDesc" xml:space="preserve">
+    <value>Escanea los reversos y ponlos tras sus anversos</value>
+  </data>
+  <data name="Bar_InterleaveDesc" xml:space="preserve">
+    <value>Anversos y reversos escaneados aparte, en orden</value>
   </data>
   <data name="Bar_SuspectWordsDesc" xml:space="preserve">
     <value>Revisa las palabras dudosas del OCR</value>

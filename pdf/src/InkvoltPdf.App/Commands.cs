@@ -157,6 +157,8 @@ public static class Cmd
     public static readonly RoutedUICommand DuplicatePages = Make(Strings.Cmd_DuplicatePages, nameof(DuplicatePages));
     public static readonly RoutedUICommand CropPages = Make(Strings.Cmd_CropPages, nameof(CropPages));
     public static readonly RoutedUICommand ReversePages = Make(Strings.Cmd_ReversePages, nameof(ReversePages));
+    public static readonly RoutedUICommand InterleavePages = Make(Strings.Cmd_InterleavePages, nameof(InterleavePages));
+    public static readonly RoutedUICommand ScanBacks = Make(Strings.Cmd_ScanBacks, nameof(ScanBacks));
 
     // Organize: text and images written into the pages (see PageMarkActions)
     public static readonly RoutedUICommand AddHeaderFooter = Make(Strings.Cmd_AddHeaderFooter, nameof(AddHeaderFooter));

@@ -43,6 +43,23 @@ internal static class Scanning
         await tab.RunEdit(Loc.Plural(dlg.PageCount, Strings.Scan_InsertLabel_One, Strings.Scan_InsertLabel_Many), (d, pw) => PageEditor.Insert(d, pw, source, null, before), before);
         if (dlg.SuspectWords > 0) tab.OfferSuspectWords(dlg.SuspectWords);
     }
+
+    /// <summary>
+    /// Scan the Backs: the document holds the fronts of a stack of two-sided sheets; the backs scanned now go after their
+    /// fronts (<see cref="PageEditor.InterleaveWith"/>), as one undo step.
+    /// </summary>
+    public static async Task ScanBacks(MainWindow host, DocumentTab tab)
+    {
+        if (!await tab.SettleAsync()) return;
+        var name = Loc.Format(Strings.Scan_FileName, DateTime.Now);
+        var dlg = new ScanDialog(host, name, insert: null, backs: true);
+        if (dlg.ShowDialog() != true || dlg.Result is not { } pdf || !await tab.SettleAsync()) return;
+        if (!Organize.ConfirmUneven(host, tab.PageView.PageCount, dlg.PageCount)) return;
+        var source = new PdfSource(pdf, null, name);
+        var reversed = dlg.BacksReversed;
+        await tab.RunEdit(Loc.Plural(dlg.PageCount, Strings.Scan_BacksLabel_One, Strings.Scan_BacksLabel_Many), (d, pw) => PageEditor.InterleaveWith(d, pw, source, reversed), 0);
+        if (dlg.SuspectWords > 0) tab.OfferSuspectWords(dlg.SuspectWords);
+    }
 }
 
 /// <summary>
@@ -90,6 +107,8 @@ internal sealed class ScanDialog : Window
     private readonly CheckBox _ocr = new() { Content = Strings.Scan_Ocr, Margin = new Thickness(0, 14, 0, 0) };
     private readonly CheckBox _skipBlank = new() { Content = Strings.Scan_SkipBlank, Margin = new Thickness(0, 8, 0, 0) };
     private readonly PositionPicker? _position;
+    private readonly bool _backs;
+    private readonly CheckBox _reversed = new() { Content = new TextBlock { Text = Strings.Organize_InterleaveReversed, TextWrapping = TextWrapping.Wrap }, IsChecked = true, Margin = new Thickness(0, 8, 0, 0) };
     private readonly WrapPanel _thumbs = new();
     private readonly TextBlock _pageCount = new() { FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _removeLast = new() { Content = Strings.Scan_RemoveLast, Padding = new Thickness(10, 3, 10, 3), HorizontalAlignment = HorizontalAlignment.Right };
@@ -119,13 +138,18 @@ internal sealed class ScanDialog : Window
     /// <summary>Insert mode: the insertion index chosen (0..page count).</summary>
     public int InsertBefore { get; private set; }
 
+    /// <summary>Backs mode: the backs are in the reverse order of their fronts (the stack was turned over).</summary>
+    public bool BacksReversed => _reversed.IsChecked == true;
+
     /// <param name="insert">Insert mode: the document's page count and current page; null scans into a new document.</param>
-    public ScanDialog(Window owner, string documentName, (int Count, int Current)? insert)
+    /// <param name="backs">Backs mode (Scan the Backs): the pages go between the document's own, so none is skipped as blank.</param>
+    public ScanDialog(Window owner, string documentName, (int Count, int Current)? insert, bool backs = false)
     {
         _title = Path.GetFileNameWithoutExtension(documentName);
         _insert = insert;
+        _backs = backs;
         Owner = owner;
-        Title = insert is null ? Strings.Scan_Scan : Strings.Scan_InsertTitle;
+        Title = backs ? Strings.Scan_BacksTitle : insert is null ? Strings.Scan_Scan : Strings.Scan_InsertTitle;
         Width = 560;
         SizeToContent = SizeToContent.Height;
         ResizeMode = ResizeMode.NoResize;
@@ -142,7 +166,7 @@ internal sealed class ScanDialog : Window
         _scannerState.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _twainNote.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         _savePreset.ToolTip = Strings.Scan_SavePresetTip;
-        _finish.Content = insert is null ? Strings.Scan_OpenNew : Strings.Scan_InsertPages;
+        _finish.Content = backs ? Strings.Scan_BacksFinish : insert is null ? Strings.Scan_OpenNew : Strings.Scan_InsertPages;
         _finish.SetResourceReference(StyleProperty, "AccentButtonStyle");
         _scan.SetResourceReference(StyleProperty, "AccentButtonStyle");
         _scan.IsDefault = true;
@@ -189,9 +213,16 @@ internal sealed class ScanDialog : Window
             ? Strings.Scan_OcrTip
             : PageOcr.Unavailable;
         body.Children.Add(_ocr);
-        _skipBlank.IsChecked = AppSettings.Current.ScanSkipBlank;
+        _skipBlank.IsChecked = AppSettings.Current.ScanSkipBlank && !backs;
         _skipBlank.ToolTip = Strings.Scan_SkipBlankTip;
         body.Children.Add(_skipBlank);
+        if (backs)
+        {
+            // A back left out would put every back after it next to the wrong front: blank ones are kept (Remove Blank Pages after).
+            _skipBlank.IsEnabled = false;
+            body.Children.Add(new TextBlock { Text = Strings.Scan_BacksNote, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0), Style = (Style)Application.Current.FindResource("Caption") });
+            body.Children.Add(_reversed);
+        }
 
         if (insert is { } ins)
         {
@@ -548,7 +579,7 @@ internal sealed class ScanDialog : Window
         var s = AppSettings.Current;
         (s.ScanDevice, s.ScanSource, s.ScanColor, s.ScanBlackAndWhite, s.ScanResolution, s.ScanPageSize, s.ScanOcr, s.ScanSkipBlank) =
             (item.Key, source.Value.ToString(), color == ScanColor.Color, color == ScanColor.BlackAndWhite, dpi.Value, size?.Key ?? "",
-             _ocr.IsChecked == true, skipBlank);
+             _ocr.IsChecked == true, _backs ? s.ScanSkipBlank : skipBlank); // the backs keep blank pages: not a choice to remember
         s.Save();
 
         var request = ScanChoices.ToRequest(source.Value, color, dpi.Value, size);
@@ -768,7 +799,7 @@ internal sealed class ScanDialog : Window
         }
         FillOptions();
         _ocr.IsChecked = plan.Ocr;
-        _skipBlank.IsChecked = preset.SkipBlank;
+        _skipBlank.IsChecked = preset.SkipBlank && !_backs;
         _message.Text = (plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : Loc.Format(Strings.Scan_PresetChosen, preset.Name)) + CleanupNote(preset.Cleanup);
         UpdateState();
     }
