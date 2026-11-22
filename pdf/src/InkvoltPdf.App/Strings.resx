@@ -4410,9 +4410,6 @@ Modified {1:g}</value>
   <data name="EditContent_PdfOnly" xml:space="preserve">
     <value>Text and pictures can be edited in PDF files only.</value>
   </data>
-  <data name="EditContent_Hint" xml:space="preserve">
-    <value>Click text to change it, or a picture to move, resize, replace or delete it. Tab goes through them.</value>
-  </data>
   <data name="EditContent_ListSeparator" xml:space="preserve">
     <value>, </value>
     <comment>Between the missing characters in a list; keep the trailing space</comment>
@@ -12460,5 +12457,357 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   </data>
   <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
     <value>{0} entries in your saved list are too long, or past what a list can hold, and aren't searched. Edit the list to fix it.</value>
+  </data>
+  <data name="Tab_FieldCalculate" xml:space="preserve">
+    <value>Calculate</value>
+    <comment>Prepare Form panel: caption of the calculation list</comment>
+  </data>
+  <data name="Tab_FieldCalcOf" xml:space="preserve">
+    <value>Of these fields</value>
+    <comment>Prepare Form panel, Calculate: the fields a sum etc. reads</comment>
+  </data>
+  <data name="Tab_FieldCalcNotation" xml:space="preserve">
+    <value>Calculation (as Price * Quantity)</value>
+    <comment>Prepare Form panel, Calculate: simplified field notation box</comment>
+  </data>
+  <data name="Tab_FieldCalcNotationName" xml:space="preserve">
+    <value>Simplified field notation</value>
+    <comment>Prepare Form panel: the notation box's name for a screen reader (Acrobat's term)</comment>
+  </data>
+  <data name="Tab_FieldCalcOrder" xml:space="preserve">
+    <value>Calculation order…</value>
+    <comment>Prepare Form panel button</comment>
+  </data>
+  <data name="Tab_FieldCalcOrderTip" xml:space="preserve">
+    <value>Which calculated fields work out first</value>
+    <comment>Prepare Form panel button tooltip</comment>
+  </data>
+  <data name="Tab_SeveralHint" xml:space="preserve">
+    <value>The first field you picked (the solid corner) stays put; the others line up with it. Ctrl+click adds or removes a field.</value>
+    <comment>Prepare Form panel, several fields selected</comment>
+  </data>
+  <data name="Tab_SeveralAlign" xml:space="preserve">
+    <value>Align</value>
+    <comment>Prepare Form panel, several fields: caption</comment>
+  </data>
+  <data name="Tab_SeveralSize" xml:space="preserve">
+    <value>Same size</value>
+    <comment>Prepare Form panel, several fields: caption</comment>
+  </data>
+  <data name="Tab_SeveralSpace" xml:space="preserve">
+    <value>Space evenly</value>
+    <comment>Prepare Form panel, several fields: caption</comment>
+  </data>
+  <data name="Tab_ArrangeLeft" xml:space="preserve">
+    <value>Left</value>
+    <comment>Prepare Form panel: align the left edges</comment>
+  </data>
+  <data name="Tab_ArrangeCenter" xml:space="preserve">
+    <value>Centers</value>
+    <comment>Prepare Form panel: align the centers in a column</comment>
+  </data>
+  <data name="Tab_ArrangeRight" xml:space="preserve">
+    <value>Right</value>
+    <comment>Prepare Form panel: align the right edges</comment>
+  </data>
+  <data name="Tab_ArrangeTop" xml:space="preserve">
+    <value>Top</value>
+    <comment>Prepare Form panel: align the top edges</comment>
+  </data>
+  <data name="Tab_ArrangeMiddle" xml:space="preserve">
+    <value>Middles</value>
+    <comment>Prepare Form panel: align the middles in a row</comment>
+  </data>
+  <data name="Tab_ArrangeBottom" xml:space="preserve">
+    <value>Bottom</value>
+    <comment>Prepare Form panel: align the bottom edges</comment>
+  </data>
+  <data name="Tab_ArrangeWidth" xml:space="preserve">
+    <value>Width</value>
+    <comment>Prepare Form panel: same width</comment>
+  </data>
+  <data name="Tab_ArrangeHeight" xml:space="preserve">
+    <value>Height</value>
+    <comment>Prepare Form panel: same height</comment>
+  </data>
+  <data name="Tab_ArrangeBoth" xml:space="preserve">
+    <value>Both</value>
+    <comment>Prepare Form panel: same width and height</comment>
+  </data>
+  <data name="Tab_ArrangeAcross" xml:space="preserve">
+    <value>Across</value>
+    <comment>Prepare Form panel: space evenly left to right</comment>
+  </data>
+  <data name="Tab_ArrangeDown" xml:space="preserve">
+    <value>Down</value>
+    <comment>Prepare Form panel: space evenly top to bottom</comment>
+  </data>
+  <data name="Tab_SeveralDeleteTip" xml:space="preserve">
+    <value>Delete the selected fields</value>
+    <comment>Prepare Form panel button tooltip</comment>
+  </data>
+  <data name="Main_MenuArrangeFields" xml:space="preserve">
+    <value>_Arrange Fields</value>
+    <comment>Tools › Forms submenu</comment>
+  </data>
+  <data name="Cmd_AlignLeft" xml:space="preserve">
+    <value>Align _Left Edges</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_AlignCenter" xml:space="preserve">
+    <value>Align _Centers</value>
+    <comment>Tools › Forms › Arrange Fields (centers in a column)</comment>
+  </data>
+  <data name="Cmd_AlignRight" xml:space="preserve">
+    <value>Align _Right Edges</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_AlignTop" xml:space="preserve">
+    <value>Align _Top Edges</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_AlignMiddle" xml:space="preserve">
+    <value>Align _Middles</value>
+    <comment>Tools › Forms › Arrange Fields (middles in a row)</comment>
+  </data>
+  <data name="Cmd_AlignBottom" xml:space="preserve">
+    <value>Align _Bottom Edges</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_SameWidth" xml:space="preserve">
+    <value>Same _Width</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_SameHeight" xml:space="preserve">
+    <value>Same _Height</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_SameSize" xml:space="preserve">
+    <value>Same _Size</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_SpaceAcross" xml:space="preserve">
+    <value>Space Evenly _Across</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_SpaceDown" xml:space="preserve">
+    <value>Space Evenly _Down</value>
+    <comment>Tools › Forms › Arrange Fields</comment>
+  </data>
+  <data name="Cmd_CalculationOrder" xml:space="preserve">
+    <value>_Calculation Order…</value>
+    <comment>Tools › Forms</comment>
+  </data>
+  <data name="FormDesign_FormatNegativeBrackets" xml:space="preserve">
+    <value>Number, negatives in brackets ((1,234.56))</value>
+    <comment>Prepare Form panel: Format list</comment>
+  </data>
+  <data name="FormDesign_FormatNumberComma" xml:space="preserve">
+    <value>Number (1.234,56)</value>
+    <comment>Prepare Form panel: Format list (dot for thousands, comma for decimals)</comment>
+  </data>
+  <data name="FormDesign_FormatEuro" xml:space="preserve">
+    <value>Euro (1.234,56 €)</value>
+    <comment>Prepare Form panel: Format list</comment>
+  </data>
+  <data name="FormDesign_CalcNone" xml:space="preserve">
+    <value>Not calculated</value>
+    <comment>Prepare Form panel: Calculate list</comment>
+  </data>
+  <data name="FormDesign_CalcSum" xml:space="preserve">
+    <value>Sum (+)</value>
+    <comment>Prepare Form panel: Calculate list</comment>
+  </data>
+  <data name="FormDesign_CalcProduct" xml:space="preserve">
+    <value>Product (×)</value>
+    <comment>Prepare Form panel: Calculate list</comment>
+  </data>
+  <data name="FormDesign_CalcAverage" xml:space="preserve">
+    <value>Average</value>
+    <comment>Prepare Form panel: Calculate list</comment>
+  </data>
+  <data name="FormDesign_CalcMinimum" xml:space="preserve">
+    <value>Minimum</value>
+    <comment>Prepare Form panel: Calculate list</comment>
+  </data>
+  <data name="FormDesign_CalcMaximum" xml:space="preserve">
+    <value>Maximum</value>
+    <comment>Prepare Form panel: Calculate list</comment>
+  </data>
+  <data name="FormDesign_CalcNotation" xml:space="preserve">
+    <value>Simplified field notation</value>
+    <comment>Prepare Form panel: Calculate list (Acrobat's term)</comment>
+  </data>
+  <data name="FormDesign_CalcCustom" xml:space="preserve">
+    <value>Custom script (kept)</value>
+    <comment>Prepare Form panel: Calculate list, the form's own script</comment>
+  </data>
+  <data name="FormDesign_UndoCalculation" xml:space="preserve">
+    <value>Change calculation</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="FormDesign_UndoCalcOrder" xml:space="preserve">
+    <value>Change calculation order</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="FormDesign_UndoAlign" xml:space="preserve">
+    <value>Align fields</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="FormDesign_UndoSize" xml:space="preserve">
+    <value>Size fields alike</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="FormDesign_UndoSpace" xml:space="preserve">
+    <value>Space fields evenly</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="FormDesign_UndoDeleteMany" xml:space="preserve">
+    <value>Delete {0} fields</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="FormDesign_CalcOrderNone" xml:space="preserve">
+    <value>No field in this form is calculated.</value>
+    <comment>Calculation Order with no calculated field</comment>
+  </data>
+  <data name="FormDesign_CalcOrderOne" xml:space="preserve">
+    <value>Only one field is calculated: there's no order to set.</value>
+    <comment>Calculation Order with one calculated field</comment>
+  </data>
+  <data name="FormDesign_CalcOrderTitle" xml:space="preserve">
+    <value>Calculation order</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="FormDesign_CalcOrderNote" xml:space="preserve">
+    <value>Fields calculate from the top down when the form is filled. Put a field after the fields it uses (Alt+Up and Alt+Down move the selected one).</value>
+    <comment>Calculation Order dialog</comment>
+  </data>
+  <data name="FormDesign_ArrangedAlready" xml:space="preserve">
+    <value>The fields are already that way.</value>
+    <comment>Prepare Form: Align or Same Size changed nothing</comment>
+  </data>
+  <data name="FormDesign_TitleSeveral" xml:space="preserve">
+    <value>{0} fields · first: {1} {2}</value>
+    <comment>Prepare Form panel title with several selected: {0} count, {1} kind, {2} the anchor's name</comment>
+  </data>
+  <data name="EditContent_Hint" xml:space="preserve">
+    <value>Click text to change it, or a picture to move, resize, replace or delete it; drag the round handle to turn either. Tab goes through them.</value>
+    <comment>Edit Text &amp; Images: the toast when it starts</comment>
+  </data>
+  <data name="Tab_TurnAngle" xml:space="preserve">
+    <value>Angle</value>
+    <comment>Edit Text &amp; Images bar: caption of the angle box</comment>
+  </data>
+  <data name="Tab_TurnAngleTip" xml:space="preserve">
+    <value>Turn the selected picture or the text you clicked to this angle (degrees, clockwise). Or drag the round handle; Shift: 15° steps.</value>
+    <comment>Edit Text &amp; Images bar: angle box tooltip</comment>
+  </data>
+  <data name="Tab_TurnAngleName" xml:space="preserve">
+    <value>Angle of the selection, in degrees</value>
+    <comment>Edit Text &amp; Images bar: angle box name for a screen reader</comment>
+  </data>
+  <data name="Cmd_TurnContent" xml:space="preserve">
+    <value>T_urn to Angle…</value>
+    <comment>Edit menu: focuses Edit Text &amp; Images' angle box</comment>
+  </data>
+  <data name="Viewer_TurnAfterEdit" xml:space="preserve">
+    <value>Press Enter to keep your change to the text first, then turn it.</value>
+    <comment>Edit Text &amp; Images: the turn handle pressed while the editor holds changed text</comment>
+  </data>
+  <data name="EditContent_EditTurnPicture" xml:space="preserve">
+    <value>Turn picture</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="EditContent_EditTurnText" xml:space="preserve">
+    <value>Turn text</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="Cmd_ShowRulers" xml:space="preserve">
+    <value>_Rulers</value>
+    <comment>View menu (checked when shown)</comment>
+  </data>
+  <data name="Cmd_ShowGrid" xml:space="preserve">
+    <value>_Grid</value>
+    <comment>View menu (checked when shown)</comment>
+  </data>
+  <data name="Main_MenuSnapping" xml:space="preserve">
+    <value>Guides and _Snapping</value>
+    <comment>View submenu</comment>
+  </data>
+  <data name="Cmd_SnapToGuides" xml:space="preserve">
+    <value>Snap to _Guides</value>
+    <comment>View › Guides and Snapping (checked when on)</comment>
+  </data>
+  <data name="Cmd_SnapToGrid" xml:space="preserve">
+    <value>Snap to G_rid</value>
+    <comment>View › Guides and Snapping (checked when on)</comment>
+  </data>
+  <data name="Cmd_SnapToObjects" xml:space="preserve">
+    <value>Snap to _Objects</value>
+    <comment>View › Guides and Snapping: other fields', comments' and stamps' edges and middles</comment>
+  </data>
+  <data name="Cmd_GridSpacing" xml:space="preserve">
+    <value>Grid _Spacing…</value>
+    <comment>View › Guides and Snapping</comment>
+  </data>
+  <data name="Cmd_RulerUnits" xml:space="preserve">
+    <value>Ruler _Units</value>
+    <comment>View › Guides and Snapping: goes to the next unit</comment>
+  </data>
+  <data name="Cmd_ClearGuides" xml:space="preserve">
+    <value>_Clear Guides</value>
+    <comment>View › Guides and Snapping</comment>
+  </data>
+  <data name="Layout_GuidesCleared_One" xml:space="preserve">
+    <value>{0:N0} guide cleared.</value>
+    <comment>Toast after Clear Guides</comment>
+  </data>
+  <data name="Layout_GuidesCleared_Many" xml:space="preserve">
+    <value>{0:N0} guides cleared.</value>
+    <comment>Toast after Clear Guides</comment>
+  </data>
+  <data name="Layout_RulerUnit" xml:space="preserve">
+    <value>Rulers in {0}.</value>
+    <comment>Toast after Ruler Units: {0} a unit (in, mm, cm, pt) or Layout_UnitAuto</comment>
+  </data>
+  <data name="Layout_UnitAuto" xml:space="preserve">
+    <value>{0}, the page's scale or your region's</value>
+    <comment>Ruler Units' automatic choice: {0} the unit it gives now</comment>
+  </data>
+  <data name="Layout_GridTitle" xml:space="preserve">
+    <value>Grid spacing</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Layout_GridEvery" xml:space="preserve">
+    <value>A line every</value>
+    <comment>Grid Spacing dialog: label of the list</comment>
+  </data>
+  <data name="Layout_GridNote" xml:space="preserve">
+    <value>Shapes, fields, stamps and measuring points snap to the grid while it shows and Snap to Grid is on. Hold Alt for no snapping.</value>
+    <comment>Grid Spacing dialog</comment>
+  </data>
+  <data name="Layout_GridQuarterInch" xml:space="preserve">
+    <value>¼ inch</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_GridHalfInch" xml:space="preserve">
+    <value>½ inch</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_GridInch" xml:space="preserve">
+    <value>1 inch</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid5Mm" xml:space="preserve">
+    <value>5 mm</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid1Cm" xml:space="preserve">
+    <value>1 cm</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid10Points" xml:space="preserve">
+    <value>10 points</value>
+    <comment>Grid Spacing list</comment>
   </data>
 </root>

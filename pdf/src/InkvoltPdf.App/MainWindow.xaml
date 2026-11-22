@@ -182,9 +182,27 @@
                                         <MenuItem Command="app:Cmd.AddSignature" />
                                     </MenuItem>
                                     <MenuItem x:Name="EditContentMenu" Command="app:Cmd.EditContent" />
+                                    <MenuItem Command="app:Cmd.TurnContent" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuForms}">
                                         <MenuItem x:Name="PrepareFormMenu" Command="app:Cmd.PrepareForm" />
                                         <MenuItem Command="app:Cmd.DetectFields" />
+                                        <MenuItem Header="{x:Static loc:Strings.Main_MenuArrangeFields}">
+                                            <MenuItem Command="app:Cmd.AlignLeft" />
+                                            <MenuItem Command="app:Cmd.AlignCenter" />
+                                            <MenuItem Command="app:Cmd.AlignRight" />
+                                            <Separator />
+                                            <MenuItem Command="app:Cmd.AlignTop" />
+                                            <MenuItem Command="app:Cmd.AlignMiddle" />
+                                            <MenuItem Command="app:Cmd.AlignBottom" />
+                                            <Separator />
+                                            <MenuItem Command="app:Cmd.SameWidth" />
+                                            <MenuItem Command="app:Cmd.SameHeight" />
+                                            <MenuItem Command="app:Cmd.SameSize" />
+                                            <Separator />
+                                            <MenuItem Command="app:Cmd.SpaceAcross" />
+                                            <MenuItem Command="app:Cmd.SpaceDown" />
+                                        </MenuItem>
+                                        <MenuItem Command="app:Cmd.CalculationOrder" />
                                         <Separator />
                                         <MenuItem Command="app:Cmd.ExportFormData" />
                                         <MenuItem Command="app:Cmd.ImportFormData" />
@@ -206,6 +224,18 @@
                                     <MenuItem x:Name="CoverMenu" Command="app:Cmd.LayoutCover" />
                                     <MenuItem Command="app:Cmd.RotateViewRight" />
                                     <MenuItem Command="app:Cmd.RotateViewLeft" />
+                                    <Separator />
+                                    <MenuItem x:Name="RulersMenu" Command="app:Cmd.ShowRulers" />
+                                    <MenuItem x:Name="GridMenu" Command="app:Cmd.ShowGrid" />
+                                    <MenuItem Header="{x:Static loc:Strings.Main_MenuSnapping}">
+                                        <MenuItem x:Name="SnapGuidesMenu" Command="app:Cmd.SnapToGuides" />
+                                        <MenuItem x:Name="SnapGridMenu" Command="app:Cmd.SnapToGrid" />
+                                        <MenuItem x:Name="SnapObjectsMenu" Command="app:Cmd.SnapToObjects" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.GridSpacing" />
+                                        <MenuItem Command="app:Cmd.RulerUnits" />
+                                        <MenuItem Command="app:Cmd.ClearGuides" />
+                                    </MenuItem>
                                     <Separator />
                                     <MenuItem Command="app:Cmd.FirstPage" />
                                     <MenuItem Command="app:Cmd.PrevPage" />

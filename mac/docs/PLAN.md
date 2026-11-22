@@ -1673,6 +1673,12 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
+  (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
+  `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
+  `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
+  `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
+  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).

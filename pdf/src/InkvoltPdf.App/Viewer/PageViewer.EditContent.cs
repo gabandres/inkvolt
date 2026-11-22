@@ -104,8 +104,10 @@ public sealed partial class PageViewer
 
     public void SetPageContent(int page, PageContent content)
     {
+        if (_turnParagraph?.PageIndex == page) _turnParagraph = null; // read again: the document changed
         _contentByPage[page] = content;
         _contentAsked.Remove(page);
+        ReselectTurnedImage(page, content);
         foreach (var key in _imagePending.Keys.Where(k => k.Page == page).ToList()) _imagePending.Remove(key);
         _surface.InvalidateVisual();
         ContentSelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -116,6 +118,7 @@ public sealed partial class PageViewer
     {
         _contentByPage = [];
         _contentAsked.Clear();
+        _turnParagraph = null;
         _hoverRun = null;
         _hoverImage = null;
         _surface.InvalidateVisual();
@@ -126,6 +129,7 @@ public sealed partial class PageViewer
     {
         FlushImageNudge();
         _imageSel = box is { } b ? (page, b) : null;
+        if (box is not null) _turnParagraph = null;
         if (box is null) CroppingImage = false;
         _surface.InvalidateVisual();
         ContentSelectionChanged?.Invoke(this, EventArgs.Empty);
@@ -136,6 +140,9 @@ public sealed partial class PageViewer
         if (IsEditingContent) return;
         FlushImageNudge();
         _imageDrag = null;
+        _turnDrag = null;
+        _imageSelAt = null;
+        _turnParagraph = null;
         _imageSel = null;
         CroppingImage = false;
         _contentFocus = null;
@@ -188,6 +195,7 @@ public sealed partial class PageViewer
         e.Handled = true;
         if (page < 0) return true;
         FlushImageNudge();
+        if (TurnHandleDown(page, sp)) return true;
         if (ImageHandleAt(page, sp) is var h and >= 0)
         {
             StartImageDrag(SelectedImage!, h, sp);
@@ -221,7 +229,9 @@ public sealed partial class PageViewer
             else StartImageDrag(image, -1, sp);
             return true;
         }
+        _turnParagraph = null;
         if (_imageSel is not null) SelectImage(page, null);
+        else ContentSelectionChanged?.Invoke(this, EventArgs.Empty);
         _panning = true; // an empty spot scrolls, as with the hand tool
         _surface.CaptureMouse();
         return true;
@@ -245,6 +255,7 @@ public sealed partial class PageViewer
 
     private bool MoveImageDrag(Point sp)
     {
+        if (MoveTurnDrag(sp)) return true;
         if (_imageDrag is not { } d) return false;
         if (!_dragged) return true;
         var page = d.Image.PageIndex;
@@ -280,6 +291,7 @@ public sealed partial class PageViewer
 
     private bool EndImageDrag()
     {
+        if (EndTurnDrag()) return true;
         if (_imageDrag is not { } d) return false;
         _imageDrag = null;
         _surface.InvalidateVisual();
@@ -294,6 +306,7 @@ public sealed partial class PageViewer
 
     private void CancelImageDrag()
     {
+        CancelTurnDrag();
         if (_imageDrag is null) return;
         _imageDrag = null;
         _surface.InvalidateVisual();
@@ -305,7 +318,8 @@ public sealed partial class PageViewer
         TextRun? run = null;
         PageImage? image = null;
         Cursor cursor = Cursors.Arrow;
-        if (page >= 0 && ImageHandleAt(page, sp) is var h and >= 0)
+        if (OnTurnHandle(page, sp)) cursor = Cursors.Hand;
+        else if (page >= 0 && ImageHandleAt(page, sp) is var h and >= 0)
             cursor = h is 0 or 4 ? Cursors.SizeNWSE : h is 2 or 6 ? Cursors.SizeNESW : h is 1 or 5 ? Cursors.SizeNS : Cursors.SizeWE;
         else if (page >= 0 && ContentOf(page) is { } content)
         {
@@ -375,6 +389,8 @@ public sealed partial class PageViewer
         ShowLookBar(p, box);
         ShowRunInfo();
         AttachParagraphSpelling(box);
+        _turnParagraph = p;
+        ContentSelectionChanged?.Invoke(this, EventArgs.Empty); // the bar's angle box
     }
 
     private void OpenRunEditor(TextRun run)
@@ -392,6 +408,8 @@ public sealed partial class PageViewer
         box.SelectAll();
         ShowRunInfo();
         AttachSpelling(box);
+        _turnParagraph = _contentByPage.GetValueOrDefault(run.PageIndex)?.ParagraphOf(run);
+        ContentSelectionChanged?.Invoke(this, EventArgs.Empty); // the bar's angle box
     }
 
     /// <summary>
@@ -673,9 +691,10 @@ public sealed partial class PageViewer
                     SetCropping(false);
                     ContentSelectionChanged?.Invoke(this, EventArgs.Empty);
                 }
-                else if (_imageSel is not null || _contentFocus is not null)
+                else if (_imageSel is not null || _contentFocus is not null || _turnParagraph is not null)
                 {
                     _contentFocus = null;
+                    _turnParagraph = null;
                     SelectImage(0, null);
                 }
                 else Tool = ViewerTool.Hand;
@@ -812,6 +831,9 @@ public sealed partial class PageViewer
         }
         // The paragraph being edited: its box as it was (the editor grows from it).
         if (_editorParagraph is { } edited && edited.PageIndex == page) dc.DrawRectangle(null, bold, ToSurfaceRect(page, edited.Box.Inflate(2)));
+        // The text last clicked, its editor closed: framed, with its turn handle.
+        else if (_editor is null && _turnParagraph is { } tp && tp.PageIndex == page && TurnTarget() is { Paragraph: not null }) dc.DrawRectangle(null, solid, ToSurfaceRect(page, tp.Box.Inflate(2)));
+        PaintTurn(dc, page, accent, handleFill);
     }
 
     // ───────────────────────────── Dev entries ─────────────────────────────

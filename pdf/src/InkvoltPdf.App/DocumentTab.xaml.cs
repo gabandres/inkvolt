@@ -316,6 +316,7 @@ public partial class DocumentTab : UserControl, IDisposable
         InitSuspectWords();
         InitFormDesign(); // Prepare Form (DocumentTab.FormDesign.cs)
         InitEditContent(); // Edit Text & Images (DocumentTab.EditContent.cs)
+        InitLayoutAids(); // rulers, guides, a grid and snapping (DocumentTab.Layout.cs)
         UpdatePill();
     }
 
