@@ -8,6 +8,7 @@ here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own wor
 ## Next
 - Intercalar páginas (Organizar): las hojas a doble cara escaneadas primero por un lado y luego por el otro vuelven a quedar en orden: anverso 1, reverso 1, anverso 2… Los reversos pueden ser páginas del mismo archivo o de otro PDF, en orden inverso (una pila a la que se le dio la vuelta) o no. Escanear los reversos (menú Archivo, y Escanear y OCR en la barra) escanea los reversos directamente en su lugar.
 - Quitar páginas en blanco (Organizar) encuentra las páginas que son casi solo papel, te las muestra para que desmarques las que quieras conservar y las elimina en un solo paso que Deshacer revierte. Dividir en las páginas en blanco guarda las páginas que hay entre hojas separadoras en blanco como PDF separados. Las dos son también acciones de En lote.
+- Marcadores a partir de los títulos (menú Ver, y un botón en el panel Marcadores): marcadores creados a partir de los títulos del documento, anidados por nivel y mostrados antes de crearlos. Reemplazan los marcadores o se agregan después.
 
 ## 1.16.0
 - Escanear: un ajuste predefinido con limpieza (creado en Inkvolt Print: recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar colores desvaídos) ahora limpia cada página de la misma manera aquí.

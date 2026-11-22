@@ -347,7 +347,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
 - **Batch A (paper and pages):**
   - 4.3 Interleave two scans (fronts, then backs reversed; Organize and File › Scan). Done on Windows (`PageEditor.Interleave`, Scan the Backs); the Mac's waits.
   - 4.4 Remove blank pages, and split at blank separator pages (Organize, Batch). Done on Windows (`BlankPages`, both Batch actions); the Mac's waits.
-  - 4.5 Bookmarks from headings (`DocLayout`'s headings, nested by level).
+  - 4.5 Bookmarks from headings (`DocLayout`'s headings, nested by level). Done on Windows (`HeadingBookmarks`); the Mac's waits.
   - 4.7 Resize pages (Letter and A4, scale or add margins).
   - 4.13 Replace pages (keeping bookmarks and links to them).
   - 4.14 Edit page labels (i, ii, then 1, 2; prefixes).

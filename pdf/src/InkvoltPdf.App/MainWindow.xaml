@@ -222,6 +222,7 @@
                                     <MenuItem x:Name="NavPaneMenu" Command="app:Cmd.NavPane" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuBookmarks}" Click="OnShowBookmarks" />
                                     <MenuItem Command="app:Cmd.AddBookmark" />
+                                    <MenuItem Command="app:Cmd.BookmarksFromHeadings" />
                                     <MenuItem x:Name="ReadAloudMenu" Command="app:Cmd.ReadAloud" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuTheme}">
                                         <MenuItem x:Name="ThemeSystemMenu" Header="{x:Static loc:Strings.Main_MenuThemeWindows}" Click="OnThemeMenu" Tag="System" />

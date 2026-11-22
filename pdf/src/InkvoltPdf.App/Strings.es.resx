@@ -5286,6 +5286,78 @@ Modificado {1:g}</value>
   <data name="Batch_DescSplitBlank" xml:space="preserve">
     <value>Un PDF por cada parte entre páginas separadoras en blanco</value>
   </data>
+  <data name="Cmd_BookmarksFromHeadings" xml:space="preserve">
+    <value>Marcadores a partir de los _títulos…</value>
+  </data>
+  <data name="Bookmarks_FromHeadingsTitle" xml:space="preserve">
+    <value>Marcadores a partir de los títulos</value>
+  </data>
+  <data name="Bookmarks_FindingHeadings" xml:space="preserve">
+    <value>Buscando títulos…</value>
+  </data>
+  <data name="Bookmarks_NoHeadingsTitle" xml:space="preserve">
+    <value>No se encontraron títulos</value>
+  </data>
+  <data name="Bookmarks_NoHeadingsBody" xml:space="preserve">
+    <value>Los títulos se reconocen por el texto más grande que el del cuerpo. Este documento no tiene ninguno, o sus páginas son escaneos sin texto: reconoce el texto primero.</value>
+  </data>
+  <data name="Bookmarks_HeadingsFound_One" xml:space="preserve">
+    <value>Se encontró 1 título. Los marcadores serán:</value>
+  </data>
+  <data name="Bookmarks_HeadingsFound_Many" xml:space="preserve">
+    <value>Se encontraron {0} títulos. Los marcadores serán:</value>
+  </data>
+  <data name="Bookmarks_HeadingLevels" xml:space="preserve">
+    <value>Títulos</value>
+  </data>
+  <data name="Bookmarks_AllLevels" xml:space="preserve">
+    <value>Todos los niveles</value>
+  </data>
+  <data name="Bookmarks_Level1" xml:space="preserve">
+    <value>Solo el nivel 1</value>
+  </data>
+  <data name="Bookmarks_Levels2" xml:space="preserve">
+    <value>Niveles 1 y 2</value>
+  </data>
+  <data name="Bookmarks_Levels3" xml:space="preserve">
+    <value>Niveles 1 a 3</value>
+  </data>
+  <data name="Bookmarks_ExistingCount_One" xml:space="preserve">
+    <value>El documento tiene 1 marcador</value>
+  </data>
+  <data name="Bookmarks_ExistingCount_Many" xml:space="preserve">
+    <value>El documento tiene {0} marcadores</value>
+  </data>
+  <data name="Bookmarks_ReplaceThem" xml:space="preserve">
+    <value>Reemplazarlos</value>
+  </data>
+  <data name="Bookmarks_AddAfterThem" xml:space="preserve">
+    <value>Conservarlos y agregar estos después</value>
+  </data>
+  <data name="Bookmarks_MakeButton" xml:space="preserve">
+    <value>Crear marcadores</value>
+  </data>
+  <data name="Bookmarks_PreviewName" xml:space="preserve">
+    <value>Marcadores que se crearán</value>
+  </data>
+  <data name="Bookmarks_PreviewLine" xml:space="preserve">
+    <value>{0}  (página {1})</value>
+    <comment>A bookmark in the preview: {0} its title, {1} its page's label</comment>
+  </data>
+  <data name="Bookmarks_PreviewNone" xml:space="preserve">
+    <value>Ningún título en estos niveles.</value>
+  </data>
+  <data name="Bookmarks_EditFromHeadings_One" xml:space="preserve">
+    <value>Crear 1 marcador a partir de un título</value>
+    <comment>Edit name; {0} is the count</comment>
+  </data>
+  <data name="Bookmarks_EditFromHeadings_Many" xml:space="preserve">
+    <value>Crear {0} marcadores a partir de títulos</value>
+    <comment>Edit name; {0} is the count</comment>
+  </data>
+  <data name="Tab_BookmarksFromHeadingsTip" xml:space="preserve">
+    <value>Crea marcadores a partir de los títulos del documento</value>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>
     <comment>Dialog title</comment>

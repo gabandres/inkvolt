@@ -510,6 +510,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   test (`BlankPages` over the shared `BlankPage`: a short line of text is not blank), shown with pictures to untick, then
   deleted as one undo step or used as separator sheets: the runs between them saved as `name - part 1.pdf` and on. Batch
   has both as actions.
+- **Bookmarks from Headings** (View menu, the Bookmarks pane's button and right-click): `DocLayout`'s headings (as Export
+  to Word and Make Accessible find them; running headers left out) as bookmarks nested by level, each at its heading's
+  line, shown first (all levels, or the top one to three), replacing the bookmarks or added after them
+  (`HeadingBookmarks`). One undo step; a signed file gets them appended.
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
   the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
   by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can

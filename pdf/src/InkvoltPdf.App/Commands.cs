@@ -250,6 +250,7 @@ public static class Cmd
 
     // Bookmarks pane (Ctrl+B adds one for the current view, as in Acrobat)
     public static readonly RoutedUICommand AddBookmark = Make(Strings.Cmd_AddBookmark, nameof(AddBookmark), K(Key.B, ModifierKeys.Control));
+    public static readonly RoutedUICommand BookmarksFromHeadings = Make(Strings.Cmd_BookmarksFromHeadings, nameof(BookmarksFromHeadings));
 
     // AI assistant (bring your own, off by default; see DocumentTab.Ai and AiActions)
     public static readonly RoutedUICommand AiSummarize = Make(Strings.Cmd_AiSummarize, nameof(AiSummarize));

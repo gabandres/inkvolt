@@ -5287,6 +5287,78 @@ Modified {1:g}</value>
   <data name="Batch_DescSplitBlank" xml:space="preserve">
     <value>A PDF for each part between blank separator pages</value>
   </data>
+  <data name="Cmd_BookmarksFromHeadings" xml:space="preserve">
+    <value>Bookmarks from _Headings…</value>
+  </data>
+  <data name="Bookmarks_FromHeadingsTitle" xml:space="preserve">
+    <value>Bookmarks from Headings</value>
+  </data>
+  <data name="Bookmarks_FindingHeadings" xml:space="preserve">
+    <value>Finding headings…</value>
+  </data>
+  <data name="Bookmarks_NoHeadingsTitle" xml:space="preserve">
+    <value>No headings found</value>
+  </data>
+  <data name="Bookmarks_NoHeadingsBody" xml:space="preserve">
+    <value>Headings are found from text set larger than the body text. This document has none, or its pages are scans without text: recognize the text first.</value>
+  </data>
+  <data name="Bookmarks_HeadingsFound_One" xml:space="preserve">
+    <value>1 heading found. The bookmarks will be:</value>
+  </data>
+  <data name="Bookmarks_HeadingsFound_Many" xml:space="preserve">
+    <value>{0} headings found. The bookmarks will be:</value>
+  </data>
+  <data name="Bookmarks_HeadingLevels" xml:space="preserve">
+    <value>Headings</value>
+  </data>
+  <data name="Bookmarks_AllLevels" xml:space="preserve">
+    <value>All levels</value>
+  </data>
+  <data name="Bookmarks_Level1" xml:space="preserve">
+    <value>Level 1 only</value>
+  </data>
+  <data name="Bookmarks_Levels2" xml:space="preserve">
+    <value>Levels 1 and 2</value>
+  </data>
+  <data name="Bookmarks_Levels3" xml:space="preserve">
+    <value>Levels 1 to 3</value>
+  </data>
+  <data name="Bookmarks_ExistingCount_One" xml:space="preserve">
+    <value>The document has 1 bookmark</value>
+  </data>
+  <data name="Bookmarks_ExistingCount_Many" xml:space="preserve">
+    <value>The document has {0} bookmarks</value>
+  </data>
+  <data name="Bookmarks_ReplaceThem" xml:space="preserve">
+    <value>Replace them</value>
+  </data>
+  <data name="Bookmarks_AddAfterThem" xml:space="preserve">
+    <value>Keep them and add these after</value>
+  </data>
+  <data name="Bookmarks_MakeButton" xml:space="preserve">
+    <value>Make Bookmarks</value>
+  </data>
+  <data name="Bookmarks_PreviewName" xml:space="preserve">
+    <value>Bookmarks to make</value>
+  </data>
+  <data name="Bookmarks_PreviewLine" xml:space="preserve">
+    <value>{0}  (page {1})</value>
+    <comment>A bookmark in the preview: {0} its title, {1} its page's label</comment>
+  </data>
+  <data name="Bookmarks_PreviewNone" xml:space="preserve">
+    <value>No heading at these levels.</value>
+  </data>
+  <data name="Bookmarks_EditFromHeadings_One" xml:space="preserve">
+    <value>Bookmark 1 heading</value>
+    <comment>Edit name; {0} is the count</comment>
+  </data>
+  <data name="Bookmarks_EditFromHeadings_Many" xml:space="preserve">
+    <value>Bookmark {0} headings</value>
+    <comment>Edit name; {0} is the count</comment>
+  </data>
+  <data name="Tab_BookmarksFromHeadingsTip" xml:space="preserve">
+    <value>Make bookmarks from the document's headings</value>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>
     <comment>Dialog title</comment>
