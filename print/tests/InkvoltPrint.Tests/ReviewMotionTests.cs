@@ -4,7 +4,7 @@ using InkvoltPrint.Core.Suite;
 namespace InkvoltPrint.Tests;
 
 /// <summary>
-/// Motion in the scan review (UX-REVIEW Print "Still short"): which page moves when one is put back, deleted or moved, and
+/// Motion in the scan review: which page moves when one is put back, deleted or moved, and
 /// none while a scan or a save shows its progress, while a page is dragged, or for a list filled at once.
 /// </summary>
 public class ReviewMotionTests

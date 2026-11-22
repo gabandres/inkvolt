@@ -1,7 +1,13 @@
 # Command bar: familiar groups, one click
 
-Approved by the owner on 2026-11-08; built on Windows (`CommandBarLayout`) and the Mac (PdfCore's `CommandBar`). The
-owner's brief is `docs/handoff/ARCHIVE.md`, "Owner, 2026-11-08 (evening)", item 2.
+Approved by the owner on 2026-11-08; built on Windows (`CommandBarLayout`) and the Mac (PdfCore's `CommandBar`).
+The owner's brief (2026-11-08): people coming from Nitro, Foxit or Acrobat find each task where
+they expect it, with a modern look, not a ribbon. Groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan &
+OCR, in the competitors' order, with recognisable icons and shortcuts; each group's main job runs at once with defaults
+(Convert › Word saves `name.docx` next to the PDF, never replaces a file, opens it, and its notice offers "Change
+options…"; Shift+click opens the options); one row, icons and labels, flyouts with a line under each tool, the rarely
+used ones in "…", Ctrl+K for everything; a map of where the others put each task, then a real screenshot of the bar for
+the owner to approve before anything merges; later, Explorer's right-click "Convert to Word with Inkvolt PDF".
 
 ## 1. Map: where the others put each task
 

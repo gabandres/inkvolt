@@ -1,7 +1,7 @@
 # Handoff
 
-What a next session needs: where things stand, what's open, what waits. Older entries: `docs/handoff/ARCHIVE.md` (the
-Mac machines and the keys to restore, the Mac backlog, the owner's earlier briefs, earlier releases).
+What a next session needs: where things stand, what's open, what waits. Older entries are in git history;
+the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what the Mac still lacks: `mac/docs/PLAN.md`, "Open".
 
 ## Current state
 

@@ -9,7 +9,7 @@ public sealed class OrganizeGridTests
     public void ThePicturesFollowWindowsTextSizeAsTheirNumbersAndButtonsDo()
     {
         // The slider's size is as at 100 %: at Text size 150 % the picture is half as big again, so the card's scaled
-        // number and buttons keep their place on it (UX-REVIEW round 3).
+        // number and buttons keep their place on it.
         Assert.Equal(170, OrganizeGrid.Box(170, 1));
         Assert.Equal(255, OrganizeGrid.Box(170, 1.5));
         Assert.Equal(180, OrganizeGrid.Box(90, 2));

@@ -1,8 +1,22 @@
 # Releasing the Mac apps from a new Mac
 
-ignia-mac (MacBook Air M1) was sold in November 2026. Everything the release scripts need that isn't in git was saved
-first; this says where each piece goes on the next Mac, what to install, and how to prove the setup works without
-publishing anything. No secret is in this file: secrets are named by file or key name only.
+ignia-mac (MacBook Air M1, 16 GB) was sold in November 2026; the plan was an M6 Mac mini (24 GB, 512 GB) in its place.
+Until a Mac is set up, Mac work goes through the PC (PrintCore, `swift-dev.ps1`) and the `mac` CI job (push a branch for
+CI, delete it after). Everything the release scripts need that isn't in git was saved first; this says where each piece
+is, where it goes on the next Mac, what to install, and how to prove the setup works without publishing anything. No
+secret is in this file: secrets are named by file or key name only.
+
+## Machines and where the keys are
+
+- **The PC** (Windows) keeps: the Inkvolt Pro signing key (`C:\Users\gabri\.inkvolt-pro\`; never read by an agent, never
+  goes to a Mac), a copy of the App Store Connect API key (`C:\Users\gabri\.inkvolt-asc\`, with
+  `mac/InkvoltPrint/.env.local`, git-ignored, so `asc-builds.mjs` and `asc-listing.mjs` also run from Windows), and the
+  `ignia-mac` entry in `~/.ssh/config` that `mac.sh` uses (or a new host name: `INKVOLT_MAC_HOST`).
+- **The backup tarball** (next section): the newest and complete copy of the Mac's release secrets.
+- **OneDrive, older** (2026-11-02, hashes checked then): `Work/Bermudez Systems LLC/Inkvolt/Keys/Mac signing and App
+  Store Connect/` (both keychains, `.env.local`, the ASC .p8, the GitHub SSH key, a README with restore steps) and
+  `Keys/Mac Sparkle update key/` (the Sparkle key pair); the Pro signing key's backup is under `Keys/` too. Prefer the
+  tarball; use these only if it is lost, and check the Sparkle public key against `SUPublicEDKey` first.
 
 ## The backup
 
@@ -76,5 +90,9 @@ Run on the Mac, from `~/Repos/inkvolt`. None of these uploads, submits or pushes
    `nohup zsh -l mac/InkvoltPrint/release.sh <next build> > ~/build-artifacts/inkvolt-print-mac.log 2>&1 &` **without
    `--upload`** archives, exports the signed .pkg and runs `pkg-preflight.sh`; a build number is only spent by an upload.
 
-When all four pass, the Mac can release both apps: `mac/README.md` and the HANDOFF entries for the last releases have
-the full steps.
+When all four pass, the Mac can release both apps: `mac/README.md`, "Releasing". Then the person checks that wait for a
+Mac (`PLAN.md`, "Open").
+
+Left from the old Mac's erase, optional: rotate the second AuthKey .p8 (not Inkvolt's) and, if wanted, the Inkvolt key
+and keychain passwords (both are in the backup, so nothing is lost). Branches pushed from it, likely obsolete:
+`wip/ignia-mac-stash-paragraph-editing`, `wip/stash-pc-files`, `wip/ignia-mac-pc-sync-2026-11-10`.

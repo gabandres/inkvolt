@@ -670,34 +670,17 @@ nothing asks for a key at launch. While `ProCheck.enforced` is off a key unlocks
 **Before enforcement is switched on in the App Store app**, its Pro features need an in-app purchase as well (StoreKit,
 the same features), or they stay free in that copy; and `Pro.howToGet` (price and shop URL) must not reach its UI.
 
-## Open questions and UNVERIFIED items to test on the Mac
+## Open questions
 
-1. **cupsd socket from the sandbox:** do `cupsGetDests2` and Get-Printer-Attributes over the domain socket work with
-   `com.apple.security.print`, and fail without it? Are `marker-*` filled in for idle AirPrint and IPP Everywhere queues?
-2. **Protected operations:** confirm that Resume-Printer and CUPS-Accept-Jobs from the sandbox return 401/403. Check
-   whether Purge-Jobs is allowed for the user's own jobs. Check the macOS name of the `lpadmin` group (`_lpadmin`?).
-   Check whether Basic auth with admin credentials is accepted over the socket (test only, not for shipping).
-3. **Printers & Scanners deep link:** does `x-apple.systempreferences:com.apple.Print-Scan-Settings.extension` work on
-   macOS 15, 26 and 27? Can the app open a specific printer's queue window?
-4. **ImageCaptureCore in the sandbox:** with only `device.usb` and `network.client`, do USB and Bonjour scanners
-   appear with `.scanner | .local | .bonjour`? Does ICC's network browsing count against the Local Network privilege,
-   or prompt?
-5. **NSBonjourServices on macOS:** does the six-type list restrict browsing as the secondhand reply says? Does it
-   affect ICC?
-6. **SNMP broadcast:** does `sendto` to the subnet-directed broadcast address work with `SO_BROADCAST` in the sandbox?
-   Which errno appears when Local Network is denied? Do replies arrive with `network.server`, and fail without it?
-7. **First run:** does the TN3179 UDP-connect trick reliably raise the alert before the probe? Does the probe recover
-   once the user allows access without restarting the search?
-8. **Restart glitch** (forum 783732): make the UI tell "denied" apart from "Allowed but failing" and suggest toggling
+Items 1 to 6, 9 and 10 of the original list were answered on the Mac ("Probe results on a Mac" and the sections above),
+and App Review accepted `network.server` and the subnet search with the review notes (1.0 approved). Still open:
+
+1. **Protected operations as a standard user:** Resume-Printer and CUPS-Accept-Jobs from the sandbox, Purge-Jobs for the
+   user's own jobs, the macOS name of the `lpadmin` group (checked only as an administrator).
+2. **First run:** does the probe recover once the user allows Local Network access, without restarting the search?
+3. **Restart glitch** (forum 783732): make the UI tell "denied" apart from "allowed but failing" and suggest toggling
    the setting.
-9. **ATS:** with `NSAllowsLocalNetworking`, do URLSession calls to bare IPv4 addresses (LEDM, eSCL) work on
-   macOS 15+? Does self-signed HTTPS work with a custom trust handler?
-10. **SMAppService.mainApp in the sandbox:** does it register? What does `status` show after the user disables it in
-    Login Items?
-11. **App Review:** will reviewers accept the `network.server` entitlement and the subnet probe given clear Review
-    Notes? Not stated in the guidelines.
-12. **Competitors:** check the UNVERIFIED cells in Q5: Epson and Canon data collection and dates, HP's diagnose tool,
-    Brother notifications and account. App Store years were inferred for current-year dates.
-13. **Sparkle and AGPL:** read the AGPLv3 §13 text itself (gnu.org rate-limited the fetch). Check whether Sparkle
-    checks the Apple signature on every update. Treat whether Sparkle's update check could trigger §13 as a legal
-    reading, not a sourced fact.
+4. **Competitors:** the UNVERIFIED cells in Q5 (Epson and Canon data collection and dates, HP's diagnose tool, Brother
+   notifications and account).
+5. **Sparkle and AGPL:** read the AGPLv3 §13 text itself (gnu.org rate-limited the fetch); whether Sparkle's update
+   check could trigger §13 is a legal reading, not a sourced fact.
