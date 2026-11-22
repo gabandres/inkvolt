@@ -4380,4 +4380,91 @@ Los archivos se quedan donde están.</value>
   <data name="PrintLayout_TooMany" xml:space="preserve">
     <value>No se imprimió: este diseño ocuparía más de {0} hojas. Elige menos páginas, menos copias o un póster más pequeño.</value>
   </data>
+  <data name="Photos_Card" xml:space="preserve">
+    <value>Tarjeta doblada (2 por hoja)</value>
+  </data>
+  <data name="Photos_MonthCalendar" xml:space="preserve">
+    <value>Calendario: un mes por foto</value>
+  </data>
+  <data name="Photos_YearCalendar" xml:space="preserve">
+    <value>Calendario: un año por foto</value>
+  </data>
+  <data name="Photos_Collage" xml:space="preserve">
+    <value>Collage (de 2 a 9 fotos)</value>
+  </data>
+  <data name="Photos_CardMessage" xml:space="preserve">
+    <value>Mensaje del interior (déjalo vacío para un interior en blanco)</value>
+  </data>
+  <data name="Photos_CardNote" xml:space="preserve">
+    <value>Cada tarjeta es media hoja: la foto en el frente y tu mensaje en el interior, impreso al dorso de la hoja si la impresora imprime a doble cara (en una impresora que imprime por un solo lado, el interior sale en una hoja aparte). Corta la hoja por la mitad en las marcas y dobla cada tarjeta por sus marcas de pliegue.</value>
+  </data>
+  <data name="Photos_CollageNote" xml:space="preserve">
+    <value>Arrastra una foto sobre otra para intercambiarlas (o selecciónala y pulsa Alt+Izquierda o Alt+Derecha). Cada foto se usa una vez; más de 9 hacen otro collage.</value>
+  </data>
+  <data name="Photos_CalendarMonth" xml:space="preserve">
+    <value>Primer mes</value>
+  </data>
+  <data name="Photos_CalendarYear" xml:space="preserve">
+    <value>Año</value>
+  </data>
+  <data name="Photos_CollageArrangement" xml:space="preserve">
+    <value>Disposición</value>
+  </data>
+  <data name="Photos_CollageRows" xml:space="preserve">
+    <value>En filas</value>
+  </data>
+  <data name="Photos_CollageColumns" xml:space="preserve">
+    <value>En columnas</value>
+  </data>
+  <data name="Photos_CollageOneLarge" xml:space="preserve">
+    <value>La primera foto grande</value>
+  </data>
+  <data name="Photos_CollageSpacing" xml:space="preserve">
+    <value>Espacio entre fotos</value>
+  </data>
+  <data name="Photos_SpacingNone" xml:space="preserve">
+    <value>Sin espacio entre fotos</value>
+  </data>
+  <data name="Photos_SpacingThin" xml:space="preserve">
+    <value>Un espacio fino entre fotos</value>
+  </data>
+  <data name="Photos_SpacingWide" xml:space="preserve">
+    <value>Un espacio amplio entre fotos</value>
+  </data>
+  <data name="Photos_CollageBorder" xml:space="preserve">
+    <value>Borde</value>
+  </data>
+  <data name="Photos_BorderNone" xml:space="preserve">
+    <value>Sin borde</value>
+  </data>
+  <data name="Photos_BorderNarrow" xml:space="preserve">
+    <value>Un borde blanco estrecho</value>
+  </data>
+  <data name="Photos_BorderWide" xml:space="preserve">
+    <value>Un borde blanco ancho</value>
+  </data>
+  <data name="Photos_SummaryProject" xml:space="preserve">
+    <value>{0}: {1} en {2} de {3}.</value>
+  </data>
+  <data name="Photos_SheetOfInside" xml:space="preserve">
+    <value>Hoja {0} de {1}: interior, al dorso de la hoja anterior</value>
+  </data>
+  <data name="Photos_SavePdf" xml:space="preserve">
+    <value>Guardar como PDF…</value>
+  </data>
+  <data name="Photos_SavePdfTip" xml:space="preserve">
+    <value>Guarda cada hoja tal como se imprime, en un PDF en este PC.</value>
+  </data>
+  <data name="Photos_SavePdfTitle" xml:space="preserve">
+    <value>Guardar las hojas como PDF</value>
+  </data>
+  <data name="Photos_SavingPdf" xml:space="preserve">
+    <value>Guardando el PDF…</value>
+  </data>
+  <data name="Photos_SavedPdf" xml:space="preserve">
+    <value>Se guardó {0} ({1}).</value>
+  </data>
+  <data name="Photos_SavePdfFailed" xml:space="preserve">
+    <value>No se pudo guardar el PDF: {0}</value>
+  </data>
 </root>

@@ -40,6 +40,18 @@ public enum PhotoLayoutKind
 
     /// <summary>An index: <see cref="PhotoLayoutOptions.PerSheet"/> small whole photos per sheet, each with its file name.</summary>
     ContactSheet,
+
+    /// <summary>Folded greeting cards, two to a sheet, with a message inside (<see cref="PhotoProjects.Cards"/>).</summary>
+    Card,
+
+    /// <summary>A month's calendar under each photo, month after month (<see cref="PhotoProjects.MonthSheet"/>).</summary>
+    MonthCalendar,
+
+    /// <summary>A year's calendar under each photo (<see cref="PhotoProjects.YearSheet"/>).</summary>
+    YearCalendar,
+
+    /// <summary>Up to nine photos together on a sheet (<see cref="PhotoProjects.Collages"/>).</summary>
+    Collage,
 }
 
 public enum PhotoFit
@@ -63,6 +75,21 @@ public sealed record PhotoLayoutOptions
 
     /// <summary>Print sizes: every cell of a sheet holds the same photo (wallets of one portrait); copies count sheets.</summary>
     public bool OnePhotoPerSheet { get; init; }
+
+    /// <summary>Cards: the message inside (empty: no inside sheet).</summary>
+    public string CardMessage { get; init; } = "";
+
+    /// <summary>Calendars: the year, and the first photo's month (1 to 12).</summary>
+    public int CalendarYear { get; init; } = DateTime.Today.Year;
+    public int CalendarMonth { get; init; } = DateTime.Today.Month;
+
+    /// <summary>Calendars: month and day names and the week's first day (the interface's language); invariant when null.</summary>
+    public System.Globalization.CultureInfo? Culture { get; init; }
+
+    /// <summary>Collages: the arrangement, the space between photos and the border around them (inches).</summary>
+    public CollageArrangement Collage { get; init; }
+    public double CollageSpacing { get; init; } = 0.08;
+    public double CollageBorder { get; init; } = 0.25;
 }
 
 /// <summary>A sheet of paper in inches, with the margins the printer can't print in (all zero: borderless).</summary>
@@ -92,7 +119,17 @@ public sealed record PhotoInput(double Width, double Height, int Copies, PhotoCr
 /// </summary>
 public sealed record PhotoCell(int Photo, Placement Cell, Placement Image, bool Turned, Placement? Caption = null);
 
-public sealed record PhotoSheet(IReadOnlyList<PhotoCell> Cells);
+public sealed record PhotoSheet(IReadOnlyList<PhotoCell> Cells)
+{
+    /// <summary>Marks and rules drawn over the photos (cards, calendars).</summary>
+    public IReadOnlyList<SheetLine> Lines { get; init; } = [];
+
+    /// <summary>Words drawn on the sheet (a card's message, a calendar's names and days).</summary>
+    public IReadOnlyList<SheetText> Texts { get; init; } = [];
+
+    /// <summary>A card's inside: printed on the back of the sheet before it.</summary>
+    public bool Inside { get; init; }
+}
 
 /// <summary>The cells of one sheet; <see cref="Shrunk"/>: the print size didn't fit in the printable area, so one smaller print.</summary>
 public sealed record SheetGrid(IReadOnlyList<Placement> Cells, bool Shrunk);
@@ -115,6 +152,7 @@ public static class PhotoLayout
     public static IReadOnlyList<PhotoSheet> Sheets(IReadOnlyList<PhotoInput> photos, PhotoLayoutOptions options, SheetPaper paper)
     {
         if (photos.Count == 0) return [];
+        if (PhotoProjects.IsProject(options.Kind)) return PhotoProjects.Sheets(photos, options, paper);
         if (options.Kind == PhotoLayoutKind.ContactSheet) return ContactSheets(photos, options, paper);
 
         var landscape = photos.Count(p => p.Width > p.Height);
@@ -161,6 +199,7 @@ public static class PhotoLayout
         switch (options.Kind)
         {
             case PhotoLayoutKind.FullPage:
+            case var project when PhotoProjects.IsProject(project):
                 return new SheetGrid([area], false);
             case PhotoLayoutKind.ContactSheet:
                 {

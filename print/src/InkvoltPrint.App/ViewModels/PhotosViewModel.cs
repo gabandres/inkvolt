@@ -20,6 +20,10 @@ public sealed record PhotoLayoutChoice(string Key, PhotoLayoutKind Kind, PhotoSi
     {
         PhotoLayoutKind.FullPage => Strings.Photos_FullPage,
         PhotoLayoutKind.ContactSheet => Strings.Photos_ContactSheet,
+        PhotoLayoutKind.Card => Strings.Photos_Card,
+        PhotoLayoutKind.MonthCalendar => Strings.Photos_MonthCalendar,
+        PhotoLayoutKind.YearCalendar => Strings.Photos_YearCalendar,
+        PhotoLayoutKind.Collage => Strings.Photos_Collage,
         _ => Size?.Name ?? Key,
     };
 
@@ -56,6 +60,11 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         new("full", PhotoLayoutKind.FullPage),
         .. PhotoSizes.All.Select(s => new PhotoLayoutChoice(SizeKey(s), PhotoLayoutKind.PrintSize, s)),
         new("contact", PhotoLayoutKind.ContactSheet),
+        // Roadmap 4.16: made from the photos, on this PC.
+        new("card", PhotoLayoutKind.Card),
+        new("calendar-month", PhotoLayoutKind.MonthCalendar),
+        new("calendar-year", PhotoLayoutKind.YearCalendar),
+        new("collage", PhotoLayoutKind.Collage),
     ];
 
     private static string SizeKey(PhotoSize s) => s == PhotoSizes.Wallet ? "wallet" : s.Name.Replace(" ", "").Replace("×", "x");
@@ -97,7 +106,75 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
 
     public bool IsPrintSize => Layout.Kind == PhotoLayoutKind.PrintSize;
     public bool IsContactSheet => Layout.Kind == PhotoLayoutKind.ContactSheet;
-    public bool ShowFit => !IsContactSheet;
+    public bool ShowFit => !IsContactSheet && !IsProject;
+
+    // ---------------- Cards, calendars and collages (roadmap 4.16) ----------------
+
+    public bool IsProject => PhotoProjects.IsProject(Layout.Kind);
+    public bool IsCard => Layout.Kind == PhotoLayoutKind.Card;
+    public bool IsCalendar => Layout.Kind is PhotoLayoutKind.MonthCalendar or PhotoLayoutKind.YearCalendar;
+    public bool IsMonthCalendar => Layout.Kind == PhotoLayoutKind.MonthCalendar;
+    public bool IsCollage => Layout.Kind == PhotoLayoutKind.Collage;
+
+    /// <summary>A card's message, printed inside (empty: the card has no inside sheet).</summary>
+    [ObservableProperty] public partial string CardMessage { get; set; } = "";
+
+    /// <summary>Months in the interface's language, made on each read.</summary>
+    public static IReadOnlyList<Option<int>> Months =>
+        [.. Enumerable.Range(1, 12).Select(m => new Option<int>(m, PhotoProjects.MonthName(m, AppLanguage.Current)))];
+
+    /// <summary>The calendar's first month (a month calendar: the first photo's) and its year.</summary>
+    [ObservableProperty] public partial Option<int> CalendarMonth { get; set; } = Months[DateTime.Today.Month - 1];
+    [ObservableProperty] public partial int CalendarYear { get; set; } = DateTime.Today.Year;
+
+    public static IReadOnlyList<Option<CollageArrangement>> Arrangements =>
+    [
+        new(CollageArrangement.Rows, Strings.Photos_CollageRows),
+        new(CollageArrangement.Columns, Strings.Photos_CollageColumns),
+        new(CollageArrangement.OneLarge, Strings.Photos_CollageOneLarge),
+    ];
+
+    public static IReadOnlyList<Option<double>> Spacings =>
+        [.. PhotoProjects.Spacings.Select((s, i) => new Option<double>(s, i switch { 0 => Strings.Photos_SpacingNone, 1 => Strings.Photos_SpacingThin, _ => Strings.Photos_SpacingWide }))];
+
+    public static IReadOnlyList<Option<double>> Borders =>
+        [.. PhotoProjects.Borders.Select((s, i) => new Option<double>(s, i switch { 0 => Strings.Photos_BorderNone, 1 => Strings.Photos_BorderNarrow, _ => Strings.Photos_BorderWide }))];
+
+    [ObservableProperty] public partial Option<CollageArrangement> Arrangement { get; set; } = Arrangements[0];
+    [ObservableProperty] public partial Option<double> Spacing { get; set; } = Spacings[1];
+    [ObservableProperty] public partial Option<double> Border { get; set; } = Borders[1];
+
+    /// <summary>What to do with a project's sheets: fold and cut a card, drag a collage's photos to swap them.</summary>
+    public string? ProjectNote => Layout.Kind switch
+    {
+        PhotoLayoutKind.Card => Strings.Photos_CardNote,
+        PhotoLayoutKind.Collage => Strings.Photos_CollageNote,
+        _ => null,
+    };
+
+    partial void OnCardMessageChanged(string value) => Relayout();
+    partial void OnCalendarMonthChanged(Option<int> value) => Relayout();
+    partial void OnCalendarYearChanged(int value)
+    {
+        if (value is < 1 or > 9999) CalendarYear = Math.Clamp(value, 1, 9999);
+        else Relayout();
+    }
+    partial void OnArrangementChanged(Option<CollageArrangement> value) => Relayout();
+    partial void OnSpacingChanged(Option<double> value) => Relayout();
+    partial void OnBorderChanged(Option<double> value) => Relayout();
+
+    /// <summary>A collage's photo dragged onto another's place: the two swap (<see cref="PhotoProjects.Swap"/>).</summary>
+    public void Swap(int a, int b)
+    {
+        if (a == b) return;
+        var order = PhotoProjects.Swap(Photos.Count, a, b);
+        var items = order.Select(i => Photos[i]).ToList();
+        var selected = Selected;
+        for (var i = 0; i < items.Count; i++)
+            if (!ReferenceEquals(Photos[i], items[i])) Photos[i] = items[i];
+        Selected = selected;
+        Relayout();
+    }
 
     /// <summary>Crop and zoom apply to full-page and print-size layouts (a contact sheet shows every photo whole).</summary>
     public bool ShowCrop => !IsContactSheet && HasSelection;
@@ -158,7 +235,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     [ObservableProperty] public partial bool IsReadingOptions { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(AddPhotosCommand), nameof(ClearCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(SaveAsPdfCommand), nameof(AddPhotosCommand), nameof(ClearCommand))]
     public partial bool IsBusy { get; set; }
 
     [ObservableProperty] public partial string? Summary { get; set; }
@@ -176,6 +253,8 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     {
         state.PhotoLayout = value.Key;
         state.Save();
+        foreach (var name in new[] { nameof(IsProject), nameof(IsCard), nameof(IsCalendar), nameof(IsMonthCalendar), nameof(IsCollage), nameof(ProjectNote), nameof(ShowFit) })
+            OnPropertyChanged(name);
         Relayout();
     }
 
@@ -226,7 +305,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
 
     /// <summary>Pictures are being opened (Print waits for them).</summary>
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PrintCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(SaveAsPdfCommand))]
     public partial bool IsAdding { get; set; }
 
     private async Task AddAfterAsync(Task previous, IReadOnlyList<string> paths)
@@ -347,6 +426,19 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     [RelayCommand(CanExecute = nameof(HasSelectionNotBusy))]
     private void ResetCrop() => Selected?.SetCrop(PhotoCrop.None);
 
+    /// <summary>Alt+Left and Alt+Right in the photo list: the selected photo trades places with its neighbor (a collage's order, by keyboard).</summary>
+    [RelayCommand(CanExecute = nameof(HasSelectionNotBusy))]
+    private void MoveEarlier()
+    {
+        if (Selected is { } s && Photos.IndexOf(s) is > 0 and var i) Swap(i, i - 1);
+    }
+
+    [RelayCommand(CanExecute = nameof(HasSelectionNotBusy))]
+    private void MoveLater()
+    {
+        if (Selected is { } s && Photos.IndexOf(s) is var i && i >= 0 && i < Photos.Count - 1) Swap(i, i + 1);
+    }
+
     /// <summary>A sheet preview was clicked on one of its prints.</summary>
     public void Select(int photo)
     {
@@ -362,7 +454,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         if (IsContactSheet || cell.Photo < 0 || cell.Photo >= Photos.Count) return;
         var item = Photos[cell.Photo];
         var input = item.Job.Input;
-        item.SetCrop(PhotoLayout.Drag(cell.Cell, input.Width, input.Height, Fill ? PhotoFit.Fill : PhotoFit.Fit, item.Crop, cell.Turned, dx, dy));
+        item.SetCrop(PhotoLayout.Drag(cell.Cell, input.Width, input.Height, Options.Fit, item.Crop, cell.Turned, dx, dy));
     }
 
     /// <summary>Arrow keys in the crop view: move the selected photo's crop a tenth of its cell (Shift: a half).</summary>
@@ -441,7 +533,8 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     }
 
     private PhotoJobSettings Settings(PaperChoice? paper) =>
-        new(paper, MediaType?.Value, Quality?.Value, ColorMode?.Value, Borderless && CanBorderless);
+        new(paper, MediaType?.Value, Quality?.Value, ColorMode?.Value, Borderless && CanBorderless,
+            TwoSided: IsCard && PhotoProjects.Message(CardMessage).Length > 0); // a card's inside on the back of its outside
 
     /// <summary>The sheet as laid out: the queue's printable area when known, none when borderless, else ¼ in.</summary>
     private SheetPaper SheetPaper
@@ -460,8 +553,15 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         Kind = Layout.Kind,
         Size = Layout.Size ?? PhotoSizes.In4x6,
         PerSheet = PerSheet.Value,
-        Fit = Fill ? PhotoFit.Fill : PhotoFit.Fit,
+        Fit = Fill || IsProject ? PhotoFit.Fill : PhotoFit.Fit,
         OnePhotoPerSheet = OnePhotoPerSheet && ShowOnePerSheet,
+        CardMessage = CardMessage ?? "",
+        CalendarYear = CalendarYear,
+        CalendarMonth = CalendarMonth.Value,
+        Culture = AppLanguage.Current,
+        Collage = Arrangement.Value,
+        CollageSpacing = Spacing.Value,
+        CollageBorder = Border.Value,
     };
 
     // ---------------- Layout and preview ----------------
@@ -483,7 +583,8 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         while (Sheets.Count > shown) Sheets.RemoveAt(Sheets.Count - 1);
         while (Sheets.Count < shown) Sheets.Add(new PhotoSheetPreview(this));
         for (var i = 0; i < shown; i++)
-            Sheets[i].Set(sheets[i], paper, photos, thumbs, string.Format(Strings.Photos_SheetOf, i + 1, sheets.Count), PreviewHeight * paper.Width / paper.Height, PreviewHeight);
+            Sheets[i].Set(sheets[i], paper, photos, thumbs, string.Format(sheets[i].Inside ? Strings.Photos_SheetOfInside : Strings.Photos_SheetOf, i + 1, sheets.Count),
+                PreviewHeight * paper.Width / paper.Height, PreviewHeight);
         MoreSheetsText = sheets.Count > MaxPreviews ? Core.Plural.Of(sheets.Count - MaxPreviews, Strings.Photos_MoreSheets_One, Strings.Photos_MoreSheets_Many) : null;
 
         // Resolution each photo prints at (its smallest print), and the warnings that go with it.
@@ -499,6 +600,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
         var paperName = (Paper ?? FallbackPaper).Label;
         var prints = sheets.Sum(s => s.Cells.Count);
         Summary = Photos.Count == 0 ? null
+            : IsProject ? string.Format(Strings.Photos_SummaryProject, Layout.Label, PhotoCount(Photos.Count), SheetCount(sheets.Count), paperName)
             : IsContactSheet ? string.Format(Strings.Photos_SummaryContact, PhotoCount(Photos.Count), SheetCount(sheets.Count), paperName, PerSheet.Value)
             : string.Format(Strings.Photos_SummaryPrints, PhotoCount(Photos.Count), Core.Plural.Of(prints, Strings.Photos_Prints_One, Strings.Photos_Prints_Many),
                 SheetCount(sheets.Count), paperName);
@@ -512,6 +614,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
                 : string.Format(Strings.Photos_SoftMany, soft.Count, PhotoLayout.LowDpi));
         Warning = warnings.Count > 0 ? string.Join(" ", warnings) : null;
         PrintCommand.NotifyCanExecuteChanged();
+        SaveAsPdfCommand.NotifyCanExecuteChanged();
         UpdateSelectedCell();
     }
 
@@ -599,6 +702,49 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
             _printCts?.Dispose();
             _printCts = null;
             CanCancel = false;
+            IsBusy = false;
+        }
+        if (Message is { } said) Prompt.Announce(said);
+    }
+
+    /// <summary>
+    /// Save as PDF (roadmap 4.16): every sheet as laid out now, drawn as it prints (<see cref="PhotoPrinting.PhotoPaginator"/>) at
+    /// <see cref="PhotoPrinting.PdfDpi"/>, into a PDF of pictures. Offline, like everything here.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(CanPrint))]
+    private async Task SaveAsPdfAsync()
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = Strings.Photos_SavePdfTitle,
+            Filter = Strings.Scan_PdfFilter,
+            FileName = Layout.Label,
+            InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+            AddExtension = true,
+            DefaultExt = ".pdf",
+        };
+        if (dialog.ShowDialog() != true) return;
+        await SavePdfAsync(dialog.FileName);
+    }
+
+    /// <summary>The PDF written to <paramref name="path"/> (Save as PDF, and the snapshot aid's <c>--photos-pdf</c>).</summary>
+    internal async Task SavePdfAsync(string path)
+    {
+        var (sheets, photos, paper) = PrintPlan();
+        IsBusy = true;
+        SetMessage(Strings.Photos_SavingPdf);
+        try
+        {
+            await PhotoPrinting.SavePdfAsync(path, sheets, photos, paper, Layout.Label);
+            SetMessage(string.Format(Strings.Photos_SavedPdf, Path.GetFileName(path), SheetCount(sheets.Count)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            Log.Write($"Photos as PDF failed: {ex}");
+            SetMessage(string.Format(Strings.Photos_SavePdfFailed, ex.Message), error: true);
+        }
+        finally
+        {
             IsBusy = false;
         }
         if (Message is { } said) Prompt.Announce(said);

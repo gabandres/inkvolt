@@ -5291,4 +5291,93 @@ The files stay where they are.</value>
   <data name="PrintLayout_TooMany" xml:space="preserve">
     <value>Not printed: this layout would take more than {0} sheets. Choose fewer pages, fewer copies or a smaller poster.</value>
   </data>
+  <data name="Photos_Card" xml:space="preserve">
+    <value>Folded card (2 per sheet)</value>
+    <comment>Photos layout (roadmap 4.16)</comment>
+  </data>
+  <data name="Photos_MonthCalendar" xml:space="preserve">
+    <value>Calendar: a month per photo</value>
+  </data>
+  <data name="Photos_YearCalendar" xml:space="preserve">
+    <value>Calendar: a year per photo</value>
+  </data>
+  <data name="Photos_Collage" xml:space="preserve">
+    <value>Collage (2 to 9 photos)</value>
+  </data>
+  <data name="Photos_CardMessage" xml:space="preserve">
+    <value>Message inside (leave empty for a blank inside)</value>
+  </data>
+  <data name="Photos_CardNote" xml:space="preserve">
+    <value>Each card is half a sheet: the photo on its front, your message inside, printed on the back of the sheet when the printer prints both sides (on a printer that prints one side, the inside comes out as a sheet of its own). Cut the sheet in half at the marks, then fold each card at its fold marks.</value>
+  </data>
+  <data name="Photos_CollageNote" xml:space="preserve">
+    <value>Drag a photo onto another to swap them (or select it and press Alt+Left or Alt+Right). Each photo is used once; more than 9 make another collage.</value>
+  </data>
+  <data name="Photos_CalendarMonth" xml:space="preserve">
+    <value>First month</value>
+  </data>
+  <data name="Photos_CalendarYear" xml:space="preserve">
+    <value>Year</value>
+  </data>
+  <data name="Photos_CollageArrangement" xml:space="preserve">
+    <value>Arrangement</value>
+  </data>
+  <data name="Photos_CollageRows" xml:space="preserve">
+    <value>In rows</value>
+  </data>
+  <data name="Photos_CollageColumns" xml:space="preserve">
+    <value>In columns</value>
+  </data>
+  <data name="Photos_CollageOneLarge" xml:space="preserve">
+    <value>The first photo large</value>
+  </data>
+  <data name="Photos_CollageSpacing" xml:space="preserve">
+    <value>Space between photos</value>
+  </data>
+  <data name="Photos_SpacingNone" xml:space="preserve">
+    <value>No space between photos</value>
+  </data>
+  <data name="Photos_SpacingThin" xml:space="preserve">
+    <value>A thin space between photos</value>
+  </data>
+  <data name="Photos_SpacingWide" xml:space="preserve">
+    <value>A wide space between photos</value>
+  </data>
+  <data name="Photos_CollageBorder" xml:space="preserve">
+    <value>Border</value>
+  </data>
+  <data name="Photos_BorderNone" xml:space="preserve">
+    <value>No border</value>
+  </data>
+  <data name="Photos_BorderNarrow" xml:space="preserve">
+    <value>A narrow white border</value>
+  </data>
+  <data name="Photos_BorderWide" xml:space="preserve">
+    <value>A wide white border</value>
+  </data>
+  <data name="Photos_SummaryProject" xml:space="preserve">
+    <value>{0}: {1} on {2} of {3}.</value>
+    <comment>{0} the layout, {1} photos, {2} sheets, {3} the paper</comment>
+  </data>
+  <data name="Photos_SheetOfInside" xml:space="preserve">
+    <value>Sheet {0} of {1}: inside, on the back of the sheet before</value>
+  </data>
+  <data name="Photos_SavePdf" xml:space="preserve">
+    <value>Save as PDF…</value>
+  </data>
+  <data name="Photos_SavePdfTip" xml:space="preserve">
+    <value>Saves every sheet as it prints, in a PDF on this PC.</value>
+  </data>
+  <data name="Photos_SavePdfTitle" xml:space="preserve">
+    <value>Save the sheets as a PDF</value>
+  </data>
+  <data name="Photos_SavingPdf" xml:space="preserve">
+    <value>Saving the PDF…</value>
+  </data>
+  <data name="Photos_SavedPdf" xml:space="preserve">
+    <value>Saved {0} ({1}).</value>
+  </data>
+  <data name="Photos_SavePdfFailed" xml:space="preserve">
+    <value>Couldn't save the PDF: {0}</value>
+  </data>
 </root>

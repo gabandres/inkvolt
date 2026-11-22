@@ -689,7 +689,8 @@ internal static class DevSnapshot
 
     /// <summary>
     /// <c>--photos [layout]</c>: the Photos tab with the demo's generated sample pictures (Demo.SamplePhotos), in a layout
-    /// (full, 4x6in, 5x7in, 8x10in, 10x15cm, 13x18cm, wallet, contact); <c>--paper key</c> (e.g. NorthAmerica4x6),
+    /// (full, 4x6in, 5x7in, 8x10in, 10x15cm, 13x18cm, wallet, contact, and roadmap 4.16's card, calendar-month, calendar-year, collage with <c>--card-message</c>,
+    /// <c>--calendar-month m</c>, <c>--calendar-year y</c>, <c>--collage rows|columns|large</c>, <c>--photo-swap a,b</c>, <c>--photos-pdf file</c>); <c>--paper key</c> (e.g. NorthAmerica4x6),
     /// <c>--borderless</c>, <c>--fit</c>, <c>--one-per-sheet</c>, <c>--per-sheet n</c>, <c>--photo-zoom n</c> (zoom the n-th photo and move
     /// its crop) and <c>--photo-sheets folder</c>: each sheet rendered to a PNG there by the print job's own paginator (what
     /// the printer would get, at 100 dpi), so the print path is checked without printing.
@@ -708,6 +709,13 @@ internal static class DevSnapshot
         }
         if (int.TryParse(Value(args, "--per-sheet"), out var perSheet) && ViewModels.PhotosViewModel.ContactCounts.FirstOrDefault(c => c.Value == perSheet) is { } count)
             vm.PerSheet = count;
+        // Roadmap 4.16: --card-message text, --calendar-month m, --calendar-year y, --collage rows|columns|large, --photo-swap a,b.
+        if (Value(args, "--card-message") is { } message) vm.CardMessage = message.Replace("\\n", "\n");
+        if (int.TryParse(Value(args, "--calendar-month"), out var calendarMonth) && calendarMonth is >= 1 and <= 12) vm.CalendarMonth = ViewModels.PhotosViewModel.Months[calendarMonth - 1];
+        if (int.TryParse(Value(args, "--calendar-year"), out var calendarYear)) vm.CalendarYear = calendarYear;
+        if (Value(args, "--collage") is { } arrangement)
+            vm.Arrangement = ViewModels.PhotosViewModel.Arrangements[arrangement switch { "columns" => 1, "large" => 2, _ => 0 }];
+        if (Value(args, "--photo-swap")?.Split(',') is [var swapA, var swapB] && int.TryParse(swapA, out var a) && int.TryParse(swapB, out var b)) vm.Swap(a - 1, b - 1);
         if (args.Contains("--borderless")) vm.Borderless = true;
         if (args.Contains("--fit")) vm.Fill = false;
         if (args.Contains("--one-per-sheet")) vm.OnePhotoPerSheet = true;
@@ -718,6 +726,7 @@ internal static class DevSnapshot
             vm.Selected.SetCrop(vm.Selected.Crop with { PanX = 0.8, PanY = -0.5 });
         }
         await Task.Delay(TimeSpan.FromSeconds(1));
+        if (Value(args, "--photos-pdf") is { } pdfPath) await vm.SavePdfAsync(pdfPath); // Save as PDF, without its dialog
         if (Value(args, "--photo-sheets") is not { } folder) return;
         Directory.CreateDirectory(folder);
         var (sheets, photos, sheetPaper) = vm.PrintPlan();

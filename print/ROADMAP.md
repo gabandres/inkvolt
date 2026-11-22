@@ -214,9 +214,15 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     scans pass Inkvolt PDF's PDF/A check and open in its PDFsharp and MuPDF (README, "Print a PDF", "Scan presets";
     `SheetPrint`, `PdfArchive`, `PdfEncryption`). **Next:** a booklet and a poster on paper (the owner's M234dw: fold, trim);
     a protected scan opened in Acrobat; veraPDF on a PDF/A scan; the Mac half waits.
+  - **4.16 Cards, calendars and collages in Photos.** Done on Windows: a folded card (two to a sheet, the photo on the front,
+    a typed message inside on the sheet's back, fold and cut marks), a calendar (a month or a year per photo, in the interface
+    language's month and day names and first day of the week) and a collage (2 to 9 photos in rows, columns or one large;
+    spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
+    (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
+    paper; the Mac half waits.
   - Still to come: 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
     CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;
-    Pro). 4.16 Cards, calendars and collages in Photos.
+    Pro).
 - **The owner's call first:** 4.17 setting up a new printer's Wi-Fi out of the box (each maker's own way, risky without
   each maker's hardware).
 
