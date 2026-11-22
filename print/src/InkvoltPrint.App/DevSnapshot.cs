@@ -29,7 +29,9 @@ namespace InkvoltPrint.App;
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
-/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
+/// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
+/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it; <c>--driver-licence</c>: a find under a licence to accept first); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
