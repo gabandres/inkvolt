@@ -27,7 +27,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   A USB **scanner** with no working driver is listed the same way (`UsbScanners`): it has no "set up" stage.
 - **Get the driver**: the maker's own driver for a device that needs its driver, found on the maker's site for this model and
   this PC, downloaded from the maker's hosts only, kept only when its signature is valid and the maker's, and run on the user's
-  click; then Windows is asked to look again and whether it has the device now is checked (`DriverFlow`; `EpsonDrivers`, `CanonDrivers`, `HpDrivers`, `BrotherDrivers`, `PfuDrivers` in
+  click (a Store copy only opens the maker's link and watches for the device); then Windows is asked to look again and whether it has the device now is checked (`DriverFlow`; `EpsonDrivers`, `CanonDrivers`, `HpDrivers`, `BrotherDrivers`, `PfuDrivers` in
   `shared/InkvoltPrint.Core/Drivers`). Epson, Canon, HP, Brother and PFU (fi and SP series; not ScanSnap).
 - **CUPS destination** (Mac): a print queue set up in macOS, as libcups lists it with its options (`CupsDestination`). A
   temporary destination (a printer Bonjour shows that nobody set up) isn't a queue.
@@ -60,8 +60,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   One change event, which every tab hears itself; none is told by hand (`PrintRouting` in `Core/Printing/Direct`; the decision
   itself is `PrintRouter`'s). What a tab reads of the route (two-sided, photo options, a batch's queue) is read once asked and
   again after a change only if it was asked, never from a route that changed during the read (`RouteRead`).
-- **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T),
-  a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
+- **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T)
+  or a QR code or barcode saying PATCHT (`SeparatorCodes`), a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
   Left out of the files unless the batch keeps them.
 - **Glass photos**: several prints laid on the scanner glass at once, each found and saved as a picture of its own, cut
   out straight (`PhotoFinder`, `PhotoBox`). Their boxes can be moved, resized, turned or drawn by hand before saving
@@ -78,7 +78,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   scanners, the offline fixer's checks and repairs, saved passwords, the browser. Chosen once at start-up: the real PC or
   demo mode's made-up one (`PcEnvironment`, `Demo.Pc`).
 - **Made-up PC**: demo mode's environment. Nothing it does reaches the network or this PC; nothing prints for real.
-- **PDF-only source** (of a scanner): a glass or feeder whose eSCL capabilities offer PDF and no JPEG. Scanned as PDF, its pages
+- **PDF-only source** (of a scanner): a glass or feeder whose eSCL capabilities offer PDF and no JPEG, or a WIA driver's
+  source that offers PDF and no picture (`WiaScannerInfo.PdfOnly`). Scanned as PDF, its pages
   handed over as JPEG like any other scanner's (`ScannerPdf`); a file saved from them untouched is **as sent**: the scanner's own PDF.
 - **Recording** (of a printer): every reply the app reads from one printer, scrubbed, in the fixtures' layout, so the test
   transports (`FixtureHandler`, `SnmpAgent`) serve it as that printer (`Core/Recording/PrinterRecorder`). **Scrubbing** gives

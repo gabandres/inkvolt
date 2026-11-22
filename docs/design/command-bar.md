@@ -1,7 +1,7 @@
 # Command bar: familiar groups, one click
 
-Status: **approved by the owner 2026-11-08 and built for Windows** on branch `t3/2df29816` (not merged; the Mac comes
-next, as its own task). The owner's brief is `docs/handoff/ARCHIVE.md`, "Owner, 2026-11-08 (evening)", item 2.
+Approved by the owner on 2026-11-08; built on Windows (`CommandBarLayout`) and the Mac (PdfCore's `CommandBar`). The
+owner's brief is `docs/handoff/ARCHIVE.md`, "Owner, 2026-11-08 (evening)", item 2.
 
 ## 1. Map: where the others put each task
 
@@ -43,9 +43,9 @@ hand, Ctrl+F, F3 [X2]. Nitro: Alt plus a letter for each ribbon command (Alt, R 
 [N2]. Acrobat: single-key tools only after Preferences › General "Use single-key accelerators" (H = Hand) [A7].
 **Inkvolt already matches**: Ctrl+Shift+D/I/E (Foxit, PDF-XChange), Ctrl+Shift+F, F4, F11, Ctrl+Shift+Y; H/T/G page keys.
 
-**Inkvolt today, set against them.** The bar is Hand/Select, Fill & Sign, Comment, Draw, Redact, Organize; Combine
-is in "…". To Word is File › Export › Word… › Export (options window) › Save · **4 clicks and 2 windows**. Convert,
-Protect and OCR are not on the bar at all, and those are exactly the tasks the others put first (Acrobat: Edit, Convert;
+**The bar this design replaced, set against them.** The bar was Hand/Select, Fill & Sign, Comment, Draw, Redact, Organize; Combine
+was in "…". To Word was File › Export › Word… › Export (options window) › Save · **4 clicks and 2 windows**. Convert,
+Protect and OCR were not on the bar at all, and those are exactly the tasks the others put first (Acrobat: Edit, Convert;
 Nitro and PDFgear: Convert).
 
 ## 2. Design
@@ -120,9 +120,8 @@ from Fluent's high-contrast theme. Labels always stay, so colour never carries m
 the main job and the arrow opens the menu. Proposed defaults: sidebar, Edit, Convert, Comment, Fill & Sign, Organize,
 Protect, Search. Scan & OCR goes in View › Customize Toolbar…, and the system's » chevron is the overflow.
 
-## 3. Built (Windows) and screenshots
+## 3. Where it lives (Windows) and screenshots
 
-Branch `t3/2df29816`, as approved on 2026-11-08:
 - `CommandBarLayout`: the groups, each group's main job (`Entry.Main`, `HasMainJob`) and icon, `Command.AtOnce` and
   `IconBrush`, `RunAtOnce`, and `FillSignPriority`.
 - `BarGroupButton`: the split button.
@@ -142,24 +141,21 @@ themes.
 
 ## 4. The owner's answers (2026-11-08)
 
-1. Split buttons for every group with a main job (done).
-2. Labels kept at the middle widths: lower-priority groups go into "…" first (done; the pointer tools give way at 1100).
-3. Spanish keeps "Llenar y firmar" and lets it go into "…" sooner (done).
+1. Split buttons for every group with a main job.
+2. Labels kept at the middle widths: lower-priority groups go into "…" first (the pointer tools give way at 1100).
+3. Spanish keeps "Llenar y firmar" and lets it go into "…" sooner.
 4. Both the menu bar's and the bar's Edit and Organize stay.
 5. Fill & Sign's main job is Sign.
 6. Yes to the icon-only pointer group and to Draw inside Comment.
 
-Pending: the Mac (built 2026-11-09, below; for the owner to look at before it ships).
-
-**Later (the owner's brief): Explorer's right-click "Convert to Word with Inkvolt PDF".** Built for Windows on 2026-11-10
-(branch `t3/4964c14e`, not merged): `--convert-to word <files…>` (`ConvertCommand`, `ConvertQueue`, `ExplorerConvert`),
+**Later (the owner's brief): Explorer's right-click "Convert to Word with Inkvolt PDF"** (Windows): `--convert-to word <files…>` (`ConvertCommand`, `ConvertQueue`, `ExplorerConvert`),
 the one-click Convert › Word for each file, its notice in the open window, or a small window listing the files. A
 declared verb on `.pdf` (the package's `uap3:Verb`, `install.ps1`'s `SystemFileAssociations` key), not an
 `IExplorerCommand` DLL loaded into Explorer: so Windows 11 shows it under "Show more options", Windows 10 in the menu, and the Store build shows it only while Inkvolt PDF is the default PDF app (checked on this PC: registered on the package's ProgId, not listed with PDF-XChange as the default)
 (Foxit's sits at the top of Windows 11's menu through such a DLL; that would be a native C++ project of its own). The Mac
 (a Finder Quick Action or Services item) isn't built.
 
-## 5. Mac (built 2026-11-09, branch `t3/b9736669`)
+## 5. Mac
 
 The same groups, order, main jobs and colours in the Mac's own toolbar: each group an `NSMenuToolbarItem` (icon and
 label side by side, the body runs the main job, the arrow opens the menu, each item with its line under it), the

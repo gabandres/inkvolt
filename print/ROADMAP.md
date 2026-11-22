@@ -1,41 +1,38 @@
 # Inkvolt Print: roadmap
 
-What Inkvolt Print builds next to do better than the apps people actually use for the same job: the makers' own
-(HP app / HP Smart, Canon IJ Scan Utility, Brother iPrint&Scan, Epson Scan 2 and Document Capture Pro, Xerox Print
-and Scan Experience, Lexmark's Print Support App), the operating systems' own (Windows' Printers & scanners and
-Windows Scan, macOS's Printers & Scanners and Image Capture), the scanning tools (NAPS2, VueScan), the batch printer
-(Print Conductor) and the fleet tools (PRTG's printer sensor, PrinterLogic / Vasion Print, Printix, PaperCut).
-Written 2026-10-30 from a gap review against those apps and their vendors' current help pages; sources are linked
-per item. What exists today: [README.md](README.md) (the feature table, "Not done / known limits"); the Mac app:
-[../mac/docs/PLAN.md](../mac/docs/PLAN.md).
+What Inkvolt Print builds to do better than the apps people actually use for the same job: the makers' own (HP app /
+HP Smart, Canon IJ Scan Utility, Brother iPrint&Scan, Epson Scan 2 and Document Capture Pro, Xerox Print and Scan
+Experience, Lexmark's Print Support App), the operating systems' own (Windows' Printers & scanners and Windows Scan,
+macOS's Printers & Scanners and Image Capture), the scanning tools (NAPS2, VueScan), the batch printer (Print Conductor)
+and the fleet tools (PRTG's printer sensor, PrinterLogic / Vasion Print, Printix, PaperCut). What exists today:
+[README.md](README.md) (the feature table; "Not done / known limits" lists what only real hardware can confirm); the Mac
+app: [../mac/docs/PLAN.md](../mac/docs/PLAN.md).
 
-**Principles.** Free (MIT), local only: no account, no cloud service of ours, no telemetry, no driver download unless the person asks (then only the maker's own, signature checked), no
-shop links. Read-only toward the printer unless the person asks for a change, every write confirmed. Every claim is
-checked: each item has acceptance criteria that a test, a fixture captured from a real printer, or a check on a real
-printer can confirm.
+**Principles.** Free (MIT), local only: no account, no cloud service of ours, no telemetry, no driver download unless
+the person asks (then only the maker's own, signature checked), no shop links. Read-only toward the printer unless the
+person asks for a change, every write confirmed. Every claim is checked: each item has acceptance criteria that a test, a
+fixture captured from a real printer, or a check on a real printer can confirm.
 
 **Ranking.** value × fit ÷ effort. Value: how many users miss it and how often reviews and forum threads name it.
 Fit: how well it works locally, without a service, on what we already have (LEDM, CDM, IPP, SNMP, eSCL, WIA, the
 imaging code, the presets, the alert rules). Effort: S (about a week), M (2-4 weeks), L (more than a month).
 
-**Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided on 2026-10-27: an item is done only
-when it ships on Windows and on the Mac. The Mac app matched the Windows feature table of 1.0 (PLAN.md, P10). Of the
-items below, PrintCore has the halves of 1.1, 1.2, 1.3, 1.5, 2.4 and 2.6 (P12), 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.2, 3.5 and 3.7 are done on the Mac
-too (1.1, 1.3 and 1.5 on 2026-11-04, owner's go; 1.2, 2.4 and 2.6 on 2026-11-05; 2.3, 3.2 and 3.7 on 2026-11-06); the Mac app's other parts wait. Print for Mac 1.0 is in the Mac App Store (2026-11-04), 1.1 too (approved, live 2026-11-06); 1.2 (build 6,
-2026-11-06: the Mac halves above and the 1.6 Pro key) is on TestFlight, for the owner to submit; the rest waits for the owner's plan (2026-11-04). Each item names its
-Windows and its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets its
-Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. One Pro key works on both.
+**Platforms.** Full parity, as [../pdf/ROADMAP.md](../pdf/ROADMAP.md) decided: an item is done only when it ships on
+Windows and on the Mac. Each item names its Mac half; a Windows-only mechanism (WIA, the spooler, the Store package) gets
+its Mac equivalent named (ImageCaptureCore, CUPS, the App Store build) or the reason there is none. The .NET code and
+its tests are the Mac half's spec. **Every item is built on Windows. The Mac halves still open wait for a new Mac**
+(owner, 2026-11-17: no Mac; `docs/HANDOFF.md`).
 
 ## Free and Pro
 
 Same model as Inkvolt PDF's (pdf/ROADMAP.md, "Free and Pro"): everything Inkvolt Print does today stays free, and so
 does whatever a home or a small office needs to see its printers, scan, copy and print. **Inkvolt Pro** is one
 one-time purchase, **$19**, one key for both apps (ECDSA P-256-signed, checked on the PC against the public key in the
-app: no server, works offline, survives reinstalling; built in Inkvolt PDF on 2026-10-30, `pdf/tools/pro-key`, with the
-gate switched off during launch). It unlocks the office features below, the ones the fleet and
-batch tools sell per seat (Print Conductor at [$149 a user](https://www.g2.com/compare/equitrac-vs-print-conductor-vs-vasion-print-formerly-printerlogic),
-VueScan Professional at [$199.95](https://www.hamrick.com/reg.html)). A feature without the licence shows what it
-would do and where to get Pro, and never takes away a result already made.
+app: no server, works offline, survives reinstalling; `pdf/tools/pro-key`, with the gate switched off during launch).
+It unlocks the office features below, the ones the fleet and batch tools sell per seat (Print Conductor at
+[$149 a user](https://www.g2.com/compare/equitrac-vs-print-conductor-vs-vasion-print-formerly-printerlogic), VueScan
+Professional at [$199.95](https://www.hamrick.com/reg.html)). A feature without the licence shows what it would do and
+where to get Pro, and never takes away a result already made.
 
 | Item | Free | Pro |
 |---|---|---|
@@ -46,733 +43,117 @@ would do and where to get Pro, and never takes away a result already made.
 | 1.5 Firmware watch | All of it (the cartridge promise) | |
 | 1.6 The Pro key | | The seam itself |
 | 2.1 Print straight to the printer | All of it | |
-| 2.2 Scan from the printer's button | All of it (Windows built 2026-11-19; the Mac half waits) | |
+| 2.2 Scan from the printer's button | All of it | |
 | 2.3 Scan cleanup, Unicode OCR | All of it | |
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
-| 2.5 TWAIN | All of it (Windows done 2026-11-05; 32-bit-only sources named and declined 2026-11-20) | |
+| 2.5 TWAIN | All of it | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
-| 3.1 Share a scanner on the network | | All of it (Windows built 2026-11-19; the Mac half waits) |
+| 3.1 Share a scanner on the network | | All of it |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
-| 3.3 The printer's own copier | All of it (Windows built 2026-11-19; the Mac half waits) | |
+| 3.3 The printer's own copier | All of it | |
 | 3.4 Job notifications | All of it | |
-| 3.5 Open in Inkvolt PDF on the Mac | All of it (done 2026-11-02) | |
+| 3.5 Open in Inkvolt PDF on the Mac | All of it | |
+| 3.6 Supply levels for USB printers | All of it | |
+| 3.7 Spanish interface | All of it | |
+| 3.8 Get the driver | All of it | |
 
-The seam (built with 1.6): the key format, its verification, the gate and the store are `ProKeys`, `ProCheck` and
-`ProKeyFile` in `InkvoltPrint.Core/Suite`; each app's `Pro.Allows(feature)` (`InkvoltPrint.Core/Pro.cs`,
-`InkvoltPdf.Core/Pro.cs`) sits on one `ProCheck` for its product, so both apps ask one check and read one key
-(`%LOCALAPPDATA%\Inkvolt\pro-key.txt`); Inkvolt Print's Pro features ask it and nowhere else.
+The seam (1.6): the key format, its verification, the gate and the store are `ProKeys`, `ProCheck` and `ProKeyFile` in
+`InkvoltPrint.Core/Suite`; each app's `Pro.Allows(feature)` (`InkvoltPrint.Core/Pro.cs`, `InkvoltPdf.Core/Pro.cs`) sits
+on one `ProCheck` for its product, so both apps ask one check and read one key (`%LOCALAPPDATA%\Inkvolt\pro-key.txt`);
+Inkvolt Print's Pro features ask it and nowhere else. **Before the gate is switched on in the Mac App Store copy**, its
+Pro features need an in-app purchase as well (guideline 3.1.3(b)) or stay free there; that copy shows no buy button or
+price (3.1.1(a)).
 
-## Wave 1 (built on Windows; the Mac halves wait)
+## Items
 
-### 1.1 Supply history, pages per cartridge, days left
-- **Leader.** HP's app shows the level now and sells Instant Ink on it ([HP](https://www.hp.com/us-en/hp-app/overview.html));
-  the history lives in HP's cloud, with the account. PRTG's printer sensor reads levels every poll but doesn't keep
-  them ("The SNMP can monitor Toner Levels, BUT it does not record them!"; the special values −1/−2/−3 break its
-  graphs: [Paessler](https://helpdesk.paessler.com/en/support/solutions/articles/76000079692-monitoring-pages-printed-per-toner)).
-  PaperCut keeps them on its server ([PaperCut](https://www.papercut.com/help/manuals/ng-mf/applicationserver/printer-toner-levels/)).
-- **Now (built 2026-10-30, Windows).** Each reading's levels, states and the lifetime page count are kept on the PC
-  (`Core/History/SupplyHistoryStore`: one tab-separated file per printer under the data folder's `history\`, one row a day
-  per supply, about three years, 16 supplies and 64 printers at most, no identifiers, removed with the printer); the
-  supplies card shows "About N days left · N pages since this cartridge went in" per supply and the last year's level
-  chart (`Views/SupplyChartView`, the stored rows as they are), "not enough history" states with the days still needed,
-  and the low-supply notification names the days left. The method is documented on `SupplyAnalysis` and in the README
-  (a jump of 20 points is a change; least squares by calendar day over this cartridge's last 30 days; "more than two
-  years" past 730 days). Pro: Export history… writes one CSV across all printers through `Pro.Allows`
-  (`SupplyHistoryCsv`, formula-safe cells). Demo mode makes up a year per printer, so `--demo --snapshot` shows the
-  chart. Tests: `SupplyHistoryTests` and `SupplyHistoryCsvTests` (the year with two changes, the wobble, the week
-  offline and SNMP's −3; the chart's points equal to the stored rows byte for byte; bounds, damaged files, restart round
-  trip; the CSV; the alert's wording; the demo year). Pages per cartridge need a lifetime count: LEDM's, and since
-  2026-11-20 IPP's `printer-impressions-completed` and the Printer MIB's `prtMarkerLifeCount` (in impressions or sheets), from
-  the same request as the levels (CDM's counters not read: no capture of `/cdm/deviceUsage/v1/lifetimeCounters` and no published schema; README). **Pages left and yield beyond LEDM (2026-11-20):** CDM's
-  `capacity` in pages, IPP's `printer-supply` and the Printer MIB's supplies counted in impressions or sheets give each
-  supply's pages left and what a full one is rated for (`Consumable.PageYield`, `IppSupply`, `SnmpSupply.Unit`); the card
-  shows "About N pages left" and "Rated for about N pages" (`SupplyPagesTests`). **Pending on hardware:** a cartridge change seen live on an LEDM, IPP and SNMP printer
-  (README, "Not done"). Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore (2026-11-02: the store, the analysis, the
-  chart's data, the card's lines, the alert's days left, the CSV behind Pro, the demo year; SupplyHistoryTests on the PC);
-  the files in `history` beside the state file, fed through `SupplyHistoryFeed` by the printer monitor on each reading (a
-  queue printer's CUPS levels by the app), the supplies card's lines, its Swift Charts chart and Export history… behind
-  Pro, demo mode's year, checked by `--report --demo --history`; on screen and a real printer's file not yet.
-- **Beat it when:** each reading's levels and page count are kept on the PC (one row a day per supply, beside
-  `state.json`, never sent); the supplies card shows a level-over-time chart and, from the last 30 days' slope,
-  "about N days left" and "N pages since this cartridge went in" (a level that jumps up is a change of cartridge;
-  −1/−2/−3 and no level draw nothing rather than a wrong line); the low-supply notification names the days left.
-  Pro: Export… writes one CSV across all printers. Test: a year of fixture readings with two cartridge changes, a
-  wobble at the threshold, a week offline and SNMP's −3 gives the right days-left, pages-per-cartridge and change
-  dates, and the chart's data is the stored rows byte for byte. Mac: the same store and chart (PrintCore, Swift Charts).
-- **Effort** S. Windows and Mac together.
+What each is: the README's feature table. What waits for real hardware: the README's "Not done / known limits".
 
-### 1.2 Record a printer (fixtures from real hardware)
-- **The gap.** Every brand but HP was "built and tested against fixtures written from the specs, not against real
-  devices", and CDM, SNMP-only printers, WIA feeders, Print photos, Maintenance and the fixer's repairs are "untested
-  on hardware" (README, "Not done / known limits"). The maker apps have the opposite problem: "Scanner Not Found"
-  while printing works ([HP Community](https://h30434.www3.hp.com/t5/Printers-Archive-Read-Only/HP-Smart-Scanning/m-p/8106306)),
-  Epson Scan 2 wanting the scanner added by IP by hand, no IPv6-only networks ([Epson](https://www.epson.eu/en_EU/faq/KA-01831)).
-- **Build:** `inkvoltprint record <host> <folder>` captures every reply the app reads from a printer (LEDM, CDM, IPP
-  as IppText, eSCL capabilities and status, SNMP as snmpwalk; nothing written), scrubbed as Report a problem scrubs
-  (serials, UUIDs, addresses, host names out), into a folder `FixtureHandler` and `SnmpAgent` serve unchanged;
-  `--scan` keeps one glass and one feeder page. A borrowed printer becomes a test forever; a bug report can carry one.
-- **Now (built 2026-10-30, Windows).** `inkvoltprint record <address> <folder>` in the developer CLI (`--scan`, `--community`,
-  `--escl` / `--ipp` hints, `--force`): `Core/Recording/PrinterRecorder` opens the printer through a recording handler that lets
-  GETs and IPP Get-Printer-Attributes through and refuses anything else, drives the app's own readers (probe, reading, UUID
-  check, LEDM documents by type and the firmware manifest, CDM's five, the maintenance probe, eSCL status) and walks SNMP's
-  system, Host Resources device / printer and Printer MIB subtrees, then writes every reply under its fixture name
-  (`IppText.FromResponse` for IPP, `SnmpAgent.FormatWalk` for SNMP) with `recording.tsv` (each request's milliseconds, status,
-  file). `FixtureScrubber` replaces identifiers with stand-ins of the same shape, consistent across documents (serials, UUIDs,
-  IPv4/IPv6, MAC, host names, e-mail, this PC's user and computer names; typed names, locations, contacts, users, jobs, SSIDs
-  become words), so identity checks still agree on replay. Tests: `RecordingTests` (11: the M234dw, the demo inkjet, the CDM
-  laser and the SNMP-only laser recorded through the fixture transport and served again read the same, interfaces, model,
-  firmware, scanner, IPP attributes and reading; a recording sends only GETs and Get-Printer-Attributes; identifiers planted in
-  LEDM, eSCL, IPP and SNMP replies, as Report a problem's tests use them, none left in any file, and the recording still one
-  printer; versions, masks, models kept; an SNMP model line, a hex string or prtGeneralPrinterName carrying identifiers; a
-  reply that never ends stopping at 32 MB; `IppText` and the walk read back what they write). **Kept whole since 2026-11-20:** IPP
-  collections (members nested under their attribute, to the codec's 8 levels), dateTime, resolution and range values in `IppText`, served byte for byte
-  again; SNMP Counter64 (its unsigned value) and Opaque (its octets) in the walk; members are scrubbed as attributes are (RecordingTests +9). **Report a problem (built 2026-11-01):** the dialog
-  has Record this printer, for the printer shown: `Core/Recording/ReportRecording` runs the same `PrinterRecorder`, so the same scrubbing and the same
-  read-only rules, never scanned pages, into a new folder named by the clock (`Documents\Inkvolt Print recordings`) plus a .zip of it to attach; the details
-  to copy get one scrubbed line (model, interfaces, the file's name); a failure's message is scrubbed; closing the window stops it and a failed or
-  stopped recording leaves nothing. Fixed on the way, for the command too: a reply is kept only under a plain name of a fixture's kind (`PrinterRecorder.KeptName`),
-  since a printer's discovery tree decides what gets asked for and "/C:/x" would have left the folder, and "/run.bat" would have put a script in it. Tests: `ReportRecordingTests`
-  (the planted identifiers absent from every file, the .zip and the copied line; the demo printer; no scanning; nothing left after a failure or a cancel). Seen with
-  `--demo --dialog report --record`: the zip made from the made-up printer, and on the demo office laser "Nothing answered at [ip]". **Not checked:** on a real printer; Show the file
-  (not offered in demo mode). **Pending on hardware:** the five recordings the item asks for. Mac (2026-11-02): PrintCore's `PrinterRecorder` and `FixtureScrubber` with RecordingTests ported, on the Windows PC. **Mac done 2026-11-05** (mac/docs/PLAN.md P12): `record <address> <folder>` in the `--report` runner (`RecordCommand`, into the container's `Recordings`) over PrintMac's URLSession transport (each reply bounded at 32 MB) and UDP SNMP; Help › Report a Problem… (new on Print for Mac) with Record This Printer and its .zip (`ReportRecording`, ReportRecordingTests ported); `DeviceHttp` now keeps every request on the printer, as Windows' `OnThisPrinter` (DeviceHttpLimitsTests' host tests ported).
-- **Beat it when:** the repo holds fixtures from at least one Canon, one Epson, one Brother, one SNMP-only laser and
-  one CDM-only HP, each with the status, supplies, alerts and scan tests the demo fixtures have, and the README's "to
-  try on hardware" lists shrink to what no fixture can show (a jam, a feeder's duplex order). Test: recording the
-  M234dw reproduces the `m234dw` fixtures (same parsed reading); a recording with the scrubber's test strings planted
-  contains none of them. Mac: the same command in the `--report` runner, reading the fixtures in place.
-- **Effort** S-M. Windows and Mac.
+### Wave 1
 
-### 1.3 Scanners that only give PDF
-- **Leader.** Windows Scan takes JPEG, PNG, TIFF and bitmap only ([Microsoft](https://support.microsoft.com/en-ca/help/14088));
-  Image Capture takes whatever the scanner offers. Some eSCL scanners offer only PDF from the feeder, and on 2026-10-30 we
-  "said so instead of scanning" (README).
-- **Beat it when:** a source that offers PDF and no JPEG is scanned as PDF and its pages rendered to JPEG at the
-  requested resolution with the engine already used for Print a PDF (`Windows.Data.Pdf`; PDFKit on the Mac), so
-  review, crop, straighten, skip-blank, batch split, OCR and presets work unchanged. Test: the demo inkjet's feeder
-  set to PDF-only scans a six-page batch identical, page by page, to its JPEG run (same split, same OCR text).
-- **Now (built 2026-10-30, Windows).** `EsclClient` asks a source that offers PDF and no JPEG for `application/pdf` and hands
-  each document's pages over as JPEG (`Core/Escl/ScannerPdf`): a page that is one DCT picture is taken out byte for byte (no
-  re-encoding: the page a JPEG scan gives), anything else is drawn at the scan's resolution by `Windows.Data.Pdf`
-  (`Windows/Printing/ScannedPdfPages`, set at start-up in the app and the CLI); one PDF per page or one per run. Each page
-  remembers its PDF, so a PDF save of untouched pages, all of them in order, writes the scanner's own PDF (`KeepAsSent`), else
-  it is made from the pages and the status line says why (`WhyNotAsSent`); the scan's status line says the scanner sent PDF.
-  Demo mode: the inkjet's feeder offers PDF only, so `--demo --printer 2 --source feeder --split blank --scan --snapshot`
-  shows the batch split, straightened and the note. `FixtureHandler` answers a PDF job with a PDF (the JPEGs embedded as they
-  are; a feeder batch in one). `inkvoltprint scanpdf <file>` shows what the Scan tab gets from a PDF. Tests: `ScannerPdfTests`
-  (13: the PDF-only feeder's six pages byte for byte its JPEG run, so the split, straightening, crop and OCR are the same; the
-  settings ask PDF at the resolution; JPEG still asked where offered; a PDF-only glass; neither format said in words; pictures
-  taken out byte for byte, a hand-written page tree with inherited resources and indirect lengths; turned pages, other
-  encodings, masks and non-PDFs left to the renderer; rendering, no renderer and a failing one; keeping the scanner's PDF and
-  when not). WIA drivers that offer only PDF (2026-11-20, Windows): a driver whose formats are `WiaImgFmt_PDFA` and no
-  picture is asked for PDF (`WiaScannerInfo.PdfOnly`, per source with WIA 2.0's items) and each transfer's pages taken out
-  by the same `ScannerPdf.PagesAsync`, a PDF a page or the whole run in one (`WiaPdfTests`, 5, with the fake WIA scanner:
-  the six pages byte for byte its JPEG run, the run in one PDF kept as sent, a PDF-only glass, a broken PDF said in words).
-  Pending: a real PDF-only scanner, eSCL or WIA. Mac: done (2026-11-04, mac/docs/PLAN.md
-  P12): PrintCore (2026-11-02: the eSCL request, taking pages out, keeping the scanner's PDF, ScannerPdfTests on the PC);
-  PrintMac's `ScannedPdfPages` (PDFKit) set at start-up, the Scan tab's status line and its PDF saves keeping the scanner's
-  own PDF or saying why not, demo mode's PDF-only feeder (`Demo.feederPdfOnly`) with `--report --demo --scan` checking an
-  untouched and a turned save; on screen and with a real PDF-only scanner not yet.
-- **Effort** S. Windows and Mac.
+- **1.1 Supply history, pages per cartridge, days left.** Done, Windows and Mac. Pages left and yield from LEDM, CDM, IPP's
+  `printer-supply` and the Printer MIB; CDM lifetime counters wait for a recording of
+  `/cdm/deviceUsage/v1/lifetimeCounters` (no published schema). The test: a year of fixture readings with two cartridge
+  changes, a wobble at the threshold, a week offline and SNMP's −3 gives the right days left, pages per cartridge and
+  change dates, and the chart's data is the stored rows byte for byte.
+- **1.2 Record a printer.** Done, Windows and Mac (`inkvoltprint record`, Report a problem's Record this printer). Open:
+  the recordings it was built for, at least one Canon, one Epson, one Brother, one SNMP-only laser and one CDM-only HP,
+  each dropped into the fixtures with the status, supplies and scan tests the demo fixtures have, so the README's "to try
+  on hardware" lists shrink to what no fixture can show.
+- **1.3 Scanners that only give PDF.** Done, Windows (eSCL and WIA drivers) and Mac (eSCL).
+- **1.4 Alerts that survive the Store package.** Done on Windows (the startup task, WinRT toasts); the Mac has launch at
+  login and its notifications.
+- **1.5 Firmware watch and "keep my cartridges working".** Done, Windows and Mac.
+- **1.6 The Pro key.** Done, Windows and Mac (the key in the app group container both Mac apps claim). Open: the Store
+  copies of both Windows apps sharing one key.
 
-### 1.4 Alerts that survive the Store package
-- **Leader.** The maker apps run at sign-in and show notifications with buttons; on 2026-10-30 our Store package couldn't start
-  with Windows (README: "the manifest's `StartupTask` extension, not built or tried yet"), and alerts were tray balloons,
-  one at a time. The Mac has launch at login (`SMAppService`) and `UNUserNotification` alerts (PLAN.md).
-- **Now (built 2026-10-30, Windows).** The manifest template declares the startup task (`InkvoltPrintTray`, `Enabled="false"`);
-  Settings › Notification area and alerts offers Start with Windows in the Store package too (`StartupTask.GetAsync`,
-  `RequestEnableAsync`, `Disable`; the checkbox shows Windows' state and its note names Task Manager or a policy), and the
-  app started by the task reads the StartupTask activation as `--background`. Alerts are WinRT toasts (`Core/Alerts/AlertToasts`
-  writes the XML, `App/Tray/ToastAlerts` sends it): one per printer with Open printer and Pause alerts (one hour) buttons,
-  tag and group so a newer alert replaces the showing one, clicks handled through the toast's Activated event in the packaged
-  and the unpackaged copy (the latter under an AppUserModelId registered in HKCU with the app's name and icon, removed by
-  `--unregister`), a toast clicked after the packaged app exited reopening it on that printer; balloons stay as the fallback
-  (dev builds from bin\, demo mode unpackaged). Tests: `AlertToastTests` (the XML, escaping, grouping, arguments, tag, the
-  manifest's task) and `ShellRegistrationTests` (the identity's removal); `AlertTracker`'s decisions are untouched (AlertTests
-  as they were). **Pending on hardware:** the packaged smoke run seeing the task in Task Manager's Startup apps and a
-  `--simulate-alerts` toast whose button opens the printer (README, "Not done"). Mac: the parity check in the release checklist.
-- **Beat it when:** the Store package offers Start with Windows (`uap5:StartupTask`, off by default,
-  `RequestEnableAsync`, the toggle reflecting Windows' own state); alerts are WinRT toasts with Open printer and Pause
-  alerts buttons, one per printer, clicks handled in the packaged and the unpackaged copy. Test: `AlertTracker`
-  decisions unchanged; the packaged build's smoke run (`packaging/smoke-msix.ps1`) sees the task in Task Manager's
-  Startup apps and a `--simulate-alerts` toast whose button opens the printer. Mac: parity check in the release
-  checklist.
-- **Effort** S. Windows; the Mac has it.
+### Wave 2
 
-### 1.5 Firmware watch and "keep my cartridges working"
-- **Leader.** HP's Dynamic Security: cartridges "using a non-HP chip or modified or non-HP circuitry may not work,
-  and those that work today may not work in the future" (HP's page, quoted by
-  [Rossmann Group's wiki](https://wiki.rossmanngroup.com/wiki/HP_Dynamic_Security)); the 2025 settlement has HP
-  "continue to provide printer users with the option to either install or decline to install firmware updates that
-  include Dynamic Security" ([The Register](https://www.theregister.com/2025/03/19/hp_printer_lawsuit_settled/));
-  Australia's regulator made HP compensate buyers in 2018 ([ACCC](https://www.accc.gov.au/media-release/hp-to-compensate-printer-customers)).
-  Epson pushes firmware through its updater app ([Epson](https://epson.com/support/updating-your-printers-firmware-using-epson-software-updater)).
-- **Now (built 2026-10-30, Windows).** Every printer's firmware version is kept in `state.json` with the day first seen
-  (`Core/History/FirmwareWatch`); a new version shows "Firmware changed from X to Y on date" on the status card (Firmware
-  settings for an HP printer Inkvolt Print writes to, the printer's web page for CDM, IPP and SNMP printers, Dismiss; gone
-  after 30 days) and, with alerts on, one notification (`AlertKind.FirmwareChanged` through `AlertTracker`: never told
-  twice for one change, restarts included; it never colors the tray icon). The HP Firmware card has **Keep my cartridges
-  working**: confirmed, automatic updates written Off (`Core/Ledm/CartridgeGuard`, the card's own write), read back, and
-  what the printer kept said in plain words. Tests: `FirmwareWatchTests` (15: the record, the notice's life, the M234dw's
-  fixture readings with a version change giving one notice and one alert and none after a restart, the tray level; the
-  button's PUT equal byte for byte to the Firmware card's Off write, already off, read-only, a printer that keeps
-  installing, the password step; all against captured documents in memory, no printer written to). **Pending on
-  hardware:** a real update noticed, and the button on a printer set to install automatically (README, "Not done").
-  Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore (2026-11-02: FirmwareWatch, the FirmwareChanged alert,
-  CartridgeGuard, FirmwareWatchTests on the PC); the record per printer in the state file (removed and moved with the
-  printer), the printer monitor watching it on each connection and putting the change in every reading's snapshot, the
-  status card's notice (Firmware Settings or the printer's web page, Dismiss) and the Settings tab's Keep My Cartridges
-  Working…, checked by `--report --demo --firmware`; on screen and on a real printer not yet.
-- **Beat it when:** every printer's firmware version is kept with the date first seen, and a change shows a notice
-  ("Firmware changed from X to Y on date") on the status card and, with alerts on, as a notification; the HP card has
-  one button, **Keep my cartridges working**, that sets automatic updates off, reads the setting back and says what it
-  did; CDM, IPP and SNMP printers get the printer's web page linked instead. Test: fixture readings with a version
-  change produce one notice and one alert, never again for the same change; the LEDM write is byte for byte the
-  existing settings write. Mac: the same (the Settings tab has the LEDM firmware mode already).
-- **Effort** S. Windows and Mac.
+- **2.1 Print straight to the printer (IPP Everywhere, no queue).** Done on Windows: PWG raster, URF or PCLm by Print-Job
+  over IPP/IPPS for Print a PDF, Copy, Print photos, batches, the scan presets' print step and job alerts, one route
+  decision per printer (`PrintRouter`). Re-check against CUPS's `ippeveprinter` (WSL) with `InkvoltPrint.exe
+  --direct-print` (`DevDirectPrint`; `--read-pclm` reads PCLm back with Windows' engine; ippeveprinter drops every
+  `pclm-*` attribute, so its PCLm run assumes 600 dpi). Open: the M234dw printing a page from a PC with no queue for it.
+  **Mac half waits** (PrintCore would carry the same encoders and plan; today the Mac prints through the CUPS queue).
+- **2.2 Scan from the printer's button.** Done on Windows: HP's Scan to Computer over LEDM, and a Windows scanner's
+  button events through WIA; off by default. Every walk-up name is an assumption (`LedmWalkupScan.Names`) until an HP
+  all-in-one that lists the interface is recorded (the M234dw doesn't). **Mac half waits** (ICA's button events; the HP
+  part a port of `LedmWalkupScan` and `ScanToComputer`).
+- **2.3 Scan cleanup and a Unicode OCR layer.** Done, Windows and Mac. Word error rates:
+  [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md) (`ocr-corpus cleanup`). Known limits: a white sheet
+  under a white lid shows no edge and stays whole; a dark lid isn't cropped; pdf.js (and PDFKit) find each word of a
+  right-to-left line but not a phrase across two; Cyrillic and Japanese error rates wait for those OCR languages.
+- **2.4 Batch print.** Done, Windows and Mac (the CUPS queue). The test: 50 files (PDF, JPEG, PNG, TIFF, a locked PDF
+  that asks for its password) print to the demo queue in order with the estimated sheet count, exit codes as Inkvolt
+  PDF's (`BatchPrintEndToEndTests`). Open: a physical printer printing a page.
+  **Why the app ends its own process on exit** (`App.EndWithoutDllTeardown`): on a Snapdragon PC Qualcomm's Direct3D
+  driver (`qcdx11arm64xum.dll`) faulted while DLLs unloaded, after everything had saved, because a static in Windows' PDF
+  engine is the last holder of a Direct3D device once its documents are collected (a 40-line WPF program with no Inkvolt
+  code crashes 10 of 10 when its `PdfDocument` is dropped and collected). On the command line the crash replaced the exit
+  code, which a script may read as not printed. `App.OnExit` ends the process with the exit code once all is saved: 0
+  crashes in 63 runs after, against up to 15 of 15 before. It avoids the fault, it doesn't cure the driver; no automated
+  test catches it. To check by hand on a Snapdragon PC: `InkvoltPrint.exe --demo --batch --batch-run --snapshot out.png`
+  several times, and the exit code.
+- **2.5 TWAIN.** Done on Windows (64-bit sources beside WIA; 32-bit-only sources named and declined). Open: a real TWAIN
+  manager and source (the development PC, ARM64, has neither). Mac: ICA, not started (the parity check: the same flatbed
+  through ICA).
+- **2.6 Fleet page, export, command line.** Done, Windows and Mac. The JSON's schema:
+  `print/schemas/fleet-status.schema.json`.
 
-### 1.6 The Pro key
-- **Why.** Every Pro item below needs it. Inkvolt PDF has the key format, the check and the window since 2026-10-30
-  (`pdf/tools/pro-key`; `products` in the key already names `print`); what was left was moving the check where both
-  apps read it.
-- **Now (built 2026-10-30, Windows).** The key format and verification (`ProKeys`), the check with the gate
-  (`ProCheck`, `Enforced` off while the apps launch) and the key's home (`ProKeyFile`: `%LOCALAPPDATA%\Inkvolt\pro-key.txt`,
-  a Store copy's redirected package folder looked in too) live in `InkvoltPrint.Core/Suite`; Inkvolt PDF's `Pro` sits on
-  them unchanged for its callers (its 17 ProTests pass as they were), Inkvolt Print has its own `Pro` and `ProFeature`
-  (`InkvoltPrint.Core/Pro.cs`: the Pro items below, all allowed while the gate is off) and Help › Inkvolt Pro… with the
-  same two copy states; a key's `products` decide which app it licenses, a print-only key is refused by Inkvolt PDF in
-  plain words and the other way round. `pdf/tools/pro-key` references the shared library. Tests (`ProTests` in
-  `print/tests`, 12): the vector against the built-in key, every changed character refused, a test pair's key passes and
-  another pair's fails, the products, the gate, a key installed by one app's check found by the other's, a settings key
-  moved into the file, a packaged copy's redirected file, the newest copy winning. Pending on hardware: the Store copies
-  of both apps sharing one key (README, "Not done"). Mac: done (2026-11-04, mac/docs/PLAN.md P12): PrintCore's format, gate and
-  shared key file (2026-11-02, ProTests on the PC); PrintMac's CryptoKit verifier, checked against the committed vector's
-  real signatures; the key in the app group container `AE6TTXW92K.com.bermudezsystems.inkvolt` that both Mac apps claim
-  (the team-ID form opens without a prompt on macOS 15 for the sandboxed App Store app and the Developer ID one:
-  mac/docs/research/print-v1-platform.md Q6); Help › Inkvolt Pro… in Inkvolt Print (enter or paste a key, its state,
-  Remove Licence; no buy button or price in the App Store copy, guideline 3.1.1(a)); Inkvolt PDF for Mac's `Pro` on the
-  shared check, so one key counts in both Mac apps and on Windows. Before the gate is switched on in the App Store copy,
-  its Pro features need an in-app purchase as well (3.1.3(b)) or stay free there.
-- **Beat it when:** `Pro` lives in `InkvoltPrint.Core/Suite` (both apps reference it); a key is a short text (name,
-  issue date, ECDSA P-256 signature; Inkvolt PDF's format) pasted or opened from a file, checked against the public key in the app, stored per
-  user and found by both apps; a wrong or altered key says which; no network call exists in the code path. Test: keys
-  signed by a test key pair pass, every bit-flip fails, a key from the other app's install is found. Mac: the same
-  check in PrintCore (CryptoKit in PrintMac), the key in the app group container.
-- **Effort** S. Windows and Mac.
+### Wave 3
 
-## Wave 2
-
-### 2.1 Print straight to the printer (IPP Everywhere, no queue)
-- **Leader.** Windows is moving to the IPP class driver and protected print mode, where "all non-Mopria-certified
-  print drivers will be disabled/deleted" ([Petri](https://petri.com/windows-protected-print-mode/)); the maker apps
-  still print through their driver. Today Print a PDF, Print photos and Copy need a Windows (or CUPS) queue, which
-  needs an administrator on a managed PC.
-- **Beat it when:** a network printer with no queue, or one the person chooses, gets the pages as PWG raster, Apple
-  raster (URF) or PCLm, whichever `document-format-supported` lists, rendered by the engine we already use (300 dpi,
-  the printer's `media-col-database` sizes and margins), sent with Print-Job over IPP/IPPS, copies, two-sided and
-  color mode as IPP attributes, progress and errors from Get-Job-Attributes; the print queue card lists the job; the
-  Windows queue stays the default where one exists. Test: CUPS's `ippeveprinter` ("can be used to test client
-  software", [CUPS](https://www.cups.org/doc/man-ippeveprinter.html)) accepts a 10-page PDF, a photo sheet and a copy
-  in each raster format and the pages it saves match ours; the M234dw (PCLm / PWG / URF, no PDF) prints a page from a
-  PC with no queue for it.
-- **Built (Windows, 2026-11-19).** `Core/Printing/Raster`: `PwgRasterWriter` (PWG 5102.4: `RaS2`, the 1796-byte header,
-  the line compression), `UrfWriter` (Apple raster as CUPS reads it) and `PclmWriter` (strips of 8-bit gray or RGB, Flate or
-  run-length, the page tree last, a classic cross-reference table), back sides turned as the printer's
-  `pwg-raster-document-sheet-back` / `urf-supported` DM / `pclm-raster-back-side` asks. `Core/Printing/Direct`:
-  `IppPrintCaps` (the formats and how to make them, `media-col-database` or else `media-supported` with the
-  `media-*-margin-supported`, sides, color, copies, quality, paper types; lists cut, sizes and resolutions out of range left
-  out), `DirectPrintPlan` (PWG first, then URF, then PCLm; 300 dpi, or drawn at 300 and enlarged for a 600-only printer;
-  copies the printer doesn't make sent again, a blank back between two-sided copies; what can't be kept stops the job),
-  `DirectJob` (Print-Job sent once with the raster streamed from a temporary file, Get-Job-Attributes every second until it
-  ends, Cancel-Job), `PrinterJobs` (Get-Jobs for the print queue card) and `PrintRoutes` (the Windows queue stays the
-  default; a printer with none, or one the person ticks *Print straight to the printer* for, goes direct). The IPP codec
-  reads collections, resolutions, ranges and dates (`IppCodec.DecodeGroups`, nesting bounded) and writes requests
-  (`IppRequest`). The app draws the same pages the queue path lays out (`QueuePrinter`'s paginators, the photo sheets) with
-  WPF at the plan's resolution (`App/Printing/DirectPrinter`, `PrintTargets`) for Print a PDF, Copy and Print photos.
-  Tests (`DirectPrintTests`, `RasterEncoderTests`, 45): each encoder byte for byte against its spec and read back by
-  decoders written from the specs, the requests' bytes, hostile attributes, the plan, a job through the demo inkjet's
-  fixture. Checked against CUPS 2.4.7's `ippeveprinter` (WSL) with `InkvoltPrint.exe --direct-print` (`DevDirectPrint`): a
-  10-page PDF, a photo contact sheet and a two-page copy in PWG raster, URF and PCLm, grey on a monochrome printer and color
-  on one set up for it, two-sided with turned backs, copies, IPP and IPPS: every file it kept was byte-identical to ours and
-  libcups read the PWG and URF back (page sizes, transforms, pixels), Windows' own PDF engine the PCLm
-  (`--direct-print --read-pclm`). ippeveprinter drops every `pclm-*` attribute it's
-  given, so the PCLm run assumed 600 dpi (dev aid only). After review: copies go to the printer only with
-  `multiple-document-handling` collated (else the pages are sent again), grey on an RGB-only format is drawn grey, a quality
-  or paper type the printer lacks stops the job, a cancel the printer doesn't take says the job may still print, a job that
-  may have printed offers no Print again, Copy and Photos get progress and Cancel, the attributes are read once per
-  connection a while (`IppCapsCache`), the printer's clock out of range is left out. **Batch print, the scan presets' print step and job alerts
-  (2026-11-19):** a batch (2.4) sends each file as one direct job, the scan preset's print step goes the same way, and job alerts
-  (3.4) follow the printer's own job list while its jobs go straight (details under 2.4 and 3.4); `inkvoltprint print` too. One
-  route decision per printer for all of it (`PrintRouter`: prints decide afresh, alerts follow the last decision). Pending on hardware: the M234dw printing a page from a PC with no
-  queue for it. **Mac: waits** (no Mac now); PrintCore would carry the same encoders and plan.
-- **Effort** M. Windows; Mac the same code in PrintCore (today it prints through the CUPS queue).
-
-### 2.2 Scan from the printer's button
-- **Leader.** HP's "Scan to Computer" from the printer's panel "is available for Windows only" and needs HP's
-  software ([HP](https://support.hp.com/us-en/document/ish_8903985-8904053-16)); Brother, Epson and Canon do the same
-  through their desktop apps. People who removed HP Smart lose the button.
-- **Beat it when:** the PC appears on an HP printer's panel under Scan to Computer (the LEDM walk-up scan
-  destination interface: registered on connect, kept while the app or its tray icon runs, removed on exit) and
-  pressing it runs the chosen scan preset here; a WSD scanner's `ScanAvailableEvent` does the same through WIA, and
-  ICA's button events on the Mac; a printer with neither says so on the Scan tab. Test: a fixture printer's
-  destination list shows the PC after connect and not after exit; a simulated walk-up event runs the preset and
-  saves its file; the FakeWiaSystem's button event does the same. On hardware: an HP all-in-one that lists the
-  walk-up interface (the M234dw's `DiscoveryTree.xml` doesn't: one that does, recorded with 1.2).
-- **Built (Windows, 2026-11-19).** Scan tab › *Scan from the printer's button*, per printer, **off by default** (on an HP panel
-  it changes the printer's list), with the preset a press runs; a press brings the printer's Scan tab up (from the notification
-  area too) and runs that preset as its one-click scan does, saving its file. **HP's Scan to Computer:** `Core/Ledm/LedmWalkupScan`
-  (the documents) and `ScanToComputer` (one connection): found by reading only (the DiscoveryTree's walk-up `SupportedIfc`, its
-  manifest, the destination list; the tree must list the EventTable); turned on, this PC (`LedmWalkupScan.PanelName`: the
-  computer's name, plain letters, at most 32) is added with one POST over HTTPS, never resent (`LedmClient.PostPathAsync`), kept
-  while the app or its tray icon runs (the window hidden stops the status loop, not this) and added again after the printer's
-  `PowerUpEvent` or a lost connection. Presses come through the connection's one EventTable long poll, shared with the status (`LedmEventFeed`)
-  (`DelayedReplyResponse`, captured in the M234dw's EventCapabilities): **no listener and no port on this PC**. A press counts
-  once (category and `AgingStamp`), only after the app started, only when the event names this PC's destination and the event
-  document says `ScanRequested` (choosing the PC alone doesn't). Removed with one DELETE when turned off, on exit
-  (`MainViewModel.Dispose` waits up to 4 s) and when the printer is forgotten; only a path below the printer's list is ever
-  deleted (`LedmWalkupScan.OwnPath`), and nothing goes to another device found at the address. A computer by this PC's name that
-  the app didn't add (HP's software) is left alone and said; this app's destination is known by a marker in its host name (a tag
-  kept in `state.json`), so a run after a crash or a lost answer adopts it rather than adding a second, and removes it. 401/403, refusals and silence are told in words. **A Windows scanner's button:**
-  `WiaScannerInfo.Buttons` (the scan-button events among the driver's `Device.Events`; their GUIDs read from wiaaut.dll's type
-  library) and `IWiaSystem.WatchButtonsAsync` (`WindowsWia`: `DeviceManager.RegisterEvent` with `OnEvent` through
-  `ComEventsHelper`, on an STA thread of its own, for this run only, no administrator rights); the WSD scan driver raises these
-  for `ScanAvailableEvent`. The panel comes first when both exist; a printer with neither says so. `Core/Presets/ScanButton`
-  decides it all; the app shows it (`ScanButtonViewModel`). **Unconfirmed:** no walk-up document has been captured (the M234dw
-  doesn't list the interface), so every name is an assumption in one table (`LedmWalkupScan.Names`); a printer whose documents
-  don't match offers nothing and nothing is POSTed on a guess. Record a printer saves the walk-up manifest and every document it
-  lists. The demo HP laser's walk-up documents are written by hand (`Fixtures/hp-demo`) and `FakeScanToComputer` plays its
-  panel; the demo USB laser's made-up scanner has a Scan button (`--demo --scan-button press`). Tests: `ScanButtonTests` (the
-  list shows the PC after connect and not after exit, a simulated press runs the preset and saves its file, only this PC's
-  `ScanRequested` counts, old presses don't, a restart adds it again, HP's own entry is left alone, refusals, no Location, another
-  device, the recording, hostile lists and paths; the FakeWiaSystem's button event, neither, the panel before the driver). **On
-  hardware, not tried:** an HP all-in-one that lists the interface (and a recording of it); a WSD or USB scanner's button
-  through WIA. **Mac half waits** (ICA's button events; the HP part would be PrintCore's port of `LedmWalkupScan` and
-  `ScanToComputer`).
-- **Effort** M. Windows and Mac (the HP part shared; WSD is Windows', ICA's button events the Mac's).
-
-### 2.3 Scan cleanup and a Unicode OCR layer
-- **Leader.** Epson Scan 2: Correct Document Skew, Edge Fill, color management ([Epson](https://www.epson.eu/en_EU/faq/KA-01830));
-  Canon's Auto scan "detects the item type" ([Canon](https://ij.manual.canon/ij/webmanual/ScanUtility/W/G3010%20series/1.1/EN/SU/su-105.html));
-  VueScan restores faded colors and removes dust ([Hamrick](https://www.hamrick.com/)); NAPS2 deskews, crops, adjusts
-  brightness and contrast, OCR in over 100 languages ([NAPS2](https://www.naps2.com/)).
-- **Now (built 2026-10-31, Windows).** Per scan (Scan settings › Clean up) and per preset (`ScanPreset.Cleanup`, all off
-  by default, free as the table says), and per page in the review's Clean up view (`--clean n`: the page large, Show as
-  scanned to compare, All pages, Done is one step of Undo, as is a whole scan's clean up; the page's note names what was
-  done; a page's filters are in its `PageEdits`, kept by crash recovery): **Crop to the paper** (`PaperEdge`, the lid's level
-  along the scan's edges, in the straightened page, into the same `Crop` as a hand crop: it only ever removes lid, refused
-  when anything but dust lies outside a solid rectangle, faint marks and a line of tiny letters included), **Whiten the
-  background** (`PageBackground`, its own white point from the scan's noise; faint thin strokes kept; pictures and dark pages
-  left), **Descreen printed pictures** (`Descreen`, blocks that repeat at a short period across and down; other pixels byte for
-  byte), **Restore faded colors** (`FadedColors`; a scan of photos gets this and Descreen, per photo). Filters run off the UI
-  thread on a copy; a preview cancels when a newer choice comes, a save has Cancel, a page over 300 million pixels is left as
-  scanned and says so. `ScanCleanup` (Recognize Text, Compare) only gained cancel tokens: the ocr-corpus's rates are the
-  same to the digit as its committed RESULTS.md, so that file wasn't rewritten. The OCR layer is a CID font with /ToUnicode (`OcrFont`, `OcrText`): one
-  embedded glyph that paints nothing, one code per letter with its marks, surrogate pairs in one code, composed, broken
-  characters out, right-to-left words in visual order; a Text language choice per scan and preset when more than one OCR
-  language is installed. **Measured** (`ocr-corpus cleanup`, [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md),
-  today → cleaned, this PC's en-US and es-MX): skewed on a lid 5.9 → 5.7 %, grey 20.2 → 19.7 and 20.6 → 18.8, halftoned
-  10.0 → 4.6 and 8.0 → 2.3, faded 4.9 → 3.3 and 2.7 → 2.3, so every file measured is lower (2026-11-20: the faded file rose,
-  2.7 → 3.0, because whitening a page Restore faded colors had already taken to white evened out paper clipped at 255 and
-  lightened the type's edges; paper white all over now only loses its specks, `PageBackground.AlreadyWhite`). Tests: `PageCleanupTests`, `OcrLayerTests`, `OcrLayerSearchTests` (19 planted words in Greek, Cyrillic, Arabic,
-  Hebrew, Japanese, Chinese, Korean, Devanagari, Thai and beyond the first plane, found by Inkvolt PDF's search and pdf.js; the
-  layer draws nothing; survives a save through PDFsharp), `CleanupCorpusTests`; `ocr-corpus layer` goes the whole way with
-  Latin text (a cleaned page's JPEG, Windows' recognizer, this writer, every word read found again by MuPDF). veraPDF's PDF/A-2b font rules (6.2.11) pass; the
-  file isn't PDF/A otherwise. **Not checked:** Acrobat isn't installed here; Cyrillic and Japanese error rates couldn't run
-  (no such OCR languages installed, none added: their words were planted, and their corpus files wait in the tool), so what Windows' recognizer gives
-  for those scripts' word boxes is unseen; no scanner was used, only synthetic pages and the demo; Undo in the review was
-  checked by snapshot, not a test (the view models have no test project). **Known limits:** a white sheet under a white lid
-  shows no edge and stays whole, and a dark lid isn't cropped; pdf.js finds each word of a right-to-left line but not a phrase across two (it drops the
-  space); MuPDF finds a word mixing right-to-left letters and digits only in parts. Inkvolt PDF's Scan dialog follows a
-  preset's clean up since 2026-11-20 (`ScanRun.Clean`: the crop and filters on each kept page, as the Scan tab does). Mac: PrintCore done 2026-11-05 on the PC (the filters, their decisions and the text layer ported as is, `PageCleanupTests` and `OcrLayerTests` with the same names; `mac/docs/PLAN.md` P12); the filters' pixels are PrintCore's, not Core Image's, so both apps clean a page alike, and `ScanImaging` decodes, hands them over and encodes. Mac done 2026-11-06 (`mac/docs/PLAN.md` P12): `ScanImaging` decodes, cleans through PrintCore and encodes once; `ScanPdf` writes through `PdfWriter` with Vision's words in the Text language chosen per scan and preset; Scan settings › Clean up, the preset editor's, the review's Clean up view with Undo and the scan's summary; PDFKit finds all 19 planted words (a right-to-left phrase across two words not, as pdf.js).
-- **Beat it when:** per scan and per preset: crop to the paper's edge (the lid level the glass-photos code finds),
-  whiten the background and remove specks, descreen printed pictures, restore faded prints' colors, each shown in the
-  review with Undo; the OCR layer is a CID font with a ToUnicode map, so Greek, Cyrillic, Arabic and CJK text is found
-  by search in Inkvolt PDF, Acrobat and pdf.js. Test: a synthetic corpus (skewed, grey-background, halftoned, faded,
-  with Cyrillic and Japanese text) gives a lower word error rate than today on every file after cleanup, and every
-  planted non-Latin word is found by pdf.js. Mac: the same filters in `ScanImaging` (Core Image), the layer in `ScanPdf`.
-- **Effort** M. Windows and Mac.
-
-### 2.4 Batch print
-- **Leader.** Print Conductor: drag-and-drop lists, folders and archives, per-document two-sided and tray, "Single
-  print job mode", a print estimation report before printing and a results report after, a command line with saved
-  settings and lists ([Print Conductor](https://www.print-conductor.com/features)), $149 a user.
-- **Now (built 2026-10-31, Windows).** **Print › Batch** (`ViewModels/BatchPrintViewModel`, `Views/BatchPrintView`; the palette; a folder or several PDFs dropped on the window) takes PDFs and pictures or a folder, in Explorer's name order; each file has its copies, pages, side and paper, and shows its pages and sheets, the batch its sheets in all. It sends them in order, a job per file, through `IBatchQueue`: `WindowsBatchQueue` on the XPS path of Print a PDF, `DemoBatchQueue` in demo mode, and the seam 2.1 will implement. Each result is listed, and a stopped batch says where ("Stopped at file 7 of 50 (report.pdf): Paper jam. 6 sent, 44 not sent."). Pro, through `Pro.Allows(ProFeature.BatchPrintAutomation)`: saved lists (`BatchPrintList`), a folder printed as it fills (`BatchPrintFolder`, on `Suite/DropFolder`, now shared with Inkvolt PDF's watched folder, one lock file for both), `inkvoltprint print --list file --printer name` in the app itself (`BatchPrintCommandLine`; exit codes 0, 1, 2, 3 as Inkvolt PDF's), results as CSV (`BatchPrintCsv`). Range and paper per file are free, as this item's first sentence asks. **Checked:** `BatchPrintTests` with a fake engine and queue on real temporary files: a file that changes or vanishes between estimate and print, held against writing while it prints; a half-written, growing or cut-off file in a folder not printed early, nothing printed twice after a restart, a crash's leftover going to `failed`; a wrong password stopping at three tries; list paths (devices, streams, web addresses, leaving the folder, another computer); formula cells; a wrong range, paper or side never changed quietly; a driver's ticket that doesn't keep what was asked; a job over its estimate stopping the batch; hangs in the engine and the spooler; Stop; resuming sending nothing twice. `BatchPrintEndToEndTests` runs the built app's command line on real files through Windows' real PDF engine and WIC with every page drawn: 50 files (PDF, JPEG, PNG, TIFF, a locked PDF with its password) reach the demo queue in order with the estimated sheets; no password, a wrong one, damaged and disguised files, a picture claiming 40,000 × 40,000 pixels. By hand with the dev aid: snapshots (wide, 1024 × 700, stopped), the accessibility audit (no findings), and in the window resuming after a jam, Stop and a saved list reopened. On this PC, read only: an unknown printer, Print to PDF refused, a dry run against a real queue. **On real Windows queues (2026-11-02, no printer involved):** three temporary queues on local file ports, with no elevation, removed afterwards: the inbox Microsoft Print To PDF, HP LaserJet Mono PCLmS Class and Microsoft PWG Raster Class drivers. `WindowsBatchQueue.SendAsync` spooled through the command line (the class drivers; Print To PDF is refused there, exit 2) and through `BatchPrintViewModel` (all but PWG, by a temporary dev aid that wasn't committed). Each job was held, let through alone and its file read: every test page carries a mark, decoded from the rendered output. Against a same-page render of the source the mean grey difference is 0.17 to 0.24 of 255, against the wrong page 1.56. Right on all of these: a mixed folder (PDFs, JPEG, PNG, a landscape PDF turned to fit) in name order, a job per file with the file's name; copies, collated (`1,3,1,3,1,3`); ranges; A4 on a Letter default (PCLm's ticket says `iso_a4_210x297mm`, the page is 8.27 × 11.69 in); two-sided (`two-sided-long-edge`, backs in place, blank back after an odd last page, sheets as estimated) once the test queue's `Config:DuplexUnit` was on; a list with its own settings per file, its CSV; 30 PDFs, 120 pages, 0 of 30 wrong; a name in Spanish and Japanese; RC4 and AES-128 locks with the password; `--watch --once` moving the sent files to `done`. Refused with nothing sent: no password or a wrong one, a corrupt, empty or disguised file (the rest of the batch prints, exit 1), a paper or range the file or queue hasn't got, two-sided on the PWG queue, and two-sided where the driver lists it but its validated ticket drops it (the class driver with no duplex unit: "wouldn't print this two-sided", exit 1). Exit codes seen: 0, 1, 2 (no such queue, Print to PDF, `--max-sheets`, nothing to print), 3 (Ctrl+C after the first file: 1 job in the queue, 4 not sent; a queue set offline: none). Stop in the view model after two files: 2 jobs, then Print again sent the other two and nothing twice. A paused queue isn't a problem to the batch: it takes the jobs. **Bugs this found, fixed:** with its output piped the app had no console, so Ctrl+C never reached it and it printed on behind the prompt (`Ctrl_C_stops_a_run_whose_output_is_piped`); an AES-256 PDF, Acrobat's usual lock, which Windows' engine can't open with any password (0x80048040), said "may be damaged", and Print a PDF's message was empty (`A_lock_windows_cant_open_says_so_and_isnt_called_damaged`). **As they are, not bugs:** `--pages 3,1` prints 1 then 3, since `PageRange` sorts, as its summary says. Printing to a queue moves Windows' managed default printer to it, as any app's job does: the app doesn't touch it. **The Qualcomm crash, explained:** 21 access violations in the log on 2026-10-31, all `qcdx11arm64xum.dll` 31.0.133.1 at +0x1614e8. Stack from a small debugger (no dumps were kept by Windows): the main thread, every other thread gone, `LdrShutdownProcess`, `Windows.Data.Pdf.dll`'s C runtime exit table, `d3d11.dll`, the driver; no Inkvolt frame. A static in Windows' PDF engine holds a Direct3D device; once its documents are collected, that static is the last holder, so the device is destroyed while the DLLs unload, and that faults (sometimes as a fail-fast, 0xC0000409, from the same stack; on the command line, that one only). It's not WPF's GPU rendering (it is off), a bitmap or window, or MuPDF (Print doesn't use it): a 40-line WPF program with no Inkvolt code crashes 10 of 10 when its `PdfDocument` is dropped and collected, 0 of 5 when the program keeps it. The trigger in the app is a garbage collection after a batch; the snapshot's large bitmap very likely caused one (inferred: not measured on its own), hence "some runs": 7 of 16 with the sample batch, 15 of 15 with one PDF, none with no snapshot and no collection (0 of 8). Normal close of the window after a batch with a forced collection: 8 of 8. So it reaches users who print PDFs and close the app later. **Harm:** after everything had saved and closed; no WerFault window on this PC (watched on one crash, Windows' error settings at their defaults); the process stays about 6 s for the report, and a crash goes into Windows' log and reports. On the command line it replaced the exit code (3 of 25 with a forced collection, 0 of 8 on 30 PDFs without), which a script may read as not printed and send again. **Fix:** `App.OnExit` ends the process (`TerminateProcess`, with the exit code) once all is saved, before DLLs unload. After: 0 of 15 (one PDF), 0 of 15 (sample batch), 0 of 8 (close with collection), 0 of 25 (command line). It avoids the fault, it doesn't cure the driver. No automated test catches this one: it needs Qualcomm's driver, and a test with a small GC budget didn't fail without the fix. To check by hand on a Snapdragon PC: `InkvoltPrint.exe --demo --batch --batch-run --snapshot out.png` several times, and the exit code. **Not checked** (README, "Not done"): **a physical printer still hasn't printed a page**: no paper, no real device's answers, no jam; drivers here wrote files only, and the IPP class driver this PC's real printers use wasn't among them. Inkvolt Print's Print a PDF and other jobs weren't spooled in this run. Two-sided needs the driver saying it has the unit, as it was set on the test queue. A damaged PDF in `--watch --once` stays in the folder as a file possibly still being written (10 minutes to `failed`); the run says it was left and exits 1. A native crash in Windows' PDF engine isn't contained (no worker process in Print, only timeouts). The file dialogs, drag-and-drop and watching a folder from the window; the over-100-sheets and network questions; a screen reader; HEIC and WebP; the Store alias. Mac: PrintCore done (below); the rest waits, on hold since 2026-11-02.
-- **Beat it when:** Print › Batch takes PDFs and pictures (a folder too), shows the sheet estimate per file and in
-  all, per-file copies, range, two-sided and paper, sends them in order through the Windows queue (or 2.1) and lists
-  each result; a stopped batch says where. Pro: saved lists, a dropped folder printed as it fills, `inkvoltprint print
-  --list file --printer name`, the results as CSV. Test: 50 files (PDF, JPEG, PNG, TIFF, a locked PDF that asks for
-  its password) print to the demo queue in order with the estimated sheet count; exit codes match Inkvolt PDF's. Mac:
-  the same through the CUPS queue. Mac's PrintCore done (2026-11-02, mac/docs/PLAN.md P12: the estimate and bounds, passwords, the run
-  and its stops, the printer's answer checked, a folder's files, the results CSV). **Mac done 2026-11-05** (PLAN.md P12): File › Batch
-  Print…, saved lists, watched folders and `print` from the app's binary (BatchPrintListTests, BatchPrintFolderTests and
-  BatchPrintCommandLineTests ported), PDFKit and Image I/O pages, the CUPS queue with each job held, read back and only then released;
-  the sandboxed `print` reaches what the window was given. Proved on demo mode's queues and a test queue (held, cancelled): no paper.
-- **Straight to the printer (2.1; Windows, 2026-11-19).** A printer with no Windows queue, or one set to print straight, gets the
-  batch as a Print-Job per file (`Core/Printing/Direct/DirectBatchQueue`, routed by `RoutedBatchQueue` on the printer's one
-  `PrintRouter`; the pages drawn
-  to disk as for the queue, then laid out and rasterized as Print a PDF's). Papers and two-sided from the printer's attributes; before
-  each file the printer's state (stopped, an error such as a jam, not accepting jobs, not answering) stops the batch; a setting the
-  printer can't keep fails that file with nothing drawn; each job is followed (Get-Job-Attributes) to its end before the next goes;
-  a job the printer stopped or that may have printed is Failed with MayHaveSent and stops the batch, so Print again never sends it;
-  a refusal as it came in (busy) stops it with the file still to send; Stop before the point of no return sends nothing, after it the
-  job finishes (no Cancel-Job), and a cancel that leaked past it reads as maybe sent, never as not sent. Copies as the direct path
-  makes them (the printer's when it collates, else the pages again). **Checked:** `DirectPrintTests` (fake printer and drawing, the
-  real runner). Against CUPS 2.4.7's `ippeveprinter` in WSL with `--direct-print <url> --batch files…` (`DevDirectPrint`, the
-  command line's code): two 5-page PDFs and a PNG, 2 copies, in order as three jobs, each sent after the previous one completed,
-  10, 10 and 2 PWG pages at 2550 × 3300, exit 0; to a printer whose every job aborts (`-c` a command that fails): the first file
-  Failed ("Sending failed part-way: check the queue…"), the other two not sent, "Stopped at file 1 of 3 (…): The printer stopped
-  the job.", exit 3. **After review (2026-11-20):** once a direct job is sent the batch waits for it however long it prints (the
-  printer's job is followed until it ends or is quiet two minutes; `IBatchQueue.EndsOnItsOwnOnceSpooling`), while the drawing's
-  limit counts the copies drawn (`SendLimit`); a printer slow to say it's ready is "The printer doesn't answer", not Windows
-  (`IBatchQueue.NoAnswer`); only the printer's silence stops the batch, this PC's disk or drawing failing fails that file
-  ("Its pages couldn't be made ready on this PC"); a stopped printer stops it even with warnings alone. **The command line**
-  (`inkvoltprint print`): `--printer` takes an `ipp://` or `ipps://` address, straight to that printer, and a printer Inkvolt Print
-  remembers goes straight (its last IPP address, its certificate pins read from `state.json`, nothing written) when it has no queue
-  or *Print straight* is chosen for it, decided as the window decides (`Core/Printing/BatchPrinterLookup`, tested). Checked with
-  `ippeveprinter` through the real command line host: the 3-file batch (exit 0), the aborting printer (exit 3), a port with no
-  printer ("The printer can't be read: The printer doesn't answer. Nothing was sent.", exit 2).
-- **Effort** S-M. Windows and Mac.
-
-### 2.5 TWAIN
-- **Leader.** NAPS2 and VueScan scan through TWAIN as well as WIA ([NAPS2](https://www.naps2.com/)); film and
-  older flatbeds often ship a TWAIN driver and no WIA one. The Mac's ICA covers those (TWAIN on macOS is gone).
-- **Beat it when:** 64-bit TWAIN sources are listed beside WIA and eSCL scanners (matched to printers by
-  `WiaMatch`'s rules), with feeder, duplex, color and resolution from their capabilities, pages into the same Scan
-  tab, a hung source contained as a hung WIA driver is; 32-bit-only sources are named and declined. Test: a fake
-  source (the FakeWiaSystem's twin) covers capabilities, a feeder run, an empty feeder, cancel, a hang; on hardware,
-  a TWAIN-only flatbed scans at each resolution.
-- **Now (built 2026-10-30, the shared code; Inkvolt Print's printer list and Scan tab 2026-11-05, Windows).**
-  `Windows/Scanning/WindowsTwain` behind the same `IWiaSystem` as WIA, `Core/Twain`: 64-bit sources through the TWAIN 2
-  manager (TWAINDSM.dll), native transfer, the source's own window never shown; Inkvolt PDF's Scan dialog lists them
-  (pdf/ROADMAP.md 2.3, `UsbScannerTests`). Inkvolt Print: `Core/Wia/DriverScanners` lists TWAIN sources beside WIA's in the
-  one list the printer list, Scan, Copy, Fleet, `inkvoltprint scanners` and Inkvolt PDF's Scan dialog read (ids
-  `twain:<name>`; a source any WIA entry already is left out; WIA's shown at once and TWAIN's merged when read, TWAIN read
-  once, again when WIA's list changes or after 10 minutes, never while a TWAIN source is in use; a TWAIN list that fails or
-  hangs, 20 s, keeps the sources listed before and never costs WIA's), matched to
-  printers by `WiaMatch`'s rules or listed as a scanner of its own, scanned through the same `WiaScanner` (feeder, duplex,
-  color, grey, black and white, resolution from the capabilities, a hung source contained as a hung WIA driver is). The Scan
-  tab's Color choice offers black and white wherever the source does (eSCL, WIA, TWAIN; `ScanChoices.Pick`, as presets).
-  Tested with `FakeTwain` (the FakeWiaSystem's twin: capabilities, a feeder run, an empty feeder, cancel, a hang;
-  `TwainTests`); checked with `--demo --twain` (a made-up TWAIN-only document scanner). 32-bit-only sources (2026-11-20): a
-  data source in Windows' `twain_32` folder with no twin in `twain_64` (Windows' own `wiatwain.ds` left out) is listed by
-  its version resource's name (`Twain32Sources`; id `twain32:`, *Driver: TWAIN, 32-bit only*), never loaded, and declined in
-  words that say why and what to install (`WiaErrors.Only32Bit`); one with a 64-bit twin or a WIA driver is listed once. Not checked: no TWAIN manager or TWAIN-only scanner on the development PC (ARM64); on hardware, a TWAIN-only
-  flatbed at each resolution, a feeder run, both sides, black and white, Cancel. Mac: ICA, not started.
-- **Effort** M. Windows; the Mac has ICA (parity check: the same flatbed through ICA).
-
-### 2.6 Fleet page, export, command line
-- **Leader.** PRTG's SNMP Printer sensor: toner per cartridge, cover, total page count
-  ([Paessler](https://www.paessler.com/manuals/prtg/snmp_printer_sensor)); PrinterLogic's email alerts for "running
-  out of paper, paper jams, missing trays, low toner" ([Vasion](https://docs.vasion.com/v/Print/SNMP/Alerts.htm));
-  Printix "monitors printers" from its cloud ([Printix](https://printix.net/features-printix)). A small office has
-  one person who walks over.
-- **Now (built 2026-10-31, Windows).** The sidebar's **Fleet** button (also the palette) shows `Views/FleetView`: every entry of the
-  printer list, most trouble first (`Core/Fleet/FleetOrder`: error, warning, can't be reached, not known yet, fine, as the tray ranks
-  them, then by name), each with its state and problems, each supply's level, page count, firmware and last reading. It reads no
-  printer: each printer's own loop keeps its view model current and the page looks at them every 2 s, so a printer that hangs holds
-  up only that loop; for one that hasn't answered, the supply history gives its last levels, day and count, marked last known. Every
-  string a printer writes is cleaned and bounded once (`FleetText`, `FleetPrinter.Of`: no control or invisible characters, no bidi
-  overrides, no half surrogates, 240 characters, 16 supplies and problems). The offline fixer runs on queue printers
-  (`OfflineDiagnosis`, `OfflineDevice.ForQueue`): spooler, that queue by its exact name, its state; no network step or port repair;
-  a read that doesn't answer in 10 s says so instead of calling the queue gone; a printer shared from another PC gets steps, never a
-  UAC prompt. Resume and Use Printer Offline now ask first on every printer's fixer. Pro, through `Pro.Allows`: **Export…** (CSV, a row
-  per supply, formula-safe cells in `Suite/CsvCell`, which the supply history export now uses too; or JSON), `inkvoltprint status --all
-  [--json] [--out file]` in the app itself, since the developer CLI isn't packaged (`Core/Fleet/FleetCommand`, `FleetReader`: read only, a
-  printer gets 30 s, eight at a time, exit codes as Inkvolt PDF's), and **Fix all** (`FleetFixAll`: resume and Use Printer Offline over
-  every queue known to be a printer's, each confirmed by name, the queue read again after the yes). Exports go through
-  `Diagnostics.Scrub` and hold no address, serial number or UUID field (`print/schemas/fleet-status.schema.json`). Tests: `QueueFixerTests`
-  (the diagnosis order, no network step, no other queue, gone against unreadable, a hung read, the shared printer),
-  `FleetTests` and `FleetReadTests` (the demo PC's nine entries in order, read through the real readers over the fixtures; the JSON against the
-  schema with a small checker, as no package is added; what the scrubber's test plants in LEDM, IPP and SNMP replies out of the JSON and CSV;
-  formula starts including fullwidth and hidden ones; hung, throwing and vanishing printers; another device at the address; Fix all's
-  questions, a queue renamed or fixed while one was open, refusals, the gate). Seen: `--demo --fleet --snapshot` (light, dark, 900 wide, Text size 150%),
-  `--fleet fix`, `--printer 6 --fix`, `--a11y-audit` (no findings); `--demo status --all --json` and `--pro-enforce` (exit 2, nothing on standard
-  output); `status --all` on the development PC, whose one printer was away, in 7 s with `state.json` unchanged. **Not checked:** any real
-  printer or real queue repair (paused, Use Printer Offline, a printer shared from a PC that's off, access denied); the Pro window opening
-  from the page with the gate on; the Save dialog (the snapshot aid writes the file directly); Excel opening the CSV; a screen reader, and Tab
-  through the rows by hand; a Store package's alias, and the command printing to a console it attaches to (piped and to a file ran). Fix all leaves stuck jobs, ports and the spooler to each printer's fixer. Mac: PrintCore done
-  (2026-11-02, mac/docs/PLAN.md P12: the entries, the order, the page's words, the CSV and JSON against the schema, `status --all`,
-  and `Diagnostics.scrub`, which they need); the Mac's half done 2026-11-05 (the reader over cupsd's queues, the printer readers and ImageCaptureCore's scanners, the sidebar's Fleet page with VoiceOver's sentence per row, Export… and Fix All (Resume and Accept Jobs) behind Pro, `status --all` from the app's binary, `--report --fleet fix status`; FleetReadTests ported).
-- **Beat it when:** a Fleet page lists every printer's state, each supply's level, page count, firmware and the last
-  reading's time, sorted by trouble; the offline fixer runs on queue printers too (paused, Use Printer Offline, stuck
-  jobs, without the network steps). Pro: Export CSV, `inkvoltprint status --all --json` for a script or a scheduled
-  task, and Fix all (the fixer's safe repairs over every queue, each confirmed). Test: the demo PC's nine entries
-  render in the right order; the JSON validates against a schema in the repo and carries no serial numbers or UUIDs
-  (the scrubber's test); the queue fixer's diagnosis order in Core tests. Mac: the same page and JSON from `--report`.
-- **Effort** S. Windows and Mac.
-
-## Wave 3
-
-### 3.1 Share a scanner on the network (eSCL)
-- **Leader.** NAPS2 shares a scanner "over ESCL" so Image Capture, Mopria Scan and SANE-AirScan clients can use it,
-  only while NAPS2 runs, over HTTPS with a self-signed certificate ([NAPS2](https://www.naps2.com/doc/scanner-sharing)).
-- **Beat it when:** a WIA, TWAIN or ICA scanner (a USB flatbed, an all-in-one with no network scanning) is published
-  as an eSCL scanner (`_uscans` over DNS-SD) from the tray icon, certificate fingerprint shown, off by default, private
-  networks only; an iPhone, Image Capture and another Inkvolt Print scan from it with the driver's capabilities. Test:
-  our own eSCL client scans a page through the shared endpoint identical to the direct scan. Mac: an ICA scanner
-  shared the same way.
-- **Built (Windows, 2026-11-19).** Scan tab › **Share on the network** for an entry's WIA or TWAIN scanner (not one Windows reaches
-  over eSCL itself), and the notification-area menu's *Share a scanner on the network* (each Windows scanner, ticked when shared):
-  **off by default**, one scanner at a time, kept on across restarts, through `Pro.Allows(ProFeature.ScannerSharing)` (a key entered
-  or removed asks again). `Core/Sharing/ScannerShare` decides it all: it listens only once the scanner is connected, Pro allows it
-  and Windows calls a network **Private** (the Network List Manager, `InkvoltPrint.Windows/Sharing/WindowsNetworks`; an interface
-  with an IPv4 subnet of its own: a VPN's /32 or a public or domain network isn't served), and stops the moment any of those goes,
-  it's turned off, or the app exits (`MainViewModel.Dispose` closes it first; the choice stays). **Server:** Kestrel
-  (`print/src/InkvoltPrint.Sharing`, ASP.NET Core's shared framework, the owner's decision of 2026-11-18; no NuGet package) on
-  **TCP 9780, HTTPS only** (TLS 1.2/1.3, HTTP/1.1), dual-stack; a connection from anything but this PC or a device on a served
-  subnet that came in on that private interface (`SharePeers`: the address of this PC it reached must be one of the interface's,
-  so a public network using the same subnet stays out; IPv6 link-local only on its own interface) is closed before TLS. **eSCL** (`SharedScanner`, `ShareXml`):
-  ScannerCapabilities from the driver's own (`WiaCapabilities.From`: glass, feeder, both sides, sizes, color, grey, black and
-  white, resolutions; JPEG and PDF), ScannerStatus (the feeder's state while idle, each device's own jobs), ScanJobs, NextDocument
-  (a long poll, 503 to ask again), ScanImageInfo, DELETE. A region's offset reaches the driver now (`ScanRequest.XOffset`, WIA's
-  `XPosition`, TWAIN's frame), for Image Capture's overview. **Hostile input:** ScanSettings without DTD, at most 16 KB, 200
-  elements, 8 deep, 128 characters a value, every number in range, units checked, unknown sources, modes and formats refused
-  (409), only an advertised resolution (300 dpi for a driver that lists none), the region kept inside the source and at most
-  65,000 pixels a side before anything is planned; nothing in a request names a file, a path or another device; request line, headers and body bounded; 32 connections,
-  8 per device; one scan at a time, two waiting, two per device (503); a job reachable only from the device that started it
-  (its address kept in memory, never logged), cancelled after 60 s with no request for it (a NextDocument long poll under way, or the device's status polls, keep it) or
-  30 min in all, forgotten 5 min after it ends; the
-  scanner held against a scan from this PC meanwhile and the other way round (`WiaScanner`'s one job per device: "busy with
-  another scan"). **Certificate:** self-signed ECDSA P-256 for this PC's `.local` name, 825 days, renewed 30 days before; its key
-  made in the user's CNG key store, not exportable (`ShareCertificateStore`), the public certificate a file in the app's data
-  folder; the card shows its SHA-256 fingerprint. **DNS-SD:** `_uscans._tcp`, "<scanner> on <PC>", rs=eSCL, the UUID kept in
-  the choice, cs, is, duplex, pdl, through Windows' own responder (`DnsServiceRegister`, per private interface; taken back on
-  stop). **Firewall:** the package declares `privateNetworkClientServer` and its one inbound rule (desktop2 `windows.firewallRules`:
-  TCP 9780, private profile), so the Store copy isn't asked; no `internetClientServer` (nothing serves the internet, and a full-
-  trust app's outgoing connections need none). An unpackaged copy gets Windows Firewall's question the first time it listens.
-  **No PIN or allow-list:** eSCL clients send none (Apple's, Mopria's and sane-airscan's have no field for one), so the private
-  network and the subnet are the gate. **Demo:** `--demo` shares a made-up scanner for real, to this PC only (127.0.0.1, any
-  port, a certificate per run, nothing announced); `--share` turns it on, `--snapshot` shows the card. **Checked:**
-  `ScannerSharingTests` (82 cases; the review of 4bf7e6c0 added the card, forgetting, Pro, network watching, closing, a scanner
-  changing, resolutions and the slow-page cases): the documents round-trip through our parser; our client's ScanSettings read back as the same
-  driver settings; hostile and unoffered settings (DTD, entities, depth, count, length, numbers, units, sources, modes,
-  formats); jobs, queue, per-device limits, expiry, DELETE, a failed scan, a scan from this PC holding the scanner, closing;
-  who may connect; the certificate, fingerprint and DNS-SD record (read back by `DnssdJoin`); the switch with fakes (off by
-  default, Pro, no private network, a network coming and going, one scanner at a time, a taken port, the app closing); and
-  through the real Kestrel server on loopback: our `EsclClient` scans glass, feeder, both sides and a region identical to the
-  direct scan, page for page and driver call for driver call; the certificate a client sees is the card's; PDF pages; 413,
-  400, 404; a refused device gets no TLS; too many connections are cut; the port refuses connections once closed. The manifest's
-  capability and rule against `ScannerShare.DefaultPort`. On this PC: the running demo app scanned through by curl (glass to
-  JPEG and PDF, ScanImageInfo, DTD 400, path 404, plain HTTP refused); the Windows adapters in a scratch program: the Network
-  List Manager's categories, the CNG key kept across runs and serving TLS, `DnsServiceRegister`'s record answered by Windows'
-  responder to a raw mDNS query for `_uscans._tcp.local` (Windows' own DNS-SD browse on the same PC doesn't list it). The MSIX
-  packed (x64, ARM64; MakeAppx took the package-level firewall rule) and smoke-tested side by side. **Not checked:** an iPhone scan app, a Mac's Image Capture, sane-airscan or another
-  Inkvolt Print over a real network (this PC's LAN is Public, so nothing was served on it), a real USB scanner behind it, the
-  announcement seen from another device, the Store copy's firewall rule installed. The Mac half (an ICA scanner shared the
-  same way) waits.
-- **Effort** M. Windows and Mac. Pro.
-
-### 3.2 SNMPv3 and a community per printer
-- **Leader.** PrinterLogic reads v1/v2 by default and supports v3 per printer ([Vasion](https://docs.vasion.com/v/Print/SNMP/Alerts.htm));
-  offices that turned `public` off get nothing from us (README: "for one added by address there is no setting yet";
-  "SNMPv3 isn't spoken").
-- **Beat it when:** Add a printer and the printer's menu take a community (kept in Credential Manager / the
-  Keychain, never in `state.json`); Pro: SNMPv3 authPriv (SHA-256, AES-128) with USM discovery, still read only.
-  Test: v3 messages written by hand from RFC 3414 / RFC 3826 in the BER tests; the made-up agent refuses a wrong
-  key; on hardware, a printer with `public` disabled is read.
-- **Now (Windows): a community per printer, built 2026-11-03.** Add a printer › Know its address? › SNMP access takes the community
-  (blank: `public`); the printer's menu and Ctrl+K have SNMP access… for a printer read over SNMP, which keeps it and connects again.
-  `SnmpLogin` (Core) travels in the connection recipe (`PrinterRecipe.SnmpLogin`, asked at each connection), so the probe, every read,
-  the identity check, an announced address, `status --all` and Report a problem's recording all use it. Kept in Windows Credential
-  Manager (`SnmpLoginStore`, resource "Inkvolt Print SNMP", by printer id; nothing for `public`; removed with the printer), never in
-  `state.json`, a recording or the log. Free, as the table says. `SnmpLoginTests`: the kept secret's round trip through the store's seam
-  (memory; CI writes nothing to Credential Manager), the made-up agent silent to `public` and a wrong community and answering the
-  right one, every request after it carrying it, a session offline without it and connected with it, and neither the remembered
-  `SnmpDevice`, a log line nor `AppState` holding it. Not yet: on hardware, a printer with `public` disabled.
-- **Now (Windows): SNMPv3, built 2026-11-03 (Pro, `ProFeature.SnmpV3`).** The same SNMP access fields (Add a printer, the printer's
-  menu) take an SNMPv3 user and two passphrases; authPriv only, HMAC-SHA-256-192 and AES-128-CFB, keys localized to the engine.
-  USM discovery (engine ID, boots, time), every request signed and encrypted, every reply checked before it's read, the clock set
-  from a signed notInTimeWindow report, read only. Unknown user, wrong digest and decryption error are told apart. Kept in
-  Credential Manager with the community's entry; used only while `Pro.Allows` says so. .NET's own SHA-256, HMAC and AES; no
-  package. `SnmpV3Tests` (22): RFC 3414 A.3's MD5 and SHA-1 key vectors and the same algorithm with SHA-256, RFC 4231's HMAC,
-  NIST SP 800-38A's AES-CFB (and a short last block), the AES IV, a discovery request and an authPriv GetRequest written by hand
-  byte for byte (cipher text and digest from Python's own hashlib, hmac and AES), every changed byte failing the digest, the
-  made-up agent discovered and read over v3 (GetBulk too), refusing a wrong user and each wrong key, a restarted agent's clock
-  set again, a changed reply ignored; `SnmpV3ProTests`: a kept v3 user unused without a licence once the gate is on. **Done on
-  Windows** (no hardware: never tried on a printer's agent).
-- **Now (Windows): the other SNMPv3 protocols, built 2026-11-20.** Beside each passphrase, the protocol the printer's agent uses:
-  HMAC-SHA-256-192 (default), HMAC-SHA-1-96, HMAC-MD5-96 (RFC 3414 §6, §7); AES-128 (default), AES-192, AES-256 in CFB mode
-  (draft-blumenthal-aes-usm-04), CBC-DES (RFC 3414 §8: key and pre-IV from the privacy key, salt of boots and a counter, whole
-  blocks); a note says MD5, SHA-1 and DES are weak. Both keys come from the authentication protocol's hash. **Key extension:** a
-  privacy key too short for AES-192/256 (after MD5 or SHA-1) is lengthened as Blumenthal's draft says (net-snmp's default; the
-  hash of the key so far appended) and, on a decryption error, once as Reeder's (Cisco IOS and pysnmp's `usmAesCfb192/256`:
-  password-to-key and localization run again over the key so far), kept for the connection; which one a printer maker's agent
-  uses isn't published, so a real printer is what confirms it. The protocols are kept with the login (`usm:…:Sha1:Aes256`; an
-  entry from before reads as SHA-256 and AES-128). .NET's own HMACMD5, HMACSHA1, AES and DES; no package. `SnmpV3ProtocolTests`
-  (RFC 2202's HMAC-MD5 and HMAC-SHA-1 cut to 96 bits, NIST SP 800-38A's CFB with AES-192 and AES-256, the textbook DES block,
-  RFC 3414's DES framing and both key extensions against Python's hashlib and cryptography, the made-up agent read with all 12
-  pairs, another protocol refused as its part, a Reeder agent read after one decryption error, DES blocks not whole, the kept
-  login). `--dialog snmp3` shows SHA-1 and AES-256 with the note (en, es). Never tried on a printer's agent.
-- **Now (Windows): SNMP access… asks the printer first, and a refused login is its own state, ported from the Mac 2026-11-17.**
-  Save in the printer's menu › SNMP access… asks the printer at its address with the login (`SnmpLoginCheck`, Core): kept once it
-  answers as itself; a refusal says which part and keeps nothing; another device keeps nothing; no answer says what to check and turns
-  Save into Save anyway (`SnmpLoginSave`; editing the fields asks again). A printer whose SNMPv3 agent refuses its login when connecting
-  (from the engine just discovered) shows "The printer refused its SNMP login" with which part and an SNMP access… button
-  (`SessionStep.Refused`, `PrinterView.IsRefused`), never offline: its alert is "… refused its SNMP login" (`AlertKind.LoginRefused`,
-  an error, alerted even with offline alerts off), no Fix it…; the Fleet page and `status --all` count it an error. A refusal on a
-  connection whose login has answered signed is read as offline (a refusal can't be signed, so anyone on the network can send one);
-  the next connection decides. `SnmpLoginTests` (the Mac's three, plus refusals spoofed from another engine and on a connection, a
-  refusal after another device answered, a network that fails oddly, the Save rule), `AlertTests.A_refused_SNMP_login_alerts_as_itself_…`
-  and `FleetReadTests.A_printer_whose_SNMP_login_is_refused_says_so_not_cant_reach`. `--dialog snmp-noanswer`, `snmp-refused`,
-  `snmp-other` render the dialog after Save. Not checked: a printer's own SNMPv3 agent. 
-- **Now (Mac): a community per printer, built 2026-11-06.** PrintCore's `SnmpLogin` and `SnmpLogins` (Windows' tests ported, same
-  names: `SnmpLoginTests`), in the connection recipe as on Windows; kept in the Keychain (PrintMac `SnmpLoginKeychain`, one item per
-  printer id, replaced in place, nothing for `public`, deleted with the printer), never in `state.json`. Add a Printer › Know its
-  address? › SNMP access, and the printer's menu › SNMP Access… for a printer read over SNMP. `--report --demo --snmp`: the
-  sandboxed app's Keychain round trip and the made-up agent. Not yet: a printer with `public` disabled.
-- **Now (Mac): SNMPv3, built 2026-11-06 (Pro, `ProFeature.snmpV3`).** The same SNMP access fields take an SNMPv3 user and its two
-  passphrases; authPriv only, as on Windows. PrintCore has the protocol (`SnmpV3Message`, `Usm`: keys from passphrases and localized,
-  the digest's place, CFB over the block cipher, discovery, the clock, reports told apart; every length from the agent bounded: engine
-  ID 32 bytes, fields 64, numbers 0…2³¹−1) behind `SnmpCrypto` (SHA-256, HMAC-SHA-256, one AES-128 block), which PrintMac's
-  `AppleSnmpCrypto` implements with CryptoKit and CommonCrypto (no package); the PC's tests use a stand-in of their own.
-  `SnmpV3Tests` (Windows' names, the MD5 and SHA-1 vectors in PrintMacTests), `SnmpV3ProTests`; `--report --demo --snmp`: the
-  made-up v3 agent read with the system's crypto, each wrong part refused, the Keychain and the Pro gate. Never tried on a
-  printer's agent.
-- **Effort** M. Windows and Mac (PrintCore's SNMP is the same code).
-
-### 3.3 The printer's own copier, copy extras
-- **Leader.** Brother's app has "copy preview" ([Brother](https://www.brother-usa.com/apps/printing-scanning/brother-iprint-scan-desktop));
-  every all-in-one copies on its own, but ours "uses the PC: the printer's own copy function (LEDM `CopyConfig`)
-  isn't driven" (README).
-- **Beat it when:** an HP printer whose tree lists `CopyConfigCap` / `CopyConfigDyn` (the M234dw's does) copies on
-  the printer, no queue needed; the PC path stays for the rest and gains 2-up and 4-up, collate and a preview. Test:
-  the LEDM copy document byte for byte against a recording fake; layout tests; on the M234dw, one copy from the app.
-- **Built (Windows, 2026-11-19).** **The printer's own copier:** `Core/Ledm/LedmCopy` reads `CopyConfigCap` and
-  `CopyConfigDyn` the way LEDM's other settings are read: a Cap entry marked `readWrite` names its Dyn element by its whole
-  `elementXPath` (prefixes dropped, the root's name may lead, `[1]` allowed; anything else, a second element of a name or an
-  element holding elements offers nothing), else the root's child named like the entry less `Support`; its choices are its
-  child elements. An offer exists only for a start element whose choices hold an explicit command (`start`, `startCopy`; a
-  state such as `processing` never counts). **Only the start is written:** CopyConfigDyn holds the control panel's walk-up
-  copy defaults, and putting copies, two-sided or color back after a copy needs to know when it has finished, which nothing
-  captured shows, so the printer copies with its panel's settings and the app's options belong to *Through this PC*.
-  `LedmCopy.Build` makes that one-element Dyn from the printer's own names and namespaces (`LedmSettingCatalog.BuildPut`);
-  `Core/Ledm/PrinterCopier` finds it by reading only (the tree, then two GETs) and sends it once over HTTPS
-  (`LedmClient.PutPathAsync(once: true)`: `SendOnceAsync`, never retried); 401/403 asks for the admin password, 404/405/501,
-  busy and other refusals are told in words, a send with no answer (or any failure once it may have gone) says the printer
-  may already be copying, to check its panel. A failed check on a new connection lets go of the last one's copier.
-  The Copy tab's *Copy with: The printer itself* (`Core/Printing/CopyRoute`) needs no scan to the PC and no Windows queue;
-  *Through this PC* is the default until a recorded printer confirms the names; ID cards always take the PC path.
-  **Unconfirmed:** no CopyConfig document has been captured (the fixtures hold only the M234dw's tree; the printer was off
-  the network on the day), so the start's names (`LedmCopy.StartNames`, `StartValues`) are an assumption, modelled on the
-  captured PrintConfig and ProductConfig documents. A printer whose documents differ gets no offer and copies through the
-  PC: nothing is sent on a guess. Record a printer now saves both documents (`PrinterRecorder`), so one recording settles it.
-  The demo HP laser's copy documents are written by hand to the assumed names (`Fixtures/hp-demo`). **Through the PC:** 1, 2
-  or 4 pages per sheet (`CopyLayout.Sides`, `PagesOnSide`, `NUp`: 2-up stacked and turned on portrait paper, side by side on
-  landscape, 4-up two by two in reading order, inside a ¼ in margin), collate on or off (`CopyLayout.Order`: uncollated
-  sheets repeated by the app with one copy on the ticket, a blank back after an odd last side two-sided; collated left to the
-  queue's copy count, except two-sided with an odd number of sides, made by the app with a blank back ending each copy, so
-  copies never share a sheet), and *Preview before printing* (scan, show each sheet as it prints, then Print; pages per sheet
-  and size still change it; while scanning only the side a page lands on is redrawn). What the tab shows for each way
-  (`CopyRoute.Controls`, `ClampCopies`) is in Core; the copies typed are kept when the way changes. `QueuePrinter.PrintCopyAsync`;
-  Print a PDF, batches and copies share one paginator (`PagesPaginator`, one page per sheet for the first two).
-  **Checked:** `PrinterCopyTests` (the M234dw tree lists both documents; without them nothing is offered and only GETs go
-  out; the demo laser's start; the PUT byte for byte (the start alone), its HTTPS address, type and own connection; refusals
-  in words, never sent twice; no answer; the password; hostile Caps: read-only, a state not a command, 40 choices,
-  100-character values, the full `elementXPath` against a namesake elsewhere, a second element of a name, predicates, `//`,
-  `*`, too long or deep; `CopyRoute`'s ways, controls and copy counts) and `CopyLayoutTests` (sides, 2-up and 4-up placement
-  and turning, bounds, the orders with their blank backs, sheet counts, a page with no size).
-  `--demo --snapshot`: the HP laser's Copy tab copying on the printer (English and Spanish), the inkjet's 2-up and 4-up
-  previews from a feeder batch (`--copy-on-printer`, `--copy-per-sheet`, `--copy-preview`, `--uncollated`, `--copies`).
-  **Not checked:** one copy from the app on a real M234dw (and its Record a printer to confirm the names); 2-up, 4-up and
-  uncollated copies on paper; the preview by a person on screen. **Mac half waits** (no Mac available now): PrintCore's
-  copy, the LEDM request and the layout, to port with these tests' names.
-- **Effort** S-M. Windows and Mac.
-
-### 3.4 Job notifications
-- **Leader.** The maker apps and the fleet tools tell you a job failed; Windows and macOS put a queue icon up.
-- **Now (built 2026-11-01, Windows).** Settings › Notification area and alerts has "Tell me when my own print job fails or gets
-  stuck", off by default. With it on, the tray reads each printer's Windows queue every minute, window open or not (`WindowsJobQueue`,
-  winspool: a local call; a queue that can't be read is skipped, never taken as empty), and `AlertTracker.ObserveJobs` decides.
-  **Failed:** the job has Error, Blocked or Needs attention for a minute, whatever the printer says; out of paper or offline alone is the
-  printer's state and its own alerts tell that. **Stuck:** your first job in the queue, nothing in the queue moving, the queue neither paused nor
-  on Use Printer Offline, and the printer's own read, taken after the wait: 5 minutes with it saying it's ready, idle or asleep, or 15 minutes with
-  it saying it's printing, worded "hasn't moved for 15 minutes and may be stuck". The times and the cap are in one place, `AlertRules`. Moving (`JobProgress`,
-  from JOB_INFO_2) means pages printed, pages or bytes spooled or the job's stage going past the furthest seen, someone restarting it, or a job
-  leaving (someone else's too), so a job waiting its turn isn't stuck, and flicker neither passes for progress nor hides a hung job. **Your own:** the job's owner is the Windows user, and if
-  it names a domain or a PC, this one; when in doubt it isn't yours. A toast for each job (Open the queue, Pause alerts), naming the
-  document and the printer, more than three at once from one printer sharing one; Open the queue scrolls to the queue card. Quiet hours,
-  a pause and alerts off work as for other alerts. Free, as the table says: no Pro check.
-- **Decisions.** Stuck is told once per episode: told again only after real progress since the last alert, at most 3 times per job. Failed is told once
-  per job, also after it was told stuck; a stuck alert after a failure needs real progress too. An alert a pause swallowed ends the episode without using up the cap. All of it
-  survives a restart and alerts being turned off and on. A resubmitted job is a new job: a job is its id plus the moment it was submitted, so an id the spooler uses again
-  is new too. Only your first job is told stuck: those behind it wait for it, and get their own wait when it's gone. Jobs don't color the tray icon, which
-  shows printers. A failure on a paused queue or a printer that isn't ready is still told; only "stuck" asks that the printer be ready or printing.
-  **Accepted:** a slow big job on a driver that reports no pages and no growing size, with a printer saying Printing, or someone else's such job ahead of yours, can raise one false "may be stuck" after 15 minutes.
-  The name: controls, invisible and right-to-left override characters and broken pairs out, a path or address cut to the file's name, 48
-  characters at most, in quotes, so it can't pass for the app's own words. It's kept in memory only: `state.json` holds `Job|id|time|failed told|stuck told|pages, size and stage when last told`, the log the alert's kind.
-- **Checked.** `JobAlertTests` on a fake clock, on the demo queue's made-up jobs (`DemoFleet.CardJobs`) and the demo fixer's stuck job
-  (`DemoFleet.OfficeStuckJob`, on a Use Printer Offline queue and an unreachable printer: raises one). Seen: `--demo --tray --simulate-jobs
-  --tray-shot alert` (two toasts from their XML), `--dialog settings` (the checkbox, off), `--open-queue 1` (the card scrolled into view), and
-  `--demo --tray --simulate-jobs` showing the real balloons, with only `JobFailed` in the log. `WindowsJobQueue.Read` read this PC's
-  Microsoft Print to PDF queue (empty, not paused). In demo mode Open the queue shows the card's one made-up queue, not the fixer's, as the card always has.
-  **One real spooler run (2026-11-01):** a temporary queue (Microsoft Print To PDF driver, no elevation needed) on a TCP port at 192.0.2.1, a 23-byte job, read through `WindowsJobQueue` and the
-  rule. The real reads: None, then Printing | Retained about 30 s later, then Error | Printing | Retained at about 90 s and steady for the 10 minutes watched, with the queue's own status going to error (0x2); pages 0 of 1,
-  size 23 throughout, `pStatus` empty, `Time` a fixed number, so no moving signal there. Owner `gabri` and machine `\\THISPC` matched `JobOwner`. **It found a bug:** Retained counted as finished, so
-  that failed job raised nothing and the card would have said Printed; fixed, and the second run raised one `JobFailed` a minute after first seen, and no stuck alert for the job waiting behind it. Queue and port removed afterwards and confirmed gone.
-  **Beware repeating it:** this PC has Windows managing the default printer, so printing to the test queue and removing it moved the default to another queue; it was set back by hand. Set it back after any such run.
-- **Not checked.** One real failure was seen (above), on a dead TCP port only. No real printer here, so no real jam, no real shared queue, and neither stuck rule has fired from a real spooler: the
-  dead port went to Error, not to a long Printing or a long wait on a ready printer, so the 5 and 15 minute rules are tested on a fake clock only. Also unproven: what `pMachineName` and the owner look like on a shared queue (an owner written as an e-mail address, or a PC
-  given as an IP address, counts as someone else's, so such a job stays silent); which status bits Windows really sets on a jam; a job that fails and vanishes between two reads (never seen).
-  WinRT toasts: the XML is tested, the toast itself not run here, as for 1.4. A printer with two Windows queues: only the one the app finds is read.
-- **Mac, PrintCore half (2026-11-05, on the PC):** the rules ported with `JobAlertTests` (`Alerts/JobAlerts`, `Alerts/AlertTracker+Jobs`; jobs are plain `QueueJob` values; `AlertSettings.jobAlerts`, off). CUPS's `job-state` stands for the spooler's bits: **failed** is `stopped` or `aborted` (CUPS stopped the job or gave up on it); `held` is a job paused by hand; a job CUPS gave up on and then sees waiting again was restarted; the queue's offline reason stands for the job's PaperOut and Offline bits; a job key is the id and the submit time in milliseconds. What can't apply, and why: `cupsGetJobs2` gives no page counts and no `job-state-reasons`, so a job moves only by its size, its state or a job leaving (a long job on a printer saying it's printing raises the accepted "may be stuck" after 15 minutes more often than on Windows), a jam can't be told from someone pausing the queue mid-job (both read failed), and there's no Spooling; Use Printer Offline and Retained have no counterpart. CUPS keeps finished jobs: printed and cancelled ones count as gone, one given up on is told only within 15 minutes of finishing. The demo office MFP's queue (`Demo.queues`) and the demo fixer's stopped job (`DemoOffline`, raises one). 
-- **Mac, done (2026-11-05, on ignia-mac; mac/docs/PLAN.md P12):** each printer's queue read once a minute while alerts and the Settings switch are on, through IPP Get-Jobs over cupsd's socket (not `cupsGetJobs2`: only Get-Jobs says a job came from this Mac); one notification per job naming the document and the printer, with Open the Queue and Pause Alerts, more than three from one printer sharing one; `--report --jobs` and demo mode's made-up jobs. Found on the Mac: a job on a dead address stays printing while CUPS retries (so it's "may be stuck" after 15 minutes), a filter failure stops the job and leaves the queue running (failed). Not seen: a notification on screen, a real printer failing a job.
-- **Straight to the printer (2.1; Windows, 2026-11-19).** While a printer's jobs go straight to it (no Windows queue, or *Print
-  straight* chosen), the tray reads its own job list instead of the spooler (`Core/Printing/Direct/DirectJobWatch`, routed by
-  `RoutedJobQueue` on the last route the printer's `PrintRouter` chose for a print, as it's asked every minute): Get-Jobs not-completed, plus
-  completed for the jobs the printer gave up on (aborted), kept 15 minutes after they ended so a job that fails between two reads is
-  told, and not told when it ended before the watch began (its `date-time-at-completed` older than that, or none). As bits: held is
-  paused, processing printing, stopped blocked (failed, with paper-out from `media-*`/`resources-are-not-ready`), aborted error with
-  the printer's words as the reason ("The printer stopped the job: …", `QueueJob.Problem`, never "Windows reports…"). A job's key keeps
-  the moment it was first seen when the printer gives no creation time; an id seen ended and then waiting again is a new job. Yours:
-  `job-originating-user-name` is the Windows user, and `job-originating-host-name` when the printer gives a name (an address is left
-  out). Never both lists: a queue on the IPP class driver shows the spooler's jobs at the printer too. **Checked:** `DirectPrintTests`
-  (aborted between reads told once in the printer's words, ended before the watch, stuck after 5 minutes on a ready printer, stopped
-  failed, owners, reused ids, a printer refusing the ended list). Against `ippeveprinter` with `--watch-jobs n` (real reads, the rules'
-  clock a minute on at each): a job aborted by the printer's command raised one `JobFailed` ("Test printer: The printer stopped the
-  job.") a minute after it was first seen, and left the list 15 minutes after it ended; a job held processing by a command that
-  sleeps, the printer saying it's printing, raised one `JobStuck` ("may be stuck", 15 minutes) and no more. After review: a job that
-  left a complete open list gives its id back (a new job under it has its own time), and the first ended list read, not the first
-  read, starts the "new failure" clock. Not checked: a real printer's job
-  list (owners, what a jam looks like there), the toast on screen.
-- **Beat it when:** with alerts on, your own job's failure or stuck state (no progress for 5 minutes while the
-  printer is ready) is one notification per job, naming the document and the printer, with Open the queue; off by
-  default. Test: `AlertTracker` rules on the demo queue's made-up jobs; the demo fixer's stuck job raises one. Mac:
-  CUPS job states through `QueueJobs`.
-- **Effort** S. Windows and Mac.
-
-### 3.5 Open in Inkvolt PDF on the Mac
-- **Why.** "Not on the Mac: Open in Inkvolt PDF (no Mac Inkvolt PDF yet)" (PLAN.md); on Windows the hand-off is why
-  the two apps install together.
-- **Beat it when:** the Mac app finds Inkvolt PDF by bundle identifier and hands a saved PDF over through its URL
-  scheme, with the same two switches as Windows. Test: the `--report` runner with a stub app registered for the scheme.
-- **Effort** S. Mac (Windows has it); after Inkvolt PDF's Mac 1.0.
-- **Now (built 2026-11-02, Mac).** The preset's last step (D7 part e), Settings' "Open scans in Inkvolt PDF" and the
-  save bar's Open in Inkvolt PDF, as on Windows (`InkvoltPdfApp`: found by bundle identifier, the files handed over with
-  `NSWorkspace.open`, which the sandbox allows, rather than a URL scheme). Checked on the Mac by `--report --demo --scan`
-  with the real Inkvolt PDF installed; not with a stub app, and no person has seen the hand-off (mac/docs/PLAN.md).
-
-### 3.6 Supply levels for USB printers
-- **Leader.** The makers' own apps (HP Smart, Epson, Canon, Brother) read their USB printers' levels through their own drivers.
-- **Built (Windows, 2026-11-03), route 1:** a queue on Windows' IPP class driver (IPP over USB included) is asked for its `marker-*` levels and state through `IppPrintDevice`, read with the network IPP mapping; *Not reported by this printer* when nothing answers. `QueueDeviceTests`. Not yet seen on an IPP-over-USB printer: this PC has none.
-- **Built (Windows, 2026-11-03), route 2:** a queue on a maker's driver is asked over Windows' bidirectional printing (`IBidiSpl2`: `\Printer.Consumables`, `\Printer.Status.Summary`; never `\Printer.DeviceInfo`), read strictly; *From its driver* on the supplies card, *Not reported by this printer* when the driver has no bidi (most). `QueueBidiTests`, and the demo USB laser. Not yet seen on a maker's driver that answers: this PC has none, only Windows' own reply for an unsupported schema.
-- **Mac, PrintCore half (2026-11-05, on the PC):** route 1's mapping and decisions, ported with `QueueDeviceTests` (route 2 has no Mac counterpart). `Queues/IppQueueReading`: the attributes asked (no identifiers), a whole Get-Printer-Attributes reply or the bare group read with the network IPP mapping (`IppClient` now caps supplies and problems at 64 each, as .NET does), and which queues are asked, from the device URI: over USB for `ippusb://` or a relay on `localhost`, over the network for an IPP or Bonjour queue; not `usb://` (macOS's backend speaks the printer's language, so only cupsd's copy of the levels is there), a raw socket or a shared queue. `Queues/DeviceQueueStatus`: readers asked in order, 30 s after an answer and 5 minutes after none, 8 s a call; merged into macOS's read of the queue (paused, not accepting jobs or stopped on an error stay the headline); the status card's origin; the supplies card's source line, *From the printer over USB*, or *Not reported by this printer.* Mac difference: cupsd keeps the levels of the queue's last job, which stand when the printer says nothing.
-- **Mac, done (2026-11-05, on ignia-mac; mac/docs/PLAN.md P12):** PrintMac's reader asks the printer the device URI names, or the Bonjour service a `dnssd://` or `ippusb://` queue names, resolved first; the status card says where its status came from, the supplies card its source or *Not reported by this printer.*; demo mode's USB laser answers as an IPP-over-USB printer. Found on the Mac: macOS's `ippusb` backend is its dnssd one and `ippusbd` a launchd relay, so an IPP-over-USB queue is `ippusb://` (inferred: no such printer here), and the sandboxed app reaches a relay on `localhost` with no new entitlement (a stand-in relay). Not seen: a real IPP-over-USB printer.
-- **Effort** S (route 1), M (route 2). Windows; Mac: done. Free.
-
-### 3.7 Spanish interface
-- **Built (Windows, 2026-11-03):** every string of the app and of what the shared library shows moved to resources (`Strings`, `CoreStrings`; 2,209 strings) and translated, the language following Windows or Settings › Language, 0 UIA findings on 20 Spanish screens, the shots in `docs/ux-review/spanish/`. Not checked: a PC whose Windows really is in Spanish (`--lang es`, and the choice's logic in `LocalizationTests`), a real printer in Spanish.
-- **Built (Inkvolt Print for Mac, 2026-11-06):** PrintCore's and PrintMac's sentences through `CoreLanguage` (`CoreStrings.xcstrings`, Windows' Spanish word for word where the sentence is the same), the app's in `Localizable.xcstrings`; the language follows macOS's per-app choice or Settings › Language (next launch); `--report --demo --strings` in Spanish complete, `check-strings.sh` and `CoreStringsTests` fail on an untranslated string (mac/docs/PLAN.md, P12). The Mac-only wording: `print/docs/SPANISH-REVIEW.md`, "Inkvolt Print for Mac".
-- **Built (What's New in Spanish for Inkvolt Print for Mac, 2026-11-06):** `mac/InkvoltPrint/WHATS-NEW.es.md` (every version, line for line, `PdfStringsTests`) and `listing.json`'s `localizations` › `es-MX` › `whatsNew`, which `asc-listing.mjs apply` sends once the version has an es-MX localization in App Store Connect (made there by the owner, with its description and keywords). Inkvolt PDF's Spanish interface is done on Windows and the Mac (`pdf/ROADMAP.md` 3.7).
-- **Done since:** the owner approved the Windows wording (`print/docs/SPANISH-REVIEW.md`); the Store listing lost "La aplicación está en inglés." in 1.3.0.0 (`print/packaging/README.md`, "Spanish listing (es)"). **Next:** the owner's review of the Mac-only wording; the Mac listing's Spanish is the owner's call (an es-MX localization in App Store Connect).
-- **Built (What's New in Spanish on Windows, 2026-11-20):** `print/WHATS-NEW.es.md`, every version line for line (`WhatsNewSpanishTests`), embedded beside the English and shown when the interface is Spanish (`ReleaseNotes.For`); the Store's es release notes come from it; `pack-msix.ps1` warns when its heading is missing.
-
-### 3.8 Scanners that need their driver, and Get the driver
-- **Leader.** The makers' own setup apps (Epson's, Canon's, HP Smart) find their driver; Windows Update rarely has a scanner's.
-- **Built (Windows, 2026-11-08):** a USB scanner with no driver is listed as *Plugged in, needs its driver* (sidebar, Scan tab; `UsbScanners`), and *Get the driver* gets Epson's own driver for the model and this PC (x64 or ARM64), from Epson's hosts only, bounded, Authenticode valid and signed by Epson, shown and run on the user's click, then a rescan and a WIA check (`Core/Drivers`; Epson printers too). `UsbScannerTests`, `DriverDownloadTests` (a trimmed copy of Epson's real page). Found on a real Epson Perfection V19 on ARM64.
-- **Store copy (2026-11-08):** policy 10.1.5 excludes acquiring non-Microsoft drivers in the app, so a packaged copy only finds the download, opens Epson's link in the browser and watches for the device (*Found it*, *Look again*); unpackaged and `-IncludeDriverInstall` copies install it for you (`print/packaging/README.md`).
-- **Not yet seen:** the installer run through the app, the rescans after it and the scanner selected in the Scan tab, and the Store copy's link and *Found it* (the owner's test); Windows 10 x64.
-- **Built (Canon, HP, Brother and PFU, 2026-11-20):** each its own reader of its official site, hosts and signers (`CanonDrivers` on asia.canon, `HpDrivers` on support.hp.com's services, `BrotherDrivers` on support.brother.com, `PfuDrivers` on www.pfu.ricoh.com for fi and SP scanners), what they share in `DriverPages`; `MakerDriversTests` on trimmed copies of their real pages; run live once, x64 and ARM64. Canon's US and European sites refuse programs, so models sold only outside Asia find nothing; ScanSnap models have no driver page (ScanSnap Home through its account site).
-- **Next:** Canon's US models (a source a program may read), ScanSnap; a person to try each maker's installer through the app.
-- **Effort** M. Windows. Free.
+- **3.1 Share a scanner on the network (eSCL).** Done on Windows (Pro; Kestrel from ASP.NET Core's shared framework, the
+  owner's decision, no NuGet package; TCP 9780, HTTPS only, Private networks only). Open: an iPhone scan app, a Mac's Image
+  Capture, sane-airscan or another Inkvolt Print over a real network with a real USB scanner behind it (this PC's LAN is
+  Public). **Mac half waits** (an ICA scanner shared the same way).
+- **3.2 SNMPv3 and a community per printer.** Done on Windows (a community per printer; SNMPv3 with SHA-256/SHA-1/MD5
+  and AES-128/192/256/DES; SNMP access… asks the printer first; a refused login is its own state) and on the Mac (the
+  community, SNMPv3 with SHA-256 and AES-128, the refused state). Which key extension a maker's agent uses for
+  AES-192/256 after MD5 or SHA-1 isn't published: Blumenthal's is tried, then Reeder's once; a real printer confirms it.
+  **Mac follow-up waits:** the other protocols need `SnmpCrypto` to give MD5, SHA-1, DES and longer AES keys.
+- **3.3 The printer's own copier, copy extras.** Done on Windows. The copier writes only the start, because
+  `CopyConfigDyn` holds the panel's walk-up defaults and nothing captured shows when a copy has finished to put them back;
+  the start's names (`LedmCopy.StartNames`, `StartValues`) are an assumption until a recording confirms them, so *Through
+  this PC* stays the default. **Mac half waits** (PrintCore's copy, the LEDM request and the layout).
+- **3.4 Job notifications.** Done, Windows (the spooler, and the printer's own job list when it prints straight) and Mac
+  (IPP Get-Jobs over cupsd's socket). Decisions: stuck is told once per episode, again only after real progress, at most
+  3 times per job; failed once per job; a resubmitted job (same id, another submit time) is new; only your first job is
+  told stuck; jobs don't color the tray icon. **Accepted:** a slow big job on a driver that reports no pages and no growing
+  size, with the printer saying Printing, can raise one false "may be stuck" after 15 minutes. **Beware** when testing
+  with a temporary queue: with Windows managing the default printer, printing to it and removing it moves the default;
+  set it back afterwards.
+- **3.5 Open in Inkvolt PDF on the Mac.** Done (`InkvoltPdfApp`: found by bundle identifier, files handed over with
+  `NSWorkspace.open`). Open: a person seeing the hand-off.
+- **3.6 Supply levels for USB printers.** Done, Windows (route 1: the IPP class driver through `IppPrintDevice`; route 2:
+  the maker's driver over bidi) and Mac (route 1; route 2 has no Mac counterpart). Open: an IPP-over-USB printer, and a
+  maker's driver that answers bidi.
+- **3.7 Spanish interface.** Done, Windows and Mac, What's New in Spanish on both. **Next:** the owner's review of the
+  Mac-only wording (`print/docs/SPANISH-REVIEW.md`, "Inkvolt Print for Mac"); the Mac listing's Spanish is the owner's
+  call (an es-MX localization in App Store Connect, which `asc-listing.mjs apply` then fills).
+- **3.8 Scanners that need their driver, and Get the driver.** Done on Windows for Epson, Canon (asia.canon), HP,
+  Brother and PFU (fi and SP); a Store copy only opens the maker's link and watches for the device (policy 10.1.5;
+  `print/packaging/README.md`, "Get the driver and the Store"). **Next:** Canon's US and European models (their sites
+  refuse programs: a source a program may read), ScanSnap (no driver page); a person to try each maker's installer
+  through the app, and the Store copy's link and *Found it*; Windows 10 x64.
 
 ## Where we already win
 
@@ -810,7 +191,7 @@ Kept up with the same rule: a claim here has a test or a source.
   Google Drive, Dropbox or OneDrive "requires Internet connection and an account with the desired service"
   ([Brother](https://www.brother.com.ph/en/solutions/scan-to-cloud-service-brother-iprint-and-scan-desktop)).
 - **Dynamic Security explained, in the app**, next to the switch that turns automatic firmware updates off (README,
-  Firmware); crash recovery for unsaved scans; native ARM64; a native Mac app with the feature table of Windows 1.0 (Mac App Store, 2026-11-04).
+  Firmware); crash recovery for unsaved scans; native ARM64; a native Mac app in the Mac App Store.
 
 ## Not doing, and why
 

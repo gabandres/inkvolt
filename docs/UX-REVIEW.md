@@ -1,22 +1,23 @@
 # UX review: Inkvolt PDF and Inkvolt Print
 
-A scored review of both apps' UX and UI against the current desktop standards, the fixes it led to, and the score after
-them. Everything was judged on the real UI: every window, pane, dialog and state was rendered off-screen with the apps'
-own dev aids (Inkvolt PDF's `--script`, Inkvolt Print's `--demo --snapshot`), in light and dark, at 1400 × 900, 1180 × 800
-and 900 × 620, plus a UI Automation audit of every visible control (the `a11yaudit` step and `--a11y-audit` switch added
-for this review). The review ran in two passes on 2026-10-30; the scores below are before the first and after the
-second; a round 2 (below) then closed most of what each app's "Still short" listed (Inkvolt PDF 9.62, Inkvolt Print
-9.61). The scripts and the before/after shots that carry the findings are in `docs/ux-review/`; the full set reproduces
-with the scripts there. Scores are judged, not measured: each half point names what earned it or what still holds it
-back.
+How both Windows apps' UX and UI are judged, and the last result. Every finding of the reviews (2026-10-30 to
+2026-11-04) is fixed; the scores after them: **Inkvolt PDF 9.62, Inkvolt Print 9.61** (from 8.7 and 9.0). The Mac
+review (`mac/docs/UX-REVIEW.md`) reuses the rubric below. Scores are judged, not measured: each half point names what
+earned it or what still holds it back.
 
-Standards consulted (current pages, 2026-10-30): Nielsen Norman Group's 10 usability heuristics; Microsoft's Windows 11
-design principles, layout, typography (Segoe UI Variable, the type ramp: caption 12, body 14, subtitle 20, title 28),
-iconography (Segoe Fluent Icons), color and materials (Mica), dialogs and commanding guidance; WCAG 2.2 AA (contrast,
-2.4.7 focus visible, 2.5.8 target size minimum 24 × 24, 2.1.1 keyboard, 4.1.2 name/role/value, 1.4.4 resize text);
-Microsoft's accessibility guidance for WPF (UIA names, AutomationProperties, Narrator); and what people expect from
-Acrobat, PDFgear, Sumatra, Edge's PDF viewer and PDF Expert (toolbar, find bar, side rail, tabs, context menus,
-shortcuts, drag and drop, recent files, undo, recovery).
+## Method
+
+The real UI, rendered off-screen with the apps' own dev aids (Inkvolt PDF's `--script`, Inkvolt Print's
+`--demo --snapshot`): every window, pane, dialog and state, in light and dark, at 1400 × 900, 1180 × 800 and 900 × 620,
+and with Windows' Text size at 150 % (200 % for Inkvolt Print); plus the UI Automation audit of every visible control
+(Inkvolt PDF's `a11yaudit` step, Inkvolt Print's `--a11y-audit` switch: no accessible name, a target under 24 × 24).
+
+Standards: Nielsen Norman Group's 10 usability heuristics; Microsoft's Windows 11 design principles, layout, typography
+(Segoe UI Variable, the type ramp: caption 12, body 14, subtitle 20, title 28), iconography (Segoe Fluent Icons), color
+and materials (Mica), dialogs and commanding guidance; WCAG 2.2 AA (contrast, 2.4.7 focus visible, 2.5.8 target size
+minimum 24 × 24, 2.1.1 keyboard, 4.1.2 name/role/value, 1.4.4 resize text); Microsoft's accessibility guidance for WPF
+(UIA names, AutomationProperties, Narrator); and what people expect from Acrobat, PDFgear, Sumatra, Edge's PDF viewer and
+PDF Expert (toolbar, find bar, side rail, tabs, context menus, shortcuts, drag and drop, recent files, undo, recovery).
 
 ## Rubric
 
@@ -39,225 +40,44 @@ Fourteen criteria, weighted to 100. Each is scored 0–10 per app; the app's sco
 | 13 | Target size, touch and pen, crisp at any DPI (vector icons) | 6 | WCAG 2.5.8; Windows iconography |
 | 14 | Responsiveness: narrow windows, scaling, window state memory, motion short and reducible | 7 | Windows layout guidance; WCAG 1.4.4, 2.3.3 |
 
-## Inkvolt PDF
+## Where each app stands
 
-### Scores
+| # | Inkvolt PDF | Inkvolt Print |
+|---|---|---|
+| 1 | 9.5 | 9.5 |
+| 2 | 9.5 | 9.5 |
+| 3 | 9.5 | 9.5 |
+| 4 | 10 | 10 |
+| 5 | 10 | 9.5 |
+| 6 | 9.5 | 10 |
+| 7 | 9.5 | 9.5 |
+| 8 | 9.5 | 9.5 |
+| 9 | 9.5 | 9.5 |
+| 10 | 9.5 | 9.5 |
+| 11 | 9.5 | 9.5 |
+| 12 | 9.5 | 9.5 |
+| 13 | 9.5 | 9.5 |
+| 14 | 10 | 10 |
+| **Weighted** | **9.62** | **9.61** |
 
-| # | Criterion | Before | After | Evidence and change |
-|---|---|---|---|---|
-| 1 | Status | 9.0 | 9.5 | Toasts, taskbar progress, dirty dot, "7 of 10" in Find, pane counts. The palette now says when nothing matches instead of going blank. |
-| 2 | Plain words | 9.0 | 9.5 | Menus, dialogs and tips read in plain words ("Make a PDF small enough to e-mail"). Sanitize and Reduce said "XMP metadata", "rewritten as a single version" and "unused objects" (`before/pdf-dlg-sanitize.png`); they say "document properties (title, author, keywords…)", "saved afresh, so nothing of its earlier versions stays in it" and "leftover pieces of earlier edits" now. |
-| 3 | Control | 9.5 | 9.5 | Undo for every edit, Undo in the toast, "Save changes to X?" with Save / Don't save / Cancel, recovery copies. A "Delete 1 page · Undo" toast outlived its document and showed on the start page (`before/pdf-toast-after-close.png`); toasts now go with the document they came from (`after/pdf-toast-after-close.png`). |
-| 4 | Fluent consistency | 9.0 | 9.5 | Mica, tabs in the title bar, Segoe Fluent Icons, 34-px flat buttons on the 4-px grid, the type ramp. Toasts and the command palette now arrive with Fluent's "fast" motion (167 ms, decelerate) instead of blinking on. Settings still applies on Save rather than at once (see "Still short"). |
-| 5 | Recognition | 7.5 | 9.5 | Search, Find, the comment filter and the shortcuts filter were empty boxes (`before/pdf-pane-search.png`); they show what goes in them now (`after/pdf-pane-search.png`). The Combine list says "No files yet". |
-| 6 | Flexibility | 9.5 | 9.5 | Ctrl+K palette, every shortcut listed in Help from the menus themselves, letter keys for tools. |
-| 7 | Minimalist | 9.0 | 9.0 | One-row command bar that overflows, floating pill, panes on demand. |
-| 8 | Errors and dialogs | 8.5 | 9.5 | Information and error dialogs closed with "OK"; they say Close now (`after/pdf-dlg-updates.png`). Questions already had verbs. |
-| 9 | Empty states | 8.0 | 9.5 | The palette's no-match state was blank (`before/pdf-palette.png`), now it says why and what to try (`after/pdf-palette-nomatch.png`); the Batch actions hint was clipped mid-sentence (`before/pdf-batch.png` → `after/pdf-batch.png`). |
-| 10 | Keyboard and focus | 8.0 | 9.5 | The side rail (Pages, Bookmarks, Search, Comments…) was `Focusable=False`: not in the Tab order, and F6's hand-off to it did nothing. It is focusable with the Fluent focus ring now. |
-| 11 | Accessible names | 8.0 | 9.5 | The audit found 31 nameless boxes across Settings, Document Properties, Header & Footer, Watermark, Export, Crop, Protect, Reduce (a labeled row didn't pass its label to the control). Every audited window reports 0 findings now. |
-| 12 | Contrast and themes | 9.5 | 9.5 | Light, dark, Windows setting, dark pages, high-contrast palette for the page view. |
-| 13 | Targets and DPI | 9.5 | 9.5 | Icon glyphs (vector), 34-px buttons, 24-px tab close; the audit found no target under 24 × 24. |
-| 14 | Responsiveness | 8.5 | 9.5 | The Accessibility pane's tab headers wrapped into two rows (`before/pdf-a11y.png` → `after/pdf-a11y.png`); What's New's scrollbar covered the text. Windows' *Text size* (Settings › Accessibility) was ignored: WPF follows only the display scale. Dialogs, the command bar, the start page, the side rail and panes, the find bar, the info bars, toasts and the palette now scale with it, and dialogs widen to match (`after/pdf-reading-textsize150.png`, `after/pdf-start-textsize150.png`); the page view keeps its own zoom. The motion above is off when Windows' Animation effects is. Window position, size and state are remembered. |
-| | **Weighted** | **8.7** | **9.5** (9.47) | |
+Choices that hold a score where it is, not findings: Inkvolt PDF's command bar keeps its labels by sending lower-priority
+groups into "…" first, so at Text size 150 % on a 1200-DIP window most groups are in "…" (`CommandBarLayout`,
+`docs/design/command-bar.md`); Inkvolt Print's shortcuts cover the review, Photos, presets and the palette, not every
+button.
 
-### Findings, ranked by impact, and what was done
+## How to run it again
 
-1. **Side rail not keyboard-reachable** (H10). `RailButton` had `Focusable=False`; `FocusPane()` already tried `PagesRail.Focus()` for F6, which silently failed. Now focusable with `DefaultControlFocusVisualStyle` (`pdf/src/InkvoltPdf.App/App.xaml`).
-2. **Nameless controls in dialogs** (H11). `FormDialog.Add(label, control)` drew the label but didn't name the control; `PageRangePicker`, `PositionPicker`, the Crop margins and Document Properties' read-only boxes had none either. Fixed at the source (`Dialogs.cs`, `Organize.cs`, `FileActions.cs`), so every future dialog row is named.
-3. **Command palette blank on no match** (H1, H9). `PaletteText.NoMatch` (Core, tested) says "Nothing matches 'x'…" and, with no document open, that the document commands come once a file is open.
-4. **No placeholders** (H5). A `Placeholder.Text` attached property (adorner, follows the box's font and padding, hides with the box, names an unnamed box) on Search, Find, the comment filter and the shortcuts filter.
-5. **"OK" on dialogs that only inform** (H8). `Prompt.Info` / `Prompt.Error` say Close.
-6. **Accessibility pane tabs wrapping** (H14). "What fails (22)" and "For a person" became "Fails (22)" and "Checklist".
-7. **Scrollbar over text** in What's New (H14): padding for the scrollbar.
-8. **Batch empty hint clipped** (H9): the action list wraps.
-9. **Combine's empty list** (H9): "No files yet. Press Add Files…, or drop PDFs here."
-10. **Toast outliving its document** (H3): closing the active tab dismisses its toasts (an "Undo" for a closed document acted on nothing).
-11. **Command-bar labels** (H5): the labeled tools (Add text, Sign, Stamp, Draw, Organize) now outrank the icon-only commands after them when room runs short: those overflow into "…" first; the bar goes icons-only only when the labeled tools themselves don't fit (`ToolbarPanel`). At 1400 DIPs that is still the case (the labeled set needs about 1700), so the gain shows on wide windows only.
-12. **Windows' Text size ignored** (H14, WCAG 1.4.4). `TextScale` reads it (`UISettings.TextScaleFactor`, live) and scales
-    every dialog's content, widening the dialog by the same factor (`TextSize.Widen`, never past the screen) and
-    centering it again; the main window scales its chrome only (`TextScale.Scales`), and the side pane's width follows.
-    The page view isn't scaled: it renders pages for the screen's own pixels, and a scaled bitmap would blur.
-13. **Undo toast after its document closed** (H3): a toast remembers the tab it came from and closes with it, whichever
-    way the tab closes (the first pass only cleared toasts when the active tab closed directly).
-14. **Jargon in Sanitize and Reduce** (H2): see row 2.
-15. **Motion** (H4, WCAG 2.3.3): `Motion.Enter`, a 167 ms fade and 8-px rise for toasts and the palette, skipped when
-    `SystemParameters.ClientAreaAnimation` is off.
-
-### Still short after the first pass (round 2 below closed these)
-
-- **Text size in the title bar and Organize**: the tab strip in the title bar and the Organize page grid keep their size
-  (the title bar's height is the caption's, and the Organize cards are page pictures, which the page zoom already enlarges).
-- **Settings applies on Save**, not at once as Windows 11 settings do. The dialog is small and has Reset to defaults; changing it to instant-apply is a design change, not a fix.
-- **Command-bar labels** show only on windows about 1700 DIPs wide; narrower ones get icons with tooltips (and the names in the palette and menus). A two-row or grouped bar would be a redesign.
-- **Minimalist design** stays at 9: the command bar carries about twenty icons before "…" on a 1400-DIP window; grouping
-  them (as Acrobat's All tools or Edge's split buttons do) would be a redesign of the bar.
-
-## Inkvolt Print
-
-### Scores
-
-| # | Criterion | Before | After | Evidence and change |
-|---|---|---|---|---|
-| 1 | Status | 9.5 | 9.5 | Status line under every action, progress bars, the list says why a dot is amber ("Ready · Yellow ink is low"). |
-| 2 | Plain words | 9.5 | 9.5 | "Sleeping to save power. It wakes up by itself when you print or scan." |
-| 3 | Control | 9.0 | 9.5 | Every question has a verb and Cancel as the default; unsaved scans come back after a crash. Deleting a scanned page had no confirmation and no undo: the page was gone until scanned again. The review now has Undo (button and Ctrl+Z) for delete, turn, crop, move, file starts, separators, Keep and the photos, and the status line says "Deleted page 2. Undo (Ctrl+Z) puts it back." (`after/print-review-undo.png`). |
-| 4 | Fluent consistency | 9.0 | 9.5 | Questions were a paragraph in a window titled "Inkvolt Print" (`ConfirmDialog`); they now have the question as heading and title with the explanation under it and a footer (`after/print-dlg-confirm.png`). "Remove from InkvoltPrint…" read as one word. |
-| 5 | Recognition | 9.0 | 9.5 | Captions under every option; the address box in Add a printer shows an example now (`after/print-dlg-addprinter.png`). |
-| 6 | Flexibility | 9.0 | 9.5 | Ctrl+1…9 presets, F1 lists the shortcuts, Shift+F10 menus. The review gains Ctrl+Z, Ctrl+R / Ctrl+L (turn, as in Photos) and Ctrl+S (save as PDF), shown in Help, the tooltips and the page menu. No command palette (the app has six tabs; not needed). |
-| 7 | Minimalist | 9.5 | 9.5 | Cards that show only what the printer offers. |
-| 8 | Errors and dialogs | 8.5 | 9.5 | The question is the dialog's title and heading now (`DialogText.Split`, Core, tested); "OK" on information became Close. |
-| 9 | Empty states | 9.5 | 9.5 | No printers found (with Add a printer, Search again and a demo), no pages yet, the offline fixer's steps. |
-| 10 | Keyboard and focus | 8.5 | 9.5 | `LinkButton` had no Fluent focus ring (WPF's dotted default); it has one now. Tabs, lists and buttons were already in order. |
-| 11 | Accessible names | 9.5 | 9.5 | The audit found no nameless control on any tab or dialog. |
-| 12 | Contrast and themes | 9.5 | 9.5 | Light, dark and Windows setting; the black-toner swatch gets an outline in dark mode. |
-| 13 | Targets and DPI | 8.0 | 9.5 | The scan review's page buttons (turn, crop, delete) were 14 px wide and the About card's text fields 19 px tall (`before/print-scan-review.png`); links and those fields are at least 24 px now (`after/print-review-undo.png`). The audit finds nothing under 24 × 24 on the audited states. |
-| 14 | Responsiveness | 8.5 | 9.5 | The Scan settings' scrollbar covered the captions (`before/print-scan.png` → `after/print-scan.png`), as did What's New's. Windows' *Text size* now scales every window (`after/print-overview-textsize150.png`); at large sizes the tabs wrap in their order (WPF's TabPanel moved the selected row to the bottom) and the printer's buttons go under its name instead of over its address. Window position and size are remembered. |
-| | **Weighted** | **9.0** | **9.5** (9.50) | |
-
-### Findings, ranked by impact, and what was done
-
-1. **Question dialogs** (H4, H8): `ConfirmDialog` now splits the message with `DialogText.Split` (first question of the first paragraph = heading and window title; the rest = body) and lays it out as the Windows dialog guidance does; `Tell` closes with Close.
-2. **Small targets** (H13): `LinkButton` gets `MinHeight`/`MinWidth` 24 with centered content, so the scan review's icon buttons and the sidebar links meet 2.5.8; the About card's read-only fields are 24 px tall.
-3. **Scrollbar over captions** (H14): padding on the Scan settings' and What's New's scroll viewers.
-4. **Focus ring on links** (H10): `DefaultControlFocusVisualStyle` on `LinkButton`.
-5. **Placeholder** on the address box (H5), with the same `Placeholder` helper as Inkvolt PDF.
-6. **"InkvoltPrint"** in the printer menu (H2).
-7. **No undo in the scan review** (H3): `UndoHistory` (Core, tested; newest first, 50 steps) records how to put each
-   review change back; the review's Undo button says which ("Undo delete page 2 (Ctrl+Z)"). Clear, which asks first,
-   empties it.
-8. **Windows' Text size** (H14): the same `TextScale` as Inkvolt PDF, here on whole windows, the main one included.
-9. **The header at large text** (H14): the name and the Print a PDF / Scan buttons are a `HeaderPanel`, so the buttons
-   go under the name when there is no room; the section tabs wrap in order (`WrapPanel`).
-10. **Review shortcuts** (H7): Ctrl+R / Ctrl+L and Ctrl+S, listed in Help.
-
-### Still short after the first pass (round 2 below closed these)
-
-- **The sidebar at large text** keeps its 272-DIP width, scaled: at 200 % on a small window it takes much of it. Windows
-  Settings folds its own pane at that point; doing so here is a layout change for another pass.
-- **Motion**: none. The app's changes are in place (a status line, a page added to the review), which Fluent allows.
-- **Flexibility**: shortcuts cover the review, Photos and presets, not every button; a palette would be more than the app
-  needs.
-
-## Round 2
-
-A second pass on 2026-10-30 at what the first left short, judged the same way: the real UI rendered off-screen in light
-and dark, at 100 % and with Windows' Text size at 150 % (and 200 % for Inkvolt Print), plus the UI Automation audit.
-The shots are in `docs/ux-review/round2/` (`before/`, `after/`); `pdf-round2.txt` and the round-2 runs at the end of
-`print-runs.ps1` reproduce them.
-
-### Inkvolt PDF
-
-| # | Criterion | Round 1 | Round 2 | What changed |
-|---|---|---|---|---|
-| 4 | Fluent consistency | 9.5 | 10 | Settings apply at once, as Windows 11's do: no Save, only Close (`after/pdf-settings.png`). The command bar follows Fluent 2's pattern: primary commands, labeled groups, a "…" overflow that keeps the labels. |
-| 5 | Recognition | 9.5 | 10 | At 1200 DIPs the bar was 15 unlabeled icons (`before/pdf-bar-1200.png`); it now reads Hand, Fill & Sign, Comment (`after/pdf-bar-1200.png`), with Draw and Organize from 1400 and everything at 1700. Each group's menu names its tools with their icons and keys (`after/pdf-bar-fillsign.png`, `after/pdf-bar-comment.png`). |
-| 7 | Minimalist | 9.0 | 9.5 | About twenty icons became four (save, print, undo, redo) and six labeled buttons; rotate, delete pages, find and combine live in "…" (`after/pdf-bar-more.png`), the menus and the palette. |
-| 14 | Responsiveness | 9.5 | 10 | The title bar's tabs and the Organize view kept their size at Text size 150 % (`before/pdf-reading-150.png`, `before/pdf-organize-150.png`); they scale now and the title bar grows to fit (`after/pdf-reading-150.png`, `after/pdf-organize-150.png`). The bar's labels go only when Fill & Sign or Comment wouldn't fit with them (`after/pdf-bar-900.png`). |
-| 3 | Control | 9.5 | 9.5 | Instant settings keep a way back: Undo changes puts every setting changed since Settings opened back as it was, Reset to defaults included (`after/pdf-settings-undone.png`). |
-| | Every other criterion | — | as round 1 | |
-| | **Weighted** | **9.47** | **9.62** | |
-
-**The command bar, the one redesign of this pass.** Before (`before/pdf-bar-1200.png`, `before/pdf-bar-1400.png`): the
-first round's bar kept labels only on windows about 1700 DIPs wide; at 1200 and 1400 it was a row of icons (save, print,
-undo, redo, hand, select, snapshot, add text, check, cross, sign, highlight, note, then "…"). After
-(`after/pdf-bar-1200.png`, `after/pdf-bar-1400.png`, `after/pdf-bar-1200-dark.png`): the same commands in the same
-order, grouped as the menus already group them: save, print, undo and redo stay icons (their glyphs are universal);
-**Hand / Select / Snapshot** is one button named after the tool in use; **Fill & Sign** drops add text, check mark,
-cross and sign; **Comment** drops highlight, underline, strike out, note, image, link and stamp; **Draw**, **Redact** and
-**Organize** are labeled; "…" holds what didn't fit (a group as a submenu) and then rotate, delete selected pages, find
-and combine, all with labels. A group shows the tool of it in use (icon, checked). Which entries stay as room runs short
-is a table in Core (`CommandBarLayout`: order, groups, priorities, icons; tested), and a test reads the menus to check
-every bar command is in them, so the palette lists each one (Organize › Delete Selected Pages joined the menus for that).
-
-**Settings.** Each change takes effect and is saved as it is made; Reset to defaults applies at once; Undo changes
-(disabled when nothing changed, its tooltip counting the changes) puts back the values from when the window opened
-(`SettingsSession`, Core, tested). That covers the risky ones: turning off recovery copies, resetting everything.
-
-#### Still short
-
-- ~~**Text size 150 % on a 1200-DIP window**~~ Done 2026-11-03 (round 3, below): the bar had save, print, undo and "…".
-- ~~**The group menus**~~ Done 2026-11-03 (round 3, below): flyouts with a line under each command.
-- ~~**Organize's page pictures**~~ Done 2026-11-04 (below): they follow the Text size as their numbers and buttons do.
-
-#### Round 3 (2026-11-03): the two leftovers
-
-**The group flyouts.** Fill & Sign, Comment, the pointer tools and Draw drop a flyout as WinUI's command bars do: each
-command's name, and under it a line in the secondary text color saying what it does ("Put a check mark in a box",
-"Draw a box that opens a page or web address", "Drag an oval; Shift makes a circle"), its key on the right
-(`round3/after/pdf-flyout-fillsign.png`, `pdf-flyout-comment.png`, `pdf-flyout-pointer.png`, `pdf-flyout-draw.png`,
-`pdf-flyout-comment-dark.png`). Still a WPF context menu underneath, so arrow keys, access keys and screen readers work
-as before; a screen reader reads the name as the item's name and the line as its help text. The lines are in Core
-(`CommandBarLayout.Command.Description`, tested: one short line each, none twice) and `DrawTools.Description`.
-
-**The bar at Text size 150 % on a 1200-DIP window** (800 logical DIPs). Under 1100 the bar's right end gives up its
-room: the palette button keeps its icon (Ctrl+K, its tooltip and its name stay) and Appearance moves to the end of "…"
-(View › Theme has it too). Decided on the row's width, not on what fits, so it can't flip back and forth
-(`CommandBarLayout.RoomyWidth`). The bar went from save, print, undo and "…" to save, print, undo, redo, the pointer
-tools, Fill & Sign and "…" (`round3/after/pdf-bar-1200-150.png`, `pdf-bar-1200-150-dark.png`, `pdf-bar-more-150.png`);
-at 900 DIPs and 100 % it keeps Comment and Organize as well (`pdf-bar-900.png`). The bar's menus now follow the Text
-size too (they are popups, outside the bar's scaling, and stayed at 100 %: `pdf-flyout-fillsign-150.png`). The audit
-finds 0 findings at 150 % and in dark. Script: `docs/ux-review/pdf-round3.txt`.
-
-| # | Criterion | Round 2 | Round 3 | What changed |
-|---|---|---|---|---|
-| 4 | Fluent consistency | 10 | 10 | Round 2 gave 10 with the menus not yet flyouts; they are now. |
-| 14 | Responsiveness | 10 | 10 | Round 2 gave 10 with the bar icons-only at 150 % on 1200 DIPs; it keeps six commands there now, and its menus scale. |
-| | Every other criterion | | as round 2 | |
-| | **Weighted** | **9.62** | **9.62** | Both leftovers were under criteria already at 10, so the score doesn't move; it is earned without the reservations now. |
-
-Still short after round 3: at 150 % on 1200 DIPs Comment is in "…" (Draw, Redact and Organize too), a priority
-choice: undo, redo and print stay as icons. A menu shot (`menushot`) draws only what is over the window, so a flyout at
-the right edge looks cut in the shots; on screen it isn't. Organize's page pictures, as above.
-
-**The leftovers (2026-11-04).** Comment at 150 % on 1200 DIPs: the bar has 318 logical DIPs there and its icons-only
-set was 8 short of Comment, so Print and Redo (Ctrl+P and Ctrl+Y, in the File and Edit menus) now give way to it, Redo
-first (`CommandBarLayout`, priority 75 against Comment's 80): save, undo, the pointer tools, Fill & Sign and Comment
-(`leftovers/pdf-bar-1200-150-before.png`, `leftovers/pdf-bar-1200-150.png`); at 100 % on 900, 1200 and 1400 DIPs the bar is
-as before. Organize's page pictures: the slider's size is as at 100 % and the picture is that times the Text size
-(`OrganizeGrid`, Core, tested), so at 150 % the hover buttons sit inside the picture instead of spilling over its edges
-(`leftovers/pdf-organize-150-before.png`, `leftovers/pdf-organize-150.png`, `pdf-organize-100.png`); they render for the
-size shown, and follow a change of Text size at once. The audit finds 0 findings. Script: `docs/ux-review/pdf-leftovers.txt`.
-
-### Inkvolt Print
-
-| # | Criterion | Round 1 | Round 2 | What changed |
-|---|---|---|---|---|
-| 4 | Fluent consistency | 9.5 | 10 | Motion where Fluent expects it: a section's page when its tab is chosen, the printer's page when another printer is, a status line when its words change, the folded sidebar sliding in, the palette dropping in; 167 ms, decelerate, none when Windows' Animation effects is off (`Motion`). |
-| 6 | Flexibility | 9.5 | 10 | A command palette (Ctrl+K), the same as Inkvolt PDF's: every sidebar, header, section and printer-menu command, each other printer, each scan preset with its Ctrl+1…9 (`after/print-palette.png`, `after/print-palette-scan-dark.png`); it says what to try when nothing matches (`after/print-palette-nomatch.png`). Help lists Ctrl+K. Everything is a few keys away without the mouse. Round 3 (2026-11-03): another printer's menu commands too, as "Printer: command" entries listed once a word is typed (so the list it opens on stays as short), run on that printer without showing it first (`after/print-palette-other.png`, `after/print-palette-other-ran.png`; 0 audit findings). |
-| 14 | Responsiveness | 9.5 | 10 | At Text size 150 % the 272-DIP sidebar took a third of a 1180-DIP window, at 200 % nearly half, cutting the printer's name to "HP LaserJ…" and wrapping the tabs in three rows (`before/print-overview-200.png`). Below 852 DIPs of room it folds into a Printers button that opens it over the page, as Windows Settings folds its pane (`after/print-overview-150.png`, `after/print-overview-200.png`, `after/print-nav-open-150.png`); never at 100 %. |
-| | Every other criterion | — | as round 1 | |
-| | **Weighted** | **9.50** | **9.61** | |
-
-The audit finds no control without a name or under 24 × 24 on the palette, the folded window or the open sidebar.
-
-#### Still short
-
-Nothing left from round 2 (2026-11-03): the palette reaches another printer's menu (criterion 6 above), and the scan
-review has motion. **Motion in the scan review:** the earlier reasoning holds while scanning, so motion is the subtle
-version: a page Undo puts back rises into place, the page taking a deleted one's place fades in, a moved page slides in
-from the side it came from (167 ms, decelerate, none with Windows' Animation effects off), and nothing moves while a scan or
-a save shows its progress bar (pages from the scanner just appear), while a page is dragged (it follows the pointer), or
-when several pages change at once (`Core/Suite/ReviewMotion`, `ReviewMotionTests`). Final states: `after/print-review-undone.png`,
-`after/print-review-moved.png` (0 audit findings); the motion itself isn't in a still. Criterion 4 was already 10; the
-weighted score stays 9.61.
-
-## How to reproduce
-
-- Inkvolt PDF: `InkvoltPdf.exe --script docs/ux-review/pdf-before.txt` (and `pdf-final.txt`, `pdf-audit.txt`) with
+- Inkvolt PDF: `InkvoltPdf.exe --script docs/ux-review/pdf-audit.txt` (and the other `pdf-*.txt` there) with
   `INKVOLTPDF_DATA` set to a scratch folder; the sample PDFs come from the tests with `INKVOLTPDF_SAMPLES` set. Edit the
-  output paths in the scripts first.
-  `pdf-textsize.txt` is the second pass (`textscale 1.5` stands in for Windows' Text size), `pdf-round2.txt` round 2
-  (dev steps `barstate`, `barclick` and `menushot`: the command bar's state, a group's menu, a shot with it open).
-  `pdf-round3.txt` round 3 (the flyouts, and the bar at 150 %).
-  `pdf-leftovers.txt` the leftovers of 2026-11-04 (Comment at 150 %, Organize at 150 %; `barstate` logs the widths).
-- Inkvolt Print: `InkvoltPrint.exe --demo --snapshot out.png --a11y-audit findings.txt [--tab Scan --scan 3 | --dialog confirm …]`
-  (every run: `pwsh -File docs/ux-review/print-runs.ps1 -Exe …\InkvoltPrint.exe -Out C:\ux`). `INKVOLT_TEXTSCALE=1.5`
-  stands in for Windows' Text size in both apps; `--delete n` and `--undo` drive the review's Undo; round 2 adds
-  `--palette [words]`, `--run-palette` and `--nav open` (the folded sidebar).
-- The audit rules (`UiAudit`: no name, under 24 × 24) and the dialog split (`DialogText`) are in
-  `shared/InkvoltPrint.Core/Suite` with tests in `print/tests/InkvoltPrint.Tests/UxTests.cs`; the palette's no-match words
-  in `pdf/src/InkvoltPdf.Core/PaletteText.cs` with `PaletteTextTests`; the Text size rules (`TextSize`) and the review's
-  `UndoHistory` with `TextSizeTests` and `UndoHistoryTests`. Round 2: `CommandBarLayout` and `SettingsSession`
-  (`pdf/src/InkvoltPdf.Core`) with `CommandBarLayoutTests` and `SettingsSessionTests`; `PaletteSearch`, `PrintPalette`
-  and `NavPane` (`shared/InkvoltPrint.Core/Suite`) with `PaletteTests`.
+  output paths in the scripts first. `textscale 1.5` stands in for Windows' Text size; `barstate`, `barclick` and
+  `menushot` give the command bar's state, a group's menu and a shot with it open.
+- Inkvolt Print: `pwsh -File docs/ux-review/print-runs.ps1 -Exe …\InkvoltPrint.exe -Out C:\ux` (each run:
+  `InkvoltPrint.exe --demo --snapshot out.png --a11y-audit findings.txt [--tab Scan --scan 3 | --dialog confirm …]`).
+  `INKVOLT_TEXTSCALE=1.5` stands in for Windows' Text size in both apps; `--delete n` and `--undo` drive the review's
+  Undo; `--palette [words]`, `--run-palette` and `--nav open` (the folded sidebar).
+- The rules behind the fixes, with their tests: `UiAudit`, `DialogText`, `TextSize` and `UndoHistory`
+  (`shared/InkvoltPrint.Core`, `UxTests`); `PaletteText` (`PaletteTextTests`);
+  `CommandBarLayout` and `SettingsSession` (`pdf/src/InkvoltPdf.Core`, their tests); `PaletteSearch`, `PrintPalette` and
+  `NavPane` (`PaletteTests`); `OrganizeGrid` (`OrganizeGridTests`); `ReviewMotion` (`ReviewMotionTests`); `ScreenFit`
+  (Inkvolt Print's window kept inside a small screen's working area; `WindowsLookTests` presses Print at 860 × 560 and
+  1024 × 576, as Windows 11 and as Windows 10).
