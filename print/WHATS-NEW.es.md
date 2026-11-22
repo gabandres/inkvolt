@@ -6,6 +6,8 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- La limpieza puede quitar un color: las líneas de un formulario rojo, las notas de un bolígrafo azul o un sello se vuelven blancos, y lo impreso en negro se queda. Elige rojo, verde o azul, o haz clic en el color de la página. Quitar perforaciones rellena con el color del papel las marcas redondas de las perforaciones cerca de los bordes. Las dos funcionan en cada escaneo, en cada ajuste y en cada página.
+- Unir dos mitades: para un original demasiado grande para el cristal, escanea una mitad, luego la otra con un poco de superposición, y elige Unir con la página siguiente… en la primera. Se encuentra la superposición y las mitades se vuelven una sola página; si no se encuentra, coloca la segunda mitad con las flechas.
 
 ## 1.8.0
 - Ambas caras en un alimentador que escanea una sola cara: marca Ambas caras: dar la vuelta a la pila (o la opción del ajuste), escanea los anversos, dale la vuelta a la pila cuando se te pida y escanea los reversos. Las páginas salen en orden; si la bandeja de tu escáner invierte la pila, Reversos en el otro orden lo corrige, y la revisión te avisa cuando los anversos y los reversos no coinciden.
@@ -15,8 +17,6 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 - Lista para el nuevo controlador de impresora de Windows: Acerca de esta impresora dice qué controlador usa Windows para ella, si la impresora funciona con el controlador propio de Windows y su modo de impresión protegida, y Configurar con el controlador de Windows la vuelve a agregar así, junto a la anterior. Se avisa de un escáner que solo funciona con su controlador de Windows, porque no escaneará en el modo de impresión protegida.
 - Doble cara en una impresora que imprime por un solo lado: Imprimir un PDF, En lote y Copiar ofrecen Imprimir a doble cara a mano. Se imprimen los anversos, luego la aplicación te muestra cómo volver a poner la pila para tu impresora (te pregunta hacia dónde salió la cara impresa) e imprime los reversos.
 - Imprimir el portapapeles: en la pestaña Imprimir, Imprimir el portapapeles imprime el texto que copiaste (colocado en páginas, con las opciones de siempre), una imagen copiada a través de Fotos, o los archivos que copiaste en el Explorador de archivos.
-- La limpieza puede quitar un color: las líneas de un formulario rojo, las notas de un bolígrafo azul o un sello se vuelven blancos, y lo impreso en negro se queda. Elige rojo, verde o azul, o haz clic en el color de la página. Quitar perforaciones rellena con el color del papel las marcas redondas de las perforaciones cerca de los bordes. Las dos funcionan en cada escaneo, en cada ajuste y en cada página.
-- Unir dos mitades: para un original demasiado grande para el cristal, escanea una mitad, luego la otra con un poco de superposición, y elige Unir con la página siguiente… en la primera. Se encuentra la superposición y las mitades se vuelven una sola página; si no se encuentra, coloca la segunda mitad con las flechas.
 - Escaneos recientes: Escaneos recientes… en la pestaña Escanear muestra tus últimos escaneos guardados de todos los escáneres, para abrirlos, mostrarlos en su carpeta, enviarlos de nuevo por correo o imprimirlos. La lista se queda en este PC.
 
 ## 1.7.0
