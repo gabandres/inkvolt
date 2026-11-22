@@ -11,6 +11,10 @@ public partial class MainWindow
         BindAlways(Cmd.NewFromClipboard, () => _ = FileTools.NewFromClipboard(this));
         BindAlways(Cmd.Compare, () => _ = Comparing.Start(this));
         BindAlways(Cmd.SearchFolders, () => FolderSearchWindow.Open(this));
+        BindAlways(Cmd.AskFolders, () =>
+        {
+            if (ProGate.Check(this, ProFeature.FolderAsk)) FolderAskWindow.Open(this);
+        });
         BindAlways(Cmd.CreateFromOffice, () => _ = Converting.FromOfficeFile(this));
         BindAlways(Cmd.CreateFromWeb, () => _ = Converting.FromWebPage(this));
         Bind(Cmd.MeasureDistance, t => ToggleTool(t, Viewer.ViewerTool.MeasureDistance), t => !t.IsOrganizing && t.Session.IsPdf);
@@ -54,6 +58,15 @@ public partial class MainWindow
             if (!AiReady()) return;
             if (AiActions.AskSummaryPages(this, t) is { } pages) _ = t.AiSummarize(pages);
         }, t => t.PageView.PageCount > 0 && !t.IsAiBusy);
+        Bind(Cmd.AiSummaryAudio, t =>
+        {
+            if (!AiReady()) return;
+            if (AiActions.AskSummaryPages(this, t) is { } pages) _ = t.AiSummaryToAudio(pages);
+        }, t => t.PageView.PageCount > 0 && !t.IsAiBusy);
+        Bind(Cmd.AskEdit, t =>
+        {
+            if (AiReady()) _ = t.AskEditAsync();
+        }, t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsAiBusy);
         Bind(Cmd.AiAsk, t =>
         {
             if (AiReady()) t.ShowAiPane();
@@ -84,6 +97,22 @@ public partial class MainWindow
         await Dispatcher.InvokeAsync(() =>
         {
             if (!tab.IsDisposed) tab.ShowFoundAt(page, query, matchCase, wholeWords, ignoreAccents);
+        }, System.Windows.Threading.DispatcherPriority.ContextIdle);
+    }
+
+    /// <summary>A citation of Ask Across Folders: the file comes to the front, at that page (0-based).</summary>
+    public async Task OpenAtPage(string path, int page)
+    {
+        BringToFront();
+        await OpenFileAsync(path);
+        if (ActiveTab is not { } tab || !string.Equals(tab.Session.FilePath, System.IO.Path.GetFullPath(path), StringComparison.OrdinalIgnoreCase)) return;
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (!tab.IsDisposed && page >= 0 && page < tab.PageView.PageCount)
+            {
+                tab.SetOrganizing(false);
+                tab.ActiveView.GoToPage(page);
+            }
         }, System.Windows.Threading.DispatcherPriority.ContextIdle);
     }
 

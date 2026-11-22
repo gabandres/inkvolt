@@ -12839,4 +12839,298 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>10 puntos</value>
     <comment>Grid Spacing list</comment>
   </data>
+  <data name="Cmd_AskFolders" xml:space="preserve">
+    <value>Preguntar e_n carpetas…</value>
+  </data>
+  <data name="FolderAsk_Title" xml:space="preserve">
+    <value>Preguntar en carpetas</value>
+  </data>
+  <data name="FolderAsk_Intro" xml:space="preserve">
+    <value>Haz una pregunta sobre los archivos PDF de tus carpetas indexadas, o sobre los que elijas. El índice elige las páginas más relacionadas con ella, y tu propio asistente de IA responde a partir de ellas, citando el archivo y la página. No se envía nada antes de que veas exactamente qué se envía.</value>
+  </data>
+  <data name="FolderAsk_InFolders" xml:space="preserve">
+    <value>En las carpetas indexadas</value>
+  </data>
+  <data name="FolderAsk_InFiles" xml:space="preserve">
+    <value>En estos archivos PDF:</value>
+  </data>
+  <data name="FolderAsk_ChooseFiles" xml:space="preserve">
+    <value>Elegir archivos PDF…</value>
+  </data>
+  <data name="FolderAsk_NoFiles" xml:space="preserve">
+    <value>Aún no has elegido archivos PDF.</value>
+  </data>
+  <data name="FolderAsk_FilesChosen_One" xml:space="preserve">
+    <value>{0:N0} archivo PDF: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_FilesChosen_Many" xml:space="preserve">
+    <value>{0:N0} archivos PDF: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_AskIn" xml:space="preserve">
+    <value>Preguntar en</value>
+  </data>
+  <data name="FolderAsk_Question" xml:space="preserve">
+    <value>Pregunta</value>
+  </data>
+  <data name="FolderAsk_Placeholder" xml:space="preserve">
+    <value>Haz una pregunta sobre estos documentos</value>
+  </data>
+  <data name="FolderAsk_Answers" xml:space="preserve">
+    <value>Preguntas y respuestas</value>
+  </data>
+  <data name="FolderAsk_ChooseFilesFirst" xml:space="preserve">
+    <value>Primero elige los archivos PDF sobre los que preguntar.</value>
+  </data>
+  <data name="FolderAsk_ReadingFiles" xml:space="preserve">
+    <value>Leyendo los archivos PDF…</value>
+  </data>
+  <data name="FolderAsk_ReadingIndex" xml:space="preserve">
+    <value>Buscando las páginas más relacionadas con la pregunta…</value>
+  </data>
+  <data name="FolderAsk_NoText" xml:space="preserve">
+    <value>Ninguna página tiene texto que enviar. Los escaneos necesitan antes Reconocer texto.</value>
+  </data>
+  <data name="FolderAsk_NothingRelated" xml:space="preserve">
+    <value>Ninguna página comparte una palabra con la pregunta. Prueba con otras palabras.</value>
+  </data>
+  <data name="FolderAsk_CheckingPermissions" xml:space="preserve">
+    <value>Comprobando los permisos de los archivos…</value>
+  </data>
+  <data name="FolderAsk_RestrictedFiles" xml:space="preserve">
+    <value>Estos archivos PDF no permiten copiar su texto: {0}</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Sent" xml:space="preserve">
+    <value>Tu pregunta y el texto de {0} de {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_SentTrimmed" xml:space="preserve">
+    <value>Tu pregunta y las partes más relacionadas con ella, de {0} de {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_NeedPassword" xml:space="preserve">
+    <value>No se leyeron (necesitan una contraseña): {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Unreadable" xml:space="preserve">
+    <value>No se pudieron leer: {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_NotAllRead" xml:space="preserve">
+    <value>Solo se leyeron las primeras {0:N0} páginas de los archivos PDF; no todas de: {1}.</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_OpenAt" xml:space="preserve">
+    <value>Abrir {0} en la página {1}</value>
+    <comment>{0} is a file name</comment>
+  </data>
+  <data name="Ai_SentListing" xml:space="preserve">
+    <value>Páginas enviadas, por archivo</value>
+  </data>
+  <data name="FolderAsk_OnlyThis" xml:space="preserve">
+    <value>Solo se envían este texto, las instrucciones que se muestran abajo y el nombre del modelo, con el nombre de cada archivo dentro de su carpeta tal como aparece en la lista: no dónde están los archivos en este PC, sus propiedades ni ninguna otra página.</value>
+  </data>
+  <data name="Folder_ByMeaning" xml:space="preserve">
+    <value>Por significado</value>
+  </data>
+  <data name="Folder_ByMeaningTip" xml:space="preserve">
+    <value>Encuentra páginas cercanas en significado a tus palabras con el modelo de embeddings de tu propio asistente de IA (Inkvolt Pro). No se envía nada hasta que pulses Buscar.</value>
+  </data>
+  <data name="Folder_MeaningSettings" xml:space="preserve">
+    <value>Significado…</value>
+  </data>
+  <data name="Folder_MeaningPress" xml:space="preserve">
+    <value>Escribe lo que buscas y pulsa Buscar. No se envía nada antes de que lo veas.</value>
+  </data>
+  <data name="Folder_WhereMeaning" xml:space="preserve">
+    <value>página {0}, cercanía de significado {1:P0}</value>
+  </data>
+  <data name="Folder_MeaningNone" xml:space="preserve">
+    <value>No se encontró nada por significado: puede que las páginas de las carpetas aún no tengan texto.</value>
+  </data>
+  <data name="Folder_MeaningFound" xml:space="preserve">
+    <value>{0} más cercanas en significado, de mejor a peor.</value>
+    <comment>{0} is "50 pages"</comment>
+  </data>
+  <data name="Folder_MeaningStopped" xml:space="preserve">
+    <value>Detenido. Se conservan las páginas que ya se convirtieron en embeddings.</value>
+  </data>
+  <data name="Folder_MeaningDamaged" xml:space="preserve">
+    <value>El índice de una carpeta no se puede leer y se está creando de nuevo. Vuelve a buscar por significado cuando esté al día.</value>
+  </data>
+  <data name="Meaning_Title" xml:space="preserve">
+    <value>Buscar por significado</value>
+  </data>
+  <data name="Meaning_Note" xml:space="preserve">
+    <value>Buscar por significado encuentra páginas por lo que significan, no solo por las palabras que usan. El servidor de tu asistente de IA convierte el texto de cada página en embeddings (listas de números) con un modelo de embeddings, y se guardan en este PC junto al índice de cada carpeta. Antes de enviar ninguna página, la ventana de envío las muestra todas. Está desactivado hasta que lo actives.</value>
+  </data>
+  <data name="Meaning_TurnOn" xml:space="preserve">
+    <value>Activar la búsqueda por significado</value>
+  </data>
+  <data name="Meaning_Model" xml:space="preserve">
+    <value>Modelo de embeddings</value>
+  </data>
+  <data name="Meaning_ModelTip" xml:space="preserve">
+    <value>Un modelo que genera embeddings, no un modelo de chat: nomic-embed-text, mxbai-embed-large o bge-m3 en Ollama (ollama pull nomic-embed-text), o text-embedding-3-small con OpenAI.</value>
+  </data>
+  <data name="Meaning_NeedsAssistant" xml:space="preserve">
+    <value>Primero configura el asistente de IA (Revisar › Asistente de IA › Configuración): la búsqueda por significado usa su servidor.</value>
+  </data>
+  <data name="Meaning_Where" xml:space="preserve">
+    <value>Los embeddings vienen del servidor del asistente de IA. {0}</value>
+    <comment>{0} says where the server is: "Stays on this PC." and the like</comment>
+  </data>
+  <data name="Meaning_ChooseModel" xml:space="preserve">
+    <value>Escribe el nombre del modelo de embeddings.</value>
+  </data>
+  <data name="Meaning_Checking" xml:space="preserve">
+    <value>Comprobando qué páginas son nuevas…</value>
+  </data>
+  <data name="Meaning_SentQuery" xml:space="preserve">
+    <value>Tus palabras de búsqueda, para convertirlas en un embedding con {0}</value>
+    <comment>{0} is a model name</comment>
+  </data>
+  <data name="Meaning_SentPages" xml:space="preserve">
+    <value>El texto de {0} de {1}, para convertirlo en embeddings con {2}, y después tus palabras de búsqueda</value>
+    <comment>{0} is "40 pages", {1} "3 files", {2} a model name</comment>
+  </data>
+  <data name="Meaning_LeftOut" xml:space="preserve">
+    <value>Por encima del límite de {0:N0} fragmentos, el resto no se busca por significado.</value>
+  </data>
+  <data name="Meaning_OnlyThis" xml:space="preserve">
+    <value>Solo se envían este texto y el nombre del modelo: ningún nombre de archivo, carpeta ni otro documento. Los embeddings se quedan en este PC junto al índice de la carpeta, y la próxima vez solo se envían las páginas nuevas o cambiadas.</value>
+  </data>
+  <data name="Meaning_SendTitle" xml:space="preserve">
+    <value>¿Enviar para buscar por significado?</value>
+  </data>
+  <data name="Meaning_Embedding" xml:space="preserve">
+    <value>Convirtiendo páginas en embeddings: {0:N0} de {1:N0} fragmentos…</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaning" xml:space="preserve">
+    <value>Buscar también páginas por significado</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaningTip" xml:space="preserve">
+    <value>Las páginas cercanas en significado a la pregunta se suman a las que comparten sus palabras (buscar por significado, con el modelo de embeddings de tu propio asistente de IA).</value>
+  </data>
+  <data name="FolderAsk_MeaningFoldersOnly" xml:space="preserve">
+    <value>La búsqueda por significado solo funciona en carpetas indexadas.</value>
+  </data>
+  <data name="Cmd_AiSummaryAudio" xml:space="preserve">
+    <value>Resumen en a_udio…</value>
+  </data>
+  <data name="TabAi_SaveAsAudio" xml:space="preserve">
+    <value>Una grabación hablada (MP3 o WAV), con la voz de Leer en voz alta</value>
+  </data>
+  <data name="TabAi_AudioTitle" xml:space="preserve">
+    <value>Guardar como audio</value>
+  </data>
+  <data name="TabAi_AudioFileName" xml:space="preserve">
+    <value>{0} - resumen</value>
+    <comment>{0} is the document's name</comment>
+  </data>
+  <data name="TabAi_AudioFilter" xml:space="preserve">
+    <value>Audio MP3 (*.mp3)|*.mp3|Audio WAV (*.wav)|*.wav</value>
+  </data>
+  <data name="TabAi_AudioSpeaking" xml:space="preserve">
+    <value>Leyendo la respuesta en voz alta…</value>
+  </data>
+  <data name="TabAi_AudioProgress" xml:space="preserve">
+    <value>Leyendo en voz alta: párrafo {0} de {1}…</value>
+  </data>
+  <data name="TabAi_AudioSaved" xml:space="preserve">
+    <value>Se guardó {0} ({1}).</value>
+    <comment>{0} is a file name, {1} its length such as 2:35</comment>
+  </data>
+  <data name="TabAi_AudioNoMp3" xml:space="preserve">
+    <value>Windows no puede crear archivos MP3 en este PC, así que se guardó como WAV.</value>
+  </data>
+  <data name="TabAi_AudioStopped" xml:space="preserve">
+    <value>Detenido. No se guardó ninguna grabación.</value>
+  </data>
+  <data name="TabAi_AudioFailed" xml:space="preserve">
+    <value>No se pudo crear o guardar la grabación. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo.</value>
+  </data>
+  <data name="Cmd_AskEdit" xml:space="preserve">
+    <value>Editar p_idiéndolo…</value>
+  </data>
+  <data name="AskEdit_Title" xml:space="preserve">
+    <value>Editar pidiéndolo</value>
+  </data>
+  <data name="AskEdit_Intro" xml:space="preserve">
+    <value>Di qué hacer con este documento con tus propias palabras, por ejemplo «pon derechas las páginas 3 a 5 y agrega un marcador Apéndice en la página 6». Tu asistente de IA propone los pasos; ves cada uno y eliges antes de que se ejecute nada.</value>
+  </data>
+  <data name="AskEdit_Request" xml:space="preserve">
+    <value>Qué hacer</value>
+  </data>
+  <data name="AskEdit_Placeholder" xml:space="preserve">
+    <value>Gira la última página y resalta cada «plazo»</value>
+  </data>
+  <data name="AskEdit_WhatGoes" xml:space="preserve">
+    <value>Solo se envían tus palabras, el número de páginas y la página en la que estás, con la lista de comandos que puede usar: nada del texto del documento.</value>
+  </data>
+  <data name="AskEdit_TypeRequest" xml:space="preserve">
+    <value>Escribe qué hacer.</value>
+  </data>
+  <data name="AskEdit_Sent" xml:space="preserve">
+    <value>Tu petición, el número de páginas y la página en la que estás, con los comandos que puede proponer</value>
+  </data>
+  <data name="AskEdit_OnlyThis" xml:space="preserve">
+    <value>Solo se envían esto y el nombre del modelo: nada del texto del documento, ni su nombre ni su carpeta. El modelo solo propone pasos; no se ejecuta nada antes de que elijas.</value>
+  </data>
+  <data name="AskEdit_SendTitle" xml:space="preserve">
+    <value>¿Enviar tu petición al asistente de IA?</value>
+  </data>
+  <data name="AskEdit_NoSteps" xml:space="preserve">
+    <value>El asistente de IA no propuso ningún paso que se pueda hacer con los comandos ofrecidos.</value>
+  </data>
+  <data name="AskEdit_ModelSaid" xml:space="preserve">
+    <value>El modelo dijo: «{0}»</value>
+    <comment>{0} is the model's own words, shown as they are</comment>
+  </data>
+  <data name="AskEdit_StepsTitle" xml:space="preserve">
+    <value>Pasos propuestos</value>
+  </data>
+  <data name="AskEdit_Run" xml:space="preserve">
+    <value>Ejecutar</value>
+    <comment>Button</comment>
+  </data>
+  <data name="AskEdit_StepsNote" xml:space="preserve">
+    <value>Tu asistente de IA propone estos pasos, en este orden. Desmarca los que no quieras: no se ejecuta nada hasta que pulses Ejecutar, y Deshacer revierte cada edición.</value>
+  </data>
+  <data name="AskEdit_StepLine" xml:space="preserve">
+    <value>{0}. {1}</value>
+    <comment>{0} is the step's number, {1} what it does</comment>
+  </data>
+  <data name="AskEdit_TickOne" xml:space="preserve">
+    <value>Marca al menos un paso, o Cancelar.</value>
+  </data>
+  <data name="AskEdit_SkippedGone" xml:space="preserve">
+    <value>Se dejó fuera, porque un paso anterior eliminó sus páginas: {0}.</value>
+  </data>
+  <data name="AskEdit_SkippedAll" xml:space="preserve">
+    <value>Se dejó fuera, porque eliminaría todas las páginas: {0}.</value>
+  </data>
+  <data name="AskEdit_StepNotDone" xml:space="preserve">
+    <value>No se hizo: {0}.</value>
+  </data>
+  <data name="AskEdit_BookmarkUndo" xml:space="preserve">
+    <value>Agregar marcador</value>
+  </data>
+  <data name="AskEdit_NotFound" xml:space="preserve">
+    <value>«{0}» no está en el documento.</value>
+  </data>
+  <data name="AskEdit_Done_One" xml:space="preserve">
+    <value>Se ejecutó {0} paso. Deshacer revierte cada edición.</value>
+  </data>
+  <data name="AskEdit_Done_Many" xml:space="preserve">
+    <value>Se ejecutaron {0} pasos. Deshacer revierte cada edición.</value>
+  </data>
+  <data name="FolderAsk_ReadFailed" xml:space="preserve">
+    <value>No se pudo leer el índice de una carpeta o un archivo. Comprueba que la carpeta sigue ahí y que los archivos no están abiertos en otra aplicación, y vuelve a intentarlo.</value>
+  </data>
+  <data name="AskEdit_Changed" xml:space="preserve">
+    <value>El documento cambió mientras el asistente de IA respondía, así que sus pasos ya no corresponden. No se hizo nada: vuelve a pedirlo.</value>
+  </data>
 </root>

@@ -35,6 +35,24 @@ locality) are used in their usual sense: the interface is everything a caller mu
   the words of its PDFs' pages (**terms**, `Core/IndexTerms.cs`: folded so whatever Find reads alike is one term) leading to
   the pages they are on, each page's text compressed, and each file's size, time and state. Written only at its end, a
   **commit** at a time; **compacting** writes what is live to a new file. A search narrows by terms, then runs Find on the kept text.
+- **Ask across folders** (`Core/FolderAsk.cs`; Windows `App/FolderAsk.cs`): a question over the indexed folders or a set of
+  PDFs, answered by the user's own model (Pro). The index **ranks** pages by how many of the question's words they hold
+  (`FolderIndex.Rank`, any word, not all as a search); their **passages** that fit the model go, each under its **source**
+  (a file, numbered as the model cites it) and page; a **citation** ([2, p. 5]) is a link only when that source's page was
+  sent. The send window's **listing** names every file and its pages.
+- **Edit by asking** (`Core/AskEdit.cs`; Windows `App/DocumentTab.AskEdit.cs`): a request in the person's words turned by
+  their own model into **steps**, calls of a few palette commands offered as **tools** (go to page, rotate, delete, bookmark,
+  highlight, find for redaction). A call is a step only when its tool is one of those and its pages and values **check
+  out**; the rest is **left out** and said. Steps run only on the person's Run, each edit one undo step; a later step's
+  pages **follow** pages deleted before it (`AfterDelete`).
+- **Summary to audio** (`Core/AiAnswerSpeech.cs`; Windows `App/SpeechFile.cs`): an AI answer read aloud to a file. Its
+  **paragraphs** are what a voice reads (`AiAnswerSpeech.Paragraphs`: what was asked, the answer as sentences, the AI
+  note), each synthesized by Read Aloud's voice and **joined** into one WAV (`WavFile.Join`), or encoded to MP3 by Windows.
+- **Meaning index** (`Core/MeaningIndex.cs`, `Core/AiEmbeddings.cs`; Windows `App/FolderMeaning.cs`): search by meaning's file
+  beside a folder index (`.meaning`): each page's text in a few **pieces**, each piece's **embedding** (a vector from the
+  user's own embedding model) kept unit length in 8 bits a number. **Pending** is what it lacks against its folder index
+  (new or changed files' pieces, gone files), shown in the send window before it is **embedded**; **nearest** pages are those
+  whose best piece points closest to the query's vector. Made for one model at one endpoint: another one starts it again.
 - **Index worker** (`Core/IndexWorkers.cs`): the app started again with `--index-worker <pipe name>`, the only thing that
   parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
 - **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index

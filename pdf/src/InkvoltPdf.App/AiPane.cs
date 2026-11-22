@@ -232,7 +232,7 @@ public sealed partial class AiPane : Border
     public AiAnswerCard AddAnswer(string model, int pageCount)
     {
         _list.Children.Remove(_empty);
-        var card = new AiAnswerCard(model, pageCount, p => PageRequested?.Invoke(this, p), ScrollToEnd, e => SaveRequested?.Invoke(this, e));
+        var card = new AiAnswerCard(model, AiAnswerCard.PageLinks(pageCount, p => PageRequested?.Invoke(this, p)), ScrollToEnd, e => SaveRequested?.Invoke(this, e));
         _list.Children.Add(card);
         ScrollToEnd();
         return card;
@@ -245,6 +245,9 @@ public sealed partial class AiPane : Border
         string.Join(" | ", _list.Children.OfType<FrameworkElement>().Where(e => e != _empty).Select(e => e is AiAnswerCard c ? $"answer: {c.DevText}" : AutomationProperties.GetName(e))) + "]";
 }
 
+/// <summary>A citation in an answer shown as a link: where it is in the answer's line, its tooltip, and what a click does.</summary>
+public sealed record AnswerLink(int Start, int Length, string Tip, Action Go);
+
 /// <summary>
 /// One answer: an "AI-generated, may be wrong" note with the model's name, the text (simple Markdown: headings,
 /// bullets, bold; "[p. N]" citations as links to the pages), and Copy.
@@ -256,8 +259,7 @@ public sealed partial class AiAnswerCard : Border
     private readonly Button _copy;
     private readonly Button _save;
     private AiExchange? _exchange;
-    private readonly int _pageCount;
-    private readonly Action<int> _goTo;
+    private readonly Func<string, IEnumerable<AnswerLink>> _links;
     private readonly Action _scroll;
     private readonly DispatcherTimer _render;
     private readonly StringBuilder _raw = new();
@@ -277,11 +279,12 @@ public sealed partial class AiAnswerCard : Border
         }
     }
 
-    internal AiAnswerCard(string model, int pageCount, Action<int> goTo, Action scroll, Action<AiExchange> save)
+    /// <param name="links">The citations of a line of the answer, as links.</param>
+    /// <param name="save">Save on the card; null: no Save (an answer that isn't about one document).</param>
+    internal AiAnswerCard(string model, Func<string, IEnumerable<AnswerLink>> links, Action scroll, Action<AiExchange>? save)
     {
-        _pageCount = pageCount;
         _model = model;
-        _goTo = goTo;
+        _links = links;
         _scroll = scroll;
         Style = (Style)Application.Current.FindResource("Card");
         Padding = new Thickness(12, 10, 12, 10);
@@ -301,8 +304,9 @@ public sealed partial class AiAnswerCard : Border
         AutomationProperties.SetName(_save, Strings.Ai_SaveAnswer);
         _save.Click += (_, _) =>
         {
-            if (_exchange is { } e) save(e);
+            if (_exchange is { } e) save?.Invoke(e);
         };
+        if (save is null) _save.Visibility = Visibility.Collapsed;
         var head = new DockPanel();
         DockPanel.SetDock(_copy, Dock.Right);
         DockPanel.SetDock(_save, Dock.Right);
@@ -432,13 +436,14 @@ public sealed partial class AiAnswerCard : Border
             var container = bold ? new Bold() : null;
             var inlines = container?.Inlines ?? target;
             var at = 0;
-            foreach (var c in AiText.Citations(text, _pageCount))
+            foreach (var c in _links(text).Where(c => c.Start >= at).OrderBy(c => c.Start))
             {
+                if (c.Start < at) continue;
                 if (c.Start > at) inlines.Add(new Run(text[at..c.Start]));
-                var page = c.Page;
-                var link = new Hyperlink(new Run(text.Substring(c.Start, c.Length))) { ToolTip = Loc.Format(Strings.Viewer_GoToPage, page + 1) };
-                AutomationProperties.SetName(link, Loc.Format(Strings.Viewer_GoToPage, page + 1));
-                link.Click += (_, _) => _goTo(page);
+                var link = new Hyperlink(new Run(text.Substring(c.Start, c.Length))) { ToolTip = c.Tip };
+                AutomationProperties.SetName(link, c.Tip);
+                var go = c.Go;
+                link.Click += (_, _) => go();
                 inlines.Add(link);
                 at = c.Start + c.Length;
             }
@@ -446,6 +451,13 @@ public sealed partial class AiAnswerCard : Border
             if (container is not null) target.Add(container);
         }
     }
+
+    /// <summary>"[p. N]" citations of one document's pages, as links that go to the page (0-based).</summary>
+    internal static Func<string, IEnumerable<AnswerLink>> PageLinks(int pageCount, Action<int> goTo) => text =>
+        AiText.Citations(text, pageCount).Select(c => new AnswerLink(c.Start, c.Length, Loc.Format(Strings.Viewer_GoToPage, c.Page + 1), () => goTo(c.Page)));
+
+    /// <summary>The answer's links in order, for the dev script.</summary>
+    internal IReadOnlyList<Hyperlink> LinkList => [.. Links()];
 
     private IEnumerable<Hyperlink> Links() => Descend(_text.Inlines);
 

@@ -12858,4 +12858,298 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>10 points</value>
     <comment>Grid Spacing list</comment>
   </data>
+  <data name="Cmd_AskFolders" xml:space="preserve">
+    <value>As_k Across Folders…</value>
+  </data>
+  <data name="FolderAsk_Title" xml:space="preserve">
+    <value>Ask Across Folders</value>
+  </data>
+  <data name="FolderAsk_Intro" xml:space="preserve">
+    <value>Ask a question about the PDFs in your indexed folders, or about PDFs you choose. The folder index picks the pages most related to it, and your own AI assistant answers from them, citing the file and page. Nothing is sent before you see exactly what goes.</value>
+  </data>
+  <data name="FolderAsk_InFolders" xml:space="preserve">
+    <value>In the indexed folders</value>
+  </data>
+  <data name="FolderAsk_InFiles" xml:space="preserve">
+    <value>In these PDFs:</value>
+  </data>
+  <data name="FolderAsk_ChooseFiles" xml:space="preserve">
+    <value>Choose PDFs…</value>
+  </data>
+  <data name="FolderAsk_NoFiles" xml:space="preserve">
+    <value>No PDFs chosen yet.</value>
+  </data>
+  <data name="FolderAsk_FilesChosen_One" xml:space="preserve">
+    <value>{0:N0} PDF: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_FilesChosen_Many" xml:space="preserve">
+    <value>{0:N0} PDFs: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_AskIn" xml:space="preserve">
+    <value>Ask in</value>
+  </data>
+  <data name="FolderAsk_Question" xml:space="preserve">
+    <value>Question</value>
+  </data>
+  <data name="FolderAsk_Placeholder" xml:space="preserve">
+    <value>Ask a question about these documents</value>
+  </data>
+  <data name="FolderAsk_Answers" xml:space="preserve">
+    <value>Questions and answers</value>
+  </data>
+  <data name="FolderAsk_ChooseFilesFirst" xml:space="preserve">
+    <value>Choose the PDFs to ask about first.</value>
+  </data>
+  <data name="FolderAsk_ReadingFiles" xml:space="preserve">
+    <value>Reading the PDFs…</value>
+  </data>
+  <data name="FolderAsk_ReadingIndex" xml:space="preserve">
+    <value>Finding the pages most related to the question…</value>
+  </data>
+  <data name="FolderAsk_NoText" xml:space="preserve">
+    <value>None of the pages has text to send. Scans need Recognize Text first.</value>
+  </data>
+  <data name="FolderAsk_NothingRelated" xml:space="preserve">
+    <value>No page shares a word with the question. Try other words.</value>
+  </data>
+  <data name="FolderAsk_CheckingPermissions" xml:space="preserve">
+    <value>Checking the files' permissions…</value>
+  </data>
+  <data name="FolderAsk_RestrictedFiles" xml:space="preserve">
+    <value>These PDFs don't allow copying their text: {0}</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Sent" xml:space="preserve">
+    <value>Your question and the text of {0} from {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_SentTrimmed" xml:space="preserve">
+    <value>Your question and the parts most related to it, from {0} of {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_NeedPassword" xml:space="preserve">
+    <value>Not read (they need a password): {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Unreadable" xml:space="preserve">
+    <value>Couldn't be read: {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_NotAllRead" xml:space="preserve">
+    <value>Only the first {0:N0} pages of the PDFs were read; not all of: {1}.</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_OpenAt" xml:space="preserve">
+    <value>Open {0} at page {1}</value>
+    <comment>{0} is a file name</comment>
+  </data>
+  <data name="Ai_SentListing" xml:space="preserve">
+    <value>Pages sent, by file</value>
+  </data>
+  <data name="FolderAsk_OnlyThis" xml:space="preserve">
+    <value>Only this text, the instructions shown below and the model's name are sent, with each file's name within its folder as listed: not where the files are on this PC, their properties or any other page.</value>
+  </data>
+  <data name="Folder_ByMeaning" xml:space="preserve">
+    <value>By meaning</value>
+  </data>
+  <data name="Folder_ByMeaningTip" xml:space="preserve">
+    <value>Find pages close in meaning to your words through your own AI assistant's embedding model (Inkvolt Pro). Nothing is sent until you press Search.</value>
+  </data>
+  <data name="Folder_MeaningSettings" xml:space="preserve">
+    <value>Meaning…</value>
+  </data>
+  <data name="Folder_MeaningPress" xml:space="preserve">
+    <value>Type what you're looking for and press Search. Nothing is sent before you see it.</value>
+  </data>
+  <data name="Folder_WhereMeaning" xml:space="preserve">
+    <value>page {0}, {1:P0} close in meaning</value>
+  </data>
+  <data name="Folder_MeaningNone" xml:space="preserve">
+    <value>Nothing found by meaning: the folders' pages may have no text yet.</value>
+  </data>
+  <data name="Folder_MeaningFound" xml:space="preserve">
+    <value>{0} closest in meaning, best first.</value>
+    <comment>{0} is "50 pages"</comment>
+  </data>
+  <data name="Folder_MeaningStopped" xml:space="preserve">
+    <value>Stopped. The pages already turned into embeddings are kept.</value>
+  </data>
+  <data name="Folder_MeaningDamaged" xml:space="preserve">
+    <value>A folder's index doesn't read back and is being built again. Search by meaning again once it's up to date.</value>
+  </data>
+  <data name="Meaning_Title" xml:space="preserve">
+    <value>Search by Meaning</value>
+  </data>
+  <data name="Meaning_Note" xml:space="preserve">
+    <value>Search by meaning finds pages by what they mean, not only the words they use. Your AI assistant's server turns each page's text into embeddings (lists of numbers) with an embedding model, and they're kept on this PC beside each folder's index. Before any page goes, the send window shows every one. It stays off until you turn it on.</value>
+  </data>
+  <data name="Meaning_TurnOn" xml:space="preserve">
+    <value>Turn on search by meaning</value>
+  </data>
+  <data name="Meaning_Model" xml:space="preserve">
+    <value>Embedding model</value>
+  </data>
+  <data name="Meaning_ModelTip" xml:space="preserve">
+    <value>A model that makes embeddings, not a chat model: nomic-embed-text, mxbai-embed-large or bge-m3 in Ollama (ollama pull nomic-embed-text), or text-embedding-3-small with OpenAI.</value>
+  </data>
+  <data name="Meaning_NeedsAssistant" xml:space="preserve">
+    <value>Set up the AI assistant first (Review › AI Assistant › Settings): search by meaning uses its server.</value>
+  </data>
+  <data name="Meaning_Where" xml:space="preserve">
+    <value>Embeddings come from the AI assistant's server. {0}</value>
+    <comment>{0} says where the server is: "Stays on this PC." and the like</comment>
+  </data>
+  <data name="Meaning_ChooseModel" xml:space="preserve">
+    <value>Type the embedding model's name.</value>
+  </data>
+  <data name="Meaning_Checking" xml:space="preserve">
+    <value>Checking which pages are new…</value>
+  </data>
+  <data name="Meaning_SentQuery" xml:space="preserve">
+    <value>Your search words, to be turned into an embedding by {0}</value>
+    <comment>{0} is a model name</comment>
+  </data>
+  <data name="Meaning_SentPages" xml:space="preserve">
+    <value>The text of {0} from {1}, to be turned into embeddings by {2}, then your search words</value>
+    <comment>{0} is "40 pages", {1} "3 files", {2} a model name</comment>
+  </data>
+  <data name="Meaning_LeftOut" xml:space="preserve">
+    <value>Past the limit of {0:N0} pieces, the rest isn't searched by meaning.</value>
+  </data>
+  <data name="Meaning_OnlyThis" xml:space="preserve">
+    <value>Only this text and the model's name are sent: no file name, folder or other document. The embeddings stay on this PC beside the folder's index, and next time only new or changed pages are sent.</value>
+  </data>
+  <data name="Meaning_SendTitle" xml:space="preserve">
+    <value>Send for search by meaning?</value>
+  </data>
+  <data name="Meaning_Embedding" xml:space="preserve">
+    <value>Turning pages into embeddings: {0:N0} of {1:N0} pieces…</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaning" xml:space="preserve">
+    <value>Also find pages by meaning</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaningTip" xml:space="preserve">
+    <value>Pages close in meaning to the question join those that share its words (search by meaning, through your own AI assistant's embedding model).</value>
+  </data>
+  <data name="FolderAsk_MeaningFoldersOnly" xml:space="preserve">
+    <value>Search by meaning works on indexed folders only.</value>
+  </data>
+  <data name="Cmd_AiSummaryAudio" xml:space="preserve">
+    <value>Summary to A_udio…</value>
+  </data>
+  <data name="TabAi_SaveAsAudio" xml:space="preserve">
+    <value>A spoken recording (MP3 or WAV), in Read Aloud's voice</value>
+  </data>
+  <data name="TabAi_AudioTitle" xml:space="preserve">
+    <value>Save as Audio</value>
+  </data>
+  <data name="TabAi_AudioFileName" xml:space="preserve">
+    <value>{0} - summary</value>
+    <comment>{0} is the document's name</comment>
+  </data>
+  <data name="TabAi_AudioFilter" xml:space="preserve">
+    <value>MP3 audio (*.mp3)|*.mp3|WAV audio (*.wav)|*.wav</value>
+  </data>
+  <data name="TabAi_AudioSpeaking" xml:space="preserve">
+    <value>Reading the answer aloud…</value>
+  </data>
+  <data name="TabAi_AudioProgress" xml:space="preserve">
+    <value>Reading aloud: paragraph {0} of {1}…</value>
+  </data>
+  <data name="TabAi_AudioSaved" xml:space="preserve">
+    <value>Saved {0} ({1}).</value>
+    <comment>{0} is a file name, {1} its length such as 2:35</comment>
+  </data>
+  <data name="TabAi_AudioNoMp3" xml:space="preserve">
+    <value>Windows can't make MP3 files on this PC, so it was saved as WAV.</value>
+  </data>
+  <data name="TabAi_AudioStopped" xml:space="preserve">
+    <value>Stopped. No recording was saved.</value>
+  </data>
+  <data name="TabAi_AudioFailed" xml:space="preserve">
+    <value>The recording couldn't be made or saved. Check that the folder exists and the file isn't open in another app, then try again.</value>
+  </data>
+  <data name="Cmd_AskEdit" xml:space="preserve">
+    <value>Edit by Askin_g…</value>
+  </data>
+  <data name="AskEdit_Title" xml:space="preserve">
+    <value>Edit by Asking</value>
+  </data>
+  <data name="AskEdit_Intro" xml:space="preserve">
+    <value>Say what to do to this document in your own words, such as "turn pages 3 to 5 the right way up and bookmark page 6 as Appendix". Your AI assistant proposes the steps; you see each one and choose before anything runs.</value>
+  </data>
+  <data name="AskEdit_Request" xml:space="preserve">
+    <value>What to do</value>
+  </data>
+  <data name="AskEdit_Placeholder" xml:space="preserve">
+    <value>Rotate the last page and highlight every "deadline"</value>
+  </data>
+  <data name="AskEdit_WhatGoes" xml:space="preserve">
+    <value>Only your words, the number of pages and the page you're on are sent, with the list of commands it may use: none of the document's text.</value>
+  </data>
+  <data name="AskEdit_TypeRequest" xml:space="preserve">
+    <value>Type what to do.</value>
+  </data>
+  <data name="AskEdit_Sent" xml:space="preserve">
+    <value>Your request, the page count and the page you're on, with the commands it may propose</value>
+  </data>
+  <data name="AskEdit_OnlyThis" xml:space="preserve">
+    <value>Only this and the model's name are sent: no text of the document, its name or its folder. The model only proposes steps; nothing runs before you choose.</value>
+  </data>
+  <data name="AskEdit_SendTitle" xml:space="preserve">
+    <value>Send your request to the AI assistant?</value>
+  </data>
+  <data name="AskEdit_NoSteps" xml:space="preserve">
+    <value>The AI assistant didn't propose any step it can take with the commands offered.</value>
+  </data>
+  <data name="AskEdit_ModelSaid" xml:space="preserve">
+    <value>The model said: "{0}"</value>
+    <comment>{0} is the model's own words, shown as they are</comment>
+  </data>
+  <data name="AskEdit_StepsTitle" xml:space="preserve">
+    <value>Steps Proposed</value>
+  </data>
+  <data name="AskEdit_Run" xml:space="preserve">
+    <value>Run</value>
+    <comment>Button</comment>
+  </data>
+  <data name="AskEdit_StepsNote" xml:space="preserve">
+    <value>Your AI assistant proposes these steps, in this order. Untick any you don't want: nothing runs until you press Run, and Undo takes each edit back.</value>
+  </data>
+  <data name="AskEdit_StepLine" xml:space="preserve">
+    <value>{0}. {1}</value>
+    <comment>{0} is the step's number, {1} what it does</comment>
+  </data>
+  <data name="AskEdit_TickOne" xml:space="preserve">
+    <value>Tick at least one step, or Cancel.</value>
+  </data>
+  <data name="AskEdit_SkippedGone" xml:space="preserve">
+    <value>Left out, as a step before it deleted its pages: {0}.</value>
+  </data>
+  <data name="AskEdit_SkippedAll" xml:space="preserve">
+    <value>Left out, as it would delete every page: {0}.</value>
+  </data>
+  <data name="AskEdit_StepNotDone" xml:space="preserve">
+    <value>Not done: {0}.</value>
+  </data>
+  <data name="AskEdit_BookmarkUndo" xml:space="preserve">
+    <value>Add bookmark</value>
+  </data>
+  <data name="AskEdit_NotFound" xml:space="preserve">
+    <value>"{0}" isn't in the document.</value>
+  </data>
+  <data name="AskEdit_Done_One" xml:space="preserve">
+    <value>Ran {0} step. Undo takes each edit back.</value>
+  </data>
+  <data name="AskEdit_Done_Many" xml:space="preserve">
+    <value>Ran {0} steps. Undo takes each edit back.</value>
+  </data>
+  <data name="FolderAsk_ReadFailed" xml:space="preserve">
+    <value>A folder's index or a file couldn't be read. Check that the folder is still there and the files aren't open in another app, then try again.</value>
+  </data>
+  <data name="AskEdit_Changed" xml:space="preserve">
+    <value>The document changed while the AI assistant was answering, so its steps no longer fit. Nothing was done: ask again.</value>
+  </data>
 </root>

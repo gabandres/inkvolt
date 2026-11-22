@@ -1682,7 +1682,13 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
   `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
   `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
-  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`).
+  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
+  4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
+  `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
+  format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
+  (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
+  makes MP3; port `AiAnswerSpeechTests`); 4.23 Edit by Asking (`AskEdit`, `AiClient.AskEditAsync`, the steps window; port
+  `AskEditTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).

@@ -12,6 +12,15 @@ namespace InkvoltPdf.App;
 /// <param name="FollowUp">More requests the job makes later from the model's own answers (map-reduce), or null.</param>
 public sealed record AiOutgoing(IReadOnlyList<IReadOnlyList<AiMessage>> Requests, string What, string? FollowUp)
 {
+    /// <summary>Lines listed under <see cref="What"/>: every file and its pages a question across files sends, and the like.</summary>
+    public IReadOnlyList<string> Listing { get; init; } = [];
+
+    /// <summary>The preview's text when the requests aren't chat messages (embeddings); null: <see cref="AiPrompts.Preview"/> of the requests.</summary>
+    public Func<string>? PreviewText { get; init; }
+
+    /// <summary>What else goes with the text, in place of "no file name, folder… is sent" (a question across files sends the files' names).</summary>
+    public string? OnlyNote { get; init; }
+
     public int Characters => Requests.Sum(r => r.Sum(m => m.Content.Length));
     public int Tokens => Requests.Sum(AiText.EstimateTokens);
 }
@@ -303,7 +312,15 @@ public static class AiActions
                 ? Loc.Plural(outgoing.Requests.Count, Strings.Ai_Outgoing_One, Strings.Ai_Outgoing_Many, outgoing.What, outgoing.Characters, outgoing.Tokens)
                 : Loc.Plural(outgoing.Requests.Count, Strings.Ai_OutgoingThen_One, Strings.Ai_OutgoingThen_Many, outgoing.What, outgoing.Characters, outgoing.Tokens, outgoing.FollowUp),
         });
-        dlg.AddNote(Strings.Ai_OnlyThisText);
+        if (outgoing.Listing.Count > 0)
+        {
+            var lines = new TextBlock { Text = string.Join("\n", outgoing.Listing), TextWrapping = TextWrapping.Wrap };
+            var listing = new ScrollViewer { Content = lines, MaxHeight = 140, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(12, 6, 0, 0), Focusable = true };
+            AutomationProperties.SetName(listing, Strings.Ai_SentListing);
+            AutomationProperties.SetHelpText(listing, lines.Text);
+            dlg.Add(null, listing);
+        }
+        dlg.AddNote(outgoing.OnlyNote ?? Strings.Ai_OnlyThisText);
 
         var preview = new TextBox
         {
@@ -325,12 +342,12 @@ public static class AiActions
         expander.Expanded += (_, _) =>
         {
             if (full is not null) return;
-            full = AiPrompts.Preview(outgoing.Requests);
+            full = outgoing.PreviewText?.Invoke() ?? AiPrompts.Preview(outgoing.Requests);
             preview.Text = full.Length <= MaxShown ? full : full[..MaxShown] + "\n" + Loc.Format(Strings.Ai_MoreChars, full.Length - MaxShown);
         };
         copyAll.Click += (_, _) =>
         {
-            full ??= AiPrompts.Preview(outgoing.Requests);
+            full ??= outgoing.PreviewText?.Invoke() ?? AiPrompts.Preview(outgoing.Requests);
             try
             {
                 Clipboard.SetText(full);

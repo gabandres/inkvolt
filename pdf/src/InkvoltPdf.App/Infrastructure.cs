@@ -614,6 +614,10 @@ public sealed class AppSettings
     public List<string> AiNoPreview { get; set; } = [];
     public List<string> AiCloudWarned { get; set; } = [];
 
+    /// <summary>Search by meaning (Pro; off by default): on, and the embedding model on the assistant's endpoint.</summary>
+    public bool MeaningEnabled { get; set; }
+    public string MeaningModel { get; set; } = "";
+
     /// <summary>The language last translated into.</summary>
     public string AiTranslateLanguage { get; set; } = "English";
 
@@ -809,6 +813,7 @@ public sealed class AppSettings
             settings.RecentFiles ??= [];
             settings.OpenTabs ??= [];
             settings.AiNoPreview ??= [];
+            settings.MeaningModel ??= "";
             settings.AiCloudWarned ??= [];
             return true;
         }

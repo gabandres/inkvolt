@@ -7367,4 +7367,90 @@
     <value>Selecciona dos campos o más (Ctrl+clic agrega uno); el primero que elijas no se mueve.</value>
     <comment>Prepare Form: Align or Same Size with one selected</comment>
   </data>
+  <data name="Pro_TitleFolderAsk" xml:space="preserve">
+    <value>Preguntar en carpetas</value>
+  </data>
+  <data name="Pro_DescFolderAsk" xml:space="preserve">
+    <value>Haz una pregunta sobre tus carpetas indexadas o un grupo de archivos PDF: el índice elige las páginas, tu propio asistente de IA responde, y cada respuesta cita el archivo y la página, que se abren con un clic. La ventana de envío muestra cada página que se envía y de qué archivo.</value>
+  </data>
+  <data name="Pro_LockedFolderAsk" xml:space="preserve">
+    <value>Preguntar en carpetas forma parte de Inkvolt Pro.</value>
+  </data>
+  <data name="FolderAsk_SentLine" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>{0} is a file name, {1} a page list such as "pages 1–3, 7"</comment>
+  </data>
+  <data name="Pro_TitleMeaningSearch" xml:space="preserve">
+    <value>Buscar por significado</value>
+  </data>
+  <data name="Pro_DescMeaningSearch" xml:space="preserve">
+    <value>Encuentra páginas por lo que significan, no solo por las palabras que usan: tu propio servidor de IA convierte las páginas de tus carpetas indexadas en embeddings que se guardan junto al índice, y Buscar en carpetas y Preguntar en carpetas los usan. Está desactivado hasta que lo actives, y la ventana de envío muestra cada página antes de enviarla.</value>
+  </data>
+  <data name="Pro_LockedMeaningSearch" xml:space="preserve">
+    <value>Buscar por significado forma parte de Inkvolt Pro.</value>
+  </data>
+  <data name="Embed_NotEmbeddings" xml:space="preserve">
+    <value>La respuesta del servidor de IA no es una lista de embeddings, uno por cada texto enviado.</value>
+  </data>
+  <data name="Embed_NotAnEmbeddingModel" xml:space="preserve">
+    <value>{0} en {1} no genera embeddings. Elige un modelo de embeddings para buscar por significado, como nomic-embed-text.{2}</value>
+    <comment>{0} is a model name, {1} a host; {2} is what the server said, or nothing</comment>
+  </data>
+  <data name="Embed_LengthChanged" xml:space="preserve">
+    <value>El modelo de embeddings ahora responde con vectores de otra longitud. Buscar por significado volverá a crear su índice.</value>
+  </data>
+  <data name="AskEdit_GoToPage" xml:space="preserve">
+    <value>Ir a la página {0}</value>
+  </data>
+  <data name="AskEdit_RotateRight" xml:space="preserve">
+    <value>Girar {0} en el sentido de las agujas del reloj</value>
+    <comment>{0} is a page list such as "pages 1–3"</comment>
+  </data>
+  <data name="AskEdit_RotateLeft" xml:space="preserve">
+    <value>Girar {0} en sentido contrario a las agujas del reloj</value>
+    <comment>{0} is a page list such as "pages 1–3"</comment>
+  </data>
+  <data name="AskEdit_Rotate180" xml:space="preserve">
+    <value>Girar {0} 180°</value>
+    <comment>{0} is a page list such as "pages 1–3"</comment>
+  </data>
+  <data name="AskEdit_Delete" xml:space="preserve">
+    <value>Eliminar {0}</value>
+    <comment>{0} is a page list such as "pages 1–3"</comment>
+  </data>
+  <data name="AskEdit_Bookmark" xml:space="preserve">
+    <value>Agregar un marcador «{0}» que lleva a la página {1}</value>
+  </data>
+  <data name="AskEdit_Highlight" xml:space="preserve">
+    <value>Resaltar cada «{0}»</value>
+  </data>
+  <data name="AskEdit_Redact" xml:space="preserve">
+    <value>Buscar para eliminar, para revisarlo en su lista: {0}</value>
+    <comment>{0} lists kinds of data such as "Email addresses", or a phrase in quotes</comment>
+  </data>
+  <data name="AskEdit_TooMany" xml:space="preserve">
+    <value>Solo se muestran los primeros {0} pasos; el resto se dejó fuera.</value>
+  </data>
+  <data name="AskEdit_NotACall" xml:space="preserve">
+    <value>Un paso propuesto no era una llamada a un comando y se dejó fuera.</value>
+  </data>
+  <data name="AskEdit_BadArguments" xml:space="preserve">
+    <value>Un paso {0} tenía valores sin sentido y se dejó fuera.</value>
+    <comment>{0} is the command's name as the model wrote it, such as rotate_pages</comment>
+  </data>
+  <data name="AskEdit_NoSuchPage" xml:space="preserve">
+    <value>Un paso {0} indicaba una página que este documento no tiene (tiene {1}) y se dejó fuera.</value>
+    <comment>{0} is the command's name as the model wrote it, such as rotate_pages; {1} the page count</comment>
+  </data>
+  <data name="AskEdit_NotAllPages" xml:space="preserve">
+    <value>Se dejó fuera un paso que eliminaba todas las páginas: un PDF conserva al menos una página.</value>
+  </data>
+  <data name="AskEdit_UnknownTool" xml:space="preserve">
+    <value>Se dejó fuera un paso llamado {0}, que no es uno de los comandos ofrecidos.</value>
+    <comment>{0} is the name the model wrote</comment>
+  </data>
+  <data name="AskEdit_NoTools" xml:space="preserve">
+    <value>{0} en {1} no puede llamar a herramientas, y Editar pidiéndolo lo necesita. Elige un modelo que pueda, como qwen3, llama3.1 o mistral-nemo, en la configuración del asistente de IA.</value>
+    <comment>{0} is a model name, {1} a host</comment>
+  </data>
 </root>

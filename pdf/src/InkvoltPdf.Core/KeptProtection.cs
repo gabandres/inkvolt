@@ -236,7 +236,7 @@ public static class KeptProtection
             var doc = PdfEngine.NewDocument(ctx, () => new MuPDFDocument(ctx, data, InputFileTypes.PDF));
             try
             {
-                return doc.EncryptionState != EncryptionState.Encrypted || doc.TryUnlock(password, out var kind) && kind.HasFlag(PasswordTypes.User);
+                return doc.EncryptionState != EncryptionState.Encrypted || PdfEngine.TryUnlock(doc, password, out var kind) && kind.HasFlag(PasswordTypes.User);
             }
             finally
             {

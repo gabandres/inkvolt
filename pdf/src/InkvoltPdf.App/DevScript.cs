@@ -35,10 +35,12 @@ namespace InkvoltPdf.App;
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
 /// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare|suggest] ·
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
-/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · aiconversation · aisave last|all [word|pdf|comment [path]] · translate Language [pages] · translatestate ·
+/// aifake answer text|error401|refused|missing|translate [ms]|tools name {json};name {json}|notools · askedit request · askeditstate · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · aiconversation · aisave last|all [word|pdf|comment|audio [path]] · aiaudio all|range path.wav|.mp3 · aiaudiostate · translate Language [pages] · translatestate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
+/// Ask Across Folders (aifake answers): <c>folderask question · folderaskfiles a.pdf|b.pdf (ask in these PDFs; "folders" asks in the indexed folders again) · folderaskstate · folderaskopen i</c> (click the last answer's link i: logs the tab's file and page).
+/// Search by meaning (aifake makes stand-in embeddings): <c>meaningsetup model|off · indexoption meaning on|off · folderaskmeaning on|off · meaningstate</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
@@ -1532,13 +1534,25 @@ internal static class DevScript
                 break;
             case "aiexplain": await tab!.AiExplainSelection(); log.Add(tab.DevAiState()); break;
             case "aistate": log.Add(tab!.DevAiState()); break;
+            // aiaudio pages|all path.wav|.mp3: Summary to Audio (answer the send window with "later") · aiaudiostate
+            case "aiaudio":
+            {
+                var a = arg.Split(' ', 2);
+                await tab!.AiSummaryToAudio(a[0] is "" or "all" ? [.. Enumerable.Range(0, v!.PageCount)] : Core.PageRange.TryParse(a[0], v!.PageCount, out var audioPages, out _) ? audioPages : [], a.Length > 1 ? a[1] : null);
+                log.Add(tab.DevAudioState());
+                break;
+            }
+            case "aiaudiostate": log.Add(tab!.DevAudioState()); break;
+            // Edit by Asking: askedit request (answer the send window and the steps with "later"; aifake tools … proposes) · askeditstate
+            case "askedit": await tab!.AskEditAsync(arg); log.Add($"askedit: {tab.LastAskEdit}"); break;
+            case "askeditstate": log.Add($"askedit: {tab!.LastAskEdit}"); break;
             case "aiconversation": log.Add(tab!.DevAiConversation()); break;
             case "aisave":
             {
                 // aisave last|all [word|pdf|comment [path]]: Save AI Answer (no target: its dialog, answer it with "later")
                 var a = arg.Split(' ', 3);
                 IReadOnlyList<AiExchange>? chosen = a[0] == "all" ? null : tab!.LastAiAnswer is { } last ? [last] : [];
-                AiSaveTarget? target = a.Length > 1 ? a[1] switch { "word" => AiSaveTarget.Word, "pdf" => AiSaveTarget.Pdf, _ => AiSaveTarget.Comment } : null;
+                AiSaveTarget? target = a.Length > 1 ? a[1] switch { "word" => AiSaveTarget.Word, "pdf" => AiSaveTarget.Pdf, "audio" => AiSaveTarget.Audio, _ => AiSaveTarget.Comment } : null;
                 log.Add($"aisave: {await tab!.SaveAiAnswers(chosen, target, a.Length > 2 ? a[2] : null)}");
                 break;
             }
@@ -1639,6 +1653,33 @@ internal static class DevScript
             case "indexwait": log.Add(await WaitForIndexes(arg.Length > 0 ? int.Parse(arg) : 600)); break;
             case "indexstate": log.Add(FolderSearchWindow.Open(window, offScreen: true).DevState()); break;
             case "indexsearch": log.Add(await FolderSearchWindow.Open(window, offScreen: true).DevSearch(arg)); break;
+            // Ask Across Folders: folderask question · folderaskfiles a.pdf|b.pdf|folders · folderaskstate · folderaskopen i
+            case "folderask": log.Add(await FolderAskWindow.Open(window, offScreen: true).DevAsk(arg)); break;
+            case "folderaskfiles": FolderAskWindow.Open(window, offScreen: true).SetFiles(arg == "folders" ? [] : arg.Split('|')); break;
+            case "folderaskstate": log.Add(FolderAskWindow.Open(window, offScreen: true).DevState()); break;
+            // Search by meaning: meaningsetup model|off · folderaskmeaning on|off · meaningstate (each folder's meaning index)
+            case "meaningsetup":
+                AppSettings.Current.MeaningEnabled = arg != "off";
+                AppSettings.Current.MeaningModel = arg == "off" ? AppSettings.Current.MeaningModel : arg;
+                break;
+            case "folderaskmeaning": FolderAskWindow.Open(window, offScreen: true).DevMeaning(arg == "on"); break;
+            case "meaningstate":
+                log.Add("meaning: " + string.Join(" | ", FolderSearches.All.Select(f =>
+                {
+                    var path = MeaningIndex.PathFor(FolderIndex.BasePathFor(FolderSearches.IndexDirectory, f.Folder));
+                    var cfg = AiService.Current(out _);
+                    var m = cfg is null || FolderMeaning.Model is null ? null : f.MeaningFor(FolderMeaning.Model, cfg.Endpoint.Key);
+                    return $"{Log.Name(f.Folder)}: file={(File.Exists(path) ? new FileInfo(path).Length : 0)} pieces={m?.Count} dims={m?.Dimensions}";
+                })));
+                break;
+            case "folderaskopen":
+            {
+                var clicked = FolderAskWindow.Open(window, offScreen: true).DevOpenLink(int.Parse(arg));
+                await Task.Delay(2000);
+                var t = window.ActiveTab;
+                log.Add($"folderaskopen: clicked={clicked} {Log.Name(t?.Session.FilePath)} page {t?.PageView.CurrentPage + 1} of {t?.PageView.PageCount}");
+                break;
+            }
             case "indexoption":
             {
                 var a = arg.Split(' ');
@@ -1669,7 +1710,7 @@ internal static class DevScript
                 break;
             }
             case "prowindow":
-                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, "suggest" => ProFeature.RedactionSuggestions, _ => null });
+                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, "suggest" => ProFeature.RedactionSuggestions, "folderask" => ProFeature.FolderAsk, _ => null });
                 await Task.Delay(300);
                 break;
             case "pro" when arg == "remove": ProWindow.Open(window, null).DevRemove(); break;
@@ -2295,6 +2336,19 @@ internal static class DevScript
     /// </summary>
     private sealed class DevAiHandler(string spec) : System.Net.Http.HttpMessageHandler
     {
+        private static float[] DevEmbedding(string text)
+        {
+            var v = new float[32];
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text.ToLowerInvariant(), @"\p{L}{3,}"))
+            {
+                var word = m.Value switch { "income" or "earnings" or "sales" => "revenue", "money" => "budget", _ => m.Value };
+                var h = 0;
+                foreach (var c in word) h = (h * 31 + c) & 0x7FFFFFFF;
+                v[h % 32] += 1;
+            }
+            return v;
+        }
+
         protected override async Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var mode = spec.Split(' ', 2);
@@ -2307,6 +2361,17 @@ internal static class DevScript
                 {
                     Content = new System.Net.Http.StringContent("""{"models":[{"name":"llama3.2:latest","context_length":4096}]}""") { Headers = { ContentType = json } },
                 };
+            if (request.RequestUri.AbsolutePath == "/api/embed" || request.RequestUri.AbsolutePath.EndsWith("/embeddings", StringComparison.Ordinal))
+            {
+                // Stand-in embeddings: each word (a few taken as one meaning) adds to one of 32 numbers.
+                using var asked = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var inputs = asked.RootElement.GetProperty("input").EnumerateArray().Select(e => e.GetString() ?? "").ToList();
+                var vectors = inputs.Select(DevEmbedding).ToList();
+                var body = request.RequestUri.AbsolutePath == "/api/embed"
+                    ? System.Text.Json.JsonSerializer.Serialize(new { embeddings = vectors })
+                    : System.Text.Json.JsonSerializer.Serialize(new { data = vectors.Select((v, i) => new { index = i, embedding = v }) });
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(body) { Headers = { ContentType = json } } };
+            }
             if (request.RequestUri.AbsolutePath.StartsWith("/api/", StringComparison.Ordinal))
                 return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { Content = new System.Net.Http.StringContent("{}") };
             if (request.RequestUri.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))
@@ -2320,6 +2385,25 @@ internal static class DevScript
                     Content = new System.Net.Http.StringContent(mode[0] == "missing" ? """{"error":{"message":"model \"phi4\" not found, try pulling it first"}}""" : """{"error":{"message":"Incorrect API key provided"}}""")
                         { Headers = { ContentType = json } },
                 };
+            if (mode[0] is "tools" or "notools")
+            {
+                // Edit by Asking: "tools name {args};name {args}" answers with those tool calls; "notools" refuses as Ollama does for a model without them.
+                if (mode[0] == "notools")
+                    return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+                    {
+                        Content = new System.Net.Http.StringContent("""{"error":"registry.ollama.ai/library/gemma3:4b does not support tools"}""") { Headers = { ContentType = json } },
+                    };
+                var calls = (mode.Length > 1 ? mode[1] : "").Split(';', StringSplitOptions.RemoveEmptyEntries).Select((c, i) =>
+                {
+                    var parts = c.Trim().Split(' ', 2);
+                    return new { id = $"call_{i}", type = "function", function = new { name = parts[0], arguments = parts.Length > 1 ? parts[1] : "{}" } };
+                }).ToList();
+                var completion = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    choices = new[] { new { index = 0, message = new { role = "assistant", content = calls.Count == 0 ? "I can't do that with these tools." : "", tool_calls = calls }, finish_reason = "tool_calls" } },
+                });
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(completion) { Headers = { ContentType = json } } };
+            }
             var text = (mode.Length > 1 ? mode[1] : "An answer.").Replace("\\n", "\n"); // a typed \n is a line break
             if (mode[0] == "translate")
             {

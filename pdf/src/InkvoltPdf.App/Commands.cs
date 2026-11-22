@@ -73,6 +73,8 @@ public static class Cmd
     public static readonly RoutedUICommand Replace = Make(Strings.Cmd_Replace, nameof(Replace), K(Key.H, ModifierKeys.Control));
     public static readonly RoutedUICommand SearchPane = Make(Strings.Cmd_SearchPane, nameof(SearchPane), K(Key.F, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand SearchFolders = Make(Strings.Cmd_SearchFolders, nameof(SearchFolders), K(Key.F, ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift));
+    // A question over the indexed folders or a set of PDFs, answered by the user's AI (FolderAsk; Pro)
+    public static readonly RoutedUICommand AskFolders = Make(Strings.Cmd_AskFolders, nameof(AskFolders));
     public static readonly RoutedUICommand ToolHand = Make(Strings.Cmd_ToolHand, nameof(ToolHand));
     public static readonly RoutedUICommand ToolSelect = Make(Strings.Cmd_ToolSelect, nameof(ToolSelect));
     public static readonly RoutedUICommand ToolSnapshot = Make(Strings.Cmd_ToolSnapshot, nameof(ToolSnapshot));
@@ -311,6 +313,10 @@ public static class Cmd
     public static readonly RoutedUICommand AiAsk = Make(Strings.Cmd_AiAsk, nameof(AiAsk));
     public static readonly RoutedUICommand AiExplain = Make(Strings.Cmd_AiExplain, nameof(AiExplain));
     public static readonly RoutedUICommand AiTranslate = Make(Strings.Cmd_AiTranslate, nameof(AiTranslate));
+    // Edit by Asking: the user's AI proposes palette commands as steps, each shown and confirmed (DocumentTab.AskEdit)
+    public static readonly RoutedUICommand AskEdit = Make(Strings.Cmd_AskEdit, nameof(AskEdit));
+    // A summary read aloud to a WAV or MP3 file with Read Aloud's voice (DocumentTab.AiSave)
+    public static readonly RoutedUICommand AiSummaryAudio = Make(Strings.Cmd_AiSummaryAudio, nameof(AiSummaryAudio));
     // Save an AI answer (DocumentTab.AiSave): the last answer or the conversation, to Word, a PDF or a comment
     public static readonly RoutedUICommand AiSaveAnswer = Make(Strings.Cmd_AiSaveAnswer, nameof(AiSaveAnswer));
     public static readonly RoutedUICommand AiSaveConversation = Make(Strings.Cmd_AiSaveConversation, nameof(AiSaveConversation));

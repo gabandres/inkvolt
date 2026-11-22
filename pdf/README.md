@@ -574,6 +574,25 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   (and a look every 30 s for what notices miss, as on network drives); with the app closed, at the next start. Pause
   holds it within 2 s and stays through a restart. Each index is one file in `%LOCALAPPDATA%\InkvoltPdf\FolderIndex`, holding the text of those PDFs, and
   goes with Remove; nothing leaves the PC.
+- **Ask Across Folders** (Edit › Ask Across Folders…, Review › AI Assistant, or Ctrl+K; a Pro feature, through your own AI
+  assistant as below): a question over the indexed folders, or over PDFs you choose. The folder index proposes the pages
+  holding the most of the question's words (`FolderIndex.Rank`, up to 400; a set of PDFs is read up to 2,000 pages), the
+  pieces most related to the question go, as many as fit the model's context, each under "[Source N: name, page P]";
+  the answer cites [N, p. P] and each citation opens that file at that page. A citation of a page that wasn't sent stays
+  plain text. The send window lists every file and the pages of it that go; file names go as they are within their folder,
+  never where the folder is; a PDF that forbids copying its text is named there and asked about. One question at a time,
+  with Stop (Core: `FolderAsk`; App: `FolderAsk.cs`).
+- **Search by meaning** (Search Folders' By meaning and Meaning…, Ask Across Folders' Also find pages by meaning; a Pro
+  feature, off until you turn it on and name an embedding model such as nomic-embed-text): your AI assistant's server
+  turns each page's text into embeddings (Ollama's `/api/embed` for the Ollama preset, `/v1/embeddings` otherwise), up to
+  three pieces of 1,000 characters a page, kept on this PC beside each folder's index (`<index>.meaning`: 8 bits a number,
+  at most 50,000 pieces and 256 MB, versioned, checksummed, deleted and made again when the model or the endpoint changes).
+  Before a folder's pages are embedded the send window lists every file and page, always (only new or changed pages go
+  next time); a query's own words are shown too unless you chose not to be asked. Nothing is sent while typing: Search
+  sends, and turns into Stop (what was embedded is kept; a file half done is embedded whole next time). Results are the 50
+  pages closest in meaning, best first, opening at their page; in Ask Across Folders the 30 closest join the pages sharing
+  the question's words (a page counts when it is at least 80% as close as the closest one) (Core: `AiEmbeddings`,
+  `AiClient.EmbedAsync`, `MeaningIndex`; App: `FolderMeaning.cs`).
 - **Tools**: hand (H), select text (T, double/triple-click for word/line), snapshot to clipboard (G); links (asks
   before opening anything but http/https/mailto); Back/Forward (Alt+←/→). **Copy Text from Area** and **Copy Area as
   Table** (Edit menu, right-click, Scan & OCR, and the toast after a snapshot) take the snapshot's box, still outlined
@@ -644,7 +663,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   it lists both; one key works on Windows and the Mac. The Pro features are your own pattern,
   saved pattern sets, Batch's Redact Patterns and the removal report; batch presets, watched folders and the command line
   (`--fill` stays free); Make Accessible, the Reading order pane's fixes and PDF/A-2a; long-term validation; Compare with
-  Office files and scans and its formatting changes; and Search Folders. `Pro.Allows(feature)` is their one check, and **the gate is off while Inkvolt
+  Office files and scans and its formatting changes; Search Folders, Ask Across Folders and search by meaning. `Pro.Allows(feature)` is their one check, and **the gate is off while Inkvolt
   PDF launches** (`Pro.Enforced`, one switch shared with Inkvolt Print; see the roadmap's "Free and Pro"): everything is free, a key is still verified and
   shown, and buying supports the project or gives a business a licence to invoice. With the gate on, a locked feature
   shows what it does and a button to the window (the command line prints the message and exits 2); removing the licence
@@ -830,6 +849,23 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   opens in a tab), or put one answer into the document as a note on the first page it cites (one undo step). The
   conversation (summaries, questions, explanations) is kept with the document while it is open, through edits, until
   you clear it (Core: `AiConversation` on `DocumentSession`, `AiAnswerExport`).
+  **Summary to Audio…** (Review › AI Assistant; free) summarizes the pages as Summarize does, then reads the summary aloud
+  to an MP3 or WAV file with Read Aloud's voice and speed; Save AI Answer's "A spoken recording" does the same for any
+  answer or the conversation. What was asked, the answer's headings, bullets and text as sentences (its Markdown marks
+  gone, [p. 3] read as "page 3") and the line saying an AI model wrote it are synthesized paragraph by paragraph by
+  Windows' own voice and joined into one WAV; an .mp3 name goes through Windows' own MP3 encoder (Media Foundation, no
+  package), and where Windows has none (an N edition without the Media Feature Pack) a WAV is written instead and said.
+  Nothing more leaves the PC than the summary's own request (Core: `AiAnswerSpeech`, `WavFile`; App: `SpeechFile.cs`).
+  **Edit by Asking…** (Review › AI Assistant, Ctrl+K; free) takes a request in your words ("delete the blank page and
+  bookmark page 4 as Results") to your endpoint with six of the palette's commands as tools: go to a page, rotate pages,
+  delete pages, add a bookmark, highlight every match of a word or phrase, and find kinds of data (email, phone, SSN, card,
+  date, IBAN, IP, ZIP) or a phrase for redaction's review list. Only your words, the page count and the page you're on go
+  (the send window shows them and the tools); the model's answer is data: only calls of those tools whose pages and values
+  check out become steps (at most 10), anything else is listed as left out, and its words are shown, never run. The steps
+  are listed ticked; nothing runs until you press Run, each edit is one undo step, a later step's pages follow pages a step
+  before deleted, and redaction only fills Redact by Pattern's list for you to accept. A model that can't call tools
+  (Ollama's "does not support tools") is refused with the names of some that can; a small local model may propose little
+  (Core: `AskEdit`, `AiClient.AskEditAsync`; App: `DocumentTab.AskEdit.cs`).
   **What is sent, where**: before each send a window shows the destination (host and model, and in amber when the text
   leaves this PC), how much (characters, an estimate of tokens, the number of requests) and, expandable, exactly the
   text of every message. Only the text you asked about (with Ask, also the conversation's earlier questions and
@@ -904,7 +940,7 @@ Make Accessible (the plan, the title and language window, writing it) + `Documen
 pane, alternate text, the AI suggestion) + `Viewer/PageViewer.ReadingOrder.cs` (the numbered boxes) (Core: `AutoTag.cs`:
 the plan from `DocLayout`; `AutoTag.Write.cs`: marked content, the structure tree; `AutoTag.Language.cs`); `CommentFileActions.cs` Export / Import / Summarize Comments; `FormDataActions.cs` Export / Import Form Data and Fill Forms from CSV |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner: eSCL, WIA and TWAIN scanners, blank pages, presets; shared logic in `InkvoltPrint.Core/Suite/ScanRun`, `ScannerList`, `Wia`, `Twain`), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
-| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain), `RedactionSuggestions` + `RedactionTerms` (Suggest Redactions), `AiAnswers.cs` (`AiConversation`, `AiAnswerExport`: Save AI Answer). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`, `DocumentTab.RedactSuggest.cs` + `RedactSuggestActions.cs`, `DocumentTab.AiSave.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `redact-suggest names,orgs,terms` (`redactterms a;b`), `aiconversation`, `aisave last\|all word\|pdf\|comment [path]`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
+| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain), `RedactionSuggestions` + `RedactionTerms` (Suggest Redactions), `AiAnswers.cs` (`AiConversation`, `AiAnswerExport`: Save AI Answer), `FolderAsk` (Ask Across Folders, over `FolderIndex.Rank` and `PageTexts`), `AiEmbeddings` + `MeaningIndex` (search by meaning), `AiAnswerSpeech` + `WavFile` (Summary to Audio), `AskEdit` (Edit by Asking). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`, `DocumentTab.RedactSuggest.cs` + `RedactSuggestActions.cs`, `DocumentTab.AiSave.cs`, `FolderAsk.cs` (`FolderAskWindow`), `FolderMeaning.cs`, `SpeechFile.cs`, `DocumentTab.AskEdit.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `redact-suggest names,orgs,terms` (`redactterms a;b`), `aiconversation`, `aisave last\|all word\|pdf\|comment [path]`, `folderask question`, `folderaskfiles a.pdf\|b.pdf`, `folderaskopen i`, `meaningsetup model\|off`, `indexoption meaning on`, `folderaskmeaning on`, `meaningstate` (aifake makes stand-in embeddings), `aiaudio all path.mp3`, `aisave last audio path.wav`, `aiaudiostate`, `askedit request` (`aifake tools name {json};…` or `aifake notools`), `askeditstate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
 `InkvoltPdf.App` references the libraries it shares with Inkvolt Print, in `../shared` (MIT): `InkvoltPrint.Core` (eSCL,
