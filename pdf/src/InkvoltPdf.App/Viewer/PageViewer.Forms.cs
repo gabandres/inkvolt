@@ -558,6 +558,7 @@ public sealed partial class PageViewer
         };
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
         System.Windows.Automation.AutomationProperties.SetName(box, w.FieldName);
+        AttachSpelling(box);
         ShowEditor(box, w, null);
         box.SelectAll();
     }
@@ -734,7 +735,18 @@ public sealed partial class PageViewer
         if (_editorParagraph is not null && e.NewFocus is DependencyObject lf && InLookBar(lf)) return;
         // Insert Picture's file dialog has the focus for now.
         if (_editorParagraph is not null && _pictureAsked) return;
+        // The editor's own context menu (spelling suggestions, Cut, Copy, Paste) works on it.
+        if (e.NewFocus is DependencyObject mf && InEditorMenu(mf)) return;
         CommitEditor();
+    }
+
+    /// <summary>Inside a context menu opened on the open editor.</summary>
+    private bool InEditorMenu(DependencyObject d)
+    {
+        for (var x = d; x is not null; x = (x is Visual ? VisualTreeHelper.GetParent(x) : null) ?? LogicalTreeHelper.GetParent(x))
+            if (x is ContextMenu cm)
+                return _editor is { } editor && cm.PlacementTarget is DependencyObject t && (t == editor || IsDescendant(editor, t));
+        return false;
     }
 
     /// <summary>True when a key event comes from the open editor (or its dropdown) rather than the viewer itself.</summary>
@@ -811,6 +823,7 @@ public sealed partial class PageViewer
         _editorKeystrokes = false;
         _checkedText = _approvedText = null;
         _overlay.Children.Remove(_editor);
+        DetachParagraphSpelling();
         _editor = null;
         _editorWidget = null;
         _editorStamp = null;

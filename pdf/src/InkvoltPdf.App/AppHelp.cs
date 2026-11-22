@@ -154,6 +154,7 @@ internal static class AppHelp
             ("Reopen last files", OnOff(s.ReopenTabs)),
             ("Recovery copies", OnOff(s.KeepRecoveryCopies)),
             ("Dark pages", OnOff(s.DarkPages)),
+            ("Spell check", OnOff(s.SpellCheck)),
             ("Update check at start", OnOff(s.CheckForUpdates)),
             ("AI assistant", s.AiEnabled ? $"on ({s.AiPreset})" : "off"),
             ("Inkvolt Pro", Core.Pro.Licence is not null ? "licensed" : Core.Pro.Problem is not null ? "key not accepted" : "none"),

@@ -1468,6 +1468,31 @@
   <data name="Settings_DarkPages" xml:space="preserve">
     <value>Dark pages (inverted colors for night reading)</value>
   </data>
+  <data name="Settings_SpellCheck" xml:space="preserve">
+    <value>Check spelling as I type</value>
+  </data>
+  <data name="Settings_SpellCheckTip" xml:space="preserve">
+    <value>Underlines the words Windows' dictionary doesn't know in edited text, notes, text boxes, callouts and form fields, in the document's language (else the app's). Right-click a word for suggestions.</value>
+  </data>
+  <data name="Spell_NoSuggestions" xml:space="preserve">
+    <value>No suggestions</value>
+    <comment>Spell check menu: Windows has no suggestion for the misspelled word</comment>
+  </data>
+  <data name="Spell_Ignore" xml:space="preserve">
+    <value>Ignore</value>
+    <comment>Spell check menu: the word isn't underlined again for the rest of the session</comment>
+  </data>
+  <data name="Spell_AddToDictionary" xml:space="preserve">
+    <value>Add to dictionary</value>
+    <comment>Spell check menu: the word goes into Windows' user dictionary</comment>
+  </data>
+  <data name="Spell_AddFailedTitle" xml:space="preserve">
+    <value>Couldn't add the word</value>
+  </data>
+  <data name="Spell_AddFailed" xml:space="preserve">
+    <value>Windows didn't add “{0}” to your dictionary. Try again later.</value>
+    <comment>{0} = the word</comment>
+  </data>
   <data name="Settings_CheckForUpdates" xml:space="preserve">
     <value>Check for updates when Inkvolt PDF starts</value>
   </data>

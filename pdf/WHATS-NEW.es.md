@@ -6,6 +6,7 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Revisión ortográfica mientras escribes: el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario subrayan en rojo las palabras mal escritas, en el idioma del documento. Haz clic con el botón derecho en una palabra para ver sugerencias, Omitir o Agregar al diccionario. Puedes desactivarla en Configuración.
 
 ## 1.16.0
 - Escanear: un ajuste predefinido con limpieza (creado en Inkvolt Print: recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar colores desvaídos) ahora limpia cada página de la misma manera aquí.

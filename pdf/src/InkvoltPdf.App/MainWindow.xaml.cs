@@ -2336,6 +2336,7 @@ public partial class MainWindow : Window
         {
             ["Theme"] = ThemeOf(s.Theme), ["RestorePosition"] = s.RestorePosition, ["ReopenTabs"] = s.ReopenTabs,
             ["KeepRecoveryCopies"] = s.KeepRecoveryCopies, ["DarkPages"] = s.DarkPages, ["CheckForUpdates"] = s.CheckForUpdates,
+            ["SpellCheck"] = s.SpellCheck,
             ["AuthorName"] = s.AuthorName ?? "",
             ["Language"] = LanguageOf(s.Language),
         });
@@ -2359,6 +2360,8 @@ public partial class MainWindow : Window
         var recovery = dlg.AddCheck(Strings.Settings_RecoveryCopies, s.KeepRecoveryCopies);
         recovery.ToolTip = Strings.Settings_RecoveryCopiesTip;
         var dark = dlg.AddCheck(Strings.Settings_DarkPages, s.DarkPages);
+        var spelling = dlg.AddCheck(Strings.Settings_SpellCheck, s.SpellCheck);
+        spelling.ToolTip = Strings.Settings_SpellCheckTip;
         // Store installs only: an unpackaged copy has nothing to ask the Store about.
         CheckBox? updates = null;
         if (AppEnvironment.IsPackaged)
@@ -2396,6 +2399,7 @@ public partial class MainWindow : Window
                 case "ReopenTabs": reopen.IsChecked = (bool)value!; break;
                 case "KeepRecoveryCopies": recovery.IsChecked = (bool)value!; break;
                 case "DarkPages": dark.IsChecked = (bool)value!; break;
+                case "SpellCheck": spelling.IsChecked = (bool)value!; break;
                 case "CheckForUpdates": if (updates is not null) updates.IsChecked = (bool)value!; break;
                 case "AuthorName": author.Text = (string)value! is { Length: > 0 } n ? n : Environment.UserName; break;
             }
@@ -2411,6 +2415,7 @@ public partial class MainWindow : Window
                 case "ReopenTabs": s.ReopenTabs = (bool)value!; break;
                 case "KeepRecoveryCopies": s.KeepRecoveryCopies = (bool)value!; break;
                 case "DarkPages": s.DarkPages = (bool)value!; break;
+                case "SpellCheck": s.SpellCheck = (bool)value!; break;
                 case "CheckForUpdates": s.CheckForUpdates = (bool)value!; break;
                 case "AuthorName": s.AuthorName = (string)value!; break;
             }
@@ -2442,6 +2447,7 @@ public partial class MainWindow : Window
         Toggles(reopen, "ReopenTabs");
         Toggles(recovery, "KeepRecoveryCopies");
         Toggles(dark, "DarkPages");
+        Toggles(spelling, "SpellCheck");
         if (updates is not null) Toggles(updates, "CheckForUpdates");
         // Empty = follow the Windows user name.
         author.TextChanged += (_, _) =>
@@ -2457,6 +2463,7 @@ public partial class MainWindow : Window
                      {
                          ["Theme"] = "System", ["RestorePosition"] = d.RestorePosition, ["ReopenTabs"] = d.ReopenTabs,
                          ["KeepRecoveryCopies"] = d.KeepRecoveryCopies, ["DarkPages"] = d.DarkPages, ["CheckForUpdates"] = d.CheckForUpdates,
+                         ["SpellCheck"] = d.SpellCheck,
                          ["AuthorName"] = "",
                      })
             {

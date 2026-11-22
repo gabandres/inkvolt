@@ -1468,6 +1468,27 @@
   <data name="Settings_DarkPages" xml:space="preserve">
     <value>Páginas oscuras (colores invertidos para leer de noche)</value>
   </data>
+  <data name="Settings_SpellCheck" xml:space="preserve">
+    <value>Revisar la ortografía mientras escribo</value>
+  </data>
+  <data name="Settings_SpellCheckTip" xml:space="preserve">
+    <value>Subraya las palabras que el diccionario de Windows no conoce en el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario, en el idioma del documento (si no, en el de la aplicación). Haz clic con el botón derecho en una palabra para ver sugerencias.</value>
+  </data>
+  <data name="Spell_NoSuggestions" xml:space="preserve">
+    <value>Sin sugerencias</value>
+  </data>
+  <data name="Spell_Ignore" xml:space="preserve">
+    <value>Omitir</value>
+  </data>
+  <data name="Spell_AddToDictionary" xml:space="preserve">
+    <value>Agregar al diccionario</value>
+  </data>
+  <data name="Spell_AddFailedTitle" xml:space="preserve">
+    <value>No se pudo agregar la palabra</value>
+  </data>
+  <data name="Spell_AddFailed" xml:space="preserve">
+    <value>Windows no agregó “{0}” a tu diccionario. Vuelve a intentarlo más tarde.</value>
+  </data>
   <data name="Settings_CheckForUpdates" xml:space="preserve">
     <value>Buscar actualizaciones al iniciar Inkvolt PDF</value>
   </data>

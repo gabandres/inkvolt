@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Spell check where you type: edited text, sticky notes, text boxes, callouts and form fields underline misspelled words in red, in the document's language. Right-click a word for suggestions, Ignore or Add to dictionary. Turn it off in Settings.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

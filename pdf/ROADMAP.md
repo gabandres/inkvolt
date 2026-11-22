@@ -349,7 +349,8 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   nested by level). 4.7 Resize pages (Letter and A4, scale or add margins). 4.13 Replace pages (keeping bookmarks and links
   to them). 4.14 Edit page labels (i, ii, then 1, 2; prefixes).
 - **Batch A (text):** 4.1 Spell check where people type (edited text, notes, text boxes, callouts, form fields; Windows'
-  own spell checker). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
+  own spell checker): Done, Windows (`SpellChecker`, tests `SpellCheckerTests`; the app's `Spelling`); Mac waits
+  (NSSpellChecker behind the same rules). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
   the replacements a font can't draw listed).
 - **Batch B:** 4.8 Smaller black-and-white scans as CCITT G4 (the shared encoder from Inkvolt Print's 4.4; JBIG2 needs a
   package: the owner's call). 4.6 Copy text from an area of a scan, and an area as a table. 4.15 Links from the addresses

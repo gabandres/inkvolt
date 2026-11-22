@@ -45,6 +45,7 @@ namespace InkvoltPdf.App;
 /// suggestions · taborder on|off</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
 /// the editor on text run i, then <c>key Enter</c> commits) <c>· editpara p i [text]</c> (the editor on paragraph i, a
 /// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · cropimage p i x y w h · imageaction delete|replace file · parapicture file</c> (Insert Picture in the open paragraph editor, at its caret).
+/// Spell check: <c>spellstate · spellmenu offset · spellchoose Header · spelling on|off</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
@@ -62,6 +63,7 @@ internal static class DevScript
     public static async Task RunAsync(MainWindow window, string scriptPath)
     {
         var log = new List<string>();
+        Spelling.KeepUserDictionary = true; // never the user's own dictionary
         try
         {
             await Task.Delay(1500);
@@ -709,6 +711,16 @@ internal static class DevScript
                 log.Add($"looks: {v.DevParagraphLooks()} | {tab!.DevContentState()}");
                 break;
             }
+            // Spell check (roadmap 4.1): spellstate (the open editor's language and underlined words) · spellmenu offset (its
+            // menu about the word there, logged) · spellchoose Header (run that menu item) · spelling on|off (the setting)
+            case "spellstate": log.Add(v!.DevSpelling()); break;
+            case "spellmenu": log.Add(v!.DevSpellingMenu(int.Parse(arg))); break;
+            case "spellchoose":
+                v!.DevSpellingChoose(arg);
+                await Task.Delay(200);
+                log.Add(v.DevSpelling());
+                break;
+            case "spelling": AppSettings.Current.SpellCheck = arg != "off"; break;
             case "paragraphs":
             {
                 var c = v!.DevContent(int.Parse(arg) - 1);

@@ -38,6 +38,28 @@ public partial class DocumentTab
         };
         Viewer.ContentAnnounce += (_, message) => AnnounceContent(message);
         Viewer.ContentSelectionChanged += (_, _) => UpdateContentButtons();
+        Viewer.DocumentLanguage = DocumentLanguage;
+        Viewer.ToolChanged += (_, _) =>
+        {
+            if (Viewer.Tool is ViewerTool.TextBox or ViewerTool.Callout or ViewerTool.AddNote) DocumentLanguage(); // read before the first box opens
+        };
+    }
+
+    private Task<string?>? _documentLanguage;
+
+    /// <summary>
+    /// The language the document says its text is in, for spell check (roadmap 4.1): read once, off the UI thread, when
+    /// first wanted (an editor opening, Edit Text &amp; Images turned on); null until then, or when it says none.
+    /// </summary>
+    internal string? DocumentLanguage()
+    {
+        if (!Spelling.On || !Session.IsPdf || _disposed) return null;
+        if (_documentLanguage is null)
+        {
+            var (data, pw) = (Session.Data, Session.Password);
+            _documentLanguage = Task.Run(() => SpellChecker.DocumentLanguage(data, pw));
+        }
+        return _documentLanguage.IsCompletedSuccessfully ? _documentLanguage.Result : null;
     }
 
     public bool IsEditingContent => Viewer.IsEditingContent;
@@ -57,6 +79,7 @@ public partial class DocumentTab
             return;
         }
         if (IsOrganizing) SetOrganizing(false);
+        DocumentLanguage(); // read while the person picks a paragraph
         Viewer.Tool = ViewerTool.EditContent;
         Viewer.Focus();
         Notify(Strings.EditContent_Hint);
