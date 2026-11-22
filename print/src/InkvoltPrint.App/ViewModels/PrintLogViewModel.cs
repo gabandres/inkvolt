@@ -206,9 +206,9 @@ public sealed partial class PrintLogViewModel : ObservableObject, IDisposable
     {
         if (!Prompt.Ask(Strings.PrintLog_ClearAsk, Strings.PrintLog_ClearConfirm)) return;
         var file = _keeper.File;
-        await Task.Run(file.Clear);
-        Log.Write("Print log cleared.");
-        Message = Strings.PrintLog_Cleared;
+        var cleared = await Task.Run(file.Clear);
+        if (cleared) Log.Write("Print log cleared.");
+        Message = cleared ? Strings.PrintLog_Cleared : Strings.PrintLog_NotCleared;
         await LoadAsync();
     }
 }

@@ -14,8 +14,8 @@ public partial class PrinterSetupWindow : Window
         _model = model;
         DataContext = model;
         model.CloseRequested += Close;
-        // Closing while on the printer's network goes back first: never leave the PC there.
-        Closing += (_, _) => model.Closing();
+        // Closing while on the printer's network goes back first (the window stays responsive, showing it): never leave the PC there.
+        Closing += (_, e) => e.Cancel = !model.MayClose(Close);
         Closed += (_, _) => model.CloseRequested -= Close;
     }
 

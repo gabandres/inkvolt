@@ -42,7 +42,7 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
                 PdfSource pdf;
                 try
                 {
-                    pdf = await PdfSource.OpenAsync(job.Document).ConfigureAwait(false);
+                    pdf = await PdfSource.OpenAsync(Stream(job.Document), "", null).ConfigureAwait(false);
                 }
                 catch (PdfOpenException ex)
                 {
@@ -63,7 +63,7 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
             case "image/pwg-raster" or "image/urf":
                 return await StaThread.RunAsync(() =>
                 {
-                    var data = job.Document.AsMemory();
+                    var data = job.Document;
                     var limits = new RasterLimits { MaxPages = MaxPages, MaxPixels = MaxPixels }; // the PDF's limits: no more pages through raster
                     var read = job.Format == "image/urf" ? RasterReader.ReadUrf(data, limits) : RasterReader.ReadPwg(data, limits);
                     var pages = new List<RenderedPage>();
@@ -80,13 +80,19 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
     }
 
     /// <summary>A picture decoded (its size checked first) and encoded again; its size from its resolution, 96 dpi when it names none.</summary>
-    private static RenderedPage Picture(byte[] jpeg, bool grey)
+    /// <summary>The document's bytes as a read-only stream over them, not a copy.</summary>
+    private static MemoryStream Stream(ReadOnlyMemory<byte> data) =>
+        System.Runtime.InteropServices.MemoryMarshal.TryGetArray(data, out var segment)
+            ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
+            : new MemoryStream(data.ToArray(), writable: false);
+
+    private static RenderedPage Picture(ReadOnlyMemory<byte> jpeg, bool grey)
     {
         // Its size is read from the header first (nothing decoded yet), then the pixels are decoded and encoded again, all inside the
         // try: a damaged picture is the document's fault (document-format-error), not this PC's.
         try
         {
-            var frame = new JpegBitmapDecoder(new MemoryStream(jpeg), BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile,
+            var frame = new JpegBitmapDecoder(Stream(jpeg), BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile,
                 BitmapCacheOption.None).Frames[0];
             if (frame.PixelWidth <= 0 || frame.PixelHeight <= 0 || (long)frame.PixelWidth * frame.PixelHeight > MaxPixels) throw new FormatException("picture too large");
             var dpiX = frame.DpiX is > 1 and < 5000 ? frame.DpiX : 96;

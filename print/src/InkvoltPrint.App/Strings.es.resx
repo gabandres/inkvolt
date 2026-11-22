@@ -4239,4 +4239,7 @@ Los archivos se quedan donde están.</value>
   <data name="Setup_DemoPage" xml:space="preserve">
     <value>Demo: aquí se abriría la página de la impresora: {0}</value>
   </data>
+  <data name="PrintLog_NotCleared" xml:space="preserve">
+    <value>No se pudo borrar el registro de impresión (su archivo está en uso). No se quitó nada; vuelve a intentarlo en un momento.</value>
+  </data>
 </root>

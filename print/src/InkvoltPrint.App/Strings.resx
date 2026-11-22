@@ -5098,4 +5098,7 @@ The files stay where they are.</value>
   <data name="Setup_DemoPage" xml:space="preserve">
     <value>Demo: the printer's page would open here: {0}</value>
   </data>
+  <data name="PrintLog_NotCleared" xml:space="preserve">
+    <value>The print log couldn't be cleared (its file is in use). Nothing was removed; try again in a moment.</value>
+  </data>
 </root>

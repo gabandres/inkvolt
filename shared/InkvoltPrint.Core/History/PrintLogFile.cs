@@ -38,35 +38,36 @@ public sealed class PrintLogFile(string? path, Action<string>? log = null)
             list.AddRange(added);
             // Trimmed in memory; the file only gets the new lines, and is written again (trimmed) once it holds a fifth more than the log
             // keeps, or at most once a day when jobs have aged out. A file that couldn't be read is never written over: only appended to.
-            var aged = list.RemoveAll(e => e.At < now.AddMonths(-PrintLog.KeepMonths));
+            var aged = list.RemoveAll(e => !PrintLog.InRange(e, now));
             if (list.Count > PrintLog.MaxEntries) list.RemoveRange(0, list.Count - PrintLog.MaxEntries);
             _lines += added.Count;
             if (path is null) return;
-            if (loaded && (_lines > PrintLog.MaxEntries * 6 / 5 || (aged > 0 && now - _rewritten > TimeSpan.FromDays(1))))
-            {
-                Rewrite(list);
+            if (loaded && (_lines > PrintLog.MaxEntries * 6 / 5 || (aged > 0 && now - _rewritten > TimeSpan.FromDays(1))) && Rewrite(list))
                 _rewritten = now;
-            }
-            else Append(added);
+            else Append(added); // also when writing it again failed: the new jobs are kept either way
         }
     }
 
-    /// <summary>Forgets every job (the file is deleted).</summary>
-    public void Clear()
+    /// <summary>Forgets every job (the file is deleted). False when the file couldn't be deleted: then nothing is forgotten.</summary>
+    public bool Clear()
     {
         lock (_gate)
         {
+            if (path is not null)
+            {
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    log?.Invoke($"Print log not cleared: {ex.Message}");
+                    return false;
+                }
+            }
             _entries = [];
             _lines = 0;
-            if (path is null) return;
-            try
-            {
-                File.Delete(path);
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                log?.Invoke($"Print log not cleared: {ex.Message}");
-            }
+            return true;
         }
     }
 
@@ -136,7 +137,8 @@ public sealed class PrintLogFile(string? path, Action<string>? log = null)
         }
     }
 
-    private void Rewrite(List<PrintLogEntry> list)
+    /// <summary>The whole log written again, trimmed; false when it couldn't be (the old file stays as it was).</summary>
+    private bool Rewrite(List<PrintLogEntry> list)
     {
         try
         {
@@ -145,10 +147,12 @@ public sealed class PrintLogFile(string? path, Action<string>? log = null)
             File.WriteAllText(tmp, string.Concat(list.Select(e => Line(e) + "\n")), new UTF8Encoding(false));
             File.Move(tmp, path!, overwrite: true);
             _lines = list.Count;
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            log?.Invoke($"Print log not saved: {ex.Message}");
+            log?.Invoke($"Print log not written again: {ex.Message}");
+            return false;
         }
     }
 }

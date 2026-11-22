@@ -1,4 +1,3 @@
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
@@ -23,7 +22,7 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
 {
     public const int MaxConnections = 32, MaxConnectionsPerPeer = 8;
 
-    /// <summary>Request bodies held in memory at once, all connections together: room for two of the largest documents and some small requests.</summary>
+    /// <summary>Request bodies held in memory at once, all connections together, when the listen brings no budget of its own (<see cref="PrinterListen.Budget"/>, which queued documents share).</summary>
     public const long MaxBytesInFlight = 160L * 1024 * 1024;
 
     public async Task<IShareListener> StartAsync(PrinterListen listen, CancellationToken ct)
@@ -72,8 +71,8 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
             });
         });
         var app = builder.Build();
-        var inFlight = new InFlight(MaxBytesInFlight);
-        app.Run(context => HandleAsync(context, listen, inFlight));
+        var budget = listen.Budget ?? new ShareBudget(MaxBytesInFlight);
+        app.Run(context => HandleAsync(context, listen, budget));
         try
         {
             await app.StartAsync(ct).ConfigureAwait(false);
@@ -96,7 +95,7 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         }
     }
 
-    private static async Task HandleAsync(HttpContext context, PrinterListen listen, InFlight inFlight)
+    private static async Task HandleAsync(HttpContext context, PrinterListen listen, ShareBudget budget)
     {
         var request = context.Request;
         var response = context.Response;
@@ -107,7 +106,7 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         }
         var path = request.Path.Value ?? "/";
         var authority = request.Host.HasValue ? request.Host.Value : null;
-        using var kept = new MemoryStream();
+        using var kept = new BodyBuffer(budget, listen.MaxBodyBytes);
         try
         {
             byte[] body = [];
@@ -124,23 +123,26 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
                     return;
                 }
                 // The head first (the request's attributes): a busy printer or a document past the limit is refused before the rest is
-                // read. Then the rest, a buffer at a time, each held against the server's budget for bodies in flight.
-                var (ended, within) = await ReadAsync(request.Body, kept, listen.HeadBytes, inFlight, context.RequestAborted).ConfigureAwait(false);
-                if (within && listen.Precheck?.Invoke(new ShareRequest(request.Method, path, kept.ToArray(), peer, authority), request.ContentLength) is { } early)
+                // read. A body of a known length is read into one array of that length, held against the budget all documents share
+                // (a queued job keeps its document there until it ends) and handed on as it is; one sent in chunks grows from small.
+                var within = request.ContentLength is not { } length || kept.Reserve(length);
+                var ended = false;
+                if (within) (ended, within) = await kept.ReadAsync(request.Body, listen.HeadBytes, context.RequestAborted).ConfigureAwait(false);
+                if (within && listen.Precheck?.Invoke(new ShareRequest(request.Method, path, kept.Head(listen.HeadBytes), peer, authority), request.ContentLength) is { } early)
                 {
                     response.Headers.Connection = "close"; // the rest of the body is never read as a request
                     await WriteAsync(response, early, context.RequestAborted).ConfigureAwait(false);
                     return;
                 }
-                if (within && !ended) (_, within) = await ReadAsync(request.Body, kept, listen.MaxBodyBytes, inFlight, context.RequestAborted).ConfigureAwait(false);
-                if (!within)
+                if (within && !ended) (_, within) = await kept.ReadAsync(request.Body, listen.MaxBodyBytes, context.RequestAborted).ConfigureAwait(false);
+                if (!within || kept.Exact() is not { } exact)
                 {
                     // Several large documents at once: try again in a moment.
                     response.Headers.RetryAfter = "10";
                     Refuse(response, StatusCodes.Status503ServiceUnavailable);
                     return;
                 }
-                body = kept.ToArray();
+                body = exact;
             }
             else if (!HttpMethods.IsGet(request.Method))
             {
@@ -159,10 +161,6 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
             // The device went away, or sharing stopped.
-        }
-        finally
-        {
-            inFlight.Release(kept.Length);
         }
     }
 
@@ -187,45 +185,60 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
     }
 
     /// <summary>
-    /// Reads the body into <paramref name="kept"/> until it holds <paramref name="upTo"/> bytes or the body ends, taking each buffer from
-    /// <paramref name="budget"/> first. Ended: the body ended. Within: the budget allowed all of it (else it stopped there).
+    /// One request's body in memory, its bytes held against the shared budget while the request lasts: reserved whole when its length
+    /// is known (one array, handed on with no copy), else grown from 64 KB as it comes. Disposing gives the bytes back (a job keeps its own
+    /// claim on its document, <see cref="SharedPrinter"/>).
     /// </summary>
-    private static async Task<(bool Ended, bool Within)> ReadAsync(Stream body, MemoryStream kept, long upTo, InFlight budget, CancellationToken ct)
+    private sealed class BodyBuffer(ShareBudget budget, long max) : IDisposable
     {
-        var buffer = ArrayPool<byte>.Shared.Rent(64 * 1024);
-        try
+        private byte[] _data = [];
+        private int _length;
+        private long _held;
+
+        /// <summary>Room for exactly <paramref name="capacity"/> bytes; false past the budget (or the most a body may be).</summary>
+        public bool Reserve(long capacity)
         {
-            while (kept.Length < upTo)
+            if (capacity <= _data.Length) return true;
+            if (capacity > max || capacity > Array.MaxLength || !budget.TryTake(capacity)) return false;
+            var data = new byte[capacity];
+            _data.AsSpan(0, _length).CopyTo(data);
+            budget.Release(_held);
+            (_data, _held) = (data, capacity);
+            return true;
+        }
+
+        /// <summary>Reads until it holds <paramref name="upTo"/> bytes or the body ends. Ended: the body ended. Within: the budget allowed it.</summary>
+        public async Task<(bool Ended, bool Within)> ReadAsync(Stream body, long upTo, CancellationToken ct)
+        {
+            while (_length < upTo)
             {
-                var n = await body.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, upTo - kept.Length)), ct).ConfigureAwait(false);
+                if (_length == _data.Length && !Reserve(Math.Min(Math.Max(64 * 1024, (long)_data.Length * 2), max))) return (false, false);
+                var n = await body.ReadAsync(_data.AsMemory(_length, (int)Math.Min(_data.Length - _length, upTo - _length)), ct).ConfigureAwait(false);
                 if (n == 0) return (true, true);
-                if (!budget.TryTake(n)) return (false, false);
-                kept.Write(buffer, 0, n);
+                _length += n;
             }
             return (false, true);
         }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(buffer);
-        }
-    }
 
-    /// <summary>The bytes of request bodies held in memory now, all connections together, and their most (<see cref="MaxBytesInFlight"/>).</summary>
-    private sealed class InFlight(long max)
-    {
-        private long _used;
+        /// <summary>The first bytes read (the attributes), for the early check.</summary>
+        public byte[] Head(int most) => _data[..Math.Min(_length, most)];
 
-        public bool TryTake(long n)
+        /// <summary>The body as one array of its length: the array itself when it was reserved whole; null when a copy won't fit the budget.</summary>
+        public byte[]? Exact()
         {
-            while (true)
-            {
-                var used = Interlocked.Read(ref _used);
-                if (used + n > max) return false;
-                if (Interlocked.CompareExchange(ref _used, used + n, used) == used) return true;
-            }
+            if (_length == _data.Length) return _data;
+            if (!budget.TryTake(_length)) return null;
+            var exact = _data[.._length];
+            budget.Release(_held);
+            (_data, _held) = (exact, _length);
+            return exact;
         }
 
-        public void Release(long n) => Interlocked.Add(ref _used, -n);
+        public void Dispose()
+        {
+            budget.Release(_held);
+            _held = 0;
+        }
     }
 
     private sealed class Listener(WebApplication app, int port) : IShareListener

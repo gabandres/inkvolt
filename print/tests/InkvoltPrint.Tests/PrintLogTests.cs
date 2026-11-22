@@ -339,6 +339,54 @@ public class PrintLogTests
     }
 
     [Fact]
+    public void Clearing_a_file_in_use_forgets_nothing_and_says_so()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "inkvolt-printlog-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(folder, "print-log.jsonl");
+            var file = new PrintLogFile(path);
+            file.Add([Entry(Now.AddHours(-1))], Now);
+            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) // can't be deleted now
+                Assert.False(file.Clear());
+            Assert.Single(file.Read(Now));
+            Assert.True(file.Clear());
+            Assert.Empty(file.Read(Now));
+        }
+        finally
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void When_writing_the_file_again_fails_the_new_jobs_are_appended()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "inkvolt-printlog-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(folder, "print-log.jsonl");
+            var file = new PrintLogFile(path);
+            file.Add([Entry(Now.AddHours(-2))], Now);
+            using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)) // can be appended to, not replaced
+                file.Add([Entry(Now.AddMonths(-20)), Entry(Now.AddHours(-1), printer: "New")], Now); // an aged-out job: written again
+            Assert.Contains(new PrintLogFile(path).Read(Now), e => e.Printer == "New");
+        }
+        finally
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void Jobs_dated_ahead_arent_kept()
+    {
+        Assert.Empty(PrintLog.Add([], Entry(Now.AddDays(3)), Now));
+        Assert.Single(PrintLog.Add([], Entry(Now.AddHours(5)), Now)); // a clock a few hours off is fine
+        Assert.Empty(PrintLogFile.Parse([PrintLogFile.Line(Entry(Now.AddYears(5)))], Now));
+    }
+
+    [Fact]
     public void The_palette_opens_the_log_and_its_csv_is_a_pro_feature_of_its_own()
     {
         Assert.Contains(PrintPalette.Build(null, -1, [], []), e => e.Id == "app:printlog");

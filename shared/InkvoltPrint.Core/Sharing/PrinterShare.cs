@@ -36,7 +36,7 @@ public enum PrinterShareState
 /// </summary>
 public sealed record PrinterListen(IPAddress Address, int Port, Func<IPAddress, IPAddress, bool> AllowPeer,
     Func<ShareRequest, CancellationToken, Task<ShareReply>> Handle, long MaxBodyBytes, int HeadBytes = 64 * 1024,
-    Func<ShareRequest, long?, ShareReply?>? Precheck = null);
+    Func<ShareRequest, long?, ShareReply?>? Precheck = null, ShareBudget? Budget = null);
 
 /// <summary>Starts the shared printers' IPP server (Kestrel in the app, plain HTTP as IPP printers use). Fails with <see cref="SocketException"/> when the port is taken.</summary>
 public interface IPrinterShareHost
@@ -77,6 +77,7 @@ public sealed class PrinterShare : IAsyncDisposable
     private readonly SemaphoreSlim _calls = new(1, 1);
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _closing = new();
+    private readonly ShareBudget _budget;
 
     private List<PrinterShareChoice> _choices;
     private HashSet<string> _present = new(StringComparer.OrdinalIgnoreCase);
@@ -98,6 +99,7 @@ public sealed class PrinterShare : IAsyncDisposable
         _save = save;
         _log = log ?? (_ => { });
         _limits = limits ?? new PrinterShareLimits();
+        _budget = new ShareBudget(_limits.MaxBytesHeld);
         _time = time ?? TimeProvider.System;
     }
 
@@ -236,8 +238,9 @@ public sealed class PrinterShare : IAsyncDisposable
         var present = queues.ToHashSet(StringComparer.OrdinalIgnoreCase);
         lock (_gate)
         {
-            // Nothing new, unless a shared queue couldn't be read last time: it's read again with each list.
-            if (present.SetEquals(_present) && _unreadable.Count == 0 && (_choices.Count == 0 || _state != PrinterShareState.Off)) return;
+            // Nothing new, unless a shared queue couldn't be read or the server couldn't start last time: both are tried again with each list.
+            if (present.SetEquals(_present) && _unreadable.Count == 0
+                && (_choices.Count == 0 || _state is not (PrinterShareState.Off or PrinterShareState.Failed))) return;
         }
         await _calls.WaitAsync().ConfigureAwait(false);
         try
@@ -355,7 +358,7 @@ public sealed class PrinterShare : IAsyncDisposable
             var path = SharedPrinter.PathOf(choice.Uuid);
             printers[path] = old.TryGetValue(path, out var kept) && kept.Queue == queue
                 ? kept
-                : new SharedPrinter(queue, choice.Uuid, InstanceName(choice.Queue, _computerName), _computerName, _env.Sink, _limits, _time, _log);
+                : new SharedPrinter(queue, choice.Uuid, InstanceName(choice.Queue, _computerName), _computerName, _env.Sink, _limits, _time, _log, _budget);
         }
         foreach (var (path, printer) in old)
             if (!printers.TryGetValue(path, out var same) || !ReferenceEquals(same, printer)) printer.Dispose();
@@ -391,7 +394,7 @@ public sealed class PrinterShare : IAsyncDisposable
             var loopbackOnly = _env.LoopbackOnly;
             var listener = await _env.Host.StartAsync(new PrinterListen(address, _env.Port,
                 (peer, local) => loopbackOnly ? IPAddress.IsLoopback(SharePeers.Normal(peer)) : SharePeers.Allows(peer, local, _served),
-                HandleAsync, _limits.MaxDocumentBytes + _limits.MaxAttributeBytes, _limits.MaxAttributeBytes, Precheck), _closing.Token).ConfigureAwait(false);
+                HandleAsync, _limits.MaxDocumentBytes + _limits.MaxAttributeBytes, _limits.MaxAttributeBytes, Precheck, _budget), _closing.Token).ConfigureAwait(false);
             if (_closing.IsCancellationRequested)
             {
                 await DisposeQuietlyAsync(listener).ConfigureAwait(false);

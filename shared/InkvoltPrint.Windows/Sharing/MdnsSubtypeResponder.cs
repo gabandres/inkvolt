@@ -39,12 +39,14 @@ public sealed class MdnsSubtypeResponder : IDisposable
             try
             {
                 Start();
-                foreach (var index in added.Select(a => a.Item2.InterfaceIndex).Distinct()) Join(index);
             }
             catch (SocketException ex)
             {
                 _log($"Printer sharing: AirPrint's subtype not answered (port 5353: {ex.SocketErrorCode}).");
             }
+            // Every interface registered so far, each on its own: one that refuses (its address just went) doesn't keep the others
+            // out, and is tried again with the next printer added or network change.
+            foreach (var index in _registered.Select(r => r.Network.InterfaceIndex).Distinct()) Join(index);
         }
         _ = AnnounceAsync(added);
         return new Removal(this, added);
@@ -77,26 +79,51 @@ public sealed class MdnsSubtypeResponder : IDisposable
     private void Join(int interfaceIndex)
     {
         if (_socket is null || !_joined.Add(interfaceIndex)) return;
-        _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(MdnsSubtype.Group, interfaceIndex));
+        try
+        {
+            _socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(MdnsSubtype.Group, interfaceIndex));
+        }
+        catch (SocketException ex)
+        {
+            _joined.Remove(interfaceIndex); // tried again next time
+            _log($"Printer sharing: an interface didn't join the mDNS group ({ex.SocketErrorCode}).");
+        }
     }
 
     private async Task ReceiveAsync(Socket socket, CancellationToken ct)
     {
         var buffer = new byte[MdnsSubtype.MaxPacket];
+        var backoff = TimeSpan.Zero;
+        var bad = 0;
         while (!ct.IsCancellationRequested)
         {
             SocketReceiveMessageFromResult received;
             try
             {
                 received = await socket.ReceiveMessageFromAsync(buffer, SocketFlags.None, new IPEndPoint(IPAddress.Any, 0), ct).ConfigureAwait(false);
+                backoff = TimeSpan.Zero;
+                bad = 0;
             }
             catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
             {
                 return;
             }
-            catch (SocketException)
+            catch (SocketException ex)
             {
-                continue; // one bad datagram (too large, reset): the next
+                try
+                {
+                    if (ex.SocketErrorCode is SocketError.MessageSize or SocketError.ConnectionReset && ++bad < 64) continue; // one bad datagram: the next
+                    // The network itself (down, gone after sleep), or bad datagrams without end: wait, longer each time, up to a minute.
+                    backoff = backoff == TimeSpan.Zero ? TimeSpan.FromSeconds(1) : TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, TimeSpan.FromMinutes(1).Ticks));
+                    bad = 0;
+                    if (backoff == TimeSpan.FromSeconds(1)) _log($"Printer sharing: mDNS answers paused ({ex.SocketErrorCode}).");
+                    await Task.Delay(backoff, ct).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+                continue;
             }
             try
             {

@@ -13,7 +13,34 @@ public sealed record SharedQueue(string Name, bool Color, bool TwoSided, string 
 
 /// <summary>A job a phone sent, for the app to print on the Windows queue (pages fitted to its paper).</summary>
 /// <param name="Format">What the document is (sniffed, never only what the phone said): PDF, JPEG, PWG Raster or Apple Raster.</param>
-public sealed record SharedPrintJob(string Queue, string Format, byte[] Document, int Copies, bool TwoSided, bool Monochrome, string JobName);
+/// <param name="Document">The request's own bytes after its attributes: never copied on the way.</param>
+public sealed record SharedPrintJob(string Queue, string Format, ReadOnlyMemory<byte> Document, int Copies, bool TwoSided, bool Monochrome, string JobName);
+
+/// <summary>
+/// The bytes of documents held in memory, all shared printers and connections together (roadmap 4.10): the server takes a request's body
+/// from it while reading, and a job takes its document from it until the job ends, so neither uploads nor queued jobs grow past it.
+/// </summary>
+public sealed class ShareBudget(long max)
+{
+    private long _used;
+
+    public long Max => max;
+
+    public long Used => Interlocked.Read(ref _used);
+
+    public bool TryTake(long n)
+    {
+        if (n < 0) return false;
+        while (true)
+        {
+            var used = Interlocked.Read(ref _used);
+            if (used + n > max) return false;
+            if (Interlocked.CompareExchange(ref _used, used + n, used) == used) return true;
+        }
+    }
+
+    public void Release(long n) => Interlocked.Add(ref _used, -n);
+}
 
 /// <summary>Prints a shared printer's job on its Windows queue; throws <see cref="FormatException"/> for a document it can't read.</summary>
 public interface ISharedPrintSink
@@ -31,6 +58,9 @@ public sealed record PrinterShareLimits
     public int MaxAttributeBytes { get; init; } = 64 * 1024;
 
     public int MaxCopies { get; init; } = 10;
+
+    /// <summary>Documents held in memory at once, uploads and queued jobs together (<see cref="ShareBudget"/>): two of the largest, and room besides.</summary>
+    public long MaxBytesHeld { get; init; } = 200L * 1024 * 1024;
 
     /// <summary>Jobs waiting behind the one printing; one more is told the printer is busy (try later).</summary>
     public int MaxWaiting { get; init; } = 2;
@@ -98,6 +128,7 @@ public sealed class SharedPrinter : IDisposable
     private readonly PrinterShareLimits _limits;
     private readonly TimeProvider _time;
     private readonly Action<string> _log;
+    private readonly ShareBudget _budget;
     private readonly DateTimeOffset _started;
     private readonly SemaphoreSlim _printing = new(1, 1);
     private readonly CancellationTokenSource _closed = new();
@@ -110,8 +141,9 @@ public sealed class SharedPrinter : IDisposable
     /// <param name="location">Where it is: this PC's name.</param>
     /// <param name="log">Told when a job starts and how it ends: no address, name or document of the device that sent it.</param>
     public SharedPrinter(SharedQueue queue, Guid uuid, string name, string location, ISharedPrintSink sink, PrinterShareLimits? limits = null,
-        TimeProvider? time = null, Action<string>? log = null)
+        TimeProvider? time = null, Action<string>? log = null, ShareBudget? budget = null)
     {
+        _budget = budget ?? new ShareBudget(long.MaxValue);
         _queue = queue;
         _uuid = uuid;
         _name = Cut(name, 127);
@@ -243,10 +275,12 @@ public sealed class SharedPrinter : IDisposable
                 return Reply(major, minor, Busy, requestId, "busy: try again soon");
             while (_jobs.Count >= _limits.MaxJobs && _jobs.FirstOrDefault(j => j.State >= Canceled) is { } old) Forget(old);
             if (_jobs.Count >= _limits.MaxJobs) return Reply(major, minor, Busy, requestId, "busy: try again soon");
-            job = new Job(_nextId++, peer, options.Name, _time.GetUtcNow(), CancellationTokenSource.CreateLinkedTokenSource(_closed.Token));
+            // The document stays in memory until the job ends: held against the budget every document shares.
+            if (!_budget.TryTake(document.Length)) return Reply(major, minor, Busy, requestId, "busy: try again soon");
+            job = new Job(_nextId++, peer, options.Name, _time.GetUtcNow(), CancellationTokenSource.CreateLinkedTokenSource(_closed.Token), document.Length);
             _jobs.Add(job);
         }
-        var print = new SharedPrintJob(_queue.Name, sniffed, document.ToArray(), options.Copies, options.TwoSided, options.Monochrome, options.Name);
+        var print = new SharedPrintJob(_queue.Name, sniffed, document, options.Copies, options.TwoSided, options.Monochrome, options.Name);
         _ = Task.Run(() => RunAsync(job, print));
         return Reply(major, minor, unsupported.Count > 0 ? OkIgnored : Ok, requestId, null,
             [.. unsupported.Count > 0 ? [(IppCodec.UnsupportedTag, (IReadOnlyList<IppValue>)unsupported)] : Array.Empty<(byte, IReadOnlyList<IppValue>)>(),
@@ -302,10 +336,23 @@ public sealed class SharedPrinter : IDisposable
         lock (_gate)
         {
             if (job.State >= Canceled) return;
-            job.State = state;
-            job.Reason = reason;
-            job.Ended = _time.GetUtcNow();
+            Mark(job, state, reason);
         }
+        Ended(job);
+    }
+
+    /// <summary>Inside <see cref="_gate"/>.</summary>
+    private void Mark(Job job, int state, string reason)
+    {
+        job.State = state;
+        job.Reason = reason;
+        job.Ended = _time.GetUtcNow();
+    }
+
+    /// <summary>A job just ended: its document's bytes go back to the budget (the job keeps no claim on it), and it's said.</summary>
+    private void Ended(Job job)
+    {
+        _budget.Release(job.Released());
         try { JobEnded?.Invoke(); }
         catch (Exception ex) { _log($"Printer sharing: {ex.Message}"); }
     }
@@ -316,10 +363,11 @@ public sealed class SharedPrinter : IDisposable
         lock (_gate)
         {
             if (job.State != Pending) return Reply(major, minor, NotPossible, requestId, job.State == Processing ? "already printing" : "already ended");
+            Mark(job, Canceled, "job-canceled-by-user"); // in the lock: the printing can't take it up after this
         }
         try { job.Cancel.Cancel(); }
         catch (ObjectDisposedException) { }
-        End(job, Canceled, "job-canceled-by-user");
+        Ended(job);
         return Reply(major, minor, Ok, requestId, null);
     }
 
@@ -604,8 +652,13 @@ public sealed class SharedPrinter : IDisposable
         foreach (var j in jobs) End(j, Canceled, "job-canceled-by-user");
     }
 
-    private sealed class Job(int id, IPAddress peer, string name, DateTimeOffset created, CancellationTokenSource cancel)
+    private sealed class Job(int id, IPAddress peer, string name, DateTimeOffset created, CancellationTokenSource cancel, long held)
     {
+        private long _held = held;
+
+        /// <summary>The document's bytes back to the budget, once.</summary>
+        public long Released() => Interlocked.Exchange(ref _held, 0);
+
         public int Id { get; } = id;
         public IPAddress Peer { get; } = peer;
         public string Name { get; } = name;

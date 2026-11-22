@@ -192,21 +192,42 @@ public sealed partial class PrinterSetupViewModel : ObservableObject, IDisposabl
         OnPropertyChanged(nameof(HasFound));
     }
 
-    /// <summary>The window closes: if the PC is still on the printer's network, it goes back first (within the join limit).</summary>
-    public void Closing()
+    private bool _returningToClose, _toldHow;
+
+    /// <summary>
+    /// The window is asked to close: true when it may now. While the PC is on the printer's network it may not: the guide goes back
+    /// first (the window shows "Going back…" and stays responsive) and <paramref name="close"/> is called once it's back. If it can't go
+    /// back, the window stays open saying how; asked again after that, it closes.
+    /// </summary>
+    public bool MayClose(Action close)
     {
-        _closing.Cancel(); // a join under way stops and goes back by itself
-        if (_guide.IsAway)
+        if (_returningToClose) return false;
+        if (!_guide.IsAway || _toldHow)
         {
-            try
-            {
-                Task.Run(() => _guide.ReturnAsync(CancellationToken.None)).Wait(PrinterSetupGuide.JoinLimit + TimeSpan.FromSeconds(5));
-            }
-            catch (AggregateException ex)
-            {
-                Log.Write($"Printer setup: not back on closing: {ex.InnerException?.Message}");
-            }
+            Dispose();
+            return true;
         }
-        Dispose();
+        _returningToClose = true;
+        _closing.Cancel(); // a join under way stops and goes back by itself
+        _ = ReturnThenCloseAsync(close);
+        return false;
+    }
+
+    private async Task ReturnThenCloseAsync(Action close)
+    {
+        try
+        {
+            await _guide.ReturnAsync(CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Printer setup: not back on closing: {ex.GetType().Name}: {ex.Message}");
+        }
+        UiThread.Run(() =>
+        {
+            _returningToClose = false;
+            _toldHow = _guide.Step == SetupStep.CouldNotReturn; // stays open to say how; the next Close closes
+            if (!_toldHow) close();
+        });
     }
 }

@@ -63,11 +63,16 @@ public static class PrintLog
     /// <summary>Oldest first, only the last <see cref="MaxEntries"/>, none older than <see cref="KeepMonths"/> months before <paramref name="now"/>.</summary>
     public static List<PrintLogEntry> Trim(List<PrintLogEntry> list, DateTimeOffset now)
     {
-        var oldest = now.AddMonths(-KeepMonths);
-        list.RemoveAll(e => e.At < oldest);
+        list.RemoveAll(e => !InRange(e, now));
         if (list.Count > MaxEntries) list.RemoveRange(0, list.Count - MaxEntries);
         return list;
     }
+
+    /// <summary>
+    /// Whether a job is kept at <paramref name=now/>: none older than <see cref="KeepMonths"/> months, and none dated more than a day
+    /// ahead (a clock set wrong, or an edited file): it would stay for ever.
+    /// </summary>
+    public static bool InRange(PrintLogEntry e, DateTimeOffset now) => e.At >= now.AddMonths(-KeepMonths) && e.At <= now.AddDays(1);
 
     /// <summary>An entry as kept: names cleaned and cut, counts bounded; null for one that isn't a job (no time, a date past now's year).</summary>
     public static PrintLogEntry? Clean(PrintLogEntry? e)

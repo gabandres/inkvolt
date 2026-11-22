@@ -166,7 +166,7 @@ public class PrinterSharingTests
         var printed = sink.Jobs[0];
         Assert.Equal(("Office laser", "image/pwg-raster", 2, true, true, "Boarding pass"),
             (printed.Queue, printed.Format, printed.Copies, printed.TwoSided, printed.Monochrome, printed.JobName));
-        Assert.Equal(document, printed.Document);
+        Assert.Equal(document, printed.Document.ToArray());
         var state = Read(await Send(p, DirectJob.GetJobAttributesRequest(Uri, "phone", 1)));
         Assert.Equal(9, state.Groups.Single(g => g.Tag == 0x02).Attributes["job-state"][0]); // completed
     }
@@ -261,6 +261,47 @@ public class PrinterSharingTests
         Assert.Null(p.Precheck(new ShareRequest("POST", p.Path, IppCodec.EncodeGetPrinterAttributes(Uri, ["all"]), Phone), 100)); // only Print-Job
         sink.Hold.SetResult();
         await WaitFor(() => p.ActiveJobs == 0);
+    }
+
+    [Fact]
+    public async Task Queued_documents_are_held_against_the_budget_and_a_cancelled_one_never_prints()
+    {
+        var sink = new Sink { Hold = new TaskCompletionSource() };
+        var budget = new ShareBudget(10_000_000);
+        using var p = new SharedPrinter(Laser, Id, "Office laser", "DESK", sink, budget: budget);
+        var document = PwgDocument();
+        Read(await Send(p, PrintJob(document))); // 1 prints (held)
+        await WaitFor(() => Read(Send(p, DirectJob.GetJobAttributesRequest(Uri, "phone", 1)).Result).Groups.Single(g => g.Tag == 2).Attributes["job-state"][0] is 5);
+        Read(await Send(p, PrintJob(document))); // 2 waits
+        Assert.Equal(2L * document.Length, budget.Used);
+        Assert.Equal(SharedPrinter.Ok, Read(await Send(p, DirectJob.CancelJobRequest(Uri, "phone", 2))).Status);
+        Assert.Equal(document.Length, budget.Used); // the cancelled job's document is let go at once
+        sink.Hold.SetResult();
+        await WaitFor(() => p.ActiveJobs == 0);
+        Assert.Single(sink.Jobs); // 2 was cancelled in the lock: the printing never took it up
+        Assert.Equal(0, budget.Used);
+        using var tight = new SharedPrinter(Laser, Id, "Office laser", "DESK", new Sink(), budget: new ShareBudget(document.Length - 1));
+        Assert.Equal(SharedPrinter.Busy, Read(await Send(tight, PrintJob(document))).Status);
+    }
+
+    [Fact]
+    public async Task A_server_that_failed_to_start_is_tried_again_with_the_next_list()
+    {
+        var host = new FlakyHost();
+        var env = new PrinterShareEnvironment(host, new Networks(), new Adverts(), (name, _) => Task.FromResult<SharedQueue?>(Laser with { Name = name }), new Sink());
+        await using var share = new PrinterShare(env, "DESK", [new PrinterShareChoice("Office laser", Id)], _ => { });
+        await share.OfferAsync(["Office laser"]);
+        Assert.Equal(PrinterShareState.Failed, share.State);
+        await share.OfferAsync(["Office laser"]); // the same list, 30 s later
+        Assert.Equal(PrinterShareState.On, share.State);
+    }
+
+    private sealed class FlakyHost : IPrinterShareHost
+    {
+        private int _tries;
+
+        public Task<IShareListener> StartAsync(PrinterListen listen, CancellationToken ct) =>
+            ++_tries == 1 ? throw new InvalidOperationException("not yet") : new Host().StartAsync(listen, ct);
     }
 
     [Fact]
