@@ -6,6 +6,7 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Buscar por significado (Buscar en carpetas y Preguntar en carpetas; Inkvolt Pro): encuentra páginas por lo que significan, no solo por las palabras que usan. Actívalo e indica un modelo de embeddings de tu propio servidor de IA; ves cada página antes de que se envíe, el resultado se queda en tu PC junto al índice de la carpeta, y después solo se envían las páginas nuevas o cambiadas.
 - Preguntar en carpetas (menú Edición; Inkvolt Pro): haz una pregunta sobre los archivos PDF de tus carpetas indexadas, o sobre los que elijas, y tu propio asistente de IA responde a partir de las páginas más relacionadas con ella. Cada respuesta cita el archivo y la página, y un clic lo abre ahí. Antes de que se envíe nada, ves cada página que se enviará y de qué archivo.
 
 ## 1.17.0

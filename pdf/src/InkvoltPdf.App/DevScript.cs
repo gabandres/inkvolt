@@ -40,6 +40,7 @@ namespace InkvoltPdf.App;
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
 /// Ask Across Folders (aifake answers): <c>folderask question · folderaskfiles a.pdf|b.pdf (ask in these PDFs; "folders" asks in the indexed folders again) · folderaskstate · folderaskopen i</c> (click the last answer's link i: logs the tab's file and page).
+/// Search by meaning (aifake makes stand-in embeddings): <c>meaningsetup model|off · indexoption meaning on|off · folderaskmeaning on|off · meaningstate</c>.
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
@@ -1584,6 +1585,21 @@ internal static class DevScript
             case "folderask": log.Add(await FolderAskWindow.Open(window, offScreen: true).DevAsk(arg)); break;
             case "folderaskfiles": FolderAskWindow.Open(window, offScreen: true).SetFiles(arg == "folders" ? [] : arg.Split('|')); break;
             case "folderaskstate": log.Add(FolderAskWindow.Open(window, offScreen: true).DevState()); break;
+            // Search by meaning: meaningsetup model|off · folderaskmeaning on|off · meaningstate (each folder's meaning index)
+            case "meaningsetup":
+                AppSettings.Current.MeaningEnabled = arg != "off";
+                AppSettings.Current.MeaningModel = arg == "off" ? AppSettings.Current.MeaningModel : arg;
+                break;
+            case "folderaskmeaning": FolderAskWindow.Open(window, offScreen: true).DevMeaning(arg == "on"); break;
+            case "meaningstate":
+                log.Add("meaning: " + string.Join(" | ", FolderSearches.All.Select(f =>
+                {
+                    var path = MeaningIndex.PathFor(FolderIndex.BasePathFor(FolderSearches.IndexDirectory, f.Folder));
+                    var cfg = AiService.Current(out _);
+                    var m = cfg is null || FolderMeaning.Model is null ? null : f.MeaningFor(FolderMeaning.Model, cfg.Endpoint.Key);
+                    return $"{Log.Name(f.Folder)}: file={(File.Exists(path) ? new FileInfo(path).Length : 0)} pieces={m?.Count} dims={m?.Dimensions}";
+                })));
+                break;
             case "folderaskopen":
             {
                 var clicked = FolderAskWindow.Open(window, offScreen: true).DevOpenLink(int.Parse(arg));
@@ -2248,6 +2264,19 @@ internal static class DevScript
     /// </summary>
     private sealed class DevAiHandler(string spec) : System.Net.Http.HttpMessageHandler
     {
+        private static float[] DevEmbedding(string text)
+        {
+            var v = new float[32];
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(text.ToLowerInvariant(), @"\p{L}{3,}"))
+            {
+                var word = m.Value switch { "income" or "earnings" or "sales" => "revenue", "money" => "budget", _ => m.Value };
+                var h = 0;
+                foreach (var c in word) h = (h * 31 + c) & 0x7FFFFFFF;
+                v[h % 32] += 1;
+            }
+            return v;
+        }
+
         protected override async Task<System.Net.Http.HttpResponseMessage> SendAsync(System.Net.Http.HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var mode = spec.Split(' ', 2);
@@ -2260,6 +2289,17 @@ internal static class DevScript
                 {
                     Content = new System.Net.Http.StringContent("""{"models":[{"name":"llama3.2:latest","context_length":4096}]}""") { Headers = { ContentType = json } },
                 };
+            if (request.RequestUri.AbsolutePath == "/api/embed" || request.RequestUri.AbsolutePath.EndsWith("/embeddings", StringComparison.Ordinal))
+            {
+                // Stand-in embeddings: each word (a few taken as one meaning) adds to one of 32 numbers.
+                using var asked = System.Text.Json.JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
+                var inputs = asked.RootElement.GetProperty("input").EnumerateArray().Select(e => e.GetString() ?? "").ToList();
+                var vectors = inputs.Select(DevEmbedding).ToList();
+                var body = request.RequestUri.AbsolutePath == "/api/embed"
+                    ? System.Text.Json.JsonSerializer.Serialize(new { embeddings = vectors })
+                    : System.Text.Json.JsonSerializer.Serialize(new { data = vectors.Select((v, i) => new { index = i, embedding = v }) });
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(body) { Headers = { ContentType = json } } };
+            }
             if (request.RequestUri.AbsolutePath.StartsWith("/api/", StringComparison.Ordinal))
                 return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.NotFound) { Content = new System.Net.Http.StringContent("{}") };
             if (request.RequestUri.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))

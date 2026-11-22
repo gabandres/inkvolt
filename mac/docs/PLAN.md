@@ -1680,7 +1680,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
   guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
   4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
-  `FolderAskTests` first).
+  `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
+  format, the send window before embedding; port `MeaningIndexTests` first).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).

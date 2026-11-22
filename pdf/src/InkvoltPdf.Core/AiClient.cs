@@ -26,7 +26,7 @@ public sealed record AiTimeouts(TimeSpan Connect, TimeSpan FirstByte, TimeSpan I
 /// name, plus the API key as a bearer token when there is one); no telemetry, cookies or redirects. Errors come out as
 /// <see cref="AiException"/> worded for the user; cancelling throws <see cref="OperationCanceledException"/>.
 /// </summary>
-public sealed class AiClient : IDisposable
+public sealed partial class AiClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly AiEndpoint _endpoint;

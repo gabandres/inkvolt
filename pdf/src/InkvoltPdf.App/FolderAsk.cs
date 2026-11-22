@@ -22,6 +22,7 @@ internal sealed class FolderAskWindow : Window
     private readonly RadioButton _inFolders = new() { Content = Strings.FolderAsk_InFolders, IsChecked = true, Margin = new Thickness(0, 0, 16, 0) };
     private readonly RadioButton _inFiles = new() { Content = Strings.FolderAsk_InFiles };
     private readonly Button _choose = new() { Content = Strings.FolderAsk_ChooseFiles, Margin = new Thickness(8, 0, 0, 0), Padding = new Thickness(10, 3, 10, 3) };
+    private readonly CheckBox _meaning = new() { Content = Strings.FolderAsk_AlsoMeaning, Margin = new Thickness(0, 6, 0, 0), ToolTip = Strings.FolderAsk_AlsoMeaningTip };
     private readonly TextBlock _filesText = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 4, 0, 0) };
     private readonly TextBlock _where = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 0) };
     private readonly TextBox _question = new() { AcceptsReturn = false, TextWrapping = TextWrapping.Wrap, Padding = new Thickness(8, 6, 8, 6) };
@@ -81,6 +82,12 @@ internal sealed class FolderAskWindow : Window
         {
             if (_files.Count == 0) ChooseFiles();
         };
+        _meaning.IsChecked = FolderMeaning.Model is not null;
+        _meaning.Click += (_, _) =>
+        {
+            if (_meaning.IsChecked == true && FolderMeaning.Model is null && (!FolderMeaning.ShowSettings(this) || FolderMeaning.Model is null))
+                _meaning.IsChecked = false;
+        };
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key != Key.Escape) return;
@@ -107,6 +114,7 @@ internal sealed class FolderAskWindow : Window
         scope.Children.Add(_choose);
         AutomationProperties.SetName(scope, Strings.FolderAsk_AskIn);
         top.Children.Add(scope);
+        top.Children.Add(_meaning);
         _filesText.Style = caption;
         top.Children.Add(_filesText);
         _where.Style = caption;
@@ -166,6 +174,8 @@ internal sealed class FolderAskWindow : Window
         else if (_files.Count == 0) _inFolders.IsChecked = true;
         ShowFiles();
     }
+
+    internal void DevMeaning(bool on) => _meaning.IsChecked = on;
 
     internal void SetFiles(IEnumerable<string> paths)
     {
@@ -231,6 +241,17 @@ internal sealed class FolderAskWindow : Window
             var files = _files.ToList();
             var notes = new List<string>();
             var pages = await Task.Run(() => inFiles ? FromFiles(files, notes, cts.Token) : FromFolders(folders, question, notes, cts.Token), cts.Token);
+            if (_meaning.IsChecked == true && inFiles) notes.Add(Strings.FolderAsk_MeaningFoldersOnly);
+            else if (_meaning.IsChecked == true)
+            {
+                // The pages closest in meaning join those sharing the question's words (their embeddings shown before they go).
+                if (FolderMeaning.Ready(this) is null || await FolderMeaning.SearchAsync(this, config, folders, question, MeaningPages, Say, cts.Token) is not { } hits)
+                {
+                    Say(Strings.TabAi_NotSent);
+                    return;
+                }
+                pages = await Task.Run(() => WithMeaning(pages, hits, cts.Token), cts.Token);
+            }
             var request = FolderAsk.Build(question, pages, config.InputTokens);
             if (request is null)
             {
@@ -348,6 +369,31 @@ internal sealed class FolderAskWindow : Window
         }
         if (FolderSearches.All.Any(f => f.Indexer?.Status.Phase is IndexerPhase.Indexing or IndexerPhase.Scanning)) notes.Add(Strings.Folder_StillIndexing);
         return pages;
+    }
+
+    /// <summary>Pages closest in meaning brought to a question by search by meaning.</summary>
+    private const int MeaningPages = 30;
+
+    /// <summary>The pages with their closeness in meaning: those already proposed get it, the others are read and added.</summary>
+    private static List<FolderAskPage> WithMeaning(List<FolderAskPage> pages, IReadOnlyList<(IndexedFolder Folder, MeaningHit Hit)> hits, CancellationToken cancel)
+    {
+        var byPage = pages.Select((p, i) => (p, i)).ToDictionary(x => (x.p.Path.ToUpperInvariant(), x.p.Page), x => x.i);
+        var result = pages.ToList();
+        foreach (var group in hits.GroupBy(h => h.Folder))
+        {
+            var missing = new List<(string RelativePath, int Page, double Score)>();
+            foreach (var (_, hit) in group)
+            {
+                var path = Path.Combine(group.Key.Folder, hit.RelativePath);
+                if (byPage.TryGetValue((path.ToUpperInvariant(), hit.Page), out var at)) result[at] = result[at] with { Meaning = hit.Score };
+                else missing.Add((hit.RelativePath, hit.Page, hit.Score));
+            }
+            if (missing.Count == 0 || group.Key.Indexer?.Index is not { } index) continue;
+            var texts = index.PageTexts([.. missing.Select(m => (m.RelativePath, m.Page))], cancel);
+            for (var i = 0; i < missing.Count; i++)
+                result.Add(new FolderAskPage(Path.Combine(group.Key.Folder, missing[i].RelativePath), missing[i].RelativePath, missing[i].Page, texts[i]) { Meaning = missing[i].Score });
+        }
+        return result;
     }
 
     private static List<FolderAskPage> FromFiles(List<string> files, List<string> notes, CancellationToken cancel)

@@ -102,7 +102,7 @@ public sealed class FolderAskTests : IDisposable
             new(@"C:\b.pdf", "b.pdf", 0, "Unrelated text about cats.") { Meaning = 0.1 },
         };
         var request = FolderAsk.Build("How did income change?", pages, 4096)!;
-        Assert.Equal("a.pdf", request.Sources[0].Name);
+        Assert.Equal("a.pdf", Assert.Single(request.Sources).Name); // b.pdf is far from the closest page: left out
     }
 
     [Fact]

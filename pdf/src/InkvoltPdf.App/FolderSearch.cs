@@ -126,11 +126,52 @@ internal sealed class IndexedFolder(AppSettings.IndexedFolderSetting setting)
 
     public void Stop(TimeSpan wait) => _indexer?.Stop(wait);
 
+    private MeaningIndex? _meaning;
+
+    private string MeaningPath => MeaningIndex.PathFor(FolderIndex.BasePathFor(FolderSearches.IndexDirectory, Folder));
+
+    /// <summary>
+    /// The folder's meaning index for <paramref name="model"/> at <paramref name="endpoint"/> (search by meaning), read once;
+    /// one made by another model or endpoint, of another version or damaged is deleted and built again.
+    /// </summary>
+    public MeaningIndex MeaningFor(string model, string endpoint)
+    {
+        if (_meaning is { } m && m.Model == model && m.Endpoint == endpoint) return m;
+        var loaded = MeaningIndex.Load(MeaningPath, model, endpoint);
+        if (loaded.Discarded is { } why)
+        {
+            Log.Write($"A folder's meaning index is made again: {why}");
+            DeleteMeaning();
+        }
+        return _meaning = loaded;
+    }
+
+    /// <summary>Throws the meaning index away (the model's vectors changed length).</summary>
+    public void ForgetMeaning()
+    {
+        _meaning = null;
+        DeleteMeaning();
+    }
+
+    private void DeleteMeaning()
+    {
+        try
+        {
+            File.Delete(MeaningPath);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Log.Write($"A folder's meaning index wasn't deleted: {ex.GetType().Name}");
+        }
+    }
+
     public void RemoveIndex()
     {
         var indexer = _indexer ?? new FolderIndexer(Folder, FolderIndex.BasePathFor(FolderSearches.IndexDirectory, Folder));
         _indexer = null;
         indexer.Changed -= FolderSearches.RaiseChanged;
+        _meaning = null;
+        DeleteMeaning();
         // Off this thread: a worker may need a moment to end.
         Task.Run(() =>
         {
@@ -146,12 +187,23 @@ internal sealed class FolderResult(string folder, FolderHit hit)
     public string FullPath { get; } = Path.Combine(folder, hit.RelativePath);
     public string Name { get; } = Path.GetFileName(hit.RelativePath);
     public int Page { get; } = hit.Page;
-    public string Where { get; } = hit.Hits > 1 ? Loc.Format(Strings.Folder_WherePageTimes, hit.Page + 1, hit.Hits) : Loc.Format(Strings.Folder_WherePage, hit.Page + 1);
+    public string Where { get; init; } = hit.Hits > 1 ? Loc.Format(Strings.Folder_WherePageTimes, hit.Page + 1, hit.Hits) : Loc.Format(Strings.Folder_WherePage, hit.Page + 1);
     public string Location { get; } = Path.GetDirectoryName(Path.Combine(folder, hit.RelativePath)) ?? folder;
     public string Before { get; } = hit.Excerpt[..hit.MatchStart];
     public string Match { get; } = hit.Excerpt.Substring(hit.MatchStart, hit.MatchLength);
     public string After { get; } = hit.Excerpt[(hit.MatchStart + hit.MatchLength)..];
     public string Description => $"{Name}, {Where}: {Before}{Match}{After}";
+
+    /// <summary>A page found by meaning: its closeness, and the start of its closest piece for the excerpt.</summary>
+    public static FolderResult ByMeaning(string folder, MeaningHit hit, string pageText)
+    {
+        var piece = MeaningIndex.PieceText(pageText, hit.Piece).ReplaceLineEndings(" ");
+        var excerpt = piece.Length > 160 ? piece[..160].TrimEnd() + "…" : piece;
+        return new FolderResult(folder, new FolderHit(hit.RelativePath, hit.Page, 0, excerpt, 0, 0))
+        {
+            Where = Loc.Format(Strings.Folder_WhereMeaning, hit.Page + 1, Math.Clamp(hit.Score, 0, 1)),
+        };
+    }
 }
 
 /// <summary>
@@ -168,6 +220,10 @@ internal sealed class FolderSearchWindow : Window
     private readonly CheckBox _matchCase = new() { Content = Strings.Folder_MatchCase, Margin = new Thickness(0, 0, 14, 0) };
     private readonly CheckBox _wholeWords = new() { Content = Strings.Folder_WholeWords, Margin = new Thickness(0, 0, 14, 0) };
     private readonly CheckBox _ignoreAccents = new() { Content = Strings.Folder_IgnoreAccents, IsChecked = true, ToolTip = Strings.Folder_IgnoreAccentsTip };
+    private readonly CheckBox _byMeaning = new() { Content = Strings.Folder_ByMeaning, Margin = new Thickness(14, 0, 0, 0), ToolTip = Strings.Folder_ByMeaningTip };
+    private readonly Button _find = new() { Content = Strings.Folder_Search, MinWidth = 88, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+    /// <summary>The last results came by meaning: they open at their page, without the find bar.</summary>
+    private bool _lastByMeaning;
     private readonly ObservableCollection<FolderResult> _results = [];
     private readonly ListBox _list = new() { BorderThickness = new Thickness(0), Background = System.Windows.Media.Brushes.Transparent };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 8, 0, 8) };
@@ -224,7 +280,7 @@ internal sealed class FolderSearchWindow : Window
         _typing.Tick += (_, _) =>
         {
             _typing.Stop();
-            Search();
+            if (_byMeaning.IsChecked != true) Search(); // by meaning, nothing is sent until Search is pressed
         };
         _box.TextChanged += (_, _) =>
         {
@@ -232,7 +288,20 @@ internal sealed class FolderSearchWindow : Window
             _typing.Start();
         };
         _box.PreviewKeyDown += OnBoxKey;
-        foreach (var box in new[] { _matchCase, _wholeWords, _ignoreAccents }) box.Click += (_, _) => Search();
+        foreach (var box in new[] { _matchCase, _wholeWords, _ignoreAccents })
+            box.Click += (_, _) =>
+            {
+                if (_byMeaning.IsChecked != true) Search();
+            };
+        _byMeaning.Click += (_, _) =>
+        {
+            if (_byMeaning.IsChecked == true && FolderMeaning.Model is null && (!FolderMeaning.ShowSettings(this) || FolderMeaning.Model is null))
+                _byMeaning.IsChecked = false;
+            foreach (var box in new[] { _matchCase, _wholeWords, _ignoreAccents }) box.IsEnabled = _byMeaning.IsChecked != true;
+            _search?.Cancel();
+            _results.Clear();
+            _status.Text = _byMeaning.IsChecked == true ? Strings.Folder_MeaningPress : "";
+        };
         _list.MouseDoubleClick += (_, e) =>
         {
             if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(_list, d) is ListBoxItem) OpenSelected();
@@ -294,9 +363,13 @@ internal sealed class FolderSearchWindow : Window
 
         AutomationProperties.SetName(_box, Strings.Folder_SearchName);
         Placeholder.SetText(_box, Strings.Folder_Placeholder);
-        var find = new Button { Content = Strings.Folder_Search, MinWidth = 88, Margin = new Thickness(8, 0, 0, 0), IsDefault = true };
+        var find = _find;
         find.SetResourceReference(StyleProperty, "AccentButtonStyle");
-        find.Click += (_, _) => Search();
+        find.Click += (_, _) =>
+        {
+            if (_search is { IsCancellationRequested: false } running && Equals(find.Content, Strings.Common_Stop)) running.Cancel();
+            else Search();
+        };
         var searchRow = new DockPanel();
         DockPanel.SetDock(find, Dock.Right);
         searchRow.Children.Add(find);
@@ -306,6 +379,14 @@ internal sealed class FolderSearchWindow : Window
         options.Children.Add(_matchCase);
         options.Children.Add(_wholeWords);
         options.Children.Add(_ignoreAccents);
+        options.Children.Add(_byMeaning);
+        var meaningSettings = new Button { Content = Strings.Folder_MeaningSettings, Margin = new Thickness(6, 0, 0, 0), Padding = new Thickness(8, 1, 8, 1) };
+        meaningSettings.Click += (_, _) =>
+        {
+            FolderMeaning.ShowSettings(this);
+            if (FolderMeaning.Model is null) _byMeaning.IsChecked = false;
+        };
+        options.Children.Add(meaningSettings);
 
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _status.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
@@ -408,6 +489,12 @@ internal sealed class FolderSearchWindow : Window
             _status.Text = FolderSearches.All.Count == 0 ? Strings.Folder_NoneIndexed : Strings.Folder_NotOpenYet;
             return;
         }
+        if (_byMeaning.IsChecked == true)
+        {
+            await MeaningAsync(query, folders, cts);
+            return;
+        }
+        _lastByMeaning = false;
         const int Limit = 500;
         var options = new FolderSearchOptions(_matchCase.IsChecked == true, _wholeWords.IsChecked == true, _ignoreAccents.IsChecked == true, Limit);
         _last = (query, options);
@@ -488,9 +575,67 @@ internal sealed class FolderSearchWindow : Window
         foreach (var r in batch) _results.Add(r);
     }
 
+    /// <summary>
+    /// Search by meaning: the folders' meaning indexes brought up to date and the query embedded (each shown in the send
+    /// window first), then the 50 pages closest in meaning, best first. Search turns into Stop meanwhile.
+    /// </summary>
+    private async Task MeaningAsync(string query, List<IndexedFolder> folders, CancellationTokenSource cts)
+    {
+        _lastByMeaning = true;
+        if (FolderMeaning.Ready(this) is not { } config)
+        {
+            _status.Text = Strings.TabAi_NotSent;
+            return;
+        }
+        _find.Content = Strings.Common_Stop;
+        try
+        {
+            var hits = await FolderMeaning.SearchAsync(this, config, folders, query, 50, s => _status.Text = s, cts.Token);
+            if (hits is null || cts.IsCancellationRequested) return;
+            var found = await Task.Run(() => hits.GroupBy(h => h.Folder).SelectMany(g =>
+            {
+                var list = g.ToList();
+                var texts = g.Key.Indexer?.Index?.PageTexts([.. list.Select(h => (h.Hit.RelativePath, h.Hit.Page))], cts.Token) ?? [];
+                return list.Select((h, i) => (h.Hit.Score, Result: FolderResult.ByMeaning(g.Key.Folder, h.Hit, i < texts.Count ? texts[i] : "")));
+            }).OrderByDescending(r => r.Score).Select(r => r.Result).ToList(), cts.Token);
+            if (cts.IsCancellationRequested) return;
+            foreach (var r in found) _results.Add(r);
+            _status.Text = found.Count == 0 ? Strings.Folder_MeaningNone : Loc.Format(Strings.Folder_MeaningFound, Loc.Plural(found.Count, Strings.Folder_Pages_One, Strings.Folder_Pages_Many));
+            if (FolderSearches.All.Any(f => f.Indexer?.Status.Phase is IndexerPhase.Indexing or IndexerPhase.Scanning)) _status.Text += " " + Strings.Folder_StillIndexing;
+        }
+        catch (OperationCanceledException)
+        {
+            _status.Text = Strings.Folder_MeaningStopped;
+        }
+        catch (AiException ex)
+        {
+            _status.Text = ex.Message;
+        }
+        catch (FolderIndexDamagedException)
+        {
+            foreach (var f in folders) f.Indexer?.Rebuild();
+            _status.Text = Strings.Folder_MeaningDamaged;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ObjectDisposedException)
+        {
+            Log.Write($"Search by meaning failed: {ex.GetType().Name}");
+            _status.Text = Loc.Format(Strings.Folder_SearchError, ex.Message);
+        }
+        finally
+        {
+            _find.Content = Strings.Folder_Search;
+        }
+    }
+
     private void OpenSelected()
     {
-        if (_list.SelectedItem is not FolderResult result || _last is not { } last) return;
+        if (_list.SelectedItem is not FolderResult result) return;
+        if (_lastByMeaning)
+        {
+            _ = _host.OpenAtPage(result.FullPath, result.Page);
+            return;
+        }
+        if (_last is not { } last) return;
         _ = _host.OpenFolderHit(result.FullPath, result.Page, last.Query, last.Options.MatchCase, last.Options.WholeWord, last.Options.IgnoreAccents);
     }
 
@@ -627,7 +772,7 @@ internal sealed class FolderSearchWindow : Window
 
     internal void DevOption(string which, bool on)
     {
-        (which switch { "case" => _matchCase, "whole" => _wholeWords, _ => _ignoreAccents }).IsChecked = on;
+        (which switch { "case" => _matchCase, "whole" => _wholeWords, "meaning" => _byMeaning, _ => _ignoreAccents }).IsChecked = on;
     }
 
     internal void DevSelect(int index)

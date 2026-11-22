@@ -12903,4 +12903,89 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="FolderAsk_OnlyThis" xml:space="preserve">
     <value>Only this text, the instructions shown below and the model's name are sent, with each file's name within its folder as listed: not where the files are on this PC, their properties or any other page.</value>
   </data>
+  <data name="Folder_ByMeaning" xml:space="preserve">
+    <value>By meaning</value>
+  </data>
+  <data name="Folder_ByMeaningTip" xml:space="preserve">
+    <value>Find pages close in meaning to your words through your own AI assistant's embedding model (Inkvolt Pro). Nothing is sent until you press Search.</value>
+  </data>
+  <data name="Folder_MeaningSettings" xml:space="preserve">
+    <value>Meaning…</value>
+  </data>
+  <data name="Folder_MeaningPress" xml:space="preserve">
+    <value>Type what you're looking for and press Search. Nothing is sent before you see it.</value>
+  </data>
+  <data name="Folder_WhereMeaning" xml:space="preserve">
+    <value>page {0}, {1:P0} close in meaning</value>
+  </data>
+  <data name="Folder_MeaningNone" xml:space="preserve">
+    <value>Nothing found by meaning: the folders' pages may have no text yet.</value>
+  </data>
+  <data name="Folder_MeaningFound" xml:space="preserve">
+    <value>{0} closest in meaning, best first.</value>
+    <comment>{0} is "50 pages"</comment>
+  </data>
+  <data name="Folder_MeaningStopped" xml:space="preserve">
+    <value>Stopped. The pages already turned into embeddings are kept.</value>
+  </data>
+  <data name="Folder_MeaningDamaged" xml:space="preserve">
+    <value>A folder's index doesn't read back and is being built again. Search by meaning again once it's up to date.</value>
+  </data>
+  <data name="Meaning_Title" xml:space="preserve">
+    <value>Search by Meaning</value>
+  </data>
+  <data name="Meaning_Note" xml:space="preserve">
+    <value>Search by meaning finds pages by what they mean, not only the words they use. Your AI assistant's server turns each page's text into embeddings (lists of numbers) with an embedding model, and they're kept on this PC beside each folder's index. Before any page goes, the send window shows every one. It stays off until you turn it on.</value>
+  </data>
+  <data name="Meaning_TurnOn" xml:space="preserve">
+    <value>Turn on search by meaning</value>
+  </data>
+  <data name="Meaning_Model" xml:space="preserve">
+    <value>Embedding model</value>
+  </data>
+  <data name="Meaning_ModelTip" xml:space="preserve">
+    <value>A model that makes embeddings, not a chat model: nomic-embed-text, mxbai-embed-large or bge-m3 in Ollama (ollama pull nomic-embed-text), or text-embedding-3-small with OpenAI.</value>
+  </data>
+  <data name="Meaning_NeedsAssistant" xml:space="preserve">
+    <value>Set up the AI assistant first (Review › AI Assistant › Settings): search by meaning uses its server.</value>
+  </data>
+  <data name="Meaning_Where" xml:space="preserve">
+    <value>Embeddings come from the AI assistant's server. {0}</value>
+    <comment>{0} says where the server is: "Stays on this PC." and the like</comment>
+  </data>
+  <data name="Meaning_ChooseModel" xml:space="preserve">
+    <value>Type the embedding model's name.</value>
+  </data>
+  <data name="Meaning_Checking" xml:space="preserve">
+    <value>Checking which pages are new…</value>
+  </data>
+  <data name="Meaning_SentQuery" xml:space="preserve">
+    <value>Your search words, to be turned into an embedding by {0}</value>
+    <comment>{0} is a model name</comment>
+  </data>
+  <data name="Meaning_SentPages" xml:space="preserve">
+    <value>The text of {0} from {1}, to be turned into embeddings by {2}, then your search words</value>
+    <comment>{0} is "40 pages", {1} "3 files", {2} a model name</comment>
+  </data>
+  <data name="Meaning_LeftOut" xml:space="preserve">
+    <value>Past the limit of {0:N0} pieces, the rest isn't searched by meaning.</value>
+  </data>
+  <data name="Meaning_OnlyThis" xml:space="preserve">
+    <value>Only this text and the model's name are sent: no file name, folder or other document. The embeddings stay on this PC beside the folder's index, and next time only new or changed pages are sent.</value>
+  </data>
+  <data name="Meaning_SendTitle" xml:space="preserve">
+    <value>Send for search by meaning?</value>
+  </data>
+  <data name="Meaning_Embedding" xml:space="preserve">
+    <value>Turning pages into embeddings: {0:N0} of {1:N0} pieces…</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaning" xml:space="preserve">
+    <value>Also find pages by meaning</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaningTip" xml:space="preserve">
+    <value>Pages close in meaning to the question join those that share its words (search by meaning, through your own AI assistant's embedding model).</value>
+  </data>
+  <data name="FolderAsk_MeaningFoldersOnly" xml:space="preserve">
+    <value>Search by meaning works on indexed folders only.</value>
+  </data>
 </root>

@@ -12884,4 +12884,89 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="FolderAsk_OnlyThis" xml:space="preserve">
     <value>Solo se envían este texto, las instrucciones que se muestran abajo y el nombre del modelo, con el nombre de cada archivo dentro de su carpeta tal como aparece en la lista: no dónde están los archivos en este PC, sus propiedades ni ninguna otra página.</value>
   </data>
+  <data name="Folder_ByMeaning" xml:space="preserve">
+    <value>Por significado</value>
+  </data>
+  <data name="Folder_ByMeaningTip" xml:space="preserve">
+    <value>Encuentra páginas cercanas en significado a tus palabras con el modelo de embeddings de tu propio asistente de IA (Inkvolt Pro). No se envía nada hasta que pulses Buscar.</value>
+  </data>
+  <data name="Folder_MeaningSettings" xml:space="preserve">
+    <value>Significado…</value>
+  </data>
+  <data name="Folder_MeaningPress" xml:space="preserve">
+    <value>Escribe lo que buscas y pulsa Buscar. No se envía nada antes de que lo veas.</value>
+  </data>
+  <data name="Folder_WhereMeaning" xml:space="preserve">
+    <value>página {0}, cercanía de significado {1:P0}</value>
+  </data>
+  <data name="Folder_MeaningNone" xml:space="preserve">
+    <value>No se encontró nada por significado: puede que las páginas de las carpetas aún no tengan texto.</value>
+  </data>
+  <data name="Folder_MeaningFound" xml:space="preserve">
+    <value>{0} más cercanas en significado, de mejor a peor.</value>
+    <comment>{0} is "50 pages"</comment>
+  </data>
+  <data name="Folder_MeaningStopped" xml:space="preserve">
+    <value>Detenido. Se conservan las páginas que ya se convirtieron en embeddings.</value>
+  </data>
+  <data name="Folder_MeaningDamaged" xml:space="preserve">
+    <value>El índice de una carpeta no se puede leer y se está creando de nuevo. Vuelve a buscar por significado cuando esté al día.</value>
+  </data>
+  <data name="Meaning_Title" xml:space="preserve">
+    <value>Buscar por significado</value>
+  </data>
+  <data name="Meaning_Note" xml:space="preserve">
+    <value>Buscar por significado encuentra páginas por lo que significan, no solo por las palabras que usan. El servidor de tu asistente de IA convierte el texto de cada página en embeddings (listas de números) con un modelo de embeddings, y se guardan en este PC junto al índice de cada carpeta. Antes de enviar ninguna página, la ventana de envío las muestra todas. Está desactivado hasta que lo actives.</value>
+  </data>
+  <data name="Meaning_TurnOn" xml:space="preserve">
+    <value>Activar la búsqueda por significado</value>
+  </data>
+  <data name="Meaning_Model" xml:space="preserve">
+    <value>Modelo de embeddings</value>
+  </data>
+  <data name="Meaning_ModelTip" xml:space="preserve">
+    <value>Un modelo que genera embeddings, no un modelo de chat: nomic-embed-text, mxbai-embed-large o bge-m3 en Ollama (ollama pull nomic-embed-text), o text-embedding-3-small con OpenAI.</value>
+  </data>
+  <data name="Meaning_NeedsAssistant" xml:space="preserve">
+    <value>Primero configura el asistente de IA (Revisar › Asistente de IA › Configuración): la búsqueda por significado usa su servidor.</value>
+  </data>
+  <data name="Meaning_Where" xml:space="preserve">
+    <value>Los embeddings vienen del servidor del asistente de IA. {0}</value>
+    <comment>{0} says where the server is: "Stays on this PC." and the like</comment>
+  </data>
+  <data name="Meaning_ChooseModel" xml:space="preserve">
+    <value>Escribe el nombre del modelo de embeddings.</value>
+  </data>
+  <data name="Meaning_Checking" xml:space="preserve">
+    <value>Comprobando qué páginas son nuevas…</value>
+  </data>
+  <data name="Meaning_SentQuery" xml:space="preserve">
+    <value>Tus palabras de búsqueda, para convertirlas en un embedding con {0}</value>
+    <comment>{0} is a model name</comment>
+  </data>
+  <data name="Meaning_SentPages" xml:space="preserve">
+    <value>El texto de {0} de {1}, para convertirlo en embeddings con {2}, y después tus palabras de búsqueda</value>
+    <comment>{0} is "40 pages", {1} "3 files", {2} a model name</comment>
+  </data>
+  <data name="Meaning_LeftOut" xml:space="preserve">
+    <value>Por encima del límite de {0:N0} fragmentos, el resto no se busca por significado.</value>
+  </data>
+  <data name="Meaning_OnlyThis" xml:space="preserve">
+    <value>Solo se envían este texto y el nombre del modelo: ningún nombre de archivo, carpeta ni otro documento. Los embeddings se quedan en este PC junto al índice de la carpeta, y la próxima vez solo se envían las páginas nuevas o cambiadas.</value>
+  </data>
+  <data name="Meaning_SendTitle" xml:space="preserve">
+    <value>¿Enviar para buscar por significado?</value>
+  </data>
+  <data name="Meaning_Embedding" xml:space="preserve">
+    <value>Convirtiendo páginas en embeddings: {0:N0} de {1:N0} fragmentos…</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaning" xml:space="preserve">
+    <value>Buscar también páginas por significado</value>
+  </data>
+  <data name="FolderAsk_AlsoMeaningTip" xml:space="preserve">
+    <value>Las páginas cercanas en significado a la pregunta se suman a las que comparten sus palabras (buscar por significado, con el modelo de embeddings de tu propio asistente de IA).</value>
+  </data>
+  <data name="FolderAsk_MeaningFoldersOnly" xml:space="preserve">
+    <value>La búsqueda por significado solo funciona en carpetas indexadas.</value>
+  </data>
 </root>

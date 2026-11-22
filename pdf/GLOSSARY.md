@@ -29,6 +29,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   (`FolderIndex.Rank`, any word, not all as a search); their **passages** that fit the model go, each under its **source**
   (a file, numbered as the model cites it) and page; a **citation** ([2, p. 5]) is a link only when that source's page was
   sent. The send window's **listing** names every file and its pages.
+- **Meaning index** (`Core/MeaningIndex.cs`, `Core/AiEmbeddings.cs`; Windows `App/FolderMeaning.cs`): search by meaning's file
+  beside a folder index (`.meaning`): each page's text in a few **pieces**, each piece's **embedding** (a vector from the
+  user's own embedding model) kept unit length in 8 bits a number. **Pending** is what it lacks against its folder index
+  (new or changed files' pieces, gone files), shown in the send window before it is **embedded**; **nearest** pages are those
+  whose best piece points closest to the query's vector. Made for one model at one endpoint: another one starts it again.
 - **Index worker** (`Core/IndexWorkers.cs`): the app started again with `--index-worker <pipe name>`, the only thing that
   parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
 - **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index
