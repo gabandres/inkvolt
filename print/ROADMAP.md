@@ -48,7 +48,7 @@ where to get Pro, and never takes away a result already made.
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
 | 2.5 TWAIN | All of it | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
-| 3.1 Share a scanner on the network | | All of it |
+| 3.1 Share a scanner on the network | All of it (Pro until the owner's decision of 2026-11-22) | |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
 | 3.3 The printer's own copier | All of it | |
 | 3.4 Job notifications | All of it | |
@@ -121,7 +121,7 @@ What each is: the README's feature table. What waits for real hardware: the READ
 
 ### Wave 3
 
-- **3.1 Share a scanner on the network (eSCL).** Done on Windows (Pro; Kestrel from ASP.NET Core's shared framework, the
+- **3.1 Share a scanner on the network (eSCL).** Done on Windows (free since 2026-11-22, the owner's decision; Kestrel from ASP.NET Core's shared framework, the
   owner's decision, no NuGet package; TCP 9780, HTTPS only, Private networks only). Open: an iPhone scan app, a Mac's Image
   Capture, sane-airscan or another Inkvolt Print over a real network with a real USB scanner behind it (this PC's LAN is
   Public). **Mac half waits** (an ICA scanner shared the same way).

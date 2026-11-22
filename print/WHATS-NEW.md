@@ -8,6 +8,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Both sides on a feeder that scans one side: check Both sides: turn the stack over (or the preset option), scan the fronts, turn the stack over when asked and scan the backs. The pages come out in order; if your scanner's tray reverses the stack, Backs in the other order fixes it, and the review says when the fronts and backs don't match up.
 - Pages fed sideways or upside down are turned upright on their own when their text shows which way is up (Turn pages upright, on by default, also per preset). Pages it isn't sure of stay as they came, and Undo turns them back.
 - Smaller PDFs: a preset's new Smaller file (black and white) choice saves each page in black and white, often a tenth of the size or less. Scans in black and white are saved that way too.
+- Sharing a scanner on the network is now free for good, not part of Inkvolt Pro.
 
 ## 1.7.0
 - Print to a network printer that isn't set up in Windows: Print a PDF, Copy and Print photos now send the pages straight to the printer over the network, in its own format, with no driver and no administrator. Where Windows has a queue for it, the queue stays the default and Print offers "Print straight to the printer" too. You see each page print, and the print queue card lists the printer's own jobs.

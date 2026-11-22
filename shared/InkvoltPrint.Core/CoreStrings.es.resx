@@ -2179,9 +2179,6 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Pro_FleetExport" xml:space="preserve">
     <value>Exportación de la flota y línea de comandos</value>
   </data>
-  <data name="Pro_ScannerSharing" xml:space="preserve">
-    <value>Uso compartido del escáner</value>
-  </data>
   <data name="Pro_SupplyHistoryExport_Describe" xml:space="preserve">
     <value>Exporta un CSV con los niveles de tinta y tóner de cada impresora a lo largo del tiempo, con las páginas que imprimió cada cartucho.</value>
   </data>
@@ -2190,9 +2187,6 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Pro_FleetExport_Describe" xml:space="preserve">
     <value>Exporta la página de la flota como CSV o JSON, lee todas las impresoras desde un script con inkvoltprint status --all y resuelve todas las colas a la vez.</value>
-  </data>
-  <data name="Pro_ScannerSharing_Describe" xml:space="preserve">
-    <value>Comparte en la red un escáner USB o que solo funciona con controlador, para que teléfonos, Mac y otros PC escaneen desde él.</value>
   </data>
   <data name="Pro_Snmpv3_Describe" xml:space="preserve">
     <value>Lee impresoras cuyo SNMP pide un nombre de usuario y claves (SNMPv3) en lugar de una comunidad.</value>
@@ -2205,9 +2199,6 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Pro_FleetExport_Locked" xml:space="preserve">
     <value>La exportación de la flota, status --all y Resolver todo son parte de Inkvolt Pro.</value>
-  </data>
-  <data name="Pro_ScannerSharing_Locked" xml:space="preserve">
-    <value>El uso compartido del escáner es parte de Inkvolt Pro.</value>
   </data>
   <data name="Pro_Snmpv3_Locked" xml:space="preserve">
     <value>SNMPv3 es parte de Inkvolt Pro.</value>
