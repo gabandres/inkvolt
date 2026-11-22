@@ -85,6 +85,12 @@ public sealed class AppState
 
     /// <summary>Scans of the glass: find the photos on it and save each one by itself.</summary>
     public bool ScanFindPhotos { get; set; }
+
+    /// <summary>Scan review: pages lying sideways or upside down turned upright when their text says so clearly.</summary>
+    public bool ScanUpright { get; set; } = true;
+
+    /// <summary>A one-sided feeder scans both sides: the fronts, then the stack turned over for the backs (Core.Imaging.TurnedStack).</summary>
+    public bool ScanTurnStack { get; set; }
     public string? PrintFolder { get; set; }
 
     /// <summary>Photos tab: the folder pictures were last added from, and the last layout (PhotosViewModel's layout keys).</summary>

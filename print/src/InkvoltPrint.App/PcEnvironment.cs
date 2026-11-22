@@ -177,9 +177,13 @@ public abstract class PcEnvironment
 
     /// <summary>
     /// What the made-up scanners hold for the next scan: a batch with separator sheets in the feeder when the scan splits into
-    /// files, a few photos on the glass when it looks for them. Nothing on a real PC.
+    /// files, a few photos on the glass when it looks for them, a stack's fronts or (turned over) its backs for two-sided
+    /// scanning on a one-sided feeder. Nothing on a real PC.
     /// </summary>
-    public virtual void PrepareScan(bool feederBatch, bool photosOnGlass) { }
+    public virtual void PrepareScan(bool feederBatch, bool photosOnGlass, StackSide? turnedStack = null) { }
+
+    /// <summary>Which pass of a turned stack (<see cref="Core.Imaging.TurnedStack"/>) the next feeder scan is.</summary>
+    public enum StackSide { Fronts, Backs }
 
     private sealed class RealPc : PcEnvironment
     {

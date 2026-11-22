@@ -162,10 +162,16 @@ Windows' own printing and scanning (the owner: "do all of them", 2026-11-21). Wi
 printers on Windows' IPP class driver, which lacks the makers' extras: 4.2 and 4.5 answer that. Each line says Done when
 merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 
-- **Batch A (a pile of paper):** 4.1 Two-sided scanning on a one-sided feeder (fronts, turn the stack, backs; pages put
-  in order; a preset option). 4.3 Pages turned upright on their own (sideways and upside down; `Upright` in shared core;
-  undoable in the review). 4.4 Small black-and-white PDFs (a 1-bit page as CCITT G4, an encoder in shared core that
-  Inkvolt PDF's 4.8 reuses; a "smaller file" choice per preset).
+- **Batch A (a pile of paper):**
+  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows: fronts, the stack turned over, backs, pages put in
+    order, the other order one click away, counts that differ said; a preset option (README, "Two-sided on a one-sided
+    feeder"; `TurnedStack`). **Next:** a person with a one-sided feeder to try both tray kinds; the Mac half waits for the new Mac.
+  - **4.3 Pages turned upright on their own.** Done on Windows: sideways and upside down, only when sure, on by default
+    (every corpus page each way round), one Undo step (`PageUpright`). **Next:** real feeder scans, and pages in scripts it
+    leaves alone; the Mac half waits.
+  - **4.4 Small black-and-white PDFs.** Done on Windows: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
+    encoder, read back by MuPDF; a "smaller file" choice per preset; a text page 17 to 60 times smaller than its JPEG
+    (`CcittG4`, `Bilevel`). **Next:** Inkvolt PDF's 4.8 to reuse it; the Mac half waits.
 - **Batch B:** 4.2 Two-sided printing by hand for printers without a duplexer (odd sides, how to reload, even sides;
   Print a PDF, Batch, Copy, Photos; needs a one-sided printer to confirm). 4.5 Ready for Windows' new driver: per
   printer, which driver its queue uses, whether the printer answers IPP and eSCL, *Set up with Windows' driver* beside

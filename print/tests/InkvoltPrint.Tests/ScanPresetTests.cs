@@ -405,6 +405,20 @@ public class PresetPlanTests
         Assert.False(PresetPlan.For(Doc with { FileType = PresetFileType.Pdf }, Caps(), null, true, false).Ocr);
         Assert.False(PresetPlan.For(Doc with { FileType = PresetFileType.Jpeg }, Caps(), null, true, false).Ocr);
     }
+
+    [Fact]
+    public void A_smaller_file_scans_grey_and_saves_one_bit_pages()
+    {
+        // Roadmap 4.4: black and white at 1 bit from a grey scan, whatever the color setting; pictures (JPEG) stay as they are.
+        var small = PresetPlan.For(Doc with { Color = true, SmallerFile = true, FileType = PresetFileType.Pdf }, Caps(), null, true, false);
+        Assert.Equal((ScanColor.Grayscale, true), (small.Request.Color, small.OneBit));
+        Assert.False(PresetPlan.For(Doc with { SmallerFile = true, FileType = PresetFileType.Jpeg }, Caps(), null, true, false).OneBit);
+        Assert.False(PresetPlan.For(Doc, Caps(), null, true, false).OneBit);
+        // Inkvolt PDF's black-and-white presets: saved at 1 bit too.
+        Assert.True(PresetPlan.For(Doc with { BlackAndWhite = true, Color = false }, Caps(), null, true, false).OneBit);
+        Assert.StartsWith("Searchable PDF · feeder or glass · black and white, 300 dpi, smaller file",
+            ScanPresetText.Summary(Doc with { SmallerFile = true }));
+    }
 }
 
 public class SyncFolderTests

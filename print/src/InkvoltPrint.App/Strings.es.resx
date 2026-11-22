@@ -1702,7 +1702,7 @@ Los detalles se guardaron en {1}</value>
     <value>Origen</value>
   </data>
   <data name="Presets_BothSides" xml:space="preserve">
-    <value>Ambas caras (alimentador a doble cara)</value>
+    <value>Ambas caras</value>
   </data>
   <data name="Presets_PageSize" xml:space="preserve">
     <value>Tamaño de página</value>
@@ -3681,5 +3681,101 @@ Empezar de nuevo</value>
   </data>
   <data name="Scan_PageProgress" xml:space="preserve">
     <value>Escaneando la página {0}… {1} %</value>
+  </data>
+  <data name="ScanTab_TurnStack" xml:space="preserve">
+    <value>Ambas caras: dar la vuelta a la pila</value>
+  </data>
+  <data name="ScanTab_TurnStackHelp" xml:space="preserve">
+    <value>Este alimentador escanea una cara: los anversos y luego los reversos</value>
+  </data>
+  <data name="ScanTab_Upright" xml:space="preserve">
+    <value>Poner las páginas al derecho</value>
+  </data>
+  <data name="ScanTab_UprightHelp" xml:space="preserve">
+    <value>Las páginas de lado o al revés, cuando su texto muestra cuál es la parte de arriba</value>
+  </data>
+  <data name="ScanTab_SwapBacks" xml:space="preserve">
+    <value>Reversos en el otro orden</value>
+  </data>
+  <data name="ScanTab_SwapBacksTip" xml:space="preserve">
+    <value>Para un escáner cuya bandeja de salida invierte la pila: empareja los reversos con los anversos al revés. Ctrl+Z los deja como estaban.</value>
+  </data>
+  <data name="Scan_FrontsDone_One" xml:space="preserve">
+    <value>Anversos escaneados: {0} página.</value>
+  </data>
+  <data name="Scan_FrontsDone_Many" xml:space="preserve">
+    <value>Anversos escaneados: {0} páginas.</value>
+  </data>
+  <data name="Scan_TurnStackQuestion_One" xml:space="preserve">
+    <value>Se escaneó el anverso de {0} hoja. Sácala de la bandeja de salida, dale la vuelta como a la página de un libro, vuelve a ponerla en el alimentador y presiona Escanear los reversos.</value>
+  </data>
+  <data name="Scan_TurnStackQuestion_Many" xml:space="preserve">
+    <value>Se escanearon los anversos de {0} hojas. Saca la pila de la bandeja de salida, dale la vuelta como a la página de un libro sin ordenarla, vuelve a ponerla en el alimentador y presiona Escanear los reversos.</value>
+  </data>
+  <data name="Scan_ScanTheBacks" xml:space="preserve">
+    <value>Escanear los reversos</value>
+  </data>
+  <data name="Scan_ScanningBacks" xml:space="preserve">
+    <value>Escaneando los reversos…</value>
+  </data>
+  <data name="Scan_FrontsOnly" xml:space="preserve">
+    <value>Solo se escanearon los anversos.</value>
+  </data>
+  <data name="Scan_BacksFailed" xml:space="preserve">
+    <value>No se pudieron escanear los reversos: {0} Los anversos se conservan.</value>
+  </data>
+  <data name="Scan_NoBacks" xml:space="preserve">
+    <value>El alimentador no envió reversos, así que solo están los {0} anversos.</value>
+  </data>
+  <data name="Scan_StackCountsDiffer" xml:space="preserve">
+    <value>{0} anversos pero {1} reversos: puede que una hoja pasara dos veces o se quedara atrás. Los reversos se emparejaron desde la última hoja: revisa el orden y arrastra la página que esté fuera de lugar, o presiona Deshacer para poner los reversos después de los anversos.</value>
+  </data>
+  <data name="Scan_StackInOrder" xml:space="preserve">
+    <value>Los anversos y los reversos están en orden de página.</value>
+  </data>
+  <data name="Scan_TurnedUpright_One" xml:space="preserve">
+    <value>Se puso {0} página al derecho.</value>
+  </data>
+  <data name="Scan_TurnedUpright_Many" xml:space="preserve">
+    <value>Se pusieron {0} páginas al derecho.</value>
+  </data>
+  <data name="Scan_UndoUpright_One" xml:space="preserve">
+    <value>Poner la página {0} al derecho</value>
+  </data>
+  <data name="Scan_UndoUpright_Many" xml:space="preserve">
+    <value>Poner {0} páginas al derecho</value>
+  </data>
+  <data name="Scan_UndoStackOrder" xml:space="preserve">
+    <value>Ordenar los anversos y los reversos</value>
+  </data>
+  <data name="Scan_UndoSwapBacks" xml:space="preserve">
+    <value>Poner los reversos en el otro orden</value>
+  </data>
+  <data name="Scan_BacksFirstSheetFirst" xml:space="preserve">
+    <value>Ahora los reversos se emparejan desde la primera hoja. Ctrl+Z los deja como estaban.</value>
+  </data>
+  <data name="Scan_BacksLastSheetFirst" xml:space="preserve">
+    <value>Los reversos vuelven a emparejarse desde la última hoja.</value>
+  </data>
+  <data name="Scan_NoteTurnedUpright" xml:space="preserve">
+    <value>Puesta al derecho</value>
+  </data>
+  <data name="Presets_TurnStack" xml:space="preserve">
+    <value>En un alimentador de una cara, dar la vuelta a la pila para los reversos</value>
+  </data>
+  <data name="Presets_TurnStackHelp" xml:space="preserve">
+    <value>Te pide dar la vuelta a la pila después de los anversos y luego pone las páginas en orden</value>
+  </data>
+  <data name="Presets_SmallerFile" xml:space="preserve">
+    <value>Archivo más pequeño (blanco y negro)</value>
+  </data>
+  <data name="Presets_SmallerFileHelp" xml:space="preserve">
+    <value>Páginas del PDF en blanco y negro: una página de texto ocupa una décima parte o menos</value>
+  </data>
+  <data name="Presets_Upright" xml:space="preserve">
+    <value>Poner las páginas al derecho</value>
+  </data>
+  <data name="Presets_UprightHelp" xml:space="preserve">
+    <value>Las páginas de lado o al revés</value>
   </data>
 </root>

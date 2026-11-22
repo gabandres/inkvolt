@@ -201,7 +201,10 @@ public sealed partial class PresetItem : ObservableObject
         Name = preset.Name;
         Source = ScanPresetsViewModel.Sources.First(o => o.Value == preset.Source);
         TwoSided = preset.TwoSided;
+        TurnStack = preset.TurnStack;
         Color = preset.Color;
+        SmallerFile = preset.SmallerFile;
+        TurnUpright = preset.TurnUpright;
         Resolution = ScanPresetsViewModel.Resolutions.MinBy(o => Math.Abs(o.Value - preset.Resolution))!;
         PageSize = ScanPresetsViewModel.PageSizes.FirstOrDefault(o => o.Value == preset.PageSize) ?? ScanPresetsViewModel.PageSizes[0];
         FileType = ScanPresetsViewModel.FileTypes.First(o => o.Value == preset.FileType);
@@ -231,7 +234,16 @@ public sealed partial class PresetItem : ObservableObject
     public partial Option<PresetSource> Source { get; set; }
 
     [ObservableProperty] public partial bool TwoSided { get; set; }
+
+    /// <summary>With both sides, a one-sided feeder's stack turned over for the backs.</summary>
+    [ObservableProperty] public partial bool TurnStack { get; set; }
     [ObservableProperty] public partial bool Color { get; set; }
+
+    /// <summary>A PDF in black and white (1 bit): a much smaller file.</summary>
+    [ObservableProperty] public partial bool SmallerFile { get; set; }
+
+    /// <summary>Pages lying sideways or upside down turned upright.</summary>
+    [ObservableProperty] public partial bool TurnUpright { get; set; }
     [ObservableProperty] public partial Option<int> Resolution { get; set; }
     [ObservableProperty] public partial Option<string?> PageSize { get; set; }
 
@@ -331,7 +343,10 @@ public sealed partial class PresetItem : ObservableObject
         Name = Name,
         Source = Source.Value,
         TwoSided = TwoSided,
+        TurnStack = TurnStack,
         Color = Color,
+        SmallerFile = SmallerFile,
+        TurnUpright = TurnUpright,
         Resolution = Resolution.Value,
         PageSize = PageSize.Value,
         FileType = FileType.Value,

@@ -151,6 +151,15 @@ public static class ScanImaging
         return bmp;
     }
 
+    /// <summary>A picture's pixels in grey, rows packed (for <see cref="Bilevel"/>).</summary>
+    public static (byte[] Pixels, int Width, int Height) Gray(BitmapSource bmp)
+    {
+        BitmapSource gray = bmp.Format == PixelFormats.Gray8 ? bmp : new FormatConvertedBitmap(bmp, PixelFormats.Gray8, null, 0);
+        var pixels = new byte[(long)gray.PixelWidth * gray.PixelHeight];
+        gray.CopyPixels(pixels, gray.PixelWidth, 0);
+        return (pixels, gray.PixelWidth, gray.PixelHeight);
+    }
+
     public static byte[] Jpeg(BitmapSource bmp)
     {
         var encoder = new JpegBitmapEncoder { QualityLevel = Quality };

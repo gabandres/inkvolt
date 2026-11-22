@@ -63,6 +63,12 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Separator sheet**: a page that starts the next file of a batch: a sheet printed with a patch code (Patch 2, 3 or T)
   or a QR code or barcode saying PATCHT (`SeparatorCodes`), a blank page, one marked by hand, or the back of a patch sheet in a two-sided scan (`Separators`, `SeparatorSheet`).
   Left out of the files unless the batch keeps them.
+- **Turned stack**: two-sided scanning on a feeder that scans one side: the fronts, then the stack turned over for the backs, which
+  arrive last sheet first and are put after their fronts (`TurnedStack`). The other order is for a tray that reverses the stack.
+- **Upright** (a scanned page): which way its text reads; a page lying sideways or upside down is turned upright only when its
+  lines say so clearly (`PageUpright`, `Upright`). Not *straightened*, which undoes a small skew.
+- **Black-and-white page** (of a scan PDF): the page at 1 bit (`BitImage`, made by `Bilevel`), written as CCITT Group 4
+  (`CcittG4`) or 1-bit Flate, whichever is smaller; a *smaller file* is a preset's choice of it.
 - **Glass photos**: several prints laid on the scanner glass at once, each found and saved as a picture of its own, cut
   out straight (`PhotoFinder`, `PhotoBox`). Their boxes can be moved, resized, turned or drawn by hand before saving
   (Windows `PhotoBoxesView`; Mac `PhotoBoxEditor`).

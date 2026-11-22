@@ -4303,4 +4303,12 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>{0}'s page with its licence opens: accept it there to download the driver.</value>
     <comment>Store copy, before opening the maker's page; {0} = maker</comment>
   </data>
+  <data name="Preset_SmallerFileDpi" xml:space="preserve">
+    <value>black and white, {0} dpi, smaller file</value>
+    <comment>preset summary part</comment>
+  </data>
+  <data name="Preset_TurnStackShort" xml:space="preserve">
+    <value>the stack turned over for the backs</value>
+    <comment>preset summary part</comment>
+  </data>
 </root>
