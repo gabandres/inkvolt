@@ -153,6 +153,49 @@ public class TextReplaceTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     [Fact]
+    public void APageOfManyMatchingParagraphsIsReadOnce_UnlessOneIsRewritten_AndReplaceAllStops()
+    {
+        // 4 columns of 30 short paragraphs, each "cat": 120 paragraphs on one page.
+        var sb = new System.Text.StringBuilder();
+        for (var col = 0; col < 4; col++)
+            for (var row = 0; row < 30; row++)
+                sb.Append($"BT /F1 6 Tf {40 + col * 140} {760 - row * 24} Td (cat number {col * 30 + row}) Tj ET\n");
+        var pdf = Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [4 0 R] /Count 1 >>",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>",
+            Core2Pdf.Stream(sb.ToString()),
+        ]);
+        _ = TextReplace.Find(pdf, null, new("cat", WholeWord: true)); // warmed up: the time below is the page's reading
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var found = TextReplace.Find(pdf, null, new("cat", WholeWord: true));
+        var findTime = clock.Elapsed;
+        Assert.Equal(120, found.Matches.Select(m => m.Paragraph).Distinct().Count());
+
+        // Nothing to write ("cat" for "cat"): the page is read once, not once a paragraph (120 times before).
+        var steps = new List<(int Done, int Total)>();
+        clock.Restart();
+        var same = TextReplace.Replace(pdf, null, found.Matches, "cat", progress: new DirectProgress<(int, int)>(steps.Add));
+        var replaceTime = clock.Elapsed;
+        output.WriteLine($"find {findTime.TotalMilliseconds:F0} ms, replace with the same {replaceTime.TotalMilliseconds:F0} ms");
+        Assert.Equal(0, same.Replaced);
+        Assert.True(replaceTime < findTime * 15 + TimeSpan.FromSeconds(0.5), $"find {findTime}, replace {replaceTime}");
+        Assert.Equal(new[] { (0, 1) }, steps);
+
+        // Each rewrite reads the page again for the next paragraph, so every one is still made where it stands.
+        var dogs = TextReplace.Replace(pdf, null, found.Matches.Take(5).ToList(), "dog");
+        Assert.Equal(5, dogs.Replaced);
+        Assert.Equal(5, TextReplace.Find(dogs.Data, null, new("dog", WholeWord: true)).Matches.Count);
+
+        // Stopped: nothing is changed.
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        Assert.Throws<OperationCanceledException>(() => TextReplace.Replace(pdf, null, found.Matches, "dog", stop.Token));
+    }
+
+    [Fact]
     public void AfterReplaceTheNextMatchIsPastTheInsertedText()
     {
         // "cat" → "cats": found again, the replaced match still holds "cat"; the next is the one after it.

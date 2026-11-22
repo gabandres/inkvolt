@@ -49,9 +49,13 @@ public partial class DocumentTab
                 if (!_disposed) Notify(Strings.Viewer_SnapshotChanged, error: true);
                 return true;
             }
-            var read = await Task.Run(() => engine.GetExportPage(page, images: false));
+            // Off the UI thread: a page's text and its cutting to the box (a hostile page has hundreds of thousands of lines).
+            var (read, clipped) = await Task.Run(() =>
+            {
+                var all = engine.GetExportPage(page, images: false);
+                return (all, AreaCopy.Clip(all, area));
+            });
             if (Changed()) return;
-            var clipped = AreaCopy.Clip(read, area);
             var recognized = false;
             if (!clipped.HasText)
             {
@@ -67,21 +71,27 @@ public partial class DocumentTab
 
             var data = new DataObject();
             string done;
-            if (kind == AreaCopyKind.Table)
+            // The table (or the text) is laid out off the UI thread, as the page was read.
+            var final = clipped;
+            var table = kind == AreaCopyKind.Table ? await Task.Run(() => AreaCopy.Table(final)) : null;
+            if (_disposed) return;
+            if (table is { TooLarge: false })
             {
-                var table = AreaCopy.Table(clipped);
                 if (table.IsEmpty)
                 {
                     Notify(Strings.Area_NoText);
                     return;
                 }
-                data.SetData(DataFormats.UnicodeText, table.Tsv());
-                data.SetData(DataFormats.Html, new MemoryStream(ClipboardHtml.Wrap(table.Html())));
+                var (tsv, html) = await Task.Run(() => (table.Tsv(), ClipboardHtml.Wrap(table.Html())));
+                data.SetData(DataFormats.UnicodeText, tsv);
+                data.SetData(DataFormats.Html, new MemoryStream(html));
                 done = Loc.Format(Strings.Area_TableCopied, table.Rows.Count, table.ColumnCount);
             }
             else
             {
-                var text = AreaCopy.Text(clipped);
+                // Copy Text, or a table of more cells than a table is copied with: the text, and that said.
+                var text = await Task.Run(() => AreaCopy.Text(final));
+                if (_disposed) return;
                 if (text.Length == 0)
                 {
                     Notify(Strings.Area_NoText);
@@ -91,6 +101,7 @@ public partial class DocumentTab
                 var count = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length;
                 done = recognized ? Loc.Plural(count, Strings.Area_TextRead_One, Strings.Area_TextRead_Many)
                     : Loc.Plural(count, Strings.Area_TextCopied_One, Strings.Area_TextCopied_Many);
+                if (table is { TooLarge: true }) done = Loc.Format(Strings.Area_TableTooLarge, AreaCopy.MaxCells) + " " + done;
             }
             try
             {
