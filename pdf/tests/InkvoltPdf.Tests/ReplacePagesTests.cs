@@ -55,4 +55,14 @@ public class ReplacePagesTests
         Assert.True(edited.AsSpan(0, signed.Length).SequenceEqual(signed));
         Assert.Equal(["Hello contract", "Page 1 new"], Markers(edited));
     }
+
+    [Fact]
+    public void APageNamedTwiceSaysSo()
+    {
+        var pdf = TestPdf.Make(3);
+        var source = new PdfSource(TestPdf.Make(3, "new"), null, "x.pdf");
+        Assert.Equal(PdfStrings.Page_ReplaceTwice, Assert.Throws<ArgumentException>(() => PageEditor.Replace(pdf, null, [0, 0], source, [0, 1])).Message.Split(" (")[0]);
+        Assert.Equal(PdfStrings.Page_ReplaceSourceTwice, Assert.Throws<ArgumentException>(() => PageEditor.Replace(pdf, null, [0, 1], source, [2, 2])).Message.Split(" (")[0]);
+        Assert.Equal(PdfStrings.Page_ReplaceCount, Assert.Throws<ArgumentException>(() => PageEditor.Replace(pdf, null, [0, 1], source, [0])).Message.Split(" (")[0]);
+    }
 }

@@ -672,7 +672,7 @@ public static class BatchRunner
             if (plan.IsSequential)
             {
                 await running[^1].ConfigureAwait(false);
-                bates += job.PageCount;
+                bates += job.BatesPages ?? job.PageCount;
             }
         }
         await Task.WhenAll(running).ConfigureAwait(false);
@@ -864,6 +864,10 @@ public static class BatchRunner
     {
         public long BatesOffset { get; init; }
         public int PageCount { get; private set; }
+
+        /// <summary>How many pages Bates numbers that continue were stamped on (null: none were): what the next file goes on
+        /// from, even when a later action (Remove Blank Pages) removed some of them.</summary>
+        public int? BatesPages { get; private set; }
         public LtvClient? LongTermClient { get; init; }
 
         /// <summary>The file already held all the long-term data there was to add: no copy of it is saved.</summary>
@@ -1126,6 +1130,7 @@ public static class BatchRunner
                 case SanitizeStep s: return Sanitizer.Sanitize(d, pw, s.Items).Data;
                 case WatermarkStep w: return Watermarks.Apply(d, pw, all, w.Options);
                 case HeaderFooterStep h:
+                    if (h.ContinueBates && h.Options.Bates is not null) BatesPages = PageCount;
                     return HeaderFooter.Apply(d, pw, all, h.Options with
                     {
                         FileName = Path.GetFileName(file.NamedAs),

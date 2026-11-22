@@ -32,9 +32,49 @@ public static partial class PageEditor
             throw new ArgumentOutOfRangeException(nameof(width), Loc.Format(PdfStrings.Page_ResizeSize, MinPaper / 72, MaxPaper / 72));
         return Edit(data, password, doc =>
         {
+            var moved = new Dictionary<PdfObjectID, (double S, double E, double F)>();
             foreach (var i in pages.Distinct())
-                if (i >= 0 && i < doc.PageCount) ResizePage(doc, doc.Pages[i], width, height, fit);
+                if (i >= 0 && i < doc.PageCount && ResizePage(doc, doc.Pages[i], width, height, fit) is { } t)
+                    moved[doc.Pages[i].ReferenceNotNull.ObjectID] = t;
+            if (moved.Count > 0)
+                ForEachDestination(doc, (dest, page) =>
+                {
+                    if (moved.TryGetValue(page, out var t)) MoveDestination(dest, t.S, t.E, t.F);
+                });
         });
+    }
+
+    /// <summary>
+    /// A destination on a resized page, its place moved as the content was: /XYZ's left and top, /FitH's and /FitBH's top,
+    /// /FitV's and /FitBV's left, /FitR's rectangle (a null stays null: "as it was"). /XYZ's zoom stays.
+    /// </summary>
+    internal static void MoveDestination(PdfArray dest, double s, double e, double f)
+    {
+        void Set(int i, double scale, double offset)
+        {
+            if (i >= dest.Elements.Count) return;
+            var v = PdfObj.Resolve(dest.Elements[i]);
+            if (v is PdfInteger or PdfReal or PdfLongInteger && double.IsFinite(PdfObj.Num(v))) dest.Elements[i] = new PdfReal(PdfObj.Num(v) * scale + offset);
+        }
+        switch (PdfObj.Name(dest.Elements[1]))
+        {
+            case "XYZ":
+                Set(2, s, e);
+                Set(3, s, f);
+                break;
+            case "FitH" or "FitBH":
+                Set(2, s, f);
+                break;
+            case "FitV" or "FitBV":
+                Set(2, s, e);
+                break;
+            case "FitR":
+                Set(2, s, e);
+                Set(3, s, f);
+                Set(4, s, e);
+                Set(5, s, f);
+                break;
+        }
     }
 
     /// <summary>The transform that puts the page's visible box on the new paper: scale s, then move by (e, f); null when it is already so.</summary>
@@ -54,10 +94,11 @@ public static partial class PageEditor
         return (s, e, f, tw, th);
     }
 
-    private static void ResizePage(PdfDocument doc, PdfPage page, double width, double height, ResizeFit fit)
+    /// <returns>How its content was scaled and moved, or null when the page was left as it was.</returns>
+    private static (double S, double E, double F)? ResizePage(PdfDocument doc, PdfPage page, double width, double height, ResizeFit fit)
     {
         var box = PdfObj.VisibleBox(page);
-        if (ResizeTransform(box, page.Rotate, width, height, fit) is not { } t) return;
+        if (ResizeTransform(box, page.Rotate, width, height, fit) is not { } t) return null;
         var (s, e, f, tw, th) = t;
 
         // The content, scaled and moved, clipped to what showed before.
@@ -101,6 +142,7 @@ public static partial class PageEditor
                 annot.Elements["/RD"] = PdfObj.Reals(doc, [.. Enumerable.Range(0, 4).Select(k => PdfObj.Num(rd, k) * s)]);
             if (PdfObj.Dict(annot.Elements["/Popup"]) is { } popup && seen.Add(popup)) MovePoints(popup, "/Rect");
         }
+        return (s, e, f);
 
         void MovePoints(PdfDictionary d, string key)
         {

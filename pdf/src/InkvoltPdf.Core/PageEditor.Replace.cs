@@ -13,11 +13,13 @@ public static partial class PageEditor
 {
     /// <param name="pages">The pages replaced (this document), in the order <paramref name="sourcePages"/> replace them.</param>
     /// <param name="sourcePages">The pages of <paramref name="source"/> that take their places, as many as <paramref name="pages"/>.</param>
-    /// <exception cref="ArgumentException">The counts differ, a page is out of range or named twice.</exception>
+    /// <exception cref="ArgumentException">The counts differ, a page is out of range, or a page (of either document) is named
+    /// twice: a page of the other PDF takes one page's place, so the same page isn't brought in twice.</exception>
     public static byte[] Replace(byte[] data, string? password, IReadOnlyList<int> pages, PdfSource source, IReadOnlyList<int> sourcePages)
     {
         if (pages.Count == 0 || pages.Count != sourcePages.Count) throw new ArgumentException(PdfStrings.Page_ReplaceCount, nameof(sourcePages));
-        if (pages.Distinct().Count() != pages.Count) throw new ArgumentException(PdfStrings.Page_ReplaceCount, nameof(pages));
+        if (pages.Distinct().Count() != pages.Count) throw new ArgumentException(PdfStrings.Page_ReplaceTwice, nameof(pages));
+        if (sourcePages.Distinct().Count() != sourcePages.Count) throw new ArgumentException(PdfStrings.Page_ReplaceSourceTwice, nameof(sourcePages));
         return Edit(data, password, (doc, labels) =>
         {
             using var src = OpenImport(source.Data, source.Password);
@@ -51,7 +53,18 @@ public static partial class PageEditor
     /// at the page it maps to: in bookmarks, links, actions, named destinations, the opening view, wherever the document
     /// holds one. Each object is looked at once.
     /// </summary>
-    internal static void RetargetDestinations(PdfDocument doc, IReadOnlyDictionary<PdfObjectID, PdfPage> map)
+    internal static void RetargetDestinations(PdfDocument doc, IReadOnlyDictionary<PdfObjectID, PdfPage> map) =>
+        ForEachDestination(doc, (a, page) =>
+        {
+            if (map.TryGetValue(page, out var to)) a.Elements[0] = to.ReferenceNotNull;
+        });
+
+    /// <summary>
+    /// Calls <paramref name="visit"/> with every explicit destination array the document holds ([page /XYZ …], [page /Fit]
+    /// …, in bookmarks, links, actions, named destinations, the opening view) and the page object it leads to; each object
+    /// is looked at once.
+    /// </summary>
+    internal static void ForEachDestination(PdfDocument doc, Action<PdfArray, PdfObjectID> visit)
     {
         var seen = new HashSet<PdfObject>(ReferenceEqualityComparer.Instance);
         var todo = new Stack<PdfObject>();
@@ -65,9 +78,8 @@ public static partial class PageEditor
         {
             if (next is PdfArray a)
             {
-                if (a.Elements.Count >= 2 && a.Elements[0] is PdfReference first && map.TryGetValue(first.ObjectID, out var to)
-                    && PdfObj.Resolve(a.Elements[1]) is PdfName)
-                    a.Elements[0] = to.ReferenceNotNull;
+                if (a.Elements.Count >= 2 && a.Elements[0] is PdfReference first && PdfObj.Resolve(a.Elements[1]) is PdfName)
+                    visit(a, first.ObjectID);
                 foreach (var e in a.Elements) Push(e);
             }
             else if (next is PdfDictionary d)

@@ -352,16 +352,25 @@ public partial class DocumentTab
         var data = Session.Data;
         IReadOnlyList<FoundHeading> headings;
         int existing;
-        using (BeginBusy(Strings.Bookmarks_FindingHeadings))
+        // Every page's text is read: on a long file that takes a while, so it shows its progress and can be stopped.
+        using (BeginBusy(null))
+        using (var progress = new ProgressPrompt(owner, Strings.Bookmarks_FindingHeadings, Strings.Review_Starting))
         {
             try
             {
                 var password = Session.Password;
-                (headings, existing) = await Task.Run(() => (HeadingBookmarks.Find(engine), Count(Bookmarks.Read(data, password))));
+                (headings, existing) = await Task.Run(() => (HeadingBookmarks.Find(engine, PageProgress(progress, Strings.Bookmarks_FindingHeadings), progress.Token),
+                    Count(Bookmarks.Read(data, password))), progress.Token);
             }
-            catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException or PdfSharp.PdfSharpException)
+            catch (OperationCanceledException)
             {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // The document closed under the search, or something in it stopped MuPDF or PDFsharp: said, nothing changed.
                 Log.Write($"Bookmarks from headings: {ex}");
+                if (!_disposed) Prompt.Error(owner, Strings.Organize_PagesUnreadableTitle, Strings.Organize_PagesUnreadableBody);
                 return;
             }
         }

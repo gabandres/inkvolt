@@ -97,4 +97,50 @@ public class ResizePagesTests
         using var engine = PdfEngine.Open(edited, InputFileTypes.PDF, null);
         Assert.Contains("Second page", engine.GetText(1).Text);
     }
+
+    [Fact]
+    public void BookmarksAndLinksToAResizedPageLandOnTheSameSpot()
+    {
+        var pdf = Bookmarks.SetOutline(TestPdf.Make(2), null, [new Bookmark("Here", 0, 100), new Bookmark("Other page", 1, 100)]);
+        var resized = PageEditor.Resize(pdf, null, [0], A4W, A4H, ResizeFit.Scale);
+        var s = A4W / 612;
+        var f = (A4H - 792 * s) / 2;
+        var read = Bookmarks.Read(resized, null);
+        Assert.Equal(A4H - (s * (792 - 100) + f), read[0].Top!.Value, 1); // the same line of the content
+        Assert.Equal(100, read[1].Top!.Value, 1); // a page left as it was
+    }
+
+    [Fact]
+    public void EveryKindOfDestinationMovesWithTheContent()
+    {
+        static PdfSharp.Pdf.PdfArray Dest(string kind, params double?[] values)
+        {
+            var a = new PdfSharp.Pdf.PdfArray();
+            a.Elements.Add(PdfSharp.Pdf.PdfNull.Value);
+            a.Elements.Add(new PdfSharp.Pdf.PdfName("/" + kind));
+            foreach (var v in values) a.Elements.Add(v is { } d ? new PdfSharp.Pdf.PdfReal(d) : PdfSharp.Pdf.PdfNull.Value);
+            return a;
+        }
+        static double?[] Values(PdfSharp.Pdf.PdfArray a) =>
+            [.. a.Elements.Skip(2).Select(e => e is PdfSharp.Pdf.PdfNull ? (double?)null : Math.Round(PdfObj.Num(e), 3))];
+
+        var xyz = Dest("XYZ", 10, 20, 2);
+        PageEditor.MoveDestination(xyz, 0.5, 100, 200);
+        Assert.Equal([105, 210, 2], Values(xyz)); // the zoom stays
+        var unset = Dest("XYZ", null, 20, null);
+        PageEditor.MoveDestination(unset, 0.5, 100, 200);
+        Assert.Equal([null, 210, null], Values(unset));
+        var fitR = Dest("FitR", 10, 20, 30, 40);
+        PageEditor.MoveDestination(fitR, 2, 1, 1);
+        Assert.Equal([21, 41, 61, 81], Values(fitR));
+        var fitH = Dest("FitBH", 20);
+        PageEditor.MoveDestination(fitH, 2, 1, 5);
+        Assert.Equal([45], Values(fitH));
+        var fitV = Dest("FitV", 20);
+        PageEditor.MoveDestination(fitV, 2, 1, 5);
+        Assert.Equal([41], Values(fitV));
+        var fit = Dest("Fit");
+        PageEditor.MoveDestination(fit, 2, 1, 5);
+        Assert.Empty(Values(fit));
+    }
 }

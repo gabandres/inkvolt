@@ -5219,7 +5219,7 @@ Modified {1:g}</value>
     <value>Split at Blan_k Pages…</value>
   </data>
   <data name="Organize_FindingBlank" xml:space="preserve">
-    <value>Looking for blank pages…</value>
+    <value>Looking for blank pages</value>
   </data>
   <data name="Organize_NoBlankTitle" xml:space="preserve">
     <value>No blank pages</value>
@@ -5294,7 +5294,7 @@ Modified {1:g}</value>
     <value>Bookmarks from Headings</value>
   </data>
   <data name="Bookmarks_FindingHeadings" xml:space="preserve">
-    <value>Finding headings…</value>
+    <value>Finding headings</value>
   </data>
   <data name="Bookmarks_NoHeadingsTitle" xml:space="preserve">
     <value>No headings found</value>
@@ -5480,6 +5480,12 @@ Modified {1:g}</value>
   <data name="Organize_EditLabelsRemove" xml:space="preserve">
     <value>Remove page labels</value>
     <comment>Edit name</comment>
+  </data>
+  <data name="Organize_PagesUnreadableTitle" xml:space="preserve">
+    <value>The pages couldn't be read</value>
+  </data>
+  <data name="Organize_PagesUnreadableBody" xml:space="preserve">
+    <value>Something in this document stopped Inkvolt PDF from reading its pages. Nothing was changed.</value>
   </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>

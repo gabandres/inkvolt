@@ -108,4 +108,42 @@ public sealed class BlankPagesTests : IDisposable
         Assert.Empty(none.Outputs);
         Assert.Contains(PdfStrings.Batch_NoBlank, none.Notes);
     }
+
+    [Fact]
+    public async Task BatesNumbersGoOnFromThePagesStamped_WhenBlankPagesWentAfter()
+    {
+        // The first file's blank page is stamped, then removed: the next file goes on from 4, not from 3.
+        var first = Path.Combine(_root, "1.pdf");
+        var second = Path.Combine(_root, "2.pdf");
+        File.WriteAllBytes(first, PageEditor.InsertBlank(TestPdf.Make(2), null, 1, 1, 612, 792));
+        File.WriteAllBytes(second, TestPdf.Make(1));
+        var bates = new HeaderFooterStep(new HeaderFooterOptions { FooterRight = "<<bates>>", MarginBottom = 12, Bates = new BatesFormat("CASE-", 1, 4) }, ContinueBates: true);
+        var plan = new BatchPlan { Steps = [bates, new RemoveBlankPagesStep()], OutputFolder = Path.Combine(_root, "out") };
+        var summary = await BatchRunner.RunAsync([new BatchFile(first), new BatchFile(second)], plan, new BatchHost(), null, default);
+
+        Assert.All(summary.Items, i => Assert.Equal(BatchItemState.Done, i.State));
+        Assert.Contains("1 blank page removed.", summary.Items[0].Notes);
+        using var engine = PdfEngine.Open(File.ReadAllBytes(summary.Items[1].Outputs[0]), InputFileTypes.PDF, null);
+        Assert.Contains("CASE-0004", engine.GetText(0).Text);
+    }
+
+    [Fact]
+    public void APageThatCantBeReadIsNotBlank()
+    {
+        using var engine = PdfEngine.Open(WithBlanks(), InputFileTypes.PDF, null);
+        Assert.False(BlankPages.IsBlank(engine, 99));
+        Assert.False(BlankPages.IsBlank(engine, -1));
+    }
+
+    [Fact]
+    public void TheSearchSaysHowFarItIs_AndStopsWhenAsked()
+    {
+        using var engine = PdfEngine.Open(WithBlanks(), InputFileTypes.PDF, null);
+        var seen = new List<(int Done, int Total)>();
+        BlankPages.Find(engine, progress: new DirectProgress<(int Done, int Total)>(seen.Add));
+        Assert.Equal([(0, 5), (1, 5), (2, 5), (3, 5), (4, 5)], seen);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => BlankPages.Find(engine, cancel: cts.Token));
+    }
 }

@@ -5218,7 +5218,7 @@ Modificado {1:g}</value>
     <value>Dividir en las páginas en blanc_o…</value>
   </data>
   <data name="Organize_FindingBlank" xml:space="preserve">
-    <value>Buscando páginas en blanco…</value>
+    <value>Buscando páginas en blanco</value>
   </data>
   <data name="Organize_NoBlankTitle" xml:space="preserve">
     <value>No hay páginas en blanco</value>
@@ -5293,7 +5293,7 @@ Modificado {1:g}</value>
     <value>Marcadores a partir de los títulos</value>
   </data>
   <data name="Bookmarks_FindingHeadings" xml:space="preserve">
-    <value>Buscando títulos…</value>
+    <value>Buscando títulos</value>
   </data>
   <data name="Bookmarks_NoHeadingsTitle" xml:space="preserve">
     <value>No se encontraron títulos</value>
@@ -5479,6 +5479,12 @@ Modificado {1:g}</value>
   <data name="Organize_EditLabelsRemove" xml:space="preserve">
     <value>Quitar etiquetas de página</value>
     <comment>Edit name</comment>
+  </data>
+  <data name="Organize_PagesUnreadableTitle" xml:space="preserve">
+    <value>No se pudieron leer las páginas</value>
+  </data>
+  <data name="Organize_PagesUnreadableBody" xml:space="preserve">
+    <value>Algo en este documento impidió que Inkvolt PDF leyera sus páginas. No se cambió nada.</value>
   </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>

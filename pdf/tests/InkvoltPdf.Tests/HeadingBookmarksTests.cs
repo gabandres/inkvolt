@@ -111,4 +111,31 @@ public class HeadingBookmarksTests
         Assert.Equal(SignatureStatus.ModifiedAfterSigning, Signatures.Verify(edited).Single(s => s.FieldName == "Approval").Status);
         Assert.Equal("Contract", Bookmarks.Read(edited, null).Single().Title);
     }
+
+    [Fact]
+    public void ALongTitleIsNeverCutInsideACharacter()
+    {
+        // An emoji (a surrogate pair) and an e with a combining accent where the cut falls.
+        foreach (var tail in new[] { "😀😀😀", "ééé" })
+        {
+            var title = HeadingBookmarks.Title(new string('a', HeadingBookmarks.MaxTitle - 2) + tail);
+            Assert.EndsWith("…", title);
+            Assert.True(title.Length <= HeadingBookmarks.MaxTitle);
+            Assert.DoesNotContain(System.Text.Rune.ReplacementChar, title.EnumerateRunes());
+            Assert.False(title[^2] is '́', title); // an accent never stands without its letter
+            Assert.Equal(title[..^1], string.Concat(title[..^1].EnumerateRunes().Select(r => r.ToString()))); // whole runes only
+        }
+    }
+
+    [Fact]
+    public void TheSearchSaysHowFarItIs_AndStopsWhenAsked()
+    {
+        using var engine = PdfEngine.Open(Report(), InputFileTypes.PDF, null);
+        var seen = new List<(int Done, int Total)>();
+        HeadingBookmarks.Find(engine, new DirectProgress<(int Done, int Total)>(seen.Add));
+        Assert.Equal([(0, 3), (1, 3), (2, 3)], seen);
+        using var cts = new CancellationTokenSource();
+        cts.Cancel();
+        Assert.ThrowsAny<OperationCanceledException>(() => HeadingBookmarks.Find(engine, cancel: cts.Token));
+    }
 }

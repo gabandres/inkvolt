@@ -108,6 +108,8 @@ internal sealed class ScanDialog : Window
     private readonly CheckBox _skipBlank = new() { Content = Strings.Scan_SkipBlank, Margin = new Thickness(0, 8, 0, 0) };
     private readonly PositionPicker? _position;
     private readonly bool _backs;
+    /// <summary>Skip blank pages as the settings or the chosen preset say, also while the backs mode holds the box off (what Save Preset keeps).</summary>
+    private bool _skipBlankChoice = AppSettings.Current.ScanSkipBlank;
     private readonly CheckBox _reversed = new() { Content = new TextBlock { Text = Strings.Organize_InterleaveReversed, TextWrapping = TextWrapping.Wrap }, IsChecked = true, Margin = new Thickness(0, 8, 0, 0) };
     private readonly WrapPanel _thumbs = new();
     private readonly TextBlock _pageCount = new() { FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center };
@@ -799,6 +801,7 @@ internal sealed class ScanDialog : Window
         }
         FillOptions();
         _ocr.IsChecked = plan.Ocr;
+        _skipBlankChoice = preset.SkipBlank;
         _skipBlank.IsChecked = preset.SkipBlank && !_backs;
         _message.Text = (plan.Notes.Count > 0 ? string.Join(" ", plan.Notes) : Loc.Format(Strings.Scan_PresetChosen, preset.Name)) + CleanupNote(preset.Cleanup);
         UpdateState();
@@ -820,7 +823,7 @@ internal sealed class ScanDialog : Window
         };
         if (!dlg.ShowModal()) return;
         var preset = ScanPresets.FromChoices(list, name.Text, source.Value, (_color.SelectedItem as Choice<ScanColor>)?.Value ?? ScanColor.Color,
-            dpi.Value, (_size.SelectedItem as Choice<ScanPageSize>)?.Value.Key, _ocr.IsChecked == true, _skipBlank.IsChecked == true)
+            dpi.Value, (_size.SelectedItem as Choice<ScanPageSize>)?.Value.Key, _ocr.IsChecked == true, _backs ? _skipBlankChoice : _skipBlank.IsChecked == true)
             with { Cleanup = (_preset.SelectedItem as Choice<ScanPreset?>)?.Value?.Cleanup ?? PageFilters.None }; // the chosen preset's Clean up carries over
         list.Add(preset);
         AppSettings.Current.ScanPresets = list;

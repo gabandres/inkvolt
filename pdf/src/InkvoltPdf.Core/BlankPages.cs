@@ -17,12 +17,12 @@ public static class BlankPages
     /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired.</exception>
     public static bool IsBlank(PdfEngine engine, int page, CancellationToken cancel = default)
     {
-        var g = engine.GetPage(page);
-        var longest = Math.Max(g.Width, g.Height);
-        if (!double.IsFinite(longest) || longest <= 0) return false;
         RenderedImage image;
         try
         {
+            var g = engine.GetPage(page);
+            var longest = Math.Max(g.Width, g.Height);
+            if (!double.IsFinite(longest) || longest <= 0) return false;
             image = engine.Render(page, AnalysisSize / longest, cancel: cancel);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -44,7 +44,6 @@ public static class BlankPages
             progress?.Report((i, look.Count));
             if (look[i] >= 0 && look[i] < engine.PageCount && IsBlank(engine, look[i], cancel)) blank.Add(look[i]);
         }
-        progress?.Report((look.Count, look.Count));
         return [.. blank.Distinct().Order()];
     }
 

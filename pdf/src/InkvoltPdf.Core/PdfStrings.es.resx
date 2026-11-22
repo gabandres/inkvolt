@@ -5042,7 +5042,13 @@
     <value>Un lado del papel debe medir entre {0} y {1} pulgadas.</value>
   </data>
   <data name="Page_ReplaceCount" xml:space="preserve">
-    <value>Elige tantas páginas para poner como páginas para reemplazar, cada una una sola vez.</value>
+    <value>Elige tantas páginas para poner como páginas para reemplazar.</value>
+  </data>
+  <data name="Page_ReplaceTwice" xml:space="preserve">
+    <value>Se indicó dos veces una página para reemplazar: cada una se puede reemplazar una sola vez.</value>
+  </data>
+  <data name="Page_ReplaceSourceTwice" xml:space="preserve">
+    <value>Se indicó dos veces una página del otro PDF: cada una puede ocupar el lugar de una sola página.</value>
   </data>
   <data name="Page_LabelPrefix" xml:space="preserve">
     <value>Un prefijo puede tener hasta {0} caracteres, sin saltos de línea ni tabulaciones.</value>

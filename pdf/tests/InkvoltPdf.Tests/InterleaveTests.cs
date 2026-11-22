@@ -62,4 +62,42 @@ public class InterleaveTests
         Assert.Contains("Page 2 back", engine.GetText(1).Text);
         Assert.Contains("Second page", engine.GetText(2).Text);
     }
+
+    [Fact]
+    public void PageLabelsAreNumberedOnThroughTheInterleavedPages_NoneShownTwice()
+    {
+        // A preface in i, ii, then six scanned pages labeled 1-6: the interleaved ones read 1-6 again, in their new order.
+        var labeled = PageLabels.Write(TestPdf.Make(8), null, [0, 1], new PageLabelStyle(PageNumbering.LowerRoman, "", 1), restartAfter: true);
+        var pdf = PageEditor.Interleave(labeled, null, [2, 3, 4], [5, 6, 7], reverseBacks: true);
+        Assert.Equal(["i", "ii", "1", "2", "3", "4", "5", "6"], DocumentFeatures.PageLabels(pdf, null)!);
+        Assert.Equal([1, 2, 3, 8, 4, 7, 5, 6], TestPdf.PageNumbers(pdf));
+
+        // Backs from another file take labels too.
+        var with = PageEditor.InterleaveWith(PageLabels.Write(TestPdf.Make(2), null, [0, 1], new PageLabelStyle(PageNumbering.Decimal, "A-", 1)), null,
+            new PdfSource(TestPdf.Make(2, "back"), null, "backs.pdf"), reverseBacks: false);
+        Assert.Equal(["A-1", "A-2", "A-3", "A-4"], DocumentFeatures.PageLabels(with, null)!);
+    }
+
+    [Fact]
+    public void PlainLabelsAreDropped_TheNumbersShowAnyway()
+    {
+        var pdf = PlainLabels(TestPdf.Make(4));
+        Assert.Equal(["1", "2", "3", "4"], DocumentFeatures.PageLabels(pdf, null)!);
+        Assert.Null(DocumentFeatures.PageLabels(PageEditor.Interleave(pdf, null, [0, 1], [2, 3], true), null));
+        Assert.Null(DocumentFeatures.PageLabels(TestPdf.Make(2), null));
+        Assert.Null(DocumentFeatures.PageLabels(PageEditor.Interleave(TestPdf.Make(4), null, [0, 1], [2, 3], true), null));
+
+        static byte[] PlainLabels(byte[] data)
+        {
+            using var doc = PdfSharp.Pdf.IO.PdfReader.Open(new MemoryStream(data), PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify);
+            var range = new PdfSharp.Pdf.PdfDictionary(doc);
+            range.Elements.SetName("/S", "/D");
+            var tree = new PdfSharp.Pdf.PdfDictionary(doc);
+            tree.Elements["/Nums"] = new PdfSharp.Pdf.PdfArray(doc, new PdfSharp.Pdf.PdfInteger(0), range);
+            doc.Internals.Catalog.Elements["/PageLabels"] = tree;
+            using var ms = new MemoryStream();
+            doc.Save(ms, false);
+            return ms.ToArray();
+        }
+    }
 }

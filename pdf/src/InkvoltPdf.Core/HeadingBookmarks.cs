@@ -29,14 +29,26 @@ public static class HeadingBookmarks
             {
                 pages.Add(engine.GetExportPage(p, images: false, cancel, boxesOnly: true));
             }
-            catch (Exception ex) when (ex is MuPDFCore.MuPDFException or InvalidOperationException or ArgumentException) // a refused page too
+            catch (Exception ex) when (ex is not OperationCanceledException) // a refused or damaged page: no headings on it
             {
-                var g = engine.GetPage(p);
-                pages.Add(new ExportPage(g.Width, g.Height, [], [], []));
+                pages.Add(EmptyPage(engine, p));
             }
         }
-        progress?.Report((engine.PageCount, engine.PageCount));
         return Headings(DocLayout.AnalyzeForTags(pages).Layout);
+    }
+
+    /// <summary>A page with nothing on it, its size as the engine has it (Letter when even that can't be read).</summary>
+    private static ExportPage EmptyPage(PdfEngine engine, int page)
+    {
+        try
+        {
+            var g = engine.GetPage(page);
+            if (double.IsFinite(g.Width) && double.IsFinite(g.Height) && g.Width > 0 && g.Height > 0) return new ExportPage(g.Width, g.Height, [], [], []);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+        }
+        return new ExportPage(612, 792, [], [], []);
     }
 
     /// <summary>The headings of a laid-out document (<see cref="DocLayout.AnalyzeForTags"/>, whose paragraphs say where they are on the page).</summary>
@@ -54,14 +66,23 @@ public static class HeadingBookmarks
         return found;
     }
 
-    /// <summary>Whitespace (line breaks, tabs, runs of spaces) as one space, control characters left out, at most <see cref="MaxTitle"/> characters.</summary>
+    /// <summary>
+    /// Whitespace (line breaks, tabs, runs of spaces) as one space, control characters left out, at most
+    /// <see cref="MaxTitle"/> characters, a longer one cut between two characters as shown (never inside a surrogate pair,
+    /// an emoji or a letter with its accents) and ended with "…".
+    /// </summary>
     internal static string Title(string text)
     {
         var words = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .Select(w => new string([.. w.Where(c => !char.IsControl(c) && c != DocLayout.PageField)]))
             .Where(w => w.Length > 0);
         var title = string.Join(' ', words);
-        return title.Length > MaxTitle ? title[..(MaxTitle - 1)].TrimEnd() + "…" : title;
+        if (title.Length <= MaxTitle) return title;
+        var cut = 0;
+        var elements = System.Globalization.StringInfo.GetTextElementEnumerator(title);
+        while (elements.MoveNext() && elements.ElementIndex + elements.GetTextElement().Length <= MaxTitle - 1)
+            cut = elements.ElementIndex + elements.GetTextElement().Length;
+        return title[..cut].TrimEnd() + "…";
     }
 
     /// <summary>

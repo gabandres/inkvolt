@@ -19,20 +19,28 @@ public static partial class Organize
         var engine = tab.Session.Engine;
         int[] blanks;
         List<System.Windows.Media.ImageSource?> thumbs;
-        using (tab.BeginBusy(Strings.Organize_FindingBlank))
+        // Every page is drawn to judge it: on a long file that takes a while, so it shows its progress and can be stopped.
+        using (tab.BeginBusy(null))
+        using (var progress = new ProgressPrompt(owner, Strings.Organize_FindingBlank, Strings.Review_Starting))
         {
             try
             {
                 (blanks, thumbs) = await Task.Run(() =>
                 {
-                    var found = BlankPages.Find(engine);
+                    var found = BlankPages.Find(engine, progress: DocumentTab.PageProgress(progress, Strings.Organize_FindingBlank), cancel: progress.Token);
                     return (found, found.Select(p => Thumbnail(engine, p)).ToList());
-                });
+                }, progress.Token);
             }
-            catch (Exception ex) when (ex is InvalidOperationException or ObjectDisposedException)
+            catch (OperationCanceledException)
             {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // The document closed under the search, or something in it stopped MuPDF: said, nothing changed.
                 Log.Write($"Blank page search failed: {ex}");
-                return; // the document closed or changed under the search
+                if (!Gone(owner, tab)) Prompt.Error(owner, Strings.Organize_PagesUnreadableTitle, Strings.Organize_PagesUnreadableBody);
+                return;
             }
         }
         if (Gone(owner, tab) || tab.PageView.PageCount != count) return;
