@@ -48,6 +48,9 @@ public static class PageCleanup
 
     public static bool TooLarge(int width, int height) => (long)width * height > MaxPixels;
 
+    /// <summary>What <paramref name="filters"/> can do on a page: one scanned in grey (<paramref name="grey"/>) has no color to drop.</summary>
+    public static PageFilters For(PageFilters filters, bool grey) => grey ? filters & ~PageFilters.DropColor : filters;
+
     /// <param name="drop">The color <see cref="PageFilters.DropColor"/> drops; red when not given.</param>
     public static CleanedPage Apply(byte[] pixels, int width, int height, int channels, int dpi, PageFilters filters, CancellationToken cancel = default,
         DropColor? drop = null)

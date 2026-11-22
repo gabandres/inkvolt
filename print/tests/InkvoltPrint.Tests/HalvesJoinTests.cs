@@ -149,6 +149,28 @@ public class HalvesJoinTests
         Assert.Equal(HalvesJoin.EdgeToEdge(JoinSide.Right, false, w, h, w, h), plain.Placement); // edge to edge, to start the nudge from
     }
 
+    /// <summary>
+    /// The app finds the overlap on copies a third the size: a copy leaves out the half's last columns, which, the half turned
+    /// round, are its first, so the placement moves back by them at full size.
+    /// </summary>
+    [Fact]
+    public void A_turned_half_found_on_smaller_copies_lands_to_the_pixel()
+    {
+        const int w = 1500, h = 999, factor = 3;
+        var original = Drawing(w, h, seed: 12);
+        var first = Part(original, w, h, 0, 0, 850, h);
+        var second = Turn(Part(original, w, h, 652, 0, 848, h)); // 848 = 3 × 282 + 2: two columns more than the copy holds
+        var found = HalvesJoin.Find(HalvesJoin.Gray(first, 850, h, 1, factor), HalvesJoin.Gray(second, 848, h, 1, factor), Ppi / (double)factor);
+        Assert.True(found.Sure);
+        Assert.Equal(new JoinPlacement(JoinSide.Right, true, 652, 0), HalvesJoin.FromCopy(found.Placement, factor, 848, h));
+        Assert.Equal(new JoinPlacement(JoinSide.Right, true, 654, 0), found.Placement.Scaled(factor)); // scaled alone: two pixels off
+        Assert.Equal(found.Placement, HalvesJoin.ToCopy(new JoinPlacement(JoinSide.Right, true, 652, 0), factor, 848, h));
+        // Unturned, a copy's columns start where the half's do.
+        Assert.Equal(new JoinPlacement(JoinSide.Right, false, 651, 3), HalvesJoin.FromCopy(new JoinPlacement(JoinSide.Right, false, 217, 1), factor, 848, h));
+        var joined = HalvesJoin.Join(first, 850, h, second, 848, h, 1, HalvesJoin.FromCopy(found.Placement, factor, 848, h))!.Value;
+        Assert.Equal(original.AsSpan(500 * w + 1000, 400).ToArray(), joined.Pixels.AsSpan(500 * 1500 + 1000, 400).ToArray());
+    }
+
     [Fact]
     public void A_nudge_and_a_scale_move_the_placement()
     {

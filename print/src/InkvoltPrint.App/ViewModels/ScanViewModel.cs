@@ -37,10 +37,10 @@ public static class OcrLanguageChoices
 /// <summary>The colors "Drop a color" offers: red, green, blue, and a color picked off a page when that is the one chosen.</summary>
 public static class DropColorChoices
 {
-    public static IReadOnlyList<Option<DropColor>> List(DropColor? current) =>
+    public static IReadOnlyList<Option<DropColor>> List(params DropColor?[] colors) =>
     [
         .. new[] { DropColor.Red, DropColor.Green, DropColor.Blue }.Select(c => new Option<DropColor>(c, Label(c))),
-        .. current is { IsNamed: false } picked ? [new Option<DropColor>(picked, Label(picked))] : Array.Empty<Option<DropColor>>(),
+        .. colors.OfType<DropColor>().Where(c => !c.IsNamed).Distinct().Select(c => new Option<DropColor>(c, Label(c))),
     ];
 
     /// <summary>"Red", "Picked color": the color's name as a choice.</summary>
@@ -1320,6 +1320,10 @@ public sealed partial class ScanViewModel : ObservableObject
             }
             _settingCleanChoices = true;
             CleanDropColors = DropColorChoices.List(color);
+            // The tab's list offers it too, for the next scans (its choice stays as it was).
+            var tab = TabDropColor?.Value;
+            DropColors = DropColorChoices.List(tab, color);
+            TabDropColor = DropColors.FirstOrDefault(o => o.Value == tab) ?? DropColors[0];
             CleanDropColor = CleanDropColors.First(o => o.Value == color);
             CleanDrop = true;
             _settingCleanChoices = false;
@@ -1353,7 +1357,7 @@ public sealed partial class ScanViewModel : ObservableObject
         (CleanDrop, CleanHoles) = (filters.HasFlag(PageFilters.DropColor), filters.HasFlag(PageFilters.PunchHoles));
         // The page's own color when it drops one, else the tab's.
         var drop = page.Edits.Drop ?? TabDropColor?.Value ?? DropColor.Red;
-        CleanDropColors = DropColorChoices.List(drop);
+        CleanDropColors = DropColorChoices.List(drop, TabDropColor?.Value);
         CleanDropColor = CleanDropColors.First(o => o.Value == drop);
         IsPickingColor = false;
         ShowOriginal = false;
@@ -2224,6 +2228,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
         var edits = Edits;
         var photos = HasPhotos;
         if (photos) filters &= PageFilters.Descreen | PageFilters.RestoreColors;
+        filters = PageCleanup.For(filters, IsGrey); // a grey page has no color to drop: nothing to say it was
         var wantsCrop = filters.HasFlag(PageFilters.CropToPaper) && !photos;
         if (wantsCrop == edits.Filters.HasFlag(PageFilters.CropToPaper))
             return edits.WithFilters((filters & PageFilters.PixelFilters) | (wantsCrop ? PageFilters.CropToPaper : 0), drop);
@@ -2464,7 +2469,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
                 }
                 NoPaperEdge = Edits.NoPaperEdge(cleanup, searched, crop);
                 // The edge was found on the page straightened by angle: a page edited meanwhile keeps its whole page.
-                if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle, drop) is { } cleaned)
+                if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle, drop, IsGrey) is { } cleaned)
                 {
                     BeforeCleanup = Edits;
                     Edits = cleaned;

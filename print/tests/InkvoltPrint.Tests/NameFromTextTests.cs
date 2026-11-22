@@ -73,6 +73,22 @@ public class NameFromTextTests
     [InlineData("Version 1.2.3")]
     public void What_isnt_a_date_isnt_taken_for_one(string line) => Assert.Null(TextFinds.Find(Words((line, 30)), Us).Date);
 
+    [Theory]
+    [InlineData("en-US", false)]
+    [InlineData("es-MX", true)]
+    [InlineData("en-GB", true)]
+    [InlineData("ja-JP", false)] // yyyy/MM/dd: the month before the day
+    [InlineData("zh-CN", false)]
+    [InlineData("ko-KR", false)]
+    [InlineData("sv-SE", false)]
+    [InlineData("hu-HU", false)]
+    public void Day_or_month_first_is_where_the_culture_writes_them(string culture, bool dayFirst)
+    {
+        var c = CultureInfo.GetCultureInfo(culture);
+        Assert.Equal(dayFirst, TextFinds.DayFirst(c));
+        Assert.Equal(dayFirst ? new DateTime(2026, 4, 3) : new DateTime(2026, 3, 4), TextFinds.Find(Words(("3/4/2026", 30)), c).Date);
+    }
+
     [Fact]
     public void A_line_that_says_date_comes_first()
     {
@@ -138,9 +154,12 @@ public class NameFromTextTests
     public void What_the_page_doesnt_say_leaves_no_gap()
     {
         Assert.Equal("Maple - 2026-11-22", FileNameTemplate.FileName("{text-title} - {text-number} - {date}", Context(new FoundInText(null, "Maple", null))));
-        Assert.Equal("Bills 7", FileNameTemplate.FileName("{text-date} {preset}  {n}", Context(null)));
+        Assert.Equal("Bills  7", FileNameTemplate.FileName("{text-date} {preset}  {n}", Context(null))); // the separator after it goes, the name's own stay
+        Assert.Equal("Bills_2026-11-22", FileNameTemplate.FileName("Bills_{text-number}_{date}", Context(null)));
+        Assert.Equal("Maple", FileNameTemplate.FileName("{text-title} - {text-number}", Context(new FoundInText(null, "Maple", null))));
         Assert.Equal(CoreStringsFallback(), FileNameTemplate.FileName("{text-title}", Context(FoundInText.None)));
-        // Without a text token, a name is as typed.
+        // Separators typed in the name are kept, wherever the page's text goes in it.
+        Assert.Equal("Bills -- Maple -- 7", FileNameTemplate.FileName("{preset} -- {text-title} -- {n}", Context(new FoundInText(null, "Maple", null))));
         Assert.Equal("Bills  7", FileNameTemplate.FileName("{preset}  {n}", Context(null)));
     }
 

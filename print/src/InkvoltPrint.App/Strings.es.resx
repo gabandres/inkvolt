@@ -4197,4 +4197,10 @@ Los archivos se quedan donde están.</value>
   <data name="Presets_NoteNoOcrDocument" xml:space="preserve">
     <value>El reconocimiento de texto no está disponible en este PC: un documento de Word tiene las páginas como imágenes y un archivo de texto queda vacío.</value>
   </data>
+  <data name="Scan_JoinWait" xml:space="preserve">
+    <value>La página {0} o la siguiente todavía se está revisando: únelas en un momento.</value>
+  </data>
+  <data name="Scan_JoinChanged" xml:space="preserve">
+    <value>Las páginas cambiaron mientras la unión estaba abierta: elige de nuevo Unir con la página siguiente….</value>
+  </data>
 </root>

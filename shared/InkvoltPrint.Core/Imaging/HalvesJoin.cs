@@ -119,6 +119,26 @@ public static class HalvesJoin
         return (near with { X = fx, Y = fy }, fine);
     }
 
+    /// <summary>
+    /// A placement found on copies <paramref name="factor"/> times smaller (<see cref="Gray"/>, <see cref="Shrink"/>) in the
+    /// full-size pixels. A copy leaves out the last (size mod factor) columns and rows of the half, which, turned, are its first:
+    /// a turned second half (<paramref name="secondWidth"/> × <paramref name="secondHeight"/> at full size) moves back by them.
+    /// </summary>
+    public static JoinPlacement FromCopy(JoinPlacement at, int factor, int secondWidth, int secondHeight) =>
+        factor <= 1 ? at : at.Turned
+            ? at with { X = at.X * factor - secondWidth % factor, Y = at.Y * factor - secondHeight % factor }
+            : at.Scaled(factor);
+
+    /// <summary>A full-size placement on copies <paramref name="factor"/> times smaller: <see cref="FromCopy"/> the other way.</summary>
+    public static JoinPlacement ToCopy(JoinPlacement at, int factor, int secondWidth, int secondHeight) =>
+        factor <= 1 ? at : at.Turned
+            ? at with
+            {
+                X = (int)Math.Round((at.X + secondWidth % factor) / (double)factor),
+                Y = (int)Math.Round((at.Y + secondHeight % factor) / (double)factor),
+            }
+            : at.Scaled(1.0 / factor);
+
     /// <summary>The second half edge to edge with the first on <paramref name="side"/>, centred along the seam: where a hand nudge starts.</summary>
     public static JoinPlacement EdgeToEdge(JoinSide side, bool turned, int w1, int h1, int w2, int h2) => side switch
     {

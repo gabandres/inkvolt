@@ -5102,4 +5102,12 @@ The files stay where they are.</value>
     <value>Text recognition isn't available on this PC: a Word document holds the pages as pictures, a text file stays empty.</value>
     <comment>note in the presets editor</comment>
   </data>
+  <data name="Scan_JoinWait" xml:space="preserve">
+    <value>Page {0} or the next one is still being checked: join them in a moment.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinChanged" xml:space="preserve">
+    <value>The pages changed while the join was open: choose Join with the next page… again.</value>
+    <comment>status</comment>
+  </data>
 </root>

@@ -60,7 +60,7 @@ public static partial class TextFinds
     internal static DateTime? FindDate(IReadOnlyList<string> lines, CultureInfo culture)
     {
         var months = MonthNames(culture);
-        var dayFirst = !culture.DateTimeFormat.ShortDatePattern.TrimStart().StartsWith('M');
+        var dayFirst = DayFirst(culture);
         DateTime? first = null;
         foreach (var line in lines)
         {
@@ -69,6 +69,17 @@ public static partial class TextFinds
             first ??= date;
         }
         return first;
+    }
+
+    /// <summary>
+    /// Whether the culture writes the day before the month (es-MX "dd/MM/yyyy"), not after it (en-US "M/d/yyyy"; the year-first
+    /// "yyyy/MM/dd" of ja-JP, zh-CN, ko-KR, sv-SE, hu-HU): by where d and M stand in its short date.
+    /// </summary>
+    internal static bool DayFirst(CultureInfo culture)
+    {
+        var pattern = culture.DateTimeFormat.ShortDatePattern;
+        var (d, m) = (pattern.IndexOf('d'), pattern.IndexOf('M'));
+        return d >= 0 && (m < 0 || d < m);
     }
 
     private static DateTime? DateIn(string line, Dictionary<string, int> months, bool dayFirst)

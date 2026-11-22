@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace InkvoltPrint.Core.Presets;
 
@@ -20,7 +19,7 @@ public sealed record NameContext(DateTime Now, string Preset, string Printer, in
 /// device names, no trailing dots or spaces, never empty); subfolders never leave the chosen folder; and a name already
 /// taken gets <c>-2</c>, <c>-3</c>… so nothing is overwritten.
 /// </summary>
-public static partial class FileNameTemplate
+public static class FileNameTemplate
 {
     /// <summary>Longest file name (without extension) a template makes: leaves room for the folder within MAX_PATH-minded tools.</summary>
     public const int MaxNameLength = 120;
@@ -68,27 +67,36 @@ public static partial class FileNameTemplate
     public static string FileName(string? template, NameContext ctx)
     {
         var sb = new StringBuilder();
-        var parts = Parse(template ?? "", out _);
-        foreach (var part in parts)
-            sb.Append(part.Kind switch { Kind.Token => Value(part, ctx), Kind.Separator => part.Text, _ => part.Text });
-        return Sanitize(parts.Any(IsTextToken) ? Tidy(sb.ToString()) : sb.ToString());
+        var trimLead = false; // after an empty {text-…} at the start: the next separator goes too
+        foreach (var part in Parse(template ?? "", out _))
+        {
+            var value = part.Kind == Kind.Token ? Value(part, ctx) : part.Text;
+            if (IsTextToken(part) && value.Length == 0)
+            {
+                // What the page didn't say takes the separator before it with it ("Maple - {text-number} - 2026" → "Maple - 2026");
+                // at the start, the one after it. The name's other separators stay as typed.
+                var end = sb.Length;
+                while (end > 0 && IsJoiner(sb[end - 1])) end--;
+                sb.Length = end;
+                trimLead = end == 0;
+                continue;
+            }
+            if (trimLead) value = value.TrimStart(Joiners);
+            trimLead = trimLead && value.Length == 0;
+            sb.Append(value);
+        }
+        return Sanitize(sb.ToString());
     }
+
+    private static readonly char[] Joiners = [' ', '-', '_'];
+
+    private static bool IsJoiner(char c) => Array.IndexOf(Joiners, c) >= 0;
 
     /// <summary>The template names the file from the page's text (<c>{text-…}</c>): the scan is read (OCR) for it.</summary>
     public static bool ReadsText(string? template) => Parse(template ?? "", out _).Any(IsTextToken);
 
     private static bool IsTextToken(Part part) =>
         part.Kind == Kind.Token && part.Text.ToLowerInvariant() is "text-date" or "text-title" or "text-number";
-
-    /// <summary>What an empty <c>{text-…}</c> leaves: two spaces or dashes running together, or one at an end.</summary>
-    private static string Tidy(string name)
-    {
-        var s = TidyRuns().Replace(name, m => m.Value.Contains('-') ? " - " : " ");
-        return s.Trim(' ', '-', '_');
-    }
-
-    [GeneratedRegex(@"\s{2,}|(?:\s*-\s*){2,}")]
-    private static partial Regex TidyRuns();
 
     /// <summary>
     /// The template as a relative folder path ("" = none): <c>/</c> and <c>\</c> outside tokens separate folders; each

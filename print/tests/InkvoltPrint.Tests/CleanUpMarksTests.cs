@@ -150,6 +150,17 @@ public class CleanUpMarksTests
     }
 
     [Fact]
+    public void A_grey_page_isnt_said_to_have_a_color_dropped()
+    {
+        var cleaned = PageEdits.None.CleanedUp(PageFilters.DropColor | PageFilters.Whiten, photos: false, paperEdge: null, measuredAt: 0, DropColor.Blue, grey: true)!;
+        Assert.Equal(PageFilters.Whiten, cleaned.Filters);
+        Assert.Null(cleaned.Drop);
+        Assert.Null(PageEdits.None.CleanedUp(PageFilters.DropColor, photos: false, paperEdge: null, measuredAt: 0, DropColor.Blue, grey: true)); // nothing else: the scan stays as sent
+        Assert.Equal(PageFilters.Whiten | PageFilters.PunchHoles, PageCleanup.For(PageFilters.DropColor | PageFilters.Whiten | PageFilters.PunchHoles, grey: true));
+        Assert.Equal(PageFilters.DropColor, PageCleanup.For(PageFilters.DropColor, grey: false));
+    }
+
+    [Fact]
     public void A_kept_page_keeps_its_color()
     {
         var kept = new KeptPage("p.jpg", 300, false, Filters: PageFilters.DropColor, Drop: "#2E9E4F");

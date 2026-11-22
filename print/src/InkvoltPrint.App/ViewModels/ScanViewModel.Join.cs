@@ -20,7 +20,7 @@ public sealed partial class ScanViewModel
     private const int JoinPreviewSize = 1600;
 
     /// <summary>The two halves as pixels, full size and as the preview draws them, while the join view is open.</summary>
-    private sealed record JoinHalves(ScanPageViewModel First, ScanPageViewModel Second, int Channels,
+    private sealed record JoinHalves(ScanPageViewModel First, ScanPageViewModel Second, PageEdits FirstEdits, PageEdits SecondEdits, int Channels,
         byte[] A, int WidthA, int HeightA, byte[] B, int WidthB, int HeightB,
         int PreviewFactor, byte[] SmallA, int SmallWidthA, int SmallHeightA, byte[] SmallB, int SmallWidthB, int SmallHeightB);
 
@@ -64,6 +64,13 @@ public sealed partial class ScanViewModel
             Prompt.Announce(Message);
             return;
         }
+        if (!page.IsAnalysed || !next.IsAnalysed)
+        {
+            // The check may still straighten or clean them up: what is joined is the pages as they then are.
+            Message = string.Format(Strings.Scan_JoinWait, page.Number);
+            Prompt.Announce(Message);
+            return;
+        }
         if (page.Dpi != next.Dpi)
         {
             Message = Strings.Scan_JoinDpi;
@@ -93,9 +100,9 @@ public sealed partial class ScanViewModel
                 var preview = Math.Max(1, (int)Math.Ceiling(2.0 * Math.Max(Math.Max(a.Width, a.Height), Math.Max(b.Width, b.Height)) / JoinPreviewSize));
                 var smallA = HalvesJoin.Shrink(a.Pixels, a.Width, a.Height, a.Channels, preview);
                 var smallB = HalvesJoin.Shrink(b.Pixels, b.Width, b.Height, b.Channels, preview);
-                var halves = new JoinHalves(first, second, a.Channels, a.Pixels, a.Width, a.Height, b.Pixels, b.Width, b.Height,
+                var halves = new JoinHalves(first, second, edits1, edits2, a.Channels, a.Pixels, a.Width, a.Height, b.Pixels, b.Width, b.Height,
                     preview, smallA.Pixels, smallA.Width, smallA.Height, smallB.Pixels, smallB.Width, smallB.Height);
-                return (halves, found with { Placement = found.Placement.Scaled(analysis) });
+                return (halves, found with { Placement = HalvesJoin.FromCopy(found.Placement, analysis, b.Width, b.Height) });
             });
             if (JoinPage != page) return; // closed meanwhile
             _join = halves;
@@ -116,7 +123,8 @@ public sealed partial class ScanViewModel
     private void ShowJoin()
     {
         if (_join is not { } j || _placement is not { } at) return;
-        var small = HalvesJoin.Join(j.SmallA, j.SmallWidthA, j.SmallHeightA, j.SmallB, j.SmallWidthB, j.SmallHeightB, j.Channels, at.Scaled(1.0 / j.PreviewFactor));
+        var small = HalvesJoin.Join(j.SmallA, j.SmallWidthA, j.SmallHeightA, j.SmallB, j.SmallWidthB, j.SmallHeightB, j.Channels,
+            HalvesJoin.ToCopy(at, j.PreviewFactor, j.WidthB, j.HeightB));
         JoinImage = small is { } s ? ScanImaging.Bitmap(s.Pixels, s.Width, s.Height, j.Channels) : null;
     }
 
@@ -169,6 +177,14 @@ public sealed partial class ScanViewModel
             CancelJoin(); // the pages moved or went meanwhile
             return;
         }
+        if (j.First.Edits != j.FirstEdits || j.Second.Edits != j.SecondEdits)
+        {
+            // Turned, cropped or cleaned up (Undo included) since the view drew them: what it shows isn't the pages any more.
+            CancelJoin();
+            Message = Strings.Scan_JoinChanged;
+            Prompt.Announce(Message);
+            return;
+        }
         IsBusy = true;
         JoinStatus = Strings.Scan_Working;
         try
@@ -185,7 +201,9 @@ public sealed partial class ScanViewModel
                 return;
             }
             var (first, second) = (j.First, j.Second);
-            var page = new ScanPageViewModel(jpeg, first.Dpi, first.Ocr || second.Ocr, first.OcrLanguage) { OneBit = first.OneBit && second.OneBit };
+            // The joined page takes the first half's place in the files (a batch's file starting at it still does) and is kept: joining is a choice.
+            var page = new ScanPageViewModel(jpeg, first.Dpi, first.Ocr || second.Ocr, first.OcrLanguage)
+                { OneBit = first.OneBit && second.OneBit, StartsFile = first.StartsFile };
             var (a, b) = (first.Number, second.Number);
             History.Record(string.Format(Strings.Scan_UndoJoin, a, b), () =>
             {
