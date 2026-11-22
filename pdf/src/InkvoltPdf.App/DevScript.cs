@@ -51,7 +51,9 @@ namespace InkvoltPdf.App;
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Windows (4.9):
 /// <c>mainwindows</c> (each main window, its tabs, the one in use) <c>· newwindow [file] · tearoff</c> (the selected tab
 /// into a new window) <c>· movetab N [index] · droptab x y</c> (the selected tab let go there, in the window's DIPs) <c>·
-/// window N · closewindow</c>; after newwindow, tearoff and window N the steps run in that window. Prompts and file
+/// window N · closewindow</c>; after newwindow, tearoff and window N the steps run in that window. Reflow (4.16):
+/// <c>reflow on|off · reflowstate</c> (its page, zoom, look and first words) <c>· reflowscroll N</c> (the view itself to
+/// page N) <c>· reflowlink url</c> (as if clicked) <c>· reflowshot out.png · reflowcan Cmd,Cmd</c> (whether they can run). Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
@@ -956,6 +958,25 @@ internal static class DevScript
                     log.Add($"window '{w.Title}' visible={w.IsVisible}: '{Trunc(string.Join(" | ", Descendants<System.Windows.Controls.TextBlock>(w).Where(t => t.Text.Length > 2 && t.TemplatedParent is null).Select(t => t.Text)))}' " +
                             $"[{string.Join(", ", Descendants<System.Windows.Controls.Button>(w).Select(b => b.Content as string).Where(s => s is not null))}]");
                 log.Add($"busy={tab?.IsBusy} pending={tab?.HasPendingEdits}");
+                break;
+            // The Reflow view (4.16): reflow on|off runs View › Reflow; reflowcan A,B logs whether those commands can run now.
+            case "reflow":
+                if ((arg == "on") != tab!.IsReflowing) Cmd.Reflow.Execute(null, window);
+                break;
+            case "reflowstate":
+                log.Add(await tab!.DevReflowState());
+                break;
+            case "reflowscroll":
+                await tab!.DevReflowScroll(int.Parse(arg, System.Globalization.CultureInfo.InvariantCulture) - 1);
+                break;
+            case "reflowlink":
+                tab!.FollowReflowLink(arg);
+                break;
+            case "reflowshot":
+                await tab!.DevReflowShot(Path.GetFullPath(arg));
+                break;
+            case "reflowcan":
+                log.Add("can: " + string.Join(", ", arg.Split(',').Select(n => $"{n}={(typeof(Cmd).GetField(n.Trim())?.GetValue(null) as System.Windows.Input.RoutedCommand)?.CanExecute(null, window)}")));
                 break;
             // Two documents side by side (4.9). The steps after newwindow, tearoff and window N run in that window.
             case "mainwindows":

@@ -168,7 +168,7 @@ public static class CommandBarLayout
     public static readonly IReadOnlyList<Command> Secondary =
     [
         new("RotateLeft", "\uE7AD"), new("RotateRight", "\uE7AD"), new("DeleteSelected", "\uE74D"),
-        new("Find", "\uE721"),
+        new("Find", "\uE721"), new("Reflow", "\uE736"),
     ];
 
     public static Entry Group(string id) => Bar.First(e => e?.Id == id)!;

@@ -103,6 +103,9 @@ public partial class MainWindow
         }
         var at = _tabs.IndexOf(model);
         var wasActive = ActiveTabModel == model;
+        // The Reflow view's browser is made again in its new window (it doesn't survive being moved), at the same page.
+        var reflowing = model.Tab.IsReflowing;
+        if (reflowing) model.Tab.SetReflow(false);
         var moved = App.Hub.Move(model.Id, target.WindowId, index);
         Release(model, moving: true);
         // A toast about the document ("Delete 1 page · Undo") stays with this window: its Undo would act on another's tab.
@@ -111,6 +114,7 @@ public partial class MainWindow
         RelabelTabs();
         UpdateUi();
         target.Attach(model, App.Hub.TabsOf(target.WindowId).ToList().IndexOf(model.Id));
+        if (reflowing) model.Tab.SetReflow(true);
         target.RelabelTabs();
         target.UpdateUi();
         target._autosave.Copy(wait: false); // its recovery copy, now under the window that has it

@@ -206,6 +206,7 @@
                                     <MenuItem x:Name="CoverMenu" Command="app:Cmd.LayoutCover" />
                                     <MenuItem Command="app:Cmd.RotateViewRight" />
                                     <MenuItem Command="app:Cmd.RotateViewLeft" />
+                                    <MenuItem x:Name="ReflowMenu" Command="app:Cmd.Reflow" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.FirstPage" />
                                     <MenuItem Command="app:Cmd.PrevPage" />

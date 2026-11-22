@@ -105,7 +105,9 @@ public static class Cmd
     public static readonly RoutedUICommand LayoutSingle = Make(Strings.Cmd_LayoutSingle, nameof(LayoutSingle), K(Key.D4, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutContinuous = Make(Strings.Cmd_LayoutContinuous, nameof(LayoutContinuous), K(Key.D5, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutFacing = Make(Strings.Cmd_LayoutFacing, nameof(LayoutFacing), K(Key.D6, ModifierKeys.Control));
-    public static readonly RoutedUICommand LayoutCover = Make(Strings.Cmd_LayoutCover, nameof(LayoutCover), K(Key.D7, ModifierKeys.Control));
+    // Reflow (4.16): Acrobat's is Ctrl+4, which is Single Page here; Ctrl+3 sits beside the zoom keys
+    public static readonly RoutedUICommand Reflow = Make(Strings.Cmd_Reflow, nameof(Reflow), K(Key.D3, ModifierKeys.Control));
+    public static readonly RoutedUICommand LayoutCover =Make(Strings.Cmd_LayoutCover, nameof(LayoutCover), K(Key.D7, ModifierKeys.Control));
     public static readonly RoutedUICommand RotateViewRight = Make(Strings.Cmd_RotateViewRight, nameof(RotateViewRight), K(Key.OemPlus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift++"), K(Key.Add, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand RotateViewLeft = Make(Strings.Cmd_RotateViewLeft, nameof(RotateViewLeft), K(Key.OemMinus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift+-"), K(Key.Subtract, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand NavPane = Make(Strings.Cmd_NavPane, nameof(NavPane), K(Key.F4));

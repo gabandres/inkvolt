@@ -12301,4 +12301,25 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Start_RecentOpenNewWindow" xml:space="preserve">
     <value>Abrir en una ventana _nueva</value>
   </data>
+  <data name="Cmd_Reflow" xml:space="preserve">
+    <value>_Redistribuir</value>
+  </data>
+  <data name="Tab_ReflowPreparing" xml:space="preserve">
+    <value>Colocando el texto en una columna…</value>
+  </data>
+  <data name="Tab_ReflowNoRuntime" xml:space="preserve">
+    <value>La vista Redistribuir necesita Microsoft Edge WebView2, que no está en este equipo. Windows Update lo instala.</value>
+  </data>
+  <data name="Tab_ReflowNothing" xml:space="preserve">
+    <value>Estas páginas no tienen texto que redistribuir. Si son escaneos, usa primero Reconocer texto (Escanear y OCR).</value>
+  </data>
+  <data name="Tab_ReflowFailed" xml:space="preserve">
+    <value>No se pudo crear la vista Redistribuir: {0}</value>
+  </data>
+  <data name="Tab_ReflowName" xml:space="preserve">
+    <value>El texto del documento en una columna</value>
+  </data>
+  <data name="Tab_ReflowBack" xml:space="preserve">
+    <value>Volver a las páginas</value>
+  </data>
 </root>

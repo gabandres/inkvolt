@@ -1669,7 +1669,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
   `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
-  a file open once, the window in use, what is remembered).
+  a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
+  `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).

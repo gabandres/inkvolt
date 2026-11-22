@@ -11,6 +11,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   tab doesn't **tear off**, and a window a move emptied closes. Closing one of several windows forgets its files for the
   next start; the last window, or every window closing at once (Exit, sign-out), remembers them. **Tab drag** (`TabDrag`):
   where a dragged tab lands: its own strip (reorder), another window's (move), or neither (tear off).
+- **Reflow view** (`Core/Reflow.cs`; in the app `DocumentTab.Reflow.cs`): a document's text as one readable column in
+  its tab: the **document export**'s HTML with a **look** of its own (`ReflowLook`: Windows' Text size, the view's zoom,
+  Dark pages), served at one address with page scripts off. Read-only: `Reflow.Runs` names the commands that work while
+  it shows. The **page kept** (`ReflowPosition`): the page at the top of the column and the page view's, kept in step
+  both ways, each side's echo of the other's move ignored.
 - **Refused shape** (`Core/PdfShapeGuard.cs`, `PdfShapeException`): a file PDFsharp is never given because it couldn't survive it: nesting
   without end, a page tree that holds itself, runs deep or multiplies, one comment list shared by too many pages, cross-reference
   sections that loop. Checked once per byte array in `PdfObj.Read`. Its pages still show (MuPDF); its objects can't be read or edited.

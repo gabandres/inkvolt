@@ -1841,13 +1841,17 @@ public partial class MainWindow : Window
     private void Bind(ICommand command, Action<DocumentTab> execute, Func<DocumentTab, bool>? can = null) =>
         CommandBindings.Add(new CommandBinding(command,
             (_, e) => { if (ActiveTab is { } t) execute(t); e.Handled = true; },
-            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && (can?.Invoke(t) ?? true); e.Handled = true; }));
+            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && RunsInView(t, command) && (can?.Invoke(t) ?? true); e.Handled = true; }));
 
     /// <summary>Like <see cref="Bind"/>, but also available while the tab is busy (the action waits for it).</summary>
     private void BindTab(ICommand command, Action<DocumentTab> execute, Func<DocumentTab, bool>? can = null) =>
         CommandBindings.Add(new CommandBinding(command,
             (_, e) => { if (ActiveTab is { } t) execute(t); e.Handled = true; },
-            (_, e) => { e.CanExecute = ActiveTab is { IsDisposed: false } t && (can?.Invoke(t) ?? true); e.Handled = true; }));
+            (_, e) => { e.CanExecute = ActiveTab is { IsDisposed: false } t && RunsInView(t, command) && (can?.Invoke(t) ?? true); e.Handled = true; }));
+
+    /// <summary>The Reflow view is read-only: a document command runs there only when <see cref="Reflow.Runs"/> says so.</summary>
+    private static bool RunsInView(DocumentTab t, ICommand command) =>
+        !t.IsReflowing || command is RoutedCommand { Name: var name } && Reflow.Runs(name);
 
     private async Task CloseAllAsync()
     {
@@ -1873,7 +1877,7 @@ public partial class MainWindow : Window
     private void BindAtOnce(ICommand command, Action<DocumentTab, bool> execute, Func<DocumentTab, bool, bool> can) =>
         CommandBindings.Add(new CommandBinding(command,
             (_, e) => { if (ActiveTab is { } t) execute(t, RunsAtOnce(e.Parameter)); e.Handled = true; },
-            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && can(t, RunsAtOnce(e.Parameter)); e.Handled = true; }));
+            (_, e) => { e.CanExecute = ActiveTab is { IsBusy: false } t && RunsInView(t, command) && can(t, RunsAtOnce(e.Parameter)); e.Handled = true; }));
 
     internal static bool RunsAtOnce(object? parameter) =>
         CommandBarLayout.RunsAtOnce(parameter, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
@@ -1969,9 +1973,12 @@ public partial class MainWindow : Window
         Bind(Cmd.CheckSignaturesOnline, t => _ = CheckSignaturesOnlineAsync(t), t => t.Session.IsPdf && t.IsSigned && !_signing);
         Bind(Cmd.HighlightFields, t => t.PageView.HighlightFields = !t.PageView.HighlightFields, t => t.PageView.HasFormFields);
 
-        Bind(Cmd.ZoomIn, t => t.ActiveView.ZoomStep(1), t => !t.IsOrganizing);
-        Bind(Cmd.ZoomOut, t => t.ActiveView.ZoomStep(-1), t => !t.IsOrganizing);
-        Bind(Cmd.ActualSize, t => t.ActiveView.SetZoom(1), t => !t.IsOrganizing);
+        // In the Reflow view the zoom commands size its text.
+        Bind(Cmd.ZoomIn, t => { if (t.IsReflowing) t.ReflowZoom(1); else t.ActiveView.ZoomStep(1); }, t => !t.IsOrganizing);
+        Bind(Cmd.ZoomOut, t => { if (t.IsReflowing) t.ReflowZoom(-1); else t.ActiveView.ZoomStep(-1); }, t => !t.IsOrganizing);
+        Bind(Cmd.ActualSize, t => { if (t.IsReflowing) t.ReflowZoom(0); else t.ActiveView.SetZoom(1); }, t => !t.IsOrganizing);
+        Bind(Cmd.Reflow, t => t.SetReflow(!t.IsReflowing),
+            t => t.IsReflowing || (t.PageView.PageCount > 0 && !t.IsDesigningForm && !t.IsEditingContent));
         Bind(Cmd.FitWidth, t => t.SetZoomMode(ZoomMode.FitWidth), t => !t.IsOrganizing);
         Bind(Cmd.FitPage, t => t.SetZoomMode(ZoomMode.FitPage), t => !t.IsOrganizing);
         Bind(Cmd.LayoutSingle, t => SetLayout(t, ViewLayout.SinglePage));
@@ -2636,6 +2643,7 @@ public partial class MainWindow : Window
         CoverMenu.IsChecked = v?.Layout == ViewLayout.FacingCover;
         NavPaneMenu.IsChecked = t?.NavPaneVisible ?? AppSettings.Current.NavPaneVisible;
         OrganizeMenu.IsChecked = t?.IsOrganizing == true;
+        ReflowMenu.IsChecked = t?.IsReflowing == true;
         DarkPagesMenu.IsChecked = AppSettings.Current.DarkPages;
         ThemeSystemMenu.IsChecked = AppSettings.Current.Theme is not ("Light" or "Dark");
         ThemeLightMenu.IsChecked = AppSettings.Current.Theme == "Light";

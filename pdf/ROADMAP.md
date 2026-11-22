@@ -372,6 +372,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   folder index; Pro). 4.24 A summary read aloud to a file. 4.23 Edit by asking (the user's endpoint with the command
   palette's commands as tools, each step shown and undoable; last, a weak fit for small local models).
   - 4.9 Two documents side by side. Done on Windows (`DocumentWindows`: which window owns which tab, moves, tear-off, the window in use, what is remembered; `TabDrag`; File › New Window, a tab dragged out or onto another window, the jump list's New Window); the Mac's waits.
+  - 4.16 Reflow view. Done on Windows (`Reflow`: `HtmlWriter`'s column with a look that follows Text size, the view's zoom and Dark pages, links out to the browser, the commands that run; `ReflowPosition`: the page kept both ways; shown in WebView2, View › Reflow, Ctrl+3); the Mac's waits.
 - **Watch, not built:** filling XFA-only forms (Nitro and PDFelement do; an XFA layout engine, L, likely a package);
   ZUGFeRD/Factur-X e-invoices (no desktop editor has them; PDF/A-3b first).
 
