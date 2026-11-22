@@ -12014,4 +12014,56 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Links_Edit_Many" xml:space="preserve">
     <value>Add {0} links</value>
   </data>
+  <data name="Main_MenuMarkAllMatches" xml:space="preserve">
+    <value>Mark _All Matches</value>
+  </data>
+  <data name="Cmd_HighlightAllMatches" xml:space="preserve">
+    <value>_Highlight All Matches</value>
+  </data>
+  <data name="Cmd_UnderlineAllMatches" xml:space="preserve">
+    <value>_Underline All Matches</value>
+  </data>
+  <data name="Cmd_StrikeOutAllMatches" xml:space="preserve">
+    <value>_Strike Out All Matches</value>
+  </data>
+  <data name="Tab_HighlightAllMatches" xml:space="preserve">
+    <value>Highlight all matches</value>
+  </data>
+  <data name="Tab_HighlightAllMatchesTip" xml:space="preserve">
+    <value>Each match becomes a highlight comment, one undo step. Review › Mark All Matches also underlines or strikes them out.</value>
+  </data>
+  <data name="Marks_SearchFirst" xml:space="preserve">
+    <value>Search for the words to mark, then choose it again.</value>
+  </data>
+  <data name="Marks_StillSearching" xml:space="preserve">
+    <value>Still searching: choose it again when the search is done.</value>
+  </data>
+  <data name="Marks_NoMatches" xml:space="preserve">
+    <value>The search found nothing to mark.</value>
+  </data>
+  <data name="Marks_AllMarkedAlready" xml:space="preserve">
+    <value>Every match is marked already.</value>
+  </data>
+  <data name="Marks_Limit" xml:space="preserve">
+    <value>Marked the first {0} of {1} matches; choose it again for the rest.</value>
+    <comment>{0} = matches marked, {1} = matches found</comment>
+  </data>
+  <data name="Marks_Highlight_One" xml:space="preserve">
+    <value>Highlight 1 match</value>
+  </data>
+  <data name="Marks_Highlight_Many" xml:space="preserve">
+    <value>Highlight {0} matches</value>
+  </data>
+  <data name="Marks_Underline_One" xml:space="preserve">
+    <value>Underline 1 match</value>
+  </data>
+  <data name="Marks_Underline_Many" xml:space="preserve">
+    <value>Underline {0} matches</value>
+  </data>
+  <data name="Marks_StrikeOut_One" xml:space="preserve">
+    <value>Strike out 1 match</value>
+  </data>
+  <data name="Marks_StrikeOut_Many" xml:space="preserve">
+    <value>Strike out {0} matches</value>
+  </data>
 </root>

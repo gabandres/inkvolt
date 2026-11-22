@@ -1965,6 +1965,9 @@ public partial class MainWindow : Window
         Bind(Cmd.DetectFields, t => _ = t.DetectFieldsCommand(), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsBusy);
         Bind(Cmd.LinkSelection, t => _ = t.LinkSelection(), t => t.CanMarkup);
         Bind(Cmd.LinkAddresses, t => _ = t.LinkAddresses(), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.HighlightAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.Highlight), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.UnderlineAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.Underline), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.StrikeOutAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.StrikeOut), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.AddStamp, ShowStampMenu, t => t.Session.IsPdf && t.PageView.PageCount > 0);
         // From Protect's flyout: the selected text is marked at once; with nothing selected, the marking tool (drag a box).
         BindAtOnce(Cmd.Redact, (t, now) =>

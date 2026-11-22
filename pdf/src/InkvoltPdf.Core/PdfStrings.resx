@@ -7235,4 +7235,8 @@
     <value>Make printed web and email addresses links</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_HighlightAllDesc" xml:space="preserve">
+    <value>Highlight every match of your search</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>

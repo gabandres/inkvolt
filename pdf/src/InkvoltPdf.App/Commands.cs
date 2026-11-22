@@ -87,6 +87,9 @@ public static class Cmd
     public static readonly RoutedUICommand ToolLink = Make(Strings.Cmd_ToolLink, nameof(ToolLink));
     public static readonly RoutedUICommand LinkSelection = Make(Strings.Cmd_LinkSelection, nameof(LinkSelection));
     public static readonly RoutedUICommand LinkAddresses = Make(Strings.Cmd_LinkAddresses, nameof(LinkAddresses));
+    public static readonly RoutedUICommand HighlightAllMatches = Make(Strings.Cmd_HighlightAllMatches, nameof(HighlightAllMatches));
+    public static readonly RoutedUICommand UnderlineAllMatches = Make(Strings.Cmd_UnderlineAllMatches, nameof(UnderlineAllMatches));
+    public static readonly RoutedUICommand StrikeOutAllMatches = Make(Strings.Cmd_StrikeOutAllMatches, nameof(StrikeOutAllMatches));
     public static readonly RoutedUICommand AddStamp = Make(Strings.Cmd_AddStamp, nameof(AddStamp));
     public static readonly RoutedUICommand HighlightFields = Make(Strings.Cmd_HighlightFields, nameof(HighlightFields));
 

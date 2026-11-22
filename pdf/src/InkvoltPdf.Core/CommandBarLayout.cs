@@ -122,6 +122,7 @@ public static class CommandBarLayout
             [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc, AtOnce: true), // no selection: the highlighter
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
              new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
+             new("HighlightAllMatches", "\uE7E6", Description: PdfStrings.Bar_HighlightAllDesc),
              new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
              new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)], "\uE7E6"),
         // "Llenar y firmar" is the bar's longest label: in Spanish Fill & Sign goes into "\u2026" before the bar drops its

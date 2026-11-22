@@ -7235,4 +7235,8 @@
     <value>Convierte en vínculos las direcciones del texto</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_HighlightAllDesc" xml:space="preserve">
+    <value>Resalta cada coincidencia de tu búsqueda</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>

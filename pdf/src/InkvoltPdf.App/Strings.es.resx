@@ -12011,4 +12011,56 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Links_Edit_Many" xml:space="preserve">
     <value>Agregar {0} vínculos</value>
   </data>
+  <data name="Main_MenuMarkAllMatches" xml:space="preserve">
+    <value>Marcar _todas las coincidencias</value>
+  </data>
+  <data name="Cmd_HighlightAllMatches" xml:space="preserve">
+    <value>_Resaltar todas las coincidencias</value>
+  </data>
+  <data name="Cmd_UnderlineAllMatches" xml:space="preserve">
+    <value>_Subrayar todas las coincidencias</value>
+  </data>
+  <data name="Cmd_StrikeOutAllMatches" xml:space="preserve">
+    <value>_Tachar todas las coincidencias</value>
+  </data>
+  <data name="Tab_HighlightAllMatches" xml:space="preserve">
+    <value>Resaltar todas las coincidencias</value>
+  </data>
+  <data name="Tab_HighlightAllMatchesTip" xml:space="preserve">
+    <value>Cada coincidencia se convierte en un comentario resaltado, en un solo paso que se puede deshacer. Revisar › Marcar todas las coincidencias también las subraya o las tacha.</value>
+  </data>
+  <data name="Marks_SearchFirst" xml:space="preserve">
+    <value>Busca las palabras que quieras marcar y vuelve a elegirlo.</value>
+  </data>
+  <data name="Marks_StillSearching" xml:space="preserve">
+    <value>Todavía se está buscando: vuelve a elegirlo cuando termine la búsqueda.</value>
+  </data>
+  <data name="Marks_NoMatches" xml:space="preserve">
+    <value>La búsqueda no encontró nada que marcar.</value>
+  </data>
+  <data name="Marks_AllMarkedAlready" xml:space="preserve">
+    <value>Todas las coincidencias ya están marcadas.</value>
+  </data>
+  <data name="Marks_Limit" xml:space="preserve">
+    <value>Se marcaron las primeras {0} de {1} coincidencias; vuelve a elegirlo para las demás.</value>
+    <comment>{0} = matches marked, {1} = matches found</comment>
+  </data>
+  <data name="Marks_Highlight_One" xml:space="preserve">
+    <value>Resaltar 1 coincidencia</value>
+  </data>
+  <data name="Marks_Highlight_Many" xml:space="preserve">
+    <value>Resaltar {0} coincidencias</value>
+  </data>
+  <data name="Marks_Underline_One" xml:space="preserve">
+    <value>Subrayar 1 coincidencia</value>
+  </data>
+  <data name="Marks_Underline_Many" xml:space="preserve">
+    <value>Subrayar {0} coincidencias</value>
+  </data>
+  <data name="Marks_StrikeOut_One" xml:space="preserve">
+    <value>Tachar 1 coincidencia</value>
+  </data>
+  <data name="Marks_StrikeOut_Many" xml:space="preserve">
+    <value>Tachar {0} coincidencias</value>
+  </data>
 </root>

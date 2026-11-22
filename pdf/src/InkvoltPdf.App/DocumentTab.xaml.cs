@@ -940,6 +940,7 @@ public partial class DocumentTab : UserControl, IDisposable
         CancelSearch();
         _results.Clear();
         _searched = null;
+        _searchComplete = false;
         _activeHit = -1;
         Viewer.SetSearchHits([]);
         Viewer.ShowHit(null);
@@ -1402,6 +1403,7 @@ public partial class DocumentTab : UserControl, IDisposable
         CancelSearch();
         var cts = _searchCts = new CancellationTokenSource();
         _searched = (query, matchCase, wholeWords, ignoreAccents);
+        _searchComplete = false;
         _results.Clear();
         _activeHit = -1;
         Viewer.SetSearchHits([]);
@@ -1460,6 +1462,7 @@ public partial class DocumentTab : UserControl, IDisposable
             // Let the last progress callback land before summarizing.
             await Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.Background);
             if (cts.IsCancellationRequested) return;
+            _searchComplete = true;
             var summary = _results.Count == 0 ? Loc.Format(Strings.Tab_SearchNoMatchesFor, query)
                 : Loc.Format(Strings.Tab_SearchSummary, _results.Count, _results.Select(r => r.Page).Distinct().Count());
             int[] failed;
@@ -1469,7 +1472,7 @@ public partial class DocumentTab : UserControl, IDisposable
                     ? Loc.Format(Strings.Tab_SearchSummaryFailedPage, summary, failed[0])
                     : Loc.Format(Strings.Tab_SearchSummaryFailedPages, summary, failed.Length, string.Join(", ", failed.Take(10)) + (failed.Length > 10 ? "…" : ""));
             SearchStatus.Text = summary;
-            RedactHitsButton.Visibility = _results.Count > 0 && Session.IsPdf ? Visibility.Visible : Visibility.Collapsed;
+            RedactHitsButton.Visibility = HighlightHitsButton.Visibility = _results.Count > 0 && Session.IsPdf ? Visibility.Visible : Visibility.Collapsed;
             if (_results.Count == 0) FindStatus.Text = Strings.Tab_FindNoMatches;
             else if (_jumpWhenFound)
             {

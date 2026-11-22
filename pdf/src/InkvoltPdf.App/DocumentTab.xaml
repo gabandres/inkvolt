@@ -148,6 +148,9 @@
                         <Button x:Name="RedactHitsButton" DockPanel.Dock="Top" Style="{StaticResource TextButton}" HorizontalAlignment="Left" Margin="-8,0,0,4"
                                 Content="{x:Static loc:Strings.Tab_MarkAllForRedaction}" Visibility="Collapsed"
                                 ToolTip="{x:Static loc:Strings.Tab_MarkAllForRedactionTip}" />
+                        <Button x:Name="HighlightHitsButton" DockPanel.Dock="Top" Style="{StaticResource TextButton}" HorizontalAlignment="Left" Margin="-8,0,0,4"
+                                Content="{x:Static loc:Strings.Tab_HighlightAllMatches}" Visibility="Collapsed"
+                                ToolTip="{x:Static loc:Strings.Tab_HighlightAllMatchesTip}" />
                         <ListBox x:Name="SearchResults" BorderThickness="0" Background="Transparent"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.ScrollUnit="Pixel"

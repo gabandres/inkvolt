@@ -285,6 +285,11 @@
                                     <MenuItem Command="app:Cmd.Highlight" />
                                     <MenuItem Command="app:Cmd.Underline" />
                                     <MenuItem Command="app:Cmd.StrikeOut" />
+                                    <MenuItem Header="{x:Static loc:Strings.Main_MenuMarkAllMatches}">
+                                        <MenuItem Command="app:Cmd.HighlightAllMatches" />
+                                        <MenuItem Command="app:Cmd.UnderlineAllMatches" />
+                                        <MenuItem Command="app:Cmd.StrikeOutAllMatches" />
+                                    </MenuItem>
                                     <MenuItem x:Name="NoteMenu" Command="app:Cmd.AddNote" />
                                     <!-- Pen, highlighter, shapes, lines, text boxes: filled in code (MainWindow.BuildDrawMenu) -->
                                     <MenuItem x:Name="DrawMenu" Header="{x:Static loc:Strings.Main_MenuDraw}" />

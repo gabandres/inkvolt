@@ -482,6 +482,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   up), and a close nobody answered (Windows ending the session) keeps the copies.
 - **Find** (Ctrl+F): floating find box with match case / whole words; Search pane (Ctrl+Shift+F) lists every hit. A
   search that will take more than a couple of seconds runs in helper processes of the app, up to eight (see Known limits).
+  **Mark All Matches** (Review menu: Highlight, Underline or Strike Out All Matches; Comment on the bar; Highlight all
+  matches in the Search pane): every hit of the finished search becomes a text-markup comment of its own, one undo step,
+  up to 5,000 at a time; a hit already under a mark of the same kind is left alone, and the search runs again after, so
+  its hits stay listed for another kind (`SearchMarks`).
 - **Search Folders** (Edit › Search Folders…, Ctrl+Alt+Shift+F, or Ctrl+K; a Pro feature): a word or phrase across every PDF
   of a folder and its subfolders, with the text around each hit; Enter or a double-click opens the file at that page with
   the find bar on the hit. Case and accents are ignored as in Find (Match case, Whole words and Ignore accents can be

@@ -358,7 +358,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   - 4.8 Smaller black-and-white scans: lossless JBIG2 (our own generic-region encoder; never symbol substitution) or CCITT G4 (the shared encoder from Inkvolt Print's 4.4), whichever is smaller. Done on Windows (`Jbig2Generic`, `OneBitImages`; File › Scan, Recognize Text's cleaned pages, Reduce File Size); the Mac's waits.
   - 4.6 Copy text from an area of a scan, and an area as a table. Done on Windows (`AreaCopy`: Copy Text from Area, Copy Area as Table); the Mac's waits.
   - 4.15 Links from the addresses in the text. Done on Windows (`AddressLinks`, Links from Addresses); the Mac's waits.
-  - 4.18 Mark every search hit.
+  - 4.18 Mark every search hit. Done on Windows (`SearchMarks`: Highlight, Underline or Strike Out All Matches); the Mac's waits.
   - 4.17 Proofreading marks (Insert Text, Replace Text). 4.10 AI redaction
   suggestions through the user's own endpoint (Pro; never on by default; the review list and Check Redaction as for
   patterns). 4.20 Save an AI answer (Word, PDF, a comment; the conversation kept).
