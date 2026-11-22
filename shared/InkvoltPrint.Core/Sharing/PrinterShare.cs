@@ -32,11 +32,12 @@ public enum PrinterShareState
 /// <summary>
 /// What the IPP server listens with: address and port, who may connect, how a request is answered, the largest body. A POST's first
 /// <paramref name="HeadBytes"/> (its attributes) go to <paramref name="Precheck"/> with the body's declared length before the rest is
-/// read: an answer there (busy, too large) is sent and the rest never read.
+/// read: an answer there (busy, too large) is sent and the rest never read. Only a request <paramref name="CarriesDocument"/> says
+/// carries one (Print-Job) is read, and held, past its head, up to <paramref name="MaxBodyBytes"/>; with none given, no request is.
 /// </summary>
 public sealed record PrinterListen(IPAddress Address, int Port, Func<IPAddress, IPAddress, bool> AllowPeer,
     Func<ShareRequest, CancellationToken, Task<ShareReply>> Handle, long MaxBodyBytes, int HeadBytes = 64 * 1024,
-    Func<ShareRequest, long?, ShareReply?>? Precheck = null, ShareBudget? Budget = null);
+    Func<ShareRequest, long?, ShareReply?>? Precheck = null, ShareBudget? Budget = null, Func<ShareRequest, bool>? CarriesDocument = null);
 
 /// <summary>Starts the shared printers' IPP server (Kestrel in the app, plain HTTP as IPP printers use). Fails with <see cref="SocketException"/> when the port is taken.</summary>
 public interface IPrinterShareHost
@@ -394,7 +395,7 @@ public sealed class PrinterShare : IAsyncDisposable
             var loopbackOnly = _env.LoopbackOnly;
             var listener = await _env.Host.StartAsync(new PrinterListen(address, _env.Port,
                 (peer, local) => loopbackOnly ? IPAddress.IsLoopback(SharePeers.Normal(peer)) : SharePeers.Allows(peer, local, _served),
-                HandleAsync, _limits.MaxDocumentBytes + _limits.MaxAttributeBytes, _limits.MaxAttributeBytes, Precheck, _budget), _closing.Token).ConfigureAwait(false);
+                HandleAsync, _limits.MaxDocumentBytes + _limits.MaxAttributeBytes, _limits.MaxAttributeBytes, Precheck, _budget, SharedPrinter.CarriesDocument), _closing.Token).ConfigureAwait(false);
             if (_closing.IsCancellationRequested)
             {
                 await DisposeQuietlyAsync(listener).ConfigureAwait(false);

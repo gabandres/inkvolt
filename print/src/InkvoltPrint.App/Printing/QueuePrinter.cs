@@ -13,6 +13,9 @@ namespace InkvoltPrint.App.Printing;
 
 public sealed record PrintOptions(IReadOnlyList<int> Pages, int Copies, bool TwoSided, string JobName, PageSizing Sizing = PageSizing.ActualSize);
 
+/// <summary>A page drawn and kept as a JPEG file of its job (<see cref="PrintImages.Save"/>), with its size in inches.</summary>
+public sealed record SavedPage(string Path, double WidthInches, double HeightInches);
+
 /// <summary>
 /// Prints rendered PDF pages, and scanned pages for copies, to a Windows print queue (for IPP printers: the Microsoft IPP Class Driver,
 /// which converts to whatever the printer speaks — PCLm/PWG raster for the M234dw). Each page is
@@ -83,6 +86,13 @@ public static class QueuePrinter
     public static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, int copies, bool twoSided, string jobName,
         PageSizing sizing = PageSizing.ActualSize) =>
         SpoolAsync(queueName, copies, twoSided, jobName, (paper, images) => PagesPaginator.OnePerSheet(pages, paper, sizing, images));
+
+    /// <summary>
+    /// Pages kept as files (<see cref="PrintImages.Save"/>), each on its own sheet sized per <paramref name="sizing"/>: each picture is
+    /// loaded only when its sheet is laid out, so a long job never holds them all in memory.
+    /// </summary>
+    public static Task PrintSavedAsync(string queueName, IReadOnlyList<SavedPage> pages, int copies, bool twoSided, string jobName, PageSizing sizing) =>
+        SpoolAsync(queueName, copies, twoSided, jobName, (paper, _) => new SavedPagesPaginator(pages, paper, sizing));
 
     /// <summary>
     /// A page copy laid out by the PC: <paramref name="pagesPerSheet"/> pages on each side (<see cref="CopyLayout.NUp"/>), collated
@@ -205,6 +215,34 @@ public static class QueuePrinter
                 }
             }
             return Finish(page, paper);
+        }
+    }
+
+    /// <summary>Saved pages, one a sheet in order, placed as <see cref="PagesPaginator"/> places one; each picture loaded from its file for its sheet alone.</summary>
+    internal sealed class SavedPagesPaginator(IReadOnlyList<SavedPage> pages, Size paper, PageSizing sizing) : DocumentPaginator
+    {
+        public override bool IsPageCountValid => true;
+        public override int PageCount => pages.Count;
+        public override Size PageSize { get => paper; set { } }
+        public override IDocumentPaginatorSource? Source => null;
+
+        public override DocumentPage GetPage(int pageNumber)
+        {
+            var saved = pages[pageNumber];
+            var canvas = new Canvas { Width = paper.Width, Height = paper.Height, Background = Brushes.White };
+            var (at, rotate) = CopyLayout.NUp([(saved.WidthInches * 96, saved.HeightInches * 96)], 1, paper.Width, paper.Height, sizing)[0];
+            var image = new Image
+            {
+                Source = PrintImages.Frame(saved.Path),
+                Stretch = Stretch.Fill,
+                Width = rotate ? at.Height : at.Width,
+                Height = rotate ? at.Width : at.Height,
+                LayoutTransform = rotate ? new RotateTransform(90) : Transform.Identity,
+            };
+            Canvas.SetLeft(image, at.X);
+            Canvas.SetTop(image, at.Y);
+            canvas.Children.Add(image);
+            return Finish(canvas, paper);
         }
     }
 

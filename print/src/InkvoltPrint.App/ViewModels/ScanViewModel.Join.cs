@@ -26,6 +26,9 @@ public sealed partial class ScanViewModel
 
     private JoinHalves? _join;
 
+    /// <summary>Stops finding the overlap when the join view closes (a huge page can take a while).</summary>
+    private CancellationTokenSource? _joinFinding;
+
     /// <summary>The first of the two pages being joined; null when the join view is closed.</summary>
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsJoining), nameof(IsAdjustingPage), nameof(JoinTitle))]
@@ -80,10 +83,13 @@ public sealed partial class ScanViewModel
         CancelCrop();
         CancelPhotos();
         CancelClean();
+        CancelJoin(); // an earlier join view's finding stops
         JoinPage = page;
         JoinImage = null;
         JoinStatus = Strings.Scan_JoinFinding;
         Prompt.Announce(JoinStatus);
+        var finding = _joinFinding = new CancellationTokenSource();
+        var cancel = finding.Token;
         try
         {
             var (first, second, dpi) = (page, next, page.Dpi);
@@ -93,10 +99,12 @@ public sealed partial class ScanViewModel
                 var color = !first.IsGrey || !second.IsGrey;
                 var a = ScanImaging.Pixels(first.Original, edits1, dpi, color);
                 var b = ScanImaging.Pixels(second.Original, edits2, dpi, color);
+                cancel.ThrowIfCancellationRequested();
                 // About 100 pixels an inch to find the overlap on.
                 var analysis = Math.Max(1, (int)Math.Round(dpi / 100.0));
                 var found = HalvesJoin.Find(HalvesJoin.Gray(a.Pixels, a.Width, a.Height, a.Channels, analysis),
-                    HalvesJoin.Gray(b.Pixels, b.Width, b.Height, b.Channels, analysis), dpi / (double)analysis);
+                    HalvesJoin.Gray(b.Pixels, b.Width, b.Height, b.Channels, analysis), dpi / (double)analysis, cancel);
+                cancel.ThrowIfCancellationRequested();
                 var preview = Math.Max(1, (int)Math.Ceiling(2.0 * Math.Max(Math.Max(a.Width, a.Height), Math.Max(b.Width, b.Height)) / JoinPreviewSize));
                 var smallA = HalvesJoin.Shrink(a.Pixels, a.Width, a.Height, a.Channels, preview);
                 var smallB = HalvesJoin.Shrink(b.Pixels, b.Width, b.Height, b.Channels, preview);
@@ -111,11 +119,20 @@ public sealed partial class ScanViewModel
             Prompt.Announce(JoinStatus);
             ShowJoin();
         }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            // The join view closed meanwhile.
+        }
         catch (Exception ex)
         {
             Log.Write($"Join failed: {ex}");
             if (JoinPage == page) CancelJoin();
             Message = Strings.Scan_JoinFailed;
+        }
+        finally
+        {
+            if (_joinFinding == finding) _joinFinding = null;
+            finding.Dispose();
         }
     }
 
@@ -241,6 +258,8 @@ public sealed partial class ScanViewModel
     [RelayCommand]
     private void CancelJoin()
     {
+        _joinFinding?.Cancel();
+        _joinFinding = null;
         JoinPage = null;
         JoinImage = null;
         JoinStatus = null;

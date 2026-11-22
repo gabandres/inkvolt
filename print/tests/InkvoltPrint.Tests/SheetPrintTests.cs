@@ -131,6 +131,24 @@ public class SheetPrintTests
     }
 
     [Fact]
+    public void APosterOnTinyPaperIsCountedPastTheLimitNeverWrapped()
+    {
+        // A 200 in page at 400 % on a sheet about 2 DIPs wide inside its margins: 50,000 tiles a side, 2.5 billion sheets, which an
+        // int wraps to a negative count (no sheets, and under every limit).
+        var poster = SheetPrint.Setup(new SheetChoice(PdfLayout.Poster, PosterPercent: 400))!;
+        (double, double)[] page = [(SheetPrint.MaxPageSide, SheetPrint.MaxPageSide)];
+        var tiny = (W: 2 * SheetPrint.Margin + 2.048, H: 2 * SheetPrint.Margin + 2.048);
+        var plan = SheetPrint.Plan(page, tiny.W, tiny.H, poster);
+        Assert.Equal(PrintPlan.MaxCounted + 1, plan.SheetCount);
+        Assert.True(SheetPrint.TooMany(poster, page, tiny, 1));
+        Assert.Equal(0, plan.Sheet(plan.SheetCount - 1).Pages.Single().Page);
+        // Many such pages: counting stops at the first; a page after it holds no sheet.
+        var many = SheetPrint.Plan([.. Enumerable.Repeat(page[0], 5000)], tiny.W, tiny.H, poster);
+        Assert.Equal(PrintPlan.MaxCounted + 1, many.SheetCount);
+        Assert.Equal(0, many.Sheet(many.SheetCount - 1).Pages.Single().Page);
+    }
+
+    [Fact]
     public void ABookletWithNoWayToPrintBothSidesIsRefused()
     {
         var booklet = SheetPrint.Setup(new SheetChoice(PdfLayout.Booklet))!;

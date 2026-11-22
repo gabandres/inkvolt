@@ -222,12 +222,45 @@ public class PrinterSharingTests
         var jobs = Read(await Send(p, PrinterJobs.GetJobsRequest(Uri, "phone")));
         Assert.Equal([3, 1], jobs.Groups.Where(g => g.Tag == 2).Select(g => (int)g.Attributes["job-id"][0]));
         Assert.Equal(SharedPrinter.NotFound, Read(await Send(p, DirectJob.CancelJobRequest(Uri, "phone", 2))).Status);
-        Assert.Equal(SharedPrinter.NotPossible, Read(await Send(p, DirectJob.CancelJobRequest(Uri, "phone", 1))).Status); // already printing
         Assert.Equal(SharedPrinter.Ok, Read(await Send(p, DirectJob.CancelJobRequest(Uri, "phone", 3))).Status);
+        // The one printing is stopped too: its drawing is cancelled, and it ends canceled once it has.
+        Assert.Equal(SharedPrinter.Ok, Read(await Send(p, DirectJob.CancelJobRequest(Uri, "phone", 1))).Status);
+        await WaitFor(() => Read(Send(p, DirectJob.GetJobAttributesRequest(Uri, "phone", 1)).Result).Groups.Single(g => g.Tag == 2).Attributes["job-state"][0] is 7);
+        Assert.Equal(SharedPrinter.NotPossible, Read(await Send(p, DirectJob.CancelJobRequest(Uri, "phone", 1))).Status); // already ended
 
         sink.Hold.SetResult();
         await WaitFor(() => p.ActiveJobs == 0);
-        Assert.Equal(2, sink.Jobs.Count); // 1 and 2; 3 was cancelled before it printed
+        Assert.Single(sink.Jobs); // only 2 printed: 1 was stopped while printing, 3 before it printed
+    }
+
+    [Fact]
+    public async Task A_job_slow_to_draw_is_stopped_at_its_deadline_and_the_next_prints()
+    {
+        var sink = new Sink { Hold = new TaskCompletionSource() }; // drawing that never ends (it stops when cancelled)
+        using var p = Printer(sink, new PrinterShareLimits { MaxPrintTime = TimeSpan.FromMilliseconds(300) });
+        Read(await Send(p, PrintJob(PwgDocument())));
+        await WaitFor(() => p.ActiveJobs == 0);
+        var job = Read(await Send(p, DirectJob.GetJobAttributesRequest(Uri, "phone", 1))).Groups.Single(g => g.Tag == 2).Attributes;
+        Assert.Equal((8, "aborted-by-system"), (job["job-state"][0], job["job-state-reasons"][0]));
+        sink.Hold = null;
+        Read(await Send(p, PrintJob(PwgDocument())));
+        await WaitFor(() => sink.Jobs.Count == 1);
+        Assert.Equal(SharedPrinterMedia.A4, sink.Jobs[0].Media); // drawn for the queue's paper
+    }
+
+    [Fact]
+    public void A_shared_job_is_drawn_at_the_paper_it_prints_on_never_the_size_it_names()
+    {
+        // A 200 inch page fills Letter at 300 dpi: 2550 pixels a side, not 60,000.
+        Assert.Equal((2550, 2550), SharedPages.Pixels(200, 200, SharedPrinterMedia.Letter));
+        Assert.Equal((2550, 3300), SharedPages.Pixels(8.5, 11, SharedPrinterMedia.Letter));
+        Assert.Equal((3300, 2550), SharedPages.Pixels(11, 8.5, SharedPrinterMedia.Letter)); // landscape: turned on the paper
+        Assert.Equal((2480, 3508), SharedPages.Pixels(210 / 25.4, 297 / 25.4, SharedPrinterMedia.A4));
+        Assert.Equal((2550, 3300), SharedPages.Pixels(double.NaN, 0, SharedPrinterMedia.Letter));
+        Assert.True(SharedPages.Pixels(1e9, 1e-9, SharedPrinterMedia.Legal) is { Width: >= 1 and <= 100_000, Height: >= 1 });
+        // A 36-million-pixel raster page (6000 x 6000 at 300 dpi, 20 in) is brought down to the paper; a small picture is never enlarged.
+        Assert.Equal((2550, 2550), SharedPages.Fitted(6000, 6000, 20, 20, SharedPrinterMedia.Letter));
+        Assert.Equal((800, 600), SharedPages.Fitted(800, 600, 8, 6, SharedPrinterMedia.Letter));
     }
 
     [Fact]
@@ -692,5 +725,85 @@ public class PrinterSharingTests
         using var plain = new HttpClient();
         var wrongType = await plain.PostAsync($"http://127.0.0.1:{share.Port}{printer.Path}", new StringContent("hello"));
         Assert.Equal(HttpStatusCode.UnsupportedMediaType, wrongType.StatusCode);
+    }
+
+    /// <summary>A POST over a plain socket: its headers saying <paramref name="length"/> bytes, then only <paramref name="sent"/> of them.</summary>
+    private static async Task<System.Net.Sockets.TcpClient> Upload(int port, long length, byte[] sent)
+    {
+        var tcp = new System.Net.Sockets.TcpClient();
+        await tcp.ConnectAsync(IPAddress.Loopback, port);
+        var stream = tcp.GetStream();
+        await stream.WriteAsync(System.Text.Encoding.ASCII.GetBytes(
+            $"POST {SharedPrinter.PathOf(Id)} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: application/ipp\r\nContent-Length: {length}\r\n\r\n"));
+        await stream.WriteAsync(sent);
+        return tcp;
+    }
+
+    /// <summary>The HTTP status the server answers with; 0 when it closes the connection without one.</summary>
+    private static async Task<int> Status(System.Net.Sockets.TcpClient tcp)
+    {
+        using var limit = new CancellationTokenSource(Timing.Limit(TimeSpan.FromSeconds(10)));
+        var line = new List<byte>();
+        var one = new byte[1];
+        try
+        {
+            while (!(line.Count >= 2 && line[^2] == '\r' && line[^1] == '\n'))
+            {
+                if (await tcp.GetStream().ReadAsync(one, limit.Token) == 0) return 0;
+                line.Add(one[0]);
+            }
+        }
+        catch (IOException)
+        {
+            return 0; // reset
+        }
+        return int.Parse(System.Text.Encoding.ASCII.GetString([.. line]).Split(' ')[1]);
+    }
+
+    [Fact]
+    public async Task Kestrel_holds_a_document_only_for_print_job_one_upload_a_device_and_only_for_so_long()
+    {
+        var budget = new ShareBudget(200L * 1024 * 1024);
+        using var printer = new SharedPrinter(Laser, Id, "Office laser", "DESK", new Sink(), budget: budget);
+        var limits = new PrinterShareLimits();
+        var listen = new PrinterListen(IPAddress.Loopback, 0, (peer, _) => IPAddress.IsLoopback(peer), printer.HandleAsync,
+            limits.MaxDocumentBytes + limits.MaxAttributeBytes, limits.MaxAttributeBytes, printer.Precheck, budget, SharedPrinter.CarriesDocument);
+        await using var server = await new KestrelPrinterHost(TimeSpan.FromSeconds(6)).StartAsync(listen, CancellationToken.None);
+        var head = PrintJob([]);
+        byte[] start = [.. head, .. PwgDocument(), .. new byte[100_000]];
+
+        // A slow upload of the largest document, held once its head says Print-Job: it trickles in at 200 KB a second, fast enough for
+        // Kestrel's minimum rate, so 64 MB would take five minutes and more.
+        using var slow = await Upload(server.Port, limits.MaxDocumentBytes, start);
+        using var trickling = new CancellationTokenSource();
+        var trickle = Task.Run(async () =>
+        {
+            try
+            {
+                while (!trickling.IsCancellationRequested)
+                {
+                    await slow.GetStream().WriteAsync(new byte[50_000], trickling.Token);
+                    await Task.Delay(250, trickling.Token);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or OperationCanceledException or ObjectDisposedException)
+            {
+                // Cut off by the server, or done.
+            }
+        });
+        await WaitFor(() => budget.Used >= limits.MaxDocumentBytes);
+        // The same device's second upload waits its turn, never a second 64 MB.
+        using var second = await Upload(server.Port, limits.MaxDocumentBytes, start);
+        Assert.Equal(503, await Status(second));
+        Assert.InRange(budget.Used, limits.MaxDocumentBytes, limits.MaxDocumentBytes + 256 * 1024);
+        // Any other operation is its attributes alone: one saying 10 MB is refused once past them, and holds no 10 MB meanwhile.
+        using var other = await Upload(server.Port, 10 * 1024 * 1024, [.. IppCodec.EncodeGetPrinterAttributes(Uri, ["all"]), .. new byte[limits.MaxAttributeBytes]]);
+        Assert.Equal(413, await Status(other));
+        Assert.InRange(budget.Used, limits.MaxDocumentBytes, limits.MaxDocumentBytes + 256 * 1024);
+        // The slow upload runs out of time: the connection goes, and its bytes with it.
+        Assert.Equal(0, await Status(slow));
+        await trickling.CancelAsync();
+        await trickle;
+        await WaitFor(() => budget.Used == 0);
     }
 }

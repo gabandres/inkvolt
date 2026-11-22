@@ -24,10 +24,19 @@ public sealed class PrintImages : IDisposable
     }
 
     /// <summary>The JPEG as a frozen frame the serializer embeds unchanged.</summary>
-    public BitmapFrame Jpeg(byte[] jpeg)
+    public BitmapFrame Jpeg(byte[] jpeg) => Frame(Save(jpeg));
+
+    /// <summary>The JPEG kept as a file of this job, to be loaded when its page is laid out (<see cref="Frame"/>): nothing held in memory meanwhile.</summary>
+    public string Save(byte[] jpeg)
     {
-        var path = Path.Combine(_folder, $"{++_next}.jpg");
+        var path = Path.Combine(_folder, $"{Interlocked.Increment(ref _next)}.jpg");
         File.WriteAllBytes(path, jpeg);
+        return path;
+    }
+
+    /// <summary>A saved JPEG (<see cref="Save"/>) as a frozen frame the serializer embeds unchanged.</summary>
+    public static BitmapFrame Frame(string path)
+    {
         var frame = BitmapFrame.Create(new Uri(path), BitmapCreateOptions.None, BitmapCacheOption.OnLoad);
         if (frame.CanFreeze) frame.Freeze();
         return frame;
