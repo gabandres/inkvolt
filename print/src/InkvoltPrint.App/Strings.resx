@@ -4831,4 +4831,79 @@ The files stay where they are.</value>
   <data name="Hand_Stop" xml:space="preserve">
     <value>Don't print the backs</value>
   </data>
+  <data name="Ready_Title" xml:space="preserve">
+    <value>Windows' new printer driver</value>
+  </data>
+  <data name="Ready_DriverLabel" xml:space="preserve">
+    <value>Windows driver</value>
+  </data>
+  <data name="Ready_DriverNone" xml:space="preserve">
+    <value>No Windows printer for it yet</value>
+  </data>
+  <data name="Ready_DriverWindows" xml:space="preserve">
+    <value>Windows' own (IPP class driver)</value>
+  </data>
+  <data name="Ready_DriverMicrosoft" xml:space="preserve">
+    <value>Microsoft's {0}</value>
+  </data>
+  <data name="Ready_DriverMakerV4" xml:space="preserve">
+    <value>The maker's, version 4 ({0})</value>
+  </data>
+  <data name="Ready_DriverMakerV3" xml:space="preserve">
+    <value>The maker's, version 3 ({0})</value>
+  </data>
+  <data name="Ready_DriverMaker" xml:space="preserve">
+    <value>The maker's ({0})</value>
+  </data>
+  <data name="Ready_AnswersLabel" xml:space="preserve">
+    <value>Printer answers</value>
+  </data>
+  <data name="Ready_AnswersNeither" xml:space="preserve">
+    <value>Neither IPP nor eSCL</value>
+  </data>
+  <data name="Ready_IppMopria" xml:space="preserve">
+    <value>IPP (Mopria certified)</value>
+  </data>
+  <data name="Ready_EsclMopria" xml:space="preserve">
+    <value>eSCL (Mopria Scan)</value>
+  </data>
+  <data name="Ready_ProtectedLabel" xml:space="preserve">
+    <value>Protected print mode</value>
+  </data>
+  <data name="Ready_PrintReady" xml:space="preserve">
+    <value>Ready: it prints with Windows' own driver.</value>
+  </data>
+  <data name="Ready_PrintCanMove" xml:space="preserve">
+    <value>Ready once set up with Windows' driver: the printer answers IPP, but its Windows printer uses another driver, which protected print mode removes.</value>
+  </data>
+  <data name="Ready_PrintNotReady" xml:space="preserve">
+    <value>Not ready: the printer doesn't answer IPP, so only its maker's driver prints to it, and protected print mode removes that driver.</value>
+  </data>
+  <data name="Ready_PrintNotKnown" xml:space="preserve">
+    <value>Not known: the printer can't be asked from here.</value>
+  </data>
+  <data name="Ready_ScanDriverOnly" xml:space="preserve">
+    <value>Its scanner works only through its Windows driver (WIA or TWAIN): under Windows protected print mode it won't scan.</value>
+  </data>
+  <data name="Ready_SetUp" xml:space="preserve">
+    <value>Set up with Windows' driver</value>
+  </data>
+  <data name="Ready_SetUpTip" xml:space="preserve">
+    <value>Adds this printer again in Windows with Windows' own driver, beside the one you have. Your old printer stays until you remove it in Windows Settings.</value>
+  </data>
+  <data name="Ready_QueueMarker" xml:space="preserve">
+    <value>Windows driver</value>
+  </data>
+  <data name="Ready_SetUpDone" xml:space="preserve">
+    <value>Added "{0}" with Windows' driver, beside your old printer. Choose it when you print; the old one stays until you remove it in Windows Settings.</value>
+  </data>
+  <data name="Ready_SetUpInSettings" xml:space="preserve">
+    <value>In Settings, choose Add device, then “Add manually” › “Add a printer using an IP address or hostname”. Pick “IPP Device” and paste {0} (it’s on the clipboard): Windows sets it up with its own driver. Your old printer stays.</value>
+  </data>
+  <data name="Ready_DemoSetUp" xml:space="preserve">
+    <value>(Demo: on a real PC, "{0}" would be added with Windows' driver, beside the old printer.)</value>
+  </data>
+  <data name="Ready_PrintCanSetUp" xml:space="preserve">
+    <value>Ready once set up: the printer answers IPP, and Set up (at the top) uses Windows' own driver.</value>
+  </data>
 </root>

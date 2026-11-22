@@ -124,6 +124,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             queue.Location is { Length: > 0 } where ? new(Strings.Printer_AboutLocation, where) : null,
             queue.Comment is { Length: > 0 } comment ? new(Strings.Printer_AboutComment, comment) : null,
         }.OfType<InfoRow>().ToList());
+        _ = RefreshReadinessAsync();
     }
 
     /// <summary>
@@ -351,6 +352,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The setup banner and its command follow the routing.</summary>
     private void RoutingChanged()
     {
+        if (About.Count > 0) _ = RefreshReadinessAsync(); // a queue found or made: its driver
         OnPropertyChanged(nameof(QueueInstalled));
         OnPropertyChanged(nameof(NeedsSetup));
         OnPropertyChanged(nameof(SetupResult));
@@ -1044,6 +1046,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             p.Firmware is { } fw ? new(Strings.Printer_AboutFirmware, fw.Display) : null,
             new(Strings.Printer_AboutConnectedVia, string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
+        _ = RefreshReadinessAsync(); // Windows' new driver (roadmap 4.5): what this connection answers
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
         _ = Routing.DecideAsync(); // the connection may take jobs straight now, or no longer
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
@@ -1150,6 +1153,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         // Another scanner than before (A, now B): the share is told A is gone, so it never serves A's scanner object again.
         if (_wiaDevice is { } before && !string.Equals(before.Id, device.Id, StringComparison.OrdinalIgnoreCase)) _ = OfferToShareAsync(before.Id, null);
         _wiaDevice = device;
+        if (About.Count > 0) _ = RefreshReadinessAsync(); // a scanner only its Windows driver reaches
         _wiaConnecting = true;
         try
         {

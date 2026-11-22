@@ -124,6 +124,25 @@ public static class InstalledQueues
         lock (Gate) return Presence.TryGetValue(containerId, out var facts) ? facts.Present : null;
     }
 
+    /// <summary>
+    /// A queue's driver: its name, type (3 or 4) and provider (roadmap 4.5, <see cref="DriverReadiness"/>). Null when the spooler
+    /// doesn't say within <see cref="ReadLimit"/> (a queue shared from a PC that's off).
+    /// </summary>
+    public static async Task<QueueDriverInfo?> DriverAsync(string queueName)
+    {
+        var read = Task.Run(() =>
+        {
+            try { return Winspool.Driver(queueName); }
+            catch (Exception ex) when (ex is Win32Exception or ExternalException)
+            {
+                System.Diagnostics.Trace.WriteLine($"queue driver: {ex.Message}");
+                return null;
+            }
+        });
+        try { return await read.WaitAsync(ReadLimit).ConfigureAwait(false); }
+        catch (TimeoutException) { return null; }
+    }
+
     private static (string? Host, string? Community)? TcpPort(string port)
     {
         try { return Winspool.TcpPortConfig(port); }

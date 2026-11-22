@@ -3972,4 +3972,79 @@ Los archivos se quedan donde están.</value>
   <data name="Hand_Stop" xml:space="preserve">
     <value>No imprimir los reversos</value>
   </data>
+  <data name="Ready_Title" xml:space="preserve">
+    <value>El nuevo controlador de impresora de Windows</value>
+  </data>
+  <data name="Ready_DriverLabel" xml:space="preserve">
+    <value>Controlador en Windows</value>
+  </data>
+  <data name="Ready_DriverNone" xml:space="preserve">
+    <value>Todavía no tiene una impresora en Windows</value>
+  </data>
+  <data name="Ready_DriverWindows" xml:space="preserve">
+    <value>El propio de Windows (controlador de clase IPP)</value>
+  </data>
+  <data name="Ready_DriverMicrosoft" xml:space="preserve">
+    <value>{0} de Microsoft</value>
+  </data>
+  <data name="Ready_DriverMakerV4" xml:space="preserve">
+    <value>El del fabricante, versión 4 ({0})</value>
+  </data>
+  <data name="Ready_DriverMakerV3" xml:space="preserve">
+    <value>El del fabricante, versión 3 ({0})</value>
+  </data>
+  <data name="Ready_DriverMaker" xml:space="preserve">
+    <value>El del fabricante ({0})</value>
+  </data>
+  <data name="Ready_AnswersLabel" xml:space="preserve">
+    <value>La impresora responde</value>
+  </data>
+  <data name="Ready_AnswersNeither" xml:space="preserve">
+    <value>Ni IPP ni eSCL</value>
+  </data>
+  <data name="Ready_IppMopria" xml:space="preserve">
+    <value>IPP (con certificación Mopria)</value>
+  </data>
+  <data name="Ready_EsclMopria" xml:space="preserve">
+    <value>eSCL (Mopria Scan)</value>
+  </data>
+  <data name="Ready_ProtectedLabel" xml:space="preserve">
+    <value>Modo de impresión protegida</value>
+  </data>
+  <data name="Ready_PrintReady" xml:space="preserve">
+    <value>Lista: imprime con el controlador propio de Windows.</value>
+  </data>
+  <data name="Ready_PrintCanMove" xml:space="preserve">
+    <value>Lista cuando la configures con el controlador de Windows: la impresora responde por IPP, pero su impresora en Windows usa otro controlador, que el modo de impresión protegida quita.</value>
+  </data>
+  <data name="Ready_PrintNotReady" xml:space="preserve">
+    <value>No está lista: la impresora no responde por IPP, así que solo el controlador del fabricante imprime en ella, y el modo de impresión protegida quita ese controlador.</value>
+  </data>
+  <data name="Ready_PrintNotKnown" xml:space="preserve">
+    <value>No se sabe: no se le puede preguntar a la impresora desde aquí.</value>
+  </data>
+  <data name="Ready_ScanDriverOnly" xml:space="preserve">
+    <value>Su escáner solo funciona con su controlador de Windows (WIA o TWAIN): con el modo de impresión protegida de Windows no escaneará.</value>
+  </data>
+  <data name="Ready_SetUp" xml:space="preserve">
+    <value>Configurar con el controlador de Windows</value>
+  </data>
+  <data name="Ready_SetUpTip" xml:space="preserve">
+    <value>Vuelve a agregar esta impresora en Windows con el controlador propio de Windows, junto a la que ya tienes. Tu impresora anterior se queda hasta que la quites en Configuración de Windows.</value>
+  </data>
+  <data name="Ready_QueueMarker" xml:space="preserve">
+    <value>controlador de Windows</value>
+  </data>
+  <data name="Ready_SetUpDone" xml:space="preserve">
+    <value>Se agregó "{0}" con el controlador de Windows, junto a tu impresora anterior. Elígela cuando imprimas; la anterior se queda hasta que la quites en Configuración de Windows.</value>
+  </data>
+  <data name="Ready_SetUpInSettings" xml:space="preserve">
+    <value>En Configuración, elige Agregar dispositivo y luego “Agregar manualmente” › “Agregar una impresora por medio de una dirección TCP/IP o un nombre de host”. Elige “Dispositivo IPP” y pega {0} (está en el portapapeles): Windows la configura con su propio controlador. Tu impresora anterior se queda.</value>
+  </data>
+  <data name="Ready_DemoSetUp" xml:space="preserve">
+    <value>(Demostración: en un PC real, se agregaría "{0}" con el controlador de Windows, junto a la impresora anterior.)</value>
+  </data>
+  <data name="Ready_PrintCanSetUp" xml:space="preserve">
+    <value>Lista cuando la configures: la impresora responde por IPP, y Configurar (arriba) usa el controlador propio de Windows.</value>
+  </data>
 </root>

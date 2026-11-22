@@ -183,9 +183,12 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
     Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
     down; Batch with two files) and a one-sided printer; the Mac half waits.
-  - **Still to do:** 4.5 Ready for Windows' new driver: per
-    printer, which driver its queue uses, whether the printer answers IPP and eSCL, *Set up with Windows' driver* beside
-    the old queue, and a warning for a WIA- or TWAIN-only scanner under protected print mode.
+  - **4.5 Ready for Windows' new driver.** Done on Windows: per printer the queue's driver (Windows' IPP class driver,
+    Microsoft's, the maker's version 3 or 4), whether it answers IPP and eSCL (and says Mopria), whether it's ready for protected
+    print mode, *Set up with Windows' driver* beside the old queue (never removed), and a warning for a WIA- or TWAIN-only
+    scanner (README, "Ready for Windows' new driver"; `DriverReadiness`). The M234dw here: IPP class driver, IPP and eSCL,
+    ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
+    queues are driverless already).
 - **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
   original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
   Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or

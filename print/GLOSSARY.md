@@ -124,6 +124,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   answering now.
 - **Safe repair**: what Fix all may do, each confirmed: resume a queue, turn off Use Printer Offline (`Repair.IsSafe`). It loses nothing, moves no
   job elsewhere and interrupts no other printer; the rest stays on each printer's own fixer.
+- **Readiness** (for Windows' new driver): whether a printer prints under protected print mode (**ready**: its queue is on Windows'
+  IPP class driver; **can move**: it answers IPP with a raster format but its queue is on another driver, or it has none; **not
+  ready**: asked, it doesn't answer IPP; **not known**: it can't be asked) and whether its scanner scans (**driver only**: WIA or
+  TWAIN without eSCL) (`DriverReadiness`). **Windows' driver**: Microsoft's IPP class driver, the one Windows Ready Print installs.
 - **Two-sided by hand**: both sides on a printer that can't print them: the fronts, the stack put back, the backs (`HandDuplexPlan`).
   **Output face**: which way up sheets land in the output tray (`OutputFace`); it decides how the stack goes back (**as it came out**,
   face down, backs last sheet first; **turned over like a page**, face up, backs in order). **Set aside**: an odd last sheet with no
