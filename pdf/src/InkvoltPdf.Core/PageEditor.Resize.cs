@@ -34,8 +34,23 @@ public static partial class PageEditor
         {
             var moved = new Dictionary<PdfObjectID, (double S, double E, double F)>();
             foreach (var i in pages.Distinct())
-                if (i >= 0 && i < doc.PageCount && ResizePage(doc, doc.Pages[i], width, height, fit) is { } t)
-                    moved[doc.Pages[i].ReferenceNotNull.ObjectID] = t;
+            {
+                if (i < 0 || i >= doc.PageCount) continue;
+                // A size no page can have (±1e308 makes the scale nothing and the place NaN, or PDFsharp's own sums NaN):
+                // refused, nothing resized.
+                PdfPage page;
+                try
+                {
+                    page = doc.Pages[i];
+                }
+                catch (ArithmeticException)
+                {
+                    throw new InvalidOperationException(Loc.Format(PdfStrings.Page_ResizeBadBox, i + 1));
+                }
+                if (!IsUsableBox(PdfObj.VisibleBox(page))) throw new InvalidOperationException(Loc.Format(PdfStrings.Page_ResizeBadBox, i + 1));
+                if (ResizePage(doc, page, width, height, fit) is { } t)
+                    moved[page.ReferenceNotNull.ObjectID] = t;
+            }
             if (moved.Count > 0)
                 ForEachDestination(doc, (dest, page) =>
                 {
@@ -77,11 +92,18 @@ public static partial class PageEditor
         }
     }
 
+    /// <summary>The farthest a page box's corner is taken to be from the origin (points): about 140 miles, far past any paper.</summary>
+    internal const double MaxBoxCoordinate = 10_000_000;
+
+    /// <summary>A page box Resize Pages can work from: its corners numbers within <see cref="MaxBoxCoordinate"/>.</summary>
+    internal static bool IsUsableBox((double X1, double Y1, double X2, double Y2) box) =>
+        new[] { box.X1, box.Y1, box.X2, box.Y2 }.All(v => double.IsFinite(v) && Math.Abs(v) <= MaxBoxCoordinate);
+
     /// <summary>The transform that puts the page's visible box on the new paper: scale s, then move by (e, f); null when it is already so.</summary>
     internal static (double S, double E, double F, double W, double H)? ResizeTransform((double X1, double Y1, double X2, double Y2) box, int rotate, double width, double height, ResizeFit fit)
     {
         double w = box.X2 - box.X1, h = box.Y2 - box.Y1;
-        if (!(w >= 1 && h >= 1)) return null;
+        if (!(w >= 1 && h >= 1) || !IsUsableBox(box)) return null;
         var sideways = ((rotate % 360) + 360) % 360 is 90 or 270;
         var (shownW, shownH) = sideways ? (h, w) : (w, h);
         double small = Math.Min(width, height), large = Math.Max(width, height);
@@ -152,6 +174,7 @@ public static partial class PageEditor
         {
             var values = new double[a.Elements.Count & ~1];
             for (var k = 0; k < values.Length; k += 2) (values[k], values[k + 1]) = Map(PdfObj.Num(a, k), PdfObj.Num(a, k + 1));
+            if (!values.All(double.IsFinite)) return; // a point no page has (±1e308): left as it was, never written as NaN
             a.Elements.Clear();
             foreach (var v in values) a.Elements.Add(new PdfReal(v));
         }

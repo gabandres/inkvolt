@@ -5041,6 +5041,10 @@
   <data name="Page_ResizeSize" xml:space="preserve">
     <value>A side of the paper must be between {0} and {1} inches.</value>
   </data>
+  <data name="Page_ResizeBadBox" xml:space="preserve">
+    <value>Page {0} has a size in the file that can't be right, so no page was resized.</value>
+    <comment>{0} = page number</comment>
+  </data>
   <data name="Page_ReplaceCount" xml:space="preserve">
     <value>Choose as many pages to put in as pages to replace.</value>
   </data>

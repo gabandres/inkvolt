@@ -140,10 +140,18 @@ public static partial class RedactionSuggestions
         }
         foreach (var line in text.Split('\n'))
         {
-            var m = Bullet().Match(line);
+            Match m;
+            try
+            {
+                m = Bullet().Match(line);
+            }
+            catch (RegexMatchTimeoutException)
+            {
+                continue; // linear, so never expected: a line it can't read in time is no item
+            }
             if (!m.Success) continue;
             readable = true;
-            if (found.Count < MaxProposalsPerAnswer) found.Add(new RedactionProposal(m.Groups["t"].Value, "other"));
+            if (found.Count < MaxProposalsPerAnswer) found.Add(new RedactionProposal(m.Groups["t"].Value.TrimEnd(), "other"));
             else ignored++;
         }
         return found;
@@ -208,7 +216,7 @@ public static partial class RedactionSuggestions
     /// is tidied first (its spaces, quotes and brackets around it, a full stop after it, typographic apostrophes either
     /// way); one of fewer than two letters or digits, or longer than a phrase may be, is left out too.
     /// </summary>
-    public static RedactionSuggestResult Verify(IEnumerable<RedactionProposal> proposals, IEnumerable<string> sent)
+    public static RedactionSuggestResult Verify(IEnumerable<RedactionProposal> proposals, IEnumerable<string> sent, CancellationToken cancel = default)
     {
         var kept = new List<RedactionProposal>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -216,6 +224,7 @@ public static partial class RedactionSuggestions
         var texts = sent.Where(t => t.Length > 0).ToList();
         foreach (var p in proposals)
         {
+            cancel.ThrowIfCancellationRequested();
             var match = Variants(p.Text).FirstOrDefault(v => texts.Any(t => PageText.Matches(t, v, matchCase: false, wholeWord: true)));
             if (match is null)
             {
@@ -248,7 +257,9 @@ public static partial class RedactionSuggestions
 
     /// <summary>
     /// Asks the model about each request in turn (<paramref name="ask"/> sends one and returns the answer's text), reads
-    /// each answer (<see cref="Parse"/>) and keeps what the text that request sent holds (<see cref="Verify"/>).
+    /// each answer (<see cref="Parse"/>) and keeps what the text that request sent holds (<see cref="Verify"/>). Reading and
+    /// checking an answer (megabytes of it, from a hostile endpoint) runs on a worker thread, so the caller's thread stays
+    /// free and <paramref name="cancel"/> stops it between proposals; <paramref name="ask"/> is called on the caller's thread.
     /// </summary>
     public static async Task<RedactionSuggestResult> SuggestAsync(IReadOnlyList<RedactionSuggestRequest> requests,
         Func<IReadOnlyList<AiMessage>, AiStep, CancellationToken, Task<string>> ask, CancellationToken cancel = default)
@@ -262,9 +273,12 @@ public static partial class RedactionSuggestions
             var r = requests[i];
             var answer = await ask(r.Messages, new AiStep(i + 1, requests.Count, i == requests.Count - 1,
                 Loc.Format(PdfStrings.Redact_SuggestAsking, AiText.PagesText(r.FirstPage, r.LastPage))), cancel);
-            var proposals = Parse(answer, out var readable, out var ignored);
+            var (verified, readable, ignored) = await Task.Run(() =>
+            {
+                var proposals = Parse(answer, out var ok, out var skipped);
+                return (Verify(proposals, [r.Text], cancel), ok, skipped);
+            }, cancel);
             if (!readable) unreadable++;
-            var verified = Verify(proposals, [r.Text]);
             dropped += verified.Dropped + ignored; // items it couldn't take count as left out, never lost silently
             kept.AddRange(verified.Kept.Where(p => seen.Add(Key(p.Text))));
         }
@@ -323,8 +337,10 @@ public static partial class RedactionSuggestions
     [GeneratedRegex(@"^```[a-zA-Z]*\s*$|^```", RegexOptions.Multiline)]
     private static partial Regex Fence();
 
-    // "- John Smith", "* Acme", "1. 4471-22": a list a model wrote instead of JSON.
-    [GeneratedRegex(@"^\s*(?:[-*•]|\d{1,3}[.)])\s+(?<t>\S.*?)\s*$")]
+    // "- John Smith", "* Acme", "1. 4471-22": a list a model wrote instead of JSON. Linear on any line (an answer is
+    // hostile text, megabytes long): the spaces after the bullet taken at once, then the rest of the line, its trailing
+    // spaces trimmed by the caller; a lazy item before "\s*$" backtracked over every space in turn.
+    [GeneratedRegex(@"^\s*(?:[-*•]|\d{1,3}[.)])(?>\s+)(?<t>\S.*)", RegexOptions.None, matchTimeoutMilliseconds: 1000)]
     private static partial Regex Bullet();
 }
 

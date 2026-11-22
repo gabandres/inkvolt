@@ -220,8 +220,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   point**, the place before a character of the page's text, `Annotations.CaretAt`; the words to insert are its comment) or
   Replace Text (a /Caret after struck-out words, holding the new text, with the /StrikeOut bound to it as a **comment
   group**: /IRT the caret, /RT /Group, `AnnotationInfo.Grouped`). A group is one comment: its **head** (the caret) is
-  listed, its members aren't (`Annotations.IsGroupMember`), and deleting or moving the head takes them along. A reply
-  (/RT /R) is not a group.
+  listed, its members aren't (`Annotations.IsGroupMember`, `Annotations.AsListed`; a loop of groups or replies is listed
+  as comments of their own), and deleting or moving the head takes them along. A reply (/RT /R) is not a group.
 - **Redaction suggestion** (`Core/RedactionSuggestions.cs`, `RedactionProposal`; Windows `App/DocumentTab.RedactSuggest.cs`):
   a **proposal** of something to redact, the exact words and what kind of thing they are (name, organization, address,
   account, other), from the user's own model (Pro, never on by default; its answer is data, read as a list of quotes) or

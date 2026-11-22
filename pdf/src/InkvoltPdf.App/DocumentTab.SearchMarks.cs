@@ -63,8 +63,14 @@ public partial class DocumentTab
         }, contentOnly: true);
         if (result is not { Count: var done }) return;
         if (outcome == EditOutcome.NoChange) Notify(Strings.Marks_AllMarkedAlready);
-        else if (outcome == EditOutcome.Done && done.Limited > 0)
-            ShowNotice(Loc.Format(Strings.Marks_Limit, done.Marked, done.Marked + done.Limited), undo: true);
+        else if (outcome == EditOutcome.Done && (done.Limited > 0 || done.PagesNotAllRead > 0))
+        {
+            // Hits past the limit, and pages with more marks than were read (a hit under the rest is marked again): said.
+            var notes = new List<string>();
+            if (done.Limited > 0) notes.Add(Loc.Format(Strings.Marks_Limit, done.Marked, done.Marked + done.Limited));
+            if (done.PagesNotAllRead > 0) notes.Add(Loc.Plural(done.PagesNotAllRead, Strings.Marks_NotAllRead_One, Strings.Marks_NotAllRead_Many));
+            ShowNotice(string.Join(" ", notes), undo: true);
+        }
         if (outcome == EditOutcome.Done)
         {
             // The edit cleared the hits: search again, staying where the view is.

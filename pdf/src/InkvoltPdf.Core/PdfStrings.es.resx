@@ -5041,6 +5041,10 @@
   <data name="Page_ResizeSize" xml:space="preserve">
     <value>Un lado del papel debe medir entre {0} y {1} pulgadas.</value>
   </data>
+  <data name="Page_ResizeBadBox" xml:space="preserve">
+    <value>La página {0} tiene en el archivo un tamaño que no puede ser correcto, así que no se cambió el tamaño de ninguna página.</value>
+    <comment>{0} = page number</comment>
+  </data>
   <data name="Page_ReplaceCount" xml:space="preserve">
     <value>Elige tantas páginas para poner como páginas para reemplazar.</value>
   </data>

@@ -1517,6 +1517,10 @@
     <value>Replace All</value>
     <comment>Button: replaces every ticked match; also the undo step's name</comment>
   </data>
+  <data name="Replace_Working" xml:space="preserve">
+    <value>Replacing</value>
+    <comment>What runs, in the progress window: "Replacing: page 2 of 5…"</comment>
+  </data>
   <data name="Replace_AllN" xml:space="preserve">
     <value>Replace All ({0})</value>
     <comment>{0} = how many matches are ticked</comment>
@@ -12106,6 +12110,10 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Area_NoText" xml:space="preserve">
     <value>No text found in that box.</value>
   </data>
+  <data name="Area_TableTooLarge" xml:space="preserve">
+    <value>More than {0:N0} cells for a table: copied as text.</value>
+    <comment>{0} = the most cells a copied table holds</comment>
+  </data>
   <data name="Area_CouldntRead" xml:space="preserve">
     <value>Couldn't read that part of the page.</value>
   </data>
@@ -12186,6 +12194,13 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Marks_Limit" xml:space="preserve">
     <value>Marked the first {0} of {1} matches; choose it again for the rest.</value>
     <comment>{0} = matches marked, {1} = matches found</comment>
+  </data>
+  <data name="Marks_NotAllRead_One" xml:space="preserve">
+    <value>1 page already had more marks than are read: a match under one of the others may be marked twice.</value>
+  </data>
+  <data name="Marks_NotAllRead_Many" xml:space="preserve">
+    <value>{0} pages already had more marks than are read: a match under one of the others may be marked twice.</value>
+    <comment>{0} = pages</comment>
   </data>
   <data name="Marks_Highlight_One" xml:space="preserve">
     <value>Highlight 1 match</value>

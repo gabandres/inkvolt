@@ -604,9 +604,8 @@ public partial class DocumentTab
     private void RefreshCommentList()
     {
         var all = _annotations.Where(a => !a.IsInkvoltPdfStamp).ToDictionary(a => a.Id);
-        var allIds = all.Keys.ToHashSet();
-        // A group's members (Replace Text's strike-out) are part of its head: one item.
-        var byId = all.Values.Where(a => !Annotations.IsGroupMember(a, allIds)).ToDictionary(a => a.Id);
+        // A group's members (Replace Text's strike-out) are part of its head: one item; a loop of groups or replies, items of their own.
+        var byId = Annotations.AsListed(all.Values).ToDictionary(a => a.Id);
         var replaced = Annotations.ReplacedCarets(all.Values);
         var replies = byId.Values.Where(a => a.ReplyTo is not null && byId.ContainsKey(a.ReplyTo)).ToLookup(a => a.ReplyTo!);
         var items = new List<CommentItem>();

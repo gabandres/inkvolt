@@ -36,6 +36,39 @@ public class ResizePagesTests
     }
 
     [Fact]
+    public void APageSizeNoPageCanHave_IsRefusedWithAMessage_NeverWrittenAsNaN()
+    {
+        // ±1e308: the width is infinite, the scale nothing, the place NaN.
+        var huge = "1" + new string('0', 308);
+        byte[] Doc(string mediaBox, string pageExtra = "") => Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+            Core2Pdf.Stream("0 0 1 rg 100 100 200 200 re f"),
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [{mediaBox}] {pageExtra} /Contents 4 0 R /Annots [6 0 R] >>",
+            $"<< /Type /Annot /Subtype /Square /Rect [-{huge} 0 {huge} 10] >>",
+        ]);
+        Assert.Null(PageEditor.ResizeTransform((-1e308, 0, 1e308, 792), 0, A4W, A4H, ResizeFit.Scale));
+        Assert.Null(PageEditor.ResizeTransform((0, 0, double.NaN, 792), 0, A4W, A4H, ResizeFit.Scale));
+
+        // As wide as no page is (one side, or both, which PDFsharp itself can't take): refused, saying which page.
+        foreach (var box in new[] { $"-{huge} 0 {huge} 792", $"-{huge} -{huge} {huge} {huge}", "0 0 612 20000000" })
+        {
+            var ex = Assert.Throws<InvalidOperationException>(() => PageEditor.Resize(Doc(box), null, [0, 1], A4W, A4H, ResizeFit.Scale));
+            Assert.Contains("2", ex.Message); // the page named
+        }
+        var bad = Doc($"-{huge} 0 {huge} 792");
+        using (var first = Core2Pdf.Open(PageEditor.Resize(bad, null, [0], A4W, A4H, ResizeFit.Scale))) // the other page alone: resized
+            Assert.Equal(A4W, first.Pages[0].MediaBox.Width, 1);
+
+        // A crop that shows a page of a usable size: that is the page, and it resizes; the comment's absurd box stays as it was.
+        var cropped = PageEditor.Resize(Doc($"-{huge} 0 {huge} 792", "/CropBox [0 0 612 792]"), null, [1], A4W, A4H, ResizeFit.Scale);
+        Assert.DoesNotContain("NaN", System.Text.Encoding.Latin1.GetString(cropped));
+        Assert.Equal((A4W, A4H), Sizes(cropped)[1]);
+    }
+
+    [Fact]
     public void APageKeepsTheWayItIsTurned()
     {
         // Landscape content gets the paper sideways; a page turned with /Rotate gets it in its own space.

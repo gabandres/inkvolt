@@ -1510,6 +1510,10 @@
   <data name="Replace_All" xml:space="preserve">
     <value>Reemplazar todo</value>
   </data>
+  <data name="Replace_Working" xml:space="preserve">
+    <value>Reemplazando</value>
+    <comment>What runs, in the progress window: "Replacing: page 2 of 5…"</comment>
+  </data>
   <data name="Replace_AllN" xml:space="preserve">
     <value>Reemplazar todo ({0})</value>
   </data>
@@ -12087,6 +12091,10 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Area_NoText" xml:space="preserve">
     <value>No se encontró texto en ese recuadro.</value>
   </data>
+  <data name="Area_TableTooLarge" xml:space="preserve">
+    <value>Más de {0:N0} celdas para una tabla: se copió como texto.</value>
+    <comment>{0} = the most cells a copied table holds</comment>
+  </data>
   <data name="Area_CouldntRead" xml:space="preserve">
     <value>No se pudo leer esa parte de la página.</value>
   </data>
@@ -12167,6 +12175,13 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Marks_Limit" xml:space="preserve">
     <value>Se marcaron las primeras {0} de {1} coincidencias; vuelve a elegirlo para las demás.</value>
     <comment>{0} = matches marked, {1} = matches found</comment>
+  </data>
+  <data name="Marks_NotAllRead_One" xml:space="preserve">
+    <value>Una página ya tenía más marcas de las que se leen: una coincidencia bajo alguna de las demás puede quedar marcada dos veces.</value>
+  </data>
+  <data name="Marks_NotAllRead_Many" xml:space="preserve">
+    <value>{0} páginas ya tenían más marcas de las que se leen: una coincidencia bajo alguna de las demás puede quedar marcada dos veces.</value>
+    <comment>{0} = pages</comment>
   </data>
   <data name="Marks_Highlight_One" xml:space="preserve">
     <value>Resaltar 1 coincidencia</value>
