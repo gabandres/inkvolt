@@ -39,6 +39,21 @@ public sealed class MeaningIndex
 
     private readonly List<Entry> _entries = [];
 
+    /// <summary>About what the entries take in the file (<see cref="CostOf"/> each).</summary>
+    private long _bytes;
+
+    /// <summary>The most the entries may take: <see cref="MaxBytes"/>, smaller in tests.</summary>
+    internal long ByteLimit { get; private init; } = MaxBytes;
+
+    /// <summary>What one entry takes in the file at most: its vector, its path, and its numbers (at most 36 bytes, some to spare).</summary>
+    private static long CostOf(string path, int dimensions) => dimensions + Encoding.UTF8.GetByteCount(path) + 48;
+
+    /// <summary>Why <see cref="Discarded"/> may say the file wasn't used without it being wrong: it couldn't be read just now (kept, tried again).</summary>
+    public const string UnreadableReason = "unreadable";
+
+    /// <summary>The file couldn't be read just now (busy, locked): it isn't wrong, so it is neither used nor deleted.</summary>
+    public bool Unreadable => Discarded == UnreadableReason;
+
     private sealed record Entry(string RelativePath, long Size, long WriteTicks, int Page, int Piece, float Scale, sbyte[] Vector);
 
     private MeaningIndex(string model, string endpoint)
@@ -67,19 +82,23 @@ public sealed class MeaningIndex
     /// <summary>An empty index for <paramref name="model"/> at <paramref name="endpoint"/>.</summary>
     public static MeaningIndex Empty(string model, string endpoint) => new(model, endpoint);
 
+    internal static MeaningIndex Empty(string model, string endpoint, long byteLimit) => new(model, endpoint) { ByteLimit = byteLimit };
+
     /// <summary>
     /// Reads the index at <paramref name="path"/> when it was made by <paramref name="model"/> at <paramref name="endpoint"/>
     /// in this <see cref="Version"/> and reads back whole; else an empty one (<see cref="Discarded"/> says why).
     /// </summary>
-    public static MeaningIndex Load(string path, string model, string endpoint)
+    public static MeaningIndex Load(string path, string model, string endpoint) => Load(path, model, endpoint, MaxBytes);
+
+    internal static MeaningIndex Load(string path, string model, string endpoint, long byteLimit)
     {
-        var index = new MeaningIndex(model, endpoint);
+        var index = new MeaningIndex(model, endpoint) { ByteLimit = byteLimit };
         byte[] data;
         try
         {
             var info = new FileInfo(path);
             if (!info.Exists) return index;
-            if (info.Length > MaxBytes + (16 << 20))
+            if (info.Length > byteLimit + (1 << 20))
             {
                 index.Discarded = "too large";
                 return index;
@@ -88,7 +107,7 @@ public sealed class MeaningIndex
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            index.Discarded = "unreadable";
+            index.Discarded = UnreadableReason;
             return index;
         }
         index.Discarded = index.Read(data);
@@ -96,6 +115,7 @@ public sealed class MeaningIndex
         {
             index._entries.Clear();
             index.Dimensions = 0;
+            index._bytes = 0;
         }
         return index;
     }
@@ -126,6 +146,7 @@ public sealed class MeaningIndex
                 var vector = new sbyte[dims];
                 r.Bytes(dims).CopyTo(System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.AsSpan()));
                 _entries.Add(new Entry(path, size, ticks, page, piece, scale, vector));
+                _bytes += CostOf(path, dims);
             }
             return r.AtEnd ? null : "damaged";
         }
@@ -225,8 +246,9 @@ public sealed class MeaningIndex
         var gone = have.Where(h => !files.TryGetValue(h.Key, out var f) || f.Size != h.Value.Size || f.WriteTicks != h.Value.Ticks)
             .Select(h => h.Key).Order(StringComparer.OrdinalIgnoreCase).ToList();
         var goneSet = gone.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var kept = _entries.Count(e => !goneSet.Contains(e.RelativePath));
-        var room = Math.Max(0, Math.Min(MaxEntries, Dimensions == 0 ? MaxEntries : (int)(MaxBytes / Math.Max(1, Dimensions + 32))) - kept);
+        var keptEntries = _entries.Where(e => !goneSet.Contains(e.RelativePath)).ToList();
+        var count = keptEntries.Count;
+        var bytes = keptEntries.Sum(e => CostOf(e.RelativePath, Dimensions));
         var pieces = new List<MeaningPiece>();
         var leftOut = 0;
         foreach (var f in files.Values.OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase))
@@ -234,21 +256,23 @@ public sealed class MeaningIndex
             cancel.ThrowIfCancellationRequested();
             if (f.State == IndexedState.Damaged || f.Pages == 0 || f.TextLength == 0) continue;
             if (have.TryGetValue(f.RelativePath, out var h) && h.Size == f.Size && h.Ticks == f.WriteTicks) continue;
-            if (pieces.Count >= room)
+            if (count >= MaxEntries || (Dimensions > 0 && bytes + CostOf(f.RelativePath, Dimensions) > ByteLimit))
             {
-                leftOut += f.Pages; // a page's pieces counted as one: an estimate of what isn't searched by meaning
+                leftOut += f.Pages; // full: a page's pieces counted as one, an estimate of what isn't searched by meaning
                 continue;
             }
             var texts = folder.PageTexts([.. Enumerable.Range(0, f.Pages).Select(p => (f.RelativePath, p))], cancel);
-            foreach (var piece in PiecesOf(f, texts))
+            var mine = PiecesOf(f, texts).ToList();
+            var cost = Dimensions > 0 ? mine.Count * CostOf(f.RelativePath, Dimensions) : 0;
+            // A file goes whole or not at all: one cut short would be kept as if embedded, and never sent again.
+            if (count + mine.Count > MaxEntries || bytes + cost > ByteLimit)
             {
-                if (pieces.Count >= room)
-                {
-                    leftOut++;
-                    continue;
-                }
-                pieces.Add(piece);
+                leftOut += mine.Count;
+                continue;
             }
+            pieces.AddRange(mine);
+            count += mine.Count;
+            bytes += cost;
         }
         return new MeaningPending(pieces, gone, leftOut);
     }
@@ -259,22 +283,33 @@ public sealed class MeaningIndex
         var set = paths.ToHashSet(StringComparer.OrdinalIgnoreCase);
         _entries.RemoveAll(e => set.Contains(e.RelativePath));
         if (_entries.Count == 0) Dimensions = 0;
+        _bytes = _entries.Sum(e => CostOf(e.RelativePath, Dimensions));
     }
 
-    /// <summary>Adds embedded pieces (their vectors in the same order); past <see cref="MaxEntries"/> they are left out.</summary>
+    /// <summary>
+    /// Adds embedded pieces (their vectors in the same order) while they fit: <see cref="MaxEntries"/>, and the size limit
+    /// once the vectors' length is known. Returns how many were added, from the first.
+    /// </summary>
     /// <exception cref="AiException">A vector's length differs from the index's (the model changed its output).</exception>
-    public void Add(IReadOnlyList<MeaningPiece> pieces, IReadOnlyList<float[]> vectors)
+    public int Add(IReadOnlyList<MeaningPiece> pieces, IReadOnlyList<float[]> vectors)
     {
         if (pieces.Count != vectors.Count) throw new ArgumentException("A vector for each piece.", nameof(vectors));
+        var added = 0;
         for (var i = 0; i < pieces.Count && _entries.Count < MaxEntries; i++)
         {
             var v = vectors[i];
             if (Dimensions == 0) Dimensions = v.Length;
             if (v.Length != Dimensions) throw new AiException(PdfStrings.Embed_LengthChanged);
-            var (scale, q) = Quantize(v);
             var p = pieces[i];
+            var cost = CostOf(p.RelativePath, Dimensions);
+            if (_bytes + cost > ByteLimit) break;
+            var (scale, q) = Quantize(v);
             _entries.Add(new Entry(p.RelativePath, p.Size, p.WriteTicks, p.Page, p.Piece, scale, q));
+            _bytes += cost;
+            added++;
         }
+        if (_entries.Count == 0) Dimensions = 0;
+        return added;
     }
 
     /// <summary>A vector made unit length, then in 8 bits a number: the largest number is ±127, <c>scale</c> brings them back.</summary>
@@ -323,7 +358,8 @@ public sealed class MeaningIndex
     /// files first), saving to <paramref name="path"/> every few batches and at the end, so a stop keeps what was done.
     /// </summary>
     /// <param name="progress">Pieces done so far.</param>
-    public async Task UpdateAsync(MeaningPending pending, Func<IReadOnlyList<string>, CancellationToken, Task<float[][]>> embed, string path,
+    /// <returns>Pieces left out because the index is full (their files whole: they are said, and not sent again while it stays full).</returns>
+    public async Task<int> UpdateAsync(MeaningPending pending, Func<IReadOnlyList<string>, CancellationToken, Task<float[][]>> embed, string path,
         IProgress<int>? progress = null, CancellationToken cancel = default)
     {
         Forget(pending.Gone);
@@ -339,9 +375,10 @@ public sealed class MeaningIndex
                 var batch = pending.Pieces.Skip(at).Take(AiEmbeddings.BatchSize).ToList();
                 var vectors = await embed([.. batch.Select(p => p.Text)], cancel);
                 if (vectors.Length != batch.Count) throw new AiException(PdfStrings.Embed_NotEmbeddings);
-                Add(batch, vectors);
-                done += batch.Count;
+                var added = Add(batch, vectors);
+                done += added;
                 progress?.Report(done);
+                if (added < batch.Count) break; // full (a first answer's length can make it so): the rest is left out
                 if (++unsaved >= 16)
                 {
                     Save(path);
@@ -356,5 +393,7 @@ public sealed class MeaningIndex
             if (partial.Count > 0) Forget(partial);
             Save(path);
         }
+        var stored = _entries.Select(e => (e.RelativePath.ToUpperInvariant(), e.Page, e.Piece)).ToHashSet();
+        return pending.Pieces.Count(p => !stored.Contains((p.RelativePath.ToUpperInvariant(), p.Page, p.Piece)));
     }
 }

@@ -13149,4 +13149,7 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="FolderAsk_ReadFailed" xml:space="preserve">
     <value>A folder's index or a file couldn't be read. Check that the folder is still there and the files aren't open in another app, then try again.</value>
   </data>
+  <data name="AskEdit_Changed" xml:space="preserve">
+    <value>The document changed while the AI assistant was answering, so its steps no longer fit. Nothing was done: ask again.</value>
+  </data>
 </root>

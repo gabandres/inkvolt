@@ -314,8 +314,9 @@ internal sealed class FolderAskWindow : Window
         {
             Say(ex.Message);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ObjectDisposedException or FolderIndexDamagedException)
         {
+            // A folder removed or its index rebuilt while this ran, or a file that can't be read: said, never a silent stop.
             Log.Write($"Ask across folders failed: {ex.GetType().Name}: {ex.Message}");
             Say(Strings.FolderAsk_ReadFailed);
         }

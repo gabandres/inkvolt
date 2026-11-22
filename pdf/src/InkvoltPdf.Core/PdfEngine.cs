@@ -508,11 +508,49 @@ public sealed partial class PdfEngine : IDisposable
     /// </summary>
     private static bool Unlock(MuPDFDocument doc, string password)
     {
-        if (!doc.TryUnlock(password, out var kind)) return false;
+        if (!TryUnlock(doc, password, out var kind)) return false;
         if (doc.EncryptionState == EncryptionState.Encrypted && kind.HasFlag(PasswordTypes.Owner))
-            typeof(MuPDFDocument).GetProperty(nameof(MuPDFDocument.EncryptionState))?.SetMethod?.Invoke(doc, [EncryptionState.Unlocked]);
+            SetEncryptionState(doc, EncryptionState.Unlocked);
         return doc.EncryptionState != EncryptionState.Encrypted;
     }
+
+    /// <summary>
+    /// Unlocks with <paramref name="password"/>. MuPDFCore passes a password in the ANSI code page, which suits the older
+    /// security handlers (their passwords are bytes, Latin-1 in practice) but not AES-256's revision 6, whose passwords are
+    /// UTF-8: one with ñ was refused. A non-ASCII password MuPDFCore's call refuses goes to the same native function again
+    /// as UTF-8 (as written, then in compatibility composition, SASLprep's form).
+    /// </summary>
+    internal static bool TryUnlock(MuPDFDocument doc, string password, out PasswordTypes kind)
+    {
+        if (doc.TryUnlock(password, out kind)) return true;
+        if (password.All(char.IsAscii) || NativeHandles(doc) is not var (ctx, native) || ctx == IntPtr.Zero || native == IntPtr.Zero) return false;
+        foreach (var form in new[] { password, password.Normalize(System.Text.NormalizationForm.FormKC) }.Distinct())
+        {
+            // fz_authenticate_password: 0 refused; 2 the user password; 4 the owner's (both may be set).
+            var result = UnlockWithPasswordUtf8(ctx, native, form);
+            if (result == 0) continue;
+            kind = ((result & 2) != 0 ? PasswordTypes.User : PasswordTypes.None) | ((result & 4) != 0 ? PasswordTypes.Owner : PasswordTypes.None);
+            SetEncryptionState(doc, EncryptionState.Unlocked);
+            return true;
+        }
+        return false;
+    }
+
+    private static readonly System.Reflection.FieldInfo? DocumentHandle = typeof(MuPDFDocument).GetField("NativeDocument", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+    private static readonly System.Reflection.FieldInfo? DocumentOwner = typeof(MuPDFDocument).GetField("OwnerContext", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+    private static readonly System.Reflection.FieldInfo? ContextHandle = typeof(MuPDFContext).GetField("NativeContext", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+    /// <summary>MuPDFCore's native context and document of <paramref name="doc"/> (internal fields of MuPDFCore 2.0); null when they aren't there.</summary>
+    private static (IntPtr Context, IntPtr Document)? NativeHandles(MuPDFDocument doc) =>
+        DocumentHandle?.GetValue(doc) is IntPtr native && DocumentOwner?.GetValue(doc) is MuPDFContext owner && ContextHandle?.GetValue(owner) is IntPtr ctx
+            ? (ctx, native) : null;
+
+    private static void SetEncryptionState(MuPDFDocument doc, EncryptionState state) =>
+        typeof(MuPDFDocument).GetProperty(nameof(MuPDFDocument.EncryptionState))?.SetMethod?.Invoke(doc, [state]);
+
+    /// <summary>MuPDFCore's own wrapper function, the password passed as UTF-8.</summary>
+    [System.Runtime.InteropServices.DllImport("MuPDFWrapper", EntryPoint = "UnlockWithPassword", CallingConvention = System.Runtime.InteropServices.CallingConvention.Cdecl)]
+    private static extern int UnlockWithPasswordUtf8(IntPtr ctx, IntPtr doc, [System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.LPUTF8Str)] string password);
 
     private static void CheckSize(double width, double height)
     {

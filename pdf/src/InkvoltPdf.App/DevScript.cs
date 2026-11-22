@@ -1538,7 +1538,7 @@ internal static class DevScript
             case "aiaudio":
             {
                 var a = arg.Split(' ', 2);
-                await tab!.AiSummaryToAudio(a[0] is "" or "all" ? [.. Enumerable.Range(0, v!.PageCount)] : Core.PageRange.TryParse(a[0], v!.PageCount, out var audioPages, out _) ? audioPages : [], a[1]);
+                await tab!.AiSummaryToAudio(a[0] is "" or "all" ? [.. Enumerable.Range(0, v!.PageCount)] : Core.PageRange.TryParse(a[0], v!.PageCount, out var audioPages, out _) ? audioPages : [], a.Length > 1 ? a[1] : null);
                 log.Add(tab.DevAudioState());
                 break;
             }

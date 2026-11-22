@@ -199,6 +199,59 @@ public sealed class MeaningIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task A_file_that_doesnt_fit_is_left_out_whole_never_kept_cut()
+    {
+        using var folder = FolderIndex.Open(Base);
+        var batch = folder.NewBatch();
+        Add(batch, "a.pdf", 1, "first");
+        Add(batch, "b.pdf", 1, "one", "two", "three");
+        folder.Commit(batch);
+        // Room for a.pdf's piece and one more: b.pdf's three pieces don't fit.
+        var meaning = MeaningIndex.Empty("m", "e", byteLimit: 2 * (64 + 5 + 48) + 10);
+        meaning.Add([new MeaningPiece("a.pdf", 100, 1, 0, 0, "first")], [new float[64]]);
+        var pending = meaning.Pending(folder);
+        Assert.Empty(pending.Pieces);
+        Assert.Equal(3, pending.LeftOut);
+    }
+
+    [Fact]
+    public async Task A_new_index_stays_within_its_size_once_the_vectors_length_is_known()
+    {
+        using var folder = FolderIndex.Open(Base);
+        var batch = folder.NewBatch();
+        for (var i = 0; i < 6; i++) Add(batch, $"f{i}.pdf", 1, $"page {i}", $"more {i}");
+        folder.Commit(batch);
+        const long limit = 5 * (1024 + 6 + 48);
+        var meaning = MeaningIndex.Empty("m", "e", limit);
+        var pending = meaning.Pending(folder);
+        Assert.Equal(12, pending.Pieces.Count); // the vectors' length isn't known yet
+        var path = MeaningIndex.PathFor(Base);
+        var full = await meaning.UpdateAsync(pending, (texts, _) => Task.FromResult(texts.Select(_ => new float[1024]).ToArray()), path);
+        Assert.Equal(4, meaning.Count); // two whole files; the third, cut by the limit, is forgotten
+        Assert.Equal(8, full);
+        Assert.True(new FileInfo(path).Length <= limit + 1024);
+        var again = MeaningIndex.Load(path, "m", "e", limit);
+        Assert.Null(again.Discarded);
+        Assert.Equal(4, again.Count);
+        Assert.Empty(again.Pending(folder).Pieces); // full: nothing sent again at every start
+    }
+
+    [Fact]
+    public async Task A_file_busy_just_now_is_unreadable_not_wrong()
+    {
+        using var folder = Folder();
+        var meaning = MeaningIndex.Load(MeaningPath, "m", "e");
+        await meaning.UpdateAsync(meaning.Pending(folder), EmbedAll, MeaningPath);
+        using (new FileStream(MeaningPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            var busy = MeaningIndex.Load(MeaningPath, "m", "e");
+            Assert.True(busy.Unreadable);
+        }
+        Assert.False(MeaningIndex.Load(MeaningPath, "other", "e").Unreadable);
+        Assert.Equal(3, MeaningIndex.Load(MeaningPath, "m", "e").Count);
+    }
+
+    [Fact]
     public void A_page_is_cut_into_a_few_bounded_pieces_and_the_index_stops_at_its_limit()
     {
         var file = new IndexedFile(0, "long.pdf", 1, 1, IndexedState.Indexed, 2, 0, 0, 1);

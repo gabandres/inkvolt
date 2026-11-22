@@ -43,7 +43,8 @@ internal static class SpeechFile
             await Task.Run(() => AtomicFile.WriteAllBytes(path, mp3), cancel);
             return new SpeechFileResult(path, duration, false);
         }
-        var instead = Path.ChangeExtension(path, ".wav");
+        // Beside the MP3 asked for, never over a file already there.
+        var instead = PdfFiles.UniquePath(Path.GetDirectoryName(Path.GetFullPath(path))!, Path.GetFileNameWithoutExtension(path) + ".wav");
         await Task.Run(() => AtomicFile.WriteAllBytes(instead, wav), cancel);
         return new SpeechFileResult(instead, duration, true);
     }

@@ -73,7 +73,14 @@ public partial class DocumentTab
         }
         _aiPane.ShowStatus(null);
         LastAskEdit = $"proposed [{string.Join(" | ", plan.Steps.Select(s => s.Describe()))}] refused [{string.Join(" | ", plan.Refused)}] said '{plan.Said}'";
-        if (_disposed || pageCount != Viewer.PageCount) return; // the document changed meanwhile: the steps' pages no longer hold
+        if (_disposed) return;
+        if (pageCount != Viewer.PageCount)
+        {
+            // The document changed meanwhile: the steps' pages no longer hold.
+            LastAskEdit += "; not run: the document changed";
+            Notify(Strings.AskEdit_Changed);
+            return;
+        }
         if (plan.Steps.Count == 0)
         {
             var why = new List<string> { Strings.AskEdit_NoSteps };

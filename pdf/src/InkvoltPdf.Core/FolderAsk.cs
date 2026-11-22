@@ -70,7 +70,7 @@ public static partial class FolderAsk
     public static FolderAskRequest? Build(string question, IReadOnlyList<FolderAskPage> pages, int inputTokens)
     {
         question = question.Trim();
-        if (question.Length == 0) return null;
+        if (question.Length == 0 || pages.Count == 0) return null;
         var words = AiPrompts.Words(question);
         var room = Math.Max(150, inputTokens - AiText.EstimateTokens(question) - AiText.EstimateTokens(SystemPrompt) - 60);
         var pieceTokens = Math.Max(room / 6, 120);
@@ -282,10 +282,11 @@ public static partial class FolderAsk
         return new FolderAskFiles(pages, password, unreadable, notRead);
     }
 
-    [GeneratedRegex(@"[\[(](?<in>[^\[\]()\n]{1,300})[\])]")]
+    // In square brackets a file's name may hold parentheses ("report (2).pdf"); in parentheses, square brackets.
+    [GeneratedRegex(@"\[(?<in>[^\[\]\n]{1,300})\]|\((?<in>[^()\n]{1,300})\)")]
     private static partial Regex Bracket();
 
     // "2, p. 5", "Source 2: page 5", "S2 p5", "report.pdf, pp. 5-6": the first page is the link.
-    [GeneratedRegex(@"(?:(?:source\s*|s\.?\s*)?(?<n>\d{1,4})|(?<name>[^,;:\d\s][^,;:]{0,200}?))\s*[,:]?\s*(?:pp?\.?|pages?)\s*(?<p>\d{1,5})(?:\s*[-–—]\s*\d{1,5})?", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"(?:(?:source\s*|s\.?\s*)?(?<n>\d{1,4})|(?<name>[^,;:\s][^,;:]{0,200}?))\s*[,:]?\s*(?:pp?\.?|pages?)\s*(?<p>\d{1,5})(?:\s*[-–—]\s*\d{1,5})?", RegexOptions.IgnoreCase)]
     private static partial Regex Cited();
 }

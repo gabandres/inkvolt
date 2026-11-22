@@ -78,6 +78,7 @@ public sealed class FolderAskTests : IDisposable
         Assert.Equal(["reports\\q3.pdf: pages 1, 3", "minutes.pdf: page 1"], FolderAsk.SentList(request));
 
         Assert.Null(FolderAsk.Build("zebra", Pages(), 4096));
+        Assert.Null(FolderAsk.Build("revenue", [], 4096)); // no page at all: nothing to send, no failure
         Assert.Null(FolderAsk.Build("  ", Pages(), 4096));
     }
 
@@ -134,6 +135,19 @@ public sealed class FolderAskTests : IDisposable
             [("1, p. 3", 1, 2), ("Source 1, page 1", 1, 0), ("minutes.pdf, p. 1", 2, 0), ("1, p. 1", 1, 0), ("2, p. 1", 2, 0)],
             links.Select(l => (answer.Substring(l.Start, l.Length), l.Source.Number, l.Page)));
         Assert.Equal(@"C:\docs\minutes.pdf", links[2].Source.Path);
+    }
+
+    [Fact]
+    public void A_citation_by_a_file_name_with_digits_or_parentheses_is_a_link()
+    {
+        List<FolderAskPage> pages =
+        [
+            new(@"C:\d\2024 report.pdf", "2024 report.pdf", 0, "revenue grew"),
+            new(@"C:\d\report (2).pdf", "report (2).pdf", 1, "revenue fell"),
+        ];
+        var request = FolderAsk.Build("revenue", pages, 4096)!;
+        var answer = "Up [2024 report.pdf, p. 1], down [report (2).pdf, p. 2].";
+        Assert.Equal([("2024 report.pdf", 0), ("report (2).pdf", 1)], FolderAsk.Citations(answer, request).Select(c => (c.Source.Name, c.Page)));
     }
 
     [Fact]

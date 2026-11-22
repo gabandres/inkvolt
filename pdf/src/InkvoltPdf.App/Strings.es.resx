@@ -13130,4 +13130,7 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="FolderAsk_ReadFailed" xml:space="preserve">
     <value>No se pudo leer el índice de una carpeta o un archivo. Comprueba que la carpeta sigue ahí y que los archivos no están abiertos en otra aplicación, y vuelve a intentarlo.</value>
   </data>
+  <data name="AskEdit_Changed" xml:space="preserve">
+    <value>El documento cambió mientras el asistente de IA respondía, así que sus pasos ya no corresponden. No se hizo nada: vuelve a pedirlo.</value>
+  </data>
 </root>

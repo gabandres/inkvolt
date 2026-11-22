@@ -138,6 +138,8 @@ internal sealed class IndexedFolder(AppSettings.IndexedFolderSetting setting)
     {
         if (_meaning is { } m && m.Model == model && m.Endpoint == endpoint) return m;
         var loaded = MeaningIndex.Load(MeaningPath, model, endpoint);
+        // Busy or locked just now: not wrong, so not deleted (nor used, nor written over); the search says it couldn't read.
+        if (loaded.Unreadable) throw new IOException("The folder's meaning index can't be read just now.");
         if (loaded.Discarded is { } why)
         {
             Log.Write($"A folder's meaning index is made again: {why}");

@@ -71,8 +71,10 @@ internal static class FolderMeaning
         {
             if (await PrepareAsync(owner, config, folders, query, say, cancel) is not { } vector) return null;
             var model = Model ?? "";
-            return [.. folders.SelectMany(f => f.MeaningFor(model, config.Endpoint.Key).Nearest(vector, count).Where(h => h.Score > 0).Select(h => (f, h)))
-                .OrderByDescending(x => x.h.Score).Take(count)];
+            // Every vector of every folder compared: off the window's thread.
+            return await Task.Run(() => (IReadOnlyList<(IndexedFolder, MeaningHit)>)[.. folders
+                .SelectMany(f => f.MeaningFor(model, config.Endpoint.Key).Nearest(vector, count).Where(h => h.Score > 0).Select(h => (f, h)))
+                .OrderByDescending(x => x.h.Score).Take(count)], cancel);
         }
         finally
         {
@@ -114,7 +116,8 @@ internal static class FolderMeaning
             var progress = new Progress<int>(n => say(Loc.Format(Strings.Meaning_Embedding, before + n, pieces)));
             try
             {
-                await index.UpdateAsync(pending, (texts, ct) => client.EmbedAsync(texts, api, ct), path, progress, cancel);
+                var full = await index.UpdateAsync(pending, (texts, ct) => client.EmbedAsync(texts, api, ct), path, progress, cancel);
+                if (full > 0) Log.Write($"Search by meaning: a folder's index is full, {full} piece(s) left out");
             }
             catch (AiException ex) when (ex.Message == PdfStrings.Embed_LengthChanged)
             {
