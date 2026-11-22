@@ -31,13 +31,15 @@ namespace InkvoltPrint.App;
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes</c> sets the tab's clean up before scanning (<c>--glass form</c>: the made-up glass holds a punched order form) and <c>--clean n</c> opens the clean up view on the n-th page; <c>--join n</c> opens the join view on the n-th page and the next (<c>--glass halves</c>: two halves of a made-up plan; <c>--join-nudge left|…</c>, <c>--join-apply</c>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
 /// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
-/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|printlog|setup|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>setup</c>: Set up a new printer's Wi-Fi, with <c>--setup-step connect|secured|back|stuck</c> on the made-up Wi-Fi, <see cref="SetupStepAsync"/>;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it; <c>--driver-licence</c>: a find under a licence to accept first); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
 /// command palette with the words typed, and <c>--run-palette</c> then runs its first entry. <c>--scan-button [press]</c> (demo only)
 /// turns the shown printer's scan button on and with <c>press</c> presses it on the made-up panel or scanner (roadmap 2.2).
 /// <c>--share</c> (demo only) shares the shown entry's made-up Windows scanner on the network, to this PC only (roadmap 3.1).
+/// <c>--share-printer [send]</c> (demo only) shares a made-up queue printer with phones, to this PC only, and with <c>send</c> prints to it (roadmap 4.10; <see cref="SharePrinterAsync"/>).
 /// With <c>--tray</c> (the notification-area icon, on in demo mode): <c>--simulate-alerts</c> feeds a toner drop on the first demo
 /// printer and a paper jam on the second through the alert rules; <c>--tray-shot menu|hidden|alert|settings</c> renders the icon's
 /// menu (hidden: after closing the window to the tray and one background check of each printer), the last alert as Windows shows it (a preview: the real one is drawn by Windows), or the alert settings instead of the window.
@@ -71,6 +73,65 @@ internal static class DevSnapshot
             await Task.Delay(TimeSpan.FromSeconds(1));
         }
         await Task.Delay(TimeSpan.FromSeconds(2));
+    }
+
+    /// <summary>
+    /// <c>--share-printer [send]</c> (demo only, roadmap 4.10): shares the shown queue printer (or the first one) with phones, to this PC
+    /// only; <c>send</c> then prints a made-up two-page PWG Raster to it with the core's own IPP client (as straight-to-the-printer
+    /// printing sends one), and waits for the job to land on the made-up queue.
+    /// </summary>
+    public static async Task SharePrinterAsync(ViewModels.MainViewModel main, bool send)
+    {
+        for (var tries = 30; tries > 0 && main.PrinterShares.State != Core.Sharing.PrinterShareState.On; tries--)
+        {
+            var entry = main.Selected is { PrinterSharing.IsShown: true } selected ? selected : main.Printers.FirstOrDefault(p => p.PrinterSharing is { IsShown: true });
+            if (entry is { Pc.IsDemo: true, PrinterSharing: { } sharing })
+            {
+                main.Selected = entry;
+                sharing.IsOn = true;
+            }
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        if (!send || main.PrinterShares is not { Port: { } port, Served: [var printer, ..] }) return;
+        var job = new Core.Printing.Raster.RasterJob(Core.Printing.Raster.RasterFormat.PwgRaster, 300, Core.Printing.Raster.RasterColor.Gray8,
+            Core.Sharing.SharedPrinterMedia.Letter, 21590, 27940, 2);
+        using var document = new MemoryStream();
+        var writer = Core.Printing.Raster.RasterWriter.For(document, job);
+        for (var i = 0; i < 2; i++) writer.Write(Core.Printing.Raster.RasterPage.Blank(job.WidthPixels, job.HeightPixels, job.Color));
+        writer.Finish();
+        document.Position = 0;
+        using var http = new Core.Net.DeviceHttp("127.0.0.1");
+        var ipp = new Core.Ipp.IppClient(http, new Uri($"http://127.0.0.1:{port}{printer.Path}"));
+        try
+        {
+            var caps = Core.Printing.Direct.IppPrintCaps.From(await ipp.GetPrinterAttributesAsync(Core.Printing.Direct.IppPrintCaps.Requested));
+            var plan = Core.Printing.Direct.DirectPrintPlan.Choose(caps, new Core.Printing.Direct.DirectPrintRequest(), out var problem)
+                ?? throw new InvalidOperationException(problem);
+            var (id, _) = await Core.Printing.Direct.DirectJob.SendAsync(ipp, "demo", "Shared printer test", plan with { Format = job.Format }, document);
+            for (var tries = 50; tries > 0 && printer.ActiveJobs > 0; tries--) await Task.Delay(TimeSpan.FromMilliseconds(200));
+            Log.Write($"Shared printer test: job {id} sent, {printer.ActiveJobs} still active.");
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Shared printer test failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// <c>--dialog setup --setup-step connect|secured|back|stuck</c> (demo only, roadmap 4.17): the setup guide on the made-up Wi-Fi,
+    /// Connect pressed on the made-up HP's open setup network (or the Epson's secured one, joined "in Windows"), then Done (back home), or
+    /// Done with going back made to fail.
+    /// </summary>
+    private static async Task SetupStepAsync(ViewModels.PrinterSetupViewModel setup, PcEnvironment pc, string step)
+    {
+        if (pc.Wifi is not Core.Setup.DemoWifi wifi) return;
+        for (var i = 0; i < 50 && setup.Networks.Count == 0; i++) await Task.Delay(100);
+        var row = setup.Networks.FirstOrDefault(r => r.Candidate.Network.Secured == (step == "secured"));
+        if (row is null) return;
+        if (step == "stuck") wifi.ReturnFails = true;
+        await setup.ConnectCommand.ExecuteAsync(row);
+        if (step is "back" or "stuck") await setup.ReturnCommand.ExecuteAsync(null);
+        await Task.Delay(300);
     }
 
     /// <summary>Renders <paramref name="window"/> to <paramref name="path"/> as the flags in <paramref name="args"/> (above) say, then exits.</summary>
@@ -125,6 +186,8 @@ internal static class DevSnapshot
         }
         // --share (demo only): shares the shown entry's Windows scanner (the USB laser's, the photo flatbed), to this PC only.
         if (args.Contains("--share") && window.DataContext is ViewModels.MainViewModel main0) await ShareAsync(main0, wait: false);
+        if (args.Contains("--share-printer") && window.DataContext is ViewModels.MainViewModel mainShare)
+            await SharePrinterAsync(mainShare, Value(args, "--share-printer") == "send");
         // --glass form|halves: the made-up glass holds a punched order form (red rules, a blue pen's notes, a date and an invoice number),
         // or the two halves of a plan too wide for it in turn (demo only).
         if (Value(args, "--glass") is { } glass) Demo.GlassHolds = glass;
@@ -463,6 +526,8 @@ internal static class DevSnapshot
                 "hand-duplex" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Down),
                 "hand-duplex-up" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Up),
                 "recent" => RecentScansDialog.Create(dialogMain.Selected?.RecentScans() ?? new ViewModels.RecentScansViewModel(dialogMain.State, false, null)),
+                "printlog" => PrintLogDialog.Create(dialogMain),
+                "setup" => PrinterSetupWindow.Create(dialogMain, dialogMain.Pc),
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", // protocols other than the defaults: the note shows
                     Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _, Core.Snmp.SnmpAuth.Sha1, Core.Snmp.SnmpPriv.Aes256)!),
@@ -488,6 +553,7 @@ internal static class DevSnapshot
                 dialog.Owner = window;
                 dialog.Show();
                 if (dialog is SnmpAccessDialog snmpCheck && name.StartsWith("snmp-", StringComparison.Ordinal)) await snmpCheck.DevSaveAsync();
+                if (dialog is PrinterSetupWindow setup && Value(args, "--setup-step") is { } step) await SetupStepAsync(setup.Model, dialogMain.Pc, step);
                 // Add a printer searches the (made-up) network first: about three seconds.
                 await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));
                 if (scrollToEnd)

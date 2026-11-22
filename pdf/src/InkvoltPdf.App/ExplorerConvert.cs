@@ -201,6 +201,12 @@ internal static class ExplorerConvert
         _list.Activate();
     }
 
+    /// <summary>One of several main windows closed: when it showed the conversions' notices, they go on as <see cref="MainClosed()"/> says.</summary>
+    public static void MainClosed(MainWindow window)
+    {
+        if (_main == window) MainClosed();
+    }
+
     /// <summary>
     /// The main window closed while conversions are left: they go on, in the conversions window (a notice's conversion
     /// too), so nothing is stopped half written; the app exits once that window closes.

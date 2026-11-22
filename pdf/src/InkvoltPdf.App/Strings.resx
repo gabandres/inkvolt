@@ -12458,6 +12458,54 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
     <value>{0} entries in your saved list are too long, or past what a list can hold, and aren't searched. Edit the list to fix it.</value>
   </data>
+  <data name="Cmd_NewWindow" xml:space="preserve">
+    <value>_New Window</value>
+  </data>
+  <data name="Cmd_MoveToNewWindow" xml:space="preserve">
+    <value>_Move Tab to New Window</value>
+  </data>
+  <data name="Main_TabMoveToNewWindow" xml:space="preserve">
+    <value>Move to _New Window</value>
+  </data>
+  <data name="Main_TabMoveToWindow" xml:space="preserve">
+    <value>Move to _Window</value>
+  </data>
+  <data name="Main_EmptyWindow" xml:space="preserve">
+    <value>Empty window</value>
+  </data>
+  <data name="Main_WindowWithMore" xml:space="preserve">
+    <value>{0} and {1} more</value>
+  </data>
+  <data name="Jump_NewWindow" xml:space="preserve">
+    <value>New window</value>
+  </data>
+  <data name="Jump_NewWindowTip" xml:space="preserve">
+    <value>Open another Inkvolt PDF window</value>
+  </data>
+  <data name="Start_RecentOpenNewWindow" xml:space="preserve">
+    <value>Open in New _Window</value>
+  </data>
+  <data name="Cmd_Reflow" xml:space="preserve">
+    <value>_Reflow</value>
+  </data>
+  <data name="Tab_ReflowPreparing" xml:space="preserve">
+    <value>Putting the text in one column…</value>
+  </data>
+  <data name="Tab_ReflowNoRuntime" xml:space="preserve">
+    <value>The Reflow view needs Microsoft Edge WebView2, which isn't on this PC. Windows Update installs it.</value>
+  </data>
+  <data name="Tab_ReflowNothing" xml:space="preserve">
+    <value>These pages have no text to reflow. If they're scans, use Recognize Text (Scan &amp; OCR) first.</value>
+  </data>
+  <data name="Tab_ReflowFailed" xml:space="preserve">
+    <value>The Reflow view couldn't be made: {0}</value>
+  </data>
+  <data name="Tab_ReflowName" xml:space="preserve">
+    <value>The document's text in one column</value>
+  </data>
+  <data name="Tab_ReflowBack" xml:space="preserve">
+    <value>Back to Pages</value>
+  </data>
   <data name="Tab_FieldCalculate" xml:space="preserve">
     <value>Calculate</value>
     <comment>Prepare Form panel: caption of the calculation list</comment>

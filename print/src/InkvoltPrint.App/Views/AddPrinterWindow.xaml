@@ -198,6 +198,20 @@
                         </Expander>
                     </StackPanel>
                 </Border>
+
+                <!-- 4. A new printer still on its own Wi-Fi (roadmap 4.17) -->
+                <Border Style="{StaticResource Card}" Padding="20,16" Margin="0,12,0,0">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.AddPrinter_SetUpNew}" Click="SetUpNew_Click" VerticalAlignment="Center" Margin="12,0,0,0" />
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource SectionGlyph}" Text="&#xE701;" />
+                                <TextBlock Style="{StaticResource SectionTitle}" Text="{x:Static loc:Strings.AddPrinter_NewTitle}" />
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" Text="{x:Static loc:Strings.AddPrinter_NewHint}" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
             </StackPanel>
         </ScrollViewer>
     </DockPanel>

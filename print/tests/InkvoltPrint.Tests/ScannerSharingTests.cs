@@ -1114,12 +1114,12 @@ public class ScannerSharingTests
         Assert.DoesNotContain("internetClientServer", capabilities);
         XNamespace desktop2 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/2";
         var rules = manifest.Descendants(desktop2 + "Rule").ToList();
-        // The share's port, and the phone scan's (roadmap 4.6): each alone, inbound TCP on private networks.
-        Assert.Equal([ScannerShare.DefaultPort, Core.Capture.PhoneScan.DefaultPort], rules.Select(r => int.Parse(r.Attribute("LocalPortMin")!.Value)));
+        // The shared scanner's port, the phone scan's (4.6), the shared printers' and their own mDNS answers (4.10), nothing else.
+        Assert.Equal([$"TCP {ScannerShare.DefaultPort}", $"TCP {Core.Capture.PhoneScan.DefaultPort}", $"TCP {PrinterShare.DefaultPort}", $"UDP {MdnsSubtype.Port}"],
+            rules.Select(r => $"{r.Attribute("IPProtocol")!.Value} {r.Attribute("LocalPortMin")!.Value}"));
         foreach (var rule in rules)
         {
             Assert.Equal("in", rule.Attribute("Direction")!.Value);
-            Assert.Equal("TCP", rule.Attribute("IPProtocol")!.Value);
             Assert.Equal("private", rule.Attribute("Profile")!.Value);
             Assert.Equal(rule.Attribute("LocalPortMin")!.Value, rule.Attribute("LocalPortMax")!.Value);
             Assert.Equal("InkvoltPrint.exe", rule.Parent!.Attribute("Executable")!.Value);

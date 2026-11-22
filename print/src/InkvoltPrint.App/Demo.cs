@@ -89,10 +89,34 @@ internal static class Demo
 
         // A made-up scanner shared for real, but to this PC only: 127.0.0.1, any free port, nothing announced, no key kept.
         public override Core.Sharing.ShareEnvironment ScannerSharing { get; } = Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost());
+        // Made-up queues shared for real, to this PC only (127.0.0.1, any free port, nothing announced); jobs "print" on the made-up queue.
+        public override Core.Sharing.PrinterShareEnvironment PrinterSharing => _printerSharing ??= new(new InkvoltPrint.Sharing.KestrelPrinterHost(),
+            Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost()).Networks, new NoAdverts(),
+            (name, _) => Task.FromResult(empty || !Queues.Any(q => q.Name == name) ? null : (Core.Sharing.SharedQueue?)new Core.Sharing.SharedQueue(name, Color: true, TwoSided: true)),
+            new DemoSharedPrints(), 0, LoopbackOnly: true);
+        private Core.Sharing.PrinterShareEnvironment? _printerSharing;
+
+        private sealed class NoAdverts : Core.Sharing.IShareAdvertiser
+        {
+            public Task<IAsyncDisposable> AdvertiseAsync(Core.Sharing.ShareAdvert advert, IReadOnlyList<Core.Sharing.LocalNetwork> on, CancellationToken ct) =>
+                throw new InvalidOperationException("demo mode announces nothing");
+        }
+
+        /// <summary>A shared printer's job in demo mode: its pages drawn as for a real queue, then counted on the made-up queue.</summary>
+        private sealed class DemoSharedPrints : Core.Sharing.ISharedPrintSink
+        {
+            public async Task PrintAsync(Core.Sharing.SharedPrintJob job, CancellationToken ct)
+            {
+                var pages = await Printing.SharedQueuePrinting.PagesAsync(job, ct);
+                Demo.PrintJobs.Add(job.JobName, pages.Count * job.Copies);
+            }
+        }
+
         // The phone's page served for real, to this PC only (a browser here, or --phone send, plays the phone).
         public override Core.Capture.PhoneEnvironment PhoneScanning { get; } = Core.Capture.PhoneEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelPhoneHost());
         // A made-up document camera looking down at a page on a desk: no real camera is opened.
         public override Core.Capture.ICameras Cameras { get; } = new DemoCameras();
+
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
         protected override IReadOnlyList<Core.Queues.IQueueDeviceReader> DeviceReaders(Core.Queues.SpoolerQueue q) => Core.Fleet.DemoFleet.DeviceReaders(q);
@@ -110,6 +134,17 @@ internal static class Demo
         public override IPrinterPasswords Passwords { get; } = new MemoryPasswords();
         public override Core.Snmp.ISnmpLogins SnmpLogins { get; } = new Core.Snmp.MemorySnmpLogins();
         public override Action<string>? Browser => null;
+
+        // A made-up Wi-Fi: this PC's is never read or changed in demo mode. Windows' list "opens" as the person joining the network chosen.
+        public override Core.Setup.IWifi Wifi => _wifi;
+        private readonly Core.Setup.DemoWifi _wifi = new();
+
+        public override void OpenWifiList()
+        {
+            // From home: the made-up printer's secured network (the only one there is); from anywhere else: home again.
+            var to = _wifi.Now.IsOn(Core.Setup.DemoWifi.Home) ? Core.Setup.DemoWifi.EpsonDirect : Core.Setup.DemoWifi.Home;
+            _ = Task.Delay(1500).ContinueWith(_ => _wifi.JoinInWindows(to), TaskScheduler.Default);
+        }
         public override bool OpensOtherApps => false;
         public override string RecordingsFolder => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Inkvolt Print demo recordings");
         public override string UserName => "demo";
@@ -117,6 +152,17 @@ internal static class Demo
         public override string? ImageCache => null;
         public override bool ChecksHpSoftware => false;
         public override Core.History.SupplyHistoryStore History { get; } = new(null, Core.History.DemoSupplyHistory.Seed);
+
+        // In memory, with made-up months of jobs; nothing watches this PC's spooler.
+        public override Core.History.PrintLogFile PrintLog => _printLog ??= DemoPrintLog(empty);
+        private Core.History.PrintLogFile? _printLog;
+
+        private static Core.History.PrintLogFile DemoPrintLog(bool empty)
+        {
+            var file = new Core.History.PrintLogFile(null);
+            if (!empty) file.Add(Core.History.PrintLog.Demo(DateTimeOffset.Now), DateTimeOffset.Now);
+            return file;
+        }
 
         public override void PrepareScan(bool feederBatch, bool photosOnGlass, StackSide? turnedStack = null)
         {

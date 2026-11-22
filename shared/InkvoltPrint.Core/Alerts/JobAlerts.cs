@@ -160,6 +160,9 @@ public static class AlertText
 
     public static string Printer(string? name) => Clean(name, MaxPrinter) is { Length: > 0 } shown ? shown : CoreStrings.Alert_ThePrinter;
 
+    /// <summary>A job's document as a log keeps it (roadmap 4.9): as <see cref="Document"/> cuts it, at most <paramref name="max"/>, "" when it has none.</summary>
+    public static string DocumentName(string? name, int max) => Cut(LastPart(Clean(name, int.MaxValue)), max);
+
     /// <summary>One line of visible characters: controls, invisible and private-use characters and broken pairs out, runs of space as one.</summary>
     public static string Clean(string? text, int max)
     {
