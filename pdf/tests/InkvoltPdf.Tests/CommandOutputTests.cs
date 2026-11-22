@@ -104,6 +104,44 @@ public sealed class CommandOutputTests : IDisposable
         Assert.Equal("line one\r\nline two\r\n", Read("own.txt"));
     }
 
+    /// <summary>
+    /// Started by a shell that passes "ignore Ctrl+C" down to what it starts (Git Bash does), --watch went on after Ctrl+C:
+    /// Inkvolt PDF 1.18.0's smoke test, run from Git Bash, failed on it. A PowerShell in a hidden console of its own starts
+    /// Bench's "command-output ctrl-c" with Ctrl+C ignored, waits for its "ready", then presses Ctrl+C on that console.
+    /// </summary>
+    [Fact]
+    public async Task CtrlCStopsItThoughTheShellIgnoredIt()
+    {
+        const string script = """
+            Add-Type -Namespace Inkvolt -Name Keys -MemberDefinition '[DllImport("kernel32")] public static extern bool GenerateConsoleCtrlEvent(uint e, uint g); [DllImport("kernel32")] public static extern bool SetConsoleCtrlHandler(IntPtr h, bool a);'
+            [void][Inkvolt.Keys]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) # passed down to what this starts, as Git Bash passes it
+            $i = New-Object Diagnostics.ProcessStartInfo $env:TEST_EXE
+            $i.Arguments = 'command-output ctrl-c'
+            $i.UseShellExecute = $false
+            $i.RedirectStandardOutput = $true
+            $p = [Diagnostics.Process]::Start($i)
+            if ($p.StandardOutput.ReadLine() -ne 'ready') { $p.Kill(); exit 98 }
+            [void][Inkvolt.Keys]::GenerateConsoleCtrlEvent(0, 0)
+            if (-not $p.WaitForExit(30000)) { $p.Kill(); exit 99 }
+            exit $p.ExitCode
+            """;
+        var info = new ProcessStartInfo("powershell.exe") { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var a in new[] { "-NoProfile", "-NonInteractive", "-Command", script }) info.ArgumentList.Add(a);
+        info.Environment["TEST_EXE"] = Bench;
+        using var process = Process.Start(info)!;
+        var (output, error) = (process.StandardOutput.ReadToEndAsync(), process.StandardError.ReadToEndAsync());
+        try
+        {
+            await process.WaitForExitAsync().WaitAsync(Timing.Limit(TimeSpan.FromSeconds(90)));
+        }
+        catch (TimeoutException)
+        {
+            process.Kill(entireProcessTree: true);
+            throw;
+        }
+        Assert.True(process.ExitCode == 0, $"exit {process.ExitCode} (99: Ctrl+C didn't stop it)\n{await output}\n{await error}");
+    }
+
     private string File(string name) => Path.Combine(_dir.FullName, name);
 
     private string Read(string name) => System.IO.File.ReadAllText(File(name));

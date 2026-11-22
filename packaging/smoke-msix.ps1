@@ -201,7 +201,7 @@ if (Test-Path (Join-Path $Folder 'working')) {
 }
 if ($p.HasExited) { exit 97 }
 if (-not (Test-Path (Join-Path $Folder 'done\c.pdf'))) { $p.Kill($true); exit 96 } # it never started watching, or c.pdf was never done
-[Smoke.Ctrl]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null # this PowerShell ignores it; the watcher, started before, doesn't
+[Smoke.Ctrl]::SetConsoleCtrlHandler([IntPtr]::Zero, $true) | Out-Null # this PowerShell ignores it; the watcher takes it (ConsoleOutput), even passed down "ignore" from Git Bash
 [Smoke.Ctrl]::GenerateConsoleCtrlEvent(0, 0) | Out-Null
 if (-not $p.WaitForExit(30000)) { $p.Kill($true); exit 98 }
 exit $p.ExitCode
