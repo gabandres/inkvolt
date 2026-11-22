@@ -37,10 +37,11 @@ public static class CopyRoute
     /// alone. Through the PC: copies and color always; collate with more than one copy of a page copy; two-sided when the
     /// queue can and it's a page copy (an ID card copy is one sheet).
     /// </summary>
-    public static CopyControls Controls(bool onPrinter, bool idCard, int copies, bool queueTwoSided) =>
+    /// <param name="byHand">The printer can't print both sides and two-sided by hand is offered instead (roadmap 4.2).</param>
+    public static CopyControls Controls(bool onPrinter, bool idCard, int copies, bool queueTwoSided, bool byHand = false) =>
         onPrinter
             ? new CopyControls(Copies: false, Collate: false, Color: false, TwoSided: false, PcOptions: false)
-            : new CopyControls(Copies: true, Collate: !idCard && copies > 1, Color: true, TwoSided: queueTwoSided && !idCard, PcOptions: !idCard);
+            : new CopyControls(Copies: true, Collate: !idCard && copies > 1, Color: true, TwoSided: (queueTwoSided || byHand) && !idCard, PcOptions: !idCard);
 
     /// <summary>A copy count typed or stepped to: 1 to <see cref="MaxCopies"/>.</summary>
     public static int ClampCopies(int value) => Math.Clamp(value, 1, MaxCopies);

@@ -2406,7 +2406,7 @@ Only do this if it really is this printer, for example after a repair, a reset o
     <value>Setting up… Windows is adding the printer (about 30 seconds).</value>
   </data>
   <data name="Printer_SetupFailed" xml:space="preserve">
-    <value>Setup failed: {0}</value>
+    <value>The printer couldn't be set up in Windows. Try again, or add it in Windows Settings › Printers &amp; scanners.</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Printer_ReinstallNotDiscovered" xml:space="preserve">
@@ -4642,5 +4642,274 @@ Start over</value>
   </data>
   <data name="Scan_BacksStopped" xml:space="preserve">
     <value>Scanning the backs was stopped: the pages scanned are in order.</value>
+  </data>
+  <data name="Recent_Title" xml:space="preserve">
+    <value>Recent scans</value>
+  </data>
+  <data name="Recent_Intro" xml:space="preserve">
+    <value>Your last saved scans, from every scanner. The list is kept on this PC only; removing a scan from it doesn't delete the file.</value>
+  </data>
+  <data name="Recent_Empty" xml:space="preserve">
+    <value>No saved scans yet. Scans you save, or save with a preset, show here.</value>
+  </data>
+  <data name="Recent_AndMore_One" xml:space="preserve">
+    <value>{1} and {0} more</value>
+  </data>
+  <data name="Recent_AndMore_Many" xml:space="preserve">
+    <value>{1} and {0} more</value>
+  </data>
+  <data name="Recent_Today" xml:space="preserve">
+    <value>Today, {0}</value>
+  </data>
+  <data name="Recent_Yesterday" xml:space="preserve">
+    <value>Yesterday, {0}</value>
+  </data>
+  <data name="Recent_Email" xml:space="preserve">
+    <value>Email again</value>
+  </data>
+  <data name="Recent_Print" xml:space="preserve">
+    <value>Print</value>
+  </data>
+  <data name="Recent_Remove" xml:space="preserve">
+    <value>Remove from list</value>
+  </data>
+  <data name="Recent_RemoveTip" xml:space="preserve">
+    <value>The file stays where it is.</value>
+  </data>
+  <data name="Recent_OpenName" xml:space="preserve">
+    <value>Open {0}</value>
+  </data>
+  <data name="Recent_ShowName" xml:space="preserve">
+    <value>Show {0} in its folder</value>
+  </data>
+  <data name="Recent_EmailName" xml:space="preserve">
+    <value>Email {0} again</value>
+  </data>
+  <data name="Recent_PrintName" xml:space="preserve">
+    <value>Print {0}</value>
+  </data>
+  <data name="Recent_RemoveName" xml:space="preserve">
+    <value>Remove {0} from the list</value>
+  </data>
+  <data name="Recent_Removed" xml:space="preserve">
+    <value>{0} was removed from the list; the file is still there.</value>
+  </data>
+  <data name="Recent_Clear" xml:space="preserve">
+    <value>Clear the list</value>
+  </data>
+  <data name="Recent_ClearAsk" xml:space="preserve">
+    <value>Clear the list of recent scans?
+
+The files stay where they are.</value>
+  </data>
+  <data name="Recent_DemoOpen" xml:space="preserve">
+    <value>(Demo: in a real scan {0} would open here.)</value>
+  </data>
+  <data name="ScanTab_RecentScans" xml:space="preserve">
+    <value>Recent scans…</value>
+  </data>
+  <data name="ScanTab_RecentScansTip" xml:space="preserve">
+    <value>Your last saved scans: open, show in folder, email again or print</value>
+  </data>
+  <data name="PrintTab_Clipboard" xml:space="preserve">
+    <value>Print the clipboard</value>
+  </data>
+  <data name="PrintTab_ClipboardShort" xml:space="preserve">
+    <value>From the clipboard</value>
+  </data>
+  <data name="PrintTab_ClipboardTip" xml:space="preserve">
+    <value>Text you copied is laid out on pages here; a picture or pictures go to Photos, a PDF or files copied in File Explorer open as they are</value>
+  </data>
+  <data name="Clip_FileWord" xml:space="preserve">
+    <value>Clipboard</value>
+  </data>
+  <data name="Clip_Busy" xml:space="preserve">
+    <value>Another app is using the clipboard. Try again in a moment.</value>
+  </data>
+  <data name="Clip_Nothing" xml:space="preserve">
+    <value>There's nothing to print on the clipboard. Copy some text, a picture, or a PDF in File Explorer, then try again.</value>
+  </data>
+  <data name="Clip_NotPrintable" xml:space="preserve">
+    <value>The files on the clipboard aren't PDFs or pictures. Open them in their own app to print them.</value>
+  </data>
+  <data name="Clip_TooBig" xml:space="preserve">
+    <value>What's on the clipboard is too big to print from here. Save it as a file and print that.</value>
+  </data>
+  <data name="Clip_LayingOut" xml:space="preserve">
+    <value>Laying out the text on pages…</value>
+  </data>
+  <data name="Clip_Text_One" xml:space="preserve">
+    <value>The copied text fits on {0} page. Choose the options, then Print.</value>
+  </data>
+  <data name="Clip_Text_Many" xml:space="preserve">
+    <value>The copied text fits on {0} pages. Choose the options, then Print.</value>
+  </data>
+  <data name="Clip_TextCut" xml:space="preserve">
+    <value>The copied text is longer than {0} pages: only the first {0} are here.</value>
+  </data>
+  <data name="Clip_Failed" xml:space="preserve">
+    <value>What's on the clipboard couldn't be made ready to print. Copy it again and try once more.</value>
+  </data>
+  <data name="Hand_BothSides" xml:space="preserve">
+    <value>Print on both sides by hand</value>
+  </data>
+  <data name="Hand_BothSidesTip" xml:space="preserve">
+    <value>This printer can't print both sides by itself: it prints the fronts, then you put the stack back and it prints the backs</value>
+  </data>
+  <data name="Hand_SummaryBothSides" xml:space="preserve">
+    <value>both sides by hand</value>
+  </data>
+  <data name="Hand_Sheets_One" xml:space="preserve">
+    <value>{0} sheet, both sides by hand</value>
+  </data>
+  <data name="Hand_Sheets_Many" xml:space="preserve">
+    <value>{0} sheets, both sides by hand</value>
+  </data>
+  <data name="Hand_FrontsJob" xml:space="preserve">
+    <value>{0} (fronts)</value>
+  </data>
+  <data name="Hand_BacksJob" xml:space="preserve">
+    <value>{0} (backs)</value>
+  </data>
+  <data name="Hand_PrintingBacks" xml:space="preserve">
+    <value>Printing the backs…</value>
+  </data>
+  <data name="Hand_FrontsOnly" xml:space="preserve">
+    <value>The fronts were printed; the backs weren't. Print again to start over.</value>
+  </data>
+  <data name="Hand_Done" xml:space="preserve">
+    <value>{0} printed on both sides by hand.</value>
+  </data>
+  <data name="Hand_Title" xml:space="preserve">
+    <value>Put the stack back for the backs</value>
+  </data>
+  <data name="Hand_Heading_One" xml:space="preserve">
+    <value>The fronts are printing on {0} sheet</value>
+  </data>
+  <data name="Hand_Heading_Many" xml:space="preserve">
+    <value>The fronts are printing on {0} sheets</value>
+  </data>
+  <data name="Hand_Wait" xml:space="preserve">
+    <value>Wait until every sheet is out of the printer, then:</value>
+  </data>
+  <data name="Hand_CameOut" xml:space="preserve">
+    <value>The sheets came out</value>
+  </data>
+  <data name="Hand_FaceDown" xml:space="preserve">
+    <value>Printed side down (most laser printers)</value>
+  </data>
+  <data name="Hand_FaceUp" xml:space="preserve">
+    <value>Printed side up (most inkjet printers)</value>
+  </data>
+  <data name="Hand_SetAside" xml:space="preserve">
+    <value>Take the top sheet (page {0}) off the stack and set it aside: it has nothing on its back. Once the backs are done, put it last.</value>
+  </data>
+  <data name="Hand_StepDown_One" xml:space="preserve">
+    <value>Without turning it over, put the sheet in the paper tray as it came out, printed side down, with the top of the page going in first.</value>
+  </data>
+  <data name="Hand_StepDown_Many" xml:space="preserve">
+    <value>Without turning the {0} sheets over or changing their order, put them in the paper tray as they came out, printed side down, with the top of the pages going in first.</value>
+  </data>
+  <data name="Hand_StepUp_One" xml:space="preserve">
+    <value>Turn the sheet over, like turning a page, and put it in the paper tray with the top of the page going in first.</value>
+  </data>
+  <data name="Hand_StepUp_Many" xml:space="preserve">
+    <value>Turn the stack of {0} sheets over, like turning a page, and put it in the paper tray with the top of the pages going in first, without changing the order.</value>
+  </data>
+  <data name="Hand_BlankBacks_One" xml:space="preserve">
+    <value>{0} sheet in the stack has nothing on its back: it goes through the printer again and comes out blank on that side.</value>
+  </data>
+  <data name="Hand_BlankBacks_Many" xml:space="preserve">
+    <value>{0} sheets in the stack have nothing on their backs: they go through the printer again and come out blank on that side.</value>
+  </data>
+  <data name="Hand_TrayNote" xml:space="preserve">
+    <value>Paper trays differ: if the backs print on top of the fronts, choose the other way next time.</value>
+  </data>
+  <data name="Hand_PrintBacks" xml:space="preserve">
+    <value>Print the backs</value>
+  </data>
+  <data name="Hand_Stop" xml:space="preserve">
+    <value>Don't print the backs</value>
+  </data>
+  <data name="Ready_Title" xml:space="preserve">
+    <value>Windows' new printer driver</value>
+  </data>
+  <data name="Ready_DriverLabel" xml:space="preserve">
+    <value>Windows driver</value>
+  </data>
+  <data name="Ready_DriverNone" xml:space="preserve">
+    <value>No Windows printer for it yet</value>
+  </data>
+  <data name="Ready_DriverWindows" xml:space="preserve">
+    <value>Windows' own (IPP class driver)</value>
+  </data>
+  <data name="Ready_DriverMicrosoft" xml:space="preserve">
+    <value>Microsoft's {0}</value>
+  </data>
+  <data name="Ready_DriverMakerV4" xml:space="preserve">
+    <value>The maker's, version 4 ({0})</value>
+  </data>
+  <data name="Ready_DriverMakerV3" xml:space="preserve">
+    <value>The maker's, version 3 ({0})</value>
+  </data>
+  <data name="Ready_DriverMaker" xml:space="preserve">
+    <value>The maker's ({0})</value>
+  </data>
+  <data name="Ready_AnswersLabel" xml:space="preserve">
+    <value>Printer answers</value>
+  </data>
+  <data name="Ready_AnswersNeither" xml:space="preserve">
+    <value>Neither IPP nor eSCL</value>
+  </data>
+  <data name="Ready_IppMopria" xml:space="preserve">
+    <value>IPP (Mopria certified)</value>
+  </data>
+  <data name="Ready_EsclMopria" xml:space="preserve">
+    <value>eSCL (Mopria Scan)</value>
+  </data>
+  <data name="Ready_ProtectedLabel" xml:space="preserve">
+    <value>Protected print mode</value>
+  </data>
+  <data name="Ready_PrintReady" xml:space="preserve">
+    <value>Ready: it prints with Windows' own driver.</value>
+  </data>
+  <data name="Ready_PrintCanMove" xml:space="preserve">
+    <value>Ready once set up with Windows' driver: the printer answers IPP, but its Windows printer uses another driver, which protected print mode removes.</value>
+  </data>
+  <data name="Ready_PrintNotReady" xml:space="preserve">
+    <value>Not ready: the printer doesn't answer IPP, so only its maker's driver prints to it, and protected print mode removes that driver.</value>
+  </data>
+  <data name="Ready_PrintNotKnown" xml:space="preserve">
+    <value>Not known: the printer can't be asked from here.</value>
+  </data>
+  <data name="Ready_ScanDriverOnly" xml:space="preserve">
+    <value>Its scanner works only through its Windows driver (WIA or TWAIN): under Windows protected print mode it won't scan.</value>
+  </data>
+  <data name="Ready_SetUp" xml:space="preserve">
+    <value>Set up with Windows' driver</value>
+  </data>
+  <data name="Ready_SetUpTip" xml:space="preserve">
+    <value>Adds this printer again in Windows with Windows' own driver, beside the one you have. Your old printer stays until you remove it in Windows Settings.</value>
+  </data>
+  <data name="Ready_QueueMarker" xml:space="preserve">
+    <value>Windows driver</value>
+  </data>
+  <data name="Ready_SetUpDone" xml:space="preserve">
+    <value>Added "{0}" with Windows' driver, beside your old printer. Choose it when you print; the old one stays until you remove it in Windows Settings.</value>
+  </data>
+  <data name="Ready_SetUpInSettings" xml:space="preserve">
+    <value>In Settings, choose Add device, then “Add manually” › “Add a printer using an IP address or hostname”. Pick “IPP Device” and paste {0} (it’s on the clipboard): Windows sets it up with its own driver. Your old printer stays.</value>
+  </data>
+  <data name="Ready_DemoSetUp" xml:space="preserve">
+    <value>(Demo: on a real PC, "{0}" would be added with Windows' driver, beside the old printer.)</value>
+  </data>
+  <data name="Ready_PrintCanSetUp" xml:space="preserve">
+    <value>Ready once set up: the printer answers IPP, and Set up (at the top) uses Windows' own driver.</value>
+  </data>
+  <data name="Clip_Cancelled" xml:space="preserve">
+    <value>Print the clipboard was cancelled.</value>
+  </data>
+  <data name="Clip_NotOpened" xml:space="preserve">
+    <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
 </root>

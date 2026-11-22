@@ -105,7 +105,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
     /// <summary>The choice between the printer itself and this PC: only when the printer offers it, for page copies.</summary>
     public bool ShowWhere => HasPrinterCopy && !IdCard;
 
-    private CopyControls Controls => CopyRoute.Controls(OnPrinter, IdCard, Copies, CanTwoSided);
+    private CopyControls Controls => CopyRoute.Controls(OnPrinter, IdCard, Copies, CanTwoSided, OffersByHand);
 
     /// <summary>Options only the PC's page copy has: the scan source, size, pages per sheet, the preview.</summary>
     public bool ShowPcOptions => Controls.PcOptions;
@@ -201,8 +201,18 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
     private PageSizing Sizing => FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(ShowTwoSided))]
+    [NotifyPropertyChangedFor(nameof(ShowTwoSided), nameof(TwoSidedText))]
     public partial bool CanTwoSided { get; set; }
+
+    /// <summary>The printer said it can't print both sides: two-sided by hand is offered in its place (roadmap 4.2).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTwoSided), nameof(TwoSidedText), nameof(Summary))]
+    public partial bool OffersByHand { get; set; }
+
+    /// <summary>Set by the printer: which way up its sheets land, for two-sided by hand.</summary>
+    public HandDuplexPrinter? ByHand { get; init; }
+
+    public string TwoSidedText => CanTwoSided ? Strings.PrintTab_BothSides : Strings.Hand_BothSides;
 
     /// <summary>Two-sided output through the PC, for page copies (an ID card copy is one sheet), when the queue can.</summary>
     public bool ShowTwoSided => Controls.TwoSided;
@@ -246,7 +256,7 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
             var parts = new List<string> { Core.Plural.Of(Copies, Strings.Copy_Copies_One, Strings.Copy_Copies_Many) };
             if (PerSheet > 1) parts.Add(string.Format(Strings.Copy_PerSheet_Many, PerSheet));
             parts.Add(FitToPaper ? Strings.Copy_SummaryFit : Strings.Copy_SummaryActual);
-            if (TwoSided && ShowTwoSided) parts.Add(Strings.Copy_SummaryBothSides);
+            if (TwoSided && ShowTwoSided) parts.Add(CanTwoSided ? Strings.Copy_SummaryBothSides : Strings.Hand_SummaryBothSides);
             if (!Collate && ShowCollate) parts.Add(Strings.Copy_SummaryUncollated);
             return string.Join(", ", parts) + ".";
         }
@@ -391,6 +401,15 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
         var copies = Copies;
         var twoSided = TwoSided && CanTwoSided;
         var (perSheet, collate, sizing) = (PerSheet, Collate, Sizing);
+        if (TwoSided && !CanTwoSided && OffersByHand && ByHand is { } byHand)
+            return PrintAsync("Copy", CopyLayout.Sheets(pages.Count, perSheet, copies, twoSided: true), async (target, progress, ct) =>
+                {
+                    // Stopped at the reload prompt: said as a cancelled copy, its scans kept for Print again.
+                    if (await PrintTargets.PrintCopyByHandAsync(target, pages, copies, collate, perSheet, "Copy", sizing, byHand, progress, ct) == HandDuplexOutcome.FrontsOnly)
+                        throw new OperationCanceledException();
+                },
+                copies > 1 ? Core.Plural.Of(pages.Count, Strings.Copy_WhatPagesCopies_One, Strings.Copy_WhatPagesCopies_Many, copies)
+                    : Core.Plural.Of(pages.Count, Strings.Copy_WhatPages_One, Strings.Copy_WhatPages_Many));
         var sheets = CopyLayout.Sheets(pages.Count, perSheet, copies, twoSided);
         return PrintAsync("Copy", sheets, (target, progress, ct) => PrintTargets.PrintCopyAsync(target, pages, copies, twoSided, collate, perSheet, "Copy", sizing, progress, ct),
             copies > 1 ? Core.Plural.Of(pages.Count, Strings.Copy_WhatPagesCopies_One, Strings.Copy_WhatPagesCopies_Many, copies)
@@ -625,7 +644,9 @@ public sealed partial class CopyViewModel(Func<Task<PrintTarget?>> findTarget, A
             Log.Write($"Two-sided check (copy) failed: {ex}");
             CanTwoSided = false;
         }
-        if (!CanTwoSided) TwoSided = false;
+        if (HandDuplexPrinting.Forced) CanTwoSided = false;
+        OffersByHand = ByHand is not null && answered && HandDuplex.Offered(CanTwoSided);
+        if (!CanTwoSided && !OffersByHand) TwoSided = false;
         return answered;
     }
 

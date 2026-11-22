@@ -36,6 +36,9 @@ public static class Prompt
 
     /// <summary>Opens the scan presets editor (Views.ScanPresetsDialog); the printer name is for its file-name example. Unset (tests): no-op.</summary>
     public static Action<ScanPresetLibrary, string>? EditPresets { get; set; }
+
+    /// <summary>Opens the recent scans (Views.RecentScansDialog, roadmap 4.15). Unset (tests): no-op.</summary>
+    public static Action<RecentScansViewModel>? ShowRecentScans { get; set; }
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -66,13 +69,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         Presets = new ScanPresetLibrary(state, demo: pc.IsDemo);
         // One scanner shared on the network at a time (roadmap 3.1): each entry with a Windows scanner shows its card and hands it the
         // connected scanner; it listens only once that scanner is connected.
-        Share = new ScannerShare(pc.ScannerSharing, pc.ComputerName, state.ScannerShare, state.SetScannerShare,
-            () => Core.Pro.Allows(Core.ProFeature.ScannerSharing), line => Log.Write(line));
+        Share = new ScannerShare(pc.ScannerSharing, pc.ComputerName, state.ScannerShare, state.SetScannerShare, line => Log.Write(line));
         Printers.CollectionChanged += (_, e) =>
         {
             foreach (var p in e.NewItems?.OfType<PrinterViewModel>() ?? []) p.UseShare(Share);
         };
-        Views.ProWindow.LicenceChanged += RecheckShare;
+
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
         foreach (var k in state.Printers.ToList())
         {
@@ -138,11 +140,8 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     public ObservableCollection<PrinterViewModel> Printers { get; } = [];
 
-    /// <summary>The scanner shared on the network (roadmap 3.1, Inkvolt Pro): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
+    /// <summary>The scanner shared on the network (roadmap 3.1, free): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
     public ScannerShare Share { get; }
-
-    /// <summary>Inkvolt Pro was entered or removed: sharing starts or stops as it now may.</summary>
-    private void RecheckShare() => _ = RecheckShareAsync();
 
     private async Task ForgetShareAsync(IReadOnlyList<string?> deviceIds)
     {
@@ -153,18 +152,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         catch (Exception ex) // fire and forget: never unobserved
         {
             Log.Write($"Scanner sharing not turned off for a forgotten entry: {ex.Message}");
-        }
-    }
-
-    private async Task RecheckShareAsync()
-    {
-        try
-        {
-            await Share.RecheckAsync();
-        }
-        catch (Exception ex) // fire and forget: never unobserved
-        {
-            Log.Write($"Scanner sharing not checked again: {ex.Message}");
         }
     }
 
@@ -825,7 +812,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void Dispose()
     {
         // First: the shared scanner's port closes and its announcement ends before anything else stops (the choice is kept).
-        Views.ProWindow.LicenceChanged -= RecheckShare;
         try
         {
             if (!Task.Run(() => Share.DisposeAsync().AsTask()).Wait(TimeSpan.FromSeconds(4))) Log.Write("Scanner sharing took too long to stop.");

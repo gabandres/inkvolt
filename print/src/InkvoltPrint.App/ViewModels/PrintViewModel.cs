@@ -67,13 +67,30 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     [NotifyPropertyChangedFor(nameof(Summary))]
     public partial bool TwoSided { get; set; }
 
-    [ObservableProperty] public partial bool CanTwoSided { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTwoSided), nameof(TwoSidedText), nameof(Summary))]
+    public partial bool CanTwoSided { get; set; }
+
+    /// <summary>The printer said it can't print both sides: two-sided by hand is offered in its place (roadmap 4.2).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTwoSided), nameof(TwoSidedText), nameof(Summary))]
+    public partial bool OffersByHand { get; set; }
+
+    /// <summary>Set by the printer: which way up its sheets land, for two-sided by hand.</summary>
+    public HandDuplexPrinter? ByHand { get; init; }
+
+    public bool ShowTwoSided => CanTwoSided || OffersByHand;
+
+    public string TwoSidedText => CanTwoSided ? Strings.PrintTab_BothSides : Strings.Hand_BothSides;
+
+    /// <summary>Two-sided is asked and the printer can't: the fronts, the reload prompt, the backs.</summary>
+    private bool PrintsByHand => TwoSided && !CanTwoSided && OffersByHand && ByHand is not null;
 
     /// <summary>Enlarge small pages (labels, receipts) to fill the paper; off prints them at their own size.</summary>
     [ObservableProperty] public partial bool FitToPaper { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand), nameof(PrintClipboardCommand))]
     [NotifyPropertyChangedFor(nameof(CanCancel))]
     public partial bool IsBusy { get; set; }
 
@@ -103,9 +120,12 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         get
         {
             if (PageCount == 0 || !TrySelectedPages(out var pages)) return "";
-            var perCopy = TwoSided ? (pages.Count + 1) / 2 : pages.Count;
+            var both = TwoSided && ShowTwoSided;
+            var perCopy = both ? (pages.Count + 1) / 2 : pages.Count;
             var sheets = perCopy * Copies;
-            var paper = TwoSided
+            var paper = PrintsByHand
+                ? Core.Plural.Of(sheets, Strings.Hand_Sheets_One, Strings.Hand_Sheets_Many)
+                : both
                 ? Core.Plural.Of(sheets, Strings.Print_SheetsBothSides_One, Strings.Print_SheetsBothSides_Many)
                 : Core.Plural.Of(sheets, Strings.Print_Sheets_One, Strings.Print_Sheets_Many);
             return string.Format(Strings.Print_Summary, PagesAndCopies(pages.Count, Copies), paper);
@@ -153,8 +173,8 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     /// <summary>Set by the view: asks for a PDF's password. Args: file name, previous attempt was wrong.</summary>
     public static Func<string, bool, string?>? AskPdfPassword { get; set; }
 
-    /// <summary>Loads a PDF: page count immediately, thumbnails stream in after.</summary>
-    public async Task OpenAsync(string path)
+    /// <summary>Loads a PDF: page count immediately, thumbnails stream in after. <paramref name="rememberFolder"/>: Browse starts there next time.</summary>
+    public async Task OpenAsync(string path, bool rememberFolder = true)
     {
         if (IsBusy)
         {
@@ -182,8 +202,11 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             }
             if (generation != _openGeneration) return;
             _pdf = pdf;
-            state.PrintFolder = Path.GetDirectoryName(path);
-            state.Save();
+            if (rememberFolder)
+            {
+                state.PrintFolder = Path.GetDirectoryName(path);
+                state.Save();
+            }
             FileName = Path.GetFileName(path);
             RangeText = "";
             AllPages = true;
@@ -290,7 +313,9 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             Log.Write($"Two-sided check failed: {ex}");
             CanTwoSided = false;
         }
-        if (!CanTwoSided) TwoSided = false;
+        if (HandDuplexPrinting.Forced) CanTwoSided = false;
+        OffersByHand = ByHand is not null && answered && HandDuplex.Offered(CanTwoSided);
+        if (!ShowTwoSided) TwoSided = false;
         return answered;
     }
 
@@ -322,8 +347,21 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
                 return;
             }
             var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
-            var printed = await PrintTargets.PrintPdfAsync(target, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF",
-                    FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize),
+            var sizing = FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize;
+            if (PrintsByHand)
+            {
+                var outcome = await PrintTargets.PrintPdfByHandAsync(target, _pdf, new PrintOptions(pages, Copies, false, FileName ?? "PDF", sizing), ByHand!,
+                    progress, _cts.Token, onSpooling: () => IsSpooling = true, onSent: () => IsSpooling = false);
+                SetMessage(outcome switch
+                {
+                    HandDuplexOutcome.FrontsOnly => Strings.Hand_FrontsOnly,
+                    HandDuplexOutcome.OneSide => string.Format(Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds),
+                    _ => string.Format(Strings.Hand_Done, PagesAndCopies(pages.Count, Copies)),
+                });
+                if (outcome == HandDuplexOutcome.Both) RatingRequest.NoteSuccess(state);
+                return;
+            }
+            var printed = await PrintTargets.PrintPdfAsync(target, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF", sizing),
                 progress, _cts.Token, onSpooling: () => IsSpooling = true, onSent: () => IsSpooling = false);
             SetMessage(string.Format(printed ? Strings.Print_SentDirect : Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds));
             RatingRequest.NoteSuccess(state);
@@ -349,6 +387,105 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             _cts = null;
             IsBusy = false;
             IsSpooling = false;
+        }
+    }
+
+    /// <summary>Set by the printer: opens pictures in its Print photos (the clipboard's picture, pictures copied in File Explorer).</summary>
+    public Func<IReadOnlyList<string>, Task>? OpenPictures { get; init; }
+
+    /// <summary>What the clipboard holds and its picture; the developer snapshot puts made-up content here (never the real clipboard).</summary>
+    public static Func<(ClipboardContent Content, BitmapSource? Picture)> ReadClipboard { get; set; } = ClipboardPrinting.Read;
+
+    /// <summary>
+    /// Print the clipboard (roadmap 4.13): what's on it goes where it prints with the usual options (<see cref="ClipboardPrint.Choose"/>):
+    /// text laid out on pages into Print a PDF, a picture or pictures into Print photos, one PDF into Print a PDF, several files into Batch.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    public async Task PrintClipboardAsync()
+    {
+        SetMessage(null);
+        ClipboardContent content;
+        BitmapSource? picture;
+        try
+        {
+            (content, picture) = ReadClipboard();
+        }
+        catch (ClipboardBusyException)
+        {
+            SetMessage(Strings.Clip_Busy, error: true);
+            return;
+        }
+        var plan = ClipboardPrint.Choose(content);
+        var name = ClipboardPrint.Name(DateTime.Now, Strings.Clip_FileWord);
+        try
+        {
+            switch (plan.What)
+            {
+                case ClipboardWhat.Pdf:
+                    ShowBatch = false;
+                    await OpenAsync(plan.Files[0]);
+                    break;
+                case ClipboardWhat.Batch when Batch is not null:
+                    ShowBatch = true;
+                    await Batch.AddAsync(plan.Files);
+                    break;
+                case ClipboardWhat.Pictures when OpenPictures is not null:
+                    await OpenPictures(plan.Files);
+                    break;
+                case ClipboardWhat.Picture when picture is not null && OpenPictures is not null:
+                    await OpenPictures([ClipboardPrinting.SavePicture(picture, name)]);
+                    break;
+                case ClipboardWhat.Text:
+                    ShowBatch = false;
+                    // Laid out off the UI thread, busy (Cancel stops it) so nothing else opens meanwhile; a file opened or removed
+                    // before it's done (Remove isn't held) is left as it is.
+                    var generation = _openGeneration;
+                    (string? Path, int Pages, bool Cut) made;
+                    IsBusy = true;
+                    _cts = new CancellationTokenSource();
+                    try
+                    {
+                        SetMessage(Strings.Clip_LayingOut);
+                        made = await ClipboardPrinting.TextPdfAsync(content.Text!, name, System.Globalization.RegionInfo.CurrentRegion.IsMetric, _cts.Token);
+                    }
+                    finally
+                    {
+                        _cts.Dispose();
+                        _cts = null;
+                        IsBusy = false;
+                    }
+                    if (made.Path is not { } path)
+                    {
+                        SetMessage(Strings.Clip_Nothing, error: true);
+                        break;
+                    }
+                    if (generation != _openGeneration)
+                    {
+                        SetMessage(Strings.Clip_NotOpened);
+                        break;
+                    }
+                    await OpenAsync(path, rememberFolder: false);
+                    SetMessage(made.Cut ? string.Format(Strings.Clip_TextCut, ClipboardPrint.MaxPages) : Core.Plural.Of(made.Pages, Strings.Clip_Text_One, Strings.Clip_Text_Many));
+                    break;
+                case ClipboardWhat.NotPrintable:
+                    SetMessage(Strings.Clip_NotPrintable, error: true);
+                    break;
+                case ClipboardWhat.TooBig:
+                    SetMessage(Strings.Clip_TooBig, error: true);
+                    break;
+                default:
+                    SetMessage(Strings.Clip_Nothing, error: true);
+                    break;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Strings.Clip_Cancelled);
+        }
+        catch (Exception ex) // whatever the clipboard, the disk or the drawing throws: a plain message, the details in the log
+        {
+            Log.Write($"Print the clipboard failed: {ex}");
+            SetMessage(Strings.Clip_Failed, error: true);
         }
     }
 

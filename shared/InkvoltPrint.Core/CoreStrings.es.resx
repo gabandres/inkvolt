@@ -2179,9 +2179,6 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Pro_FleetExport" xml:space="preserve">
     <value>Exportación de la flota y línea de comandos</value>
   </data>
-  <data name="Pro_ScannerSharing" xml:space="preserve">
-    <value>Uso compartido del escáner</value>
-  </data>
   <data name="Pro_SupplyHistoryExport_Describe" xml:space="preserve">
     <value>Exporta un CSV con los niveles de tinta y tóner de cada impresora a lo largo del tiempo, con las páginas que imprimió cada cartucho.</value>
   </data>
@@ -2190,9 +2187,6 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Pro_FleetExport_Describe" xml:space="preserve">
     <value>Exporta la página de la flota como CSV o JSON, lee todas las impresoras desde un script con inkvoltprint status --all y resuelve todas las colas a la vez.</value>
-  </data>
-  <data name="Pro_ScannerSharing_Describe" xml:space="preserve">
-    <value>Comparte en la red un escáner USB o que solo funciona con controlador, para que teléfonos, Mac y otros PC escaneen desde él.</value>
   </data>
   <data name="Pro_Snmpv3_Describe" xml:space="preserve">
     <value>Lee impresoras cuyo SNMP pide un nombre de usuario y claves (SNMPv3) en lugar de una comunidad.</value>
@@ -2205,9 +2199,6 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Pro_FleetExport_Locked" xml:space="preserve">
     <value>La exportación de la flota, status --all y Resolver todo son parte de Inkvolt Pro.</value>
-  </data>
-  <data name="Pro_ScannerSharing_Locked" xml:space="preserve">
-    <value>El uso compartido del escáner es parte de Inkvolt Pro.</value>
   </data>
   <data name="Pro_Snmpv3_Locked" xml:space="preserve">
     <value>SNMPv3 es parte de Inkvolt Pro.</value>
@@ -3585,5 +3576,23 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Preset_TurnStackShort" xml:space="preserve">
     <value>dando la vuelta a la pila para los reversos</value>
+  </data>
+  <data name="Palette_PrintClipboard" xml:space="preserve">
+    <value>Imprimir lo que está en el portapapeles</value>
+  </data>
+  <data name="Palette_RecentScans" xml:space="preserve">
+    <value>Escaneos recientes…</value>
+  </data>
+  <data name="Batch_TurnStack" xml:space="preserve">
+    <value>Anversos enviados. Vuelve a poner la pila como dice la ventana y luego imprime los reversos.</value>
+  </data>
+  <data name="Batch_BacksNotPrinted" xml:space="preserve">
+    <value>Se imprimieron los anversos; los reversos no, porque te detuviste.</value>
+  </data>
+  <data name="Batch_SentByHand" xml:space="preserve">
+    <value>Enviado a doble cara a mano: {0}.</value>
+  </data>
+  <data name="Batch_BacksFailed" xml:space="preserve">
+    <value>Se imprimieron los anversos; los reversos no: {0}</value>
   </data>
 </root>

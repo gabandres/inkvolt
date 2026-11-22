@@ -29,7 +29,9 @@ namespace InkvoltPrint.App;
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
-/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
+/// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
+/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it; <c>--driver-licence</c>: a find under a licence to accept first); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
@@ -267,6 +269,34 @@ internal static class DevSnapshot
                     $"message: {batch.Message}", $"estimate: {batch.EstimateText}", $"can print: {batch.PrintCommand.CanExecute(null)}"]);
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
+        // --hand-duplex with --sample-pdf: waits for Print a PDF to offer two-sided by hand (the route and the printer are asked first), and ticks it.
+        if (args.Contains("--hand-duplex") && args.Contains("--sample-pdf") && window.DataContext is ViewModels.MainViewModel { Selected: { } handPrinter })
+        {
+            for (var i = 0; i < 60 && !handPrinter.Print.OffersByHand; i++) await Task.Delay(250);
+            handPrinter.Print.TwoSided = handPrinter.Print.OffersByHand;
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            // --hand-duplex-print: presses Print, the prompt answered with the face it shows (demo: the made-up printer "prints" both passes).
+            if (args.Contains("--hand-duplex-print") && handPrinter.Pc.IsDemo)
+            {
+                var ask = Printing.HandDuplexPrinting.AskReload;
+                Printing.HandDuplexPrinting.AskReload = (_, plan, face) =>
+                {
+                    System.Diagnostics.Trace.WriteLine($"hand duplex: {plan.Sheets} sheets, fronts {string.Join(",", plan.Fronts)}, backs {string.Join(",", plan.Backs(face))}, face {face}");
+                    return face;
+                };
+                try { await handPrinter.Print.PrintCommand.ExecuteAsync(null); }
+                finally { Printing.HandDuplexPrinting.AskReload = ask; }
+            }
+        }
+        // --clipboard text|picture: Print the clipboard with made-up content in its place (the real clipboard is never read or changed).
+        if (Value(args, "--clipboard") is { } clip && window.DataContext is ViewModels.MainViewModel { Selected: { } clipPrinter })
+        {
+            ViewModels.PrintViewModel.ReadClipboard = () => clip == "picture"
+                ? (new Core.Printing.ClipboardContent("https://example.com/chart.png", (640, 400), []), SamplePicture())
+                : (new Core.Printing.ClipboardContent(Demo.SampleClipboardText(), null, []), null);
+            await clipPrinter.PrintClipboardAsync();
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        }
         if (args.Contains("--photos") && window.DataContext is ViewModels.MainViewModel { Selected: { } photoPrinter })
             await PhotosAsync(photoPrinter, args);
         if (args.Contains("--maintenance") && window.DataContext is ViewModels.MainViewModel { Selected: { } maintained })
@@ -397,6 +427,9 @@ internal static class DevSnapshot
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
+                "hand-duplex" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Down),
+                "hand-duplex-up" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Up),
+                "recent" => RecentScansDialog.Create(dialogMain.Selected?.RecentScans() ?? new ViewModels.RecentScansViewModel(dialogMain.State, false, null)),
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", // protocols other than the defaults: the note shows
                     Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _, Core.Snmp.SnmpAuth.Sha1, Core.Snmp.SnmpPriv.Aes256)!),
@@ -464,6 +497,23 @@ internal static class DevSnapshot
         enc.Frames.Add(BitmapFrame.Create(bmp));
         await using (var fs = File.Create(path)) enc.Save(fs);
         Application.Current.Shutdown();
+    }
+
+    /// <summary>A made-up picture for <c>--clipboard picture</c>: bars of a chart on white, 640 × 400.</summary>
+    private static BitmapSource SamplePicture()
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, 640, 400));
+            Brush[] colors = [Brushes.SteelBlue, Brushes.SeaGreen, Brushes.DarkOrange, Brushes.MediumPurple];
+            for (var i = 0; i < 8; i++)
+                dc.DrawRectangle(colors[i % colors.Length], null, new Rect(40 + i * 72, 360 - (60 + i * 33 % 250), 48, 60 + i * 33 % 250));
+        }
+        var bitmap = new RenderTargetBitmap(640, 400, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private static string? Value(string[] args, string name) =>
