@@ -28,7 +28,7 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes</c> sets the tab's clean up before scanning (<c>--glass form</c>: the made-up glass holds a punched order form) and <c>--clean n</c> opens the clean up view on the n-th page; <c>--join n</c> opens the join view on the n-th page and the next (<c>--glass halves</c>: two halves of a made-up plan; <c>--join-nudge left|…</c>, <c>--join-apply</c>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
 /// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
@@ -125,6 +125,9 @@ internal static class DevSnapshot
         }
         // --share (demo only): shares the shown entry's Windows scanner (the USB laser's, the photo flatbed), to this PC only.
         if (args.Contains("--share") && window.DataContext is ViewModels.MainViewModel main0) await ShareAsync(main0, wait: false);
+        // --glass form|halves: the made-up glass holds a punched order form (red rules, a blue pen's notes, a date and an invoice number),
+        // or the two halves of a plan too wide for it in turn (demo only).
+        if (Value(args, "--glass") is { } glass) Demo.GlassHolds = glass;
         // --phone [send|done|hold] (demo only): Use your phone on the shown Scan tab; send then plays the phone over HTTPS on this PC (pairs,
         // sends a made-up photo of a page at an angle), done then taps Done on it. hold logs the page's address for a browser here and waits for its Done.
         // --capture-page: the phone and camera page (no scanner) instead of the shown printer's Scan tab, for --phone and --camera too.
@@ -155,13 +158,17 @@ internal static class DevSnapshot
             // three sheets, the second fed upside down); --upright off leaves pages as they came.
             if (args.Contains("--turn-stack")) scanner.TurnStack = true;
             if (Value(args, "--upright") is { } upright) scanner.TurnUpright = upright != "off";
-            // --cleanup crop,whiten,descreen,restore: the tab's clean up, before scanning.
+            // --cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes: the tab's clean up, before scanning.
             if (Value(args, "--cleanup") is { } cleanup)
             {
                 scanner.CropToPaper = cleanup.Contains("crop");
                 scanner.WhitenPages = cleanup.Contains("whiten");
                 scanner.DescreenPages = cleanup.Contains("descreen");
                 scanner.RestoreColors = cleanup.Contains("restore");
+                scanner.DropPageColor = cleanup.Contains("drop");
+                scanner.RemoveHoles = cleanup.Contains("holes");
+                var drop = cleanup.Contains("drop-green") ? Core.Imaging.DropColor.Green : cleanup.Contains("drop-blue") ? Core.Imaging.DropColor.Blue : Core.Imaging.DropColor.Red;
+                scanner.TabDropColor = scanner.DropColors.FirstOrDefault(o => o.Value == drop) ?? scanner.TabDropColor;
             }
             var asked = ViewModels.Prompt.Confirm;
             if (args.Contains("--turn-stack")) ViewModels.Prompt.Confirm = (_, _) => true; // "turn the stack over… Scan the backs"
@@ -180,6 +187,14 @@ internal static class DevSnapshot
             // --move n: page n one place later, as Alt+Shift+Right does (the review's motion slides it in from the left).
             if (int.TryParse(Value(args, "--move"), out var move) && move > 0 && move < scanner.Pages.Count)
                 scanner.MovePage(scanner.Pages[move - 1], move);
+            // --join n: the join view on the n-th page and the next (with --glass halves, two scans of a plan too wide for the glass);
+            // --join-nudge left|right|up|down|far-…: moves the second half; --join-apply then joins them.
+            if (int.TryParse(Value(args, "--join"), out var joinPage) && joinPage > 0 && joinPage <= scanner.Pages.Count)
+            {
+                await scanner.JoinWithNextCommand.ExecuteAsync(scanner.Pages[joinPage - 1]);
+                if (Value(args, "--join-nudge") is { } nudge) scanner.NudgeJoinCommand.Execute(nudge);
+                if (args.Contains("--join-apply")) await scanner.ApplyJoinCommand.ExecuteAsync(null);
+            }
             // --clean n: the clean up view on the n-th page.
             if (int.TryParse(Value(args, "--clean"), out var cleanPage) && cleanPage > 0 && cleanPage <= scanner.Pages.Count)
             {
@@ -211,6 +226,12 @@ internal static class DevSnapshot
             // turning it over (demo only).
             if (args.Contains("--smaller-file") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } small)
                 presetMain.Presets.Update(small with { SmallerFile = true, FileType = small.FileType == Core.Presets.PresetFileType.Jpeg ? Core.Presets.PresetFileType.Pdf : small.FileType });
+            // --name-from-text [save]: the preset scans the glass, stops on the review (save: saves at once) and names the file from the page's text (demo only).
+            if (args.Contains("--name-from-text") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } named)
+                presetMain.Presets.Update(named with { FileName = "{text-date} {text-title} {text-number}", Review = Value(args, "--name-from-text") != "save", Source = Core.Presets.PresetSource.Glass });
+            // --file-type word|text: the preset saves the text read from the pages as a Word document or a text file (demo only).
+            if (Value(args, "--file-type") is { } fileType && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } typed)
+                presetMain.Presets.Update(typed with { FileType = fileType == "text" ? Core.Presets.PresetFileType.Text : Core.Presets.PresetFileType.Word });
             if (args.Contains("--turn-stack") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } stack)
                 presetMain.Presets.Update(stack with { Source = Core.Presets.PresetSource.Feeder, TwoSided = true, TurnStack = true });
             var ask = ViewModels.Prompt.Confirm;

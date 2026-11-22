@@ -3424,7 +3424,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Preset_UnknownToken" xml:space="preserve">
     <value>Unknown token {0}. Use {1} or {2}.</value>
-    <comment>{0} = token typed, {1} = '{date}, {time}, {preset}, {printer}, {n}', {2} = '{pages}'</comment>
+    <comment>{0} = token typed, {1} = '{date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title}', {2} = '{text-number}'</comment>
   </data>
   <data name="Preset_NoClosingBrace" xml:space="preserve">
     <value>A { has no closing }. Type {{ for a brace.</value>
@@ -4318,6 +4318,50 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Batch_BacksFailed" xml:space="preserve">
     <value>Fronts printed; the backs weren't: {0}</value>
+  </data>
+  <data name="Imaging_ColorDropped" xml:space="preserve">
+    <value>{0} dropped</value>
+    <comment>page cleanup done; {0} = red, green, blue or picked color</comment>
+  </data>
+  <data name="Imaging_DropRed" xml:space="preserve">
+    <value>red</value>
+    <comment>a color dropped to white</comment>
+  </data>
+  <data name="Imaging_DropGreen" xml:space="preserve">
+    <value>green</value>
+    <comment>a color dropped to white</comment>
+  </data>
+  <data name="Imaging_DropBlue" xml:space="preserve">
+    <value>blue</value>
+    <comment>a color dropped to white</comment>
+  </data>
+  <data name="Imaging_DropPicked" xml:space="preserve">
+    <value>picked color</value>
+    <comment>a color picked off the page, dropped to white</comment>
+  </data>
+  <data name="Imaging_HolesRemoved" xml:space="preserve">
+    <value>punch holes removed</value>
+    <comment>page cleanup done</comment>
+  </data>
+  <data name="Preset_NoOcrForName" xml:space="preserve">
+    <value>This PC can't read text, so the parts of the file name taken from the page stay empty.</value>
+    <comment>status note after a preset scan</comment>
+  </data>
+  <data name="Preset_WordDocument" xml:space="preserve">
+    <value>Word document</value>
+    <comment>a preset's file type</comment>
+  </data>
+  <data name="Preset_TextFile" xml:space="preserve">
+    <value>Text</value>
+    <comment>a preset's file type: plain text (.txt)</comment>
+  </data>
+  <data name="Preset_NoOcrWord" xml:space="preserve">
+    <value>This PC can't read text, so the Word document holds the pages as pictures.</value>
+    <comment>status note after a preset scan</comment>
+  </data>
+  <data name="Preset_NoOcrText" xml:space="preserve">
+    <value>This PC can't read text, so the text file is empty.</value>
+    <comment>status note after a preset scan</comment>
   </data>
   <data name="Capture_NotAPhoto" xml:space="preserve">
     <value>A photo was left out: it isn't a JPEG or PNG photo the size of a page, or it didn't open.</value>

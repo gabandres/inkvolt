@@ -11,9 +11,11 @@ namespace InkvoltPrint.Core.Imaging;
 /// gets OCR when saved, and what the review did to it.
 /// </summary>
 public sealed record KeptPage(string File, int Dpi, bool Ocr, int QuarterTurns = 0, double Deskew = 0, CropBox? Crop = null,
-    bool Skipped = false, bool StartsFile = false, PageFilters Filters = PageFilters.None, string? OcrLanguage = null, bool OneBit = false)
+    bool Skipped = false, bool StartsFile = false, PageFilters Filters = PageFilters.None, string? OcrLanguage = null, bool OneBit = false,
+    string? Drop = null)
 {
-    [JsonIgnore] public PageEdits Edits => new(QuarterTurns, Deskew, Crop, Filters & PageFilters.All);
+    /// <summary>The review's edits; <see cref="Drop"/> is the dropped color as "#RRGGBB" (<see cref="DropColor.Hex"/>).</summary>
+    [JsonIgnore] public PageEdits Edits => new PageEdits(QuarterTurns, Deskew, Crop).WithFilters(Filters & PageFilters.All, DropColor.Parse(Drop));
 }
 
 /// <summary>One printer's unsaved scan: its pages in order.</summary>

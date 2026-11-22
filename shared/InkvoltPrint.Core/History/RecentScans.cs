@@ -39,7 +39,7 @@ public static class RecentScans
     /// The kinds of file a scan saves. Open hands a file to the shell, so an entry naming anything else (a program planted in the
     /// settings file) is left out rather than run.
     /// </summary>
-    public static readonly IReadOnlyList<string> Extensions = [".pdf", ".jpg", ".jpeg"];
+    public static readonly IReadOnlyList<string> Extensions = [".pdf", ".jpg", ".jpeg", ".docx", ".txt"];
 
     /// <summary><paramref name="scan"/> at the top: any entry sharing one of its files goes (saved again), and the oldest past <see cref="Max"/>.</summary>
     public static IReadOnlyList<RecentScan> Add(IReadOnlyList<RecentScan>? list, RecentScan scan)

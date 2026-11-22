@@ -4912,6 +4912,204 @@ The files stay where they are.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
+  <data name="Scan_DropColor" xml:space="preserve">
+    <value>Drop a color</value>
+    <comment>clean up check box</comment>
+  </data>
+  <data name="Scan_DropColorTip" xml:space="preserve">
+    <value>A pen's or a form's color becomes white; black print stays</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_DropColorWhich" xml:space="preserve">
+    <value>Color to drop</value>
+    <comment>screen-reader name of the color list</comment>
+  </data>
+  <data name="Scan_PickColor" xml:space="preserve">
+    <value>Pick from the page</value>
+    <comment>toggle button: the next click on the page picks the color to drop</comment>
+  </data>
+  <data name="Scan_PickColorTip" xml:space="preserve">
+    <value>Then click a mark on the page in the color to drop</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_PickColorHint" xml:space="preserve">
+    <value>Click a mark on the page in the color to drop.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_PickNoColor" xml:space="preserve">
+    <value>That spot has no color to drop (it's grey, black or the paper): click a colored mark.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_PickGreyPage" xml:space="preserve">
+    <value>This page was scanned in grey: it has no colors to drop.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_GreyNoColorToDrop" xml:space="preserve">
+    <value>This page was scanned in grey: it has no colors to drop.</value>
+    <comment>clean up view status</comment>
+  </data>
+  <data name="Scan_RemoveHoles" xml:space="preserve">
+    <value>Remove punch holes</value>
+    <comment>clean up check box</comment>
+  </data>
+  <data name="Scan_RemoveHolesTip" xml:space="preserve">
+    <value>Round hole marks near the edges are filled with the paper's color</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="ScanTab_DropColor" xml:space="preserve">
+    <value>Drop a color</value>
+    <comment>check box</comment>
+  </data>
+  <data name="ScanTab_DropColorCaption" xml:space="preserve">
+    <value>A pen's or a form's color becomes white</value>
+  </data>
+  <data name="ScanTab_DropColorHelp" xml:space="preserve">
+    <value>A pen's or a form's color becomes white; black print stays</value>
+    <comment>screen-reader help</comment>
+  </data>
+  <data name="ScanTab_RemoveHoles" xml:space="preserve">
+    <value>Remove punch holes</value>
+    <comment>check box</comment>
+  </data>
+  <data name="ScanTab_RemoveHolesCaption" xml:space="preserve">
+    <value>Hole marks near the edges take the paper's color</value>
+  </data>
+  <data name="ScanTab_RemoveHolesHelp" xml:space="preserve">
+    <value>Round hole marks near the edges are filled with the paper's color</value>
+    <comment>screen-reader help</comment>
+  </data>
+  <data name="Scan_JoinMenu" xml:space="preserve">
+    <value>Join with the next page…</value>
+    <comment>page menu: join two halves of an oversized original</comment>
+  </data>
+  <data name="Scan_JoinTitle" xml:space="preserve">
+    <value>Join page {0} and page {1}</value>
+    <comment>join view title</comment>
+  </data>
+  <data name="Scan_JoinHelp" xml:space="preserve">
+    <value>For an original too big for the glass: scan one half, then the other with an inch or so of overlap (turning the original round is fine).</value>
+    <comment>join view help</comment>
+  </data>
+  <data name="Scan_JoinFinding" xml:space="preserve">
+    <value>Looking for where the halves overlap…</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinFound" xml:space="preserve">
+    <value>Found where the halves overlap. Move the second half if it isn't quite right.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinNotFound" xml:space="preserve">
+    <value>Couldn't find where the halves overlap: move the second half with the arrows (Shift moves it further), turn it, or put it on another side.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinLeft" xml:space="preserve">
+    <value>Move the second half left</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinRight" xml:space="preserve">
+    <value>Move the second half right</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinUp" xml:space="preserve">
+    <value>Move the second half up</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinDown" xml:space="preserve">
+    <value>Move the second half down</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinTurn" xml:space="preserve">
+    <value>Turn the second half</value>
+    <comment>button</comment>
+  </data>
+  <data name="Scan_JoinTurnTip" xml:space="preserve">
+    <value>Turns it half a turn, for an original turned round on the glass</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_JoinSide" xml:space="preserve">
+    <value>Other side</value>
+    <comment>button: the second half below, left of, above or right of the first</comment>
+  </data>
+  <data name="Scan_JoinSideTip" xml:space="preserve">
+    <value>Puts the second half below, to the left of, above or to the right of the first</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_Join" xml:space="preserve">
+    <value>Join</value>
+    <comment>button</comment>
+  </data>
+  <data name="Scan_JoinedPreview" xml:space="preserve">
+    <value>The joined page</value>
+    <comment>screen-reader name of the preview</comment>
+  </data>
+  <data name="Scan_JoinNoNext" xml:space="preserve">
+    <value>Page {0} is the last: join a page with the one after it.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinCant" xml:space="preserve">
+    <value>Page {0} or the next one can't be joined: separator sheets and scans of photos stay as they are.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinDpi" xml:space="preserve">
+    <value>The two pages were scanned at different resolutions: scan both halves at the same one to join them.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinTooLarge" xml:space="preserve">
+    <value>The joined page would be too large: move the second half closer.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinFailed" xml:space="preserve">
+    <value>Couldn't join the pages. Try scanning the halves again.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_Joined" xml:space="preserve">
+    <value>Pages {0} and {1} joined into one.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_UndoJoin" xml:space="preserve">
+    <value>Join pages {0} and {1}</value>
+    <comment>what Undo puts back</comment>
+  </data>
+  <data name="ScanTab_FileName" xml:space="preserve">
+    <value>File name</value>
+    <comment>label: the name the preset's save gives, filled from the page's text</comment>
+  </data>
+  <data name="ScanTab_FileNameHelp" xml:space="preserve">
+    <value>Read from the first page, as the preset names it; change it if you like.</value>
+    <comment>caption</comment>
+  </data>
+  <data name="Presets_TextTokensHelp" xml:space="preserve">
+    <value>{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.</value>
+    <comment>caption in the presets editor; the tokens stay as they are</comment>
+  </data>
+  <data name="Presets_ExampleTitle" xml:space="preserve">
+    <value>Invoice</value>
+    <comment>made-up heading for the example file name</comment>
+  </data>
+  <data name="Presets_FileWord" xml:space="preserve">
+    <value>Word document (.docx): the text, editable</value>
+    <comment>a preset's file type</comment>
+  </data>
+  <data name="Presets_FileText" xml:space="preserve">
+    <value>Text (.txt): the text only</value>
+    <comment>a preset's file type</comment>
+  </data>
+  <data name="Presets_NoteDocumentNoPdf" xml:space="preserve">
+    <value>Inkvolt PDF opens PDFs: Word and text scans are only saved.</value>
+    <comment>note in the presets editor</comment>
+  </data>
+  <data name="Presets_NoteNoOcrDocument" xml:space="preserve">
+    <value>Text recognition isn't available on this PC: a Word document holds the pages as pictures, a text file stays empty.</value>
+    <comment>note in the presets editor</comment>
+  </data>
+  <data name="Scan_JoinWait" xml:space="preserve">
+    <value>Page {0} or the next one is still being checked: join them in a moment.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinChanged" xml:space="preserve">
+    <value>The pages changed while the join was open: choose Join with the next page… again.</value>
+    <comment>status</comment>
+  </data>
   <data name="ScanTab_Capture" xml:space="preserve">
     <value>Scan with your phone or a camera</value>
   </data>
