@@ -223,6 +223,18 @@
                                     <MenuItem Command="app:Cmd.RotateViewRight" />
                                     <MenuItem Command="app:Cmd.RotateViewLeft" />
                                     <Separator />
+                                    <MenuItem x:Name="RulersMenu" Command="app:Cmd.ShowRulers" />
+                                    <MenuItem x:Name="GridMenu" Command="app:Cmd.ShowGrid" />
+                                    <MenuItem Header="{x:Static loc:Strings.Main_MenuSnapping}">
+                                        <MenuItem x:Name="SnapGuidesMenu" Command="app:Cmd.SnapToGuides" />
+                                        <MenuItem x:Name="SnapGridMenu" Command="app:Cmd.SnapToGrid" />
+                                        <MenuItem x:Name="SnapObjectsMenu" Command="app:Cmd.SnapToObjects" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.GridSpacing" />
+                                        <MenuItem Command="app:Cmd.RulerUnits" />
+                                        <MenuItem Command="app:Cmd.ClearGuides" />
+                                    </MenuItem>
+                                    <Separator />
                                     <MenuItem Command="app:Cmd.FirstPage" />
                                     <MenuItem Command="app:Cmd.PrevPage" />
                                     <MenuItem Command="app:Cmd.NextPage" />

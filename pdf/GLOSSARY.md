@@ -175,6 +175,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
   turn. It hands over the edits; `FormDesign` makes them. Several fields can be selected (Ctrl+click): the first one
   picked is the **anchor**, which Arrange Fields (align, same size, space evenly: `FormDesignRules.Aligned`,
   `SizedAlike`, `Spread`) leaves where it is and lines the others up with.
+- **Guide** (`PageGuides`, `Guide`; rulers and snapping `LayoutAids`, `Snapper`): a line on a page dragged from a ruler,
+  at a page x or y (`GuideAxis`), kept on the document's session (`DocumentSession.Guides`) and never written into the
+  PDF. **Snapping** moves a point or box being placed onto the nearest guide, grid line or other object's edge or middle
+  within a few pixels; the **snap line** is shown while it holds. Not the Snapshot tool.
 - **Turn** (Edit Text &amp; Images; `ContentEditor.RotateImage`, `RotateParagraph`, the handle's and angle box's rules
   `ContentTurn`): a picture or a paragraph turned to any angle about the middle of its box, degrees clockwise as the page
   shows (`PageImage.Angle`, `TextParagraph.Angle`). A paragraph's show operators are drawn again from a turned text

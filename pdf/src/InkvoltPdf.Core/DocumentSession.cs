@@ -35,6 +35,9 @@ public sealed partial class DocumentSession : IDisposable
     /// <summary>The AI assistant's answers about this document, kept while it is open (edits, undo and saving keep them too).</summary>
     public AiConversation AiConversation { get; } = new();
 
+    /// <summary>The guides dragged from the rulers (roadmap 4.19): kept while the document is open, never written into it.</summary>
+    public PageGuides Guides { get; } = new();
+
     private long _inPlaceBytes = InPlaceBytes; // tests open small files in place
 
     /// <summary>

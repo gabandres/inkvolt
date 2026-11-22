@@ -129,6 +129,15 @@ public static class Cmd
     public static readonly RoutedUICommand LayoutContinuous = Make(Strings.Cmd_LayoutContinuous, nameof(LayoutContinuous), K(Key.D5, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutFacing = Make(Strings.Cmd_LayoutFacing, nameof(LayoutFacing), K(Key.D6, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutCover = Make(Strings.Cmd_LayoutCover, nameof(LayoutCover), K(Key.D7, ModifierKeys.Control));
+    // Rulers, guides, a grid and snapping (roadmap 4.19; DocumentTab.Layout.cs)
+    public static readonly RoutedUICommand ShowRulers = Make(Strings.Cmd_ShowRulers, nameof(ShowRulers), K(Key.R, ModifierKeys.Control));
+    public static readonly RoutedUICommand ShowGrid = Make(Strings.Cmd_ShowGrid, nameof(ShowGrid), K(Key.U, ModifierKeys.Control));
+    public static readonly RoutedUICommand SnapToGuides = Make(Strings.Cmd_SnapToGuides, nameof(SnapToGuides));
+    public static readonly RoutedUICommand SnapToGrid = Make(Strings.Cmd_SnapToGrid, nameof(SnapToGrid));
+    public static readonly RoutedUICommand SnapToObjects = Make(Strings.Cmd_SnapToObjects, nameof(SnapToObjects));
+    public static readonly RoutedUICommand GridSpacing = Make(Strings.Cmd_GridSpacing, nameof(GridSpacing));
+    public static readonly RoutedUICommand RulerUnits = Make(Strings.Cmd_RulerUnits, nameof(RulerUnits));
+    public static readonly RoutedUICommand ClearGuides = Make(Strings.Cmd_ClearGuides, nameof(ClearGuides));
     public static readonly RoutedUICommand RotateViewRight = Make(Strings.Cmd_RotateViewRight, nameof(RotateViewRight), K(Key.OemPlus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift++"), K(Key.Add, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand RotateViewLeft = Make(Strings.Cmd_RotateViewLeft, nameof(RotateViewLeft), K(Key.OemMinus, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift+-"), K(Key.Subtract, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand NavPane = Make(Strings.Cmd_NavPane, nameof(NavPane), K(Key.F4));

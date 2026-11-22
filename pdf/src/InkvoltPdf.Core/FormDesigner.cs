@@ -132,6 +132,27 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// <summary>Numbers each field with its place in the fill (Tab) order.</summary>
     public bool ShowTabOrder { get; set; }
 
+    /// <summary>
+    /// Snapping (roadmap 4.19): what a page snaps to without the fields named (the ones being moved), or null (none);
+    /// a drawn box's corners, a moved field's (or group's) edges and centers and a resized field's moving edges snap to it.
+    /// </summary>
+    public Func<int, IReadOnlySet<string>, Snapper?>? SnapFor { get; set; }
+
+    /// <summary>What the press under way snapped to, for the view to show (empty: nothing).</summary>
+    public IReadOnlyList<SnapLine> SnapLines { get; private set; } = [];
+
+    private PointD SnapPoint(int page, PointD p)
+    {
+        if (SnapFor?.Invoke(page, new HashSet<string>()) is not { } snap)
+        {
+            SnapLines = [];
+            return p;
+        }
+        var q = snap.Point(p);
+        SnapLines = snap.Lines;
+        return q;
+    }
+
     public DesignField? SelectedField => SelectedId is null ? null : _fields.FirstOrDefault(f => f.Id == SelectedId);
 
     /// <summary>The selected fields, the anchor first (empty: none).</summary>
@@ -338,7 +359,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         }
         if (Kind is { } tool)
         {
-            var start = OnPage(pageIndex, p);
+            var start = OnPage(pageIndex, SnapPoint(pageIndex, p));
             _box = new NewBox(tool, pageIndex, start, start, false);
             return DesignPress.None;
         }
@@ -372,7 +393,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     {
         if (_box is { } b)
         {
-            _box = b with { End = OnPage(b.Page, p), Dragged = b.Dragged || dragged };
+            _box = b with { End = OnPage(b.Page, SnapPoint(b.Page, p)), Dragged = b.Dragged || dragged };
             return true;
         }
         if (_drag is not { } d) return false;
@@ -387,9 +408,21 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         RectD r;
         if (d.Handle < 0)
         {
+            IReadOnlyList<DesignField> all = [d.Field, .. d.Group];
+            double rawX = p.X - d.Press.X, rawY = p.Y - d.Press.Y;
+            if (SnapFor?.Invoke(d.Field.PageIndex, all.Select(f => f.Id).ToHashSet()) is { } snap)
+            {
+                // The field (or the group's outline) where the pointer takes it, moved onto the nearest line.
+                var outline = all.Select(StartRect).Aggregate((a, b) => a.Union(b));
+                var moved = outline with { X = outline.X + rawX, Y = outline.Y + rawY };
+                var snapped = snap.Move(moved);
+                (rawX, rawY) = (rawX + snapped.X - moved.X, rawY + snapped.Y - moved.Y);
+                SnapLines = snap.Lines;
+            }
+            else SnapLines = [];
             var (dx, dy) = d.Group.Count > 0
-                ? ClampGroup([d.Field, .. d.Group], p.X - d.Press.X, p.Y - d.Press.Y)
-                : DrawingGeometry.ClampMove(start, p.X - d.Press.X, p.Y - d.Press.Y, g.Width, g.Height);
+                ? ClampGroup(all, rawX, rawY)
+                : DrawingGeometry.ClampMove(start, rawX, rawY, g.Width, g.Height);
             r = start with { X = start.X + dx, Y = start.Y + dy };
             d = d with { Shift = new PointD(dx, dy) };
         }
@@ -403,6 +436,13 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
             var view = RotatedView.ToView(start, g.Width, g.Height, g.Rotation);
             var sized = DrawingGeometry.Resize(view, d.Handle, to, MinSize, keepAspect: toggle || shift);
             r = RotatedView.FromView(sized, g.Width, g.Height, g.Rotation);
+            // The moving edges snap (not while keeping proportions: a snapped edge would break them).
+            if (!toggle && !shift && SnapFor?.Invoke(d.Field.PageIndex, new HashSet<string> { d.Field.Id }) is { } snap)
+            {
+                r = snap.Resize(start, r, MinSize);
+                SnapLines = snap.Lines;
+            }
+            else SnapLines = [];
         }
         _drag = d with { Rect = r };
         return true;
@@ -414,6 +454,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// </summary>
     public DesignRelease? Release()
     {
+        SnapLines = [];
         if (_box is { } b)
         {
             _box = null;
@@ -453,6 +494,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
 
     public void CancelDrag()
     {
+        SnapLines = [];
         _drag = null;
         _box = null;
     }

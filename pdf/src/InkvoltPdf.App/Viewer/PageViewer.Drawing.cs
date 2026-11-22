@@ -259,6 +259,7 @@ public sealed partial class PageViewer
             e.Handled = true;
             if (page < 0 || hadTextEditor && DrawTools.IsText(_tool)) return true; // that click only closed the text box
             var pt = ClampToPage(page, ToPagePoint(page, sp));
+            if (!DrawTools.IsInk(_tool)) pt = SnapPoint(page, pt); // a shape's corners and ends snap; a pen stroke doesn't
             if (DrawTools.IsText(_tool) && DrawingAt(page, pt) is { Subtype: "FreeText" } existing)
             {
                 OpenDrawingText(existing);
@@ -340,6 +341,7 @@ public sealed partial class PageViewer
         if (_drawPage >= 0)
         {
             var pt = ClampToPage(_drawPage, ToPagePoint(_drawPage, sp));
+            if (!DrawTools.IsInk(_drawTool)) pt = SnapPoint(_drawPage, pt);
             if (DrawTools.IsInk(_drawTool) && e.StylusDevice is null) AddInkPoint(pt); // a pen's points come from StylusMove
             _drawEnd = new PointD(pt.X, pt.Y);
             _drawShift = shift;
@@ -371,6 +373,10 @@ public sealed partial class PageViewer
                     if (Math.Abs(dx) > Math.Abs(dy)) dy = 0;
                     else dx = 0;
                 }
+                // Its box snaps by an edge or its middle.
+                var moved = g0.Bounds with { X = g0.Bounds.X + dx, Y = g0.Bounds.Y + dy };
+                var snapped = shift ? moved : SnapMove(page, moved, g0.Bounds);
+                (dx, dy) = (dx + snapped.X - moved.X, dy + snapped.Y - moved.Y);
                 (dx, dy) = DrawingGeometry.ClampMove(g0.Bounds, dx, dy, pg.Width, pg.Height);
                 g = DrawingGeometry.Translate(g0, dx, dy);
                 break;
@@ -386,6 +392,7 @@ public sealed partial class PageViewer
             case DragKind.Endpoint:
             {
                 var pt = ClampToPage(page, ToPagePoint(page, sp));
+                if (!shift) pt = SnapPoint(page, pt);
                 var p = new PointD(pt.X, pt.Y);
                 var other = g0.Paths[0][1 - d.Handle];
                 if (shift) p = DrawingGeometry.SnapAngle(other, p);
@@ -413,6 +420,7 @@ public sealed partial class PageViewer
             // Where the button came up is the end (move events can lag behind or be merged).
             var end = ClampToPage(page, ToPagePoint(page, sp));
             if (DrawTools.IsInk(_drawTool)) AddInkPoint(end);
+            else end = SnapPoint(page, end);
             if (_dragged) _drawEnd = new PointD(end.X, end.Y);
             _drawShift = (Keyboard.Modifiers & ModifierKeys.Shift) != 0;
             _drawPage = -1;

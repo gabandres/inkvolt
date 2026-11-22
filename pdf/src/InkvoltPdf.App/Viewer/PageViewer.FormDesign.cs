@@ -23,7 +23,10 @@ public sealed partial class PageViewer
     {
         var g = _engine!.GetPage(p);
         return new DesignPage(g.Width, g.Height, _viewRotation);
-    });
+    })
+    {
+        SnapFor = (page, without) => SnapperFor(page, without),
+    };
 
     public event EventHandler<DesignPlacement>? DesignFieldDrawn;
 

@@ -1189,6 +1189,7 @@ public sealed partial class PageViewer : ScrollViewer
             }
             dc.Pop();
 
+            PaintLayout(dc, i);
             if (!IsDesigningForm) PaintForms(dc, i); // Prepare Form draws the fields its own way
             PaintReview(dc, i);
             PaintSigning(dc, i);
@@ -1240,6 +1241,7 @@ public sealed partial class PageViewer : ScrollViewer
                 dc.DrawRectangle(null, pal.FocusPen, fr);
             }
         }
+        PaintRulers(dc, vp);
 
         // Where a bitmap goes: the area MuPDF actually rendered (it rounds outward to whole pixels, so it can start a
         // fraction of a pixel before the page or region), turned with the view. At the current scale it is drawn pixel
@@ -1365,6 +1367,11 @@ public sealed partial class PageViewer : ScrollViewer
         _pressLinkPage = page;
         HideLinkTip();
         ClearFocusLink();
+        if (HandleRulerDown(e, page, sp))
+        {
+            _pressLink = null;
+            return;
+        }
         if (HandleDesignDown(e, page, sp) || HandleContentDown(e, page, sp))
         {
             _pressLink = null; // Prepare Form, Edit Text & Images: links don't open
@@ -1441,6 +1448,7 @@ public sealed partial class PageViewer : ScrollViewer
             }
 
             AutoScroll(vpPos);
+            if (MoveGuideDrag(sp)) return;
             if (MoveSigningDrag(sp) || MoveLinkDrag(sp) || MoveDesignDrag(sp) || MoveImageDrag(sp)) return;
             if (MoveDrawing(e, sp)) return;
             if (_selecting && _dragged)
@@ -1493,7 +1501,7 @@ public sealed partial class PageViewer : ScrollViewer
         }
         var page = HitPage(sp);
         Cursor = null;
-        if ((DesignCursor(page, sp) ?? ContentCursor(page, sp)) is { } designCursor)
+        if ((LayoutCursor(page, sp) ?? DesignCursor(page, sp) ?? ContentCursor(page, sp)) is { } designCursor)
         {
             HideLinkTip();
             _surface.Cursor = designCursor;
@@ -1544,7 +1552,7 @@ public sealed partial class PageViewer : ScrollViewer
     private void OnSurfaceUp(object sender, MouseButtonEventArgs e)
     {
         var sp = e.GetPosition(_surface);
-        if (EndSigningDrag() || EndLinkDrag() || EndDesignDrag() || EndImageDrag() || EndDrawingDrag(sp))
+        if (EndGuideDrag(sp) || EndSigningDrag() || EndLinkDrag() || EndDesignDrag() || EndImageDrag() || EndDrawingDrag(sp))
         {
             EndDrag();
             UpdateCursor(sp);
@@ -1586,6 +1594,12 @@ public sealed partial class PageViewer : ScrollViewer
     private void EndDrag()
     {
         _panning = _selecting = false;
+        ClearSnapLines();
+        if (_guideDrag is not null)
+        {
+            _guideDrag = null;
+            _surface.InvalidateVisual();
+        }
         CancelSigningDrag();
         CancelLinkDrag();
         CancelDesignDrag();

@@ -12535,4 +12535,92 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>Girar texto</value>
     <comment>An edit you can undo (shown after Undo/Redo)</comment>
   </data>
+  <data name="Cmd_ShowRulers" xml:space="preserve">
+    <value>_Reglas</value>
+    <comment>View menu (checked when shown)</comment>
+  </data>
+  <data name="Cmd_ShowGrid" xml:space="preserve">
+    <value>_Cuadrícula</value>
+    <comment>View menu (checked when shown)</comment>
+  </data>
+  <data name="Main_MenuSnapping" xml:space="preserve">
+    <value>Guías y _ajuste</value>
+    <comment>View submenu</comment>
+  </data>
+  <data name="Cmd_SnapToGuides" xml:space="preserve">
+    <value>Ajustar a las _guías</value>
+    <comment>View › Guides and Snapping (checked when on)</comment>
+  </data>
+  <data name="Cmd_SnapToGrid" xml:space="preserve">
+    <value>Ajustar a la cuad_rícula</value>
+    <comment>View › Guides and Snapping (checked when on)</comment>
+  </data>
+  <data name="Cmd_SnapToObjects" xml:space="preserve">
+    <value>Ajustar a los _objetos</value>
+    <comment>View › Guides and Snapping: other fields', comments' and stamps' edges and middles</comment>
+  </data>
+  <data name="Cmd_GridSpacing" xml:space="preserve">
+    <value>_Espaciado de la cuadrícula…</value>
+    <comment>View › Guides and Snapping</comment>
+  </data>
+  <data name="Cmd_RulerUnits" xml:space="preserve">
+    <value>_Unidades de las reglas</value>
+    <comment>View › Guides and Snapping: goes to the next unit</comment>
+  </data>
+  <data name="Cmd_ClearGuides" xml:space="preserve">
+    <value>_Borrar guías</value>
+    <comment>View › Guides and Snapping</comment>
+  </data>
+  <data name="Layout_GuidesCleared_One" xml:space="preserve">
+    <value>Se borró {0:N0} guía.</value>
+    <comment>Toast after Clear Guides</comment>
+  </data>
+  <data name="Layout_GuidesCleared_Many" xml:space="preserve">
+    <value>Se borraron {0:N0} guías.</value>
+    <comment>Toast after Clear Guides</comment>
+  </data>
+  <data name="Layout_RulerUnit" xml:space="preserve">
+    <value>Reglas en {0}.</value>
+    <comment>Toast after Ruler Units: {0} a unit (in, mm, cm, pt) or Layout_UnitAuto</comment>
+  </data>
+  <data name="Layout_UnitAuto" xml:space="preserve">
+    <value>{0}, la escala de la página o la de tu región</value>
+    <comment>Ruler Units' automatic choice: {0} the unit it gives now</comment>
+  </data>
+  <data name="Layout_GridTitle" xml:space="preserve">
+    <value>Espaciado de la cuadrícula</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Layout_GridEvery" xml:space="preserve">
+    <value>Una línea cada</value>
+    <comment>Grid Spacing dialog: label of the list</comment>
+  </data>
+  <data name="Layout_GridNote" xml:space="preserve">
+    <value>Las formas, los campos, los sellos y los puntos de medición se ajustan a la cuadrícula mientras se ve y Ajustar a la cuadrícula está activado. Mantén Alt para no ajustar.</value>
+    <comment>Grid Spacing dialog</comment>
+  </data>
+  <data name="Layout_GridQuarterInch" xml:space="preserve">
+    <value>¼ de pulgada</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_GridHalfInch" xml:space="preserve">
+    <value>½ pulgada</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_GridInch" xml:space="preserve">
+    <value>1 pulgada</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid5Mm" xml:space="preserve">
+    <value>5 mm</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid1Cm" xml:space="preserve">
+    <value>1 cm</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid10Points" xml:space="preserve">
+    <value>10 puntos</value>
+    <comment>Grid Spacing list</comment>
+  </data>
 </root>

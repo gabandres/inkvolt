@@ -65,7 +65,7 @@ public sealed partial class PageViewer
         _pressLink = null; // measuring over a link doesn't follow it
         Focus();
         if (page < 0) return true;
-        var pt = ClampToPage(page, ToPagePoint(page, sp));
+        var pt = SnapPoint(page, ClampToPage(page, ToPagePoint(page, sp)));
         if (m.Click(page, new PointD(pt.X, pt.Y), e.ClickCount, ShiftDown) is { } done) Finished(done);
         _surface.InvalidateVisual();
         return true;
@@ -75,7 +75,7 @@ public sealed partial class PageViewer
     {
         if (ActiveMeasure is not { IsActive: true } m) return false;
         // The pointer is kept on the page being measured, wherever it is.
-        var pt = ClampToPage(m.Page, ToPagePoint(m.Page, sp));
+        var pt = SnapPoint(m.Page, ClampToPage(m.Page, ToPagePoint(m.Page, sp)));
         m.Move(m.Page, new PointD(pt.X, pt.Y), ShiftDown);
         _surface.InvalidateVisual();
         return true;
@@ -121,7 +121,7 @@ public sealed partial class PageViewer
         var finished = new List<MeasureDone>();
         foreach (var p in points)
         {
-            var pt = ClampToPage(page, new Point(p.X, p.Y));
+            var pt = SnapPoint(page, ClampToPage(page, new Point(p.X, p.Y))); // as a click snaps
             if (draft.Click(page, new PointD(pt.X, pt.Y)) is { } done) finished.Add(done);
         }
         if (draft.Finish() is { } last) finished.Add(last);

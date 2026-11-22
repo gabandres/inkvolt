@@ -110,6 +110,17 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   included. Page labels (i, ii, A-1…) show in the
   page pill and under thumbnails and can be typed to jump; a new file opens the way it asks (pane, layout, start page,
   title as the tab name).
+- **Rulers, guides, a grid and snapping** (View › Rulers, Ctrl+R; View › Grid, Ctrl+U; View › Guides and Snapping):
+  rulers along the top and left of the view count from the current page's top-left as shown, in the page's measurement
+  scale when it has one ("1 in = 10 ft": feet), else inches or millimeters as the region uses (Ruler Units goes through
+  in, mm, cm and pt). Drag from a ruler onto a page for a guide (across from the top ruler, down from the left one); with
+  the hand or select tool drag a guide to move it, or back onto a ruler to remove it; Clear Guides removes them all.
+  Guides are kept while the document is open, never written into the PDF (they go when pages are added or deleted). The
+  grid (Grid Spacing…: ¼, ½ or 1 inch, 5 mm, 1 cm, 10 points) shows over each page. Fields in Prepare Form (drawn, moved,
+  resized, several at once), shapes and lines, signature and picture stamps and measuring points snap to guides, the grid
+  (while it shows) and other objects' edges and middles (fields, comments, stamps), each with its own switch; the line
+  it snapped to shows while the button is down, and Alt held lets go of snapping (Core: `LayoutAids`, `PageGuides`,
+  `Snapper`; `PageViewer.Layout`).
 - **Split view** (View › Split View: Top and Bottom, or Side by Side): two places of the same document at once, each
   pane with its own page, scroll, zoom, layout and view rotation; drag the bar between them to resize. The active pane
   has an accent frame: page and zoom commands, the page pill, thumbnails and bookmarks move it. Click a pane, or press
@@ -874,7 +885,8 @@ scanners and choices, with `later`), `scanselect text` and `scanchoose glass|fee
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
 `comparegroup wording|moved|formatting|visual on|off`, `comparelist n`, `comparetext old|new page`, `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
 Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldsadd i,j,…`, `arrange AlignLeft|…|SpaceDown`,
-`calc sum|product|average|minimum|maximum|notation|none fields-or-notation`, `calcorder a,b,…`, `calcstate`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
+`calc sum|product|average|minimum|maximum|notation|none fields-or-notation`, `calcorder a,b,…`, `calcstate`; rulers and snapping:
+`rulers on|off`, `grid on|off [step]`, `snap guides|grid|objects on|off`, `guide p top|left pos`, `clearguides`, `snappoint p x y`, `layoutstate`; `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
 Recognize Text: `dialogok RecognizeText combo1=N check4=on` (combo0 the pages, combo1 the language in Windows' order,
 check0 clean first, check1 a photographed page straightened, check2 bent lines flattened, check3 suspect words, check4 replace the scans), then `suspects` (the Suspect words pane: opens it,
@@ -1171,7 +1183,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 
 - The plan for doing better than the paid PDF apps, feature by feature and wave by wave: [ROADMAP.md](ROADMAP.md).
 
-- Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's lines and corners, a measurement
+- Measure: arcs and curved lengths, counts, angle measurement, snapping to the page's own drawn lines and corners (points
+  snap to guides, the grid and objects' edges, 4.19), a measurement
   summary to export (CSV), geospatial (GEO) scales.
 - PDF/A: PDF/A-1b and 3b, CMYK documents (a CMYK output intent), embedding installed
   fonts other than the standard ones.

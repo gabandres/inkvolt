@@ -43,7 +43,8 @@ namespace InkvoltPdf.App;
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
 /// suggestions · taborder on|off · fieldsadd i,j,… · arrange AlignLeft|AlignCenter|…|SpaceDown · calc kind fields|notation ·
-/// calcorder a,b,… · calcstate</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
+/// calcorder a,b,… · calcstate</c>. Rulers, guides, grid and snapping: <c>rulers on|off · grid on|off [step] · snap guides|grid|objects on|off ·
+/// guide p top|left pos · clearguides · snappoint p x y · layoutstate</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
 /// the editor on text run i, then <c>key Enter</c> commits) <c>· editpara p i [text]</c> (the editor on paragraph i, a
 /// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · cropimage p i x y w h · imageaction delete|replace file · parapicture file</c> (Insert Picture in the open paragraph editor, at its caret) <c>· turnangle degrees · turndrag dx dy [shift]</c> (turn the selected picture or the text last clicked).
 /// Spell check: <c>spellstate · spellmenu offset · spellchoose Header · spelling on|off</c>. Find &amp; Replace: <c>replacedialog ·
@@ -707,6 +708,46 @@ internal static class DevScript
             case "designstate": log.Add($"design: {tab!.DevDesignState()}"); break;
             case "suggestions": log.Add($"suggestions: {tab!.DevSuggestions()}"); break;
             case "taborder": v!.ShowTabOrder = arg != "off"; break;
+            // Rulers, guides, a grid and snapping (roadmap 4.19): rulers on|off · grid on|off [step pt] · snap guides|grid|objects on|off
+            // (the View menu's commands and settings) · guide p top|left pos (a guide dragged from that ruler to pos points
+            // from the page's top or left as shown) · clearguides · snappoint p x y (what a page point snaps to) · layoutstate
+            case "rulers" or "grid" or "snap":
+            {
+                var a = arg.Split(' ');
+                var s = AppSettings.Current;
+                switch (cmd)
+                {
+                    case "rulers": s.ShowRulers = a[0] != "off"; break;
+                    case "grid":
+                        s.ShowGrid = a[0] != "off";
+                        if (a.Length > 1) s.GridStep = Num(a[1]);
+                        break;
+                    default:
+                        var on = a.Length < 2 || a[1] != "off";
+                        if (a[0] == "guides") s.SnapToGuides = on;
+                        else if (a[0] == "grid") s.SnapToGrid = on;
+                        else s.SnapToObjects = on;
+                        break;
+                }
+                tab!.ApplyLayoutAids();
+                log.Add(tab.DevLayoutState());
+                break;
+            }
+            case "guide":
+            {
+                var a = arg.Split(' ');
+                log.Add($"guide: {v!.DevAddGuide(int.Parse(a[0]) - 1, a[1] == "top", Num(a[2]))}");
+                log.Add(tab!.DevLayoutState());
+                break;
+            }
+            case "clearguides": tab!.ClearGuides(); log.Add(tab.DevLayoutState()); break;
+            case "snappoint":
+            {
+                var a = arg.Split(' ');
+                log.Add(v!.DevSnap(int.Parse(a[0]) - 1, Num(a[1]), Num(a[2])));
+                break;
+            }
+            case "layoutstate": log.Add(tab!.DevLayoutState()); break;
             // Calculated fields and several fields (roadmap 4.12): fieldsadd i,j,… (select several, the first the anchor) ·
             // arrange AlignLeft|…|SpaceDown · calc none|sum|product|average|minimum|maximum|notation fields-or-notation ·
             // calcorder a,b,… (Calculation Order's dialog returns that order) · calcstate

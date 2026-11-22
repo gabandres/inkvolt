@@ -12554,4 +12554,92 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>Turn text</value>
     <comment>An edit you can undo (shown after Undo/Redo)</comment>
   </data>
+  <data name="Cmd_ShowRulers" xml:space="preserve">
+    <value>_Rulers</value>
+    <comment>View menu (checked when shown)</comment>
+  </data>
+  <data name="Cmd_ShowGrid" xml:space="preserve">
+    <value>_Grid</value>
+    <comment>View menu (checked when shown)</comment>
+  </data>
+  <data name="Main_MenuSnapping" xml:space="preserve">
+    <value>Guides and _Snapping</value>
+    <comment>View submenu</comment>
+  </data>
+  <data name="Cmd_SnapToGuides" xml:space="preserve">
+    <value>Snap to _Guides</value>
+    <comment>View › Guides and Snapping (checked when on)</comment>
+  </data>
+  <data name="Cmd_SnapToGrid" xml:space="preserve">
+    <value>Snap to G_rid</value>
+    <comment>View › Guides and Snapping (checked when on)</comment>
+  </data>
+  <data name="Cmd_SnapToObjects" xml:space="preserve">
+    <value>Snap to _Objects</value>
+    <comment>View › Guides and Snapping: other fields', comments' and stamps' edges and middles</comment>
+  </data>
+  <data name="Cmd_GridSpacing" xml:space="preserve">
+    <value>Grid _Spacing…</value>
+    <comment>View › Guides and Snapping</comment>
+  </data>
+  <data name="Cmd_RulerUnits" xml:space="preserve">
+    <value>Ruler _Units</value>
+    <comment>View › Guides and Snapping: goes to the next unit</comment>
+  </data>
+  <data name="Cmd_ClearGuides" xml:space="preserve">
+    <value>_Clear Guides</value>
+    <comment>View › Guides and Snapping</comment>
+  </data>
+  <data name="Layout_GuidesCleared_One" xml:space="preserve">
+    <value>{0:N0} guide cleared.</value>
+    <comment>Toast after Clear Guides</comment>
+  </data>
+  <data name="Layout_GuidesCleared_Many" xml:space="preserve">
+    <value>{0:N0} guides cleared.</value>
+    <comment>Toast after Clear Guides</comment>
+  </data>
+  <data name="Layout_RulerUnit" xml:space="preserve">
+    <value>Rulers in {0}.</value>
+    <comment>Toast after Ruler Units: {0} a unit (in, mm, cm, pt) or Layout_UnitAuto</comment>
+  </data>
+  <data name="Layout_UnitAuto" xml:space="preserve">
+    <value>{0}, the page's scale or your region's</value>
+    <comment>Ruler Units' automatic choice: {0} the unit it gives now</comment>
+  </data>
+  <data name="Layout_GridTitle" xml:space="preserve">
+    <value>Grid spacing</value>
+    <comment>Dialog title</comment>
+  </data>
+  <data name="Layout_GridEvery" xml:space="preserve">
+    <value>A line every</value>
+    <comment>Grid Spacing dialog: label of the list</comment>
+  </data>
+  <data name="Layout_GridNote" xml:space="preserve">
+    <value>Shapes, fields, stamps and measuring points snap to the grid while it shows and Snap to Grid is on. Hold Alt for no snapping.</value>
+    <comment>Grid Spacing dialog</comment>
+  </data>
+  <data name="Layout_GridQuarterInch" xml:space="preserve">
+    <value>¼ inch</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_GridHalfInch" xml:space="preserve">
+    <value>½ inch</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_GridInch" xml:space="preserve">
+    <value>1 inch</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid5Mm" xml:space="preserve">
+    <value>5 mm</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid1Cm" xml:space="preserve">
+    <value>1 cm</value>
+    <comment>Grid Spacing list</comment>
+  </data>
+  <data name="Layout_Grid10Points" xml:space="preserve">
+    <value>10 points</value>
+    <comment>Grid Spacing list</comment>
+  </data>
 </root>

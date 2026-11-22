@@ -1818,6 +1818,39 @@ public partial class MainWindow : Window
             (_, e) => { e.CanExecute = _tabs.Count > 1; e.Handled = true; }));
         CommandBindings.Add(new CommandBinding(Cmd.ReopenClosed, (_, e) => { _ = ReopenClosedAsync(); e.Handled = true; },
             (_, e) => { e.CanExecute = _closedTabs.Count > 0; e.Handled = true; }));
+        // Rulers, guides, a grid and snapping: app settings, on every tab's views (DocumentTab.Layout.cs).
+        void Layout(Action<AppSettings> change)
+        {
+            change(AppSettings.Current);
+            AppSettings.Current.Save();
+            foreach (var t in Tabs) t.ApplyLayoutAids();
+            UpdateUi();
+        }
+        BindAlways(Cmd.ShowRulers, () => Layout(s => s.ShowRulers = !s.ShowRulers));
+        BindAlways(Cmd.ShowGrid, () => Layout(s => s.ShowGrid = !s.ShowGrid));
+        BindAlways(Cmd.SnapToGuides, () => Layout(s => s.SnapToGuides = !s.SnapToGuides));
+        BindAlways(Cmd.SnapToGrid, () => Layout(s => s.SnapToGrid = !s.SnapToGrid));
+        BindAlways(Cmd.SnapToObjects, () => Layout(s => s.SnapToObjects = !s.SnapToObjects));
+        BindAlways(Cmd.GridSpacing, () =>
+        {
+            if (DocumentTab.AskGridStep(this) is not { } step) return;
+            Layout(s =>
+            {
+                s.GridStep = step;
+                s.ShowGrid = true;
+            });
+        });
+        BindAlways(Cmd.RulerUnits, () =>
+        {
+            Layout(s =>
+            {
+                var i = RulerUnit.Choices.ToList().IndexOf(s.RulerUnit);
+                s.RulerUnit = RulerUnit.Choices[(i + 1) % RulerUnit.Choices.Count];
+                s.ShowRulers = true;
+            });
+            ActiveTab?.SayRulerUnit();
+        });
+        Bind(Cmd.ClearGuides, t => t.ClearGuides(), t => t.HasGuides);
         BindAlways(Cmd.DarkPages, () =>
         {
             AppSettings.Current.DarkPages = !AppSettings.Current.DarkPages;
@@ -2560,6 +2593,12 @@ public partial class MainWindow : Window
         NavPaneMenu.IsChecked = t?.NavPaneVisible ?? AppSettings.Current.NavPaneVisible;
         OrganizeMenu.IsChecked = t?.IsOrganizing == true;
         DarkPagesMenu.IsChecked = AppSettings.Current.DarkPages;
+        RulersMenu.IsChecked = AppSettings.Current.ShowRulers;
+        GridMenu.IsChecked = AppSettings.Current.ShowGrid;
+        SnapGuidesMenu.IsChecked = AppSettings.Current.SnapToGuides;
+        SnapGridMenu.IsChecked = AppSettings.Current.SnapToGrid;
+        SnapObjectsMenu.IsChecked = AppSettings.Current.SnapToObjects;
+        t?.ApplyLayoutAids(); // a split's second pane too
         ThemeSystemMenu.IsChecked = AppSettings.Current.Theme is not ("Light" or "Dark");
         ThemeLightMenu.IsChecked = AppSettings.Current.Theme == "Light";
         ThemeDarkMenu.IsChecked = AppSettings.Current.Theme == "Dark";
