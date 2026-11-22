@@ -1673,6 +1673,10 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
+  `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
+  a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
+  `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
   (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
   `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port

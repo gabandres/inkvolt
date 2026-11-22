@@ -113,6 +113,7 @@
                                 <MenuItem Header="{x:Static loc:Strings.Main_MenuFile}">
                                     <MenuItem Command="app:Cmd.Open" />
                                     <MenuItem x:Name="RecentMenu" Header="{x:Static loc:Strings.Main_MenuOpenRecent}" />
+                                    <MenuItem Command="app:Cmd.NewWindow" />
                                     <MenuItem Command="app:Cmd.Combine" />
                                     <MenuItem Command="app:Cmd.Compare" />
                                     <MenuItem Command="app:Cmd.Batch" />
@@ -150,9 +151,11 @@
                                     <MenuItem Command="app:Cmd.CloseDoc" />
                                     <MenuItem Command="app:Cmd.CloseAll" />
                                     <MenuItem Command="app:Cmd.ReopenClosed" />
+                                    <MenuItem Command="app:Cmd.MoveToNewWindow" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Settings" />
-                                    <MenuItem Command="app:Cmd.Exit" InputGestureText="Alt+F4" />
+                                    <!-- No Alt+F4 beside it: that closes one window, Exit closes them all (4.9) -->
+                                    <MenuItem Command="app:Cmd.Exit" />
                                 </MenuItem>
                                 <MenuItem Header="{x:Static loc:Strings.Main_MenuEdit}">
                                     <MenuItem x:Name="UndoMenu" Command="app:Cmd.Undo" />
@@ -224,6 +227,7 @@
                                     <MenuItem x:Name="CoverMenu" Command="app:Cmd.LayoutCover" />
                                     <MenuItem Command="app:Cmd.RotateViewRight" />
                                     <MenuItem Command="app:Cmd.RotateViewLeft" />
+                                    <MenuItem x:Name="ReflowMenu" Command="app:Cmd.Reflow" />
                                     <Separator />
                                     <MenuItem x:Name="RulersMenu" Command="app:Cmd.ShowRulers" />
                                     <MenuItem x:Name="GridMenu" Command="app:Cmd.ShowGrid" />
@@ -538,6 +542,7 @@
                                             <Button.ContextMenu>
                                                 <ContextMenu>
                                                     <MenuItem Header="{x:Static loc:Strings.Start_RecentOpen}" Click="OnRecentMenuOpen" Tag="{Binding Path}" />
+                                                    <MenuItem Header="{x:Static loc:Strings.Start_RecentOpenNewWindow}" Click="OnRecentMenuOpenNewWindow" Tag="{Binding Path}" />
                                                     <MenuItem Header="{x:Static loc:Strings.Start_RecentShowInFolder}" Click="OnRecentMenuShow" Tag="{Binding Path}" />
                                                     <Separator />
                                                     <MenuItem Header="{x:Static loc:Strings.Start_RecentRemove}" Click="OnRecentMenuRemove" Tag="{Binding Path}" />

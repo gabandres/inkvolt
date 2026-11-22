@@ -247,6 +247,7 @@ public partial class DocumentTab : UserControl, IDisposable
         WatchSnapshots(Viewer);
         InitSplit();
         InitAi();
+        InitReflow(); // the Reflow view (DocumentTab.Reflow.cs)
         Session.ContentChanged += OnContentChanged;
         Session.StateChanged += (_, _) => RaiseState();
 
@@ -687,6 +688,7 @@ public partial class DocumentTab : UserControl, IDisposable
     public void SetOrganizing(bool on)
     {
         if (on == IsOrganizing) return;
+        if (on && IsReflowing) SetReflow(false); // the pages, not the column, are organized
         if (on && !Session.IsPdf)
         {
             Notify(Strings.Tab_OrganizePdfOnly);
@@ -1518,11 +1520,13 @@ public partial class DocumentTab : UserControl, IDisposable
         _scheduler.Clear(k => k[0] is 't' or 'o');
         RebuildThumbs();
         if (IsOrganizing) Organizer.Load(Session.Engine, Organizer.SelectedPages, Viewer.CurrentPage);
+        Restyle(); // the Reflow view, light on dark or dark on light
     }
 
     public void FocusContent()
     {
         if (IsOrganizing) Organizer.Focus();
+        else if (IsReflowing && ReflowHost.Children.Count > 0) ReflowHost.Children[0].Focus();
         else ActiveView.Focus();
     }
 
@@ -1814,6 +1818,7 @@ public partial class DocumentTab : UserControl, IDisposable
         _scheduler.Dispose();
         DisposeSplit();
         DisposeAi();
+        if (IsReflowing) EndReflow();
         _viewEngine?.Dispose();
         _viewEngine = null;
         DisposeRetiredEngines();

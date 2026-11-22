@@ -134,6 +134,8 @@ public static class Cmd
     public static readonly RoutedUICommand LayoutSingle = Make(Strings.Cmd_LayoutSingle, nameof(LayoutSingle), K(Key.D4, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutContinuous = Make(Strings.Cmd_LayoutContinuous, nameof(LayoutContinuous), K(Key.D5, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutFacing = Make(Strings.Cmd_LayoutFacing, nameof(LayoutFacing), K(Key.D6, ModifierKeys.Control));
+    // Reflow (4.16): Acrobat's is Ctrl+4, which is Single Page here; Ctrl+3 sits beside the zoom keys
+    public static readonly RoutedUICommand Reflow = Make(Strings.Cmd_Reflow, nameof(Reflow), K(Key.D3, ModifierKeys.Control));
     public static readonly RoutedUICommand LayoutCover = Make(Strings.Cmd_LayoutCover, nameof(LayoutCover), K(Key.D7, ModifierKeys.Control));
     // Rulers, guides, a grid and snapping (roadmap 4.19; DocumentTab.Layout.cs)
     public static readonly RoutedUICommand ShowRulers = Make(Strings.Cmd_ShowRulers, nameof(ShowRulers), K(Key.R, ModifierKeys.Control));
@@ -168,6 +170,10 @@ public static class Cmd
     public static readonly RoutedUICommand PrevTab = Make(Strings.Cmd_PrevTab, nameof(PrevTab),
         K(Key.Tab, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift+Tab"), K(Key.PageUp, ModifierKeys.Control, "Ctrl+PgUp"));
     public static readonly RoutedUICommand ReopenClosed = Make(Strings.Cmd_ReopenClosed, nameof(ReopenClosed), K(Key.T, ModifierKeys.Control | ModifierKeys.Shift));
+
+    // Windows (roadmap 4.9: two documents side by side; MainWindow.Windows.cs)
+    public static readonly RoutedUICommand NewWindow = Make(Strings.Cmd_NewWindow, nameof(NewWindow), K(Key.N, ModifierKeys.Control));
+    public static readonly RoutedUICommand MoveToNewWindow = Make(Strings.Cmd_MoveToNewWindow, nameof(MoveToNewWindow));
 
     // App
     public static readonly RoutedUICommand CommandPalette = Make(Strings.Cmd_CommandPalette, nameof(CommandPalette), K(Key.K, ModifierKeys.Control), K(Key.P, ModifierKeys.Control | ModifierKeys.Shift));
