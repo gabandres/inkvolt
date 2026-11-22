@@ -3627,6 +3627,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Preset_NoOcrText" xml:space="preserve">
     <value>Este PC no puede leer texto, así que el archivo de texto queda vacío.</value>
+  </data>
   <data name="Capture_NotAPhoto" xml:space="preserve">
     <value>Se omitió una foto: no es una foto JPEG o PNG del tamaño de una página, o no se pudo abrir.</value>
   </data>

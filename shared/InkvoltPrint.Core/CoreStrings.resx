@@ -4362,6 +4362,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Preset_NoOcrText" xml:space="preserve">
     <value>This PC can't read text, so the text file is empty.</value>
     <comment>status note after a preset scan</comment>
+  </data>
   <data name="Capture_NotAPhoto" xml:space="preserve">
     <value>A photo was left out: it isn't a JPEG or PNG photo the size of a page, or it didn't open.</value>
   </data>

@@ -5109,6 +5109,7 @@ The files stay where they are.</value>
   <data name="Scan_JoinChanged" xml:space="preserve">
     <value>The pages changed while the join was open: choose Join with the next page… again.</value>
     <comment>status</comment>
+  </data>
   <data name="ScanTab_Capture" xml:space="preserve">
     <value>Scan with your phone or a camera</value>
   </data>

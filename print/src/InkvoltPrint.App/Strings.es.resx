@@ -4202,6 +4202,7 @@ Los archivos se quedan donde están.</value>
   </data>
   <data name="Scan_JoinChanged" xml:space="preserve">
     <value>Las páginas cambiaron mientras la unión estaba abierta: elige de nuevo Unir con la página siguiente….</value>
+  </data>
   <data name="ScanTab_Capture" xml:space="preserve">
     <value>Escanear con tu teléfono o una cámara</value>
   </data>
