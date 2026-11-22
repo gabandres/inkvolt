@@ -18,6 +18,7 @@
             <MenuItem Header="{x:Static loc:Strings.Scan_PhotosMenu}" Command="{Binding PlacementTarget.Tag.EditPhotosCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}"
                       Visibility="{Binding FindsPhotos, Converter={StaticResource VisibleWhen}}" />
             <MenuItem Header="{x:Static loc:Strings.Scan_CleanUpMenu}" Command="{Binding PlacementTarget.Tag.CleanUpCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
+            <MenuItem Header="{x:Static loc:Strings.Scan_JoinMenu}" Command="{Binding PlacementTarget.Tag.JoinWithNextCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
             <Separator />
             <MenuItem Header="{x:Static loc:Strings.Scan_MoveEarlier}" InputGestureText="Alt+Shift+Left"
                       Command="{Binding PlacementTarget.Tag.MovePageEarlierCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}" CommandParameter="{Binding}" />
@@ -226,6 +227,59 @@
                 <views:CropView x:Name="Cropper" Source="{Binding CropImage}" Box="{Binding CropBox}"
                                 AutomationProperties.Name="{x:Static loc:Strings.Scan_CropBox}"
                                 AutomationProperties.HelpText="{x:Static loc:Strings.Scan_CropBoxHelp}" />
+            </Grid>
+        </DockPanel>
+
+        <!-- Join two halves: the joined page, the second half moved by hand when the overlap wasn't found (arrows; Shift: further) -->
+        <DockPanel Background="{DynamicResource SolidBackgroundFillColorTertiaryBrush}"
+                   Visibility="{Binding IsJoining, Converter={StaticResource VisibleWhen}}">
+            <DockPanel.InputBindings>
+                <KeyBinding Key="Left" Command="{Binding NudgeJoinCommand}" CommandParameter="left" />
+                <KeyBinding Key="Right" Command="{Binding NudgeJoinCommand}" CommandParameter="right" />
+                <KeyBinding Key="Up" Command="{Binding NudgeJoinCommand}" CommandParameter="up" />
+                <KeyBinding Key="Down" Command="{Binding NudgeJoinCommand}" CommandParameter="down" />
+                <KeyBinding Modifiers="Shift" Key="Left" Command="{Binding NudgeJoinCommand}" CommandParameter="far-left" />
+                <KeyBinding Modifiers="Shift" Key="Right" Command="{Binding NudgeJoinCommand}" CommandParameter="far-right" />
+                <KeyBinding Modifiers="Shift" Key="Up" Command="{Binding NudgeJoinCommand}" CommandParameter="far-up" />
+                <KeyBinding Modifiers="Shift" Key="Down" Command="{Binding NudgeJoinCommand}" CommandParameter="far-down" />
+            </DockPanel.InputBindings>
+            <views:HeaderPanel DockPanel.Dock="Top" Margin="20,14,14,10" Gap="10">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding JoinTitle}" FontSize="14" FontWeight="SemiBold" />
+                    <TextBlock Style="{StaticResource Caption}" TextWrapping="Wrap" Text="{x:Static loc:Strings.Scan_JoinHelp}" />
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button x:Name="FirstJoinChoice" Command="{Binding NudgeJoinCommand}" CommandParameter="left" Margin="0,0,4,4" ToolTip="{x:Static loc:Strings.Scan_JoinLeft}"
+                                AutomationProperties.Name="{x:Static loc:Strings.Scan_JoinLeft}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE72B;" />
+                        </Button>
+                        <Button Command="{Binding NudgeJoinCommand}" CommandParameter="right" Margin="0,0,4,4" ToolTip="{x:Static loc:Strings.Scan_JoinRight}"
+                                AutomationProperties.Name="{x:Static loc:Strings.Scan_JoinRight}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE72A;" />
+                        </Button>
+                        <Button Command="{Binding NudgeJoinCommand}" CommandParameter="up" Margin="0,0,4,4" ToolTip="{x:Static loc:Strings.Scan_JoinUp}"
+                                AutomationProperties.Name="{x:Static loc:Strings.Scan_JoinUp}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE74A;" />
+                        </Button>
+                        <Button Command="{Binding NudgeJoinCommand}" CommandParameter="down" Margin="0,0,16,4" ToolTip="{x:Static loc:Strings.Scan_JoinDown}"
+                                AutomationProperties.Name="{x:Static loc:Strings.Scan_JoinDown}">
+                            <TextBlock Style="{StaticResource Icon}" Text="&#xE74B;" />
+                        </Button>
+                        <Button Content="{x:Static loc:Strings.Scan_JoinTurn}" Command="{Binding TurnSecondHalfCommand}" Margin="0,0,8,4" ToolTip="{x:Static loc:Strings.Scan_JoinTurnTip}" />
+                        <Button Content="{x:Static loc:Strings.Scan_JoinSide}" Command="{Binding JoinOtherSideCommand}" Margin="0,0,8,4" ToolTip="{x:Static loc:Strings.Scan_JoinSideTip}" />
+                    </WrapPanel>
+                    <TextBlock Text="{Binding JoinStatus}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top">
+                    <Button Content="{x:Static loc:Strings.Common_Cancel}" Command="{Binding CancelJoinCommand}" Margin="0,0,8,0" IsCancel="True" />
+                    <Button Content="{x:Static loc:Strings.Scan_Join}" Command="{Binding ApplyJoinCommand}" Style="{DynamicResource AccentButtonStyle}" />
+                </StackPanel>
+            </views:HeaderPanel>
+            <Grid Margin="20,0,20,20">
+                <TextBlock Text="{x:Static loc:Strings.Scan_LoadingPage}" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Visibility="{Binding JoinImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="White" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                    <Image Source="{Binding JoinImage}" Stretch="Uniform" AutomationProperties.Name="{x:Static loc:Strings.Scan_JoinedPreview}" />
+                </Border>
             </Grid>
         </DockPanel>
 

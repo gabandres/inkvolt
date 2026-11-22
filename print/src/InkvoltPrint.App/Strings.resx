@@ -4978,4 +4978,96 @@ The files stay where they are.</value>
     <value>Round hole marks near the edges are filled with the paper's color</value>
     <comment>screen-reader help</comment>
   </data>
+  <data name="Scan_JoinMenu" xml:space="preserve">
+    <value>Join with the next page…</value>
+    <comment>page menu: join two halves of an oversized original</comment>
+  </data>
+  <data name="Scan_JoinTitle" xml:space="preserve">
+    <value>Join page {0} and page {1}</value>
+    <comment>join view title</comment>
+  </data>
+  <data name="Scan_JoinHelp" xml:space="preserve">
+    <value>For an original too big for the glass: scan one half, then the other with an inch or so of overlap (turning the original round is fine).</value>
+    <comment>join view help</comment>
+  </data>
+  <data name="Scan_JoinFinding" xml:space="preserve">
+    <value>Looking for where the halves overlap…</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinFound" xml:space="preserve">
+    <value>Found where the halves overlap. Move the second half if it isn't quite right.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinNotFound" xml:space="preserve">
+    <value>Couldn't find where the halves overlap: move the second half with the arrows (Shift moves it further), turn it, or put it on another side.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinLeft" xml:space="preserve">
+    <value>Move the second half left</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinRight" xml:space="preserve">
+    <value>Move the second half right</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinUp" xml:space="preserve">
+    <value>Move the second half up</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinDown" xml:space="preserve">
+    <value>Move the second half down</value>
+    <comment>button name</comment>
+  </data>
+  <data name="Scan_JoinTurn" xml:space="preserve">
+    <value>Turn the second half</value>
+    <comment>button</comment>
+  </data>
+  <data name="Scan_JoinTurnTip" xml:space="preserve">
+    <value>Turns it half a turn, for an original turned round on the glass</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_JoinSide" xml:space="preserve">
+    <value>Other side</value>
+    <comment>button: the second half below, left of, above or right of the first</comment>
+  </data>
+  <data name="Scan_JoinSideTip" xml:space="preserve">
+    <value>Puts the second half below, to the left of, above or to the right of the first</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_Join" xml:space="preserve">
+    <value>Join</value>
+    <comment>button</comment>
+  </data>
+  <data name="Scan_JoinedPreview" xml:space="preserve">
+    <value>The joined page</value>
+    <comment>screen-reader name of the preview</comment>
+  </data>
+  <data name="Scan_JoinNoNext" xml:space="preserve">
+    <value>Page {0} is the last: join a page with the one after it.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinCant" xml:space="preserve">
+    <value>Page {0} or the next one can't be joined: separator sheets and scans of photos stay as they are.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinDpi" xml:space="preserve">
+    <value>The two pages were scanned at different resolutions: scan both halves at the same one to join them.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinTooLarge" xml:space="preserve">
+    <value>The joined page would be too large: move the second half closer.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_JoinFailed" xml:space="preserve">
+    <value>Couldn't join the pages. Try scanning the halves again.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_Joined" xml:space="preserve">
+    <value>Pages {0} and {1} joined into one.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_UndoJoin" xml:space="preserve">
+    <value>Join pages {0} and {1}</value>
+    <comment>what Undo puts back</comment>
+  </data>
 </root>

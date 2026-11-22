@@ -172,6 +172,29 @@ public static class ScanImaging
         return bmp;
     }
 
+    /// <summary>
+    /// The page with its edits at full size, as packed pixels: grey (1 channel) for a grey scan, else BGR (3), or BGR either way
+    /// when <paramref name="color"/> (to join it with a color page).
+    /// </summary>
+    public static (byte[] Pixels, int Width, int Height, int Channels) Pixels(byte[] jpeg, PageEdits edits, int dpi, bool color, CancellationToken cancel = default)
+    {
+        BitmapSource bmp = Render(jpeg, edits, 0, dpi, cancel);
+        var channels = bmp.Format == PixelFormats.Gray8 && !color ? 1 : 3;
+        var format = channels == 1 ? PixelFormats.Gray8 : PixelFormats.Bgr24;
+        if (bmp.Format != format) bmp = new FormatConvertedBitmap(bmp, format, null, 0);
+        var pixels = new byte[(long)bmp.PixelWidth * bmp.PixelHeight * channels];
+        bmp.CopyPixels(pixels, bmp.PixelWidth * channels, 0);
+        return (pixels, bmp.PixelWidth, bmp.PixelHeight, channels);
+    }
+
+    /// <summary>Packed grey (1 channel) or BGR (3) pixels as a picture at <paramref name="dpi"/>. Frozen.</summary>
+    public static BitmapSource Bitmap(byte[] pixels, int width, int height, int channels, int dpi = 96)
+    {
+        var bmp = BitmapSource.Create(width, height, dpi, dpi, channels == 1 ? PixelFormats.Gray8 : PixelFormats.Bgr24, null, pixels, width * channels);
+        bmp.Freeze();
+        return bmp;
+    }
+
     /// <summary>A picture's pixels in grey, rows packed (for <see cref="Bilevel"/>).</summary>
     public static (byte[] Pixels, int Width, int Height) Gray(BitmapSource bmp)
     {

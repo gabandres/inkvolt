@@ -28,7 +28,7 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes</c> sets the tab's clean up before scanning (<c>--glass form</c>: the made-up glass holds a punched order form) and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes</c> sets the tab's clean up before scanning (<c>--glass form</c>: the made-up glass holds a punched order form) and <c>--clean n</c> opens the clean up view on the n-th page; <c>--join n</c> opens the join view on the n-th page and the next (<c>--glass halves</c>: two halves of a made-up plan; <c>--join-nudge left|…</c>, <c>--join-apply</c>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
 /// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
@@ -177,6 +177,14 @@ internal static class DevSnapshot
             // --move n: page n one place later, as Alt+Shift+Right does (the review's motion slides it in from the left).
             if (int.TryParse(Value(args, "--move"), out var move) && move > 0 && move < scanner.Pages.Count)
                 scanner.MovePage(scanner.Pages[move - 1], move);
+            // --join n: the join view on the n-th page and the next (with --glass halves, two scans of a plan too wide for the glass);
+            // --join-nudge left|right|up|down|far-…: moves the second half; --join-apply then joins them.
+            if (int.TryParse(Value(args, "--join"), out var joinPage) && joinPage > 0 && joinPage <= scanner.Pages.Count)
+            {
+                await scanner.JoinWithNextCommand.ExecuteAsync(scanner.Pages[joinPage - 1]);
+                if (Value(args, "--join-nudge") is { } nudge) scanner.NudgeJoinCommand.Execute(nudge);
+                if (args.Contains("--join-apply")) await scanner.ApplyJoinCommand.ExecuteAsync(null);
+            }
             // --clean n: the clean up view on the n-th page.
             if (int.TryParse(Value(args, "--clean"), out var cleanPage) && cleanPage > 0 && cleanPage <= scanner.Pages.Count)
             {

@@ -53,6 +53,11 @@ public partial class ScanPages : UserControl
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => FirstCleanChoice.Focus());
         };
+        // The join view takes the keyboard, so the arrows move the second half straight away.
+        FirstJoinChoice.IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => FirstJoinChoice.Focus());
+        };
         PhotoBoxes.IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PhotoBoxes.Focus());

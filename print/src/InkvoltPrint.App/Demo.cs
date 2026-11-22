@@ -302,10 +302,69 @@ internal static class Demo
             ? Application.Current.Dispatcher.Invoke(() => ScanCard(width, height, back: Interlocked.Increment(ref _cardSide) % 2 == 0))
             : PhotosOnGlass ? Application.Current.Dispatcher.Invoke(() => GlassWithPhotos(width, height))
             : GlassHolds == "form" ? Application.Current.Dispatcher.Invoke(FormPage)
+            : GlassHolds == "halves" ? Halves.Value[Interlocked.Increment(ref _half) % 2]
             : Pages[Interlocked.Increment(ref _page) % Pages.Length].Value;
 
-    /// <summary>What the made-up glass holds instead of its usual pages (a dev aid, <c>--glass</c>): "form", a punched order form.</summary>
+    /// <summary>
+    /// What the made-up glass holds instead of its usual pages (a dev aid, <c>--glass</c>): "form", a punched order form; "halves",
+    /// the two halves of a plan too wide for the glass, in turn.
+    /// </summary>
     public static string? GlassHolds { get; set; }
+
+    private static int _half = -1;
+
+    /// <summary>
+    /// A made-up floor plan 14 × 11 inches, scanned in two on a letter glass at 300 dpi: its left 8.5 inches, then (the plan turned
+    /// round on the glass) its right 8.5 inches, upside down and laid a tenth of an inch lower; three inches overlap. Never a real scan.
+    /// </summary>
+    private static readonly Lazy<byte[][]> Halves = new(() => Application.Current.Dispatcher.Invoke(() =>
+    {
+        const int w = 2100, h = 1650; // the plan at 150 dpi, rendered at 300
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(2, 2));
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xF8, 0xF7, 0xF2)), null, new Rect(0, 0, w, h));
+            var line = new Pen(new SolidColorBrush(Color.FromRgb(0x2A, 0x2E, 0x36)), 4);
+            var thin = new Pen(new SolidColorBrush(Color.FromRgb(0x9A, 0xA4, 0xB0)), 1);
+            for (var x = 75; x < w; x += 75) dc.DrawLine(thin, new Point(x, 60), new Point(x, h - 60));
+            for (var y = 75; y < h; y += 75) dc.DrawLine(thin, new Point(60, y), new Point(w - 60, y));
+            dc.DrawRectangle(null, line, new Rect(120, 220, w - 240, h - 340));
+            var face = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+            void Room(string name, double x, double y, double rw, double rh)
+            {
+                dc.DrawRectangle(new SolidColorBrush(Color.FromArgb(0x30, 0x4E, 0x8B, 0xC4)), line, new Rect(x, y, rw, rh));
+                dc.DrawText(new FormattedText(name, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, 30,
+                    Brushes.Black, 1), new Point(x + 24, y + 20));
+            }
+            Room("Kitchen", 120, 220, 520, 480);
+            Room("Living room", 640, 220, 820, 620);
+            Room("Hall", 640, 840, 820, 200);
+            Room("Bedroom", 1460, 220, 520, 560);
+            Room("Bath", 1460, 780, 520, 260);
+            Room("Study", 120, 700, 520, 610);
+            Room("Garden room", 640, 1040, 1340, 270);
+            dc.DrawText(new FormattedText("Plan of the ground floor, 1:50", System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, 44,
+                Brushes.Black, 1), new Point(120, 100));
+            dc.DrawEllipse(null, line, new Point(1200, 520), 120, 120); // a round table across the overlap
+        }
+        var plan = new RenderTargetBitmap(w * 2, h * 2, 96, 96, PixelFormats.Pbgra32);
+        plan.Render(visual);
+        plan.Freeze();
+        // Each half as the glass sees it: 8.5 × 11 inches at 300 dpi.
+        byte[] Half(int from, int down, bool turned)
+        {
+            var glass = new DrawingVisual();
+            using (var dc = glass.RenderOpen())
+            {
+                dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, 2550, 3300));
+                if (turned) dc.PushTransform(new RotateTransform(180, 2550 / 2.0, 3300 / 2.0));
+                dc.DrawImage(new CroppedBitmap(plan, new Int32Rect(from, 0, 2550, 3300)), new Rect(0, down, 2550, 3300));
+            }
+            return Jpeg(glass, 2550, 3300);
+        }
+        return new[] { Half(0, 0, false), Half(4200 - 2550, 30, true) };
+    }));
 
     /// <summary>
     /// A made-up order form at 300 dpi, letter: red rules and boxes, black print, a blue pen's notes, a date, an invoice number,

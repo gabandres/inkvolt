@@ -193,8 +193,10 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
   - **4.7 Drop a color, remove punch holes.** Done on Windows: Clean up's Drop a color (red, green, blue or picked off the page)
     and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
     `ColorDropout`, `PunchHoles`). **Next:** real punched sheets from a feeder and a flatbed; the Mac half waits.
-  - Still to come: 4.8 Join two halves of an oversized
-    original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
+  - **4.8 Join two halves.** Done on Windows: a page's Join with the next page… finds the overlap of two scans of an original
+    too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
+    one Undo step (README, "Join two halves"; `HalvesJoin`). **Next:** a real A3 drawing on a letter or A4 glass; the Mac half waits.
+  - Still to come: 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
     Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or
     document camera as a scan source. 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
     CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;

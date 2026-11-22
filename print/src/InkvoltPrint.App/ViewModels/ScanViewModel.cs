@@ -1186,7 +1186,7 @@ public sealed partial class ScanViewModel : ObservableObject
     public bool IsCropping => CropPage is not null;
 
     /// <summary>The crop or photo view is open: it takes the whole pane, the review's toolbar and status line too.</summary>
-    public bool IsAdjustingPage => IsCropping || IsEditingPhotos || IsCleaning;
+    public bool IsAdjustingPage => IsCropping || IsEditingPhotos || IsCleaning || IsJoining;
 
     [RelayCommand]
     private async Task CropAsync(ScanPageViewModel? page)
@@ -1492,6 +1492,7 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelCrop();
         CancelPhotos();
         CancelClean();
+        CancelJoin();
         foreach (var page in Pages) page.PropertyChanged -= PageChanged;
         Pages.Clear();
         History.Clear(); // the question before it was the safeguard

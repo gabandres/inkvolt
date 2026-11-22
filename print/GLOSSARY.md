@@ -135,6 +135,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Drop a color**: Clean up turning one hue white, a pen's or a form's (`ColorDropout`, `DropColor`): red, green, blue or a
   **picked color** (clicked on the page; it must be colorful, not a grey). **Punch hole**: a round dark mark near an edge where a
   sheet was punched, filled with the paper's color (`PunchHoles`).
+- **Join two halves**: one page from two scans of an original too big for the glass (`HalvesJoin`). **Overlap**: what both
+  halves show; found by matching, else the second half is **nudged** by hand. **Seam**: where the joined page passes from the first
+  half to the second, the middle of the overlap.
 - **Print the clipboard**: printing what another app put on the clipboard by sending it to the tab that prints its kind (`ClipboardPrint`):
   text laid out on pages as a PDF to Print a PDF, a picture to Print photos, copied files as they are. **Laid out**: wrapped to the
   columns and lines a page holds at 10 pt (`ClipboardTextLayout`).
