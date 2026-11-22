@@ -186,3 +186,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   group**: /IRT the caret, /RT /Group, `AnnotationInfo.Grouped`). A group is one comment: its **head** (the caret) is
   listed, its members aren't (`Annotations.IsGroupMember`), and deleting or moving the head takes them along. A reply
   (/RT /R) is not a group.
+- **Redaction suggestion** (`Core/RedactionSuggestions.cs`, `RedactionProposal`; Windows `App/DocumentTab.RedactSuggest.cs`):
+  a **proposal** of something to redact, the exact words and what kind of thing they are (name, organization, address,
+  account, other), from the user's own model (Pro, never on by default; its answer is data, read as a list of quotes) or
+  from the user's **names and terms list** (`RedactionTerms`, one per line in the data folder). A model's proposal is
+  **kept** only when the text its request carried holds it word for word (`Verify`), else **dropped** and counted. Kept
+  proposals are searched for as phrases (`SearchOptions`, `RedactionSearch.Find`), each hit **labelled** by its kind
+  (`RedactionMatch.Label`), and go the Redact Patterns run's way: the review list, apply, read-back with the same phrases,
+  the check and the report.

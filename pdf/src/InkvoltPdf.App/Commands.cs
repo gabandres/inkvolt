@@ -190,6 +190,8 @@ public static class Cmd
     // Applies the redaction marks (DocumentTab.ApplyRedactions): its icon is the bar's only red (BarColors)
     public static readonly RoutedUICommand ApplyRedactions = Make(Strings.Main_MenuApplyRedactions, nameof(ApplyRedactions));
     public static readonly RoutedUICommand RedactPatterns = Make(Strings.Cmd_RedactPatterns, nameof(RedactPatterns));
+    // What to redact, proposed by the user's AI endpoint or found from their names and terms list (Pro; RedactSuggestActions)
+    public static readonly RoutedUICommand SuggestRedactions = Make(Strings.Cmd_SuggestRedactions, nameof(SuggestRedactions));
     public static readonly RoutedUICommand CheckRedaction = Make(Strings.Cmd_CheckRedaction, nameof(CheckRedaction));
     public static readonly RoutedUICommand CheckAccessibility = Make(Strings.Cmd_CheckAccessibility, nameof(CheckAccessibility));
     public static readonly RoutedUICommand MakeAccessible = Make(Strings.Cmd_MakeAccessible, nameof(MakeAccessible));

@@ -30,6 +30,7 @@ public partial class MainWindow
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));
         BindEdit(Cmd.WhatsInThisPdf, t => InventoryActions.Show(this, t, this));
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
+        BindEdit(Cmd.SuggestRedactions, t => RedactSuggestActions.Suggest(this, t), t => !t.IsOrganizing && !t.IsAiBusy);
         BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
         BindEdit(Cmd.CheckAccessibility, t => t.CheckAccessibilityAsync());
         BindEdit(Cmd.MakeAccessible, t => AccessibleActions.MakeAccessible(this, t), t => !t.IsOrganizing);

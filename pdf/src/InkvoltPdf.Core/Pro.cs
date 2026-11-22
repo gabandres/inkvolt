@@ -34,6 +34,8 @@ public enum ProFeature
     FolderSearch,
     /// <summary>Certifying with a choice of form fields to lock: all, these, or all but these (certifying itself stays free).</summary>
     FieldLocking,
+    /// <summary>Redaction suggestions: what to redact proposed by the user's own AI endpoint, or found from their names and terms list.</summary>
+    RedactionSuggestions,
 }
 
 /// <summary>
@@ -93,6 +95,7 @@ public static class Pro
         ProFeature.FolderSearch => PdfStrings.Pro_TitleFolderSearch,
         ProFeature.CompareOfficeAndScans => PdfStrings.Pro_TitleCompare,
         ProFeature.FieldLocking => PdfStrings.Pro_TitleFieldLocking,
+        ProFeature.RedactionSuggestions => PdfStrings.Pro_TitleRedactionSuggestions,
         _ => PdfStrings.Pro_TitleCommandLine,
     };
 
@@ -108,6 +111,7 @@ public static class Pro
         ProFeature.LongTermValidation => PdfStrings.Pro_DescLtv,
         ProFeature.CompareOfficeAndScans => PdfStrings.Pro_DescCompare,
         ProFeature.FieldLocking => PdfStrings.Pro_DescFieldLocking,
+        ProFeature.RedactionSuggestions => PdfStrings.Pro_DescRedactionSuggestions,
         ProFeature.FolderSearch => PdfStrings.Pro_DescFolderSearch,
         _ => PdfStrings.Pro_DescCommandLine,
     };
@@ -124,6 +128,7 @@ public static class Pro
         ProFeature.LongTermValidation => PdfStrings.Pro_LockedLtv,
         ProFeature.FolderSearch => PdfStrings.Pro_LockedFolderSearch,
         ProFeature.FieldLocking => PdfStrings.Pro_LockedFieldLocking,
+        ProFeature.RedactionSuggestions => PdfStrings.Pro_LockedRedactionSuggestions,
         ProFeature.CompareOfficeAndScans => PdfStrings.Pro_LockedCompare,
         _ => PdfStrings.Pro_LockedCommandLine,
     };

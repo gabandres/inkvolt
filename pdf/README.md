@@ -293,6 +293,16 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   **A scanned page is never called clean.** Text recognition can misread words and miss whole lines, so a page read that way
   is flagged for you to look at, whatever was found on it, and places with ink where nothing was read are outlined and can be
   blacked out unread.
+  **Suggest Redactions…** (Review menu, Protect on the bar, command palette; Inkvolt Pro) asks your own AI assistant (Settings ›
+  AI assistant, off by default) to read the chosen pages' text and propose names of people, companies and organizations,
+  postal addresses, account and ID numbers, or anything you describe in a few words; and/or searches **your names and terms
+  list** (Edit List…: one per line, kept on this PC in `redaction-terms.txt` in the data folder), which needs no assistant.
+  The send window always opens first, showing the exact text, the model and where it goes. The model's answer is data, read
+  as a list of quotes (JSON as asked, or a bare list or bullets; nothing in it is followed): a quote counts only when the
+  text sent holds it word for word (any case and spacing), the rest are left out and counted above the list. Each kept
+  quote is then searched for as a phrase on the chosen pages, scans through text recognition, so every place it stands goes
+  into Redact by Pattern's list, labelled by what it was suggested as ("Suggested: name", "From your list"), and the apply,
+  read-back, check and report are Redact by Pattern's (Core: `RedactionSuggestions`, `RedactionTerms`).
 - **Redaction check**: after Apply, Inkvolt PDF checks the result in the background for anything left of what was
   redacted (a toast says when nothing is; otherwise a report opens), and **Check Redaction…** (Review menu, command
   palette) checks any PDF, such as one redacted elsewhere. It finds text still under black boxes, highlights and other
@@ -732,6 +742,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   questions keep the conversation; a Pages box limits what a question is about; when the pages don't fit, only the
   parts that share the most words with the question go), **Explain selection**. Answers stream in, are marked
   "AI-generated, may be wrong", have a Copy button, and their page citations ([p. 3]) are links to the pages.
+  **Suggest Redactions** (Pro) asks the same endpoint what to redact, its send window always shown (see Redact by Pattern
+  above).
   **What is sent, where**: before each send a window shows the destination (host and model, and in amber when the text
   leaves this PC), how much (characters, an estimate of tokens, the number of requests) and, expandable, exactly the
   text of every message. Only the text you asked about (with Ask, also the conversation's earlier questions and
@@ -806,7 +818,7 @@ Make Accessible (the plan, the title and language window, writing it) + `Documen
 pane, alternate text, the AI suggestion) + `Viewer/PageViewer.ReadingOrder.cs` (the numbered boxes) (Core: `AutoTag.cs`:
 the plan from `DocLayout`; `AutoTag.Write.cs`: marked content, the structure tree; `AutoTag.Language.cs`); `CommentFileActions.cs` Export / Import / Summarize Comments; `FormDataActions.cs` Export / Import Form Data and Fill Forms from CSV |
 | `src/InkvoltPdf.App` (Inkvolt suite) | `ScanDialog.cs` (Scan / Insert from Scanner: eSCL, WIA and TWAIN scanners, blank pages, presets; shared logic in `InkvoltPrint.Core/Suite/ScanRun`, `ScannerList`, `Wia`, `Twain`), `Inkvolt.cs` (printer status check, opening Inkvolt Print) |
-| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
+| AI assistant | Core: `AiEndpoint` (where an address is: this PC, network, internet), `AiProtocol` (requests, SSE stream parsing, error wording), `AiClient` (HTTP), `AiText` (chunking, citations), `AiPrompts` (summarize map-reduce, ask, explain), `RedactionSuggestions` + `RedactionTerms` (Suggest Redactions). App: `AiService` (settings, `AiKeyStore` with DPAPI), `AiActions` (settings and send dialogs), `AiPane`, `DocumentTab.Ai.cs`, `DocumentTab.RedactSuggest.cs` + `RedactSuggestActions.cs`. Dev steps, no network: `aiconfig Ollama model`, `aifake answer text\|missing\|refused\|error401`, `aisummarize all`, `aiask question`, `aiexplain`, `aistate`, `redact-suggest names,orgs,terms` (`redactterms a;b`), `dialogfill check0=on expand` (the send window; `later` + `prompt Send` answers it); `ai-no-copy.pdf` and `ai-long.pdf` (summarized in parts at a 2,048-token context) from `AiPromptTests` with `INKVOLTPDF_SAMPLES` |
 | `tests/InkvoltPdf.Tests` | `dotnet test tests/InkvoltPdf.Tests` |
 
 `InkvoltPdf.App` references the libraries it shares with Inkvolt Print, in `../shared` (MIT): `InkvoltPrint.Core` (eSCL,

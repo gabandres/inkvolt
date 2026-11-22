@@ -149,6 +149,7 @@ public static class CommandBarLayout
              new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc, AtOnce: true, StartsSection: true),
              new("ApplyRedactions", "", Description: PdfStrings.Bar_ApplyRedactionsDesc, IconBrush: "ApplyRedactionsBrush"), // the bar's only red
              new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
+             new("SuggestRedactions", "\uE99A", Description: PdfStrings.Bar_SuggestRedactionsDesc),
              new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
              new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),
              new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc, StartsSection: true),

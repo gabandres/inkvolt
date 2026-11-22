@@ -7245,4 +7245,44 @@
     <value>Tacha la selección y di qué va en su lugar</value>
     <comment>The command bar's Comment group</comment>
   </data>
+  <data name="Redact_SuggestAsking" xml:space="preserve">
+    <value>Buscando qué eliminar en {0}</value>
+  </data>
+  <data name="Redact_SuggestedName" xml:space="preserve">
+    <value>Sugerido: nombre</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedOrganization" xml:space="preserve">
+    <value>Sugerido: organización</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAddress" xml:space="preserve">
+    <value>Sugerido: dirección</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAccount" xml:space="preserve">
+    <value>Sugerido: número de cuenta o de identificación</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_Suggested" xml:space="preserve">
+    <value>Sugerido</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_FromYourList" xml:space="preserve">
+    <value>De tu lista</value>
+    <comment>A redaction hit's kind: from the user's names and terms list</comment>
+  </data>
+  <data name="Pro_TitleRedactionSuggestions" xml:space="preserve">
+    <value>Sugerencias de eliminación</value>
+  </data>
+  <data name="Pro_DescRedactionSuggestions" xml:space="preserve">
+    <value>Tu propio asistente de IA lee las páginas y sugiere los nombres, organizaciones, direcciones y números de cuenta que eliminar, o lo que describas; o guarda tu propia lista de nombres y términos. Cada sugerencia pasa por la lista de revisión antes de quitar nada, y el resultado se comprueba igual que con los patrones.</value>
+  </data>
+  <data name="Pro_LockedRedactionSuggestions" xml:space="preserve">
+    <value>Las sugerencias de eliminación forman parte de Inkvolt Pro.</value>
+  </data>
+  <data name="Bar_SuggestRedactionsDesc" xml:space="preserve">
+    <value>Nombres y más, hallados por tu IA o tu lista</value>
+    <comment>The command bar's Protect group</comment>
+  </data>
 </root>

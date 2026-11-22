@@ -7245,4 +7245,44 @@
     <value>Cross out the selection and say what replaces it</value>
     <comment>The command bar's Comment group</comment>
   </data>
+  <data name="Redact_SuggestAsking" xml:space="preserve">
+    <value>Finding what to redact on {0}</value>
+  </data>
+  <data name="Redact_SuggestedName" xml:space="preserve">
+    <value>Suggested: name</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedOrganization" xml:space="preserve">
+    <value>Suggested: organization</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAddress" xml:space="preserve">
+    <value>Suggested: address</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAccount" xml:space="preserve">
+    <value>Suggested: account or ID number</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_Suggested" xml:space="preserve">
+    <value>Suggested</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_FromYourList" xml:space="preserve">
+    <value>From your list</value>
+    <comment>A redaction hit's kind: from the user's names and terms list</comment>
+  </data>
+  <data name="Pro_TitleRedactionSuggestions" xml:space="preserve">
+    <value>Redaction suggestions</value>
+  </data>
+  <data name="Pro_DescRedactionSuggestions" xml:space="preserve">
+    <value>Your own AI assistant reads the pages and suggests the names, organizations, addresses and account numbers to redact, or what you describe; or keep your own list of names and terms. Every suggestion goes into the review list before anything is removed, and the result is checked as for patterns.</value>
+  </data>
+  <data name="Pro_LockedRedactionSuggestions" xml:space="preserve">
+    <value>Redaction suggestions are part of Inkvolt Pro.</value>
+  </data>
+  <data name="Bar_SuggestRedactionsDesc" xml:space="preserve">
+    <value>Names and more, found by your AI or your list</value>
+    <comment>The command bar's Protect group</comment>
+  </data>
 </root>

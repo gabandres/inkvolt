@@ -11968,4 +11968,103 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Review_ReplaceOnePage" xml:space="preserve">
     <value>Select text on one page to replace it.</value>
   </data>
+  <data name="Cmd_SuggestRedactions" xml:space="preserve">
+    <value>Su_ggest Redactions…</value>
+  </data>
+  <data name="Redact_SuggestTitle" xml:space="preserve">
+    <value>Suggest redactions</value>
+  </data>
+  <data name="Redact_SuggestNoteAi" xml:space="preserve">
+    <value>Your AI assistant ({0} · {1}) reads the pages' text and suggests what to redact. You see exactly what is sent, and where, before it goes.</value>
+  </data>
+  <data name="Redact_SuggestNoteNoAi" xml:space="preserve">
+    <value>The AI assistant is off, so nothing is sent anywhere: only your names and terms list is searched. To get suggestions by meaning, set up your own assistant in Settings › AI assistant.</value>
+  </data>
+  <data name="Redact_SuggestLookFor" xml:space="preserve">
+    <value>Ask the assistant for</value>
+  </data>
+  <data name="Redact_SuggestNames" xml:space="preserve">
+    <value>Names of people</value>
+  </data>
+  <data name="Redact_SuggestOrganizations" xml:space="preserve">
+    <value>Companies and organizations</value>
+  </data>
+  <data name="Redact_SuggestAddresses" xml:space="preserve">
+    <value>Postal addresses</value>
+  </data>
+  <data name="Redact_SuggestAccounts" xml:space="preserve">
+    <value>Account and ID numbers</value>
+  </data>
+  <data name="Redact_SuggestDescribe" xml:space="preserve">
+    <value>Also anything that is (optional)</value>
+  </data>
+  <data name="Redact_SuggestDescribeTip" xml:space="preserve">
+    <value>Describe it in your words, for example: diagnoses and medicines, or salaries</value>
+  </data>
+  <data name="Redact_SuggestUseList_One" xml:space="preserve">
+    <value>Also my names and terms list ({0} entry)</value>
+  </data>
+  <data name="Redact_SuggestUseList_Many" xml:space="preserve">
+    <value>Also my names and terms list ({0} entries)</value>
+  </data>
+  <data name="Redact_SuggestEditList" xml:space="preserve">
+    <value>Edit List…</value>
+  </data>
+  <data name="Redact_SuggestReviewNote" xml:space="preserve">
+    <value>Nothing is removed yet: every place found is listed for you to accept or skip, and the result is read back and checked.</value>
+  </data>
+  <data name="Redact_SuggestNeedSomething" xml:space="preserve">
+    <value>Choose something to ask the assistant for, or use your list.</value>
+  </data>
+  <data name="Redact_SuggestNeedList" xml:space="preserve">
+    <value>Your names and terms list is empty. Add names with Edit List, or set up the AI assistant.</value>
+  </data>
+  <data name="Redact_TermsTitle" xml:space="preserve">
+    <value>Names and terms to redact</value>
+  </data>
+  <data name="Redact_TermsNote" xml:space="preserve">
+    <value>One per line: names, companies, case numbers, words. Kept on this PC only. Lines starting with # are skipped.</value>
+  </data>
+  <data name="Redact_TermsLabel" xml:space="preserve">
+    <value>Names and terms</value>
+  </data>
+  <data name="Redact_TermsNotSaved" xml:space="preserve">
+    <value>The list couldn't be saved. Check that the app's data folder can be written to, then try again.</value>
+  </data>
+  <data name="Redact_SuggestDropped_One" xml:space="preserve">
+    <value>{0} suggestion wasn't in the text as written and was left out.</value>
+  </data>
+  <data name="Redact_SuggestDropped_Many" xml:space="preserve">
+    <value>{0} suggestions weren't in the text as written and were left out.</value>
+  </data>
+  <data name="Redact_SuggestUnreadable_One" xml:space="preserve">
+    <value>{0} answer from the assistant wasn't a list and was skipped.</value>
+  </data>
+  <data name="Redact_SuggestUnreadable_Many" xml:space="preserve">
+    <value>{0} answers from the assistant weren't a list and were skipped.</value>
+  </data>
+  <data name="Redact_SuggestNothing" xml:space="preserve">
+    <value>Nothing to redact was suggested.</value>
+  </data>
+  <data name="Redact_SuggestNoText_One" xml:space="preserve">
+    <value>Nothing was sent: {1} has no text. Scanned pages need Recognize Text (OCR) first.</value>
+  </data>
+  <data name="Redact_SuggestNoText_Many" xml:space="preserve">
+    <value>Nothing was sent: {1} have no text. Scanned pages need Recognize Text (OCR) first.</value>
+  </data>
+  <data name="Redact_SuggestSent" xml:space="preserve">
+    <value>The text of {0}, to find what to redact</value>
+  </data>
+  <data name="Redact_SuggestSendTitle" xml:space="preserve">
+    <value>Send for redaction suggestions?</value>
+  </data>
+  <data name="Redact_SuggestDone_One" xml:space="preserve">
+    <value>{0} suggestion found in the text.</value>
+  </data>
+  <data name="Redact_SuggestDone_Many" xml:space="preserve">
+    <value>{0} suggestions found in the text.</value>
+  </data>
+  <data name="Redact_SuggestFailed" xml:space="preserve">
+    <value>No suggestions</value>
+  </data>
 </root>

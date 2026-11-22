@@ -1336,14 +1336,26 @@ public partial class DocumentTab
     /// </summary>
     public async Task<bool> RedactByPattern(RedactionPatternOptions options)
     {
-        if (await SearchPatterns(options) is not { } found || Window.GetWindow(this) is not { } owner) return false;
+        if (await SearchPatterns(options) is not { } found) return false;
         if (found.Hits.Count == 0 && found.Looks.Count == 0)
         {
             Notify(Strings.Review_NothingMatching);
             return false;
         }
+        return await ReviewAndRedact(options, found);
+    }
+
+    /// <summary>
+    /// What a search found (<paramref name="options"/>' hits), listed to accept or skip with the pages to look at by hand;
+    /// applied; read back and searched again with <paramref name="options"/>; the check, and the report. Redact by
+    /// Pattern's and the redaction suggestions' way. Returns whether anything was applied.
+    /// </summary>
+    /// <param name="note">Shown above the list (what the suggestions left out).</param>
+    internal async Task<bool> ReviewAndRedact(RedactionPatternOptions options, RedactionSearchResult found, string? note = null)
+    {
+        if (Window.GetWindow(this) is not { } owner) return false;
         var earlier = Viewer.Redactions.ToList();
-        if (RedactReviewDialog.Show(owner, this, found, earlier) is not { } review) return false;
+        if (RedactReviewDialog.Show(owner, this, found, earlier, note) is not { } review) return false;
         var name = Session.DisplayName;
         var run = new PatternRedaction(name, options, found, review.Accepted, review.Skipped, PatternRedactionMode.Reviewed, await PageOcr.ChosenAsync())
         {

@@ -87,6 +87,12 @@ public sealed record RedactionMatch(int Page, RedactionPattern Pattern, int Star
 
     /// <summary>Found in what text recognition read on the page, not in the page's own text.</summary>
     public bool FromOcr { get; init; }
+
+    /// <summary>What the hit is called instead of its pattern's name (a suggestion's kind: <see cref="RedactionSuggestions.Label"/>); null: the pattern's.</summary>
+    public string? Label { get; init; }
+
+    /// <summary>What the review list and the report call it.</summary>
+    public string KindName => Label ?? RedactionPatterns.Name(Pattern);
 }
 
 /// <summary>A document has more matches than can be reviewed. Nothing is applied: a partial list must not look complete.</summary>
