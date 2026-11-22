@@ -72,7 +72,7 @@ public sealed partial class PageViewer
 
     /// <summary>The unit the rulers count in on a page.</summary>
     public RulerUnit RulerUnitOn(int page) =>
-        RulerUnit.For(RulerUnitSetting, RulerUnitSetting == "auto" ? MeasureScaleAt?.Invoke(page, new PointD(1, 1)) : null, new RegionInfo(CultureInfo.CurrentCulture.Name is { Length: > 0 } n ? n : "US").IsMetric);
+        RulerUnit.For(RulerUnitSetting, RulerUnitSetting == "auto" ? MeasureScaleAt?.Invoke(page, new PointD(1, 1)) : null, RegionInfo.CurrentRegion.IsMetric); // Windows' region (a neutral culture has none of its own)
 
     // ───────────────────────────── Snapping ─────────────────────────────
 
