@@ -99,6 +99,14 @@ public abstract class PcEnvironment
     public virtual IDisposable? WatchQueueChanges(Action changed) => null;
 
     /// <summary>
+    /// A queue's driver: name, type and provider (roadmap 4.5). This PC asks the spooler; the made-up PC says the listed queue's
+    /// driver name (its network printers have no queue there).
+    /// </summary>
+    public virtual Task<Core.Queues.QueueDriverInfo?> QueueDriverAsync(string queue, SpoolerQueue? listed) =>
+        IsDemo ? Task.FromResult(listed?.DriverName is { } name ? new Core.Queues.QueueDriverInfo(name, null, null) : null)
+            : InstalledQueues.DriverAsync(queue);
+
+    /// <summary>
     /// Where a queue printer's status comes from (<see cref="QueueSources.For"/>, as the Fleet page's): Windows and the driver;
     /// for a queue whose port has the printer's address, or a WSD queue whose device node is there and says it, the printer
     /// itself over SNMP too (status, problems, supply levels), with the port's own SNMP community when it has one; for the others

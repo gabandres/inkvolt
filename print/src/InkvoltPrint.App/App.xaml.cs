@@ -116,6 +116,8 @@ public partial class App : Application
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
         Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
         Prompt.EditPresets = (presets, printer) => ScanPresetsDialog.Open(MainWindow, presets, printer);
+        Prompt.ShowRecentScans = recent => RecentScansDialog.Open(MainWindow, recent);
+        Printing.HandDuplexPrinting.AskReload = (_, plan, face) => HandDuplexDialog.Ask(MainWindow, plan, face);
         Prompt.Announcer = message =>
         {
             if (MainWindow is { } w && (System.Windows.Automation.Peers.UIElementAutomationPeer.FromElement(w)
@@ -129,6 +131,7 @@ public partial class App : Application
         var pc = !demo ? PcEnvironment.Real : args.Contains("--no-printers") ? Demo.EmptyPc : args.Contains("--twain") ? Demo.TwainPc : Demo.Pc; // chosen once: every view model takes its adapters from it
         var loaded = pc.LoadState();
         AppLanguage.Apply(loaded.Language, args); // before any view model or window asks for text
+        Printing.HandDuplexPrinting.Forced = args.Contains("--hand-duplex");
         _vm = new MainViewModel(loaded, pc);
         // The Pro check reads the key from the file both Inkvolt apps share, then from state.json (demo: memory only).
         Core.Pro.Store = demo ? new Core.Suite.MemoryProStore()

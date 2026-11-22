@@ -17,7 +17,7 @@ namespace InkvoltPrint.Tests;
 /// <summary>
 /// Sharing a scanner on the network (print/ROADMAP.md 3.1): the eSCL documents served and read (ScanSettings as hostile input), the
 /// jobs (one scan at a time, a queue limit, each job only its device's, expiry), who may connect, the certificate and the DNS-SD
-/// record, the switch (off by default, private networks only, Pro, closing at once), and scans through the real HTTPS server on
+/// record, the switch (off by default, private networks only, free, closing at once), and scans through the real HTTPS server on
 /// loopback with our own eSCL client, page for page the same as the direct scan.
 /// </summary>
 public class ScannerSharingTests
@@ -559,13 +559,13 @@ public class ScannerSharingTests
     }
 
     private static (ScannerShare Share, FakeHost Host, FakeAdvertiser Ads, FakeNetworks Nets, List<ScannerShareChoice> Saved) Switch(
-        ScannerShareChoice? choice = null, Func<bool>? allowed = null)
+        ScannerShareChoice? choice = null)
     {
         var host = new FakeHost();
         var ads = new FakeAdvertiser();
         var nets = new FakeNetworks();
         var saved = new List<ScannerShareChoice>();
-        var share = new ScannerShare(new ShareEnvironment(host, nets, ads, new EphemeralCertificates()), "OFFICE-PC", choice, saved.Add, allowed ?? (() => true));
+        var share = new ScannerShare(new ShareEnvironment(host, nets, ads, new EphemeralCertificates()), "OFFICE-PC", choice, saved.Add);
         return (share, host, ads, nets, saved);
     }
 
@@ -651,20 +651,14 @@ public class ScannerSharingTests
     }
 
     [Fact]
-    public async Task Without_Pro_nothing_listens()
+    public async Task Sharing_is_free_no_key_is_asked()
     {
-        var allowed = false;
-        var (share, host, _, _, _) = Switch(allowed: () => allowed);
-        await share.ShareAsync(await Open(Fake()));
-        Assert.Equal(ShareState.Locked, share.State);
-        Assert.Empty(host.Started);
-        Assert.Equal(Pro.Locked(ProFeature.ScannerSharing), share.Text(Usb.Id));
-        allowed = true;
-        await share.RecheckAsync();
+        // The owner's decision of 2026-11-22: sharing a scanner is free. The share asks nothing of Inkvolt Pro, and Pro has no such feature.
+        var (share, host, _, _, _) = Switch();
+        Assert.Equal(ShareSwitch.On, await share.TurnOnAsync(await Open(Fake())));
+        Assert.Equal(ShareState.On, share.State);
         Assert.True(host.Listening);
-        allowed = false; // the key removed
-        await share.RecheckAsync();
-        Assert.False(host.Listening);
+        Assert.DoesNotContain("ScannerSharing", Enum.GetNames<ProFeature>());
     }
 
     [Fact]
@@ -913,7 +907,7 @@ public class ScannerSharingTests
         var system = new FakeWiaSystem([fake]);
         var direct = await Open(fake, system);
         var saved = new List<ScannerShareChoice>();
-        var share = new ScannerShare(ShareEnvironment.ThisPcOnly(new KestrelShareHost()), "OFFICE-PC", null, saved.Add, () => true);
+        var share = new ScannerShare(ShareEnvironment.ThisPcOnly(new KestrelShareHost()), "OFFICE-PC", null, saved.Add);
         await share.ShareAsync(await Open(fake, system));
         Assert.Equal(ShareState.On, share.State);
         var port = share.Port!.Value;
@@ -1049,17 +1043,14 @@ public class ScannerSharingTests
     }
 
     [Fact]
-    public async Task Turning_on_asks_Pro_once_and_changes_nothing_without_it()
+    public async Task Turning_on_without_a_connected_scanner_changes_nothing()
     {
-        var allowed = false;
-        var (share, host, _, _, saved) = Switch(allowed: () => allowed);
+        var (share, host, _, _, saved) = Switch();
         var scanner = await Open(Fake());
-        Assert.Equal(ShareSwitch.NeedsPro, await share.TurnOnAsync(scanner));
+        Assert.Equal(ShareSwitch.NoScanner, await share.TurnOnAsync(null));
         Assert.False(share.IsOn);
         Assert.Empty(saved);
         Assert.Empty(host.Started);
-        Assert.Equal(ShareSwitch.NoScanner, await share.TurnOnAsync(null));
-        allowed = true;
         Assert.Equal(ShareSwitch.On, await share.TurnOnAsync(scanner));
         Assert.True(host.Listening);
     }
@@ -1085,7 +1076,7 @@ public class ScannerSharingTests
     {
         var host = new FakeHost();
         var ads = new HangingAdvertiser();
-        var share = new ScannerShare(new ShareEnvironment(host, new FakeNetworks(), ads, new EphemeralCertificates()), "OFFICE-PC", null, _ => { }, () => true);
+        var share = new ScannerShare(new ShareEnvironment(host, new FakeNetworks(), ads, new EphemeralCertificates()), "OFFICE-PC", null, _ => { });
         var starting = share.ShareAsync(await Open(Fake()));
         await WaitFor(() => host.Started.Count == 1);
         // The announcement never ends by itself: closing at all means it was cancelled, not waited out.

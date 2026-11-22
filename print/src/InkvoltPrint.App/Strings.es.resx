@@ -1962,7 +1962,7 @@ Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un re
     <value>Configurando… Windows está agregando la impresora (unos 30 segundos).</value>
   </data>
   <data name="Printer_SetupFailed" xml:space="preserve">
-    <value>No se pudo configurar: {0}</value>
+    <value>No se pudo configurar la impresora en Windows. Vuelve a intentarlo o agrégala en Configuración de Windows › Impresoras y escáneres.</value>
   </data>
   <data name="Printer_ReinstallNotDiscovered" xml:space="preserve">
     <value>no se detectó en la red, así que no se puede volver a configurar automáticamente</value>
@@ -3783,5 +3783,274 @@ Empezar de nuevo</value>
   </data>
   <data name="Scan_BacksStopped" xml:space="preserve">
     <value>Se detuvo el escaneo de los reversos: las páginas escaneadas están en orden.</value>
+  </data>
+  <data name="Recent_Title" xml:space="preserve">
+    <value>Escaneos recientes</value>
+  </data>
+  <data name="Recent_Intro" xml:space="preserve">
+    <value>Tus últimos escaneos guardados, de todos los escáneres. La lista se guarda solo en este PC; quitar un escaneo de ella no elimina el archivo.</value>
+  </data>
+  <data name="Recent_Empty" xml:space="preserve">
+    <value>Todavía no hay escaneos guardados. Los escaneos que guardes, o que guardes con un ajuste, aparecen aquí.</value>
+  </data>
+  <data name="Recent_AndMore_One" xml:space="preserve">
+    <value>{1} y {0} más</value>
+  </data>
+  <data name="Recent_AndMore_Many" xml:space="preserve">
+    <value>{1} y {0} más</value>
+  </data>
+  <data name="Recent_Today" xml:space="preserve">
+    <value>Hoy, {0}</value>
+  </data>
+  <data name="Recent_Yesterday" xml:space="preserve">
+    <value>Ayer, {0}</value>
+  </data>
+  <data name="Recent_Email" xml:space="preserve">
+    <value>Enviar de nuevo por correo</value>
+  </data>
+  <data name="Recent_Print" xml:space="preserve">
+    <value>Imprimir</value>
+  </data>
+  <data name="Recent_Remove" xml:space="preserve">
+    <value>Quitar de la lista</value>
+  </data>
+  <data name="Recent_RemoveTip" xml:space="preserve">
+    <value>El archivo se queda donde está.</value>
+  </data>
+  <data name="Recent_OpenName" xml:space="preserve">
+    <value>Abrir {0}</value>
+  </data>
+  <data name="Recent_ShowName" xml:space="preserve">
+    <value>Mostrar {0} en su carpeta</value>
+  </data>
+  <data name="Recent_EmailName" xml:space="preserve">
+    <value>Enviar {0} de nuevo por correo</value>
+  </data>
+  <data name="Recent_PrintName" xml:space="preserve">
+    <value>Imprimir {0}</value>
+  </data>
+  <data name="Recent_RemoveName" xml:space="preserve">
+    <value>Quitar {0} de la lista</value>
+  </data>
+  <data name="Recent_Removed" xml:space="preserve">
+    <value>{0} se quitó de la lista; el archivo sigue ahí.</value>
+  </data>
+  <data name="Recent_Clear" xml:space="preserve">
+    <value>Vaciar la lista</value>
+  </data>
+  <data name="Recent_ClearAsk" xml:space="preserve">
+    <value>¿Vaciar la lista de escaneos recientes?
+
+Los archivos se quedan donde están.</value>
+  </data>
+  <data name="Recent_DemoOpen" xml:space="preserve">
+    <value>(Demostración: en un escaneo real, {0} se abriría aquí.)</value>
+  </data>
+  <data name="ScanTab_RecentScans" xml:space="preserve">
+    <value>Escaneos recientes…</value>
+  </data>
+  <data name="ScanTab_RecentScansTip" xml:space="preserve">
+    <value>Tus últimos escaneos guardados: abrir, mostrar en la carpeta, enviar de nuevo por correo o imprimir</value>
+  </data>
+  <data name="PrintTab_Clipboard" xml:space="preserve">
+    <value>Imprimir el portapapeles</value>
+  </data>
+  <data name="PrintTab_ClipboardShort" xml:space="preserve">
+    <value>Desde el portapapeles</value>
+  </data>
+  <data name="PrintTab_ClipboardTip" xml:space="preserve">
+    <value>El texto que copiaste se coloca en páginas aquí; una imagen o varias van a Fotos, y un PDF o los archivos copiados en el Explorador de archivos se abren tal cual</value>
+  </data>
+  <data name="Clip_FileWord" xml:space="preserve">
+    <value>Portapapeles</value>
+  </data>
+  <data name="Clip_Busy" xml:space="preserve">
+    <value>Otra aplicación está usando el portapapeles. Vuelve a intentarlo en un momento.</value>
+  </data>
+  <data name="Clip_Nothing" xml:space="preserve">
+    <value>No hay nada que imprimir en el portapapeles. Copia texto, una imagen o un PDF en el Explorador de archivos y vuelve a intentarlo.</value>
+  </data>
+  <data name="Clip_NotPrintable" xml:space="preserve">
+    <value>Los archivos del portapapeles no son PDF ni imágenes. Ábrelos en su propia aplicación para imprimirlos.</value>
+  </data>
+  <data name="Clip_TooBig" xml:space="preserve">
+    <value>Lo que está en el portapapeles es demasiado grande para imprimirlo desde aquí. Guárdalo como archivo e imprime ese archivo.</value>
+  </data>
+  <data name="Clip_LayingOut" xml:space="preserve">
+    <value>Colocando el texto en páginas…</value>
+  </data>
+  <data name="Clip_Text_One" xml:space="preserve">
+    <value>El texto copiado cabe en {0} página. Elige las opciones y luego Imprimir.</value>
+  </data>
+  <data name="Clip_Text_Many" xml:space="preserve">
+    <value>El texto copiado cabe en {0} páginas. Elige las opciones y luego Imprimir.</value>
+  </data>
+  <data name="Clip_TextCut" xml:space="preserve">
+    <value>El texto copiado ocupa más de {0} páginas: aquí solo están las primeras {0}.</value>
+  </data>
+  <data name="Clip_Failed" xml:space="preserve">
+    <value>Lo que está en el portapapeles no se pudo preparar para imprimir. Cópialo de nuevo y vuelve a intentarlo.</value>
+  </data>
+  <data name="Hand_BothSides" xml:space="preserve">
+    <value>Imprimir a doble cara a mano</value>
+  </data>
+  <data name="Hand_BothSidesTip" xml:space="preserve">
+    <value>Esta impresora no imprime a doble cara por sí sola: imprime los anversos, luego vuelves a poner la pila y imprime los reversos</value>
+  </data>
+  <data name="Hand_SummaryBothSides" xml:space="preserve">
+    <value>a doble cara a mano</value>
+  </data>
+  <data name="Hand_Sheets_One" xml:space="preserve">
+    <value>{0} hoja, a doble cara a mano</value>
+  </data>
+  <data name="Hand_Sheets_Many" xml:space="preserve">
+    <value>{0} hojas, a doble cara a mano</value>
+  </data>
+  <data name="Hand_FrontsJob" xml:space="preserve">
+    <value>{0} (anversos)</value>
+  </data>
+  <data name="Hand_BacksJob" xml:space="preserve">
+    <value>{0} (reversos)</value>
+  </data>
+  <data name="Hand_PrintingBacks" xml:space="preserve">
+    <value>Imprimiendo los reversos…</value>
+  </data>
+  <data name="Hand_FrontsOnly" xml:space="preserve">
+    <value>Se imprimieron los anversos; los reversos no. Imprime de nuevo para empezar otra vez.</value>
+  </data>
+  <data name="Hand_Done" xml:space="preserve">
+    <value>{0} impreso a doble cara a mano.</value>
+  </data>
+  <data name="Hand_Title" xml:space="preserve">
+    <value>Vuelve a poner la pila para los reversos</value>
+  </data>
+  <data name="Hand_Heading_One" xml:space="preserve">
+    <value>Los anversos se están imprimiendo en {0} hoja</value>
+  </data>
+  <data name="Hand_Heading_Many" xml:space="preserve">
+    <value>Los anversos se están imprimiendo en {0} hojas</value>
+  </data>
+  <data name="Hand_Wait" xml:space="preserve">
+    <value>Espera a que todas las hojas salgan de la impresora y luego:</value>
+  </data>
+  <data name="Hand_CameOut" xml:space="preserve">
+    <value>Las hojas salieron</value>
+  </data>
+  <data name="Hand_FaceDown" xml:space="preserve">
+    <value>Cara impresa hacia abajo (la mayoría de las impresoras láser)</value>
+  </data>
+  <data name="Hand_FaceUp" xml:space="preserve">
+    <value>Cara impresa hacia arriba (la mayoría de las impresoras de inyección de tinta)</value>
+  </data>
+  <data name="Hand_SetAside" xml:space="preserve">
+    <value>Quita la hoja de arriba (la página {0}) de la pila y déjala aparte: no lleva nada por detrás. Cuando terminen los reversos, ponla al final.</value>
+  </data>
+  <data name="Hand_StepDown_One" xml:space="preserve">
+    <value>Sin darle la vuelta, pon la hoja en la bandeja de papel tal como salió, con la cara impresa hacia abajo y la parte de arriba de la página entrando primero.</value>
+  </data>
+  <data name="Hand_StepDown_Many" xml:space="preserve">
+    <value>Sin darles la vuelta ni cambiar su orden, pon las {0} hojas en la bandeja de papel tal como salieron, con la cara impresa hacia abajo y la parte de arriba de las páginas entrando primero.</value>
+  </data>
+  <data name="Hand_StepUp_One" xml:space="preserve">
+    <value>Dale la vuelta a la hoja, como si pasaras una página, y ponla en la bandeja de papel con la parte de arriba de la página entrando primero.</value>
+  </data>
+  <data name="Hand_StepUp_Many" xml:space="preserve">
+    <value>Dale la vuelta a la pila de {0} hojas, como si pasaras una página, y ponla en la bandeja de papel con la parte de arriba de las páginas entrando primero, sin cambiar el orden.</value>
+  </data>
+  <data name="Hand_BlankBacks_One" xml:space="preserve">
+    <value>{0} hoja de la pila no lleva nada por detrás: vuelve a pasar por la impresora y sale en blanco por ese lado.</value>
+  </data>
+  <data name="Hand_BlankBacks_Many" xml:space="preserve">
+    <value>{0} hojas de la pila no llevan nada por detrás: vuelven a pasar por la impresora y salen en blanco por ese lado.</value>
+  </data>
+  <data name="Hand_TrayNote" xml:space="preserve">
+    <value>Las bandejas de papel no son todas iguales: si los reversos se imprimen encima de los anversos, elige la otra opción la próxima vez.</value>
+  </data>
+  <data name="Hand_PrintBacks" xml:space="preserve">
+    <value>Imprimir los reversos</value>
+  </data>
+  <data name="Hand_Stop" xml:space="preserve">
+    <value>No imprimir los reversos</value>
+  </data>
+  <data name="Ready_Title" xml:space="preserve">
+    <value>El nuevo controlador de impresora de Windows</value>
+  </data>
+  <data name="Ready_DriverLabel" xml:space="preserve">
+    <value>Controlador en Windows</value>
+  </data>
+  <data name="Ready_DriverNone" xml:space="preserve">
+    <value>Todavía no tiene una impresora en Windows</value>
+  </data>
+  <data name="Ready_DriverWindows" xml:space="preserve">
+    <value>El propio de Windows (controlador de clase IPP)</value>
+  </data>
+  <data name="Ready_DriverMicrosoft" xml:space="preserve">
+    <value>{0} de Microsoft</value>
+  </data>
+  <data name="Ready_DriverMakerV4" xml:space="preserve">
+    <value>El del fabricante, versión 4 ({0})</value>
+  </data>
+  <data name="Ready_DriverMakerV3" xml:space="preserve">
+    <value>El del fabricante, versión 3 ({0})</value>
+  </data>
+  <data name="Ready_DriverMaker" xml:space="preserve">
+    <value>El del fabricante ({0})</value>
+  </data>
+  <data name="Ready_AnswersLabel" xml:space="preserve">
+    <value>La impresora responde</value>
+  </data>
+  <data name="Ready_AnswersNeither" xml:space="preserve">
+    <value>Ni IPP ni eSCL</value>
+  </data>
+  <data name="Ready_IppMopria" xml:space="preserve">
+    <value>IPP (con certificación Mopria)</value>
+  </data>
+  <data name="Ready_EsclMopria" xml:space="preserve">
+    <value>eSCL (Mopria Scan)</value>
+  </data>
+  <data name="Ready_ProtectedLabel" xml:space="preserve">
+    <value>Modo de impresión protegida</value>
+  </data>
+  <data name="Ready_PrintReady" xml:space="preserve">
+    <value>Lista: imprime con el controlador propio de Windows.</value>
+  </data>
+  <data name="Ready_PrintCanMove" xml:space="preserve">
+    <value>Lista cuando la configures con el controlador de Windows: la impresora responde por IPP, pero su impresora en Windows usa otro controlador, que el modo de impresión protegida quita.</value>
+  </data>
+  <data name="Ready_PrintNotReady" xml:space="preserve">
+    <value>No está lista: la impresora no responde por IPP, así que solo el controlador del fabricante imprime en ella, y el modo de impresión protegida quita ese controlador.</value>
+  </data>
+  <data name="Ready_PrintNotKnown" xml:space="preserve">
+    <value>No se sabe: no se le puede preguntar a la impresora desde aquí.</value>
+  </data>
+  <data name="Ready_ScanDriverOnly" xml:space="preserve">
+    <value>Su escáner solo funciona con su controlador de Windows (WIA o TWAIN): con el modo de impresión protegida de Windows no escaneará.</value>
+  </data>
+  <data name="Ready_SetUp" xml:space="preserve">
+    <value>Configurar con el controlador de Windows</value>
+  </data>
+  <data name="Ready_SetUpTip" xml:space="preserve">
+    <value>Vuelve a agregar esta impresora en Windows con el controlador propio de Windows, junto a la que ya tienes. Tu impresora anterior se queda hasta que la quites en Configuración de Windows.</value>
+  </data>
+  <data name="Ready_QueueMarker" xml:space="preserve">
+    <value>controlador de Windows</value>
+  </data>
+  <data name="Ready_SetUpDone" xml:space="preserve">
+    <value>Se agregó "{0}" con el controlador de Windows, junto a tu impresora anterior. Elígela cuando imprimas; la anterior se queda hasta que la quites en Configuración de Windows.</value>
+  </data>
+  <data name="Ready_SetUpInSettings" xml:space="preserve">
+    <value>En Configuración, elige Agregar dispositivo y luego “Agregar manualmente” › “Agregar una impresora por medio de una dirección TCP/IP o un nombre de host”. Elige “Dispositivo IPP” y pega {0} (está en el portapapeles): Windows la configura con su propio controlador. Tu impresora anterior se queda.</value>
+  </data>
+  <data name="Ready_DemoSetUp" xml:space="preserve">
+    <value>(Demostración: en un PC real, se agregaría "{0}" con el controlador de Windows, junto a la impresora anterior.)</value>
+  </data>
+  <data name="Ready_PrintCanSetUp" xml:space="preserve">
+    <value>Lista cuando la configures: la impresora responde por IPP, y Configurar (arriba) usa el controlador propio de Windows.</value>
+  </data>
+  <data name="Clip_Cancelled" xml:space="preserve">
+    <value>Se canceló Imprimir el portapapeles.</value>
+  </data>
+  <data name="Clip_NotOpened" xml:space="preserve">
+    <value>Mientras tanto se abrió o se quitó otro PDF, así que el texto copiado no se abrió. Vuelve a usar Imprimir el portapapeles para usarlo.</value>
   </data>
 </root>

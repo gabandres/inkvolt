@@ -68,14 +68,18 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids), OnMonitor,
                 new FirmwareMemory(() => state.GetFirmware(uuid), record => state.SetFirmware(uuid, record)),
                 line => Log.Write($"[{Name}] {line}"));
+        var byHand = new Printing.HandDuplexPrinter(DeliveryFace, face => state.SetOutputFace(uuid, face));
         Print = new PrintViewModel(PrintTargetAsync, state)
         {
+            OpenPictures = OpenPhotosAsync,
+            ByHand = byHand,
             Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
                 : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), Routing.Router,
                     ipp => Printing.DirectBatchJobs.For(Name, new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp)))),
                 Printing.WindowsBatchDocuments.Instance, state)
             {
                 Routing = Routing,
+                ByHand = byHand,
             },
             Routing = Routing,
         };
@@ -85,7 +89,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         };
         _jobQueue = pc.IsDemo ? pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync)
             : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), Routing.Router, pc.UserName);
-        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { Routing = Routing };
+        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { Routing = Routing, ByHand = byHand };
         Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid)) { Routing = Routing };
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
             canElevate: Features.ElevatedRepairs);
@@ -120,6 +124,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             queue.Location is { Length: > 0 } where ? new(Strings.Printer_AboutLocation, where) : null,
             queue.Comment is { Length: > 0 } comment ? new(Strings.Printer_AboutComment, comment) : null,
         }.OfType<InfoRow>().ToList());
+        _ = RefreshReadinessAsync();
     }
 
     /// <summary>
@@ -311,6 +316,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>Print photos and other pictures with layouts, through the Windows queue.</summary>
     public PhotosViewModel Photos { get; }
 
+    /// <summary>
+    /// Which way up this printer's sheets land, for two-sided by hand (roadmap 4.2): the person's last answer for it, else what its
+    /// IPP answer says (<see cref="Core.Printing.HandDuplex.FaceOf(Core.Ipp.IppResponse?)"/>), else face down (most printers).
+    /// </summary>
+    private Core.Printing.OutputFace DeliveryFace() =>
+        _state.GetOutputFace(Uuid) ?? Core.Printing.HandDuplex.FaceOf(_monitor?.Connection?.Probe.Ipp) ?? Core.Printing.OutputFace.Down;
+
     /// <summary>The printer's IPP client when it takes PWG raster, Apple raster or PCLm (roadmap 2.1), else null.</summary>
     private Core.Ipp.IppClient? DirectIpp =>
         _monitor?.Connection is { Ipp: { } ipp, Probe.Ipp: { } attributes }
@@ -340,6 +352,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     /// <summary>The setup banner and its command follow the routing.</summary>
     private void RoutingChanged()
     {
+        if (About.Count > 0) _ = RefreshReadinessAsync(); // a queue found or made: its driver
         OnPropertyChanged(nameof(QueueInstalled));
         OnPropertyChanged(nameof(NeedsSetup));
         OnPropertyChanged(nameof(SetupResult));
@@ -1033,6 +1046,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             p.Firmware is { } fw ? new(Strings.Printer_AboutFirmware, fw.Display) : null,
             new(Strings.Printer_AboutConnectedVia, string.Join(", ", p.Interfaces)),
         }.OfType<InfoRow>().ToList());
+        _ = RefreshReadinessAsync(); // Windows' new driver (roadmap 4.5): what this connection answers
         if (Image is null && _pc.ImageCache is { } cache) _ = LoadImageAsync(conn, cache);
         _ = Routing.DecideAsync(); // the connection may take jobs straight now, or no longer
         _ = Maintenance.AttachAsync(conn); // reads only: what the printer offers
@@ -1092,9 +1106,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             return;
         }
         if (Scan is null || (Scan.ViaWindows != (scanner is WiaScanner) && !Scan.HasUnsavedPages))
-            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, PrintTargetAsync, _pc);
+            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, PrintTargetAsync, _pc) { ShowRecent = () => Prompt.ShowRecentScans?.Invoke(RecentScans()) };
         else Scan.Rebind(scanner);
     }
+
+    /// <summary>The recent scans (roadmap 4.15), whose Print goes to this printer's Print a PDF, Batch or Print photos.</summary>
+    public RecentScansViewModel RecentScans() => new(_state, _pc.OpensOtherApps, CanPrint ? PrintRecentAsync : null);
+
+    /// <summary>A recent scan printed here: one PDF in Print a PDF, several in Batch, pictures in Print photos.</summary>
+    private Task PrintRecentAsync(Core.History.RecentScan scan) =>
+        scan.IsPdf ? scan.Files.Count == 1 ? OpenPdfAsync(scan.Files[0]) : OpenBatchAsync(scan.Files) : OpenPhotosAsync(scan.Files);
 
     /// <summary>
     /// The WIA scanner that belongs to this entry now (null: none). Connecting reads what it offers, in the background; one that
@@ -1132,6 +1153,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         // Another scanner than before (A, now B): the share is told A is gone, so it never serves A's scanner object again.
         if (_wiaDevice is { } before && !string.Equals(before.Id, device.Id, StringComparison.OrdinalIgnoreCase)) _ = OfferToShareAsync(before.Id, null);
         _wiaDevice = device;
+        if (About.Count > 0) _ = RefreshReadinessAsync(); // a scanner only its Windows driver reaches
         _wiaConnecting = true;
         try
         {
@@ -1392,7 +1414,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             Log.Write($"[{Name}] setup failed: {ex}");
-            SetupMessage = string.Format(Strings.Printer_SetupFailed, ex.Message);
+            SetupMessage = Strings.Printer_SetupFailed; // the details are in the log
         }
         finally
         {
@@ -1501,6 +1523,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void GoToPhotos() => SelectedSection = PhotosSection;
+
+    /// <summary>Print the clipboard (roadmap 4.13; the palette): to the Print tab, which sends it where it prints.</summary>
+    public async Task PrintClipboardAsync()
+    {
+        SelectedSection = PrintSection;
+        if (Print.PrintClipboardCommand.CanExecute(null)) await Print.PrintClipboardCommand.ExecuteAsync(null);
+    }
 
     /// <summary>
     /// Stops everything. This PC comes off the printer's panel first (<see cref="Closing"/>, within <see cref="CloseLimit"/>), so the

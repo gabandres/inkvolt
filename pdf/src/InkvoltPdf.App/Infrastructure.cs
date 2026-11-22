@@ -510,6 +510,8 @@ public sealed class AppSettings
     public bool ReopenTabs { get; set; }
     /// <summary>Keep a recovery copy of documents with unsaved changes, offered back after a crash (<see cref="Autosave"/>).</summary>
     public bool KeepRecoveryCopies { get; set; } = true;
+    /// <summary>Underline misspelled words where people type (edited text, notes, text boxes, callouts, form fields; <see cref="Spelling"/>).</summary>
+    public bool SpellCheck { get; set; } = true;
     /// <summary>Packaged installs: ask the Microsoft Store for updates a while after startup (MainWindow.Updates.cs).</summary>
     public bool CheckForUpdates { get; set; } = true;
     /// <summary>Packaged installs: saved documents counted toward the one Store rating request (MainWindow.Rating.cs).</summary>

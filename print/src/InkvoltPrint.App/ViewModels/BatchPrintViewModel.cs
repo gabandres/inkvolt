@@ -75,6 +75,20 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
     [ObservableProperty] public partial string? Progress { get; set; }
     [ObservableProperty] public partial bool CanTwoSided { get; set; } = true;
 
+    /// <summary>
+    /// Set by the printer: two-sided by hand where it can't print both sides (roadmap 4.2): each such file's fronts, the prompt to put
+    /// the stack back (<see cref="HandDuplexPrinting.AskReload"/>), its backs.
+    /// </summary>
+    public HandDuplexPrinter? ByHand { get; init; }
+
+    public bool ShowAllTwoSided => CanTwoSided || ByHand is not null;
+
+    public string AllTwoSidedText => CanTwoSided ? Strings.Batch_BothSidesAll : Strings.Hand_BothSides;
+
+    /// <summary>The reload prompt for a batch's file, on the UI thread (the batch runs off it); the person's answer kept for the printer.</summary>
+    private static Task<Core.Printing.OutputFace?> AskTurnStackAsync(string name, Core.Printing.HandDuplexPlan plan, HandDuplexPrinter hand) =>
+        Application.Current.Dispatcher.InvokeAsync(() => HandDuplexPrinting.Ask(name, plan, hand)).Task;
+
     // ------------------------------------------------------------------ for all files
 
     [ObservableProperty] public partial int AllCopies { get; set; } = 1;
@@ -180,7 +194,10 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
             Log.Write($"Batch: reading the queue: {ex}");
             _info = null;
         }
+        if (HandDuplexPrinting.Forced && _info is { } forced) _info = forced with { CanTwoSided = false };
         CanTwoSided = _info?.CanTwoSided ?? true;
+        OnPropertyChanged(nameof(ShowAllTwoSided));
+        OnPropertyChanged(nameof(AllTwoSidedText));
         // Only when they differ: taking the selected item out of a box clears its selection.
         if (_info is { } read && !read.Papers.SequenceEqual(Papers.Skip(1)))
         {
@@ -433,7 +450,8 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
                 Progress = p.Result is null ? string.Format(Strings.Batch_FileProgress, p.Index + 1, rows.Count, BatchPrintText.Clean(row.Name), p.Message) : null;
                 RowChanged();
             });
-            var summary = await Task.Run(() => BatchPrintRunner.RunAsync(lines, queue, documents, null, progress, _run.Token));
+            var options = new BatchPrintOptions { TurnStack = ByHand is { } hand ? (name, plan, _) => AskTurnStackAsync(name, plan, hand) : null };
+            var summary = await Task.Run(() => BatchPrintRunner.RunAsync(lines, queue, documents, options, progress, _run.Token));
             // Progress<T> posts: every result is applied here in case a late one hasn't landed.
             foreach (var result in summary.Items) rows[result.Index].Finished(result);
             SetMessage(summary.Text, error: summary.StoppedAt is not null || summary.Failed > 0);
@@ -705,8 +723,11 @@ public sealed partial class BatchRowViewModel : ObservableObject
     /// <summary>Its settings can be changed: not once it's sent, nor while a batch runs (what's on screen would no longer be what's sent).</summary>
     public bool Editable => StillToSend && !_owner.IsSending;
 
-    /// <summary>The side is offered when the printer has it, and always for a row asking for it, so it can be turned off.</summary>
-    public bool ShowTwoSided => _twoSided || _info?.CanTwoSided != false;
+    /// <summary>
+    /// The side is offered when the printer has it or it's printed by hand (roadmap 4.2), and always for a row asking for it, so it
+    /// can be turned off.
+    /// </summary>
+    public bool ShowTwoSided => _twoSided || _info?.CanTwoSided != false || _owner.ByHand is not null;
 
     internal void SendingChanged() => OnPropertyChanged(nameof(Editable));
     public bool NeedsPassword => Measure?.State is BatchMeasureState.NeedsPassword or BatchMeasureState.WrongPassword;
@@ -811,7 +832,7 @@ public sealed partial class BatchRowViewModel : ObservableObject
     internal void Refresh(BatchQueueInfo? info)
     {
         _info = info;
-        Line = Measure is null ? null : new BatchPrintLine(Path, Settings, Measure, info);
+        Line = Measure is null ? null : new BatchPrintLine(Path, Settings, Measure, info, byHand: _owner.ByHand is not null);
         if (Result is null && State == BatchPrintState.Waiting) _message = Measure is null ? Strings.Batch_LookingAtIt : Line?.Problem ?? "";
         Notify();
     }

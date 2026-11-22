@@ -127,7 +127,11 @@ public sealed partial class PageViewer : ScrollViewer
         CanContentScroll = false;
         RenderOptions.SetBitmapScalingMode(_surface, BitmapScalingMode.HighQuality);
         RenderOptions.SetBitmapScalingMode(_layer, BitmapScalingMode.HighQuality);
-        _overlay.LayoutUpdated += (_, _) => TurnEditor();
+        _overlay.LayoutUpdated += (_, _) =>
+        {
+            TurnEditor();
+            _paraUnderlines?.Follow();
+        };
         ApplyContrast();
         Loaded += (_, _) =>
         {

@@ -63,6 +63,31 @@ internal static class Winspool
         }
     }
 
+    /// <summary>
+    /// The queue's driver (<c>GetPrinterDriver</c>, <c>DRIVER_INFO_6</c>, as the user): its name, its type (<c>cVersion</c>: 3 or 4)
+    /// and its provider. Null when the queue can't be opened or doesn't say.
+    /// </summary>
+    public static Core.Queues.QueueDriverInfo? Driver(string printer)
+    {
+        using var h = Open(printer, PrinterAccessUse);
+        if (h is null) return null;
+        GetPrinterDriver(h, null, 6, IntPtr.Zero, 0, out var needed);
+        if (needed == 0 || needed > 1 << 20) return null;
+        var buf = Marshal.AllocHGlobal((int)needed);
+        try
+        {
+            if (!GetPrinterDriver(h, null, 6, buf, needed, out _)) return null;
+            var d = Marshal.PtrToStructure<DriverInfo6>(buf);
+            return d.pName is { Length: > 0 } name
+                ? new Core.Queues.QueueDriverInfo(name, d.cVersion is 3 or 4 ? (int)d.cVersion : null, d.pszProvider)
+                : null;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buf);
+        }
+    }
+
     private static Core.Queues.SpoolerQueue ToQueue(PrinterInfo2 p) =>
         new(p.pPrinterName!, p.pPortName ?? "", p.pDriverName, p.Status, p.Attributes, (int)p.cJobs) { Location = p.pLocation, Comment = p.pComment };
 
@@ -255,6 +280,19 @@ internal static class Winspool
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct DriverInfo6
+    {
+        public uint cVersion;
+        public string? pName, pEnvironment, pDriverPath, pDataFile, pConfigFile, pHelpFile;
+        public IntPtr pDependentFiles; // a list of strings ending in two nulls: not read
+        public string? pMonitorName, pDefaultDataType;
+        public IntPtr pszzPreviousNames;
+        public long ftDriverDate;
+        public ulong dwlDriverVersion;
+        public string? pszMfgName, pszOEMUrl, pszHardwareID, pszProvider;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct PrinterInfo4
     {
         public string? pPrinterName, pServerName;
@@ -323,6 +361,9 @@ internal static class Winspool
 
     [DllImport("winspool.drv", EntryPoint = "GetPrinterW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool GetPrinter(PrinterHandle h, uint level, IntPtr buf, uint cb, out uint needed);
+
+    [DllImport("winspool.drv", EntryPoint = "GetPrinterDriverW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern bool GetPrinterDriver(PrinterHandle h, string? environment, uint level, IntPtr buf, uint cb, out uint needed);
 
     [DllImport("winspool.drv", EntryPoint = "SetPrinterW", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool SetPrinter(PrinterHandle h, uint level, IntPtr buf, uint command);

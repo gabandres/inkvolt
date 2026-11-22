@@ -676,6 +676,7 @@ public sealed partial class PageViewer
         box.SetResourceReference(BorderBrushProperty, "AccentFillColorDefaultBrush");
         AutomationProperties.SetName(box, d.Callout.Count > 0 ? Strings.Viewer_CalloutText : Strings.Viewer_TextBoxText);
         ApplyEditorLook(box, d.Style);
+        AttachSpelling(box);
         ShowEditor(box, null, null, d);
         box.CaretIndex = box.Text.Length;
         DrawingSelectionChanged?.Invoke(this, EventArgs.Empty);

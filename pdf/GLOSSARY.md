@@ -44,6 +44,15 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Interface language** (`App/AppLanguage.cs`, the choice in the shared `UiLanguage`): the language the app's own words
   are in, English or Spanish, picked once at start-up and read from `Strings` (the app) and `PdfStrings` (Core, English
   unless the app opts in through `PdfLanguage`, so the command line stays English). What a document says stays as it is.
+- **Spell checker** (`Core/SpellChecker.cs`; in the app `App/Spelling.cs`): spell check where people type. It decides
+  what in typed text is a **word** to look up (letters, an apostrophe inside; not numbers, capitals or addresses) and asks
+  an `ISpellingDictionary` (Windows' own in the app, a word list in tests); a word it doesn't know is a **misspelling**.
+  **Ignore** lasts for the app's session; **Add to dictionary** writes Windows' user dictionary. Its language is the
+  document's (/Lang), else the interface's, else Windows'.
+- **Find and Replace** (`Core/TextReplace.cs`; in the app `ReplaceDialog`, `DocumentTab.Replace.cs`): a **match** is found
+  in a page's paragraphs as Edit Text & Images groups them, and **replaced** by rewriting its paragraph
+  (`ContentEditor.ReplaceParagraphIn`), all of Replace All's in one pass and one save. A **note** says how a replacement went
+  other than as asked: made in a stand-in font or on a wider line, or left as it was (and why).
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,

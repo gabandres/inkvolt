@@ -58,8 +58,7 @@ public sealed partial class ScannerShareViewModel : ObservableObject, IDisposabl
         try
         {
             if (!on) await _share.StopAsync();
-            else if (await _share.TurnOnAsync(_scanner()) == ShareSwitch.NeedsPro)
-                Views.ProWindow.Open(Application.Current?.MainWindow, ProFeature.ScannerSharing);
+            else await _share.TurnOnAsync(_scanner());
         }
         catch (Exception ex) // fire and forget: never unobserved
         {

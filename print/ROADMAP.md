@@ -48,7 +48,7 @@ where to get Pro, and never takes away a result already made.
 | 2.4 Batch print | A list of files or a folder, copies, pages, two-sided, paper, the estimate | A folder printed as it fills, saved lists, command line, the results as CSV |
 | 2.5 TWAIN | All of it | |
 | 2.6 Fleet page | The page | CSV and JSON, `inkvoltprint status --all`, Fix all |
-| 3.1 Share a scanner on the network | | All of it |
+| 3.1 Share a scanner on the network | All of it (Pro until the owner's decision of 2026-11-22) | |
 | 3.2 SNMPv3 | A community per printer | SNMPv3 |
 | 3.3 The printer's own copier | All of it | |
 | 3.4 Job notifications | All of it | |
@@ -121,7 +121,7 @@ What each is: the README's feature table. What waits for real hardware: the READ
 
 ### Wave 3
 
-- **3.1 Share a scanner on the network (eSCL).** Done on Windows (Pro; Kestrel from ASP.NET Core's shared framework, the
+- **3.1 Share a scanner on the network (eSCL).** Done on Windows (free since 2026-11-22, the owner's decision; Kestrel from ASP.NET Core's shared framework, the
   owner's decision, no NuGet package; TCP 9780, HTTPS only, Private networks only). Open: an iPhone scan app, a Mac's Image
   Capture, sane-airscan or another Inkvolt Print over a real network with a real USB scanner behind it (this PC's LAN is
   Public). **Mac half waits** (an ICA scanner shared the same way).
@@ -172,11 +172,23 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
   - **4.4 Small black-and-white PDFs.** Done on Windows: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
     encoder, read back by MuPDF; a "smaller file" choice per preset; a text page 17 to 60 times smaller than its JPEG
     (`CcittG4`, `Bilevel`). **Next:** Inkvolt PDF's 4.8 to reuse it; the Mac half waits.
-- **Batch B:** 4.2 Two-sided printing by hand for printers without a duplexer (odd sides, how to reload, even sides;
-  Print a PDF, Batch, Copy, Photos; needs a one-sided printer to confirm). 4.5 Ready for Windows' new driver: per
-  printer, which driver its queue uses, whether the printer answers IPP and eSCL, *Set up with Windows' driver* beside
-  the old queue, and a warning for a WIA- or TWAIN-only scanner under protected print mode. 4.13 Print what's on the
-  clipboard. 4.15 Recent scans.
+- **Batch B:**
+  - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
+    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
+  - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
+    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
+    half waits.
+  - **4.2 Two-sided printing by hand.** Done on Windows: Print a PDF, Batch and Copy, through the queue or straight to the
+    printer; the fronts, a prompt for face down or face up (the printer's answer first, the person's kept) and an odd last sheet,
+    the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
+    Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
+    down; Batch with two files) and a one-sided printer; the Mac half waits.
+  - **4.5 Ready for Windows' new driver.** Done on Windows: per printer the queue's driver (Windows' IPP class driver,
+    Microsoft's, the maker's version 3 or 4), whether it answers IPP and eSCL (and says Mopria), whether it's ready for protected
+    print mode, *Set up with Windows' driver* beside the old queue (never removed), and a warning for a WIA- or TWAIN-only
+    scanner (README, "Ready for Windows' new driver"; `DriverReadiness`). The M234dw here: IPP class driver, IPP and eSCL,
+    ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
+    queues are driverless already).
 - **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
   original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
   Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or

@@ -13,6 +13,8 @@ public sealed class IppClient
         "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
         "printer-alert", "printer-alert-description", "printer-location", "printer-more-info", "printer-icons",
         "printer-supply", "printer-impressions-completed",
+        // Two-sided by hand's output face (roadmap 4.2) and Mopria for Windows' new driver (4.5).
+        "output-bin-default", "printer-output-tray", "mopria-certified", "mopria-certified-scan",
     ];
 
     private readonly DeviceHttp _http;

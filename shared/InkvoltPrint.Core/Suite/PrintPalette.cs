@@ -63,6 +63,8 @@ public static class PrintPalette
             var category = p.Name;
             if (p.CanPrint) list.Add(new("printer:print", CoreStrings.Palette_PrintPdf, category, "", "\uE749"));
             if (p.CanScan) list.Add(new("printer:scan", CoreStrings.Palette_Scan, category, "", "\uE8FE"));
+            if (p.CanPrint) list.Add(new("printer:clipboard", CoreStrings.Palette_PrintClipboard, category, "", "\uE77F"));
+            if (p.CanScan) list.Add(new("printer:recent", CoreStrings.Palette_RecentScans, category, "", "\uE81C"));
             if (p.NeedsSetup) list.Add(new("printer:setup", CoreStrings.Palette_SetUpInWindows, category, "", "\uE946"));
             bool[] has = [true, p.CanPrint, p.CanScan, p.CanCopy, p.CanPrint, p.HasSettings];
             for (var i = 0; i < Sections.Count; i++)

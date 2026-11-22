@@ -274,6 +274,73 @@ public sealed class AppState
     /// <summary>Printers the person prints to straight over IPP although they have a Windows queue (roadmap 2.1).</summary>
     public List<string> DirectPrinters { get; set; } = [];
 
+    /// <summary>Printer id → which way up its sheets land, as the person said at two-sided by hand's prompt ("Down" or "Up"; roadmap 4.2).</summary>
+    public Dictionary<string, string> OutputFaces { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Core.Printing.OutputFace? GetOutputFace(string uuid)
+    {
+        lock (_gate) return OutputFaces.TryGetValue(uuid, out var v) && Enum.TryParse<Core.Printing.OutputFace>(v, out var face) ? face : null;
+    }
+
+    public void SetOutputFace(string uuid, Core.Printing.OutputFace face)
+    {
+        lock (_gate) OutputFaces[uuid] = face.ToString();
+        Save();
+    }
+
+    /// <summary>The last saved scans, newest first (roadmap 4.15, <see cref="Core.History.RecentScans"/>): kept in this file, on this PC only.</summary>
+    public List<Core.History.RecentScan> RecentScans { get; set; } = [];
+
+    /// <summary>The recent scans as kept (a copy).</summary>
+    public IReadOnlyList<Core.History.RecentScan> GetRecentScans()
+    {
+        lock (_gate) return [.. RecentScans];
+    }
+
+    /// <summary>A save of scanned pages goes to the top of the recent scans.</summary>
+    public void AddRecentScan(Core.History.RecentScan scan)
+    {
+        lock (_gate) RecentScans = [.. Core.History.RecentScans.Add(RecentScans, scan)];
+        Save();
+    }
+
+    /// <summary>
+    /// Drops <paramref name="gone"/> (files found missing) from the recent scans as they are now, so a scan saved meanwhile stays;
+    /// returns the list kept.
+    /// </summary>
+    public IReadOnlyList<Core.History.RecentScan> DropMissingRecentFiles(IReadOnlySet<string> gone)
+    {
+        IReadOnlyList<Core.History.RecentScan> kept;
+        lock (_gate)
+        {
+            if (gone.Count == 0) return [.. RecentScans];
+            RecentScans = [.. Core.History.RecentScans.Present(RecentScans, f => !gone.Contains(f))];
+            kept = [.. RecentScans];
+        }
+        Save();
+        return kept;
+    }
+
+    /// <summary>Takes <paramref name="scan"/> off the recent scans as they are now; returns the list kept.</summary>
+    public IReadOnlyList<Core.History.RecentScan> RemoveRecentScan(Core.History.RecentScan scan)
+    {
+        IReadOnlyList<Core.History.RecentScan> kept;
+        lock (_gate)
+        {
+            RecentScans = [.. Core.History.RecentScans.Remove(RecentScans, scan)];
+            kept = [.. RecentScans];
+        }
+        Save();
+        return kept;
+    }
+
+    /// <summary>Empties the recent scans (the files stay).</summary>
+    public void ClearRecentScans()
+    {
+        lock (_gate) RecentScans = [];
+        Save();
+    }
+
     public bool GetPrintDirect(string uuid)
     {
         lock (_gate) return DirectPrinters.Contains(uuid, StringComparer.OrdinalIgnoreCase);
@@ -416,12 +483,14 @@ public sealed class AppState
             state.ForgottenUuids ??= [];
             state.NoFirmwareNotify ??= [];
             state.DirectPrinters = (state.DirectPrinters ?? []).OfType<string>().ToList();
-            state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
-            state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
-            state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
-            state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
-            state.ScanButtons = new((state.ScanButtons ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
-            state.Firmware = new((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }), StringComparer.OrdinalIgnoreCase);
+            state.RecentScans = [.. Core.History.RecentScans.Clean(state.RecentScans)];
+            state.AcceptedUuids = Keyed((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null));
+            state.CertificatePins = Keyed(state.CertificatePins ?? []);
+            state.QueueNames = Keyed(state.QueueNames ?? []);
+            state.TwoSidedQueues = Keyed(state.TwoSidedQueues ?? []);
+            state.OutputFaces = Keyed((state.OutputFaces ?? []).Where(kv => kv.Value is not null).Take(256));
+            state.ScanButtons = Keyed((state.ScanButtons ?? []).Where(kv => kv.Value is not null));
+            state.Firmware = Keyed((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }));
             state.Tray?.Repair();
             return state;
         }
@@ -430,6 +499,17 @@ public sealed class AppState
             Log.Write($"State file unreadable, starting fresh: {ex.Message}");
             return new();
         }
+    }
+
+    /// <summary>
+    /// A dictionary keyed without case, from what the file holds: keys that differ only in case (a hand-edited file) keep the
+    /// first rather than throwing, which would stop the app from starting.
+    /// </summary>
+    private static Dictionary<string, T> Keyed<T>(IEnumerable<KeyValuePair<string, T>> pairs)
+    {
+        var keyed = new Dictionary<string, T>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in pairs) if (key is not null) keyed.TryAdd(key, value);
+        return keyed;
     }
 
     public void Save()

@@ -151,6 +151,24 @@ public static partial class ContentEditor
 {
     private static PageContent WithParagraphs(PageContent content) => content with { Paragraphs = GroupParagraphs(content) };
 
+    /// <summary>
+    /// A page's paragraphs as Edit Text &amp; Images groups them, read from a document already open (as its content is now,
+    /// after any edit made in it); none for a page that can't be read.
+    /// </summary>
+    internal static IReadOnlyList<TextParagraph> ParagraphsOf(PdfDocument doc, int pageIndex, CancellationToken cancel)
+    {
+        if (pageIndex < 0 || pageIndex >= doc.PageCount) return [];
+        try
+        {
+            var page = doc.Pages[pageIndex];
+            return WithParagraphs(Walk(page, pageIndex, Parse(page, cancel), cancel).Content).Paragraphs;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or InvalidCastException or IndexOutOfRangeException)
+        {
+            return []; // a damaged page (as ContentEditor.Read has it): nothing to find or change on it
+        }
+    }
+
     // ---- Grouping ----
 
     /// <summary>A line of text: runs on one baseline, left to right, with no column gap between them.</summary>
@@ -1390,6 +1408,20 @@ public static partial class ContentEditor
         spans ??= Carry(paragraph.Text, text, paragraph.Spans);
         if (text == paragraph.Text && SameSpans(text, spans, paragraph.Spans)) return data;
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
+        ReplaceParagraphIn(doc, paragraph, text, allowOverlap, spans, added);
+        SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
+        return PdfObj.Save(doc);
+    }
+
+    /// <summary>
+    /// <see cref="ReplaceParagraph"/> in a document already open for editing (several paragraphs, one save: Find &amp;
+    /// Replace's Replace All). <paramref name="text"/> is the new text as <see cref="ParagraphText"/> leaves it and
+    /// <paramref name="spans"/> its looks. A refusal leaves the page's text as it was (at most a font has learned codes no
+    /// text then uses).
+    /// </summary>
+    /// <exception cref="ContentEditException">As <see cref="ReplaceParagraph"/>.</exception>
+    internal static void ReplaceParagraphIn(PdfDocument doc, TextParagraph paragraph, string text, bool allowOverlap, IReadOnlyList<TextSpan> spans, IReadOnlyList<NewPicture> added)
+    {
         var page = PageOf(doc, paragraph.PageIndex);
         var streams = Streams(page);
         var ops = ContentLexer.Parse(streams.Bytes);
@@ -1446,8 +1478,6 @@ public static partial class ContentEditor
         if (paragraph.Pictures.Count > 0 || layout.Pictures.Count > 0)
             edits.AddRange(PictureEdits(doc, page, ops, streams.Bytes, walk, paragraph, layout, target, anchor, added));
         WriteTarget(doc, page, target, edits);
-        SignedEdits.NoteRemoval(); // the old text stays in a signed file's earlier revision
-        return PdfObj.Save(doc);
     }
 
     /// <summary>
@@ -1535,7 +1565,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>Whether two sets of spans give every character of <paramref name="text"/> the same look.</summary>
-    private static bool SameSpans(string text, IReadOnlyList<TextSpan> a, IReadOnlyList<TextSpan> b)
+    internal static bool SameSpans(string text, IReadOnlyList<TextSpan> a, IReadOnlyList<TextSpan> b)
     {
         var x = LooksOf(text, a);
         var y = LooksOf(text, b);

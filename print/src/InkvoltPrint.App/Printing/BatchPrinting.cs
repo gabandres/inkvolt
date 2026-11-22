@@ -271,7 +271,7 @@ internal sealed class DiskPages : IReadOnlyList<RenderedPage>, IDisposable
     private readonly string _folder = Directory.CreateDirectory(Path.Combine(PrintImages.Root, Guid.NewGuid().ToString("N"))).FullName;
     private readonly List<(double Width, double Height)> _sizes = [];
 
-    /// <summary>Draws the job's pages of <paramref name="document"/>, in order.</summary>
+    /// <summary>Draws the job's pages of <paramref name="document"/>, in order; a page 0 is a blank side (two-sided by hand), the size of the page before it.</summary>
     /// <exception cref="BatchFileException">No room on disk, or a page wasn't drawn.</exception>
     public static async Task<DiskPages> DrawAsync(IBatchDocument document, BatchPrintJob job, IProgress<string>? progress, CancellationToken ct)
     {
@@ -283,6 +283,12 @@ internal sealed class DiskPages : IReadOnlyList<RenderedPage>, IDisposable
             {
                 ct.ThrowIfCancellationRequested();
                 progress?.Report(string.Format(Strings.Print_PreparingPage, i + 1, job.Pages.Count));
+                if (job.Pages[i] == 0)
+                {
+                    var (w, h) = pages._sizes.Count > 0 ? pages._sizes[^1] : (8.5, 11);
+                    pages.Add(new BatchPrintPage(BlankJpeg.Value, w, h));
+                    continue;
+                }
                 pages.Add(await document.RenderAsync(job.Pages[i], ct).ConfigureAwait(false));
             }
             ct.ThrowIfCancellationRequested();
@@ -295,6 +301,17 @@ internal sealed class DiskPages : IReadOnlyList<RenderedPage>, IDisposable
             throw;
         }
     }
+
+    /// <summary>A small white JPEG: a blank side, stretched to its paper like any page.</summary>
+    private static readonly Lazy<byte[]> BlankJpeg = new(() =>
+    {
+        var white = System.Windows.Media.Imaging.BitmapSource.Create(8, 8, 96, 96, System.Windows.Media.PixelFormats.Gray8, null, Enumerable.Repeat((byte)255, 64).ToArray(), 8);
+        var jpeg = new System.Windows.Media.Imaging.JpegBitmapEncoder();
+        jpeg.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(white));
+        using var stream = new MemoryStream();
+        jpeg.Save(stream);
+        return stream.ToArray();
+    });
 
     public int Count => _sizes.Count;
 
