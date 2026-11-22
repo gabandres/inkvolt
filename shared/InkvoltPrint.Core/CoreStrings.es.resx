@@ -3595,4 +3595,37 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Batch_BacksFailed" xml:space="preserve">
     <value>Se imprimieron los anversos; los reversos no: {0}</value>
   </data>
+  <data name="PrintLog_Unknown" xml:space="preserve">
+    <value>(desconocido)</value>
+  </data>
+  <data name="PrintLog_CsvFileName" xml:space="preserve">
+    <value>Registro de impresión {0}.csv</value>
+  </data>
+  <data name="PrintLog_Color" xml:space="preserve">
+    <value>color</value>
+  </data>
+  <data name="PrintLog_BlackAndWhite" xml:space="preserve">
+    <value>blanco y negro</value>
+  </data>
+  <data name="PrintLog_TwoSided" xml:space="preserve">
+    <value>doble cara</value>
+  </data>
+  <data name="PrintLog_OneSided" xml:space="preserve">
+    <value>una cara</value>
+  </data>
+  <data name="PrintLog_Cancelled" xml:space="preserve">
+    <value>cancelado</value>
+  </data>
+  <data name="Pro_PrintLogExport" xml:space="preserve">
+    <value>Registro de impresión como CSV</value>
+  </data>
+  <data name="Pro_PrintLogExport_Describe" xml:space="preserve">
+    <value>Guarda el registro de impresión, cada trabajo con su hora, impresora, persona, páginas, color y doble cara, como un archivo CSV para una hoja de cálculo.</value>
+  </data>
+  <data name="Pro_PrintLogExport_Locked" xml:space="preserve">
+    <value>Guardar el registro de impresión como CSV es parte de Inkvolt Pro. El registro y sus totales del mes siguen siendo gratis.</value>
+  </data>
+  <data name="Palette_PrintLog" xml:space="preserve">
+    <value>Registro de impresión…</value>
+  </data>
 </root>

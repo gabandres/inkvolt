@@ -139,5 +139,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
   goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never
   touches its files.
+- **Print log**: the jobs this PC's spooler saw while the app ran, one entry each, kept on this PC only (`PrintLog`, `PrintLogFile`): when,
+  the queue, the document's name, the user and PC, pages and copies, color and two-sided when known, and how it **ended**: **printed**
+  (the spooler said so, or it had started printing), **cancelled** (deleted before printing; counts no pages) or **left** (went with
+  neither). **Followed**: a job the recorder is taking notices about until it ends (`PrintLogRecorder`). **Month totals**: a month's jobs
+  and pages per printer and per person. Not accounting: nothing is charged, held or limited.
 - **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
   from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".

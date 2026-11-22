@@ -267,6 +267,7 @@ public partial class MainWindow : Window
             case ("printer", "remove"): Run(vm.ForgetCommand, p); break;
             case ("app", "add"): AddPrinterWindow.Open(this, vm); break;
             case ("app", "search"): Run(vm.SearchAgainCommand); break;
+            case ("app", "printlog"): PrintLogDialog.Open(this, vm); break;
             case ("app", "settings"): SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray); break;
             case ("app", "help"): ShowHelp(); break;
             case ("app", "whatsnew"): WhatsNewDialog.Open(this, AppHelp.Notes()); break;
@@ -294,6 +295,11 @@ public partial class MainWindow : Window
     }
 
     private void Help_Click(object sender, RoutedEventArgs e) => ShowHelp();
+
+    private void PrintLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm is { } vm) PrintLogDialog.Open(this, vm);
+    }
 
     private void Fleet_Click(object sender, RoutedEventArgs e) => ShowFleet();
 

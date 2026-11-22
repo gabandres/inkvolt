@@ -4053,4 +4053,97 @@ Los archivos se quedan donde están.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Mientras tanto se abrió o se quitó otro PDF, así que el texto copiado no se abrió. Vuelve a usar Imprimir el portapapeles para usarlo.</value>
   </data>
+  <data name="Nav_PrintLog" xml:space="preserve">
+    <value>Registro de impresión</value>
+  </data>
+  <data name="Nav_PrintLogTip" xml:space="preserve">
+    <value>Cada trabajo que este equipo imprimió, con totales del mes por impresora y por persona</value>
+  </data>
+  <data name="PrintLog_Title" xml:space="preserve">
+    <value>Registro de impresión</value>
+  </data>
+  <data name="PrintLog_Intro" xml:space="preserve">
+    <value>Cada trabajo que vieron las colas de impresión de este equipo mientras Inkvolt Print estaba abierto, con totales del mes. Se guarda solo en este equipo, durante 13 meses; no se envía nada.</value>
+  </data>
+  <data name="PrintLog_Keep" xml:space="preserve">
+    <value>Llevar un registro de los trabajos de impresión en este equipo</value>
+  </data>
+  <data name="PrintLog_TurnedOn" xml:space="preserve">
+    <value>El registro de impresión está activado: los trabajos se registran desde ahora.</value>
+  </data>
+  <data name="PrintLog_TurnedOff" xml:space="preserve">
+    <value>El registro de impresión está desactivado: ya no se registran trabajos. Lo que ya tiene se queda hasta que lo borres.</value>
+  </data>
+  <data name="PrintLog_Empty" xml:space="preserve">
+    <value>Todavía no hay trabajos registrados. Aparecen aquí a medida que se imprimen mientras Inkvolt Print está abierto (en su ventana o en el área de notificación).</value>
+  </data>
+  <data name="PrintLog_Month" xml:space="preserve">
+    <value>Mes</value>
+  </data>
+  <data name="PrintLog_ByPrinter" xml:space="preserve">
+    <value>Por impresora</value>
+  </data>
+  <data name="PrintLog_ByUser" xml:space="preserve">
+    <value>Por persona</value>
+  </data>
+  <data name="PrintLog_Jobs" xml:space="preserve">
+    <value>Trabajos</value>
+  </data>
+  <data name="PrintLog_Jobs_One" xml:space="preserve">
+    <value>{0} trabajo</value>
+  </data>
+  <data name="PrintLog_Jobs_Many" xml:space="preserve">
+    <value>{0} trabajos</value>
+  </data>
+  <data name="PrintLog_Pages_One" xml:space="preserve">
+    <value>{0} página</value>
+  </data>
+  <data name="PrintLog_Pages_Many" xml:space="preserve">
+    <value>{0} páginas</value>
+  </data>
+  <data name="PrintLog_InColor" xml:space="preserve">
+    <value>({0:N0} a color)</value>
+  </data>
+  <data name="PrintLog_More" xml:space="preserve">
+    <value>Se muestran los últimos {0:N0} de los {1:N0} trabajos de este mes; los totales y Exportar los cuentan todos.</value>
+  </data>
+  <data name="PrintLog_Untitled" xml:space="preserve">
+    <value>(sin nombre)</value>
+  </data>
+  <data name="PrintLog_UserOn" xml:space="preserve">
+    <value>{0} en {1}</value>
+  </data>
+  <data name="PrintLog_Export" xml:space="preserve">
+    <value>Exportar…</value>
+  </data>
+  <data name="PrintLog_ExportTip" xml:space="preserve">
+    <value>Guarda todo el registro como un archivo CSV para una hoja de cálculo (Inkvolt Pro)</value>
+  </data>
+  <data name="PrintLog_ExportTitle" xml:space="preserve">
+    <value>Exportar el registro de impresión</value>
+  </data>
+  <data name="PrintLog_ExportFilter" xml:space="preserve">
+    <value>Archivo CSV (*.csv)|*.csv</value>
+  </data>
+  <data name="PrintLog_Saved" xml:space="preserve">
+    <value>Se guardó {0}.</value>
+  </data>
+  <data name="PrintLog_CouldNotSave" xml:space="preserve">
+    <value>No se pudo guardar el registro de impresión: {0}</value>
+  </data>
+  <data name="PrintLog_Clear" xml:space="preserve">
+    <value>Borrar el registro…</value>
+  </data>
+  <data name="PrintLog_ClearTip" xml:space="preserve">
+    <value>Olvida todos los trabajos del registro de impresión</value>
+  </data>
+  <data name="PrintLog_ClearAsk" xml:space="preserve">
+    <value>¿Borrar el registro de impresión? Se olvidan todos sus trabajos en este equipo. No se puede deshacer.</value>
+  </data>
+  <data name="PrintLog_ClearConfirm" xml:space="preserve">
+    <value>Borrar el registro</value>
+  </data>
+  <data name="PrintLog_Cleared" xml:space="preserve">
+    <value>El registro de impresión está vacío.</value>
+  </data>
 </root>

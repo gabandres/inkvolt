@@ -1782,6 +1782,8 @@
                 <Button Style="{StaticResource LinkButton}" Content="{x:Static loc:Strings.Common_Settings}" Click="Settings_Click" HorizontalAlignment="Left"
                         Margin="10,6,0,0" FontSize="12"
                         ToolTip="{x:Static loc:Strings.Nav_SettingsTip}" />
+                <Button Style="{StaticResource LinkButton}" Content="{x:Static loc:Strings.Nav_PrintLog}" Click="PrintLog_Click" HorizontalAlignment="Left"
+                        Margin="10,0,0,0" FontSize="12" ToolTip="{x:Static loc:Strings.Nav_PrintLogTip}" />
                 <Button Style="{StaticResource LinkButton}" Content="{x:Static loc:Strings.Nav_Help}" Click="Help_Click" HorizontalAlignment="Left"
                         Margin="10,0,0,0" FontSize="12" ToolTip="{x:Static loc:Strings.Nav_HelpTip}" />
                 <Button Style="{StaticResource LinkButton}" Content="{x:Static loc:Strings.Nav_About}" Click="About_Click" HorizontalAlignment="Left"

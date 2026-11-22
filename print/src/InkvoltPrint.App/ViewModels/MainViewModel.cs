@@ -74,6 +74,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         {
             foreach (var p in e.NewItems?.OfType<PrinterViewModel>() ?? []) p.UseShare(Share);
         };
+        // The print log (roadmap 4.9): every job this PC's spooler sees while the app runs, unless turned off.
+        PrintLog = new Core.History.PrintLogKeeper(pc.PrintLog) { On = !state.PrintLogOff };
+        if (PrintLog.On) _printJobs = pc.WatchPrintJobs(PrintLog.Notice);
 
         // Older state files may hold non-GUID ids (printers added by address): normalise once.
         foreach (var k in state.Printers.ToList())
@@ -142,6 +145,27 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
 
     /// <summary>The scanner shared on the network (roadmap 3.1, free): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
     public ScannerShare Share { get; }
+
+    /// <summary>The print log (roadmap 4.9): on by default; Views.PrintLogDialog shows it and turns it off.</summary>
+    public Core.History.PrintLogKeeper PrintLog { get; }
+
+    /// <summary>The spooler's job notices for the print log, while it's on (null on the made-up PC).</summary>
+    private IDisposable? _printJobs;
+
+    /// <summary>The print log's switch: kept in the settings; off, the spooler's jobs aren't watched at all.</summary>
+    public void SetPrintLogOn(bool on)
+    {
+        _state.PrintLogOff = !on;
+        _state.Save();
+        PrintLog.On = on;
+        if (on) _printJobs ??= _pc.WatchPrintJobs(PrintLog.Notice);
+        else
+        {
+            _printJobs?.Dispose();
+            _printJobs = null;
+        }
+        Log.Write(on ? "Print log turned on." : "Print log turned off.");
+    }
 
     private async Task ForgetShareAsync(IReadOnlyList<string?> deviceIds)
     {
@@ -827,6 +851,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         _relist.Dispose();
         _usbWatch?.Dispose();
         _queueChanges?.Dispose();
+        _printJobs?.Dispose();
         _discovery?.Dispose();
         foreach (var p in Printers) p.Dispose();
         // Exit: this PC comes off the printers' panels (Scan to Computer) before the process ends, each within its limit.

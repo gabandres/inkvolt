@@ -229,6 +229,9 @@ public sealed class AppState
         Save();
     }
 
+    /// <summary>The print log (roadmap 4.9) turned off: it's on by default (false here), kept on this PC only.</summary>
+    public bool PrintLogOff { get; set; }
+
     /// <summary>The scanner shared on the network (roadmap 3.1): none by default; the UUID it's announced with is kept once made.</summary>
     public Core.Sharing.ScannerShareChoice? ScannerShare { get; set; }
 

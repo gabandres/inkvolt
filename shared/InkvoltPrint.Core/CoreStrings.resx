@@ -4319,4 +4319,37 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Batch_BacksFailed" xml:space="preserve">
     <value>Fronts printed; the backs weren't: {0}</value>
   </data>
+  <data name="PrintLog_Unknown" xml:space="preserve">
+    <value>(not known)</value>
+  </data>
+  <data name="PrintLog_CsvFileName" xml:space="preserve">
+    <value>Print log {0}.csv</value>
+  </data>
+  <data name="PrintLog_Color" xml:space="preserve">
+    <value>color</value>
+  </data>
+  <data name="PrintLog_BlackAndWhite" xml:space="preserve">
+    <value>black and white</value>
+  </data>
+  <data name="PrintLog_TwoSided" xml:space="preserve">
+    <value>two-sided</value>
+  </data>
+  <data name="PrintLog_OneSided" xml:space="preserve">
+    <value>one-sided</value>
+  </data>
+  <data name="PrintLog_Cancelled" xml:space="preserve">
+    <value>cancelled</value>
+  </data>
+  <data name="Pro_PrintLogExport" xml:space="preserve">
+    <value>Print log as CSV</value>
+  </data>
+  <data name="Pro_PrintLogExport_Describe" xml:space="preserve">
+    <value>Save the print log, every job with its time, printer, person, pages, color and two-sided, as a CSV file for a spreadsheet.</value>
+  </data>
+  <data name="Pro_PrintLogExport_Locked" xml:space="preserve">
+    <value>Saving the print log as CSV is part of Inkvolt Pro. The log and its month totals stay free.</value>
+  </data>
+  <data name="Palette_PrintLog" xml:space="preserve">
+    <value>Print log…</value>
+  </data>
 </root>

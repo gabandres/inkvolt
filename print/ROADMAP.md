@@ -192,10 +192,15 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 - **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
   original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
   Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or
-  document camera as a scan source. 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
-  CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;
+  document camera as a scan source. 4.10 Share a USB printer with phones (AirPrint, Mopria;
   Pro). 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A,
   a password, booklet, poster, pages per sheet.
+  - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
+    document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
+    and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the
+    CSV Pro (README, "Print log"; `PrintLog`, `PrintLogRecorder`). Checked on this PC with a job to Microsoft Print to PDF.
+    **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared printer) against the printers' own counts;
+    the Mac half waits (CUPS keeps a page log of its own).
 - **The owner's call first:** 4.17 setting up a new printer's Wi-Fi out of the box (each maker's own way, risky without
   each maker's hardware).
 
@@ -248,7 +253,8 @@ Kept up with the same rule: a claim here has a test or a source.
 - **Email or SMS alerts through a server of ours** (PRTG, PrinterLogic): notifications stay on the PC; 2.6's JSON lets
   a script send what it likes.
 - **Print release, quotas, accounting, driver deployment** (PaperCut, Printix, PrinterLogic): server products for IT
-  departments, not a lean app.
+  departments, not a lean app. 4.9's print log isn't this (the owner's decision, 2026-11-22): a log of one PC's own
+  spooler, kept on that PC, that charges, holds and limits nothing.
 - **Film scanning with infrared dust removal, IT8 calibration** (VueScan Professional): a niche that needs the
   scanner's infrared channel through a maker driver.
 - **Vendor driver bidi and printer extensions** (Canon, Epson and Brother cleaning through their drivers): not a

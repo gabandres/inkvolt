@@ -99,6 +99,15 @@ public abstract class PcEnvironment
     public virtual IDisposable? WatchQueueChanges(Action changed) => null;
 
     /// <summary>
+    /// The print log's file (roadmap 4.9): beside the settings on this PC; the made-up PC's in memory, with a few made-up months of
+    /// jobs (<see cref="Core.History.PrintLog.Demo"/>).
+    /// </summary>
+    public abstract Core.History.PrintLogFile PrintLog { get; }
+
+    /// <summary>Hands every job the spooler sees to <paramref name="notice"/> (the print log) until disposed; null on the made-up PC, whose spooler is made up.</summary>
+    public virtual IDisposable? WatchPrintJobs(Action<IReadOnlyList<Core.History.JobChange>, Core.History.JobNoticeKind> notice) => null;
+
+    /// <summary>
     /// A queue's driver: name, type and provider (roadmap 4.5). This PC asks the spooler; the made-up PC says the listed queue's
     /// driver name (its network printers have no queue there).
     /// </summary>
@@ -213,6 +222,11 @@ public abstract class PcEnvironment
         protected override SpoolerQueue Latest(SpoolerQueue q) => InstalledQueues.Latest(q);
 
         public override IDisposable? WatchQueueChanges(Action changed) => new Windows.Printing.SpoolerChanges(changed, Log.Write);
+
+        public override Core.History.PrintLogFile PrintLog { get; } = new(Path.Combine(AppState.DataDirectory, "print-log.jsonl"), Log.Write);
+
+        public override IDisposable? WatchPrintJobs(Action<IReadOnlyList<Core.History.JobChange>, Core.History.JobNoticeKind> notice) =>
+            new Windows.Printing.SpoolerJobs(notice, Log.Write);
 
         public override Core.Sharing.ShareEnvironment ScannerSharing => _sharing ??= new(new InkvoltPrint.Sharing.KestrelShareHost(),
             new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));

@@ -4912,4 +4912,97 @@ The files stay where they are.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
+  <data name="Nav_PrintLog" xml:space="preserve">
+    <value>Print log</value>
+  </data>
+  <data name="Nav_PrintLogTip" xml:space="preserve">
+    <value>Every print job this PC sent, with month totals per printer and per person</value>
+  </data>
+  <data name="PrintLog_Title" xml:space="preserve">
+    <value>Print log</value>
+  </data>
+  <data name="PrintLog_Intro" xml:space="preserve">
+    <value>Every job this PC's print queues saw while Inkvolt Print was running, with month totals. Kept on this PC only, for 13 months; nothing is sent.</value>
+  </data>
+  <data name="PrintLog_Keep" xml:space="preserve">
+    <value>Keep a log of print jobs on this PC</value>
+  </data>
+  <data name="PrintLog_TurnedOn" xml:space="preserve">
+    <value>The print log is on: jobs are logged from now on.</value>
+  </data>
+  <data name="PrintLog_TurnedOff" xml:space="preserve">
+    <value>The print log is off: no more jobs are logged. What's already in it stays until you clear it.</value>
+  </data>
+  <data name="PrintLog_Empty" xml:space="preserve">
+    <value>No print jobs logged yet. Jobs show here as they print while Inkvolt Print is running (in its window or in the notification area).</value>
+  </data>
+  <data name="PrintLog_Month" xml:space="preserve">
+    <value>Month</value>
+  </data>
+  <data name="PrintLog_ByPrinter" xml:space="preserve">
+    <value>By printer</value>
+  </data>
+  <data name="PrintLog_ByUser" xml:space="preserve">
+    <value>By person</value>
+  </data>
+  <data name="PrintLog_Jobs" xml:space="preserve">
+    <value>Jobs</value>
+  </data>
+  <data name="PrintLog_Jobs_One" xml:space="preserve">
+    <value>{0} job</value>
+  </data>
+  <data name="PrintLog_Jobs_Many" xml:space="preserve">
+    <value>{0} jobs</value>
+  </data>
+  <data name="PrintLog_Pages_One" xml:space="preserve">
+    <value>{0} page</value>
+  </data>
+  <data name="PrintLog_Pages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+  </data>
+  <data name="PrintLog_InColor" xml:space="preserve">
+    <value>({0:N0} in color)</value>
+  </data>
+  <data name="PrintLog_More" xml:space="preserve">
+    <value>The latest {0:N0} of this month's {1:N0} jobs are listed; the totals and Export count them all.</value>
+  </data>
+  <data name="PrintLog_Untitled" xml:space="preserve">
+    <value>(no name)</value>
+  </data>
+  <data name="PrintLog_UserOn" xml:space="preserve">
+    <value>{0} on {1}</value>
+  </data>
+  <data name="PrintLog_Export" xml:space="preserve">
+    <value>Export…</value>
+  </data>
+  <data name="PrintLog_ExportTip" xml:space="preserve">
+    <value>Save the whole log as a CSV file for a spreadsheet (Inkvolt Pro)</value>
+  </data>
+  <data name="PrintLog_ExportTitle" xml:space="preserve">
+    <value>Export the print log</value>
+  </data>
+  <data name="PrintLog_ExportFilter" xml:space="preserve">
+    <value>CSV file (*.csv)|*.csv</value>
+  </data>
+  <data name="PrintLog_Saved" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="PrintLog_CouldNotSave" xml:space="preserve">
+    <value>The print log couldn't be saved: {0}</value>
+  </data>
+  <data name="PrintLog_Clear" xml:space="preserve">
+    <value>Clear the log…</value>
+  </data>
+  <data name="PrintLog_ClearTip" xml:space="preserve">
+    <value>Forget every job in the print log</value>
+  </data>
+  <data name="PrintLog_ClearAsk" xml:space="preserve">
+    <value>Clear the print log? Every job in it is forgotten, on this PC. This can't be undone.</value>
+  </data>
+  <data name="PrintLog_ClearConfirm" xml:space="preserve">
+    <value>Clear the log</value>
+  </data>
+  <data name="PrintLog_Cleared" xml:space="preserve">
+    <value>The print log is empty.</value>
+  </data>
 </root>

@@ -114,6 +114,17 @@ internal static class Demo
         public override bool ChecksHpSoftware => false;
         public override Core.History.SupplyHistoryStore History { get; } = new(null, Core.History.DemoSupplyHistory.Seed);
 
+        // In memory, with made-up months of jobs; nothing watches this PC's spooler.
+        public override Core.History.PrintLogFile PrintLog => _printLog ??= DemoPrintLog(empty);
+        private Core.History.PrintLogFile? _printLog;
+
+        private static Core.History.PrintLogFile DemoPrintLog(bool empty)
+        {
+            var file = new Core.History.PrintLogFile(null);
+            if (!empty) file.Add(Core.History.PrintLog.Demo(DateTimeOffset.Now), DateTimeOffset.Now);
+            return file;
+        }
+
         public override void PrepareScan(bool feederBatch, bool photosOnGlass, StackSide? turnedStack = null)
         {
             FeederBatch = feederBatch && turnedStack is null;
