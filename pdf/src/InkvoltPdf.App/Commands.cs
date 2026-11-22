@@ -76,6 +76,8 @@ public static class Cmd
     public static readonly RoutedUICommand ToolHand = Make(Strings.Cmd_ToolHand, nameof(ToolHand));
     public static readonly RoutedUICommand ToolSelect = Make(Strings.Cmd_ToolSelect, nameof(ToolSelect));
     public static readonly RoutedUICommand ToolSnapshot = Make(Strings.Cmd_ToolSnapshot, nameof(ToolSnapshot));
+    public static readonly RoutedUICommand CopyAreaText = Make(Strings.Cmd_CopyAreaText, nameof(CopyAreaText));
+    public static readonly RoutedUICommand CopyAreaTable = Make(Strings.Cmd_CopyAreaTable, nameof(CopyAreaTable));
     public static readonly RoutedUICommand ToolAddText = Make(Strings.Cmd_ToolAddText, nameof(ToolAddText));
     public static readonly RoutedUICommand ToolCheck = Make(Strings.Cmd_ToolCheck, nameof(ToolCheck));
     public static readonly RoutedUICommand ToolCross = Make(Strings.Cmd_ToolCross, nameof(ToolCross));
@@ -86,6 +88,10 @@ public static class Cmd
     public static readonly RoutedUICommand AddImageFromClipboard = Make(Strings.Cmd_AddImageFromClipboard, nameof(AddImageFromClipboard));
     public static readonly RoutedUICommand ToolLink = Make(Strings.Cmd_ToolLink, nameof(ToolLink));
     public static readonly RoutedUICommand LinkSelection = Make(Strings.Cmd_LinkSelection, nameof(LinkSelection));
+    public static readonly RoutedUICommand LinkAddresses = Make(Strings.Cmd_LinkAddresses, nameof(LinkAddresses));
+    public static readonly RoutedUICommand HighlightAllMatches = Make(Strings.Cmd_HighlightAllMatches, nameof(HighlightAllMatches));
+    public static readonly RoutedUICommand UnderlineAllMatches = Make(Strings.Cmd_UnderlineAllMatches, nameof(UnderlineAllMatches));
+    public static readonly RoutedUICommand StrikeOutAllMatches = Make(Strings.Cmd_StrikeOutAllMatches, nameof(StrikeOutAllMatches));
     public static readonly RoutedUICommand AddStamp = Make(Strings.Cmd_AddStamp, nameof(AddStamp));
     public static readonly RoutedUICommand HighlightFields = Make(Strings.Cmd_HighlightFields, nameof(HighlightFields));
 

@@ -159,6 +159,8 @@
                                     <MenuItem x:Name="RedoMenu" Command="app:Cmd.Redo" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Copy" />
+                                    <MenuItem Command="app:Cmd.CopyAreaText" />
+                                    <MenuItem Command="app:Cmd.CopyAreaTable" />
                                     <MenuItem Command="app:Cmd.SelectAll" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Find" />
@@ -284,6 +286,11 @@
                                     <MenuItem Command="app:Cmd.Highlight" />
                                     <MenuItem Command="app:Cmd.Underline" />
                                     <MenuItem Command="app:Cmd.StrikeOut" />
+                                    <MenuItem Header="{x:Static loc:Strings.Main_MenuMarkAllMatches}">
+                                        <MenuItem Command="app:Cmd.HighlightAllMatches" />
+                                        <MenuItem Command="app:Cmd.UnderlineAllMatches" />
+                                        <MenuItem Command="app:Cmd.StrikeOutAllMatches" />
+                                    </MenuItem>
                                     <MenuItem Command="app:Cmd.InsertText" />
                                     <MenuItem Command="app:Cmd.ReplaceText" />
                                     <MenuItem x:Name="NoteMenu" Command="app:Cmd.AddNote" />
@@ -293,6 +300,7 @@
                                     <MenuItem Command="app:Cmd.AddImageFromClipboard" />
                                     <MenuItem x:Name="LinkMenu" Command="app:Cmd.ToolLink" InputGestureText="{x:Static loc:Strings.Main_KeyN}" />
                                     <MenuItem Command="app:Cmd.LinkSelection" />
+                                    <MenuItem Command="app:Cmd.LinkAddresses" />
                                     <MenuItem Command="app:Cmd.AddStamp" InputGestureText="{x:Static loc:Strings.Main_KeyS}" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuMeasure}">
                                         <MenuItem Command="app:Cmd.MeasureDistance" />
