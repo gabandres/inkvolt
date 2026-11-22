@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using InkvoltPrint.App.Presets;
 using InkvoltPrint.App.Printing;
+using InkvoltPrint.Core.Capture;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Model;
@@ -119,6 +120,15 @@ public sealed partial class ScanViewModel : ObservableObject
         FindPhotos = state.ScanFindPhotos;
         TurnUpright = state.ScanUpright;
         TurnStack = state.ScanTurnStack;
+        // The presets outlive this tab: heard weakly, so a tab made anew isn't kept by them.
+        System.Collections.Specialized.CollectionChangedEventManager.AddHandler(presets.Items, (_, _) =>
+        {
+            // The choice is a preset's id, so it stays on that preset wherever it moves; a deleted one falls back to the settings below.
+            var id = CapturePresetId;
+            OnPropertyChanged(nameof(CaptureChoices));
+            CapturePresetId = id.Length > 0 && _presets.FindById(id) is not null ? id : "";
+            OnPropertyChanged(nameof(CapturePresetId));
+        });
         EditedPhotos.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(PhotoStatus));
@@ -315,7 +325,8 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand), nameof(SwapBacksCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand), nameof(SwapBacksCommand),
+        nameof(ScanWithPhoneCommand), nameof(ScanWithCameraCommand))]
     [NotifyPropertyChangedFor(nameof(CanSwapBacks))]
     public partial bool IsBusy { get; set; }
 
@@ -599,7 +610,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     public string ScanButtonText => HasPages ? Strings.Scan_ScanMorePages : Strings.Common_Scan;
 
-    public string EmptyHint => Source?.Value == ScanSource.Platen || Source is null
+    public string EmptyHint => IsPhoneOpen ? Strings.Phone_EmptyHint : CaptureOnly ? Strings.Capture_EmptyHint : Source?.Value == ScanSource.Platen || Source is null
         ? Strings.Scan_EmptyHintGlass
         : Strings.Scan_EmptyHintFeeder;
 
@@ -775,9 +786,9 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>Scans with the job <paramref name="makeJob"/> gives (it may ask the scanner first). Returns the pages added; -1 when it failed or was cancelled.</summary>
-    private async Task<int> ScanPagesAsync(Func<Task<ScanJob>> makeJob)
+    private async Task<int> ScanPagesAsync(Func<Task<ScanJob>> makeJob, IScanner? from = null)
     {
-        if (_blocked is { } why)
+        if (from is null && _blocked is { } why)
         {
             Message = why;
             Prompt.Announce(why);
@@ -792,7 +803,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var checks = new List<Task>();
         try
         {
-            Message = Strings.Scan_Scanning;
+            Message = from is CaptureScanner ? Strings.Capture_Waiting : Strings.Scan_Scanning;
             var job = await makeJob();
             var request = job.Request;
             var dpi = request.Resolution;
@@ -803,7 +814,8 @@ public sealed partial class ScanViewModel : ObservableObject
             var upright = job.Upright && PageUpright.SuitsLanguage(job.OcrLanguage ?? WindowsOcr.DefaultLanguage);
             // What made-up scanners then hold.
             _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: findPhotos, turnedStack: turnStack ? PcEnvironment.StackSide.Fronts : null);
-            if (_client is Core.Wia.WiaScanner { Info.CancelsPage: true } wia2)
+            var client = from ?? _client;
+            if (client is Core.Wia.WiaScanner { Info.CancelsPage: true } wia2)
             {
                 // A WIA 2.0 driver says how far each page is (on the scanner's thread: shown on this one).
                 var ui = SynchronizationContext.Current;
@@ -814,7 +826,7 @@ public sealed partial class ScanViewModel : ObservableObject
             }
             async Task Pass(List<ScanPageViewModel> into)
             {
-                await foreach (var jpeg in _client.ScanAsync(request, _scanCts!.Token))
+                await foreach (var jpeg in client.ScanAsync(request, _scanCts!.Token))
                 {
                     var page = new ScanPageViewModel(jpeg, dpi, job.Ocr, job.OcrLanguage) { OneBit = job.OneBit };
                     page.PropertyChanged += PageChanged;
@@ -892,8 +904,11 @@ public sealed partial class ScanViewModel : ObservableObject
                     ? Strings.Scan_DuplexBlankNote : "",
                 PdfNote(added, request),
             }.Concat(job.Notes).Where(n => n.Length > 0));
+            if (from is CaptureScanner capture && capture.LeftOut > 0)
+                notes = (Plural.Of(capture.LeftOut, Strings.Capture_LeftOut_One, Strings.Capture_LeftOut_Many) + " " + notes).TrimEnd();
             Message = added.Count == 0
-                ? Strings.Scan_NoPagesReturned
+                ? from is CaptureScanner ? (Strings.Capture_NoPhotos + " " + notes).TrimEnd() : Strings.Scan_NoPagesReturned
+                : from is CaptureScanner ? Plural.Of(added.Count, Strings.Capture_Done_One, Strings.Capture_Done_Many) + (notes.Length > 0 ? " " + notes : "")
                 : (request.Source == ScanSource.Platen
                     ? Strings.Scan_DoneGlass
                     : Plural.Of(added.Count, Strings.Scan_DoneFeeder_One, Strings.Scan_DoneFeeder_Many)) + (notes.Length > 0 ? " " + notes : "");
@@ -1850,6 +1865,179 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             Message += " " + string.Format(Strings.Scan_CheckThenSave, SavePresetText);
             if (ShowsSaveName) _ = FillSaveNameAsync(); // once the first page's text is read
+        }
+    }
+
+    // ---------------------------------------------------------------- phone and camera (roadmap 4.6, 4.12)
+
+    /// <summary>What a phone or camera scan uses: the settings below (an empty id), or a preset (its id).</summary>
+    public IReadOnlyList<Option<string>> CaptureChoices => [new("", Strings.ScanTab_CaptureTabSettings), .. Presets.Select(p => new Option<string>(p.Id, p.Name))];
+
+    /// <summary>The preset a phone or camera scan uses, by its id (empty: the settings below).</summary>
+    [ObservableProperty]
+    public partial string CapturePresetId { get; set; } = "";
+
+    private ScanPreset? CapturePreset => CapturePresetId.Length > 0 ? _presets.FindById(CapturePresetId) : null;
+
+    /// <summary>The phone panel while a phone scan is open; null otherwise.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPhoneOpen), nameof(EmptyHint))]
+    public partial PhoneScanViewModel? Phone { get; set; }
+
+    public bool IsPhoneOpen => Phone is not null;
+
+    /// <summary>
+    /// The page with no scanner (roadmap 4.6: Microsoft Lens's place): the review fills only from a phone or a camera, so the scanner's
+    /// own Scan button, one-click presets and scanner cards aren't there.
+    /// </summary>
+    public bool CaptureOnly { get; init; }
+
+    /// <summary>A phone or camera scan is under way: pages may still come in (closing the window asks first).</summary>
+    public bool IsCapturing => Phone is not null || _camera is not null;
+
+    /// <summary>
+    /// Scan with your phone (roadmap 4.6): opens the phone's page on this PC's private network and shows its QR code; each photo the
+    /// phone sends comes in as a page, straightened, at the settings below or the chosen preset, until Done (on the phone or here) or
+    /// Cancel. The port closes when it ends.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private async Task ScanWithPhoneAsync()
+    {
+        if (IsBusy) return;
+        var preset = CapturePreset;
+        if (!ConfirmCapture(preset)) return;
+        IsBusy = true; // until the scan starts: the port is being opened
+        PhoneOpening opening;
+        try
+        {
+            opening = await PhoneScan.OpenAsync(_pc.PhoneScanning, _pc.ComputerName, log: line => Log.Write(line));
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+        if (opening.Link is not { } link)
+        {
+            Message = opening.Problem;
+            Prompt.Announce(opening.Problem ?? "");
+            return; // the pages there stay: nothing was started
+        }
+        await using (link)
+        {
+            BeginCapture(preset);
+            var phone = new PhoneScanViewModel(link);
+            Phone = phone;
+            Prompt.Announce(phone.Status);
+            try
+            {
+                await CaptureWithAsync(new CaptureScanner(link.Session.Photos, PhotoCodec.Instance), preset);
+            }
+            finally
+            {
+                phone.Dispose();
+                Phone = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// A preset's phone or camera scan starts afresh: asked first when unsaved pages would go. False: the person kept them. Nothing is
+    /// dropped yet (<see cref="BeginCapture"/>, once the scan has started).
+    /// </summary>
+    private bool ConfirmCapture(ScanPreset? preset)
+    {
+        if (preset is null || !HasUnsavedPages) return true;
+        using (HoldRestore())
+            return Prompt.Ask(Plural.Of(Pages.Count, Strings.Scan_DiscardAndScanQuestion_One, Strings.Scan_DiscardAndScanQuestion_Many, preset.Name),
+                Strings.Scan_DiscardAndScan);
+    }
+
+    /// <summary>
+    /// The pages a phone or camera scan adds to, once it has started: a preset's starts afresh, the settings below add to the pages there
+    /// (with the preset they were scanned with, if any).
+    /// </summary>
+    private void BeginCapture(ScanPreset? preset)
+    {
+        if (preset is null)
+        {
+            if (!HasPages) ActivePreset = null;
+            return;
+        }
+        DropPages();
+        ActivePreset = preset;
+    }
+
+    /// <summary>The scan from <paramref name="source"/>, into the review; with a preset, then saved by it as a one-click scan is.</summary>
+    private async Task CaptureWithAsync(CaptureScanner source, ScanPreset? preset)
+    {
+        var caps = CaptureScanner.Capabilities(_printerName);
+        var job = CaptureJob(preset ?? ActivePreset, caps);
+        var added = await ScanPagesAsync(() => Task.FromResult(job), source);
+        if (added <= 0 || preset is null) return;
+        if (!preset.Review) await SaveWithPresetAsync();
+        else Message += " " + string.Format(Strings.Scan_CheckThenSave, SavePresetText);
+    }
+
+    /// <summary>
+    /// A capture's job: the preset's settings matched to what a capture source offers, or the settings below; always the whole photo
+    /// (no page area), no photos on the glass and no turned stack, at most 300 dpi (<see cref="Core.Capture.PhotoPage.Resolutions"/>).
+    /// </summary>
+    private ScanJob CaptureJob(ScanPreset? preset, ScannerCapabilities caps)
+    {
+        if (preset is not null)
+        {
+            var plan = PresetPlan.For(preset, caps, null, OcrAvailable, RegionInfo.CurrentRegion.IsMetric, turnsStacks: false);
+            _presetNotes = [];
+            return new(plan.Request with { Source = ScanSource.Platen, Width = null, Height = null }, plan.Ocr, preset.SkipBlank, preset.Straighten, [],
+                preset.SplitAt, preset.KeepSeparators, false, preset.Cleanup, preset.OcrLanguage, preset.TurnUpright, false, plan.OneBit);
+        }
+        var tab = TabJob();
+        var dpi = Core.Capture.PhotoPage.Resolutions.Where(r => r <= tab.Request.Resolution).DefaultIfEmpty(Core.Capture.PhotoPage.Resolutions[0]).Max();
+        return tab with
+        {
+            Request = tab.Request with { Source = ScanSource.Platen, Resolution = dpi, Width = null, Height = null },
+            FindPhotos = false,
+            TurnStack = false,
+        };
+    }
+
+    /// <summary>
+    /// The window closes: a phone or camera scan under way ends as if Done were pressed (its pages are kept); the phone's port closes and
+    /// the camera stops.
+    /// </summary>
+    public void EndCapture()
+    {
+        Phone?.FinishCommand.Execute(null);
+        _camera?.Finish();
+    }
+
+    /// <summary>The camera scan under way, if any.</summary>
+    private CameraSession? _camera;
+
+    /// <summary>
+    /// Scan with a camera (roadmap 4.12): a webcam or document camera's live picture in a window of its own; each Capture page takes its
+    /// latest frame in full as a page, straightened and cleaned up as a phone's photo is, at the settings below or the chosen preset,
+    /// until Done or the window closes.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private async Task ScanWithCameraAsync()
+    {
+        if (IsBusy || Prompt.ShowCamera is not { } show) return;
+        var preset = CapturePreset;
+        if (!ConfirmCapture(preset)) return;
+        BeginCapture(preset);
+        var session = new CameraSession();
+        _camera = session;
+        var close = show(new CameraScanViewModel(_pc.Cameras, session, line => Log.Write(line)));
+        try
+        {
+            await CaptureWithAsync(new CaptureScanner(session.Photos, PhotoCodec.Instance), preset);
+        }
+        finally
+        {
+            _camera = null;
+            session.Finish();
+            close();
         }
     }
 

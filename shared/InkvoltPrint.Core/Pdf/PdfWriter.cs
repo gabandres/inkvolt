@@ -17,9 +17,15 @@ public sealed record PdfPage(byte[] Jpeg, int Dpi, IReadOnlyList<OcrWord>? Words
     /// <summary>The page in black and white; when set, it is the page's image and <see cref="Jpeg"/> is unused.</summary>
     public BitImage? Bits { get; init; }
 
+    /// <summary>The black-and-white page may be written as lossless JBIG2 when that is smallest (Inkvolt PDF's scans; <see cref="PdfWriter.OneBit"/>).</summary>
+    public bool Jbig2 { get; init; }
+
     /// <summary>A black-and-white page: written as CCITT G4, or as 1-bit Flate when that is smaller (<see cref="PdfWriter.OneBit"/>).</summary>
     public static PdfPage BlackAndWhite(BitImage bits, int dpi, IReadOnlyList<OcrWord>? words = null) => new([], dpi, words) { Bits = bits };
 }
+
+/// <summary>How a black-and-white image's samples are stored (<see cref="PdfWriter.OneBitData"/>).</summary>
+public enum OneBitCoding { CcittG4, Jbig2, Flate }
 
 /// <summary>
 /// Minimal PDF 1.4 writer: JPEG pages embedded as-is (DCTDecode, no re-encode), black-and-white pages at 1 bit
@@ -53,6 +59,13 @@ public static class PdfWriter
         w.Obj(2, $"<< /Type /Pages /Count {pages.Count} /Kids [{string.Join(' ', pageIds.Select(id => $"{id} 0 R"))}] >>");
         w.Obj(infoId, $"<< /Producer (Inkvolt Print) /Title {TextString(title ?? "Scan")} /CreationDate (D:{DateTime.UtcNow:yyyyMMddHHmmss}Z) >>");
 
+        // The black-and-white pages' coding, several at a time (each tries two or three codings).
+        var oneBits = new (string Filter, byte[] Data)[pages.Count];
+        Parallel.For(0, pages.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4) }, p =>
+        {
+            if (pages[p].Bits is { } bits) oneBits[p] = OneBit(bits, pages[p].Jbig2);
+        });
+
         for (var p = 0; p < pages.Count; p++)
         {
             var page = pages[p];
@@ -69,9 +82,9 @@ public static class PdfWriter
 
             w.Obj(pageId, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(ptW)} {F(ptH)}] " +
                           $"/Resources << /XObject << /Im0 {imgId} 0 R >>{(layer.Length > 0 ? $" /Font << /F1 {fontId} 0 R >>" : "")} >> /Contents {contentId} 0 R >>");
-            if (page.Bits is { } oneBit)
+            if (page.Bits is not null)
             {
-                var (filter, data) = OneBit(oneBit);
+                var (filter, data) = oneBits[p];
                 w.Stream(imgId, $"<< /Type /XObject /Subtype /Image /Width {pxW} /Height {pxH} /ColorSpace /DeviceGray " +
                                 $"/BitsPerComponent 1 {filter} /Length {data.Length} >>", data);
             }
@@ -91,11 +104,29 @@ public static class PdfWriter
     /// <summary>
     /// A black-and-white image's stream for a /DeviceGray image at 1 bit: the filter entries (with their parameters) and the
     /// data, CCITT G4 (<see cref="CcittG4"/>) or Flate of the rows (0 black), whichever is smaller. G4 wins on text; Flate
-    /// can on a page of fine, even patterns (a halftone), where G4's runs are short.
+    /// can on a page of fine, even patterns (a halftone), where G4's runs are short. With <paramref name="jbig2"/>, lossless
+    /// JBIG2 (<see cref="Jbig2Generic"/>) too, a quarter or so smaller than G4 on text.
     /// </summary>
-    public static (string Filter, byte[] Data) OneBit(BitImage image)
+    public static (string Filter, byte[] Data) OneBit(BitImage image, bool jbig2 = false, CancellationToken cancel = default)
     {
-        var g4 = CcittG4.Encode(image);
+        var (coding, data) = OneBitData(image, jbig2, cancel);
+        return coding switch
+        {
+            OneBitCoding.CcittG4 => ($"/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns {image.Width} /Rows {image.Height} >>", data),
+            OneBitCoding.Jbig2 => ("/Filter /JBIG2Decode", data),
+            _ => ("/Filter /FlateDecode", data),
+        };
+    }
+
+    /// <summary>
+    /// <see cref="OneBit"/>'s choice and data. Each decodes to the same samples: 0 where the image is black (a set bit), as
+    /// /DeviceGray reads 1 bit.
+    /// </summary>
+    public static (OneBitCoding Coding, byte[] Data) OneBitData(BitImage image, bool jbig2 = false, CancellationToken cancel = default)
+    {
+        var best = (OneBitCoding.CcittG4, CcittG4.Encode(image, cancel));
+        if (jbig2 && Jbig2Generic.Encode(image, cancel) is var j && j.Length < best.Item2.Length) best = (OneBitCoding.Jbig2, j);
+        cancel.ThrowIfCancellationRequested();
         byte[] flate;
         using (var ms = new MemoryStream())
         {
@@ -103,9 +134,7 @@ public static class PdfWriter
                 z.Write(image.Inverted());
             flate = ms.ToArray();
         }
-        return g4.Length <= flate.Length
-            ? ($"/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns {image.Width} /Rows {image.Height} >>", g4)
-            : ("/Filter /FlateDecode", flate);
+        return flate.Length < best.Item2.Length ? (OneBitCoding.Flate, flate) : best;
     }
 
     /// <summary>

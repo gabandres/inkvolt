@@ -187,5 +187,36 @@ locality) are used in their usual sense: the interface is everything a caller mu
   a page instead of its number ("iv", "A-3"), a numbering, prefix and first number per range. Page Labels sets them for a
   range; every page edit keeps each page's label with it (`PdfStructure.WriteLabels`; a replacing page takes the label
   of the page it replaces).
+- **Black-and-white picture** (`Core/OneBitImages.cs`; the codings in the shared `InkvoltPrint.Core/Imaging`: `CcittG4`,
+  `Jbig2Generic`, chosen by `PdfWriter.OneBit`): a picture stored at 1 bit, in the smallest of lossless JBIG2 (one
+  generic region, every pixel coded as it is: never symbol matching, which can swap one digit for another), CCITT G4 or
+  Flate. File › Scan saves a page scanned in black and white this way; Recognize Text's cleaned page of a black-and-white
+  scan stays one; Reduce File Size codes one again when smaller, proving the new coding draws the same pixels, and makes a
+  grey **scan of text** (ink and paper, few shades between: `LooksBlackAndWhite`) one only when asked.
+- **Snapshot area** (`PageViewer.SnapshotArea`, `Core/AreaCopy.cs`): the last box drawn with Snapshot, outlined on its
+  page until another tool is chosen or the document changes. Its picture is copied as it is drawn; Copy Text from Area and
+  Copy Area as Table copy its words (the page's text there, else the box read by the recognizer).
+- **Found address** (`FoundAddress`, `Core/AddressLinks.cs`): a web or email address printed in a page's text that no
+  link covers yet, with the address its link would open (`Links.Normalize`) and its box on each line; Links from Addresses
+  makes the ticked ones links in one edit.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).
+- **Proofreading mark** (`Core/Annotations.Proofreading.cs`, `ProofMarkKind`): Insert Text (a /Caret at the **insertion
+  point**, the place before a character of the page's text, `Annotations.CaretAt`; the words to insert are its comment) or
+  Replace Text (a /Caret after struck-out words, holding the new text, with the /StrikeOut bound to it as a **comment
+  group**: /IRT the caret, /RT /Group, `AnnotationInfo.Grouped`). A group is one comment: its **head** (the caret) is
+  listed, its members aren't (`Annotations.IsGroupMember`), and deleting or moving the head takes them along. A reply
+  (/RT /R) is not a group.
+- **Redaction suggestion** (`Core/RedactionSuggestions.cs`, `RedactionProposal`; Windows `App/DocumentTab.RedactSuggest.cs`):
+  a **proposal** of something to redact, the exact words and what kind of thing they are (name, organization, address,
+  account, other), from the user's own model (Pro, never on by default; its answer is data, read as a list of quotes) or
+  from the user's **names and terms list** (`RedactionTerms`, one per line in the data folder). A model's proposal is
+  **kept** only when the text its request carried holds it word for word (`Verify`), else **dropped** and counted. Kept
+  proposals are searched for as phrases (`SearchOptions`, `RedactionSearch.Find`), each hit **labelled** by its kind
+  (`RedactionMatch.Label`), and go the Redact Patterns run's way: the review list, apply, read-back with the same phrases,
+  the check and the report.
+- **AI conversation** (`Core/AiAnswers.cs`: `AiConversation`, `AiExchange`; `DocumentSession.AiConversation`): the AI
+  assistant's answers about one document (each an **exchange**: what the pane showed as asked, what a follow-up sends as
+  that turn, the answer, the model, when), kept with its document session until cleared or closed. Follow-up questions
+  send it again (`Turns`); **Save an AI answer** (`AiAnswerExport`) writes one exchange or all of them to Word or a PDF,
+  or one as a note on the first page it cites, always naming the model and saying it may be wrong.

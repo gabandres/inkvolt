@@ -128,6 +128,15 @@ internal static class DevSnapshot
         // --glass form|halves: the made-up glass holds a punched order form (red rules, a blue pen's notes, a date and an invoice number),
         // or the two halves of a plan too wide for it in turn (demo only).
         if (Value(args, "--glass") is { } glass) Demo.GlassHolds = glass;
+        // --phone [send|done|hold] (demo only): Use your phone on the shown Scan tab; send then plays the phone over HTTPS on this PC (pairs,
+        // sends a made-up photo of a page at an angle), done then taps Done on it. hold logs the page's address for a browser here and waits for its Done.
+        // --capture-page: the phone and camera page (no scanner) instead of the shown printer's Scan tab, for --phone and --camera too.
+        if (args.Contains("--capture-page") && window.DataContext is ViewModels.MainViewModel { Pc.IsDemo: true } capturing)
+        {
+            capturing.IsCaptureShown = true;
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        if (args.Contains("--phone") && CaptureTab(window, args) is { } phoneTab) await PhoneAsync(phoneTab, Value(args, "--phone"));
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
             // --source glass|feeder|duplex, --split none|patch|blank|either and --keep-separators set the tab first.
@@ -402,6 +411,9 @@ internal static class DevSnapshot
         }
         if (tray is not null && trayController is not null && await TrayShotAsync(trayController, tray, path)) return;
         Window shot = window;
+        // --camera [capture|done] (demo only): Use a camera on the shown Scan tab, with the made-up document camera; capture takes a
+        // page; the camera window is the snapshot, or with done (Done pressed) the Scan tab with its page.
+        if (args.Contains("--camera") && CaptureTab(window, args) is { } cameraTab) shot = await CameraAsync(cameraTab, Value(args, "--camera")) ?? window;
         if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
         {
             var editor = ScanPresetsDialog.Create(editMain.Presets, editMain.Selected?.Name ?? "Demo printer");
@@ -539,6 +551,62 @@ internal static class DevSnapshot
 
     private static string? Value(string[] args, string name) =>
         Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
+
+    /// <summary>Where <c>--phone</c> and <c>--camera</c> scan in demo mode: the phone and camera page with <c>--capture-page</c>, else the shown printer's Scan tab.</summary>
+    private static ViewModels.ScanViewModel? CaptureTab(MainWindow window, string[] args) => window.DataContext is ViewModels.MainViewModel { Pc.IsDemo: true } main
+        ? args.Contains("--capture-page") ? main.CaptureScan : main.Selected?.Scan
+        : null;
+
+    /// <summary><c>--camera [capture|done]</c>: presses Use a camera, waits for the made-up camera's picture, then captures and presses Done as asked; the camera window, or null once it closed.</summary>
+    private static async Task<Window?> CameraAsync(ViewModels.ScanViewModel scan, string? mode)
+    {
+        _ = scan.ScanWithCameraCommand.ExecuteAsync(null);
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (CameraWindow.Last is not { DataContext: ViewModels.CameraScanViewModel camera } shown) return null;
+        if (mode is "capture" or "done")
+        {
+            await camera.CaptureCommand.ExecuteAsync(null);
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        }
+        if (mode != "done") return shown;
+        camera.DoneCommand.Execute(null);
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        return null;
+    }
+
+    /// <summary>
+    /// <c>--phone [send|done|hold]</c>: presses Use your phone, waits for its code, and with <c>send</c> does what the phone's page does, over
+    /// HTTPS to 127.0.0.1 (demo mode serves no one else): opens the page, pairs, sends <see cref="Demo.PhonePhoto"/>; <c>done</c> then taps Done.
+    /// </summary>
+    private static async Task PhoneAsync(ViewModels.ScanViewModel scan, string? mode)
+    {
+        _ = scan.ScanWithPhoneCommand.ExecuteAsync(null);
+        for (var tries = 0; tries < 50 && scan.Phone is null; tries++) await Task.Delay(100);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (scan.Phone is { } held && mode == "hold")
+        {
+            // A browser on this PC plays the phone (demo mode serves 127.0.0.1 only): its address in the log, until Done or 2 minutes.
+            Log.Write($"Demo phone: open {held.Url}");
+            for (var tries = 0; tries < 1200 && scan.Phone is not null; tries++) await Task.Delay(100);
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            return;
+        }
+        if (scan.Phone is not { } phone || mode is not ("send" or "done")) return;
+        var cookies = new System.Net.CookieContainer();
+        using var http = new HttpClient(new SocketsHttpHandler { CookieContainer = cookies, SslOptions = { RemoteCertificateValidationCallback = (_, _, _, _) => true } });
+        async Task<int> Post(string action, byte[]? body = null)
+        {
+            using var m = new HttpRequestMessage(HttpMethod.Post, phone.Url + action) { Content = new ByteArrayContent(body ?? []) };
+            m.Headers.Add(Core.Capture.PhoneSession.PageHeader, "1");
+            using var r = await http.SendAsync(m);
+            return (int)r.StatusCode;
+        }
+        using (var page = await http.GetAsync(phone.Url)) Log.Write($"Demo phone: page {(int)page.StatusCode}");
+        Log.Write($"Demo phone: pair {await Post("/pair")}, photo {await Post("/photo", Demo.PhonePhoto())}");
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        if (mode == "done") Log.Write($"Demo phone: done {await Post("/done")}");
+        await Task.Delay(TimeSpan.FromSeconds(4));
+    }
 
     /// <summary>SNMP access… showing <paramref name="typed"/> (public kept now), its Save answered with <paramref name="answer"/>; nothing reaches the network.</summary>
     private static SnmpAccessDialog SnmpCheckPreview(ViewModels.MainViewModel main, Core.Snmp.SnmpLogin typed, Core.Snmp.SnmpLoginCheck answer) =>

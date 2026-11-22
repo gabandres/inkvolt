@@ -76,6 +76,8 @@ public static class Cmd
     public static readonly RoutedUICommand ToolHand = Make(Strings.Cmd_ToolHand, nameof(ToolHand));
     public static readonly RoutedUICommand ToolSelect = Make(Strings.Cmd_ToolSelect, nameof(ToolSelect));
     public static readonly RoutedUICommand ToolSnapshot = Make(Strings.Cmd_ToolSnapshot, nameof(ToolSnapshot));
+    public static readonly RoutedUICommand CopyAreaText = Make(Strings.Cmd_CopyAreaText, nameof(CopyAreaText));
+    public static readonly RoutedUICommand CopyAreaTable = Make(Strings.Cmd_CopyAreaTable, nameof(CopyAreaTable));
     public static readonly RoutedUICommand ToolAddText = Make(Strings.Cmd_ToolAddText, nameof(ToolAddText));
     public static readonly RoutedUICommand ToolCheck = Make(Strings.Cmd_ToolCheck, nameof(ToolCheck));
     public static readonly RoutedUICommand ToolCross = Make(Strings.Cmd_ToolCross, nameof(ToolCross));
@@ -86,6 +88,10 @@ public static class Cmd
     public static readonly RoutedUICommand AddImageFromClipboard = Make(Strings.Cmd_AddImageFromClipboard, nameof(AddImageFromClipboard));
     public static readonly RoutedUICommand ToolLink = Make(Strings.Cmd_ToolLink, nameof(ToolLink));
     public static readonly RoutedUICommand LinkSelection = Make(Strings.Cmd_LinkSelection, nameof(LinkSelection));
+    public static readonly RoutedUICommand LinkAddresses = Make(Strings.Cmd_LinkAddresses, nameof(LinkAddresses));
+    public static readonly RoutedUICommand HighlightAllMatches = Make(Strings.Cmd_HighlightAllMatches, nameof(HighlightAllMatches));
+    public static readonly RoutedUICommand UnderlineAllMatches = Make(Strings.Cmd_UnderlineAllMatches, nameof(UnderlineAllMatches));
+    public static readonly RoutedUICommand StrikeOutAllMatches = Make(Strings.Cmd_StrikeOutAllMatches, nameof(StrikeOutAllMatches));
     public static readonly RoutedUICommand AddStamp = Make(Strings.Cmd_AddStamp, nameof(AddStamp));
     public static readonly RoutedUICommand HighlightFields = Make(Strings.Cmd_HighlightFields, nameof(HighlightFields));
 
@@ -185,10 +191,15 @@ public static class Cmd
     public static readonly RoutedUICommand Underline = Make(Strings.Cmd_Underline, nameof(Underline), K(Key.U, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand StrikeOut = Make(Strings.Cmd_StrikeOut, nameof(StrikeOut), K(Key.X, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand AddNote = Make(Strings.Cmd_AddNote, nameof(AddNote), K(Key.C, ModifierKeys.Control | ModifierKeys.Shift));
+    // Proofreading marks (DocumentTab.Proofreading): a caret with the text to insert; the selection struck out with its replacement
+    public static readonly RoutedUICommand InsertText = Make(Strings.Cmd_InsertText, nameof(InsertText));
+    public static readonly RoutedUICommand ReplaceText = Make(Strings.Cmd_ReplaceText, nameof(ReplaceText));
     public static readonly RoutedUICommand Redact = Make(Strings.Cmd_Redact, nameof(Redact));
     // Applies the redaction marks (DocumentTab.ApplyRedactions): its icon is the bar's only red (BarColors)
     public static readonly RoutedUICommand ApplyRedactions = Make(Strings.Main_MenuApplyRedactions, nameof(ApplyRedactions));
     public static readonly RoutedUICommand RedactPatterns = Make(Strings.Cmd_RedactPatterns, nameof(RedactPatterns));
+    // What to redact, proposed by the user's AI endpoint or found from their names and terms list (Pro; RedactSuggestActions)
+    public static readonly RoutedUICommand SuggestRedactions = Make(Strings.Cmd_SuggestRedactions, nameof(SuggestRedactions));
     public static readonly RoutedUICommand CheckRedaction = Make(Strings.Cmd_CheckRedaction, nameof(CheckRedaction));
     public static readonly RoutedUICommand CheckAccessibility = Make(Strings.Cmd_CheckAccessibility, nameof(CheckAccessibility));
     public static readonly RoutedUICommand MakeAccessible = Make(Strings.Cmd_MakeAccessible, nameof(MakeAccessible));
@@ -262,6 +273,9 @@ public static class Cmd
     public static readonly RoutedUICommand AiAsk = Make(Strings.Cmd_AiAsk, nameof(AiAsk));
     public static readonly RoutedUICommand AiExplain = Make(Strings.Cmd_AiExplain, nameof(AiExplain));
     public static readonly RoutedUICommand AiTranslate = Make(Strings.Cmd_AiTranslate, nameof(AiTranslate));
+    // Save an AI answer (DocumentTab.AiSave): the last answer or the conversation, to Word, a PDF or a comment
+    public static readonly RoutedUICommand AiSaveAnswer = Make(Strings.Cmd_AiSaveAnswer, nameof(AiSaveAnswer));
+    public static readonly RoutedUICommand AiSaveConversation = Make(Strings.Cmd_AiSaveConversation, nameof(AiSaveConversation));
     public static readonly RoutedUICommand AiSettings = Make(Strings.Cmd_AiSettings, nameof(AiSettings));
 
     // Read Aloud (Ctrl+Shift+Y, as in Acrobat)

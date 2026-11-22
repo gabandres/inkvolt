@@ -204,9 +204,9 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     recognized text as paragraphs (headings in Heading 1), photos as pictures; written in the shared core with the Office parts
     moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`). Word opens them (checked here). **Next:** the
     Mac half waits.
-  - Still to come: 4.6
-    Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or
-    document camera as a scan source. 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
+  - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone; the Mac half waits.
+  - **4.12 A camera as a scan source.** Done on Windows: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window; the Mac half waits (AVFoundation).
+  - Still to come: 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
     CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;
     Pro). 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A,
     a password, booklet, poster, pages per sheet.

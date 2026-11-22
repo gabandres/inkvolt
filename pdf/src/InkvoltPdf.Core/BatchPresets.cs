@@ -175,6 +175,7 @@ public static class BatchPresets
                 if (o.MaxImageDpi is { } dpi) w.WriteNumber("maxImageDpi", dpi);
                 else w.WriteNull("maxImageDpi");
                 w.WriteNumber("jpegQuality", o.JpegQuality);
+                w.WriteBoolean("blackAndWhiteScans", o.BlackAndWhiteScans);
                 w.WriteBoolean("compressStreams", o.CompressStreams);
                 w.WriteBoolean("deduplicateStreams", o.DeduplicateStreams);
                 w.WriteBoolean("removeMetadata", o.RemoveMetadata);
@@ -426,6 +427,7 @@ public static class BatchPresets
             {
                 MaxImageDpi = f.NullableNumber("maxImageDpi", new OptimizeOptions().MaxImageDpi, 36, 2400),
                 JpegQuality = f.Int("jpegQuality", 75, 1, 100),
+                BlackAndWhiteScans = f.Bool("blackAndWhiteScans", false),
                 CompressStreams = f.Bool("compressStreams", true),
                 DeduplicateStreams = f.Bool("deduplicateStreams", true),
                 RemoveMetadata = f.Bool("removeMetadata", false),

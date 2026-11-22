@@ -35,7 +35,7 @@ internal sealed class ReviewRow : INotifyPropertyChanged
 
     public string Where => Loc.Format(Strings.Viewer_PageN, Page + 1);
 
-    public string Kind => Hit is { } h ? (h.FromOcr ? Loc.Format(Strings.Redact_ReadByOcr, RedactionPatterns.Name(h.Pattern)) : RedactionPatterns.Name(h.Pattern)) : Earlier is not null ? Strings.Redact_MarkedEarlier : Strings.Redact_LookByHandPage;
+    public string Kind => Hit is { } h ? (h.FromOcr ? Loc.Format(Strings.Redact_ReadByOcr, h.KindName) : h.KindName) : Earlier is not null ? Strings.Redact_MarkedEarlier : Strings.Redact_LookByHandPage;
 
     public string Before => Hit is { } h ? (h.Before.Length > 28 ? "…" + h.Before[^28..] : h.Before) : "";
 
@@ -83,7 +83,7 @@ internal sealed class RedactReviewDialog
     /// <summary>The list on the screen, for the developer script.</summary>
     internal static RedactReviewDialog? Open { get; private set; }
 
-    private RedactReviewDialog(Window owner, DocumentTab tab, RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
+    private RedactReviewDialog(Window owner, DocumentTab tab, RedactionSearchResult found, IReadOnlyList<RedactMark> earlier, string? note)
     {
         _tab = tab;
         // In page order, a page to look at just before its hits: a long scan's flags mustn't push every hit out of sight.
@@ -95,12 +95,13 @@ internal sealed class RedactReviewDialog
                 .OrderBy(r => r.Page).ThenBy(r => r.Look is null).ThenBy(r => r.Hit?.Rects[0].Y ?? r.Earlier?.Rect.Y ?? 0).ThenBy(r => r.Hit?.Rects[0].X ?? r.Earlier?.Rect.X ?? 0),
         ];
         _dialog = new FormDialog(owner, Strings.Redact_ReviewTitle, Strings.Redact_Redact, 1000);
-        Build(found, earlier);
+        Build(found, earlier, note);
     }
 
-    public static RedactReview? Show(Window owner, DocumentTab tab, RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
+    /// <param name="note">A word on where the hits came from (suggestions left out), shown above the list.</param>
+    public static RedactReview? Show(Window owner, DocumentTab tab, RedactionSearchResult found, IReadOnlyList<RedactMark> earlier, string? note = null)
     {
-        var review = new RedactReviewDialog(owner, tab, found, earlier);
+        var review = new RedactReviewDialog(owner, tab, found, earlier, note);
         Open = review;
         try
         {
@@ -119,10 +120,11 @@ internal sealed class RedactReviewDialog
         }
     }
 
-    private void Build(RedactionSearchResult found, IReadOnlyList<RedactMark> earlier)
+    private void Build(RedactionSearchResult found, IReadOnlyList<RedactMark> earlier, string? note)
     {
         var hits = found.Hits.Count;
         _dialog.AddNote((hits == 0 ? Strings.Redact_NoMatches : Loc.Plural(hits, Strings.Redact_Matches_One, Strings.Redact_Matches_Many)) + " " + Strings.Redact_NothingUntil);
+        if (note is not null) _dialog.AddNote(note);
         if (found.Looks.Count > 0)
         {
             var warn = _dialog.AddNote(Loc.Format(Strings.Redact_LookYourself, RedactionReport.Pages(found.Looks.Select(l => l.Page)), RedactionLook.Why(found.Looks)));
@@ -265,7 +267,7 @@ internal sealed class RedactReviewDialog
     internal void DevAll(bool accepted) => SetAll(accepted);
 
     internal string DevState() =>
-        $"review: {_rows.Count(r => r.Hit is not null)} hits, {_rows.Count(r => r.Hit is not null && r.Accepted)} accepted, looks on {string.Join(',', _rows.Where(r => r.Look is not null).Select(r => r.Page + 1))}, earlier marks {_rows.Count(r => r.Earlier is not null && r.Accepted)} of {_rows.Count(r => r.Earlier is not null)}";
+        $"review: {_rows.Count(r => r.Hit is not null)} hits, {_rows.Count(r => r.Hit is not null && r.Accepted)} accepted, looks on {string.Join(',', _rows.Where(r => r.Look is not null).Select(r => r.Page + 1))}, earlier marks {_rows.Count(r => r.Earlier is not null && r.Accepted)} of {_rows.Count(r => r.Earlier is not null)}, kinds [{string.Join(", ", _rows.Where(r => r.Hit is not null).Select(r => r.Kind).Distinct())}]";
 
     internal void DevPress() => _dialog.DialogResult = true;
 

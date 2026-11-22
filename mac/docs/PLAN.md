@@ -1669,11 +1669,19 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `{text-number}`), done on Windows.
 - Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
 - Inkvolt Print 4.8: join two halves of an original too big for the glass (`HalvesJoin`), done on Windows.
+- Wave 4 Batch B, done on Windows, the Mac's waits: 4.17 proofreading marks (`Annotations.Proofreading.cs`: Insert Text,
+  Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
+  `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
+  (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
+- Inkvolt Print Wave 4 (`print/ROADMAP.md`), done on Windows: 4.12 a camera as a scan source (`CameraSession`,
+  `CameraFormats`, `CameraScanTests`; AVFoundation's capture session on the Mac); 4.6 phone as a scanner (`Core/Capture`: `PhoneSession`,
+  `PhonePage`, `PhotoPage`, `CaptureScanner` and `PhoneScanTests`; on the Mac the server would be Network.framework's with
+  scanner sharing's rules, and the firewall asks there too).
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).

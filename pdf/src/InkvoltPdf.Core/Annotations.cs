@@ -31,6 +31,7 @@ public readonly record struct AnnotColor(double R, double G, double B)
 /// they are, for selecting, moving and resizing (see <see cref="Annotations.UpdateGeometry"/>); null for other kinds.</param>
 /// <param name="Style">Drawing annotations: how they look (see <see cref="Annotations.UpdateStyle"/>); null for other kinds.</param>
 /// <param name="PageRotation">Its page's /Rotate (0, 90, 180 or 270): which way a text mark's lines run as the page is shown.</param>
+/// <param name="Grouped">Bound to <paramref name="ReplyTo"/> as part of one comment (/RT /Group: a Replace Text's strike-out), not a reply.</param>
 public sealed record AnnotationInfo(
     string Id,
     AnnotationKind Kind,
@@ -49,7 +50,8 @@ public sealed record AnnotationInfo(
     double Opacity = 1,
     AnnotGeometry? Geometry = null,
     AnnotStyle? Style = null,
-    int PageRotation = 0);
+    int PageRotation = 0,
+    bool Grouped = false);
 
 /// <summary>What <see cref="Annotations.ReadPages"/> reads of every page's annotations.</summary>
 public sealed record PageAnnotations(IReadOnlyList<AnnotationInfo> Comments, IReadOnlyList<AttachmentInfo> Attachments, IReadOnlyList<TextStamp> SignatureStamps,
@@ -149,7 +151,8 @@ public static partial class Annotations
                     PdfObj.Num(a.Elements["/CA"], 1),
                     drawing?.Geometry,
                     drawing?.Style,
-                    ((page.Rotate % 360) + 360) % 360));
+                    ((page.Rotate % 360) + 360) % 360,
+                    PdfObj.Dict(a.Elements["/IRT"]) is not null && PdfObj.Name(a.Elements["/RT"]) == "Group"));
             }
         }
         return list;
@@ -309,7 +312,7 @@ public static partial class Annotations
         return PdfObj.Save(doc);
     }
 
-    /// <summary>Deletes an annotation with its popup and its replies (and theirs).</summary>
+    /// <summary>Deletes an annotation with its popup and its replies (and theirs); a group's member, the whole group.</summary>
     public static byte[] Delete(byte[] data, string? password, string id)
     {
         using var doc = OpenForEdit(data, password);
@@ -321,7 +324,8 @@ public static partial class Annotations
     {
         if (Find(doc, id) is not { } found) return false;
         SignedEdits.NoteRemoval();
-        var doomed = ThreadOf(doc, found.Annot);
+        // A group's member (Replace Text's strike-out) is part of one comment: the whole group goes, never half of it.
+        var doomed = ThreadOf(doc, GroupHeadIn(found.Annot));
         for (var p = 0; p < doc.PageCount; p++)
         {
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is null) continue;

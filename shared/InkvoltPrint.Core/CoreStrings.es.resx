@@ -3627,5 +3627,118 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   </data>
   <data name="Preset_NoOcrText" xml:space="preserve">
     <value>Este PC no puede leer texto, así que el archivo de texto queda vacío.</value>
+  <data name="Capture_NotAPhoto" xml:space="preserve">
+    <value>Se omitió una foto: no es una foto JPEG o PNG del tamaño de una página, o no se pudo abrir.</value>
+  </data>
+  <data name="Phone_NoPrivateNetwork" xml:space="preserve">
+    <value>Tu teléfono solo puede enviar páginas por una red privada, y este PC no está en una. Si confías en esta red, cámbiala a Privada en Configuración de Windows › Red e Internet y vuelve a intentarlo.</value>
+  </data>
+  <data name="Phone_PortInUse" xml:space="preserve">
+    <value>Otro programa usa el puerto {0}, que necesita el escaneo con tu teléfono. Ciérralo y vuelve a intentarlo.</value>
+  </data>
+  <data name="Phone_Failed" xml:space="preserve">
+    <value>No se pudo empezar a escanear con tu teléfono. Vuelve a intentarlo; si sigue sin empezar, reinicia Inkvolt Print.</value>
+  </data>
+  <data name="Phone_Heading" xml:space="preserve">
+    <value>Escanear a {0}</value>
+  </data>
+  <data name="Phone_Tip" xml:space="preserve">
+    <value>Pon la página sobre una mesa más oscura y sostén el teléfono encima para que la página ocupe casi toda la pantalla. Una foto por página: cada una aparece en el PC a medida que avanzas.</value>
+  </data>
+  <data name="Phone_Take" xml:space="preserve">
+    <value>Tomar una foto de una página</value>
+  </data>
+  <data name="Phone_Choose" xml:space="preserve">
+    <value>Elegir fotos</value>
+  </data>
+  <data name="Phone_Done" xml:space="preserve">
+    <value>Terminar</value>
+  </data>
+  <data name="Phone_Sending" xml:space="preserve">
+    <value>Enviando la página {0}…</value>
+  </data>
+  <data name="Phone_Sent" xml:space="preserve">
+    <value>La página {0} ya está en el PC.</value>
+  </data>
+  <data name="Phone_PageFailed" xml:space="preserve">
+    <value>La página {0} no llegó. {1}</value>
+  </data>
+  <data name="Phone_NotAPhoto" xml:space="preserve">
+    <value>No es una foto JPEG o PNG.</value>
+  </data>
+  <data name="Phone_TooBig" xml:space="preserve">
+    <value>La foto es demasiado grande.</value>
+  </data>
+  <data name="Phone_TooMany" xml:space="preserve">
+    <value>Es el máximo de páginas de un escaneo: toca Terminar y empieza un escaneo nuevo en el PC.</value>
+  </data>
+  <data name="Phone_Lost" xml:space="preserve">
+    <value>No se puede conectar con el PC. Comprueba que el teléfono esté en la misma red Wi-Fi que el PC.</value>
+  </data>
+  <data name="Phone_Used" xml:space="preserve">
+    <value>Otro teléfono ya usó este código. En el PC, vuelve a escanear con tu teléfono para obtener un código nuevo.</value>
+  </data>
+  <data name="Phone_Ended" xml:space="preserve">
+    <value>Este escaneo terminó en el PC. Empieza uno nuevo allí para obtener un código nuevo.</value>
+  </data>
+  <data name="Phone_Finished_One" xml:space="preserve">
+    <value>Listo: se envió 1 página. Puedes cerrar esta página.</value>
+  </data>
+  <data name="Phone_Finished_Many" xml:space="preserve">
+    <value>Listo: se enviaron {0} páginas. Puedes cerrar esta página.</value>
+  </data>
+  <data name="Phone_NoScript" xml:space="preserve">
+    <value>Esta página necesita JavaScript para enviar fotos.</value>
+  </data>
+  <data name="Phone_StatusWaiting" xml:space="preserve">
+    <value>Esperando tu teléfono: apunta su cámara al código y abre el enlace que muestra.</value>
+  </data>
+  <data name="Phone_StatusConnected" xml:space="preserve">
+    <value>Teléfono conectado. Toma una foto de cada página; toca Terminar en el teléfono, o Terminar aquí, cuando acabes.</value>
+  </data>
+  <data name="Phone_StatusReceived_One" xml:space="preserve">
+    <value>Teléfono conectado: llegó 1 página. Toca Terminar en el teléfono, o Terminar aquí, cuando acabes.</value>
+  </data>
+  <data name="Phone_StatusReceived_Many" xml:space="preserve">
+    <value>Teléfono conectado: llegaron {0} páginas. Toca Terminar en el teléfono, o Terminar aquí, cuando acabes.</value>
+  </data>
+  <data name="Phone_StatusFinished_One" xml:space="preserve">
+    <value>Listo: llegó 1 página del teléfono.</value>
+  </data>
+  <data name="Phone_StatusFinished_Many" xml:space="preserve">
+    <value>Listo: llegaron {0} páginas del teléfono.</value>
+  </data>
+  <data name="Camera_Unnamed" xml:space="preserve">
+    <value>Cámara</value>
+  </data>
+  <data name="Camera_Blocked" xml:space="preserve">
+    <value>Windows no deja que las apps usen la cámara. Actívala en Configuración de Windows › Privacidad y seguridad › Cámara (también para las aplicaciones de escritorio) y vuelve a intentarlo.</value>
+  </data>
+  <data name="Camera_InUse" xml:space="preserve">
+    <value>La cámara no se inició. Puede que otra app la esté usando: ciérrala, o elige otra cámara, y vuelve a intentarlo.</value>
+  </data>
+  <data name="Camera_NoPicture" xml:space="preserve">
+    <value>Esta cámara no envía ninguna imagen que Inkvolt Print pueda usar. Elige otra cámara.</value>
+  </data>
+  <data name="Camera_NoCamera" xml:space="preserve">
+    <value>No se encontró ninguna cámara. Conecta una cámara web o una cámara de documentos y vuelve a intentarlo.</value>
+  </data>
+  <data name="Camera_StatusNone" xml:space="preserve">
+    <value>Pon una página bajo la cámara y luego Capturar página. Cada captura es una página.</value>
+  </data>
+  <data name="Camera_StatusTaken_One" xml:space="preserve">
+    <value>1 página capturada. Pon la siguiente bajo la cámara, o Terminar.</value>
+  </data>
+  <data name="Camera_StatusTaken_Many" xml:space="preserve">
+    <value>{0} páginas capturadas. Pon la siguiente bajo la cámara, o Terminar.</value>
+  </data>
+  <data name="Camera_StatusFull" xml:space="preserve">
+    <value>Es el máximo de páginas de un escaneo: pulsa Terminar y luego empieza otro.</value>
+  </data>
+  <data name="Camera_StatusBusy" xml:space="preserve">
+    <value>Espera un momento: el PC está creando las páginas de las últimas capturas.</value>
+  </data>
+  <data name="Phone_CertExpected" xml:space="preserve">
+    <value>El aviso antes de esta página era normal: {0} creó su propio certificado para ella.</value>
   </data>
 </root>

@@ -16,7 +16,6 @@ public partial class DocumentTab
     private GridSplitter? _aiSplitter;
     private CancellationTokenSource? _aiCancel;
     private bool _aiCopyRestricted;
-    private readonly List<AiTurn> _aiTurns = [];
     private MenuItem? _ctxExplain;
     // Page text already read for the AI, for the engine it came from (an edit replaces the engine and so the cache).
     private PdfEngine? _aiTextEngine;
@@ -70,7 +69,7 @@ public partial class DocumentTab
             _aiPane.ClearRequested += (_, _) =>
             {
                 _aiCancel?.Cancel();
-                _aiTurns.Clear();
+                Session.AiConversation.Clear();
                 _aiPane.Clear();
                 _aiPane.ShowStatus(Strings.TabAi_Cleared);
             };
@@ -84,6 +83,7 @@ public partial class DocumentTab
             {
                 if (page >= 0 && page < Viewer.PageCount) ActiveView.GoToPage(page);
             };
+            _aiPane.SaveRequested += (_, exchange) => _ = SaveAiAnswers(exchange is null ? null : [exchange]);
         }
         _aiPane.Visibility = Visibility.Visible;
         if (_aiSplitter is not null) _aiSplitter.Visibility = Visibility.Visible;
@@ -139,7 +139,7 @@ public partial class DocumentTab
             first.Count == 1 ? null
             : showCombine ? Strings.TabAi_SentPartialsShown
             : Strings.TabAi_SentPartialsUnasked);
-        await AiRun(config, label, outgoing, async (client, onFinal, onStep, ct) =>
+        await AiRun(config, AiAnswerKind.Summary, label, outgoing, async (client, onFinal, onStep, ct) =>
         {
             string? finish = null;
             var declined = false;
@@ -181,20 +181,20 @@ public partial class DocumentTab
         }
         var texts = await AiReadPages(pages);
         if (texts is null) return;
-        var request = AiPrompts.Ask(question, _aiTurns, texts, config.InputTokens);
+        var request = AiPrompts.Ask(question, Session.AiConversation.Turns, texts, config.InputTokens);
         if (request.Pages.Count == 0)
         {
             _aiPane.ShowStatus(Loc.Plural(pages.Length, Strings.TabAi_NoTextAsk_One, Strings.TabAi_NoTextAsk_Many, AiText.PagesText(pages)));
             return;
         }
         var what = request.Trimmed
-            ? _aiTurns.Count > 0
-                ? Loc.Plural(_aiTurns.Count, Strings.TabAi_SentTrimmedHistory_One, Strings.TabAi_SentTrimmedHistory_Many, AiText.PagesText(request.Pages), AiText.PagesText(pages))
+            ? Session.AiConversation.Exchanges.Count > 0
+                ? Loc.Plural(Session.AiConversation.Exchanges.Count, Strings.TabAi_SentTrimmedHistory_One, Strings.TabAi_SentTrimmedHistory_Many, AiText.PagesText(request.Pages), AiText.PagesText(pages))
                 : Loc.Format(Strings.TabAi_SentTrimmed, AiText.PagesText(request.Pages), AiText.PagesText(pages))
-            : _aiTurns.Count > 0
-                ? Loc.Plural(_aiTurns.Count, Strings.TabAi_SentQuestionHistory_One, Strings.TabAi_SentQuestionHistory_Many, AiText.PagesText(request.Pages))
+            : Session.AiConversation.Exchanges.Count > 0
+                ? Loc.Plural(Session.AiConversation.Exchanges.Count, Strings.TabAi_SentQuestionHistory_One, Strings.TabAi_SentQuestionHistory_Many, AiText.PagesText(request.Pages))
                 : Loc.Format(Strings.TabAi_SentQuestion, AiText.PagesText(request.Pages));
-        if (await AiRun(config, question, new AiOutgoing([request.Messages], what, null), async (client, onFinal, onStep, ct) =>
+        if (await AiRun(config, AiAnswerKind.Answer, question, new AiOutgoing([request.Messages], what, null), async (client, onFinal, onStep, ct) =>
             {
                 onStep(new AiStep(1, 1, true, Strings.TabAi_StepAsking));
                 return await client.ChatAsync(request.Messages, onFinal, ct);
@@ -229,7 +229,7 @@ public partial class DocumentTab
         }
         var shown = AiText.Clean(selection);
         var label = Loc.Format(Strings.TabAi_ExplainLabel, AiProtocol.Shorten(shown.Replace('\n', ' '), 120));
-        await AiRun(config, label, new AiOutgoing([messages], Loc.Format(Strings.TabAi_SentSelection, AiText.PagesText(page, page)), null), async (client, onFinal, onStep, ct) =>
+        await AiRun(config, AiAnswerKind.Explanation, label, new AiOutgoing([messages], Loc.Format(Strings.TabAi_SentSelection, AiText.PagesText(page, page)), null), async (client, onFinal, onStep, ct) =>
         {
             onStep(new AiStep(1, 1, true, Strings.TabAi_StepExplaining));
             return await client.ChatAsync(messages, onFinal, ct);
@@ -352,7 +352,7 @@ public partial class DocumentTab
     /// Confirms the send (unless the user chose not to be asked for this endpoint), then runs the job, streaming the final
     /// answer into a new card. Returns true when an answer came back.
     /// </summary>
-    private async Task<bool> AiRun(AiConfig config, string question, AiOutgoing outgoing,
+    private async Task<bool> AiRun(AiConfig config, AiAnswerKind kind, string question, AiOutgoing outgoing,
         Func<AiClient, Action<string>, Action<AiStep>, CancellationToken, Task<AiReply>> job, string? historyQuestion = null)
     {
         if (_disposed || Window.GetWindow(this) is not { } owner || _aiPane is null) return false;
@@ -400,7 +400,13 @@ public partial class DocumentTab
             card.Finish(answer, reply.FinishReason == NotCombined ? Strings.TabAi_NotCombined
                 : reply.WasCutOff ? Strings.TabAi_CutOff
                 : answer.Length == 0 ? Strings.TabAi_EmptyAnswer : null);
-            if (answer.Length > 0) _aiTurns.Add(new AiTurn(historyQuestion ?? question, answer));
+            if (answer.Length > 0)
+            {
+                // Kept with the document's session: follow-ups send it, Save AI Answer saves it.
+                var exchange = new AiExchange(kind, question, historyQuestion ?? question, answer, config.Model, DateTimeOffset.Now);
+                Session.AiConversation.Add(exchange);
+                card.Exchange = exchange;
+            }
             _aiPane.ShowStatus(Strings.TabAi_AnswerReady);
             return true;
         }
@@ -446,5 +452,5 @@ public partial class DocumentTab
         _aiTextEngine = null;
     }
 
-    internal string DevAiState() => _aiPane is null ? "ai pane: not opened" : $"ai pane: open={IsAiPaneOpen} {_aiPane.DevState()} turns={_aiTurns.Count}";
+    internal string DevAiState() => _aiPane is null ? "ai pane: not opened" : $"ai pane: open={IsAiPaneOpen} {_aiPane.DevState()} turns={Session.AiConversation.Exchanges.Count}";
 }

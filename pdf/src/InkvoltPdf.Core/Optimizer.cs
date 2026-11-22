@@ -34,12 +34,21 @@ public sealed record OptimizeOptions
 
     /// <summary>JPEG quality (1-100) of downsampled images.</summary>
     public int JpegQuality { get; init; } = 75;
+
+    /// <summary>
+    /// Scanned pages of text kept in grey or colour become black and white (1 bit, <see cref="OneBitImages.Threshold"/>):
+    /// much smaller, but their shades of grey go. The user's choice, off by default.
+    /// </summary>
+    public bool BlackAndWhiteScans { get; init; }
 }
 
 /// <summary>What <see cref="Optimizer.Optimize"/> produced. The output can come out larger (e.g. a file already compact
 /// in object streams, which PDFsharp doesn't write): compare the sizes before replacing the original.</summary>
 public sealed record OptimizeResult(byte[] Data, long SizeBefore, long SizeAfter, int StreamsCompressed, int DuplicatesRemoved, int ImagesDownsampled)
 {
+    /// <summary>Pictures now stored at 1 bit as JBIG2 or CCITT G4: black-and-white ones coded smaller, and scans made black and white.</summary>
+    public int ImagesBlackAndWhite { get; init; }
+
     public long Saved => SizeBefore - SizeAfter;
 
     /// <summary>At least 1% (and 1 KB) smaller: savings under that (or a bigger file) aren't worth a rewrite.</summary>
@@ -54,7 +63,9 @@ public sealed record OptimizeResult(byte[] Data, long SizeBefore, long SizeAfter
 /// limited to 8-bit DeviceGray/RGB/CMYK (or ICC-based) images without a color-key /Mask; their soft mask is resampled
 /// too (kept lossless). An image's resolution is judged from where page content and form XObjects draw it (largest use
 /// wins); images drawn only elsewhere (patterns, annotations, Type 3 glyphs) are left alone. PDFsharp 6.2 can't write
-/// object streams, so none are made. Signed documents need the caller's consent (<see cref="SignedEdits.Run"/> with the
+/// object streams, so none are made. Black-and-white pictures are coded again losslessly when that is smaller (with
+/// <see cref="OptimizeOptions.CompressStreams"/>), and scans of text become black and white when asked
+/// (<see cref="OptimizeOptions.BlackAndWhiteScans"/>; <see cref="OneBitImages"/>), before any downsampling. Signed documents need the caller's consent (<see cref="SignedEdits.Run"/> with the
 /// rewrite allowed), as the rewrite invalidates their signatures. An encrypted document (opened with its owner password)
 /// keeps its protection (see <see cref="KeptProtection"/>).
 /// </summary>
@@ -85,13 +96,14 @@ public static class Optimizer
 
         RemoveExtras(doc, options);
         var duplicates = options.DeduplicateStreams ? Deduplicate(doc) : 0;
+        var oneBit = BlackAndWhite(doc, options);
         var downsampled = options.MaxImageDpi is { } dpi and > 0 ? Downsample(doc, dpi, Math.Clamp(options.JpegQuality, 1, 100)) : 0;
         var compressed = options.CompressStreams ? Compress(doc) : 0;
 
         doc.Options.CompressContentStreams = true;
         doc.Options.NoCompression = false;
         var saved = PdfObj.Save(doc, rewrite: true);
-        return new OptimizeResult(saved, data.Length, saved.Length, compressed, duplicates, downsampled);
+        return new OptimizeResult(saved, data.Length, saved.Length, compressed, duplicates, downsampled) { ImagesBlackAndWhite = oneBit };
     }
 
     /// <summary>The indirect dictionaries (and streams) the document still uses: what a rewrite keeps.</summary>
@@ -229,11 +241,49 @@ public static class Optimizer
         _ => null,
     };
 
+    // ---- Black and white ----
+
+    /// <summary>
+    /// 1-bit pictures coded again (lossless) when smaller; with <see cref="OptimizeOptions.BlackAndWhiteScans"/>, grey scans
+    /// of text shown at 150 dpi or more made black and white. Returns how many pictures changed.
+    /// </summary>
+    private static int BlackAndWhite(PdfDocument doc, OptimizeOptions options)
+    {
+        if (!options.CompressStreams && !options.BlackAndWhiteScans) return 0;
+        var scans = options.BlackAndWhiteScans ? Shown(doc) : null;
+        // What to look at is chosen here, reading the document; the pictures are drawn and coded several at a time, and the
+        // changes made after, one by one, as PDFsharp's objects aren't for changing from several threads.
+        var work = new List<Func<Action?>>();
+        foreach (var image in Objects(doc).Where(d => d.Stream is not null && PdfObj.NameOf(d, "/Subtype") == "/Image"))
+        {
+            if (PdfObj.Int(image.Elements["/BitsPerComponent"]) is 1 or null)
+            {
+                if (options.CompressStreams) work.Add(() => OneBitImages.Recode(image, Draw));
+            }
+            else if (scans is not null && scans.TryGetValue(image, out var dpi) && Math.Min(dpi.X, dpi.Y) >= 150
+                     && ImageSource(image, maskOnly: false) is { } source)
+            {
+                var shownAt = (int)Math.Round(Math.Min(Math.Min(dpi.X, dpi.Y), 2400));
+                work.Add(() => OneBitImages.Threshold(image, source, shownAt, Draw));
+            }
+        }
+        var changes = new Action?[work.Count];
+        Parallel.For(0, work.Count, new ParallelOptions { MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4) },
+            i => changes[i] = work[i]());
+        foreach (var change in changes) change?.Invoke();
+        return changes.Count(c => c is not null);
+
+        static byte[]? Draw(string dict, byte[] stream, int w, int h) => Render(dict, stream, w, h, null, 4L * w * h);
+    }
+
     // ---- Image downsampling ----
 
-    private static int Downsample(PdfDocument doc, double targetDpi, int quality)
+    /// <summary>
+    /// The smallest resolution each image is shown at in page content (pixels per inch along its width and height); null
+    /// when a page draws more than can be followed (it may show an image larger than found).
+    /// </summary>
+    private static Dictionary<PdfDictionary, (double X, double Y)>? Shown(PdfDocument doc)
     {
-        // Smallest resolution each image is shown at (pixels per inch along its width and height).
         var shown = new Dictionary<PdfDictionary, (double X, double Y)>(ReferenceEqualityComparer.Instance);
         foreach (var page in doc.Pages)
         {
@@ -246,9 +296,15 @@ public static class Optimizer
                 var dpi = (X: lx > 1e-6 ? w / lx : double.MaxValue, Y: ly > 1e-6 ? h / ly : double.MaxValue);
                 shown[image] = shown.TryGetValue(image, out var was) ? (Math.Min(was.X, dpi.X), Math.Min(was.Y, dpi.Y)) : dpi;
             });
-            // A page drawing more than can be followed may show an image larger than found: leave them all as they are.
-            if (!complete) return 0;
+            if (!complete) return null;
         }
+        return shown;
+    }
+
+    private static int Downsample(PdfDocument doc, double targetDpi, int quality)
+    {
+        // A page drawing more than can be followed may show an image larger than found: leave them all as they are.
+        if (Shown(doc) is not { } shown) return 0;
 
         var count = 0;
         foreach (var (image, dpi) in shown)
