@@ -246,6 +246,18 @@
                                   ToolTip="{x:Static loc:Strings.Scan_DescreenTip}" />
                         <CheckBox Content="{x:Static loc:Strings.Scan_RestoreColors}" IsChecked="{Binding CleanRestore}" Margin="0,0,16,4" AutomationProperties.Name="{x:Static loc:Strings.Scan_RestoreColors}"
                                   ToolTip="{x:Static loc:Strings.Scan_RestoreColorsTip}" />
+                        <CheckBox Content="{x:Static loc:Strings.Scan_RemoveHoles}" IsChecked="{Binding CleanHoles}" Margin="0,0,16,4" AutomationProperties.Name="{x:Static loc:Strings.Scan_RemoveHoles}"
+                                  ToolTip="{x:Static loc:Strings.Scan_RemoveHolesTip}"
+                                  Visibility="{Binding CleansWholePage, Converter={StaticResource VisibleWhen}}" />
+                        <!-- Drop a color: red, green, blue, or one picked off the page with a click -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,16,4" Visibility="{Binding CleansWholePage, Converter={StaticResource VisibleWhen}}">
+                            <CheckBox Content="{x:Static loc:Strings.Scan_DropColor}" IsChecked="{Binding CleanDrop}" VerticalAlignment="Center" AutomationProperties.Name="{x:Static loc:Strings.Scan_DropColor}"
+                                      ToolTip="{x:Static loc:Strings.Scan_DropColorTip}" />
+                            <ComboBox ItemsSource="{Binding CleanDropColors}" SelectedItem="{Binding CleanDropColor}" Margin="8,0,0,0" MinWidth="120" VerticalAlignment="Center"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Scan_DropColorWhich}" />
+                            <ToggleButton Content="{x:Static loc:Strings.Scan_PickColor}" IsChecked="{Binding IsPickingColor}" Margin="8,0,0,0" VerticalAlignment="Center"
+                                          AutomationProperties.Name="{x:Static loc:Strings.Scan_PickColor}" ToolTip="{x:Static loc:Strings.Scan_PickColorTip}" />
+                        </StackPanel>
                         <ToggleButton Content="{x:Static loc:Strings.Scan_ShowAsScanned}" IsChecked="{Binding ShowOriginal}" AutomationProperties.Name="{x:Static loc:Strings.Scan_ShowAsScanned}"
                                       ToolTip="{x:Static loc:Strings.Scan_ShowAsScannedTip}" />
                     </WrapPanel>
@@ -262,7 +274,18 @@
                 <TextBlock Text="{x:Static loc:Strings.Scan_LoadingPage}" Style="{StaticResource Caption}" HorizontalAlignment="Center" VerticalAlignment="Center"
                            Visibility="{Binding CleanImage, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
                 <Border HorizontalAlignment="Center" VerticalAlignment="Center" Background="White" BorderThickness="1" BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
-                    <Image Source="{Binding CleanImage}" Stretch="Uniform" AutomationProperties.Name="{x:Static loc:Strings.Scan_PageAsSaved}" />
+                    <Image x:Name="CleanPicture" Source="{Binding CleanImage}" Stretch="Uniform" AutomationProperties.Name="{x:Static loc:Strings.Scan_PageAsSaved}"
+                           MouseLeftButtonDown="CleanPicture_MouseLeftButtonDown">
+                        <Image.Style>
+                            <Style TargetType="Image">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPickingColor}" Value="True">
+                                        <Setter Property="Cursor" Value="Cross" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Image.Style>
+                    </Image>
                 </Border>
             </Grid>
         </DockPanel>

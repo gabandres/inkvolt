@@ -662,11 +662,11 @@ public class PageCleanupTests
     {
         var edge = new CropBox(0.1, 0.1, 0.7, 0.7);
         var turned = PageEdits.None with { QuarterTurns = 1 };
-        Assert.Equal(turned with { Filters = PageFilters.PixelFilters }, turned.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
-        Assert.Equal(turned with { Crop = edge, Filters = PageFilters.All }, turned.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 0));
+        Assert.Equal(turned.WithFilters(PageFilters.PixelFilters, null), turned.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
+        Assert.Equal((turned with { Crop = edge }).WithFilters(PageFilters.All, null), turned.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 0));
         var straightened = PageEdits.None with { Deskew = 2 };
-        Assert.Equal(straightened with { Crop = edge, Filters = PageFilters.All }, straightened.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
-        Assert.Equal(PageEdits.None with { Deskew = 1, Filters = PageFilters.PixelFilters }, (PageEdits.None with { Deskew = 1 }).CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
+        Assert.Equal((straightened with { Crop = edge }).WithFilters(PageFilters.All, null), straightened.CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
+        Assert.Equal((PageEdits.None with { Deskew = 1 }).WithFilters(PageFilters.PixelFilters, null), (PageEdits.None with { Deskew = 1 }).CleanedUp(PageFilters.All, photos: false, edge, measuredAt: 2));
         Assert.Null((PageEdits.None with { Deskew = 1 }).CleanedUp(PageFilters.CropToPaper, photos: false, edge, measuredAt: 2));
     }
 

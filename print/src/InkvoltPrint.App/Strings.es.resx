@@ -4053,4 +4053,55 @@ Los archivos se quedan donde están.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Mientras tanto se abrió o se quitó otro PDF, así que el texto copiado no se abrió. Vuelve a usar Imprimir el portapapeles para usarlo.</value>
   </data>
+  <data name="Scan_DropColor" xml:space="preserve">
+    <value>Quitar un color</value>
+  </data>
+  <data name="Scan_DropColorTip" xml:space="preserve">
+    <value>El color de un bolígrafo o de un formulario se vuelve blanco; lo impreso en negro se queda</value>
+  </data>
+  <data name="Scan_DropColorWhich" xml:space="preserve">
+    <value>Color que quitar</value>
+  </data>
+  <data name="Scan_PickColor" xml:space="preserve">
+    <value>Elegir en la página</value>
+  </data>
+  <data name="Scan_PickColorTip" xml:space="preserve">
+    <value>Luego haz clic en una marca de la página del color que quieres quitar</value>
+  </data>
+  <data name="Scan_PickColorHint" xml:space="preserve">
+    <value>Haz clic en una marca de la página del color que quieres quitar.</value>
+  </data>
+  <data name="Scan_PickNoColor" xml:space="preserve">
+    <value>Ese punto no tiene un color que quitar (es gris, negro o el papel): haz clic en una marca de color.</value>
+  </data>
+  <data name="Scan_PickGreyPage" xml:space="preserve">
+    <value>Esta página se escaneó en gris: no tiene colores que quitar.</value>
+  </data>
+  <data name="Scan_GreyNoColorToDrop" xml:space="preserve">
+    <value>Esta página se escaneó en gris: no tiene colores que quitar.</value>
+  </data>
+  <data name="Scan_RemoveHoles" xml:space="preserve">
+    <value>Quitar perforaciones</value>
+  </data>
+  <data name="Scan_RemoveHolesTip" xml:space="preserve">
+    <value>Las marcas redondas de las perforaciones cerca de los bordes se rellenan con el color del papel</value>
+  </data>
+  <data name="ScanTab_DropColor" xml:space="preserve">
+    <value>Quitar un color</value>
+  </data>
+  <data name="ScanTab_DropColorCaption" xml:space="preserve">
+    <value>El color de un bolígrafo o de un formulario se vuelve blanco</value>
+  </data>
+  <data name="ScanTab_DropColorHelp" xml:space="preserve">
+    <value>El color de un bolígrafo o de un formulario se vuelve blanco; lo impreso en negro se queda</value>
+  </data>
+  <data name="ScanTab_RemoveHoles" xml:space="preserve">
+    <value>Quitar perforaciones</value>
+  </data>
+  <data name="ScanTab_RemoveHolesCaption" xml:space="preserve">
+    <value>Las marcas de perforaciones cerca de los bordes toman el color del papel</value>
+  </data>
+  <data name="ScanTab_RemoveHolesHelp" xml:space="preserve">
+    <value>Las marcas redondas de las perforaciones cerca de los bordes se rellenan con el color del papel</value>
+  </data>
 </root>

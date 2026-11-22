@@ -3595,4 +3595,22 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Batch_BacksFailed" xml:space="preserve">
     <value>Se imprimieron los anversos; los reversos no: {0}</value>
   </data>
+  <data name="Imaging_ColorDropped" xml:space="preserve">
+    <value>{0} quitado</value>
+  </data>
+  <data name="Imaging_DropRed" xml:space="preserve">
+    <value>rojo</value>
+  </data>
+  <data name="Imaging_DropGreen" xml:space="preserve">
+    <value>verde</value>
+  </data>
+  <data name="Imaging_DropBlue" xml:space="preserve">
+    <value>azul</value>
+  </data>
+  <data name="Imaging_DropPicked" xml:space="preserve">
+    <value>color elegido</value>
+  </data>
+  <data name="Imaging_HolesRemoved" xml:space="preserve">
+    <value>perforaciones quitadas</value>
+  </data>
 </root>

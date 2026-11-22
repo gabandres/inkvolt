@@ -178,6 +178,15 @@ public partial class ScanPages : UserControl
         });
     }
 
+    /// <summary>"Pick from the page" is on: the click's place on the page, as fractions of it, picks the color to drop.</summary>
+    private async void CleanPicture_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Vm is not { IsPickingColor: true } vm || CleanPicture.ActualWidth <= 0 || CleanPicture.ActualHeight <= 0) return;
+        var at = e.GetPosition(CleanPicture);
+        e.Handled = true;
+        await vm.PickColorAtAsync(at.X / CleanPicture.ActualWidth, at.Y / CleanPicture.ActualHeight);
+    }
+
     private void Announce(string text) =>
         (UIElementAutomationPeer.FromElement(PagesList) ?? UIElementAutomationPeer.CreatePeerForElement(PagesList))?
             .RaiseNotificationEvent(AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, text, "InkvoltPrint.ScanPages");

@@ -33,6 +33,19 @@ public static class OcrLanguageChoices
         [new Option<string?>(null, Strings.Scan_OcrWindowsLanguage), .. WindowsRecognizer.Languages().Select(l => new Option<string?>(l.Tag, l.Name))];
 }
 
+/// <summary>The colors "Drop a color" offers: red, green, blue, and a color picked off a page when that is the one chosen.</summary>
+public static class DropColorChoices
+{
+    public static IReadOnlyList<Option<DropColor>> List(DropColor? current) =>
+    [
+        .. new[] { DropColor.Red, DropColor.Green, DropColor.Blue }.Select(c => new Option<DropColor>(c, Label(c))),
+        .. current is { IsNamed: false } picked ? [new Option<DropColor>(picked, Label(picked))] : Array.Empty<Option<DropColor>>(),
+    ];
+
+    /// <summary>"Red", "Picked color": the color's name as a choice.</summary>
+    public static string Label(DropColor color) => color.Name.Length == 0 ? "" : char.ToUpper(color.Name[0], CultureInfo.CurrentCulture) + color.Name[1..];
+}
+
 /// <summary>Scan area in 1/300 inch (eSCL units). Null size = the whole glass.</summary>
 public sealed record ScanArea(string Key, int? Width, int? Height);
 
@@ -94,7 +107,12 @@ public sealed partial class ScanViewModel : ObservableObject
         WhitenPages = cleanup.HasFlag(PageFilters.Whiten);
         DescreenPages = cleanup.HasFlag(PageFilters.Descreen);
         RestoreColors = cleanup.HasFlag(PageFilters.RestoreColors);
-        OcrLanguage = OcrLanguages.FirstOrDefault(o => o.Value == state.ScanOcrLanguage) ?? OcrLanguages[0];
+        DropPageColor = cleanup.HasFlag(PageFilters.DropColor);
+        RemoveHoles = cleanup.HasFlag(PageFilters.PunchHoles);
+        var drop = DropColor.Parse(state.ScanDropColor) ?? DropColor.Red;
+        DropColors = DropColorChoices.List(drop);
+        TabDropColor = DropColors.First(o => o.Value == drop);
+        OcrLanguage =OcrLanguages.FirstOrDefault(o => o.Value == state.ScanOcrLanguage) ?? OcrLanguages[0];
         SplitMode = SplitChoices.FirstOrDefault(o => (int)o.Value == state.ScanSplitAt) ?? SplitChoices[0];
         KeepSeparators = _batchKeep = state.ScanKeepSeparators;
         FindPhotos = state.ScanFindPhotos;
@@ -249,12 +267,26 @@ public sealed partial class ScanViewModel : ObservableObject
     [ObservableProperty] public partial bool DescreenPages { get; set; }
     [ObservableProperty] public partial bool RestoreColors { get; set; }
 
+    /// <summary>Drop a pen or form color (<see cref="TabDropColor"/>) to white.</summary>
+    [ObservableProperty] public partial bool DropPageColor { get; set; }
+
+    /// <summary>Fill punch holes near the edges with the paper's color.</summary>
+    [ObservableProperty] public partial bool RemoveHoles { get; set; }
+
+    /// <summary>Red, green, blue (and a color picked off a page in the review, once picked).</summary>
+    [ObservableProperty] public partial IReadOnlyList<Option<DropColor>> DropColors { get; set; } = [];
+
+    /// <summary>The color the tab's "Drop a color" drops.</summary>
+    [ObservableProperty] public partial Option<DropColor>? TabDropColor { get; set; }
+
     private PageFilters TabCleanup =>
-        (CropToPaper ? PageFilters.CropToPaper : 0) | (WhitenPages ? PageFilters.Whiten : 0) | (DescreenPages ? PageFilters.Descreen : 0) | (RestoreColors ? PageFilters.RestoreColors : 0);
+        (CropToPaper ? PageFilters.CropToPaper : 0) | (WhitenPages ? PageFilters.Whiten : 0) | (DescreenPages ? PageFilters.Descreen : 0) | (RestoreColors ? PageFilters.RestoreColors : 0)
+        | (DropPageColor ? PageFilters.DropColor : 0) | (RemoveHoles ? PageFilters.PunchHoles : 0);
 
     private void SaveCleanup()
     {
         _state.ScanCleanup = (int)TabCleanup;
+        if (TabDropColor is { } drop) _state.ScanDropColor = drop.Value.Hex;
         _state.Save();
     }
 
@@ -262,6 +294,9 @@ public sealed partial class ScanViewModel : ObservableObject
     partial void OnWhitenPagesChanged(bool value) => SaveCleanup();
     partial void OnDescreenPagesChanged(bool value) => SaveCleanup();
     partial void OnRestoreColorsChanged(bool value) => SaveCleanup();
+    partial void OnDropPageColorChanged(bool value) => SaveCleanup();
+    partial void OnRemoveHolesChanged(bool value) => SaveCleanup();
+    partial void OnTabDropColorChanged(Option<DropColor>? value) => SaveCleanup();
 
     /// <summary>The OCR languages to choose from: Windows' own choice, then each one installed on this PC.</summary>
     public IReadOnlyList<Option<string?>> OcrLanguages { get; } = OcrLanguageChoices.List();
@@ -713,7 +748,7 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <param name="OneBit">Save the pages in a PDF in black and white (1 bit).</param>
     private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes,
         SplitAt Split = SplitAt.None, bool KeepSeparators = false, bool FindPhotos = false, PageFilters Cleanup = PageFilters.None, string? OcrLanguage = null,
-        bool Upright = false, bool TurnStack = false, bool OneBit = false);
+        bool Upright = false, bool TurnStack = false, bool OneBit = false, DropColor? Drop = null);
 
     private ScanJob TabJob()
     {
@@ -721,7 +756,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, ColorMode?.Value ?? ScanColor.Color, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
         return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos, TabCleanup, OcrLanguage?.Value,
-            TurnUpright, OffersTurnStack && TurnStack, ScanChoices.SavesOneBit(request.Color));
+            TurnUpright, OffersTurnStack && TurnStack, ScanChoices.SavesOneBit(request.Color), TabDropColor?.Value);
     }
 
     /// <summary>
@@ -783,7 +818,7 @@ public sealed partial class ScanViewModel : ObservableObject
                     Pages.Add(page);
                     added.Add(page);
                     into.Add(page);
-                    checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup, upright)); // while the next page scans
+                    checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup, upright, job.Drop)); // while the next page scans
                     Message = string.Format(Strings.Scan_ScannedPage, Pages.Count);
                 }
             }
@@ -897,7 +932,7 @@ public sealed partial class ScanViewModel : ObservableObject
             var before = changed.Select(p => (Page: p, Edits: p.BeforeCleanup!)).ToList();
             History.Record(changed.Count == 1 ? string.Format(Strings.Scan_CleanPage, changed[0].Number) : string.Format(Strings.Scan_UndoCleanPages_Many, changed.Count), () =>
             {
-                foreach (var (page, edits) in before) page.Edits = page.Edits with { Crop = edits.Crop, Filters = edits.Filters };
+                foreach (var (page, edits) in before) page.Edits = page.Edits with { Crop = edits.Crop, Filters = edits.Filters, Drop = edits.Drop };
             });
         }
         // Every page the crop was tried on and found no edge, not only those something else changed: with crop alone, one with no edge
@@ -1218,6 +1253,17 @@ public sealed partial class ScanViewModel : ObservableObject
     [ObservableProperty] public partial bool CleanWhiten { get; set; }
     [ObservableProperty] public partial bool CleanDescreen { get; set; }
     [ObservableProperty] public partial bool CleanRestore { get; set; }
+    [ObservableProperty] public partial bool CleanDrop { get; set; }
+    [ObservableProperty] public partial bool CleanHoles { get; set; }
+
+    /// <summary>Red, green, blue, and the color picked off the page once there is one.</summary>
+    [ObservableProperty] public partial IReadOnlyList<Option<DropColor>> CleanDropColors { get; set; } = [];
+
+    /// <summary>The color "Drop a color" drops on this page.</summary>
+    [ObservableProperty] public partial Option<DropColor>? CleanDropColor { get; set; }
+
+    /// <summary>A click on the page picks the color to drop (<see cref="PickColorAtAsync"/>).</summary>
+    [ObservableProperty] public partial bool IsPickingColor { get; set; }
 
     /// <summary>Held down or on: shows the page as scanned (straightened and turned), to compare.</summary>
     [ObservableProperty] public partial bool ShowOriginal { get; set; }
@@ -1225,14 +1271,64 @@ public sealed partial class ScanViewModel : ObservableObject
     private bool _settingCleanChoices;
     private CancellationTokenSource? _cleanCts;
 
+    /// <summary>The edits the clean up view's page is drawn with now (a color is picked off it).</summary>
+    private PageEdits? _shownEdits;
+
     private PageFilters CleanChoices =>
-        (CleanCrop ? PageFilters.CropToPaper : 0) | (CleanWhiten ? PageFilters.Whiten : 0) | (CleanDescreen ? PageFilters.Descreen : 0) | (CleanRestore ? PageFilters.RestoreColors : 0);
+        (CleanCrop ? PageFilters.CropToPaper : 0) | (CleanWhiten ? PageFilters.Whiten : 0) | (CleanDescreen ? PageFilters.Descreen : 0) | (CleanRestore ? PageFilters.RestoreColors : 0)
+        | (CleanDrop ? PageFilters.DropColor : 0) | (CleanHoles ? PageFilters.PunchHoles : 0);
+
+    private DropColor? CleanDropChoice => CleanDropColor?.Value;
 
     partial void OnCleanCropChanged(bool value) => CleanChoiceChanged();
     partial void OnCleanWhitenChanged(bool value) => CleanChoiceChanged();
     partial void OnCleanDescreenChanged(bool value) => CleanChoiceChanged();
     partial void OnCleanRestoreChanged(bool value) => CleanChoiceChanged();
+    partial void OnCleanDropChanged(bool value) => CleanChoiceChanged();
+    partial void OnCleanHolesChanged(bool value) => CleanChoiceChanged();
+    partial void OnCleanDropColorChanged(Option<DropColor>? value) => CleanChoiceChanged();
     partial void OnShowOriginalChanged(bool value) => CleanChoiceChanged();
+
+    partial void OnIsPickingColorChanged(bool value)
+    {
+        if (!value || CleanPage is null) return;
+        CleanStatus = Strings.Scan_PickColorHint;
+        Prompt.Announce(CleanStatus);
+    }
+
+    /// <summary>
+    /// Picks the color to drop from the page as scanned, at (<paramref name="x"/>, <paramref name="y"/>) as fractions of the page as
+    /// shown: the average of a small square there. A grey or black spot has no color to drop, and the view says so.
+    /// </summary>
+    public async Task PickColorAtAsync(double x, double y)
+    {
+        if (CleanPage is not { } page || !IsPickingColor || !double.IsFinite(x) || !double.IsFinite(y)) return;
+        IsPickingColor = false;
+        try
+        {
+            var edits = (_shownEdits ?? page.Edits).WithFilters(PageFilters.None, null);
+            var picked = await Task.Run(() => ScanImaging.ColorAt(page.Original, edits, 1600, page.Dpi, Math.Clamp(x, 0, 1), Math.Clamp(y, 0, 1)));
+            if (CleanPage != page) return;
+            if (picked is not { IsColorful: true } color)
+            {
+                CleanStatus = picked is null ? Strings.Scan_PickGreyPage : Strings.Scan_PickNoColor;
+                Prompt.Announce(CleanStatus);
+                return;
+            }
+            _settingCleanChoices = true;
+            CleanDropColors = DropColorChoices.List(color);
+            CleanDropColor = CleanDropColors.First(o => o.Value == color);
+            CleanDrop = true;
+            _settingCleanChoices = false;
+            await PreviewCleanAsync();
+        }
+        catch (Exception ex)
+        {
+            _settingCleanChoices = false;
+            Log.Write($"Picking a color failed: {ex}");
+            CleanStatus = string.Format(Strings.Scan_CouldntShowPage, ex.Message);
+        }
+    }
 
     private void CleanChoiceChanged()
     {
@@ -1247,9 +1343,16 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelPhotos();
         CleanPage = page;
         CleanImage = null;
+        _shownEdits = null;
         _settingCleanChoices = true;
         var filters = page.Edits.Filters;
         (CleanCrop, CleanWhiten, CleanDescreen, CleanRestore) = (filters.HasFlag(PageFilters.CropToPaper), filters.HasFlag(PageFilters.Whiten), filters.HasFlag(PageFilters.Descreen), filters.HasFlag(PageFilters.RestoreColors));
+        (CleanDrop, CleanHoles) = (filters.HasFlag(PageFilters.DropColor), filters.HasFlag(PageFilters.PunchHoles));
+        // The page's own color when it drops one, else the tab's.
+        var drop = page.Edits.Drop ?? TabDropColor?.Value ?? DropColor.Red;
+        CleanDropColors = DropColorChoices.List(drop);
+        CleanDropColor = CleanDropColors.First(o => o.Value == drop);
+        IsPickingColor = false;
         ShowOriginal = false;
         _settingCleanChoices = false;
         await PreviewCleanAsync();
@@ -1265,13 +1368,14 @@ public sealed partial class ScanViewModel : ObservableObject
         CleanStatus = Strings.Scan_Working;
         try
         {
-            var edits = await page.EditsWithAsync(choices, cts.Token);
+            var edits = await page.EditsWithAsync(choices, CleanDropChoice, cts.Token);
             var photos = page.Photos;
             var image = await Task.Run(() => photos is { Count: > 0 } boxes
-                ? ScanImaging.PhotoPreview(page.Original, boxes[0], choices, 1600, page.Dpi, cts.Token)
+                ? ScanImaging.PhotoPreview(page.Original, boxes[0], edits.Filters, 1600, page.Dpi, cts.Token)
                 : ScanImaging.Render(page.Original, edits, 1600, page.Dpi, cts.Token), cts.Token);
             if (CleanPage != page || cts != _cleanCts) return;
             CleanImage = image;
+            _shownEdits = edits;
             CleanStatus = ShowOriginal ? Strings.Scan_AsScanned : page.CleanNote(choices, edits);
             Prompt.Announce(CleanStatus);
         }
@@ -1294,7 +1398,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var choices = CleanChoices;
         try
         {
-            var edits = await page.EditsWithAsync(choices, default);
+            var edits = await page.EditsWithAsync(choices, CleanDropChoice, default);
             if (edits != page.Edits)
             {
                 RecordLook(string.Format(Strings.Scan_CleanPage, page.Number), page);
@@ -1320,7 +1424,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var results = new List<(ScanPageViewModel Page, PageEdits Before, PageEdits After)>();
         foreach (var page in targets)
         {
-            var edits = await page.EditsWithAsync(choices, default);
+            var edits = await page.EditsWithAsync(choices, CleanDropChoice, default);
             if (edits != page.Edits) results.Add((page, page.Edits, edits));
         }
         if (results.Count > 0)
@@ -1344,6 +1448,7 @@ public sealed partial class ScanViewModel : ObservableObject
         CleanPage = null;
         CleanImage = null;
         CleanStatus = null;
+        IsPickingColor = false;
     }
 
     [RelayCommand]
@@ -1651,7 +1756,7 @@ public sealed partial class ScanViewModel : ObservableObject
                   $"{(plan.TurnStack ? ", turned stack" : "")}{(plan.OneBit ? ", 1-bit PDF" : "")}");
         _presetNotes = plan.Notes;
         return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators, preset.FindPhotos, preset.Cleanup, preset.OcrLanguage,
-            preset.TurnUpright, plan.TurnStack, plan.OneBit);
+            preset.TurnUpright, plan.TurnStack, plan.OneBit, DropColor.Parse(preset.DropColor));
     }
 
     /// <summary>One click: scan with the preset, then save it to its folder (unless it stops on the review first).</summary>
@@ -1952,8 +2057,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
         FromPdf = ScannerPdf.OriginOf(jpeg);
         try
         {
-            var (w, h, _) = PdfWriter.JpegInfo(jpeg);
+            var (w, h, components) = PdfWriter.JpegInfo(jpeg);
             _size = (w, h);
+            IsGrey = components == 1;
         }
         catch (FormatException)
         {
@@ -1964,6 +2070,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
 
     public byte[] Original { get; }
     public int Dpi { get; }
+
+    /// <summary>Scanned in grey (a one-channel JPEG): it has no colors to drop.</summary>
+    public bool IsGrey { get; }
 
     /// <summary>The scanner's PDF this page came out of (a scanner that sends only PDF), or null for a JPEG page.</summary>
     public PdfOrigin? FromPdf { get; }
@@ -1993,15 +2102,19 @@ public sealed partial class ScanPageViewModel : ObservableObject
         _work = new CancellationTokenSource();
     }
 
-    /// <summary>The page's edits with <paramref name="filters"/> in place of its filters; the paper's edge is looked for when asked for and not found yet.</summary>
-    public async Task<PageEdits> EditsWithAsync(PageFilters filters, CancellationToken cancel)
+    /// <summary>
+    /// The page's edits with <paramref name="filters"/> in place of its filters (dropping <paramref name="drop"/> when they drop a
+    /// color); the paper's edge is looked for when asked for and not found yet. A scan of photos gets what suits a print only.
+    /// </summary>
+    public async Task<PageEdits> EditsWithAsync(PageFilters filters, DropColor? drop, CancellationToken cancel)
     {
         var edits = Edits;
         var photos = HasPhotos;
+        if (photos) filters &= PageFilters.Descreen | PageFilters.RestoreColors;
         var wantsCrop = filters.HasFlag(PageFilters.CropToPaper) && !photos;
         if (wantsCrop == edits.Filters.HasFlag(PageFilters.CropToPaper))
-            return edits with { Filters = (filters & PageFilters.PixelFilters) | (wantsCrop ? PageFilters.CropToPaper : 0) };
-        if (!wantsCrop) return edits with { Crop = null, Filters = filters & PageFilters.PixelFilters };
+            return edits.WithFilters((filters & PageFilters.PixelFilters) | (wantsCrop ? PageFilters.CropToPaper : 0), drop);
+        if (!wantsCrop) return (edits with { Crop = null }).WithFilters(filters & PageFilters.PixelFilters, drop);
         var (original, dpi, width, deskew) = (Original, Dpi, _size.Width, edits.Deskew);
         var crop = await Task.Run(() =>
         {
@@ -2010,8 +2123,8 @@ public sealed partial class ScanPageViewModel : ObservableObject
         }, cancel);
         // No edge found: what was there stays, and the view says so.
         return crop is { } found
-            ? edits with { Crop = found, Filters = (filters & PageFilters.PixelFilters) | PageFilters.CropToPaper }
-            : edits with { Filters = filters & PageFilters.PixelFilters };
+            ? (edits with { Crop = found }).WithFilters((filters & PageFilters.PixelFilters) | PageFilters.CropToPaper, drop)
+            : edits.WithFilters(filters & PageFilters.PixelFilters, drop);
     }
 
     /// <summary>What the clean up view says after drawing <paramref name="edits"/> for <paramref name="wanted"/>.</summary>
@@ -2021,7 +2134,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
             return string.Format(Strings.Scan_TooLargeToClean, (long)_size.Width * _size.Height / 1_000_000);
         if (wanted.HasFlag(PageFilters.CropToPaper) && !edits.Filters.HasFlag(PageFilters.CropToPaper) && !HasPhotos)
             return Strings.Scan_NoEdgeHere;
-        return wanted == PageFilters.None ? Strings.Scan_AsScanned : string.Format(Strings.Scan_Shown, PageCleanup.Describe(wanted));
+        if (wanted.HasFlag(PageFilters.DropColor) && !HasPhotos && IsGrey) return Strings.Scan_GreyNoColorToDrop;
+        if (HasPhotos) wanted &= PageFilters.Descreen | PageFilters.RestoreColors;
+        return wanted == PageFilters.None ? Strings.Scan_AsScanned : string.Format(Strings.Scan_Shown, PageCleanup.Describe(wanted, edits.Drop));
     }
 
     [ObservableProperty] public partial BitmapSource Thumbnail { get; private set; }
@@ -2147,7 +2262,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
             ? Plural.Of(Photos!.Count, Strings.Scan_PhotosCleaned_One, Strings.Scan_PhotosCleaned_Many, PageCleanup.Describe(Edits.Filters))
             : Plural.Of(Photos!.Count, Strings.Scan_Photos_One, Strings.Scan_Photos_Many)
         : FindsPhotos ? Strings.Scan_NoteNoPhotos
-        : Edits.Filters != PageFilters.None ? Capitalized(PageCleanup.Describe(Edits.Filters))
+        : Edits.Filters != PageFilters.None ? Capitalized(PageCleanup.Describe(Edits.Filters, Edits.Drop))
         : TurnedUpright && Edits.Crop is null ? Strings.Scan_NoteTurnedUpright
         : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? Strings.Scan_NoteStraightened : IsEdited ? Strings.Scan_NoteEdited : "";
 
@@ -2202,8 +2317,9 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// <param name="findPhotos">A scan of photos on the glass: find them (each is saved by itself), don't straighten the page.</param>
     /// <param name="cleanup">What the scan's settings clean each page up with (a blank page or separator stays as it came, a scan of photos gets what suits a print).</param>
     /// <param name="upright">Turn the page upright when it lies sideways or upside down and its text says so clearly (<see cref="PageUpright"/>).</param>
+    /// <param name="drop">The color the clean up's <see cref="PageFilters.DropColor"/> drops (red when not given).</param>
     public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None, bool findPhotos = false, PageFilters cleanup = PageFilters.None,
-        bool upright = false)
+        bool upright = false, DropColor? drop = null)
     {
         try
         {
@@ -2235,7 +2351,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
                 }
                 NoPaperEdge = Edits.NoPaperEdge(cleanup, searched, crop);
                 // The edge was found on the page straightened by angle: a page edited meanwhile keeps its whole page.
-                if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle) is { } cleaned)
+                if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle, drop) is { } cleaned)
                 {
                     BeforeCleanup = Edits;
                     Edits = cleaned;

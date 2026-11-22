@@ -12,6 +12,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Ready for Windows' new printer driver: About this printer says which driver Windows uses for it, whether the printer works with Windows' own driver and its protected print mode, and Set up with Windows' driver adds it again that way beside your old one. A scanner that only works through its Windows driver is flagged, as it won't scan in protected print mode.
 - Both sides on a printer that prints one side: Print a PDF, Batch and Copy offer Print on both sides by hand. The fronts print, then the app shows how to put the stack back for your printer (it asks which way up the sheets came out) and prints the backs.
 - Print the clipboard: in the Print tab, Print the clipboard prints text you copied (laid out on pages, with the usual options), a copied picture through Photos, or files you copied in File Explorer.
+- Clean up can drop a color: a red form's rules, a blue pen's notes or a stamp turn white, and the black print stays. Pick red, green or blue, or click the color on the page. Remove punch holes fills the round hole marks near the edges with the paper's color. Both work per scan, per preset and per page.
 - Recent scans: the Scan tab's Recent scans… lists your last saved scans from every scanner, to open, show in their folder, email again or print. The list stays on this PC.
 
 ## 1.7.0

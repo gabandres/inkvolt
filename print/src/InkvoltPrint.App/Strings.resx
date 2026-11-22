@@ -4912,4 +4912,70 @@ The files stay where they are.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
+  <data name="Scan_DropColor" xml:space="preserve">
+    <value>Drop a color</value>
+    <comment>clean up check box</comment>
+  </data>
+  <data name="Scan_DropColorTip" xml:space="preserve">
+    <value>A pen's or a form's color becomes white; black print stays</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_DropColorWhich" xml:space="preserve">
+    <value>Color to drop</value>
+    <comment>screen-reader name of the color list</comment>
+  </data>
+  <data name="Scan_PickColor" xml:space="preserve">
+    <value>Pick from the page</value>
+    <comment>toggle button: the next click on the page picks the color to drop</comment>
+  </data>
+  <data name="Scan_PickColorTip" xml:space="preserve">
+    <value>Then click a mark on the page in the color to drop</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="Scan_PickColorHint" xml:space="preserve">
+    <value>Click a mark on the page in the color to drop.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_PickNoColor" xml:space="preserve">
+    <value>That spot has no color to drop (it's grey, black or the paper): click a colored mark.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_PickGreyPage" xml:space="preserve">
+    <value>This page was scanned in grey: it has no colors to drop.</value>
+    <comment>status</comment>
+  </data>
+  <data name="Scan_GreyNoColorToDrop" xml:space="preserve">
+    <value>This page was scanned in grey: it has no colors to drop.</value>
+    <comment>clean up view status</comment>
+  </data>
+  <data name="Scan_RemoveHoles" xml:space="preserve">
+    <value>Remove punch holes</value>
+    <comment>clean up check box</comment>
+  </data>
+  <data name="Scan_RemoveHolesTip" xml:space="preserve">
+    <value>Round hole marks near the edges are filled with the paper's color</value>
+    <comment>tooltip</comment>
+  </data>
+  <data name="ScanTab_DropColor" xml:space="preserve">
+    <value>Drop a color</value>
+    <comment>check box</comment>
+  </data>
+  <data name="ScanTab_DropColorCaption" xml:space="preserve">
+    <value>A pen's or a form's color becomes white</value>
+  </data>
+  <data name="ScanTab_DropColorHelp" xml:space="preserve">
+    <value>A pen's or a form's color becomes white; black print stays</value>
+    <comment>screen-reader help</comment>
+  </data>
+  <data name="ScanTab_RemoveHoles" xml:space="preserve">
+    <value>Remove punch holes</value>
+    <comment>check box</comment>
+  </data>
+  <data name="ScanTab_RemoveHolesCaption" xml:space="preserve">
+    <value>Hole marks near the edges take the paper's color</value>
+  </data>
+  <data name="ScanTab_RemoveHolesHelp" xml:space="preserve">
+    <value>Round hole marks near the edges are filled with the paper's color</value>
+    <comment>screen-reader help</comment>
+  </data>
 </root>

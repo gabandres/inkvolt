@@ -28,7 +28,7 @@ namespace InkvoltPrint.App;
 /// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
-/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
+/// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes</c> sets the tab's clean up before scanning (<c>--glass form</c>: the made-up glass holds a punched order form) and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
 /// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
 /// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
@@ -146,14 +146,20 @@ internal static class DevSnapshot
             // three sheets, the second fed upside down); --upright off leaves pages as they came.
             if (args.Contains("--turn-stack")) scanner.TurnStack = true;
             if (Value(args, "--upright") is { } upright) scanner.TurnUpright = upright != "off";
-            // --cleanup crop,whiten,descreen,restore: the tab's clean up, before scanning.
+            // --cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes: the tab's clean up, before scanning.
             if (Value(args, "--cleanup") is { } cleanup)
             {
                 scanner.CropToPaper = cleanup.Contains("crop");
                 scanner.WhitenPages = cleanup.Contains("whiten");
                 scanner.DescreenPages = cleanup.Contains("descreen");
                 scanner.RestoreColors = cleanup.Contains("restore");
+                scanner.DropPageColor = cleanup.Contains("drop");
+                scanner.RemoveHoles = cleanup.Contains("holes");
+                var drop = cleanup.Contains("drop-green") ? Core.Imaging.DropColor.Green : cleanup.Contains("drop-blue") ? Core.Imaging.DropColor.Blue : Core.Imaging.DropColor.Red;
+                scanner.TabDropColor = scanner.DropColors.FirstOrDefault(o => o.Value == drop) ?? scanner.TabDropColor;
             }
+            // --glass form: the made-up glass holds a punched order form with red rules and a blue pen's notes (demo only).
+            if (Value(args, "--glass") is { } glass) Demo.GlassHolds = glass;
             var asked = ViewModels.Prompt.Confirm;
             if (args.Contains("--turn-stack")) ViewModels.Prompt.Confirm = (_, _) => true; // "turn the stack over… Scan the backs"
             try

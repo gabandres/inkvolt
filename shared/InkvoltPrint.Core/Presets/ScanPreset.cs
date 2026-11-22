@@ -64,6 +64,9 @@ public sealed record ScanPreset
     /// <summary>What each page is cleaned up with (crop to the paper, whiten, descreen, restore colors); none by default.</summary>
     public PageFilters Cleanup { get; init; }
 
+    /// <summary>The color <see cref="PageFilters.DropColor"/> drops, "#RRGGBB" (<see cref="Imaging.DropColor.Hex"/>); null: red.</summary>
+    public string? DropColor { get; init; }
+
     /// <summary>The OCR language (a BCP-47 tag) for a searchable PDF; null: Windows' first display language that has one.</summary>
     public string? OcrLanguage { get; init; }
 
@@ -161,6 +164,7 @@ public static partial class ScanPresets
                 After = Enum.IsDefined(raw.After) ? raw.After : PresetAfter.None,
                 SplitAt = Enum.IsDefined(raw.SplitAt) ? raw.SplitAt : SplitAt.None,
                 Cleanup = raw.Cleanup & PageFilters.All,
+                DropColor = Imaging.DropColor.Parse(raw.DropColor)?.Hex,
                 Folder = Enum.IsDefined(raw.Folder) && !(raw.Folder == PresetFolder.Custom && string.IsNullOrWhiteSpace(raw.FolderPath))
                     ? raw.Folder : PresetFolder.Documents,
                 Resolution = Math.Clamp(raw.Resolution, MinResolution, MaxResolution),
@@ -343,7 +347,7 @@ public static class ScanPresetText
         if (p.TwoSided && p.TurnStack && p.Source != PresetSource.Glass) parts.Add(CoreStrings.Preset_TurnStackShort);
         if (p.SplitAt != SplitAt.None) parts.Add(string.Format(CoreStrings.Preset_NewFileAtEach, SplitText(p.SplitAt)));
         if (p.FindPhotos) parts.Add(CoreStrings.Preset_EachPhoto);
-        if (PageCleanup.Describe(p.Cleanup) is { Length: > 0 } cleanup) parts.Add(cleanup);
+        if (PageCleanup.Describe(p.Cleanup, Imaging.DropColor.Parse(p.DropColor)) is { Length: > 0 } cleanup) parts.Add(cleanup);
         if (p.Review) parts.Add(CoreStrings.Preset_ReviewFirst);
         if (p.After != PresetAfter.None) parts.Add(string.Format(CoreStrings.Preset_Then, After(p.After)));
         return string.Join(" · ", parts);

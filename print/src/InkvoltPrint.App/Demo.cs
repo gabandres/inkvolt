@@ -301,7 +301,69 @@ internal static class Demo
         width <= 1800 && height <= 1500
             ? Application.Current.Dispatcher.Invoke(() => ScanCard(width, height, back: Interlocked.Increment(ref _cardSide) % 2 == 0))
             : PhotosOnGlass ? Application.Current.Dispatcher.Invoke(() => GlassWithPhotos(width, height))
+            : GlassHolds == "form" ? Application.Current.Dispatcher.Invoke(FormPage)
             : Pages[Interlocked.Increment(ref _page) % Pages.Length].Value;
+
+    /// <summary>What the made-up glass holds instead of its usual pages (a dev aid, <c>--glass</c>): "form", a punched order form.</summary>
+    public static string? GlassHolds { get; set; }
+
+    /// <summary>
+    /// A made-up order form at 300 dpi, letter: red rules and boxes, black print, a blue pen's notes, a date, an invoice number,
+    /// and three punch holes down the left edge with the feeder's dark backing seen through them. Never a real scan.
+    /// </summary>
+    private static byte[] FormPage()
+    {
+        const int w = 1275, h = 1650; // drawn at 150 dpi, rendered at 300
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(2, 2));
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xFA, 0xF8, 0xF2)), null, new Rect(0, 0, w, h));
+            var red = new SolidColorBrush(Color.FromRgb(0xD4, 0x3A, 0x3A));
+            var ink = new SolidColorBrush(Color.FromRgb(0x22, 0x24, 0x28));
+            var pen = new SolidColorBrush(Color.FromRgb(0x2A, 0x4C, 0xB8));
+            var bold = new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal);
+            var face = new Typeface("Segoe UI");
+            var hand = new Typeface(new FontFamily("Segoe Print"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            void Text(string text, double size, double x, double y, Typeface tf, Brush brush) =>
+                dc.DrawText(new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, tf, size, brush, 1), new Point(x, y));
+
+            Text("Maple Street Hardware", 40, 180, 110, bold, ink);
+            Text("Invoice INV-20931", 24, 180, 175, face, ink);
+            Text("Date: March 4, 2026", 22, 840, 180, face, ink);
+            dc.DrawRectangle(red, null, new Rect(170, 240, 960, 4));
+            Text("Item", 20, 190, 262, bold, ink);
+            Text("Qty", 20, 820, 262, bold, ink);
+            Text("Price", 20, 960, 262, bold, ink);
+            string[] items = ["Garden hose, 50 ft", "Brass nozzle", "Hose reel", "Work gloves, large", "Pruning shears", "Potting soil, 20 qt"];
+            for (var i = 0; i < 12; i++)
+            {
+                var y = 300 + i * 52;
+                dc.DrawRectangle(red, null, new Rect(170, y + 46, 960, 2)); // the form's rules
+                if (i < items.Length)
+                {
+                    Text(items[i], 20, 190, y + 12, face, ink);
+                    Text($"{1 + i % 3}", 20, 830, y + 12, face, ink);
+                    Text($"{12 + i * 7}.50", 20, 960, y + 12, face, ink);
+                }
+            }
+            dc.DrawRectangle(null, new Pen(red, 2), new Rect(170, 300, 960, 624)); // the table's box
+            dc.DrawRectangle(red, null, new Rect(800, 300, 2, 624));
+            dc.DrawRectangle(red, null, new Rect(940, 300, 2, 624));
+            Text("Total", 24, 820, 950, bold, ink);
+            Text("412.00", 24, 960, 950, bold, ink);
+            // A blue pen's notes over the form.
+            Text("paid by card 3/6", 30, 200, 1010, hand, pen);
+            Text("deliver Thursday", 26, 600, 1090, hand, pen);
+            dc.DrawRectangle(red, null, new Rect(170, 1200, 960, 3));
+            Text("Thank you for shopping with us.", 18, 180, 1220, face, ink);
+            // Three punch holes, the feeder's dark backing seen through them.
+            var hole = new SolidColorBrush(Color.FromRgb(0x4A, 0x4A, 0x4C));
+            foreach (var y in new[] { 142.0, 825, 1508 })
+                dc.DrawEllipse(hole, null, new Point(75, y), 20, 20);
+        }
+        return Jpeg(visual, w * 2, h * 2);
+    }
 
     /// <summary>The next glass scan looks for photos: the made-up glass then holds three prints (set by the Scan tab).</summary>
     public static bool PhotosOnGlass { get; set; }

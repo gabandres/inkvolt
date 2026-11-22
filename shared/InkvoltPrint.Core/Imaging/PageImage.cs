@@ -196,10 +196,15 @@ public readonly record struct CropBox(double X, double Y, double Width, double H
 /// <see cref="Deskew"/> degrees (anticlockwise by that much), cropped to <see cref="Crop"/> (in the straightened page),
 /// cleaned up by <see cref="Filters"/> (<see cref="PageCleanup"/>), then turned <see cref="QuarterTurns"/> quarters clockwise.
 /// No edits: the scanner's own JPEG is saved untouched. <see cref="PageFilters.CropToPaper"/> only says where
-/// <see cref="Crop"/> came from, so on its own (no paper's edge was found) it changes nothing.
+/// <see cref="Crop"/> came from, so on its own (no paper's edge was found) it changes nothing. <see cref="Drop"/> is the color
+/// <see cref="PageFilters.DropColor"/> drops (null: red), and is set only with that filter.
 /// </summary>
-public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox? Crop = null, PageFilters Filters = PageFilters.None)
+public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox? Crop = null, PageFilters Filters = PageFilters.None, DropColor? Drop = null)
 {
+    /// <summary>These edits with <paramref name="filters"/> in place of the filters, dropping <paramref name="drop"/> when they drop a color.</summary>
+    public PageEdits WithFilters(PageFilters filters, DropColor? drop) =>
+        this with { Filters = filters, Drop = filters.HasFlag(PageFilters.DropColor) ? drop ?? DropColor.Red : null };
+
     public static readonly PageEdits None = new();
 
     public bool IsEmpty => QuarterTurns % 4 == 0 && Deskew == 0 && (Crop is null || Crop.Value.IsFull) && (Filters & PageFilters.PixelFilters) == 0;
@@ -217,7 +222,7 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
     public bool TurnedUprightBy(int uprightTurns) => uprightTurns % 4 != 0 && QuarterTurns == ((uprightTurns % 4) + 4) % 4;
 
     /// <summary>These edits on a page of this size: past <see cref="PageCleanup.MaxPixels"/> no filter runs, so filters alone don't make it re-encoded (or even decoded).</summary>
-    public PageEdits For(int width, int height) => PageCleanup.TooLarge(width, height) ? this with { Filters = Filters & ~PageFilters.PixelFilters } : this;
+    public PageEdits For(int width, int height) => PageCleanup.TooLarge(width, height) ? WithFilters(Filters & ~PageFilters.PixelFilters, null) : this;
 
     /// <summary>The crop as seen on the turned page (what the crop view shows).</summary>
     public CropBox ShownCrop => (Crop ?? CropBox.Full).Turn(QuarterTurns);
@@ -233,13 +238,13 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
     /// straightened by <paramref name="measuredAt"/> degrees) crops only a page straightened by that much: one edited during the
     /// check, or not straightened, stays whole. Null when nothing changes.
     /// </summary>
-    public PageEdits? CleanedUp(PageFilters cleanup, bool photos, CropBox? paperEdge, double measuredAt)
+    public PageEdits? CleanedUp(PageFilters cleanup, bool photos, CropBox? paperEdge, double measuredAt, DropColor? drop = null)
     {
         if (cleanup == PageFilters.None || Filters != PageFilters.None || Crop is not null) return null;
         var filters = cleanup & (photos ? PageFilters.Descreen | PageFilters.RestoreColors : PageFilters.PixelFilters);
         var crop = cleanup.HasFlag(PageFilters.CropToPaper) && !photos && Deskew == measuredAt ? paperEdge : null;
         if (crop is not null) filters |= PageFilters.CropToPaper;
-        return filters == PageFilters.None ? null : this with { Crop = crop, Filters = filters };
+        return filters == PageFilters.None ? null : (this with { Crop = crop }).WithFilters(filters, drop);
     }
 
     /// <summary>

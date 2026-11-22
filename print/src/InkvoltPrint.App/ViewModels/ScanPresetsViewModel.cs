@@ -215,6 +215,11 @@ public sealed partial class PresetItem : ObservableObject
         WhitenPages = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.Whiten);
         DescreenPages = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.Descreen);
         RestoreColors = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.RestoreColors);
+        DropPageColor = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.DropColor);
+        RemoveHoles = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.PunchHoles);
+        var drop = DropColor.Parse(preset.DropColor) ?? DropColor.Red;
+        DropColors = DropColorChoices.List(drop);
+        DropColorChoice = DropColors.First(o => o.Value == drop);
         OcrLanguage = OcrLanguages.FirstOrDefault(o => o.Value == preset.OcrLanguage) ?? OcrLanguages[0];
         SplitAt = ScanPresetsViewModel.Splits.First(o => o.Value == preset.SplitAt);
         KeepSeparators = preset.KeepSeparators;
@@ -263,6 +268,14 @@ public sealed partial class PresetItem : ObservableObject
     [ObservableProperty] public partial bool WhitenPages { get; set; }
     [ObservableProperty] public partial bool DescreenPages { get; set; }
     [ObservableProperty] public partial bool RestoreColors { get; set; }
+
+    /// <summary>Drop a pen or form color (<see cref="DropColorChoice"/>) to white.</summary>
+    [ObservableProperty] public partial bool DropPageColor { get; set; }
+    [ObservableProperty] public partial bool RemoveHoles { get; set; }
+
+    /// <summary>Red, green, blue, and the preset's picked color when it has one.</summary>
+    public IReadOnlyList<Option<DropColor>> DropColors { get; }
+    [ObservableProperty] public partial Option<DropColor> DropColorChoice { get; set; }
 
     /// <summary>The OCR languages to choose from; more than Windows' own only when more are installed.</summary>
     public IReadOnlyList<Option<string?>> OcrLanguages { get; } = OcrLanguageChoices.List();
@@ -361,7 +374,9 @@ public sealed partial class PresetItem : ObservableObject
         SkipBlank = SkipBlank,
         Straighten = Straighten,
         Cleanup = (CropToPaper ? Core.Imaging.PageFilters.CropToPaper : 0) | (WhitenPages ? Core.Imaging.PageFilters.Whiten : 0)
-            | (DescreenPages ? Core.Imaging.PageFilters.Descreen : 0) | (RestoreColors ? Core.Imaging.PageFilters.RestoreColors : 0),
+            | (DescreenPages ? Core.Imaging.PageFilters.Descreen : 0) | (RestoreColors ? Core.Imaging.PageFilters.RestoreColors : 0)
+            | (DropPageColor ? Core.Imaging.PageFilters.DropColor : 0) | (RemoveHoles ? Core.Imaging.PageFilters.PunchHoles : 0),
+        DropColor = DropColorChoice.Value.Hex,
         OcrLanguage = OcrLanguage.Value,
         SplitAt = SplitAt.Value,
         KeepSeparators = KeepSeparators,

@@ -4319,4 +4319,28 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Batch_BacksFailed" xml:space="preserve">
     <value>Fronts printed; the backs weren't: {0}</value>
   </data>
+  <data name="Imaging_ColorDropped" xml:space="preserve">
+    <value>{0} dropped</value>
+    <comment>page cleanup done; {0} = red, green, blue or picked color</comment>
+  </data>
+  <data name="Imaging_DropRed" xml:space="preserve">
+    <value>red</value>
+    <comment>a color dropped to white</comment>
+  </data>
+  <data name="Imaging_DropGreen" xml:space="preserve">
+    <value>green</value>
+    <comment>a color dropped to white</comment>
+  </data>
+  <data name="Imaging_DropBlue" xml:space="preserve">
+    <value>blue</value>
+    <comment>a color dropped to white</comment>
+  </data>
+  <data name="Imaging_DropPicked" xml:space="preserve">
+    <value>picked color</value>
+    <comment>a color picked off the page, dropped to white</comment>
+  </data>
+  <data name="Imaging_HolesRemoved" xml:space="preserve">
+    <value>punch holes removed</value>
+    <comment>page cleanup done</comment>
+  </data>
 </root>
