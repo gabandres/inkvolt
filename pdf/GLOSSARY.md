@@ -39,8 +39,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   the viewer says it took too long or can't be displayed, Find, export, print and read aloud go on without it; any
   other failure there draws the page as before. A page's **verdict** is kept for its engine only: an edit, undo or
   Reload's engine checks each page again when it is first used. When one fails to start, the other takes its pages;
-  when none can, pages run unchecked and a start is tried again later. At most two, shared by every open document;
-  they end with the app.
+  when none can, pages run unchecked and a start is tried again later. Two, shared by every open document (a document
+  slow to check, such as a drawing set, gets up to `PageCheckPlan.SlowWorkers` for the pages ahead); they end with the app.
 - **Interface language** (`App/AppLanguage.cs`, the choice in the shared `UiLanguage`): the language the app's own words
   are in, English or Spanish, picked once at start-up and read from `Strings` (the app) and `PdfStrings` (Core, English
   unless the app opts in through `PdfLanguage`, so the command line stays English). What a document says stays as it is.
@@ -76,12 +76,14 @@ locality) are used in their usual sense: the interface is everything a caller mu
   document out (`DocLayout`) and writes the format, or reports that nothing was extracted and saves nothing. Used by
   File › Export, Batch and `tools/export-corpus`.
 - **Recognizer** (`ITextRecognizer`, `shared/InkvoltPrint.Core/Imaging/TextRecognizer.cs`): text recognition (OCR) of
-  a page image, on the device, returning words with boxes in reading order and no confidence. Windows' is
-  `WindowsRecognizer` (`shared/InkvoltPrint.Windows/Ocr`, one per installed OCR language); the Mac's is Vision; a second
-  engine would be another. `App/PageOcr.cs` picks it; Core gets it as an interface or a function.
+  a page image, on the device, returning words with boxes in reading order. Windows' is `WindowsRecognizer`
+  (`shared/InkvoltPrint.Windows/Ocr`, one per installed OCR language; no confidence); Tesseract's, downloaded on request,
+  is `TesseractRecognizer` (`Core/TesseractRecognizer.cs`; its words carry a confidence); two languages read together go
+  through `MixedRecognizer`; the Mac's is Vision. `App/PageOcr.cs` picks it; Core gets it as an interface or a function.
 - **Scan cleanup** (`shared/InkvoltPrint.Core/Imaging/ScanCleanup.cs`): what a page image goes through before the
   recognizer reads it: straightened (skew up to ±15°), turned upright (sideways, upside down), smoothed, the paper evened
-  out to white, lone specks removed. The **cleaned page** is its result; it replaces the scan only when the user asks
+  out to white, lone specks removed, and (when chosen, on by default) a photographed page's trapezoid and bent lines
+  straightened (`Imaging/PageWarp.cs`). The **cleaned page** is its result; it replaces the scan only when the user asks
   (Replace the scans with the cleaned pages, `Core/ScanPage.cs`).
 - **Recognized page** (`Core/ScanText.cs`): one page through render, cleanup and recognizer, its words mapped back to the
   page (`ScanFrame`: through the quarter turns and the straightening, each word turned with the text), with its skew and
@@ -95,9 +97,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   choices (the app's `SavedOcr`), Recognize Text and Scan through `PageOcr.recognizeText`.
 - **Text layer** (`Core/TextLayer.cs`): the invisible OCR text over a scanned page; it keeps its words, boxes, suspect
   marks and language in comment lines at its start, so it can be read back, reviewed and corrected in place.
-- **Suspect word** (`Core/SuspectWords.cs`): a recognized word worth a second look, found by a heuristic, never a
-  confidence (Windows' recognizer has none): not in the spell checker's dictionary for the language, letters and digits
-  mixed inside, odd characters, or read as a different real word before cleaning. Listed in the Suspect words pane
+- **Suspect word** (`Core/SuspectWords.cs`): a recognized word worth a second look, found by a heuristic (Windows'
+  recognizer has no confidence): not in the spell checker's dictionary for the language, letters and digits mixed
+  inside, odd characters, or read as a different real word before cleaning; with Tesseract, also a word read under 60. Listed in the Suspect words pane
   (`App/DocumentTab.SuspectWords.cs`), corrected or kept as read.
 - **Redaction check** (`Core/RedactionCheck.cs`, `RedactionCheck.Data.cs`): what is still recoverable after a redaction
   (covered text, unapplied marks, leftovers of the redacted text anywhere in the file, earlier versions), each finding
@@ -166,6 +168,7 @@ locality) are used in their usual sense: the interface is everything a caller mu
   once, each a **document command** (title, key, the action it sends, its place in the menus, its plain-words note and
   what it **needs**, a `Requirement`), from which the app builds the menu bar (`MainMenu`) and decides what can run over a
   window's **document state** (`DocumentState`: pages, selection, busy, signing…); the command palette lists the menus so
-  built. Windows keeps its commands in the ribbon's XAML and each command's CanExecute.
+  built. Windows keeps its commands in the main window's menus (`MainWindow.xaml`) and each command's CanExecute; the
+  command bar's groups are `CommandBarLayout` (Core).
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

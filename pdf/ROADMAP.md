@@ -1,64 +1,54 @@
 # Inkvolt PDF: roadmap
 
-What Inkvolt PDF builds next to do better than the paid PDF apps (Acrobat Pro, Foxit PDF Editor Pro/+, Nitro PDF Pro, PDF
-Expert, PDFelement Pro, ABBYY FineReader PDF, Power PDF Advanced, PDF-XChange Editor Plus), feature by feature.
-Written 2026-10-27 from a gap review against those apps and their vendors' current help pages; sources are linked per
-item. What exists today: [README.md](README.md) ("Using it", "Known limits"); the Mac port: [../mac/docs/PLAN.md](../mac/docs/PLAN.md).
+What Inkvolt PDF builds to do better than the paid PDF apps (Acrobat Pro, Foxit PDF Editor Pro/+, Nitro PDF Pro, PDF
+Expert, PDFelement Pro, ABBYY FineReader PDF, Power PDF Advanced, PDF-XChange Editor Plus), feature by feature. What
+exists today: [README.md](README.md) ("Using it", "Known limits"); the Mac port: [../mac/docs/PLAN.md](../mac/docs/PLAN.md).
 
 **Principles.** Free (AGPL), local only: no account, no cloud service of ours, no telemetry. AI only through the
 user's own endpoint (a local model or their own key), with the "what is sent, where" window before anything leaves.
-Every claim is checked: each item below has acceptance criteria that a test, a corpus run or an outside validator
-(veraPDF, Acrobat, pdf.js) can confirm.
+Every claim is checked: each item has acceptance criteria that a test, a corpus run or an outside validator (veraPDF,
+EU DSS, Acrobat, pdf.js) can confirm.
 
 **Ranking.** value × fit ÷ effort. Value: how many users miss it and how often reviews name it. Fit: how well it works
 locally, without a service, on what we already have (MuPDF, `DocLayout`, the edit transaction, Batch). Effort: S (about a
 week), M (2-4 weeks), L (more than a month).
 
-**Priority.** Decided 2026-10-30 with the owner: the features other apps keep behind their paid tiers come first, on both
-platforms. Second engines and other additions with no known demand wait for it. (Tesseract in 2.2: the owner decided
-2026-11-18 to build it as an optional download; built on Windows 2026-11-19.)
+**Priority** (the owner): the features other apps keep behind their paid tiers come first, on both platforms. Second
+engines and other additions with no known demand wait for it (Tesseract in 2.2 is an optional download, the owner's call).
 
-**Mac back (owner, 2026-11-02).** The Mac was on hold from 2026-10-31 and is back: Inkvolt PDF for Mac 1.5.0 has
-PLAN.md's E1-E16. Done on the Mac since: 3.3 and 3.5 (2026-11-07), 2.1 and 3.1 (2026-11-10), 1.1's additions of 2026-11-01 and 3.4
-(2026-11-11). No Mac since 2026-11-17: what the Mac still lacks waits for the new one (`docs/HANDOFF.md`, the newest entry).
-
-**Platforms.** Full parity (decided 2026-10-27): an item is done only when it ships on Windows and on the Mac, so a
-person or an office picks the platform, not the features. Windows usually goes first (it has the code to port); the Mac
-follows in the same release cycle. PLAN.md's "Parity with Windows" steps (1.0, then E1-E16) are done; what the Mac still
-lacks is the list above. One Pro key works on both.
-Moving and recoloring notes and text markups (the Mac's `AnnotationMoves`, D7 part d): Mac first, on Windows since
-2026-11-17 (`Annotations.Move` and `SetColor`, the Mac's CommentMoveTests ported).
+**Platforms.** Full parity: an item is done only when it ships on Windows and on the Mac, so a person or an office picks
+the platform, not the features. Windows goes first (it has the code to port); the Mac follows. One Pro key works on both.
+**State:** every item below is done on Windows. The Mac has had no work since 2026-11-17; what it still lacks is under
+each item's **Mac** line and waits for the new Mac (`docs/HANDOFF.md`).
 
 ## Free and Pro
 
-Decided 2026-10-27 with the owner: everything Inkvolt PDF does today stays free, and so does whatever a person needs to
-read, fill, sign, edit and protect their own documents. **Inkvolt Pro** is a one-time purchase (in the range of
-$19-39; a yearly price for updates may come later) that unlocks the power features below, the ones the paid apps keep
-for their top tiers. A business licence (invoices, MSI/Intune packages, a support contact, priority fixes) follows once
-there are business users.
+Decided with the owner: everything Inkvolt PDF did at launch stays free, and so does whatever a person needs to read,
+fill, sign, edit and protect their own documents. **Inkvolt Pro** is a one-time purchase (**$19**; a yearly price for
+updates may come later) that unlocks the power features below, the ones the paid apps keep for their top tiers. A
+business licence (invoices, MSI/Intune packages, a support contact, priority fixes) follows once there are business users.
 
 - **The source stays open.** Inkvolt PDF is AGPL (MuPDF is), so the Pro features' source is published like the rest
-  and anyone may build them. What a purchase buys is the ready, signed, updating build and the licence; the unlock is a
+  and anyone may build them. A purchase buys the ready, signed, updating build and the licence; the unlock is a
   convenience, not a lock. Closing the source would take Artifex's commercial MuPDF licence (quoted per customer, per
   copy with quarterly minimums): only worth a quote if Pro sells well.
-- **No account, still.** A Pro licence is a key signed with our private key (ECDSA P-256: in .NET's own library and in
+- **No account, still.** A licence is a key signed with our private key (ECDSA P-256: in .NET's own library and in
   CryptoKit, where Ed25519 would have needed a package) and checked on the PC against the public key in the app: no
-  server is asked, nothing is sent, the key works offline and survives reinstalling. Inside the app one entitlement
-  check (a single `Pro` seam in Core) decides what shows; a feature without the licence shows what it would do and
-  where to get Pro, and never takes away a result already made.
-- **Selling.** Windows: through our own checkout (a merchant of record such as Paddle or Lemon Squeezy: it handles sales
-  tax and VAT worldwide for about 5% plus a small fee per sale), since the Microsoft Store leaves non-game apps that use
-  their own commerce 100% of the revenue, against 15% through the Store's add-ons
-  ([Microsoft](https://developer.microsoft.com/ja-jp/store/publish-apps)); a Store add-on stays possible for people who
-  prefer buying there. Mac: the same key, sold the same way (the PDF app is outside the App Store).
+  server is asked, the key works offline and survives reinstalling. One check (`Pro.Allows(feature)`) decides what
+  shows; a feature without the licence shows what it would do and where to get Pro, and never takes away a result
+  already made.
+- **Selling.** Windows: our own checkout through a merchant of record (Paddle, Lemon Squeezy: sales tax and VAT
+  worldwide for about 5% plus a small fee), since the Microsoft Store leaves non-game apps that use their own commerce
+  100% of the revenue, against 15% through Store add-ons ([Microsoft](https://developer.microsoft.com/ja-jp/store/publish-apps));
+  a Store add-on stays possible. Mac: the same key, sold the same way (the PDF app is outside the App Store).
 - **Against PDFgear.** It is free and does a lot, so nothing a person needs day to day goes behind Pro. Pro is what
   PDFgear and the free tiers don't do well: rule-based and batch redaction, automation, accessibility remediation,
   folder-wide work, archival-grade signatures.
 
 | Item | Free | Pro |
 |---|---|---|
-| 1.1 Redaction by pattern | Redacting areas, selections and search matches (today); the built-in patterns on the open document | Saved custom pattern sets, regex, pattern redaction in Batch over many files, the removal report |
-| 1.2 Batch presets, watched folder, command line | Batch as it is today | Saved presets, the watched folder, the command line |
+| 1.1 Redaction by pattern | Redacting areas, selections and search matches; the built-in patterns on the open document | Saved custom pattern sets, regex, pattern redaction in Batch over many files, the removal report |
+| 1.2 Batch presets, watched folder, command line | Batch itself | Saved presets, the watched folder, the command line (`--fill` stays free) |
 | 1.3 Accessibility checker | The checker and its report | |
 | 1.4 Comments and form data in and out | All of it | |
 | 1.5 Redaction check | All of it (a safety check) | |
@@ -69,1546 +59,284 @@ there are business users.
 | 2.5 What's in this PDF | All of it (the privacy promise) | |
 | 3.1 Translate side by side | All of it (it uses the user's own AI) | |
 | 3.2 Export to PowerPoint and HTML | All of it | |
-| 3.3 Compare Office files, scans, formatting | Comparing two PDFs, moves, the overlay and lining up scans, the annotated copy (it was free already, so it stays free) | Office files and scans against a PDF, formatting changes |
+| 3.3 Compare Office files, scans, formatting | Comparing two PDFs, moves, the overlay and lining up scans, the annotated copy (free before Pro, so it stays free) | Office files and scans against a PDF, formatting changes |
 | 3.4 Long-term validation for signatures | Verifying | Adding LTV data, certifying with field locks |
 | 3.5 Indexed folder search | Searching open documents | Indexing folders and searching them |
 | 3.6 Speed on huge files | All of it | |
 
-**Built (2026-10-30), gate off.** Decided with the owner: **$19**, one time. `Pro.Allows(feature)` in Core (`Pro.cs`) is
-the one check every Pro feature asks (`ProFeature`: the rows of the table above); behind it the licence is real: a key
-`INKVOLT-PRO-` + base32 groups of five (version, name, email, issue date, products `pdf`/`print`, then an ECDSA P-256
-signature; `pdf/tools/pro-key/README.md` documents it, with a test vector for the Mac port), verified on the PC against
-the public key in the suite's shared library (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProCheck`, `ProKeyFile`, moved there
-the same day for Inkvolt Print's 1.6, so one key licenses both apps), kept in `%LOCALAPPDATA%\Inkvolt\pro-key.txt` where
-both apps read it, entered and removed in Help › Inkvolt Pro…, issued with `pdf/tools/pro-key`
-(the private key stays off the repo). **Enforcement is off**: `ProCheck.Enforced` (Core's `Pro.Enforced`) is false, so everyone gets
-everything while Inkvolt PDF launches; a key is still verified and shown, and buying is presented as supporting the
-project or as a licence a business can invoice. It flips on, in a release noted in WHATS-NEW, once Inkvolt PDF has a
-few thousand installs or about 50 Store ratings; from then on a locked feature shows what it does and a button to the
-window, and the command line prints the message and exits 2 (the UI and tests for both states are in place). Still to
-do: the checkout itself (the owner sets it up with a merchant of record; the Get button opens the product page until
-then). The Mac's verification (CryptoKit `P256.Signing`, same key, the test vector read in place) and its Help › Inkvolt
-Pro… window: done 2026-10-30 (`mac/InkvoltPdfKit/Sources/PdfCore/Pro.swift`, `ProWindowController`).
+**Built, gate off.** `Pro.Allows(feature)` in Core (`Pro.cs`; `ProFeature` is the table's rows) sits on the suite's
+`ProCheck` (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProKeyFile`), so one key licenses both apps; the key format and its
+test vector: `pdf/tools/pro-key/README.md`. **Enforcement is off** (`ProCheck.Enforced`): everyone gets everything while
+Inkvolt PDF launches; a key is still verified and shown, and buying is presented as supporting the project or as a
+licence a business can invoice. It flips on, in a release noted in WHATS-NEW, once Inkvolt PDF has a few thousand
+installs or about 50 Store ratings (the UI and tests for both states are in place). **Still to do:** the checkout itself
+(the owner sets it up with a merchant of record; Get Inkvolt Pro opens the product page, `ProCheck.BuyUrl`, until then).
 
-## Wave 1 (next)
+## Wave 1
 
-### 1.1 Redaction by pattern (done 2026-10-27)
-- **Leader.** Acrobat Pro: Find Text & Redact with fixed patterns (phone, credit card, email, SSN, date), several files,
-  review each hit, then apply; it doesn't search encrypted PDFs
-  ([Adobe](https://helpx.adobe.com/acrobat/current/removing-sensitive-content-pdfs.html)). PDF-XChange adds regular
-  expressions (ECMAScript) and custom saved patterns ([PDF-XChange](https://help.pdf-xchange.com/pdfxe9c/redaction_ed.html)).
-  Foxit sells Smart Redact (names, organizations; batch) as a paid plug-in
-  ([Foxit](https://resource-cms.foxit.com/tutorials/master-ai-powered-pdf-redaction-with-smart-redact-in-foxit-pdf-editor)).
-- **Now.** Areas, selected text, every match of a search; pages become images at 300 dpi with OCR text put back.
-  Redact by Pattern (`RedactionPatterns`): SSN, phone, email, card (Luhn), date, IBAN (mod 97), IP and ZIP patterns,
-  phrases and a regex (with a timeout), across line breaks and hyphens, on all pages or a range, marked for review in
-  the document; Batch's Redact Patterns action applies them over many files.
-- **Finished on Windows 2026-11-01.** Named sets saved on this PC (`RedactionPatternSets`, plain JSON, one regex a set:
-  alternation covers more); scanned pages and pictures searched through OCR text (`RedactionSearch`); every hit listed
-  with page and context beside the page itself, accepted or skipped one by one or all (`RedactReviewDialog`), areas marked by
-  hand before the search listed with them, said to go too, and untickable, then applied;
-  the result read back, searched again, and what was removed looked for in the rest of the file (dates and ZIP codes only
-  by pattern: a file's own time stamps hold the same digits), with what the patterns find in comments, fields, bookmarks,
-  properties, XMP, attachments, tags and every other string the file holds; the report as a page and as CSV
-  (`RedactionReport`, `RedactionReportDialog`); Batch runs a set over a folder, asks for passwords as before, and fails a file
-  with a hit left, with a scan nothing could read, or with a part that couldn't be searched; the Pro split through
-  `ProFeature.PatternRedaction` (sets, regex, the Batch action, the report's rows and CSV; the built-in kinds, phrases, the
-  list, the read-back and the pages to look at stay free).
-- **What the app promises about scans.** Nothing: a page read by OCR is never called clean. A page counts as read by OCR
-  when its pictures cover half of it (even under a text layer, which can be poor or planted), when it has no text and
-  some ink or a picture, or when it has ink no word explains (a logo, text drawn as shapes). Each such page is flagged in
-  the list, the report and Batch's notes, whatever was found on it. Ink where nothing was read is read again on its own at
-  300 dpi, since Windows' recognizer can skip a whole line; what stays unread is outlined on the page and can be ticked to
-  black out unread. Without an OCR language a scan fails its file in Batch; a text page with a picture nothing could read
-  doesn't (a logo mustn't fail a batch), and the file's result, the batch's summary and the report all say to look by hand. A value OCR can't read on a page is the limit
-  that remains: only a person looking at the page catches it, and the dialog, the report and this page say so.
-- **Other limits.** A page with a text layer that covers all its ink and pictures under half of it isn't read by OCR, so
-  text whose visible glyphs differ from its text layer (a broken or hostile font map) can pass. A number or word broken at
-  a line end with no hyphen or space ("123456" / "789") reads as two. Phrases on OCR text must be read exactly right; digits
-  are read kindly (l for 1, O for 0, spaces round dashes; no check digit on OCR pages). A hit on OCR text blacks out the
-  whole word it is in. More than 100,000 hits stop the search rather than list part of them. One page has 10 seconds, each
-  regex call 1 second: past that the search stops with an error and nothing is changed.
-- **Checked.** `RedactionCorpusTests`: the generated corpus (line-broken, hyphenated, split runs, /Rotate 90, scans upright,
-  under /Rotate and on their side, a picture on a text page, a scan under a poor text layer, the encrypted copy through
-  Batch) finds 21 of 21 with a stand-in recognizer that reads only what still shows, and leaves 0. The real app with Windows'
-  recognizer (`--script`, en-US, Debug build): 21 of 21 on the same file and 0 left, in Redact by Pattern on the plain copy
-  and in Batch with a saved set on the plain and encrypted copies; the list and the report looked at in screenshots; 100
-  plain pages searched in 5.6 s with no false flags; a list of 30,000 hits opens and Accept All / Skip All answer. `RedactionSetsAndReportTests`: tampered, oversized and malformed
-  sets refused whole; masks; formula cells; the Pro gate. Attacks that turned up real bugs, all fixed with tests: quadratic
-  overlap check on a page of hostile numbers; a page's regex time unbounded across calls; a hit dropped when its glyphs have
-  no box; invisible and wide characters hiding a number; the check stopping with an error on many or long values (its regex
-  size limit), treating a timeout as clean, and timing out on a redacted page's pixels; a signed file exported unredacted when the plan had an export after Redact Patterns; a
-  dash in a CSV cell starting a formula.
-- **Not checked.** A person's eyes on a real scan, and a real scan at all: every scan here is synthetic. Windows' recognizer
-  dropping a line didn't happen on these files, so reading a place again has only run against the stand-in. OCR languages
-  other than en-US. A screen reader on the list. With `Pro.Enforced` on, the Free report and the Pro window were seen in
-  screenshots and Batch's gate is tested, but the sets' buttons and the regex box weren't pressed; nor, gate off, were
-  they driven by hand (sets were saved and loaded through dev steps).
-- **Beat it when:** patterns for SSN, phone, email, card, date, plus regex and named custom patterns saved on the PC;
-  a match is found across line breaks, hyphenation and split text runs; cards pass Luhn and SSNs the SSA's number rules,
-  so near-misses aren't marked; scanned pages are searched through their OCR text; every hit is listed with page and
-  context, accepted or skipped one by one or all, before anything is applied; Batch runs a pattern set over a folder
-  (password files asked for, as Batch does now); a report (CSV and a page in the app) lists per file the page, pattern
-  and a masked value of each removal; after applying, the result is read back and searched again, and any remaining hit
-  fails the file. Test: a corpus with planted values (line-broken, hyphenated, rotated page, scanned page, encrypted file)
-  finds 100% of them and leaves 0 after applying.
-- **Effort** M. Windows now; Mac: done with E1 (2026-10-28; your own pattern in ICU syntax) and Batch's action with E8 (2026-10-30); Windows' additions of 2026-11-01 and 11-02 done on the Mac 2026-11-11 (`RedactionSearch` with Vision, `RedactionPatternSets` in the same JSON as Windows', the review sheet, `RedactionReport` and its CSV, `PatternRedaction` for the sheet and Batch, Batch's failure rules, `ProFeature.patternRedaction`). Mac differences (`mac/docs/PLAN.md`, "Redaction by pattern, Windows' additions"): Vision is always there, so "not read" means no recognizer or one that failed, not a missing OCR language; a page the engine refuses (page checks) is said and fails Batch's file; a recognized word that touches a black box is left out of the text laid back; a saved set's pattern is ICU's (one written on Windows may read differently or be refused, and ICU refuses a pattern nested hundreds deep); the review list's rows are PdfCore's `RedactionReviewList`.
+### 1.1 Redaction by pattern
+Done, Windows and Mac. Redact by Pattern (`RedactionPatterns`: SSN, phone, email, card with Luhn, date, IBAN with mod 97,
+IP, ZIP, phrases, a regex with a timeout), scans searched through OCR (`RedactionSearch`), named sets (`RedactionPatternSets`,
+plain JSON), the review list (`RedactReviewDialog`), the read-back and the removal report (`RedactionReport`, CSV), Batch's
+Redact Patterns; Pro split through `ProFeature.PatternRedaction`. Acceptance (`RedactionCorpusTests`: line-broken,
+hyphenated, split runs, rotated, scanned, encrypted through Batch): 21 of 21 found, 0 left, in the app with Windows'
+recognizer too.
+- **Why scans are never called clean:** a page counts as read by OCR when pictures cover half of it (even under a text
+  layer, which can be poor or planted), when it has no text and some ink, or ink no word explains (a logo, text drawn as
+  shapes); each is flagged, ink where nothing was read is read again alone at 300 dpi (Windows' recognizer can skip a
+  line), and what stays unread is outlined and can be blacked out unread. A value OCR can't read is found only by a person.
+- Dates and ZIP codes are looked for in the rest of the file only by pattern: a file's own time stamps hold the same digits.
+- **Not checked:** a real scan (every scan here is synthetic), OCR languages other than en-US, a screen reader on the
+  list, the sets' buttons and regex box pressed by hand with the gate on.
+- **Mac** differences (ICU regex, Vision): `mac/docs/PLAN.md`, "Redaction by pattern, Windows' additions".
 
-### 1.2 Saved batch presets, a watched folder and a command line (done 2026-10-27)
-- **Leader.** Acrobat Pro's Action Wizard: saved actions on files or folders, exported and imported to share
-  ([Adobe](https://helpx.adobe.com/acrobat/current/action-wizard-acrobat-pro.html)). ABBYY FineReader PDF's Hot Folder:
-  watched local, network, FTP or mail folders, now or on a schedule, capped at 5,000 pages a month on 2 cores
-  ([ABBYY](https://pdf.abbyy.com/how-to/optimize-digitization-routines/)).
-- **Now.** Windows: Batch with 16 actions (Save as PDF/A added; Redact Patterns and Check Redaction came with 1.1 and 1.5). Presets
-  (`BatchPresets`): named, saved on the PC, exported and imported as plain JSON (format marker, `version`, fields always
-  in the same order, no passwords: Protect keeps which ones it sets), strict on reading (an unknown action or setting, a
-  wrong value or a newer version is refused saying where). Watched folders (`WatchedFolder`): in the app while it is open
-  (Batch › Watched Folders, status in the title bar), or `inkvoltpdf --watch <folder> --preset <file> [--once]` in a
-  terminal or a scheduled task; a file runs once its size and time have held for 3 s and nobody holds it open, is moved
-  into `working` (so it runs once, across restarts; a run that never finished sends its files to `failed`), then to
-  `done` or `failed`, with a line per file in `inkvolt-watch.log`; one watcher per folder; no page cap. Command line
-  (`BatchCommandLine`): `inkvoltpdf --batch <preset> <files or folders>` without a window, a line per file, exit code 1 on
-  any failure (2 for a wrong command line or preset, 3 stopped), `--help`; Protect's passwords from environment
-  variables. Tests: presets round-trip through export and import unchanged, malformed and newer presets are refused
-  with clear errors, 24 files copied in slowly (held open, or growing in bursts) all come out once, a held file waits,
-  originals move right, an interrupted file never runs twice, the command line's exit codes. Mac: done with E8 (2026-10-30: presets, watched folders, `--batch` and `--watch`; `--fill` with 1.4, 2026-11-03).
-  Checked 2026-11-19 (Windows, ARM64): 500 generated PDFs (228 MB: 367 text of 1 to 12 pages, 119 scans, two 600-page
-  and two 110 MB 40-page scans, 10 damaged or hostile: cut short, empty, random bytes, a broken startxref, arrays nested
-  20,000 deep, a page tree that loops with a false count, a stream unpacking to 200 MB, a PNG named .pdf) on this PC's
-  `\\127.0.0.1\C$` over SMB (a share of its own needs an elevated `New-SmbShare`), a preset of watermark, header and footer
-  and Reduce File Size. `--batch` on the share's folder, results on the share: every file reported, 492 done, 8 failed
-  (the broken startxref repaired, the 200 MB stream done), exit 1, 26 s, peak working set 2.0 GB (the 200 MB stream alone
-  1.7 GB; a 1 GB one is refused at 256 MB). `--watch` on the share: 500 copied in one by one over SMB (1.2 s each here),
-  the watcher killed after 152 and restarted with `--once`: 492 done, 8 failed, a log line each; with the 500 already
-  there, killed at 104 with 2 in `working`, restarted: those 2 in `failed` as interrupted, 490 done, 8 failed, 500 log
-  lines, no file, result or original twice, 69 s, peak 2.0 GB. Through the alias of an installed package
-  (`smoke-msix.ps1`'s new `Test-CommandLine`, side by side with the Store copy): `--batch` and `--watch --once` in
-  Documents, the temp folder and the share, results and moved originals seen from outside the package (no write landed
-  in the package's private AppData), exit codes 0, 1 and 2, `--help` typed in a terminal, `--watch` stopped by Ctrl+C
-  (exit 0, no lock or file left in `working`). Found and fixed (`CommandOutput`, tests in `CommandOutputTests`): MuPDF's
-  output redirect took over .NET's console writers, so redirected lines ended "\r\r\n" and, typed in a terminal, 1.15.0's
-  command line ended at once (0xC0000409) printing nothing. Left: a share on another PC over a real network (only this
-  PC's loopback SMB was tried), a run as a scheduled task. The 200 MB stream (a 200 KB file) is under the 256 MB a stream may unpack to (`PdfObj.MaxStreamBytes`,
-  `BoundedFilters`), so nothing there catches it, yet one file takes 1.6 GB in Reduce File Size (where the stream is
-  decoded and packed again) and 760 MB in a watermark or header and footer (measured, the copies not traced); rotate and
-  text export stay under 100 MB. Done 2026-11-19: Batch's memory gate (`BatchPlan.MemoryBudget`) prices a file by the
-  larger of its size on disk and what its streams unpack to (`BatchRunner.Unpacked`: before the file is admitted, the
-  bytes after each `stream` keyword are inflated a chunk at a time and counted, kept nowhere, as
-  `BoundedFilters.InflatedLength` does for PDFsharp; a picture counts what its dictionary says it decodes to, width ×
-  height × components × bits, and isn't inflated; encrypted streams count nothing; counting stops past the budget or
-  50,000 streams, and when the batch is cancelled), 8 bytes a byte, so such a file runs alone instead of beside others
-  (`BatchTests.AFileIsPricedByWhatItsStreamsUnpackTo`: 64 MB in a 64 KB file weighs 512 MB, alone in a 256 MB budget).
-  The count runs ahead of the files' admission on a thread of its own. Reduce File Size's and the page marks' own copies
-  of a large stream are bounded by that price (8 bytes a byte covers the 1.6 GB measured) rather than streamed: the batch
-  stays under its budget, and a stream can't unpack past 256 MB anywhere. A picture whose data unpacks to far more than
-  its size says is priced by its size (only Reduce File Size's packing would unpack it, bounded at 256 MB).
-- **Beat it when:** an action list is saved as a named preset (a plain JSON file, readable and diffable, exported and
-  imported); a watched folder runs a preset on each new file once it has stopped growing, moves originals to "done" or
-  "failed", and writes a log line per file; no page cap; `InkvoltPdf.exe --batch <preset> <files or folder>` runs the
-  same preset without a window and returns a non-zero exit code on any failure; the new actions Save as PDF/A and
-  Redact by pattern. Test: a preset round-trips through export and import unchanged; 500 files dropped into a watched
-  folder all come out once, none twice, including files copied in slowly over the network.
-- **Effort** M. Windows; Mac with Batch.
+### 1.2 Saved batch presets, a watched folder and a command line
+Done, Windows and Mac. `BatchPresets` (plain JSON, strict on reading), `WatchedFolder` (a file runs once its size and time
+hold for 3 s and nobody holds it open; moved into `working`, then `done` or `failed`; `inkvolt-watch.log`),
+`BatchCommandLine` (`--batch`, `--watch`, `--fill`; exit codes in README "Command line"). Acceptance (Windows, ARM64): 500
+generated PDFs, hostile ones among them, over this PC's loopback SMB share, through `--batch` and `--watch` killed and
+restarted mid-run: every file once, none twice; also through the Store package's alias (`smoke-msix.ps1`'s `Test-CommandLine`).
+- MuPDF's output redirect took over .NET's console writers (lines ended "\r\r\n"; typed in a terminal the command line
+  ended at once printing nothing): `CommandOutput` keeps its own writers.
+- **Memory gate** (`BatchPlan.MemoryBudget`): a file is priced by the larger of its size and what its streams unpack to
+  (`BatchRunner.Unpacked`, counted a chunk at a time before admission, 8 bytes a byte), since a 200 KB file can unpack a
+  200 MB stream and take 1.6 GB in Reduce File Size; such a file runs alone.
+- **Not checked:** a share on another PC over a real network; a run as a scheduled task.
+- **Mac:** pricing a file by what its streams unpack to isn't ported.
 
-### 1.3 Accessibility checker (done 2026-10-27)
-- **Leader.** Acrobat Pro: Accessibility Check against PDF/UA and WCAG, each rule passed, failed or "needs manual check"
-  ([Adobe](https://helpx.adobe.com/acrobat/current/create-verify-pdf-accessibility.html)). The free PAC follows the
-  Matterhorn Protocol (31 checkpoints, 136 failure conditions, 89 machine-checkable)
-  ([axes4](https://support.axes4.com/hc/en-us/articles/7371943734930)). Why now: US Title II deadlines moved to
-  April 26, 2027 (entities of 50,000+) and April 26, 2028 (smaller), WCAG 2.1 AA
-  ([JD Supra](https://www.jdsupra.com/legalnews/doj-extends-title-ii-ada-web-2176958/)).
-- **Now.** Windows: Review › Accessibility Check… (`AccessibilityCheck`) checks the Matterhorn Protocol 1.1's
-  machine-checkable conditions (83 of its 87, 5 of them through another condition, plus PDF/UA's basics: tagged, MarkInfo, PDF 1.x header, tag parents,
-  language codes): tags, role map, content tagged or artifact, metadata and title, languages, figures, formulas,
-  headings, tables, lists, contents, notes, annotations, links, fields, tab order, media, attachments, layers, XFA,
-  security, XObjects, fonts. Each failure has its Matterhorn number, page and element (choosing it scrolls there and
-  outlines it), what is wrong and what fixes it; the 48 human conditions are a 15-item checklist in the same pane; the
-  report saves as one accessible HTML page; Batch's Check Accessibility action writes it beside each file and fails a
-  file with failures. Not checked: 09-007, 09-008 (Ruby, Warichu), 28-018 (a printer's mark's appearance), 31-023
-  (veraPDF doesn't check these either). Widths (31-016) are checked against every kind of embedded program: TrueType's
-  hmtx, and (done 2026-11-19) CFF and Type 1 charstrings (`CffProgram`: the Type 2 width rule, local and global
-  subroutines followed, each glyph's Private DICT through FDSelect, FontMatrix; `Type1Program`: hsbw or sbw, div,
-  FontMatrix, lenIV; bounded against programs built to loop; tests on crafted fonts in `AccessibilityCheckTests`). Corpus (`tools/a11y-corpus`, 50 PDFs from Word, InDesign, LaTeX, PDFMaker, PDFlib, Distiller,
-  OpenOffice and others, veraPDF 1.30.3): the same pass/fail as veraPDF for 50 of 50 files, the same failing
-  conditions for 50 (wcag-table-word, long called a veraPDF inconsistency, was a later object stream PDFsharp missed; see
-  the tool's README); veraPDF's own 297 PDF/UA-1 test
-  files: 296 of 297 (the other can't be opened by PDFsharp). Mac: done 2026-10-30 (Tools › Accessibility Check…, the sidebar's pane, the
-  report, Batch's action): against Windows on the same files, the same pass or fail for 50 of 50 and 296 of 297, the same conditions
-  for 49 and 296; the two differences are files Windows' PDF reader reads differently (`mac/docs/PLAN.md`).
-- **Beat it when:** a local checker covers the machine-checkable Matterhorn conditions and agrees with veraPDF's
-  PDF/UA-1 result on a corpus of 50 files (tagged and untagged, Word, InDesign and LaTeX output); each failure links to
-  the page and element, says in plain words what is wrong and what fixes it, and the human-check items are a checklist
-  in the same panel; the report saves as HTML; runs in Batch. Test: the corpus result matches veraPDF file by file.
-- **Effort** M. Windows; Mac: done 2026-10-30.
+### 1.3 Accessibility checker
+Done, Windows and Mac. `AccessibilityCheck`: Matterhorn Protocol 1.1's machine-checkable conditions (83 of 87) plus
+PDF/UA's basics, each failure with its number, page and element; the human conditions as a checklist; an HTML report;
+Batch's Check Accessibility. Widths (31-016) checked against TrueType, CFF and Type 1 programs (`CffProgram`,
+`Type1Program`). Not checked, as veraPDF doesn't either: 09-007, 09-008 (Ruby, Warichu), 28-018, 31-023. Against
+veraPDF: `pdf/tools/a11y-corpus` (latest results in its README).
+- **Mac:** the CFF and Type 1 widths aren't ported.
 
-### 1.4 Comments and form data in and out (done 2026-10-27)
-- **Leader.** Acrobat Pro: export and import comments as FDF or XFDF
-  ([Adobe](https://helpx.adobe.com/acrobat/current/importing-exporting-comments.html)), comment summaries, form data
-  import and export.
-- **Now.** Windows: Review › Export Comments, Import Comments, Summarize Comments; Edit › Forms › Export Form Data,
-  Import Form Data, Fill Forms from CSV; Batch actions for the exports and the summary; `inkvoltpdf --fill`.
-  Comments (`CommentFiles`): XFDF (ISO 19444-1 elements and attributes; a stamp's appearance as Acrobat's base64
-  DICT/STREAM tree), FDF (every annotation as it is, appearance streams included) and CSV, with replies to any depth,
-  colors, authors, dates, opacity, borders, line endings and geometry; imported comments without an appearance get
-  Inkvolt's own. Import merges by /NM (or, without one, by type, page, place, text and author), lists what it skipped
-  and why, and lets in only an allow-list of entries, every value cleaned (no actions, JavaScript, attachments,
-  embedded files or external streams, also inside appearances), XML without DTDs, at most 64 MB and 100,000 comments.
-  Form data (`FormDataFiles`): XFDF, FDF, CSV and JSON for every field type, values checked against their fields
-  (choices, length, required, read-only) and then run through the form's scripts. Merge (`FormMerge`): a filled copy
-  per CSV row in a folder, names from a pattern with Batch's tokens and any column, optional flattening; refused rows
-  aren't saved and the report (screen and CSV) lists each problem. Summary (`CommentSummary`): landscape sheets, the
-  page as it prints at the left, the numbered list at the right, numbers on both joined by a line, continuation sheets.
-  Tests: XFDF and FDF round trips into a clean copy keep every comment (type, text, author, color to XFDF's 1/255,
-  replies, geometry, style), CSV keeps all but FreeText fonts; exported XFDF validates against the XFDF 3.0 rules
-  transcribed into an XSD; Adobe-style XFDF (rich text, replies, ink, a stamp's appearance) imports; every field type
-  round-trips in all four formats; a 200-row merge makes 200 forms whose values read back right; failed rows are
-  reported per row; DTD, entity-expansion, script, action, attachment and oversized files are refused or cleaned.
-  Still to do: the round trip through Acrobat itself (not run here: checked against the spec's rules and Adobe-style
-  samples instead); a highlighter pen's blend comes back as a plain pen through XFDF (XFDF has no field for it; FDF
-  keeps it). Mac: Export and Import Comments done 2026-11-03 (`CommentFiles`, Tools › Annotate); form data as CSV and
-  JSON, Fill Forms from CSV and `--fill` done 2026-11-03 (`FormDataFiles`, `FormMerge`, File › Form Data); Summarize
-  Comments (`CommentSummary`, Tools › Annotate) and Batch's exports and summary done 2026-11-03.
-- **Beat it when:** comments export and import as XFDF and FDF (replies, colors, authors, appearances of stamps and
-  drawings kept) and as CSV; form data exports as XFDF, FDF, CSV and JSON and imports from them, and a CSV of many rows
-  fills one copy of the form per row (a merge); Summarize Comments makes a PDF with each page beside its comments, numbered
-  and connected. Test: XFDF exported by Inkvolt imports into Acrobat and back with every comment equal; a 200-row CSV
-  makes 200 filled forms whose values read back right.
-- **Effort** S-M. Windows; Mac: done 2026-11-03. Filling real forms, both platforms: `pdf/tools/forms-corpus` and, on the Mac,
-  `mac/tools/forms-corpus` (2026-11-07; its RESULTS.md; what differs: mac/docs/PLAN.md, "Filling real forms").
+### 1.4 Comments and form data in and out
+Done, Windows and Mac. `CommentFiles` (XFDF, FDF, CSV; import merges by /NM and lets in only an allow-list, cleaned),
+`FormDataFiles` (XFDF, FDF, CSV, JSON), `FormMerge` (Fill Forms from CSV, `--fill`), `CommentSummary`. Real forms:
+`pdf/tools/forms-corpus` (Mac: `mac/tools/forms-corpus`).
+- **Not checked:** the round trip through Acrobat itself (checked against the XFDF rules and Adobe-style samples instead).
+- A highlighter pen's blend comes back as a plain pen through XFDF (XFDF has no field for it; FDF keeps it).
 
-### 1.5 Redaction check (differentiator, done 2026-10-27)
-- **The gap.** A box drawn over text leaves the text in the file; Free Law Project's X-Ray finds only that case
-  ([Free Law Project](https://free.law/projects/x-ray/)). A study of 11 redaction tools, Acrobat among them, found that
-  removed text can still be inferred from the positions of the characters around it
-  ([arXiv 2206.02285](https://arxiv.org/pdf/2206.02285)). No premium app checks a received or produced file for this.
-- **Build:** Check Redactions (Review menu, Batch): finds dark boxes, drawn rectangles and black highlight annotations
-  with text, images or vector content still under them, redaction annotations never applied, and text covered by
-  later content; flags lines whose remaining glyph spacing gives away the removed width; lists each with page and box.
-  Our own redaction (1.1) passes it by construction (pages become images). Test: a corpus of bad redactions (boxes,
-  highlights, white-on-black, unapplied marks) is flagged 100%, properly redacted files 0%.
-- **Now.** Windows: `RedactionCheck`, run after every Apply (with what was redacted) and as Review › Check Redaction…
-  and a Batch action (a file with findings fails). Covers: text under dark boxes, highlights and other comments or drawn
-  in the color behind it (white-on-black read strictly: any text whose glyphs don't show, found by drawing each
-  character), pictures and drawings under dark boxes (drawn again without the box), unapplied Redact marks, text beside
-  a box keeping its positions; each with page and box. Leftovers of the redacted text in every other place the file can
-  keep it (page text, hidden or off-page content, comments and appearances, fields and XFA, bookmarks, Info and XMP,
-  attachments, tags, scripts, unused objects, each earlier incremental version, raw bytes decompressed) and text an
-  earlier version showed that the current one doesn't; redacted areas that still show something or hold the original
-  picture. Fix redacts, sanitizes and rewrites. With 1.1's patterns it also looks for what they find outside the pages, and
-  a part it couldn't search to the end is reported, not read as clean. Tests: the corpus (8 kinds flagged, each properly redacted 0), a value
-  planted in each place, an earlier revision, ordinary files 0. 100-page file: 1.2-1.9 s after Apply (Debug build,
-  busy PC), in the background (Apply itself unchanged). Mac: done with E1 (2026-10-28) and Batch's action with E8 (2026-10-30).
-  Glyph spacing around pixel redactions (Windows, done 2026-11-19): the redaction lays out again, in the page image,
-  each line an area cuts (`RedactionLines`, through `Redaction.Redact`): its words keep their letters and order, start
-  where the line started, a space of a quarter of the line's height between them, and each box takes a width rounded to
-  steps of twice the line's height; a line redacted whole is its rounded box; a block over several lines keeps its area.
-  So neither the text after a box (where the removed words ended), a justified line's spaces nor the box's own width
-  tells the removed width beyond its step. A line that would run into the next column or off the page narrows its
-  spaces. Where the boxes went (`RedactedPages.Blacked`) is what the check after Apply, Redact by Pattern and Batch are
-  told, the words that moved (`Moved`) where a kept hit is looked for, and the page's picture lists its boxes
-  (`/PdLaidOut`). The check also finds boxes drawn into pictures (another tool's pixel redaction, a scan's marker) with
-  text beside them (`GlyphSpacing`), not those of a line Inkvolt laid out. Tests (`RedactionLinesTests`,
-  `RedactionCheckTests`): two pages differing only in a name 22 pt wider, ragged and justified, give the same line to the
-  pixel (each word within one); a picture box beside text is flagged and fixed. After review (2026-11-20): a line keeps
-  its alignment edge (its start, its end when right-aligned, its middle when centred, told from the lines near it and,
-  alone, the page's middle); a line turned sideways is laid out along its own axis (read up the page, from its far end);
-  an area reaching past a line's end, or a tall one over several lines, leaves paper there, not black with its drawn
-  edges (a tall area is rows of lines; one that leaves no line beside it is a block, as drawn); the paper comes from
-  beside the line outside every area; every line is drawn from the page as it was (overlapping bands); an earlier
-  redaction's box on the line keeps its width and moves with it, and Batch moves its earlier boxes with the words;
-  a line whose space holds a rule or a picture is left in place with its boxes rounded as far as its words allow, and
-  isn't recorded as laid out (`/PdLaidOut` records every other box Inkvolt draws, blocks too), so the check reports it.
-  Limit: a moved word keeps the anti-aliased shading of where it was, a fraction of a pixel (0.24 pt at 300 dpi): MuPDF
-  renders on the pixel grid (a region's origin is rounded to a whole pixel), so a word can't be drawn again at a
-  sub-pixel offset, and thresholding its edges only coarsens the same trace. Mac: not yet.
-- **Effort** S. Windows with 1.1; Mac with its redaction.
+### 1.5 Redaction check (differentiator)
+Done, Windows and Mac. `RedactionCheck`, after every Apply, as Review › Check Redaction… and in Batch: text under covers or
+drawn in the color behind it (found by drawing each character), pictures under dark boxes, unapplied marks, leftovers of
+the redacted text anywhere in the file (every earlier version too), and boxes drawn into pictures with text beside them
+(`GlyphSpacing`). A study of 11 tools found removed text inferred from the glyph positions around it
+([arXiv 2206.02285](https://arxiv.org/pdf/2206.02285)), so Inkvolt's own pixel redaction lays out each line it cuts again
+(`RedactionLines`, through `Redaction.Redact`): words keep their order from the line's alignment edge, a quarter-height
+space between them, each box rounded to steps of twice the line's height; `/PdLaidOut` records the boxes it laid out.
+- **Limit, by MuPDF's nature:** a moved word keeps the anti-aliased shading of where it was (under a pixel, 0.24 pt at
+  300 dpi): MuPDF renders on the pixel grid, so a word can't be drawn again at a sub-pixel offset.
+- **Mac:** `RedactionLines` and `GlyphSpacing` aren't ported.
 
-### 1.6 Store update check (done 2026-10-27)
-- **Why.** Store apps update when Windows gets to it, so people can sit on an old version for weeks.
-- **Now.** Windows: packaged installs ask the Store (`Windows.Services.Store`) ~30 s after startup and from Help › Check
-  for Updates…; a ready update shows in the title bar ("Update required" when mandatory, never blocking reading); Update
-  settles unsaved documents as closing does, then the Store installs it. Setting to turn the startup check off; only
-  Windows' Store service is asked. Decisions tested with a fake Store (`UpdateCheck`). Mac: the PDF app ships outside
-  the App Store and updates through Sparkle 2 (done with D8, 2026-10-28).
-- **Effort** S.
+### 1.6 Store update check
+Done. `UpdateCheck` (Core, decisions tested with a fake Store) through `Windows.Services.Store`. Mac: Sparkle 2.
 
 ## Wave 2
 
 ### 2.1 Paragraph text editing
-- **Leader.** Acrobat Pro: text reflows inside its box, font, size and color from a panel; but the font must be installed:
-  embedded-only fonts allow only size and color, otherwise it falls back to Minion Pro
-  ([Adobe](https://helpx.adobe.com/acrobat/using/edit-text-pdfs1.html)). PDF Expert detects paragraphs and keeps font,
-  size and opacity ([Readdle](https://support.readdle.com/pdfexpert/edit-pdfs/edit-text-in-pdf-files)).
-- **Now.** Part a (Windows, 2026-10-28): a click selects the paragraph (`ContentEditor.GroupParagraphs`: runs on one
-  baseline make a line; lines join under DocLayout's rules for Word export, same font, size within 5% and color, at
-  most 0.65 em apart at a steady line step, left edges (a first-line indent allowed), centers or right edges lined up,
-  split where a line ended short), with its alignment (left, right, centered, justified from three lines) and line
-  step. Typing rewraps it in its box, Shift+Enter a line break; the old show operators leave the text position as they
-  found it, so text placed after them stays put; the box grows downward, and when it would reach the next text or
-  picture below the editor says so live and the app asks before writing. One edit, one undo step, signed files
-  appended. Review of part a (2026-10-28): right-to-left paragraphs (rewrapped left to right they'd read backwards),
-  paragraphs with other text on their lines (a raised footnote mark, a symbol in another font: it would be left
-  behind) are edited line by line; spaces drawn by operators of their own go with the paragraph; a click between the
-  lines of a paragraph that can't be edited as one no longer opens its first line. Turned pages, flipped (browser) and
-  scaled coordinate systems, Tc/Tz, lines written bottom-up and emptied paragraphs were checked and work.
-  Part b (2026-10-28): characters the embedded subset lacks come from the installed font closest to it
-  (`StandInFonts`: its own family when installed, Helvetica as Arial, Times as Times New Roman; else 14 common Windows
-  families ranked by class (serif/sans/mono from name and flags), weight and slant, then x-height and the widths of the
-  characters both have; script fallbacks past those), embedded as a subset (`CidFontWriter`) under `/InkFbN_` names,
-  only for those characters, named under the editor; character spacing is 0 inside them and the font, size, spacing
-  and rise are set back after. Characters no font here has are still refused by name. Runs in those fonts are part of
-  the paragraph when it is read again (a second edit keeps them). Part c (2026-10-28): font (the installed families),
-  size, color, bold and italic for a stretch (`TextLook`, `TextSpan`; the editor is a rich text box with a bar above
-  it: font list, A−/A+, B, I, six colors and the paragraph's own). Another family, bold or italic is drawn in an
-  installed face (same embedding as part b); size changes Tf, color writes rg and sets back the paragraph's own fill
-  operators exactly (gray, RGB, CMYK, a named color space; a pattern refuses a color change); each stretch sits in an
-  `/InkvoltLook` marked-content sequence holding the family, bold and italic asked for, so the paragraph reads back
-  as one with its looks (`TextParagraph.Spans`); a line with bigger text moves down (step = 0.25 of the line above's
-  scale + 0.75 of its own), read back as the paragraph's own step. Text typed without looks keeps the looks of what
-  didn't change (a character diff; typed letters inside a word take the look before them). Adjacent stretches in one
-  font are one operator. Decisions: a styled space at a line's end isn't drawn, so its look goes. The look bar first
-  listed the 14 common families only; since 2026-10-30 it lists every TrueType family Windows lists for the machine
-  and the user (`StandInFonts.Installed`, from the font registry: "Arial Narrow Bold" is Arial Narrow's bold face,
-  weights by name such as "Segoe UI Light" are families of their own, a collection entry gives the font its file
-  loads as), and a look in one of them is drawn in it; a family that isn't installed, or whose file isn't TrueType
-  (CFF OpenType), falls back to the closest ranked font as before. Stand-ins for characters the font lacks still come
-  from the ranked 14. Tests: `ParagraphEditTests` (41, with
-  `ParagraphEditTests.Looks`); on the export corpus (opt-in, `INKVOLTPDF_CORPUS`) the longest paragraph of each of 8
-  files' first 3 pages took 20 more words, all re-extracted in order, no unreported overlap. A single run on one line
-  still uses the one-run editor; since 2026-10-30 it draws characters the font lacks from the same stand-in fonts
-  (`ContentEditor.Plan` returns a `RunPlan`: the changed middle split into stretches in the run's font and stretches
-  shaped in a stand-in, written by `WriteLine`; `TextCheck.Borrowed` and `StandIns` name them under the editor;
-  characters no font has are still refused by name). Part d (2026-10-30): text inside form XObjects edits as
-  paragraphs and as single runs (`ContentEditor.Forms.cs`: each run inside a form knows its form, its operator in it
-  and the Do that draws it; the edit rewrites the form's own stream, stand-in fonts go to the form's resources or the
-  page's when it borrows them; a form the page draws more than once or that other pages share is copied for the Do
-  clicked, under `/InkFmN`; a form drawn through another form edits only when nothing in its chain is shared;
-  pictures inside forms stay as they were; a paragraph half in a form is edited line by line).
-  `ParagraphEditTests.Forms` (9). Hyphenated line ends (2026-10-30): a hyphen typed into a word stays as typed
-  ("respon-sible" is one word, joined without a space and never split at the hyphen); a soft hyphen (U+00AD) ending a
-  line was added by the line break and is dropped (`ParagraphEditTests.Lines`). Kerning (2026-10-30): the TJ
-  adjustments the paragraph's own text carried between two glyphs of a word (not word gaps, at most 0.25 em) make a
-  table by pair of codes (`ContentEditor.Kerning`, `TextParagraph.Kerning`), and rewritten lines get the adjustment
-  back wherever the pair occurs, so edited lines are set as tightly as untouched ones; the one-run editor does the
-  same for its changed middle from the run's own pairs. Pairs the original never had get no kerning (the font's own
-  kern table isn't read). The pdf.js half of the test below (2026-10-30): `pdf/tools/pdfjs-check` (Node, `pdfjs-dist`
-  from npm, Apache-2.0; its README) prints what pdf.js reads from a page, and `ParagraphEditTests.PdfJs` (opt-in,
-  `INKVOLTPDF_PDFJS`, skipped without Node) edits the test's own pages (each alignment, a form XObject, stand-in
-  characters, a one-run edit) and, with `INKVOLTPDF_CORPUS`, the corpus's first three pages, adding as many of 20
-  words as fit without running into the next block, and checks pdf.js reads the whole paragraph's words in order and
-  the added ones together: all 6 sample pages and 15 corpus pages read in order (6 pages had no room under their
-  longest paragraph). Acrobat isn't on this PC, so its half isn't run. The corpus check itself now finds the
-  rewritten paragraph by its text (with kerning kept, the first rewritten lines land exactly where the old ones were,
-  which it used to mistake for other text). Mixed-face paragraphs from other software (2026-10-30): lines join when
-  their fonts are faces of one family (`FontNames.Family`: Word draws a bold word in "Calibri,Bold" beside
-  "Calibri"), the paragraph's own font is the face most of its text is in (`PlainRun`), and a run in another face of
-  the family reads back as a bold or italic span; typed again, such a stretch, or new text given bold or italic, is
-  written in the page's own face when the paragraph has one (`PartLook.Page`: encoded in that font, its widths,
-  its /Widths and ToUnicode extended as needed) and only otherwise in an installed face; the operator's own font is
-  set back after the lines. A word in another family then still blocked the paragraph (edited line by line), and a line
-  that began with another family didn't join at all (both fixed 2026-11-04, "Mixed families" below). `ParagraphEditTests.Mixed` (3). Turned text (2026-11-04):
-  runs of one direction (within half a degree; at most 16 directions a page, those with the most runs) are turned
-  upright about the page's origin (`ContentEditor.Turned.cs`: each run's reach along and across its baseline,
-  `TextRun.Reach`, gives it its own upright box there; mirrored or slanted text has none and stays line by line),
-  grouped, checked and laid out there as upright text is (`TextParagraph.Upright`), and the lines' starts turned back
-  onto the page; `Lines`, `Box` and `Below` are their bounding boxes, `TextParagraph.Angle` the direction, and a click
-  between its lines is tested in its own direction. The writing is unchanged (a line's start goes back into the run's
-  own text space). The editor is laid out in the paragraph's direction and turned about its first line's start, the
-  look bar and note beside where it is. `ParagraphEditTests.Turned` (6: 90°, -90°, 180° and 30° reflow, running into
-  the next block, a sideways column beside an upright one); pdf.js reads the 90° and 30° samples in order; dev script
-  (a sideways column, 20 words added): the editor turned over the column, 4 lines to 5, the next block where it was.
-  Mixed families (2026-11-04): a line is the paragraph's when most of its text is (`PLine.Lead` is the line's
-  `PlainRun`), so a line that begins with a word in another family joins; text in another family of the same size
-  and color is part of the paragraph (only another size or color on its lines still edits it line by line), read
-  back as a span of that family (`TextLook.Font`), and written again, typed letters too, in the page's own font for it
-  (`PartLook.Page`, as for a bold face of the family; its widths and ToUnicode extended as needed), never an installed
-  one when the page has it. `ParagraphEditTests.Mixed` (4 in place of the two that expected a block: a Times word mid-line, typed into, a line
-  that begins with it, another size still line by line); pdf.js and the corpus paragraphs read as before; dev script
-  (Helvetica with two Times words, one starting a line): one paragraph of 4 lines, 9 words added, both words still in
-  Times. The standard Symbol font not embedded (2026-11-04): read through Symbol's own encoding (`GlyphNames.InSymbol`,
-  so "a" in it is α) and measured with Windows' Symbol (`SystemFonts.Program("symbol.ttf")`, whose widths are Adobe's;
-  the euro at 160, which it lacks, is 750), a word in it is part of the paragraph, typed letters too
-  (`ParagraphEditTests.AWordInTheStandardSymbolFontNotEmbedded…`). The standard ZapfDingbats not embedded (2026-11-06):
-  Windows has no twin of it (Segoe UI Symbol's dingbats are other shapes), so it stays in ZapfDingbats, read through its
-  built-in encoding and measured with Adobe's own data (`ZapfDingbats`: the Core 14 `ZapfDingbats.afm` and Adobe's Zapf
-  Dingbats glyph list, unmodified in `Core/Fonts` with the AFM licence, which `THIRD-PARTY-NOTICES.md` repeats); a word in
-  it is part of the paragraph, a typed ✔ too (`ParagraphEditTests.AWordInStandardZapfDingbatsNotEmbedded…`). PDF/A's
-  Segoe UI Symbol embedding reads its characters from the same table (`PdfA.DingbatUnicode`). MuPDF reads such a font by
-  its own glyphs, not as the characters (before and after an edit alike).
-  Mixed sizes and colors (2026-11-20): a run of the paragraph's own face in another size or color is part of it, read
-  back as a span of that size and color (`SpansOf`), a smaller run set below or above its line's baseline as a subscript
-  or superscript at its own size and rise; the paragraph's own look is the size and color most of its text has
-  (`PlainRun` picks that run of its font; `TextParagraph.FontSize` is its size, not a bigger first word's), new text is
-  written at a run of that look (`Anchor`), and a color the page has is set again with the page's own fill operators
-  (`PartLook.Fill`: CMYK stays CMYK), not as RGB. Lines join at the paragraph's own step or at the step as drawn (a
-  generator that keeps its leading around a bigger word), and the step is read between lines of its own size. Bigger
-  text set off its line (not a script), or a color that is a pattern's, still edits line by line. `ParagraphEditTests.Mixed`
-  (+5). Kerning from the font's own table (2026-11-20): new pairs in text the page kerned (any TJ pair adjustment in
-  the paragraph, or in the one run) get the font's own (`FontKerning`, `PairKerning`: GPOS 'kern' pair adjustments,
-  formats 1 and 2 and through extension lookups, of one language system as a shaper picks for Latin (latn, DFLT, then the
-  other scripts, the first with a kern feature), else the kern table's format 0; bounded, a hostile table gives none),
-  from the embedded TrueType program when it kept its tables, else from the installed face of the font's own family
-  (`StandInFonts.Twin`: Helvetica as Arial) when its widths are the page font's within 1.5%; the pairs the text carried
-  win, a word space gets none, text set without kerning stays without. CFF and Type 1 programs have no kerning of
-  their own and no AFM ships for them, so they are kerned only through an installed twin. `FontKerningTests` (11).
-  Pictures in the flow and cropping (2026-11-20): a picture the page draws upright on a paragraph's line, between or
-  beside its words, with no text over it and no taller than 2.5 times the type (`InlinePictures`), is part of the
-  paragraph (`TextParagraph.Pictures`): U+FFFC stands for it in the text, the layout gives it room as wide as it is
-  (an operator of its own, so the words around it read back as two runs) and its reach above and below the line, and
-  the same edit moves it there (`PictureEdits`); its mark taken out takes it off, a mark typed in is refused. Crop
-  (`ContentEditor.CropImage`, `ContentEditor.Crop.cs`; Crop Picture or C in Edit Text & Images, the handles cut the
-  edges, Esc ends): the part kept, out to whole pixels, is drawn by MuPDF from a copy of the page that shows only it
-  (any filter, color space, decode array; its soft or stencil mask drawn apart as its alpha) and stored as a new picture
-  (Flate RGB, an /SMask when it had a mask) where that part was; the old picture leaves the page and, unused, the file,
-  so the pixels cut off are gone (a signed file's earlier revision keeps them, as for any removal). A clip another
-  program cropped with (`PageImage.Uncropped`) when the clip is the picture's own (inside its q … Q; one outside clips
-  what follows too, and stays). The picture's /OC, /Intent and /Alt go with it (not /Alternates: those are the whole
-  picture). Stencils, pictures masked by a color, transparency inside JPEG 2000 data (/SMaskInData) or blended with a
-  matte color (/Matte), turned pictures (past a quarter turn), a picture over 200 million pixels (MuPDF decodes all of
-  it) and a kept part over 50 million are refused; colors are drawn as RGB. A new picture is placed through the inverse
-  of the text's own CTM (a generator's scale or flip), its mark known by its place (`NewPicture.Mark`) before a moved
-  picture's could take it; the editor stays open while Insert Picture's file dialog has the focus. New
-  pictures in the flow (2026-11-20): Picture… on the paragraph editor's bar puts a mark at the caret for an image file
-  (`NewPicture`; `ReplaceParagraph`'s and `Check`'s `added`): marks that are none of the paragraph's pictures take the
-  new ones in order (one past them is refused), each as tall as the paragraph's ascent and as wide as its proportions,
-  no wider than half the paragraph, its foot on the baseline (`NewPictureSizes`); stored as Add Image stores a file and
-  drawn just before the paragraph's text object, in the same edit; read again it is one of the paragraph's pictures
-  (`JoinAcrossPictures`: a line a wide picture splits is one line; `WidenRight`, and a lone word with a picture glued
-  to it measured whole, so the paragraph stays one). Not for turned text or text inside a reused drawing
-  (`Edit_PictureCantGoHere`). Dev script `parapicture`: a picture put at the end of a paragraph, read back as one
-  paragraph of 3 lines. A mark
-  cut and pasted elsewhere moves its picture; a picture an edit wraps to a line's start keeps the paragraph one
-  (`WidenForPicture`, when the line above starts there too). Dev script (`cropimage`, `editpara`; Helvetica with a
-  bigger red word and a picture between two words): the picture cropped to its middle; the paragraph edited so the
-  picture wrapped to the second line's start, read back as one paragraph of 2 lines.
-  `ParagraphEditTests.Pictures` (11). pdf.js reads the 8 sample pages and 15 corpus pages in order as before; the
-  corpus check passes.
-- **Beat it when:** a click selects the paragraph (lines joined by `DocLayout`, as Export to Word does); typing reflows it
-  inside its box with the paragraph's alignment and line spacing, and the box grows downward or warns before it
-  overlaps what follows; characters the embedded subset lacks come from the installed font closest in metrics and
-  class (named in the panel, never silently), and the rest of the paragraph stays in its own font; font, size, color,
-  bold and italic change for a selection; text inside form XObjects edits too. Test: on the export corpus, 20 words
-  added to a paragraph re-extract in order, nothing overlaps the next block, and the page opens in Acrobat and pdf.js
-  with the same text; a file whose fonts aren't installed is still editable (where Acrobat isn't).
-- **Mac** (2026-11-10, on `ignia-mac`): all of the above (the hidden-layer and Translate parts of the walk came with 3.1 the same day), ported from
-  `ContentEditor` with Windows' tests under their names (`ParagraphEditTests` with its Looks, Lines, Mixed, Forms, Turned
-  and PdfJs parts, and `ContentEditorTests`' stand-in, form and pdfTeX cases); in the app, Edit Text & Images opens a
-  paragraph editor (a popover with a rich text view, the look bar and the live note) over a paragraph rewritten as one.
-  Mac differences: stand-in characters and looks in installed fonts are Type 3 fonts drawn from Core Text's outlines
-  (`Type3FontWriter`, as the Mac's annotations already are), named by family and style, with a descriptor; the stand-in
-  families are the Mac's (Helvetica Neue, Gill Sans, Palatino, Baskerville, Hoefler Text, Menlo, Andale Mono in place of
-  Windows-only ones) and a look can name any family Core Text lists; ZapfDingbats not embedded is measured with macOS's
-  own font (its encoding from Unicode's mapping) instead of Adobe's AFM, Symbol with macOS's Symbol. pdf.js reads the 8
-  sample pages (with a Mac case for looks) and 15 export-corpus pages in order; the corpus check passes; the app's
-  `--only-paragraph-edit` self-test passes in English and Spanish. See `mac/docs/PLAN.md`, "Paragraph editing".
-- **Effort** L. Windows done; the Mac done (2026-11-10) but for the Windows additions of 2026-11-20 (mixed sizes and colors, the font's own kerning, pictures in the flow, crop), still to port.
+Done, Windows. `ContentEditor`: a click selects a paragraph (part a: `GroupParagraphs`, Word export's rules) and typing
+rewraps it in its box; characters the subset lacks come from the closest installed font (part b: `StandInFonts`,
+`CidFontWriter`, `/InkFbN_` names, always named under the editor); font, size, color, bold and italic per stretch
+(part c: `TextLook`, each stretch in an `/InkvoltLook` marked-content sequence so it reads back); text inside form XObjects
+(part d: `ContentEditor.Forms.cs`; a shared form is copied for the Do clicked). Also turned text, mixed faces, families,
+sizes and colors, kerning (the TJ pairs the text carried, else the font's own GPOS/kern table, `FontKerning`), pictures
+in the flow (`InlinePictures`, `PictureEdits`, Picture… on the bar) and Crop (`ContentEditor.Crop.cs`: the pixels cut off
+leave the file). Tests: `ParagraphEditTests` and its parts, `FontKerningTests`; pdf.js reads edited pages in order
+(`pdf/tools/pdfjs-check`).
+- Standard Symbol and ZapfDingbats not embedded are measured, not replaced: Symbol with Windows' Symbol (Adobe's widths);
+  ZapfDingbats with Adobe's own AFM in `Core/Fonts` (Windows has no twin: Segoe UI Symbol's dingbats are other shapes).
+- CFF and Type 1 programs have no kerning of their own and no AFM ships for them, so they kern only through an
+  installed twin whose widths match within 1.5%.
+- **Not checked:** the Acrobat half of the test (an edited page reads the same in Acrobat; Acrobat isn't on this PC).
+- **Mac:** done but for the Windows additions of 2026-11-20 (mixed sizes and colors, the font's own kerning, pictures
+  in the flow, Crop). Differences (Type 3 stand-ins from Core Text): `mac/docs/PLAN.md`, "Paragraph editing".
 
 ### 2.2 Better OCR
-- **Leader.** ABBYY FineReader PDF: about 190 OCR languages ([Wikipedia](https://en.wikipedia.org/wiki/ABBYY_FineReader)),
-  preprocessing (deskew, noise, straightened lines, trapezoid correction)
-  ([ABBYY](https://help.abbyy.com/en-us/finereader/12/adjustimage)). Acrobat: suspect words shown beside the image and
-  corrected in place ([Section 508](https://www.section508.gov/training/pdfs/aed-cop-pdf04/)).
-- **Now.** Stage A on Windows (2026-10-30, branch `t3/pdf-ocr-deskew-suspect-words`). Recognize Text cleans each page before Windows'
-  recognizer reads it (shared `Imaging/ScanCleanup`, beside Inkvolt Print's `Deskew` and `PageRotate`): straightened up to
-  ±15°, sideways and upside-down pages turned upright, a 3 × 3 median, the paper evened out to white, lone specks
-  removed; the cleaned page can replace the scan (off by default; one undo step with the text). The language is chosen
-  among the installed OCR languages. **Suspect words** are listed beside their picture in a pane and corrected in place
-  (or kept as read); the text layer is written again, so search finds the correction. Windows' `OcrWord` has only its
-  text and box, no confidence, so suspect words are a documented heuristic, never a score: not in Windows' spell checker
-  for the language, letters and digits mixed inside, odd characters, or read as a different real word on the scan as it
-  was (`SuspectWords`). The engine is behind `ITextRecognizer` (Windows' today), so a second one is another
-  implementation. Measured on a generated corpus (`pdf/tools/ocr-corpus`, six files, English and Spanish, skewed 3-10°,
-  noisy, shaded, two pages turned): the word error rate is lower than today's on every file, 1.8% → 1.3%, 16.9% → 12.9%,
-  5.4% → 3.8%, Spanish 44.9% (12.8% with Spanish chosen) → 8.0% and 41.3% (5.1%) → 4.3%, turned pages 99.9% → 3.7%
-  (its RESULTS.md). Lines the recognizer skips (2026-11-03): Windows' recognizer now and then leaves out a whole line
-  that is plainly on the page; `ScanText` finds the cleaned page's ink no word covers, in line-sized bands that look like
-  type (not specks, rules, blocks or pictures, nor beside a word read on the same row), reads each again alone (at most
-  12 places and 60 readings a page; what a place leaves unread is read word by word), and puts the words in reading
-  order. Recognize Text, Redact by Pattern and Compare's scans read through it. The corpus's scans have no skipped line (numbers
-  unchanged, 10-25 ms a page to look); on the page it skips two lines of (`skipped-lines`), 39.1% → 21.7%. **"1111"**
-  (2026-11-04): what made it skip them is four 1s in a row, which Windows' recognizer never reads (alone or in a line, any
-  size, margin or font tried: Helvetica, Times, Courier 9-18 pt) and for which it leaves out the whole line; one 1 alone it
-  never reads either, and two not always, three always. So a run of four strokes or more alike and evenly apart, left
-  unread, is read three strokes at a time and kept when each reading is three digits (`MissedLines.ReadOnes`):
-  `skipped-lines` 21.7% → 8.7% (what is left: two commas). **A word left out inside a line that was read**
-  (2026-11-04): unread ink on a read line's row, a word's gap clear of the words beside it (not the rest of a word read
-  short), as tall as a digit, is read alone and kept only as plain words or numbers (`MissedLines.FindInLines`; at most
-  16 places and, with the rest, 60 readings a page). The six scans are unchanged (the words they lack inside lines are two
-  words read as one, "journeyxletter", not words left out); on `probe --count 18` (36 pages, 14,108 words) 752 → 747
-  edits, 7 words found, no page worse. **Suspect words for Batch, Scan and export** (2026-11-04): Batch's Recognize Text
-  action (window, watched folders, `--batch`), File › Scan and Insert from Scanner, and the exports' OCR mark suspect
-  words as Recognize Text does when its "Mark suspect words to check" is on (it reads each page a second time as
-  scanned); Batch and Scan keep them in the text layer with its language, so the Suspect words button shows when such a
-  file is opened (`TextLayer.HasSuspectWords`) and they are reviewed there; Batch's notes and Scan's message count them;
-  an export, which has no text layer to review, counts them in its message. All of them read as Recognize Text is set,
-  cleaned or as scanned too (`AppSettings.OcrClean`; `PageOcr.AsSet`, export through `PageRecognizer.Page`, 2026-11-04).
-  A page whose lines don't say which way up it is
-  (2026-11-03) is read both ways and turned over only when that reading has clearly more real words (two, or a quarter
-  more); digits count neither way, so a page of numbers (`digit-lines`, the redaction corpus's third page, read "OO 6830
-  9999 9999 9999" turned over before) stays as it is. **Built (Windows, 2026-11-19): the second engine and mixed
-  languages per page.** Decided with the owner 2026-11-18: Tesseract (Apache-2.0) is an optional download, never
-  bundled. Recognize Text lists Windows' installed OCR languages, then the 111 of Tesseract's (tessdata_fast) that none
-  of them reads, each marked "Tesseract, N MB to download" until it is here (`OcrLanguages.Offer`); choosing one asks
-  first ("Download (29.03 MB)": engine and language), then downloads into the app's data folder
-  (`%LOCALAPPDATA%\InkvoltPdf\tesseract`; in the Store package, its LocalCache folder, a real path: run from
-  %LOCALAPPDATA% as the package sees it, redirected into the package, tesseract.exe started but never loaded its DLLs
-  and hung) with a progress window and Cancel
-  (`TesseractStore`, `PinnedDownload`: pinned https address, size and SHA-256 checked before anything is kept, `.part`
-  then moved into place). **Source of tesseract.exe:** the Tesseract project's own GitHub release
-  (`tesseract-ocr/tesseract` 5.5.3, `tesseract-ocr-w64-setup-5.5.3.20260724.exe`, uploaded by its maintainer Stefan
-  Weil with GitHub's SHA-256 digest, built and Authenticode-signed by UB Mannheim, whose builds the project's
-  documentation points Windows users to). Chosen over UB Mannheim's own server (the same build, not on the project's
-  release page, no published digest), conda-forge and MSYS2 (dozens of separate packages to pin, zstd or bzip2
-  archives) and NuGet bindings (a native binding, a new package). It is x64; ARM64 PCs run it emulated (checked on
-  this PC). It is an NSIS installer that asks for elevation, so it is **never run**: Inkvolt decodes its solid LZMA
-  stream itself (`Lzma`, after the format's public-domain reference decoder) and keeps only tesseract.exe, the 33 DLLs
-  its import tables load and the licence, each at its pinned place, size and SHA-256 (`TesseractStore.Extract`; 47 MB on
-  disk), then deletes the installer. Each language is one tessdata_fast file at a pinned commit (`TesseractCatalog`,
-  written by `pdf/tools/tesseract-pin/pin.py`, which reads the installer's NSIS header and the DLLs' imports). Every
-  file is hashed again before its first use in a run, and one that differs is deleted. tesseract.exe runs as a separate
-  program per image (`TesseractRecognizer`, `BoundedProcess`): the page on stdin as a PGM at 300 dpi, `-l hin+eng`, TSV
-  on stdout, no window; two minutes a page plus one per extra language, 32 MB of output at most, killed with what it
-  started on Cancel or either limit, and in a job that holds it to 3 GB and ends it when Inkvolt ends; the TSV parsed as hostile (`TesseractTsv`: twelve fields or the row is left out,
-  boxes clipped to the image, words bounded in length and count, control characters dropped) and a failure said in
-  plain words. Tesseract's words carry its confidence, so a word under 60 is a suspect word (`SuspectReasons.Unsure`,
-  "the recognizer wasn't sure of it") beside the heuristics, and the Suspect words pane reviews Tesseract's layer as
-  Windows'. Tesseract doesn't skip lines as Windows' recognizer does, so `MissedLines` doesn't read its pages again
-  (`IRereadsMissed`). **Mixed languages:** a Second language in Recognize Text. Two of Windows' languages: both
-  recognizers read the page and each line is kept from the reading that looks more like real words (its language's
-  spell checker, else the engine's confidence; ties to the first language; a line only one read is kept in its place:
-  `MixedRecognizer`), suspect words checked against either dictionary (`EitherSpelling`). With a Tesseract language,
-  Tesseract reads both in one run (words of either inside a line), downloading the other language's data too
-  (`OcrLanguages.Plan`). The choice is saved only once what it needs is installed (`PageOcr.Choose`); Batch (window,
-  watched folders, `--batch`), Scan, the exports, Compare, Redact by Pattern (its search, reviewed run and read-back)
-  and Apply Redactions' text read with it (`PageOcr.ChosenAsync`: built and checked off the UI thread, kept until the
-  choice changes), never downloading and never in another language: when it can't read (files gone), they say which
-  language needs its download (a Batch plan stops with that; Scan & OCR at once, Redact by Pattern offer the download).
-  A page in two languages keeps both tags in its text layer ("en-US+es-MX"), so the Suspect words pane suggests from
-  both dictionaries; the Mac reads such a layer but keeps only one tag when it writes it again (a port to do).
-  Review fixes (2026-11-19): installs one at a time (a lock per store and a lock file across app copies, temporary
-  names per run); a line's garbage ("rn,1l") counts a tenth a letter, under a name no dictionary knows; a Tesseract
-  first language re-reads no gaps with the other's recognizer; a reading with confidences isn't read again as scanned
-  (half Tesseract's time); a broken pipe to tesseract.exe is said as Tesseract's failure. Checked in the app (`--script`, a throwaway data
-  folder): the download from GitHub, the extraction and checks (19 s), a Russian scan read by Tesseract (search finds
-  "Москва"), an English and Spanish page read by Windows' two recognizers line by line (search finds "murciélago",
-  "cigüeña"); the Store build (`pack-msix.ps1 -Architectures arm64 -SmokeSideBySide`, its smoke test passed, then
-  the registered side-by-side layout driven the same way) downloads into its LocalCache and reads the Russian scan. Tests: `TesseractTests` (TSV,
-  LZMA, the extraction, the pins, the download against a fake server, languages and plans, mixed lines, the pipeline,
-  the program's limits; the real engine opt-in with INKVOLTPDF_TESSERACT=folder or `download`).
-  **Built (Windows, 2026-11-19): trapezoid correction, straightened lines and "make the text editable"** (the Mac half
-  waits). Two more cleaning options in Recognize Text, on by default, each acting only on a page that clearly needs it,
-  read by Batch, Scan and the exports too (`PageOcr.OptionsAsSet`), and written back with the cleaned page when the scans
-  are replaced. **Trapezoid** (shared `Imaging/PageWarp.cs`, `Trapezoid`): on a copy at most 800 px across, the page is
-  the light region the darker desk around it doesn't reach (Otsu's threshold, the two sides 50 levels apart or more), its
-  outline's convex hull cut to four corners, each side fitted as a line to the outline along its middle 80% (within 1.5 px,
-  followed over 17 of 20 stretches), the corners where they meet; only when the page is whole in the photo (no outline
-  pixel on its edge), the corners 50° to 130°, the page fills its four sides (95-104%), and it doesn't lie square (a
-  corner over 1.5° off, or opposite sides 1.5% apart: a square page is `Deskew`'s). A homography (`Homography`) maps it to
-  a rectangle of the proportions the photo shows (the mean of opposite sides), as large as fits, white around it.
-  **Straightened lines** (`CurvedLines`, `LineCurve`): at about 100 dpi the text is cut into strips a third of an inch
-  apart; each strip's ink per row is matched to its neighbour's by a shift and a stretch (searched within 45% of the line
-  step, so a line never matches the next; correlation 0.5 or more), chained out from the inkiest middle strip and smoothed
-  by polynomials (degree 4 at most) for the shift and the stretch along the lines, so lines can bow, sag towards the spine
-  and fan out; used when the curves stay within a third of a line step of the matches, the matched strips span 60% of the
-  text, and the lines are bent by 15% of a line step or more once one tilt of the page is taken out. A page tilted by up
-  to 3° is first looked at as it is (smoothed and whitened, so a desk, a shadow or grey paper isn't ink; not looked at
-  again when nothing is found): a bend found there is flattened without turning the page, so its margins stay upright,
-  and past the strips measured the map goes on with the page's tilt there, so the lines' ends lose their tilt too. A
-  page in columns (a gap of a quarter of an inch with no ink all the way down) is measured on its inkiest column only, as
-  two columns' lines needn't be level with each other (matched across the gutter, a flat two-column page looked bent);
-  the other columns follow its map. Lines running down a sideways page are flattened along their own way. Limits, by
-  their nature: letters squeezed near a spine aren't widened (how much the page turns away from the camera there follows
-  from the lines' bend only together with the camera's distance, which a photo doesn't give); a page photographed with
-  no desk visible around it gets no trapezoid correction, as there are no page edges to find (its text lines' fan is
-  straightened in part by the lines' stretch); two facing pages in one photo aren't split. Words read on a warped page map back onto it through the warps
-  (`ScanFrame`: each word takes the length, height and slant its box has on the photo; angles are compared round the
-  circle, `Angles`, so an upside-down page's words at 179.9° and −179.9° stay one line). Measured with Windows' recognizer
-  (`pdf/tools/ocr-corpus` `photos`, its RESULTS-photos.md, synthetic photos with known maps): at an angle 1.6% → 0.8% and
-  0.0% → 0.0%; a book's page 100% → 1.7% and 99.5% → 1.6% (the bend made stage A turn the page over). Bounded: images over
-  80 million pixels or under 64 a side aren't warped, the measuring copies are small, everything cancels.
-  **Make Text Editable** (Review and Scan & OCR's menu; free, as all of 2.2): a page's recognized text (its Inkvolt text
-  layer) becomes real visible text (`EditableText`). Words are put in lines by angle and height (a gap over 2.5 line
-  heights is a column's), lines in paragraphs as 2.1 joins them (same weight, size within 15%, a step of 0.9-2.5 sizes and
-  steady, left edges or a first-line indent lined up), and a paragraph's lines are given one size, an even step and one
-  left edge so the paragraph editor reads them as one. The font is matched (`FontMatch`, `ScanLook`): words of the scan
-  (150 dpi) and the same words drawn in a face (all of them on one picture, each word once a run) are brought to one
-  height, the drawing scaled to the scan word's width, and correlated, less for another stroke weight. The scan's class
-  (serif, sans serif, monospaced) comes from the common family of each; then every installed family of that class (from
-  Windows' font list, the common ones first, at most 24, files over 4 MB left out), those whose glyphs' proportions fit
-  the words' boxes, the eight closest compared by look on 40 words, judged on the 60% of the words that look most like
-  each (a page's italic or bold words look like no regular face), a common family preferred unless another looks
-  clearly better; the best four are kept for the document's next pages. Each paragraph then takes the face of the family
-  (regular, bold, italic, bold italic) that looks most like it, and a heading (a line on its own, a sixth bigger or more)
-  that of any short-listed or common family; each paragraph is drawn in its ink's colour (its darkest tenth: grey print
-  black, a clear colour kept). Each line's size is the median of its words'
-  (by width, unless a word's height disagrees), its baseline where its words' ink puts it, each word starts where the scan
-  has it (a space between words, narrowed when the words are close). The scan is covered behind each line in the paper's
-  own colour (the lightest 15% of what is under it), or kept showing on request; the invisible layer goes. One undo step
-(the edit transaction). Corpus pages typeset in Times and Helvetica come out in Times New Roman and Arial, the
-  Helvetica-Bold heading in Arial Bold, each word within 1.5 pt of its place, a Times-Italic paragraph in Times New Roman
-  Italic and a dark blue one in blue; their paragraphs edit as paragraphs. Speed (Release build, an ARM64 laptop with other
-  work running): 0.58 s a page, a first page 0.6 s with the candidate fonts loading. Tests: `PageWarpTests` (19),
-  `EditableTextTests` (11). Checked in the app
-  (`--script`, a throwaway data folder): a book's page and a photo at an angle recognized with the scans replaced (pages
-  straight, margins upright), made editable (9-10 paragraphs a page, lines of a paragraph joined), a paragraph edited,
-  both undone. Still to do: Tesseract on the Mac (Vision reads its languages; a second engine there waits); the Mac half
-  of part B. Mac: stage A done with E14 (2026-11-02,
-  `mac/docs/PLAN.md`), with Apple's Vision as its recognizer; the page-of-numbers rule (`clearlyMore`) ported 2026-11-04;
-  Vision skips no line on the corpus (`VisionProbeTests`), so the re-reading of missed lines isn't needed there. Suspect
-  words for Batch, Scan and export on the Mac too (2026-11-04, E14a): Batch (window, watched folders, `--batch`) and
-  export read with Recognize Text's choices (`PageOcr.recognizer(_:options:spelling:)`), Batch keeps the marks and the
-  language in the text layer and notes the count, exports count them, Scan already ran Recognize Text's pipeline, and a
-  file opened with suspect words lists them (`TextLayer.hasSuspectWords`, the `/PdOcr` check first). "1111" with Vision
-  (`VisionProbeTests.visionOnFourOnesInARow`): read in every line with words, every font and size, as scanned and
-  cleaned; only lines of nothing but 1s and card digits on cleaned Times at 9 and 12 pt are left out (or "1111" read
-  "M11"). That isn't Windows' problem (it reads no line that holds four 1s), so `MissedLines.ReadOnes` isn't ported.
-- **Beat it when:** pages are deskewed (±15°), turned upright, despeckled and their background cleaned before recognition,
-  optionally written back as the cleaned image; a second, local engine (Tesseract, Apache-2.0, 100+ languages;
-  [tessdata](https://github.com/tesseract-ocr/tessdata)) is an optional download for languages Windows lacks, with
-  mixed languages per page; low-confidence words are listed beside their image and corrected in place, the text layer
-  updated; "make the text editable" turns a page's recognized text into real text in a matching font (for 2.1).
-  Test: on a scan corpus (skewed 3-10°, noisy, two languages) the word error rate is lower than today's on every file,
-  and a corrected word is found by search.
-- **Effort** L. Windows; Mac: stage A done with E14 (2026-11-02; Vision does the languages).
+Done, Windows. Results: `pdf/tools/ocr-corpus` (RESULTS.md, RESULTS-photos.md).
+- **Stage A:** `ScanCleanup` (shared) straightens, turns upright, smooths and whitens before Windows' recognizer reads;
+  the cleaned page can replace the scan. **Suspect words** (`SuspectWords`) are a heuristic, never a score, because
+  Windows' `OcrWord` has only text and a box; Tesseract's words have a confidence, so under 60 is suspect too.
+- **Lines Windows' recognizer skips** (`MissedLines`): it now and then leaves out a whole line; ink no word covers is read
+  again alone. The cause found: four 1s in a row ("1111"), which it never reads and for which it drops the line, so such
+  runs are read three strokes at a time (`ReadOnes`). A page whose lines don't say which way up it is turns over only
+  when that reads clearly more real words (digits count neither way).
+- **Tesseract** (the owner: an optional download, never bundled): `TesseractStore`, `TesseractCatalog`, `TesseractRecognizer`.
+  Source: the Tesseract project's own GitHub release (UB Mannheim's signed build, GitHub's SHA-256), chosen over UB
+  Mannheim's server (no published digest), conda-forge and MSYS2 (dozens of packages to pin) and NuGet bindings (a new
+  package). The NSIS installer asks for elevation, so it is **never run**: Inkvolt decodes its LZMA stream itself (`Lzma`)
+  and keeps only the pinned files (`pdf/tools/tesseract-pin`). In the Store package it lives in LocalCache: run from the
+  redirected `%LOCALAPPDATA%`, tesseract.exe started but never loaded its DLLs and hung. Each page runs in a separate
+  bounded process (`BoundedProcess`: time, output and a 3 GB job), its TSV parsed as hostile (`TesseractTsv`).
+- **Mixed languages:** two of Windows' languages read the page each and keep each line from the reading that looks more
+  like real words (`MixedRecognizer`); with a Tesseract language, Tesseract reads both in one run. The choice is saved
+  only once installed (`PageOcr.Choose`) and everything else reads with it, never downloading.
+- **Photographed pages** (`Imaging/PageWarp.cs`, shared): trapezoid correction and straightened lines, each only on a page
+  that clearly needs it. Limits by nature: letters squeezed near a spine aren't widened (that needs the camera's
+  distance, which a photo doesn't give); a page with no desk around it has no edges for the trapezoid; two facing pages
+  aren't split.
+- **Make Text Editable** (`EditableText`, `FontMatch`): recognized text becomes real text in the closest installed face,
+  paragraphs laid out so the paragraph editor reads them as one.
+- **Mac:** stage A done with Apple's Vision. Vision skips no line on the corpus (`VisionProbeTests`), so `MissedLines` and
+  `ReadOnes` aren't needed there. Not ported: Tesseract, photographed pages, Make Text Editable, and writing both
+  languages' tags back into a text layer ("en-US+es-MX": the Mac keeps one).
 
 ### 2.3 USB scanners (WIA, TWAIN)
-- **Leader.** Acrobat: scans through TWAIN or WIA (Windows) and Image Capture (Mac), presets, deskew, background removal,
-  descreen ([Adobe](https://helpx.adobe.com/acrobat/using/scan-documents-pdf.html)). PDF-XChange keeps knowledge-base
-  articles on scanners its 64-bit build can't find ([PDF-XChange](https://www.pdf-xchange.com/knowledgebase/all/search?q=tag:WIA)).
-- **Now.** Windows (2026-10-30, branch `pdf-usb-scanners`). File › Scan and Insert from Scanner list scanners with a
-  Windows (WIA) driver beside the eSCL network ones, labelled "(USB · Windows driver)", through the WIA layer Inkvolt Print
-  already scans with (`shared/…/Wia`: `WiaScanner` over `WindowsWia`, `wiaaut.dll` late bound, no package): glass, feeder,
-  both sides where the driver offers duplex, color, grey or black and white (the driver's threshold type), the offered
-  resolutions, Letter, A4, Legal or the whole area; a feeder stack scans until the driver says the feeder is empty, into
-  one PDF with the OCR text layer as eSCL scans get. Windows' own eSCL driver for a network scanner already listed is left
-  out. 64-bit TWAIN sources are listed too when the TWAIN 2 manager (TWAINDSM.dll) is installed, through the same device
-  interface (`WindowsTwain`: native transfer, the source's own window never shown); without it, a line under the list says
-  so. Leave out blank pages (on by default; Inkvolt Print's `BlankPage`), and presets: Save as preset… keeps source,
-  color, resolution, page size, OCR and blank choices, matched to whichever scanner is chosen (`PresetPlan`). Tests with a
-  fake WIA device (`UsbScannerTests`: a feeder of 10, duplex with blank backs, a flatbed; the plan, the PDF, blank pages,
-  presets, error words, the TWAIN model). **Hardware:** this PC's one WIA scanner is Windows' eSCL driver for an HP Color
-  LaserJet MFP M277 that is no longer on the network: listed, and connecting said "The scanner isn't answering…"; no page
-  has been scanned through a real WIA or TWAIN driver (no USB scanner, no TWAIN manager here), so the acceptance test (a WIA
-  flatbed and a WIA feeder scanner, 10 pages each) is still to run. Scans are straightened and cleaned (2.2) before OCR
-  reads them; the scan itself is kept as scanned (only Recognize Text writes the cleaned page back). Mac: File › Scan uses
-  ImageCaptureCore with the feeder, both sides and OCR, leaves out blank pages (2026-11-06, PrintCore's `ScanRun`), saves
-  scan presets (`ScanPresets.fromChoices`, `PresetPlan`) and lists the scanners Inkvolt Print remembers first (its hand-off,
-  `ScannerList`).
-- **Beat it when:** WIA 2 scanners (and 64-bit TWAIN sources) are listed beside eSCL ones in the same dialog with feeder,
-  duplex, color and dpi; blank pages are dropped on request; every scan goes through 2.2's cleanup and OCR; scan presets
-  are saved. Test: a WIA flatbed and a WIA feeder scanner each scan a 10-page stack into one PDF, OCR included.
-- **Effort** M. Windows; Mac: done 2026-11-06 (scanning through ImageCaptureCore, blank pages, presets, Inkvolt Print's scanners).
+Done, Windows and Mac. Windows: File › Scan lists WIA scanners (`WiaScanner` over `WindowsWia`, the shared library) and
+64-bit TWAIN sources (`WindowsTwain`, when TWAINDSM.dll is installed) beside eSCL ones, with feeder, duplex, blank pages
+and presets (`PresetPlan`); tests with a fake device (`UsbScannerTests`). Mac: ImageCaptureCore.
+- **Not checked (needs hardware):** the acceptance test, a WIA flatbed and a WIA feeder scanner each scanning a 10-page
+  stack into one PDF with OCR. No page has gone through a real WIA or TWAIN driver yet.
 
 ### 2.4 Tags, reading order, alt text, PDF/UA
-- **Leader.** Acrobat Pro: Autotag in Adobe's cloud (headings, borderless tables, nested lists, multi-column reading
-  order), a reading order tool and tag editor ([Adobe](https://helpx.adobe.com/acrobat/using/cloud-auto-tagging-accessibility-pdfs.html));
-  reviewers note that sending the file to a server is itself a risk ([Apryse](https://apryse.com/blog/auto-tagging-pdf-ua-compliance)).
-- **Now.** Windows (2026-10-30, branch `pdf-accessible`). **Make Accessible** (Review menu, command palette, Batch;
-  `AutoTag`): `DocLayout` reads the pages as for Export to Word into a tag plan (headings, paragraphs, lists, tables
-  with a bold first row as column headers, pictures and vector charts, running headers and footers; a sideways margin
-  stamp is never a heading, a bold numbered "3.1 …" line is a heading at its depth), then each piece of page content
-  goes in BDC/EMC with an MCID (never across BT/ET, q/Q or other marked content) or becomes an artifact (running
-  headers, footers and page numbers as Pagination artifacts, rules and backgrounds), and the structure tree follows
-  the plan: Document › H1-H6 (evened out: the first H1, none skipped), P, L › LI › LBody, Table › TR › TH (Scope
-  Column) / TD (ColSpan), Figure (Alt, Layout BBox), Link (text and OBJR, Contents from its text), Form and Annot for
-  fields and comments; ParentTree, MarkInfo, Lang (a passage clearly in another language gets its own), title (asked:
-  the metadata's, else the first heading), DisplayDocTitle, Tabs S on every page, pdfuaid in the XMP, PDF 1.7, the
-  standard Latin fonts embedded as PDF/A does, Symbol/Wingdings bullets with ActualText; existing tags are replaced
-  (alternate text kept by place); one undo step, a signed file's edit appended. **Reading order pane**: the page's
-  pieces numbered in the list and as boxes on the page, moved by drag or Alt+Up/Down, alternate text typed, Decorative,
-  or suggested by the user's own vision model through `AiClient` after the "what is sent, where" window (an OpenAI
-  vision request: the picture and the text near it), Apply changes re-tags. **Save as PDF/A-2a** (File menu, Batch):
-  `PdfA` at level A keeps the tags, needs a language, keeps pdfuaid with its extension schema. Tests: `AutoTagTests`
-  (20: each tag kind, MCIDs and the parent tree, title/language/tab order/identifier, heading levels, reading-order
-  moves, decorative pictures, alternate text round trip and re-tagging, links, PDF/A-2a, Batch and presets, the vision
-  request). **Corpus** (`tools/a11y-corpus`, `run.ps1 -Tag`, veraPDF 1.30.3; figures given a stand-in alternate text):
-  the corpus has 2 untagged files, both pdfTeX papers: after Make Accessible both pass every condition but 31-027
-  (glyphs of the TeX math fonts without Unicode), veraPDF agreeing (7.21.7-1 only). It has no untagged Word file, so
-  12 Word and office files were tagged with their own tags replaced: 5 pass veraPDF PDF/UA-1 outright (Word 2016, Word
-  365, a letter, a résumé, a PDFMaker test document), the other 7 fail only on what tagging doesn't touch (form-field
-  tooltips 28-005, fonts 31-009/014/030), same result as the checker for 12 of 12. PDF/A-2a: the Word files pass
-  veraPDF 2a and ua1; the pdfTeX paper (tagged in the app, 5 pictures given alternate text in the pane, one marked
-  decorative) fails both only on the same math-font glyphs. **Part 3** (2026-10-30, branch `pdf-accessible-2`):
-  the **Pro gate** (`ProFeature.AutoTagging`, `ReadingOrder`, `AccessibleOutput`: Make Accessible, the pane's moves and
-  Apply, PDF/A-2a, in Batch through `BatchStep.Feature` and `BatchPlan.Validate`; viewing stays free; enforcement off);
-  **Unicode for glyphs without it** (`FontUnicode`, `TexGlyphs`: a ToUnicode from TeX's glyph names and the OML/OMS/OMX
-  math encodings, the Adobe Glyph List's Greek and math names, empty CFF glyphs as spaces; also at PDF/A-2a); **more
-  tag kinds** (`AutoTag.Kinds`): Caption (in its table, beside its figure), Note with an ID, TOC › TOCI nested by
-  indent, Formula with its text as alternate text, nested lists (L in the item's LBody), TH Scope Row, two header rows
-  under a spanning header, words-over-numbers headers, a table that doesn't look like one (`PlausibleTable`) read as the
-  chart's figure or as paragraphs, labels beside a figure part of it; **the pane**: pieces read with the page before or
-  after (`MoveToPage`, `TagBlock.ReadWith`, Alt+Page Up/Down), Page Up/Down for another page's pieces, Enter/F2 to the
-  alternate text and Esc back. Tests: `AutoTagKindsTests` (16), `FontUnicodeTests` (31), `ProTests` (+2), `AutoTagTests`
-  (+1). **Corpus** (veraPDF 1.30.3, `run.ps1 -Tag`): checker and veraPDF give the same pass/fail on 50 of 50 files (the
-  same conditions on 49; wcag-table-word's 15-003 as before); the 2 untagged pdfTeX papers now **pass PDF/UA-1** after
-  Make Accessible in both (11 and 30 formulas, 6 footnotes each, their figure and table captions); the 12 re-tagged
-  Word and office files: 5 pass, 7 fail only on form-field tooltips (28-005) and fonts (31-009, 31-014, 31-030), the
-  same as the checker on 12 of 12 (the NIST standard's contents as 17 TOC, 55 entries). Save as PDF/A-2a of those 14:
-  10 made, all 10 pass veraPDF 2a and ua1 (both papers, the NIST standard, the Word files); 4 refused as before (a
-  signature, CMYK without a profile twice, a Times that would move). **Part 4** (2026-11-04): **forms tagged piece by
-  piece**: a form XObject with text that the whole document draws once (`AutoTag.Write`'s `CountForms`, through forms
-  drawn by forms) has its own content marked inside it, each piece in its own element, with MCIDs of its own under its
-  StructParents and MCRs naming it (/Stm); its Do stays outside any marked content; a form drawn more than once is
-  still one piece where it is drawn (a stream can hold one set of MCIDs). `AutoTagFormTests` (3: a heading and two
-  paragraphs inside one form, a form two pages share, re-tagging). veraPDF 1.30.3 passes PDF/UA-1 on the form page
-  tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before (50 of 50 the same; 2 of 2 papers pass; 5 of 12 office files
-  pass, the other 7 on 28-005 and 31-009/014/030). **A piece's kind in the pane**: a
-  Kind list under the pieces (`AutoTag.KindsFor`, `AutoTag.WithKind`; a Pro fix as moving is): any piece a paragraph,
-  heading 1-6, caption, footnote, formula or picture, a list or contents either of those two; text kinds take all its
-  content (a list's entries, a table's cells row by row, a line each), a picture is everything in its box and needs
-  alternate text, a picture made text keeps its area (pictures there become decoration); nothing is made a table or a
-  list from a paragraph (their cells and entries aren't known). `AutoTagKindChangeTests` (4: paragraph to heading 2,
-  list to paragraph, text to picture and back, table to paragraph); dev script `rokind` (a paragraph made heading 2 is
-  read as Heading 1 after evening out, a line made a picture asks for alternate text). **Row spans**: in a ruled table a cell
-  without a rule under it across its columns, over a cell of the same columns, spans that row too (`DocLayout`'s
-  `TableFromGrid`: `DocCell.RowSpan`, the rows it covers keep a `Covered` cell with what was drawn there, so the
-  exports are as before); Make Accessible gives the cell what its covered cells hold (text centered in a tall cell
-  often sits in a lower row), writes RowSpan in its Table attributes and leaves the covered cells out; a row header
-  over two rows heads both; header rows are told from the cells as drawn, a column header's span stops at the last
-  header row, and a row all covered by the cells above is no row of its own (review, 2026-11-04). Tables without lines
-  (2026-11-20): with no rule to mark them, row spans are read from a first column of group labels over rows whose first
-  cell is empty and whose other cells aren't (`AutoTag.UnruledRowSpans`, after the header rows are told, which never
-  span): labels at the top of their group head the rows under them up to the next label; labels centered on their group
-  (in a row of their own between its halves, which goes, or in the middle row of an odd group) head as many rows above
-  as below; an empty first cell left over, or an empty row, leaves the table as it was (a value may just be missing).
-  Only the first column (a 2-column table's continuation rows already read as a cell's wrapped lines); the exports are
-  as before. `AutoTagRowSpanTests` +3 (labels at the top, centered, a missing value); `run.ps1 -Tag` as before (50 of
-  50 the same, 2 of 2 papers and 5 of 12 office files pass PDF/UA-1). `AutoTagRowSpanTests` (6:
-  a header over two header rows and a row header over two rows, read, written and checked; Word's table unchanged).
-  veraPDF 1.30.3 passes PDF/UA-1 on that table tagged by `A11yCorpus tag`; `run.ps1 -Tag` as before; export corpus: the
-  same Word pages for 7 of 7, PowerPoint opens every slide, 3,617 of 3,641 HTML lines in order as before. **Unicode
-  for Type 3 bitmap fonts**: a Type 3 font whose glyphs are named by their codes ("a65", "g65", "C65", or in hex "G41"
-  for four in five of its named glyphs, as dvips and Ghostscript write TeX's PK fonts) gets a ToUnicode from the codes
-  (`FontUnicode.CodeNamed`, `TexGlyphs.CodeText`): by the TeX font its name gives (OML, OMS, OMX for the math fonts,
-  ASCII for the typewriter ones, OT1 for the rest of Computer Modern: ligatures, quotes, dashes; the italics' sterling
-  at 36); a name that says nothing (dvips's "Fa") gets nothing, since a symbol font's codes are other glyphs and wrong
-  text is worse than none (review, 2026-11-04); glyphs numbered in drawing order ("g1" at 65) are left alone. Also at
-  PDF/A-2a. `FontUnicodeTests` (+13). veraPDF 1.30.3 passes PDF/UA-1 on a CMR10 bitmap sample after Make Accessible (31-027 before). Glyph pictures
-  aren't read (no recognizer on them), so a bitmap font without a TeX font's name stays as it was.
-  Still to do: Acrobat and PAC checks of the output (neither is installed here). **Mac: done (2026-10-30)**: Make Accessible, the Reading Order and Alt Text pane with its keyboard path,
-  Save as PDF/A-2a, Batch's actions, the same Pro gates; veraPDF on what the Mac writes from the same 14 corpus files gives
-  Windows' results on all 14 (PDF/UA-1: 2 of 2 papers pass, 5 of 12 office files pass, the other 7 on the same rules;
-  PDF/A-2a: 10 made, 4 refused for the same reasons, all 10 pass 2a and ua1). Alternate text suggested by a vision model
-  came with the Mac's AI assistant (E11, 2026-10-30). **Part 4 on the Mac (2026-11-05):** Unicode for Type 3 bitmap fonts (`FontUnicode`, `TexGlyphs.codeText`; FontUnicodeTests +4, the same names); forms tagged piece by piece (`AutoTagWrite`'s `mark`, `usesOfForms`; AutoTagFormTests, 3); row spans (`DocLayoutTables.tableFromGrid`, `AutoTagKinds.withRowSpans`, `withoutCoveredRows`; AutoTagRowSpanTests, 6); a piece's kind in the Reading Order pane (`AutoTag.withKind`, the Kind pop-up; AutoTagKindChangeTests, 4).
-- **Beat it when:** Make Accessible tags an untagged PDF on the PC from `DocLayout` (H1-H6, P, L/LI, Table/TR/TH/TD with
-  header scope, Figure, Artifact for running headers and page numbers), sets title, language and tab order; a reading
-  order panel shows the order as numbered boxes, reordered by drag; alt text is typed per figure, or suggested by the
-  user's own vision model (sent only after the usual window); output passes veraPDF PDF/UA-1 on the 1.3 corpus after
-  the human checks; Save as PDF/A-2a. Test: 1.3's checker and veraPDF both pass on the corpus's untagged Word and
-  LaTeX files after Make Accessible plus alt text.
-- **Effort** L. Windows; Mac done 2026-10-30 (row spans in tables without lines, 2026-11-20, still to port).
+Done, Windows and Mac. Make Accessible (`AutoTag`: a tag plan from `DocLayout`, marked content with MCIDs, the structure
+tree), the Reading order pane (moves, other pages, a piece's kind, alternate text typed or suggested by the user's own
+vision model), Save as PDF/A-2a, Batch; Unicode for glyphs without it (`FontUnicode`, `TexGlyphs`, Type 3 bitmap fonts
+named by code); forms tagged piece by piece; row spans, ruled and (from a first column of group labels) unruled. Corpus
+(`pdf/tools/a11y-corpus`, `run.ps1 -Tag`; latest results in its README): both untagged pdfTeX papers pass PDF/UA-1 after Make
+Accessible; 5 of 12 re-tagged office files pass, the other 7 fail only on what tagging doesn't touch (form-field tooltips,
+fonts).
+- A form drawn more than once stays one piece where it is drawn: a stream can hold one set of MCIDs.
+- A Type 3 font whose glyph names say nothing (dvips's "Fa") gets no Unicode: a symbol font's codes are other glyphs, and
+  wrong text is worse than none.
+- The Kind list makes nothing a table or a list from a paragraph (their cells and entries aren't known).
+- **Not checked:** Acrobat's and PAC's view of the output (neither is installed here).
+- **Mac:** row spans in tables without lines (2026-11-20) aren't ported.
 
-### 2.5 What's in this PDF (differentiator, Windows done 2026-10-28)
-- **The gap.** Acrobat's sanitize step removes hidden data when redacting
-  ([Adobe](https://helpx.adobe.com/acrobat/current/removing-sensitive-content-pdfs.html)), but no app gives one readable
-  report of what a file carries and what it would do when opened.
-- **Build:** a report (Properties, before Sanitize, and in Batch) of: scripts and what they call; actions that run on
-  open, print or close; every web address and whether it is contacted without a click (remote GoTo, submit, URI on
-  open); attachments; metadata and authors per object; earlier revisions recoverable from incremental saves (with the
-  text that changed); hidden layers, white or off-page text; form values; the 1.5 redaction check. Saved as HTML or
-  JSON. Test: a corpus with each item planted reports all of them; Sanitize afterwards reports none.
-- **Now.** Windows: Review › What's in This PDF… (`DocumentInventory`, also from Document Properties and the Sanitize
-  dialog, and Batch's Report What's in Each File). Scripts with their trigger and what they call (web, mail, submit,
-  network, files, print, timers, eval); actions that run on open, close, save, print, page open and close, or field
-  display (navigation to a page left out); every URI, Submit, Launch, GoToR/GoToE, ImportData target, address inside a
-  script and external stream, marked "no click needed" when automatic or on pointer enter/exit; attachments (name tree,
-  attachment comments, /AF); Info, XMP (document, pages, pictures, fonts), PieceInfo, comment authors with pages, article
-  properties; signatures (name, date, reason, location); earlier revisions and the text they show that the current one
-  doesn't; hidden layers, hidden comments and fields, white and off-page text; form values; covers that hide nothing (the
-  redaction check's own findings, its echoes left out). Each item says whether Sanitize removes it. HTML (no scripts) or
-  JSON (format marker, version, fields in a fixed order). Tests (`DocumentInventoryTests`): Sanitize's planted corpus with
-  an appended revision lists every planted item, and after Sanitize with everything the report is empty; white,
-  off-page and boxed text; automatic, pointer and click triggers; signatures; script calls; HTML and JSON; Batch. The
-  Mac: done (2026-10-28, with E1's Sanitize; Batch's action with E8, 2026-10-30).
-- **Effort** S (most of it is Sanitize's scan). Windows; Mac with Sanitize.
+### 2.5 What's in this PDF (differentiator)
+Done, Windows and Mac. `DocumentInventory`: one report of what a file carries and does when opened, each item saying
+whether Sanitize removes it; HTML or JSON; Batch's Report What's in Each File.
 
 ## Wave 3
 
 ### 3.1 Translate side by side (bring your own AI)
-- **Leader.** Foxit: AI translate keeping layout, original and translation side by side, 25+ languages, in Foxit's cloud,
-  credits per month ([Foxit](https://www.foxit.com/ai/pdf-translator/)). PDFelement: side by side or interleaved, 35-50
-  languages, scans through OCR ([Wondershare](https://pdf.wondershare.com/online-pdf/ai-pdf-translator.html)).
-- **Now (Windows, 2026-11-01; a real model from 2026-11-02).** The real model is Qwen3 4B (Q4) on llama.cpp's llama-server on
-  this PC's GPU, 8,192 tokens of context. Its results are under **Real model** below; the rest was checked with a stand-in
-  server. Review › AI Assistant › Translate with AI: free, as the table says, so
-  no `Pro` check. `Translation.MakePlan` reads the pages, nothing sent: each page's paragraphs by 2.1's grouping
-  (`ContentEditor.Translate.cs`), table cells apart by Export to Word's analysis (`DocLayout`), repeats once, paragraphs
-  with no words not at all. The "what is sent, where" window shows every request. `TranslateAsync` sends them one at a
-  time (a paragraph too long for the model's context in pieces). `Apply` writes the copy from the original's bytes, each
-  page in one pass over a document kept open (reopening it per paragraph, as an edit does, would take the square of the
-  length). A paragraph wraps in its box and may use the white space below it; next it shrinks in steps of 5%, down to half
-  its size or 5 points; if it still doesn't fit it is written there and gets a comment. So does a paragraph left untranslated,
-  with why. When the page's font lacks a letter, the whole paragraph is drawn in the closest installed font (a subset
-  rarely holds a translation's letters; 2.1's letter-by-letter stand-ins would read like a ransom note), once per face in
-  the file. Chinese and Japanese wrap between characters, a word wider than its box breaks, right-to-left text is
-  shaped whole line by line against the right edge. The copy gets the language's `/Lang`, opens as an unsaved tab, and the
-  original goes in the split view's second pane on the left (`ShowBeside`), scrolling and zooming with it. Progress and
-  Cancel come from `ProgressPrompt`; stopping offers the part done as a copy.
-  Decisions: text the editor refuses (mixed fonts, right-to-left, a raised mark on its lines) is translated here, since all of it
-  is replaced: a bold word or a superscript inside a paragraph lost its look (superseded: looks are kept since
-  2026-11-06, "Looks" below), and a raised mark joins the text sent. A
-  bullet of its own stays where it is. A line comes apart at a gap over 1.5 ems or where its size changes. A single line's
-  alignment comes from its place on the page or in its cell. White text stays in its box (past it, on a band we can't see,
-  it would vanish). Text stays inside a rectangle that clips it and a form's `/BBox`, off pictures, figures, rules and form fields.
-  A page with more than 20,000 pieces of text is left as it is and named, which is a cap per page, not on pages or size.
-  A stopped run's unreached paragraphs get no comment each: the summary names their pages.
-  Limits: scans (the words are in a picture; OCR's invisible text isn't rewritten) and text turned other than by a quarter
-  turn (a stamp at 30°, mirrored or slanted text) stay and are named. Text
-  in a hidden layer is neither sent nor rewritten.
-  Comments, form fields, bookmarks and text in pictures aren't translated. A filled panel with no outline doesn't hold
-  its text in; a clip that isn't one rectangle isn't followed; a paragraph clipped line by line comes out flagged, not
-  fitted. Thai has no spaces, so it wraps between any two characters. A file's size can grow as with any edit: PDFsharp
-  writes compressed objects out plainly (census-p60, 1.8 MB to 8 MB). Paragraphs with `/ActualText` stay and get a comment.
-  **The bug a real run found (2026-11-02).** The first real page (NIST p. 9) reported 14 paragraphs in Spanish, and all
-  the lines after each first line were specks. Text extraction read them, at the right size. That page paints a white band
-  under each line just before drawing it, and all the new lines were written where the first old line was, so the later
-  bands painted over them: the specks were descenders. All the tests passed because they read text, and the corpus only
-  asked whether a page's pixels had changed at all. Now a new line is written where the lowest old line it reaches was
-  drawn, and text doesn't grow under a rectangle filled later. `TranslationInk` renders each line of a copy and measures
-  its ink (height and how much of the line has any); the tests, the 100-page report (each of its lines now on a white band)
-  and the corpus use it.
-  **Other faults the real runs showed, fixed.** A font that named no glyph for a code passed as having it when `/ToUnicode`
-  and `/Widths` covered the code (pdfTeX's do), so accents came out blank ("funci n"): a readable program now decides. A
-  spot color's "1 scn" was read as white, holding headings to their old box and shrinking them. "NimbusRomNo9L" and
-  "Gotham-Book" got stand-ins of the wrong class. Small capitals fell apart at each change of size, and the model got "IGITAL".
-  A short line going on in lowercase split a sentence in ragged columns, and a note's small number split a note's first line
-  from the rest. Short labels one under the other were joined; figures beside a label moved into its text. A tight
-  clip shrank headings; text could grow past the clip of its last line. A link starting a line split its paragraph and turned
-  the text blue. A turned stamp in the margin made full lines look centered. A word in another script in a Latin-letter
-  answer (the model wrote "sean要么 editoriales") is asked for again, then left out and flagged. The shrink floor went by a
-  paragraph's first run, which may be a mark.
-  **Real model.** Spanish, through the app with screenshots read side by side, and `TranslationRealModelTests` (opt-in) for
-  what each paragraph got: NIST p. 9, 13 (a ruled table), 14, 20, 47 (a table); attn-v7 p. 3, 8 (a table); census-p60 p. 7 (three
-  columns), 12 (a figure's table), 31 and 33 (turned tables). A page of text took 17 to 48 seconds with this model and GPU. All lines
-  show, in their boxes, and figures and rules stay. No reasoning tags or preamble reached a copy; the model wrote none on these
-  pages, so that part of `CleanReply` wasn't exercised by it. What it gave back unchanged on NIST p. 9 is "NIST SP 800-63-3" and
-  "vi" (the 4 first seen included pieces of small capitals); on p. 47 and the census, "AAL1", "NO", "90th/10th" and the like.
-  How good it reads: for a 4B model, good. The meaning is carried and a reader can follow it, with care on technical terms.
-  Wording faults are the model's, not bugs: "Cuartil cuarto", "Las ingresos", "Errata" as "Errores", "GUIAS" without its
-  accent. One whole document was only counted, not read through (attn-v7, 15 pages, 12 minutes).
-  **Fixed (2026-11-06).** A row whose label and figures one operator draws (a TJ with wide adjustments: attn-v7's "Transformer
-  (base model) 27.3 38.1", the census's "income inequality 0.488 0.485", resnet's tables) comes apart at its columns: the
-  walk makes a run of each column from the glyph advances it computes (`ContentEditor.ColumnStarts`), told apart by the one
-  rule `SplitAtColumns` also uses between operators (`ColumnGap`: over 1.5 ems, or over 0.6 ems beside figures and
-  well beyond the operator's own word spacing, so pdfTeX's justified "results from 1999" stays one sentence). Only the label
-  is sent; the other columns are drawn again as they were, each from where the one before it left the text position. In
-  the corpus's first pages: table rows, author lists, numbered headings ("3.1 | Encoder and Decoder Stacks") and a list of
-  figures ("Figure 1. | Median Household…"); a sentence's "]." before a stretched space doesn't split.
-  White text on a dark band filled right under it (nothing painted between) uses the band's width (NIST p. 14's
-  "Propósito" keeps its size); on a light card, a picture or a stroke it stays in its box.
-  Checked again with the real model (Qwen3 4B Q4, llama-server, 8,192 tokens) on attn-v7 p. 8, census-p60 p. 12, NIST p. 14
-  and resnet p. 6, in 8-100 seconds a page: every figure of the four tables is in its column, model names and "90th/10th"
-  come back unchanged, nothing of the model's own reached a copy.
-  Fixed after that run (2026-11-06), checked by applying its saved answers again and by the corpus's plan texts: a line
-  opening with a bracket or quote pdfTeX draws on its own ("(i.e.", "[32]") is no longer taken for a bullet, so its
-  paragraph keeps its left edge and its last line after a hyphen ("(classi-" / "fication and box regression [7]).", resnet
-  p. 10; 13 such lines in the corpus's first 20 pages of each file); a short label ending in a colon stays apart from the
-  short row under it (the census's second "Income percentile ratios:"); a centered label with free room on one side moves
-  into it before it shrinks, and an operator's column no longer counts the gap to the next column among its word spaces
-  (resnet's "error top-1" and attn-v7's "Transformador (modelo base)" keep their size); a column's body paragraphs take one
-  size, the one its most shrunk paragraph needs, no smaller than 80% (attn-v7 p. 8's body all at 8.47 pt).
-  **Turned text (2026-11-06).** Text set sideways or upside down (the census's appendix tables, a landscape table on a
-  portrait page) is translated: each quarter turn the page's runs read in (within half a degree) is turned upright in the
-  frame Export to Word turns a page by (`TranslationFrame`, `ContentEditor.TurnedParts`), its tables' rows and columns
-  found there from that direction's lines with the page's rules (`Surroundings`), and its paragraphs grouped, given their
-  room and fitted there as upright ones are; each new line's start is turned back onto the page and written in the run's
-  own text space, so it reads as before. Upright tables are now found from upright lines only (a sideways table's cells,
-  in their own frame, could land among them). `TranslationTests.A_table_set_sideways_is_translated_cell_by_cell…`; on
-  census-p60 p. 31 and 33 (stand-in answers) every label, heading and note is translated, figures stay in their columns,
-  nothing is named as turned. A multi-line row label in such a table ("AMERICAN INDIAN / AND ALASKA / NATIVE ALONE OR / IN
-  COMBINATION") goes as one paragraph a line, upright or turned alike (its lines sit on the figures' rows).
-  **Links and underlines (2026-11-06).** A link on a translated paragraph's lines moves onto its words where the
-  translation keeps them as they were (an identifier, a document number: "(SP) 800-63A,", "SP 800-63C,"; spaces don't
-  count, so a line's "800-" "63A," finds "800-63A,"), a copy of the link for each further line they reach, and its
-  underline is drawn again under them (its distance from the baseline and thickness scaled with the text, its color); a
-  link whose words were translated is taken off the page and out of the structure tree (what they became can't be
-  told), with its underline (its painting operator ends the path unpainted) (`ContentEditor.TranslateLinks.cs`:
-  `LinksOfWritten`, `Follow`, `FixLinks`, run by `TranslationWriter.Finish` once the copy's fonts are in it, so the new
-  words can be read). A turned paragraph's links are dropped, its underlines left. `TranslationTests.A_links_area_and_underline_follow…`,
-  `A_link_whose_words…`; NIST p. 14 with stand-in answers: all five link areas and underlines on their words ("SP" at a
-  line's end and "800-" on the next, two areas). `PdfObj.AppendContent` (Flatten's) draws the underlines.
-  Review (2026-11-06): a link's underline is only one rectangle filled in a plain color within the link's width; any
-  other mark under the words (no link's, a stroke, a spot color, two links' underlines in one operator) stays as drawn.
-  The underlines are blanked in the same step that moves the links, after the page is read again (a page that can't be
-  keeps both as they were). A link is looked for only in its own paragraph's new lines, at the place nearest where it was;
-  two places as near drop it. `Follow` tries only new words that can start the stretch.
-  **A label alone on its row (2026-11-06).** The only cell with text on a table's row takes the empty cells after it
-  (`Translation.CellsOf`), so a label heading the rows under it grows to its right rather than shrinking in its
-  column (the census's first "Income percentile ratios:", which shrank to the floor: it keeps its size with stand-in
-  answers on p. 12); a rule between them still stops it. `TranslationTests.A_label_alone_on_its_row_grows_into_the_empty_cells_beside_it`.
-  **Looks (2026-11-06).** A bold or italic word, a subscript and a superscript keep their look ("d_model", "h_t−1",
-  "x_1", a footnote's raised mark, the census's bold names, the W-9's italic titles). A run in another face than the
-  paragraph's own (bold or italic where it isn't; its family kept when that is another, as LaTeX's are), or smaller
-  than its line's text and 0.08 em below or 0.12 em above its baseline, is a stretch (`ContentEditor.TranslationLook`);
-  the request carries the stretches as `<b>`, `<i>`, `<sub>`, `<sup>`, nested in one order, and asks the model to keep
-  them around the words they mark (`TranslationMarkup.Mark`; the text so marked is the answer's key). The reply's tags
-  are read in one pass (`TranslationMarkup.Read`, linear, at most 528 tags) and trusted only when they are ours,
-  balanced, properly nested (none inside itself, never sub and sup together, three deep at most), name only looks the
-  paragraph had, and cover about as much (per look at most twice the stretches plus one, the longest at most twice the
-  paragraph's longest plus 12 letters, 4 for scripts, a share of the letters at most twice its share plus a tenth); a
-  tag dropped leaves only its words plain. Any other reply is written plain, every tag, piece of one and angle bracket
-  taken out (`CleanReply` already drops other tags). The copy draws a look in the page's own face for it (`/FB`
-  beside `/FA`), or, when any face lacks a letter, each face's text from the installed font closest to it ("Arial",
-  "Arial Bold"); a sub- or superscript at 0.7 of the size, 0.15 em lower or 0.35 em higher (`Ts`, stand-ins too:
-  `CidFontWriter.Emit` takes the rise). Characters no font has are left out with the looks staying on their words.
-  `TranslationLooksTests` (37: markup out and back, 13 replies that can't be trusted, crafted replies of 1.2 MB of
-  tags, the page's own faces and installed ones, a superscript, a reply in plain halves). Export corpus with stand-in
-  answers (`TranslationCorpusTests`): 216 texts of 2,082 sent marked (attn's "d<sub>model</sub>", resnet's
-  "W<sub>i</sub>"), no tag on any page, the ink check's counts as before (3, 1, 9, 0, 0, 42, 0); pdf.js reads the copies'
-  words in order.
-  **More looks (2026-11-19), the "still wrong" list worked through.** A regular word in a bold (or italic) paragraph is
-  a look of its own (`Bold: false`), marked the other way round: `<b>` around the rest of the paragraph, so the model
-  sees what it knows; a reply whose bold covers less than about half of what the paragraph's did isn't trusted (written
-  all bold, its own look, as a reply with no tags is). A word in another color (a channel more than 24 of 255 apart) or in
-  a family of another class (serif, sans, monospace; not a symbol font, and TeX's roman beside Times is the same class)
-  where neither bold nor italic says so goes as `<span>` (`ContentEditor.OtherLook`, `OtherColor`), drawn in the page's
-  font of that family, or the installed one closest to it, in its color; one such look a paragraph (`<span>` can't tell
-  two apart: the first is kept, the others keep only their bold, italic or script; `TranslationMarkup.Kept`). Sub- and
-  superscripts keep the page's own size and rise (`TextLook.Rise`; held to 0.4-0.85 of the line's size and a rise of
-  -0.6 to -0.08 or 0.12 to 0.9 em, also when read back from the copy's tag's `/Rise`, so editing the copy draws them
-  there again). A sub- or superscript widens the step to and from its line by as much as it reaches past the line's own
-  height or depth (as a word processor's line does; `LayOut`); one on the first line only sits lower, as before.
-  `FontNames.LooksBold`/`LooksItalic` read TeX's Computer Modern names (CMMI, CMTI, CMSL, CMBX, CMMIB…), URW's "-Medi"
-  and "…Ital" and Adobe's "-It"/"-BoldIt": attn's "d" of "d_model" goes as `<i>d</i>` in its CMMI, its section titles
-  (NimbusRomNo9L-Medi) come out in Times New Roman Bold, and Export to Word gets the same bold and italic. A script of up
-  to 12 characters set on its own band, smaller than 0.85 of the line it sits on, joins that line as a footnote mark does
-  ("[12-15]" raised after a name; `WithMarksInLine`). A paragraph goes plain less often: text whose own angle brackets
-  read only as text ("p < 0.05", "->", "x > y") is marked (one with "x<y", "<html>", "< b" or "b>" still isn't: a
-  reply's would be taken for tags); past 64 stretches its scripts alone are marked (they change what it says); a text too
-  long for one request goes in marked pieces, each closing the tags open at its end and opening them again in the next
-  (`TranslationMarkup.Pieces`), the answers joined read as the whole's markup, and a cut-off answer is asked for in marked
-  halves the same way (plain only when a cut falls inside a tag: no space to cut at). The prompt names `<span>` with the
-  other tags. `TranslationLooksTests` (60 to 102 cases, with the real run's finds below), `TranslationMarkupHostileTests`
-  (9 to 12: random replies to a bold paragraph's inverted markup and a `<span>`, 2 MB of a paragraph's own brackets
-  checked in one pass, pieces that each close their tags).
-  **Real model, looks (2026-11-19).** Qwen3 4B Instruct 2507 (Q4_0) on llama.cpp's llama-server on this PC's GPU (8,192
-  tokens), through `TranslationRealModelTests` (which now counts the tags kept), Spanish, ten pages: attn-v7 p. 1, 2, 3, 5;
-  resnet p. 1, 3; census-p60 p. 7; NIST p. 9, 14; fw9 p. 1, 12 minutes in all. Of 55 paragraphs sent with markup, 47 came
-  back with every tag (85%), 3 with some dropped (the bold of a run-in label: attn's "Encoder:", resnet's two italic
-  abstracts' one stretch), 4 with none (a label left untranslated, a footnote number, and attn's FFN formula, where the
-  model wrote "xW₁ + b₁" in Unicode subscripts), 1 with markup not trusted (NIST's "< b>IAL1", written plain). No tag
-  reached a copy; every answer's words show; nothing doesn't fit. The model's mistakes with markup the run found, fixed:
-  author names sent as "<b>Aidan N. Gomez</b><sup>∗ †</sup>" came back as "<Aidan N. Gomez></sup>∗ †", and taking out the
-  "tag" left only the marks in place of the name; an answer whose words are all gone is now not used (asked again, then
-  left and flagged: one of the 8 author names on attn p. 1, the rest come back unchanged). Faults of ours it found, fixed:
-  two footnotes each after its raised mark (attn's "†Work performed while at Google Brain." over "‡…Google Research.") were
-  one paragraph, the second mark left in the middle of the new lines: a mark just before a line now joins it as a mark
-  after it does, and a line a note's mark or a bullet starts is a paragraph of its own (`PLine.Marked`); a new line was
-  written at its old line's last run, census p. 7's tagged line-end hyphen (a piece of its own with a soft hyphen as
-  `/ActualText`), so MuPDF read the whole new line as "­": a line's last run with a letter or digit takes it.
-  A prompt line asking to keep every pair "even around words you leave as they are" was tried on the six pages with
-  dropped tags: 32 of 39 kept against 31 of 39 without it, no clear help, so not kept. pdfjs-check passes; the export
-  corpus's Word page counts are as before (its bold and italic now read the same names). Not ported to the Mac yet.
-  Review (2026-11-19), ten findings fixed: a long paragraph's answers are joined with each seam's closing and opening
-  tags taken out (`TranslationMarkup.Join`), so a stretch cut by pieces is one stretch again and the markup is trusted; a
-  short run that starts a line splits the paragraph only when it is a raised or set-apart mark, or the line before ended
-  its sentence (CMSY's "=" inside a sentence goes on); a script widens the line step only past the room the leading leaves;
-  a line's hyphen drawn last gives way to its words only when nothing is painted over the line between them (otherwise
-  the last-drawn rule stands), and runs inside /ActualText are skipped; "Digital", "Capital", "Orbital" no longer read as
-  italic; a script's size and rise are read in the paragraph's ems, as the copy draws them; each script stretch keeps its
-  own size and rise (a footnote mark and an exponent in one paragraph); the report's tag count judges as `Read` does
-  (`TagsKept`; the 47 of 55 above recomputed from the run's saved answers, unchanged); a dead guard taken out; plain
-  halves are made only when marked ones can't be.
-  **Plain underlines (2026-11-20).** A rule the page draws under some words, no link's, is a look (`TextLook.Underline`,
-  `<u>`): one rectangle filled in a plain color by the page's own content, thin (a sixth of the text or a point), its top
-  from just above the baseline of the words over it to 0.4 em below, inside no /Link, and covered for 70% of its width by
-  the text on that baseline (`ContentEditor.PlainUnderlines`); that is what tells it from a strike-out (through the
-  words), a table's rule (wider than its text), a field's line (nothing over it) and a band. The runs half over it are
-  underlined. The copy blanks the old rule (its operator becomes "n") and draws one under each stretch the answer's
-  `<u>` marks, in its color, at its distance below the baseline and its thickness scaled with the text
-  (`RedrawUnderlines`, `ParagraphLayout.Underlined`); an answer that drops the tag leaves the words plain, with no rule
-  left under other words. The rule isn't an obstacle the paragraph keeps clear of. Not followed: an underline stroked
-  (`S`) or filled as a path of its own, several in one operator, in a form XObject, or under turned text: they stay as
-  drawn. `TranslationLooksTests` (+9, one with all five tags nested), `TranslationTests.An_underline_that_belongs_to_no_link_goes_with_its_words_as_a_look`.
-  **Looks in right-to-left text (2026-11-20).** An Arabic or Hebrew translation keeps its bold, italic, other family,
-  color, sub- and superscripts and underline: each line is still shaped whole, its runs now split where the look changes
-  too (`TextShaper.Shape` with a `GlyphStyle` per look: the installed font in that face with all the text's letters, else
-  the closest in that style, the fallbacks for what it lacks; its size, rise and color as a left-to-right paragraph's,
-  `LookMetrics`), so the line's bidi order holds across them and a bold word sits where it reads. The glyphs go out in
-  logical order as before; `CidFontWriter.Emit` sets each one's size (`Tf`, adjustments in that size's thousandths) and
-  color, and sets the text's own back after. An underline is drawn under the line's underlined runs (`ShapedLine.Runs`).
-  Wrapping measures each candidate line styled. A script in right-to-left text doesn't widen the step to its line, as
-  it does in left-to-right text. `TranslationTests.Arabic_keeps_a_bold_and_a_red_word_where_they_read`,
-  `Hebrew_keeps_an_underline_and_a_superscript_in_its_line`.
-  **Two or three other looks (2026-11-20).** A paragraph's first three other looks (a red word, a word in Courier, a
-  blue one) go as `<span>`, `<font>` and `<mark>`, one tag each (`TranslationMarkup.OthersOf`, in the order they first
-  come; the prompt names all three), and each comes back as its own family and color; a fourth keeps only its bold,
-  italic, underline or script. A character has one of them at most (a later span's replaces an earlier one's, as
-  scripts do), and a reply that nests one inside another, or names one the paragraph didn't have, is written plain.
-  `TranslationLooksTests` (+5: bold, red and Times on one page; three marked and a fourth demoted; garbled replies).
-  **Long scripts (2026-11-20).** A script on a band of its own longer than 12 characters ("[3, 7, 12, 18-24, 31, 40]"
-  raised after a word) joins the line it sits on as a shorter one does, when it overlaps none of that line's words (small
-  text set beside a line stays apart); its line may be shorter than it. The joined line keeps its own baseline and size
-  (PLine.Own): counted by characters, a long script would have been taken for the line. Each script looks at the 128
-  nearest lines each way, by baseline, for its line. TranslationLooksTests (+3).
-  **pdf.js reads a copy (2026-11-20).** `TranslationPdfJsTests` (opt-in, `INKVOLTPDF_PDFJS`; with `INKVOLTPDF_CORPUS`
-  the corpus's first two pages of each file) translates with stand-in answers and has pdf.js (`pdf/tools/pdfjs-check`)
-  read each paragraph's new words: in order word by word, or letter by letter where only spaces differ. Result: the
-  test's 6 pages (looks, Arabic with and without looks, Hebrew, Japanese) 45 of 45 texts in order; the corpus 334 of 335
-  the original reads in order (f1040 p. 2's "b Routing number d Account number", a paragraph across two rows of a form,
-  among "c Type"'s fields), 37 that pdf.js doesn't read in order in the original either (line-end hyphens, drop
-  capitals, form rows) not counted. What it showed: pdf.js reads right-to-left lines without their spaces
-  ("الثعلبالبني…"), their letters in order. It makes spaces only from gaps as the glyphs go right, and a line written in
-  reading order goes back for each glyph. Writing such lines left to right (visual order) was tried: pdf.js then read
-  the spaces, but MuPDF, the app's own reading (search, copy, export), read a real model's Arabic lines with figures
-  backwards ("5202"), a line with brackets turned back, and a label run into the value beside it, so the lines stayed in
-  reading order with their directions marked (pdf.js's missing spaces: closed below, "pdf.js reads the spaces"). Kept
-  from it: the editor's reading puts right-to-left letters an operator draws left to right (Word's Arabic PDFs, Make Text
-  Editable's and the OCR layer's lines) back in reading order, as MuPDF does (`Bidi.ToReadingOrder`, the line's
-  direction that of most of its letters; `DrawnLeftToRight`), and a glyph standing for several letters of a run written
-  left to right holds them backwards, so a reader reversing the run character by character gets "لى" right (MuPDF read
-  "إىل" for "إلى"). `ParagraphEditTests`' and `OcrLayerSearchTests`' pdf.js helpers are one (`PdfJs`).
-  **pdf.js reads the spaces in right-to-left copies (2026-11-20).** Read from both readers' code (pdf.js 6.4's text
-  layer, MuPDF 1.25.2's `stext-device.c` and `pdf-op-run.c`): pdf.js makes a space only where the next glyph lies to the
-  right of the one before inside one item (one font and size; a step back starts a new item and forgets the space), and
-  turns each item's text into reading order itself; it skips a space glyph's own text, so a real space (the shaper's, in
-  the font, mapped to U+0020) changes nothing, and it ignores /ActualText. MuPDF gives each character a direction from its
-  class (Arabic and Hebrew letters and Arabic digits right to left; Latin letters, European digits, "+", "-", "%" left to
-  right; spaces and punctuation that of the one before), and on a line whose right-to-left glyphs go right it turns each
-  stretch of right-to-left characters around where it stands, never past a left-to-right run: so figures and Latin words
-  in a line written all left to right came out of place. A line is now written in stretches (`GlyphOrder.Stretches`):
-  each right-to-left stretch left to right, the stretches and the figures and Latin words between them in reading
-  order, an invisible direction mark at each (as before), a "-" or "%" MuPDF reads left to right inside a stretch on its
-  own (two side by side, "--", one by one in reading order: each a short step back MuPDF keeps on the line). Review:
-  a version in Arabic ("2.0-beta", "3.5-rc2") is drawn whole, left to right, as typed: the bidi rules left its "-" right
-  to left, drawing "beta-2.0", which MuPDF read as three lines in either order ("2.0", "-", "beta") and Find missed; now
-  MuPDF, Find and pdf.js read "2.0-beta" (`JoinLeftToRight`: punctuation inside a word between Latin letters or
-  European digits). A "-" between an Arabic word and a Latin one ("ال-withdrawal") still makes MuPDF start a new line
-  there, as the line written in reading order did. Wrapping measures without ordering the glyphs
-  (`TextShaper.Measure`). Both read it in order, MuPDF as before or better, pdf.js with the spaces between the right-to-left words. What
-  can't be had in one content stream, and stays: pdf.js runs a right-to-left word and the figure or Latin word beside it
-  together ("في عام2024والكلب"), since it would need the figure written before the words on its right and MuPDF after
-  them; and a line with a bold, other-font or raised word inside right-to-left text keeps reading order (pdf.js's items
-  break at the font change and would come right to left), so its words still run together in pdf.js. Tried and dropped:
-  /ActualText over a line written left to right (MuPDF gives its characters one per glyph in written order and then
-  turns them around: "الرسلا ينبلا…", and Find marked the wrong place), and, not built, writing the figures twice (drawn
-  for pdf.js under an empty /ActualText, an invisible copy mapped to a format character for MuPDF, its /ActualText the
-  digits backwards): it would read right in both, but tell Acrobat, which reads /ActualText, the figures backwards, and
-  leave visible text MuPDF (and so the redaction check) doesn't see. Found, not changed: MuPDF reads Arabic-Indic digits ("٢٠٢٤") backwards and breaks the line
-  around them in any order (it reads them right to left; such a line keeps reading order). In the app (`--script`, one stand-in Arabic answer for each of fw9 p. 1's 67
-  paragraphs): the copy opens beside the original and Find reads "في عام 2024 فوق" in it 66 times. `TranslationPdfJsTests` +3
-  cases (plain Hebrew with brackets and a year, Arabic with a red word, a hyphen and a Latin word, Arabic with
-  "2.0-beta" and "--") read word by word with their spaces, the cases with a bold word letter by letter as before, all
-  9 pages in order;
-  `TranslationTests.Arabic_stretches_go_right_and_read_in_order_with_their_figures_brackets_and_latin_words` (MuPDF and
-  Find read the line; the pieces go right and come in reading order; a bold word keeps reading order),
-  `Arabic_with_a_version_or_dashes_reads_in_order_in_MuPDF_and_Find` (2: "2.0-beta" and "3.5-rc2", "--" and " - ").
-  **Real model, five languages (2026-11-20).** Qwen3 4B Instruct 2507 (Q4_0), llama.cpp's llama-server on this PC's GPU
-  (8,192 tokens), `TranslationRealModelTests` (now runs every page and names each failure at the end; saves each language's
-  copy apart): NIST p. 1, attn-v7 p. 3 and fw9 p. 1 into Spanish, French, German, Arabic and Japanese, 30 to 155 s a page.
-  Every answer's words show in every copy but two Arabic ones (below); nothing of the model's own reached a copy; 0 to 5
-  paragraphs a page don't fit (fw9's form boxes). Tags, 16 marked texts a language: kept whole 11 (es), 11 (fr), 12 (de),
-  5 (ar), 6 (ja); the small model drops them most in Arabic and Japanese, where the words are plain but right. Looked at
-  on screen: attn p. 3 in Arabic (bold heading, italic N, the d_model subscript, right-aligned, figure in place), NIST p. 1
-  in Arabic (the table's labels and values in their cells), fw9 p. 1 in Japanese (every box filled, a flag where it
-  doesn't fit). What broke, fixed: the prompt named every tag, and a model told of a `<font>` it wasn't sent wrote
-  `<font color="#0000FF">` around a bold label: a request now names only the tags its text has (`TranslationMarkup.TagsNamed`);
-  then Spanish, French and German on NIST p. 1 and attn p. 3 kept every tag in 23 of 30 marked texts, against 18 of 30
-  before. A model's own `<bold>`, `<strong>`, `<em>` for bold and italic are read as ours (`WithoutOtherTags`; 7 such in the
-  runs). A label or name the model put in angle brackets ("<Décodage :>", the earlier run's "<Aidan N. Gomez>") was taken
-  out as a tag with its words: only what is shaped as a tag goes now, other brackets leave their words
-  (`TranslationMarkup.Unwrapped`). A ligature's "لى" of a right-to-left run written left to right read "ىل" in MuPDF (above).
-  Then fixed (2026-11-20, review): on NIST p. 1's table MuPDF read the Arabic values backwards. Their paragraphs are in
-  Calibri, whose Arabic lowers letters it joins (cursive attachment), and MuPDF reads a right-to-left line whose letters
-  sit on more than one baseline backwards; in Arial or Segoe UI they read right. A right-to-left line is now drawn in the
-  closest of the first six installed fonts that have its letters whose letters stay on the line when shaped (only marks
-  move), else the closest (`RightToLeftFont`); NIST p. 1 in Arabic with the real model again: every answer read back.
-  `TranslationLooksTests.Arabic_for_a_paragraph_in_Calibri_is_drawn_in_a_font_MuPDF_reads_in_order`. The model's: Russian "номер" in a Japanese label, English left
-  inside Arabic ("تاريخ ال-withdrawal", "Guidelines"), Vietnamese "mới" in Arabic; `SlipsIntoAnotherScript` judges only
-  Latin-letter languages.
-  **Review (2026-11-20), ten findings fixed.** The editor's reading of right-to-left text drawn left to right: a column of
-  an operator drawing several is read in reading order on its own; a line of several operators most of whose letters read
-  right to left is joined right to left (`InReadingOrder(PLine)`), so its words come in reading order; the one-run editor
-  refuses such a run (written back as drawn it would come out mirrored). A line hosting a long script joins no line as a
-  script itself (it was sent and written twice). A rule under two paragraphs is taken off once all are written and drawn
-  again under the words of any not written (`TakeOffUnderlines`); turned text keeps clear of the page's underlines as of any
-  rule. Underlines are looked for under at most 2,048 runs a rule and a million a page (4,000 rules over 20,000 runs on one
-  baseline). A right-to-left line's color its run can't be set back to is named (`LookProblem`), as left to right; the
-  layout carries a paragraph's looks to right-to-left text as to left to right. Words a model put in angle brackets get a
-  space only from a letter or digit beside them ("Voir <Annexe A>," reads "Voir Annexe A,"). Tests: `TranslationTests` +2,
-  `TranslationLooksTests` +3 and 2 cases of the angle-bracket test.
-  **Still wrong, and why.** The model's,
-  not bugs: a term translated three ways on one page ("bottleneck" as "boquilla", "botella" and left as is; "shortcuts" as
-  "acortes" and "atajos"), "Transformer" kept in one paragraph and "Transformador" in the table, one of two column heads
-  translated ("error top-1" beside "top-5 err."), an identifier changed ("SP 800-63A" as "DE 800-63A"), and "Table3shows"
-  (the source's own missing space) kept.
-  **Checked.** `TranslationTests`, including the test below on 100 made-up pages through a real
-  socket to a stand-in server on 127.0.0.1: 100 pages kept, each figure in the same place to 0.01 pt, every paragraph
-  written, the original's bytes unchanged, every connection from loopback, a redirect not followed (a second local
-  server got nothing and the run stopped). Hostile replies through the real `AiClient`: endless answers stopped by length,
-  keep-alives forever by the deadline (three in a row stop the run), silence, several paragraphs for one (asked once more,
-  then left and flagged), control and direction-override characters, private-use characters, broken surrogates, markup,
-  an answer cut at the model's limit (asked in halves), a refused key, a busy server (retried), a body that can't be read.
-  Crafted PDFs: 30,000 runs on a page, 19,000 paragraphs on a page, a million characters in one operator, forms drawing
-  forms 60^8 times (cut short at 64 MB and named, and cancellable), coordinates that overflow to infinity (an endless loop
-  found in review), unreadable content, a font with nonsense widths. The real app driven with `--script` and looked at:
-  all 100 pages to a stand-in on a real socket, the Send window, progress with the UI answering, Cancel and keep
-  (376 paragraphs left, pages named), both panes scrolling to the same place from either side; the menu command and its
-  window with the Ollama preset and no network (`aifake translate`) on f1040. `TranslationCorpusTests` (opt-in, `INKVOLTPDF_CORPUS`) on the 7
-  export corpus files, first 30 pages of each, 99 pages, each answer longer and marked: page counts and pictures kept, no
-  page failed, read and written in seconds. That stand-in lengthens every label, so its counts of what doesn't fit (about a
-  tenth of paragraphs) say little about a real translation; the ink check's few lines it still names are at the size floor or in a chart.
-  The real app driven again on an AES-256 file opened with its permissions password: the open password asked before anything
-  is sent (the reading window used to come up over that question and take the keyboard; it now waits), the copy opened beside it.
-  **Not checked.** Any other model, a cloud endpoint, or a real model in languages beyond the five above; a model's refusal in words,
-  or an answer to the text in place of its translation, can't be told from a translation. A screen
-  reader on a copy: a paragraph's new lines sit in the tagged pieces of the old lines they reach. Acrobat on a copy. Long runs over
-  sleep and Wi-Fi drops (a failed connection is retried, then the run stops and offers what it has; tested with a fake, not a
-  real sleep). The interface is in English or Spanish (3.7).
-- **Beat it when:** translation runs through the user's endpoint (Ollama, LM Studio, or their key), paragraph by
-  paragraph, with the usual window showing what is sent; a translated copy keeps each paragraph in its box (2.1's
-  reflow, text shrunk to fit and flagged when it can't), tables cell by cell; the two documents scroll together; no
-  page or size cap. Test: a 100-page report translated with a local model keeps page count and figure positions, every
-  paragraph translated, nothing sent beyond localhost.
-- **Mac (2026-11-10, on `ignia-mac`):** all of it, ported with Windows' tests under their names (173: the requests and
-  answers, the looks markup and its crafted replies, the page side with links, turned tables, crafted files and the
-  100-page report through a real socket to a stand-in on 127.0.0.1). Tools › AI Assistant › Translate with AI…: the
-  same dialog, "what is sent, where" window, progress and Cancel, the copy in a window of its own with the original on
-  the left scrolling with it. Through the Mac's own AI assistant plumbing (E11's `AiClient`, its loopback-only transport
-  for this Mac's endpoints); nothing is sent unless the user sets an endpoint up. Self-test `--only-translate` with a
-  stand-in translator on loopback, en and es. Mac differences in `mac/docs/PLAN.md` (Translate side by side): stand-ins
-  are Type 3 fonts from Core Text, no open-password step (MuPDF keeps the encryption), a copied /Resources shares
-  nothing with its original (a fix the 100-page report found). Not checked on the Mac: a real model.
-- **Effort** M (after 2.1). Windows and Mac done (the Mac's AI assistant came with E11, 2026-10-30; 2.1 first).
+Done, Windows. `Translation` (plan, answers, apply), `ContentEditor.Translate.cs`, `TranslationMarkup`,
+`ContentEditor.TranslateLinks.cs`, through the user's endpoint and the "what is sent, where" window; free. Each paragraph
+is written in its box (wraps, uses the space below, shrinks to half or 5 pt, else flagged with a comment); tables cell by
+cell, turned tables in their own frame (`TranslationFrame`); looks (bold, italic, scripts, underlines, up to three other
+colors or families) travel as tags the reply must keep; links follow the words they stayed on; right-to-left text shaped
+line by line. Tests: `TranslationTests`, `TranslationLooksTests`, `TranslationMarkupHostileTests`, the 100-page report
+through a real socket to a stand-in, `TranslationCorpusTests` and `TranslationPdfJsTests` (opt-in), `TranslationRealModelTests`
+(opt-in, a real endpoint).
+- **Why the choices:**
+  - When the page's font lacks a letter, the whole paragraph is drawn in the closest installed font (a subset rarely holds
+    a translation's letters, and letter-by-letter stand-ins read like a ransom note).
+  - A new line is written where the lowest old line it reaches was drawn: a page that paints a white band under each line
+    before drawing it hid every new line after the first (tests read text, so `TranslationInk` now measures each line's ink).
+  - A reply's tags are trusted only when they are ours, balanced, nested, and cover about as much as was sent; anything
+    else is written plain. A request names only the tags its text has (a model told of `<font>` wrote `<font color=…>`).
+    A prompt line asking to keep every pair "even around words you leave as they are" made no clear difference: not kept.
+  - Right-to-left lines are written in stretches (`GlyphOrder.Stretches`): each right-to-left stretch left to right, the
+    stretches and the figures and Latin words between them in reading order, so MuPDF (search, copy, export, the redaction
+    check) and pdf.js both read them. Tried and dropped: the whole line in visual order (MuPDF read figures backwards) and
+    /ActualText over it (MuPDF turned it around). Not built: the figures written twice (Acrobat, which reads /ActualText,
+    would get them backwards, and MuPDF wouldn't see visible text).
+  - A right-to-left line is drawn in a font whose joined letters stay on the baseline (`RightToLeftFont`): MuPDF reads a
+    line whose letters sit on more than one baseline (Calibri's Arabic) backwards.
+- **What one content stream can't give both readers:** pdf.js runs a right-to-left word into the figure or Latin word
+  beside it, and a line with a bold, other-font or raised word inside right-to-left text keeps reading order (no spaces
+  in pdf.js). MuPDF reads Arabic-Indic digits backwards.
+- **Real model** (latest, Qwen3 4B Instruct 2507 Q4_0 on llama-server, 8,192 tokens): NIST p. 1, attn-v7 p. 3 and fw9 p. 1
+  into Spanish, French, German, Arabic and Japanese, 30-155 s a page; every answer's words show; tags kept whole in
+  11/11/12/5/6 of 16 marked texts (es/fr/de/ar/ja). The model's own faults, not bugs: a term translated several ways, an
+  identifier changed ("SP 800-63A" as "DE 800-63A"), words of another script slipped in (asked again, then flagged).
+- **Not checked:** another model or a cloud endpoint; a model's refusal or an answer to the text instead of its
+  translation can't be told from a translation; a screen reader or Acrobat on a copy; long runs over sleep and Wi-Fi drops.
+- **Mac:** done (2026-11-10) as Windows was then; the looks and right-to-left work of 2026-11-19 and 11-20 isn't ported.
+  Differences: `mac/docs/PLAN.md`, "Translate side by side". Not checked on the Mac: a real model.
 
 ### 3.2 Export to PowerPoint and HTML
-- **Leader.** Acrobat exports to PowerPoint and HTML, with "retain page layout" or flowing text
-  ([Adobe](https://www.adobe.com/learn/acrobat/web/convert-pdf-retain-page-layout)).
-- **Beat it when:** PowerPoint: one slide per page at the page's size, text as editable text boxes in reading order,
-  pictures as pictures, simple shapes as shapes, slide titles from headings; HTML: one file, reflowing, with real
-  headings, lists and tables from `DocLayout`, pictures embedded, alt text from tags, valid HTML5 with no external
-  requests. Test: export-corpus runs open in PowerPoint and LibreOffice with no repair prompt; the HTML passes the W3C
-  validator and reads in order in a screen reader.
-- **Effort** M. Windows; Mac: done with E15 (2026-11-02).
-- **Now.** Windows done 2026-10-30: File › Export (and the command palette, Batch, presets, the command line through
-  presets). PowerPoint: `PptxWriter`, one slide per page; a presentation has one slide size, so it is the size most pages
-  have and pages of another size are shrunk and centered. Each paragraph is an editable text box where the page has it, a
-  list one box with real bullets, the page's first top heading the slide's title (a running head never), tables are
-  tables, pictures are stored once, sideways lines are turned boxes. `ExportShapes` tells lines, rectangles and ellipses
-  apart by looking at a rendering, since MuPDF gives only a path's bounds; any other path stays as it looks, a picture. A
-  slide's order is its reading order. HTML: `HtmlWriter`, one file that reflows: headings that never skip a level,
-  nested and numbered lists, tables, pictures as data with the tags' alternate text (`ExportTags`), the running header
-  and footer once. Everything from the PDF is escaped; no script or request, with a Content-Security-Policy too.
-  **Links** (2026-11-20): both carry the PDF's links on the words they cover (`ExportSpan.Link`, read with the page's
-  glyphs): http, https and mailto addresses (`Links.IsSafe`, at most 2,048 characters, written escaped; anything else stays
-  text) and jumps to an exported page (a slide jump; the HTML's `#page-N`); a jump to a page left out is dropped.
-  **Checked** (`tools/export-corpus`, 7 real documents, 174 pages): every .pptx passes the Open XML SDK's validator and
-  opens in PowerPoint (16.0, on this PC) with every slide and shape it was written with; every
-  .html passes the W3C's Nu validator (run locally) with no errors, has no active content (its 869 links all web, mail or
-  page anchors on 2026-11-20, none starting on a space; a link over two lines is two), and 3,617 of 3,641 lines read in the plain-text export's order. Word's page counts are
-  unchanged.
-  **Not checked yet:** LibreOffice (not installed on the PC that ran this: `run.ps1 -LibreOffice` opens every .docx,
-  .xlsx and .pptx in it where it is) and a real screen reader (the order test reads the file's order, which is what one
-  follows).
-  **Known:** slides don't keep a font that isn't installed: a wider one wraps sooner, so
-  dense forms come out crowded (the Word export's limit too). A link on a picture or a shape isn't carried, nor are a
-  scan's links, and the Word export carries none.
+Done, Windows and Mac. `PptxWriter` (one slide per page, editable text boxes, the first top heading the title, tables,
+pictures stored once, `ExportShapes` telling lines, rectangles and ellipses apart from a rendering since MuPDF gives only
+a path's bounds) and `HtmlWriter` (one reflowing file, no script or request, a Content-Security-Policy); both carry the
+PDF's links on their words (`ExportSpan.Link`; http, https, mailto and exported pages only). Checked by
+`pdf/tools/export-corpus` (Open XML SDK, PowerPoint, the W3C Nu validator, reading order).
+- **Not checked:** LibreOffice (`-LibreOffice`, not installed where it ran); a real screen reader.
+- **Mac:** links in the exports (2026-11-20) aren't ported.
 
 ### 3.3 Compare: Office files, scans and formatting
-- **Leader.** ABBYY (Corporate) compares a Word file or a scan with a PDF, OCR in the background; it ignores formatting
-  ([ABBYY](https://help.abbyy.com/en-us/finereader/16/user_guide/overview_compare)). Acrobat reports text, fonts,
-  images and page order ([Adobe](https://helpx.adobe.com/acrobat/current/compare-documents.html)).
-- **Beat it when:** either side can be an Office file (made into a PDF by the installed Office, as now) or a scan (OCR
-  first); font, size, color and style changes are listed apart from wording; moved paragraphs show as moves; shifted
-  or skewed scans are aligned before the visual overlay; the annotated copy includes visual differences. Test: a
-  contract and its edited .docx with 30 planted changes (wording, moves, bold, size) lists all 30, none extra.
-- **Effort** M. Windows; Mac with Compare (the compare itself came with E3, 2026-10-30; Office files, scans and
-  formatting came 2026-11-07).
-- **Now.** Windows done 2026-10-31. Either side can be an Office file (Word, Excel, PowerPoint through the installed Office,
-  with the same checks as opening one), a picture of a page or a PDF. A page whose pictures cover 70% of it is a scan; one with
-  no text is recognized first (Windows' OCR, skippable), and its text gets no formatting changes. Font, size, bold, italic and color
-  changes are listed apart from wording, moved passages as moves with the edits inside them as their own changes, running
-  headers and footers left out, each kind with a box to hide it (`CompareLooks`, `CompareMoves`, `CompareScan`). Scans are lined up
-  for shift and skew before the overlay (`CompareAlign`, from each page's lines and where the ink falls; used only when the ink
-  agrees better). What looks different besides the words is listed and in the annotated copy, with moves and formatting.
-  **Checked:** `CompareContractTests`: a contract and its edited .docx with the 30 planted changes (8 changed, 5 inserted, 5
-  removed, 4 moves, 8 formatting) made into PDFs by Word 16 list all 30, none extra; the PDFs are in the tests' `Data`, so CI runs it
-  (`INKVOLTPDF_WORD` makes them again). The app compared the two .docx files through Word and listed the same 30. The edited
-  PDF against a synthetic scan of itself (200 dpi, turned 1.3°, shifted) found 1.3° and the shift to a tenth of a point.
-  **Not checked:** a real scan. **Known:** on that synthetic scan Windows' recognizer skipped a whole line, listed as removed and
-  marked as maybe misread, and lost one "."; such a line is now read again (`MissedLines`, 2.2, 2026-11-03).
-  **Another size or a quarter turn** (2026-11-20): `CompareAlign` also brings the new page to the old one's size and way up
-  before the shift and skew: each quarter turn whose ink box has the old one's proportions is tried coarsely, the best
-  sized to the pixel pair (±5%), then lined up as before; kept only when the ink agrees better. `CompareAlignTests`: turned
-  90/180/270°, at 0.8, 0.85, 1.2 and 1.3 times, crooked and shifted, each found to the degree and 1.5% and lined up to 2
-  points, a stamp still showing. The app (`--script compare`) lined a 300 dpi scan up with one turned 90° on a landscape page
-  (90°, ×0.998), the overlay all grey, no text changes. Compare's recognition reads with the language's dictionary now, as
-  Recognize Text does. The scan cleanup's which-way-up test (`Upright`, shared with Inkvolt Print) took the export test
-  page with its large shaded picture for upside down, and sure of it, so both sides read upside down: fixed the same day, a
-  run of inked rows over 3 times the page's lines' height (a picture, a shaded box) no longer counts as a line, nor one
-  under 6 rows (a rule, a speck); the lines' height is the lower middle of the rest, after lines set tight are cut
-  between their bands, and the lines are read again without the pictures' rows
-  (`Upright.MaxLineRatio`); the page reads upright at each quarter turn (ScanTextTests, PrintTests' `UprightTests`).
-- **Mac (2026-11-07):** File › Compare Files… takes a Word, Excel or PowerPoint file (made into a PDF by LibreOffice, with the
-  same checks as opening one: Word for Mac can't be driven yet) or a picture of a scanned page on either side; a page whose
-  pictures cover 70% of it is a scan, and one with no text is recognized first with Vision on this Mac (Compare Without
-  Reading Them skips it). PdfCore's `CompareLooks`, `CompareMoves` (with `CompareRunningLines`), `CompareScan`, `CompareAlign`
-  (with `VisualAreas`) ported with their tests (CompareChangesTests, CompareAlignTests, CompareContractTests: Word's two contract
-  PDFs read in place list the 30 planted changes, none extra); each kind with a box to hide it; scans lined up before the
-  overlay; what looks different besides the words listed and in the annotated copy. Pro (`ProFeature.compareOfficeAndScans`; the
-  gate stays off). A page the engine refuses (the page checks) is listed as not compared. The self-test compares a word set in
-  bold and a scanned page (`--only-compare`). **Not checked on the Mac:** a real .docx through LibreOffice against Word's PDF, a
-  real scan. What differs and why: mac/docs/PLAN.md, "Compare: Office files, scans and formatting".
+Done, Windows and Mac. Either side an Office file (through the installed Office; LibreOffice on the Mac), a picture of a
+page or a PDF; scans recognized first; formatting (`CompareLooks`) and moves (`CompareMoves`) apart from wording; scans
+lined up for shift, skew, size and a quarter turn before the overlay (`CompareAlign`). Acceptance (`CompareContractTests`,
+the PDFs in the tests' `Data`, `INKVOLTPDF_WORD` makes them again): a contract and its edited .docx with 30 planted changes
+list all 30, none extra.
+- **Not checked:** a real scan; on the Mac, a real .docx through LibreOffice against Word's PDF.
+- **Mac:** another size or a quarter turn in `CompareAlign` (2026-11-20) isn't ported.
 
 ### 3.4 Long-term validation for signatures
-- **Leader.** Acrobat: Add Verification Information stores revocation data (DSS) after signing, and timestamped
-  signatures with revocation are LTV-enabled ([SSL.com](https://www.ssl.com/how-to/long-term-validation-ltv-of-pdf-digital-signatures-in-adobe-acrobat/)).
-- **Beat it when:** signing embeds OCSP/CRL responses for the whole chain (DSS/VRI) and can add a document timestamp
-  (PAdES B-LT, B-LTA); Add Verification Information works on any signed file; DocMDP and FieldMDP are enforced when
-  verifying. Test: Acrobat shows "LTV enabled" and the EU DSS validator reports B-LTA for our signed files.
-- **Effort** M. Windows; Mac with signatures (verifying and signing came with E2, 2026-10-30, DocMDP and FieldMDP enforced
-  as on Windows; the long-term data is still to do there).
-- **Now.** Windows done 2026-10-31. Sign Digitally can store OCSP answers or CRLs for the whole chain and its timestamp's (/DSS, /VRI)
-  and add a document timestamp (B-LT, B-LTA). Add Verification Information does it to any signed file as incremental updates, the earlier
-  bytes as they were and each signature re-verified before the result is handed back; a signature with no timestamp takes two document
-  timestamps, one for its time and one over the data, which is what EU DSS asks. Signatures followed only by such data still read as valid.
-  Pro: adding the data (`ProFeature.LongTermValidation`); free: verifying, the level shown, and Check Signatures Online, which asks without
-  changing the file. Going online happens only through `LtvClient`, after a window listing every address and what it gets: https for the
-  timestamp server in the field, Sectigo's free one unless the person enters another (the http DigiCert default is gone; the real Sectigo answered and its timestamp verified, `INKVOLTPDF_REAL_TSA`), the certificates' own OCSP, CRL and issuer URLs as they name them,
-  nothing private, loopback or link-local by name, by DNS answer (checked on the connection made) or by redirect, no proxy, 15 s and a
-  size limit per request. **Opening a signed file used to go online by itself** (revocation, and Windows fetching missing issuers from what
-  a file's certificates name, a way for a file to probe the local network): it no longer does, and signing no longer does either.
-  DocMDP and FieldMDP were enforced as said; added: every FieldMDP reference counts, a locked field's appearance, other properties or a new
-  field of its name count as changes. A hostile /DSS (wrong shapes, loops, zip bombs, thousands of entries, forged answers) reads as no data.
-  **Checked:** `LtvTests` against a generated CA with a local OCSP responder, CRLs, issuer certificates and RFC 3161 server, none of it needing
-  the internet. EU DSS 6.5.1 run locally and offline (`tools/pades-check`, opt-in `INKVOLTPDF_PADES_CHECK`) reports PAdES-BASELINE-LTA, TOTAL_PASSED,
-  for B-LTA signing, Add Verification Information on a B-B file and on a no-changes certification, CRLs only, and a delegated responder;
-  PAdES-BASELINE-LT, TOTAL_PASSED, for B-LT; and -B and -T for the plain ones. The real app, driven with `--script` against the local authority,
-  added, checked and signed, its files reading B-LTA (`The_real_app_adds_checks_and_signs`). No file went to an online validator.
-  **Not checked:** Acrobat's "LTV enabled" (Acrobat isn't on this PC; `tools/pades-check` says how, by hand). Real certificate authorities and
-  timestamp servers: every run was against the generated one, so a real CA's OCSP answers older than a fresh timestamp (issued ahead by a CDN) are
-  handled only as far as "still in force at that time" in our own check; EU DSS may ask for a later one. Smart cards.
-  **Certifying with fields locked**, Windows done 2026-11-03 (Pro, `ProFeature.FieldLocking`; the gate stays off): the Sign dialog's "Lock form
-  fields" (when certifying a form) locks all fields, the ones chosen, or all but those. The signature gets a FieldMDP reference after its DocMDP
-  one (/Data the catalog, /Action, /Fields, /V /1.2), the signature field a /SigFieldLock /Lock saying the same, and the locked fields the
-  read-only flag; a field's own /Lock is honored beside it (a reference each). The verifier reports a later change to a locked field as not
-  allowed ("locked field "Name""), and to an open one as allowed. **Checked:** `FieldLockTests` (the dictionaries against ISO 32000-1 Tables
-  233, 253, 254, 256; a locked and an open field changed after each of the three choices); EU DSS 6.5.1 (`tools/pades-check`) reports
-  PAdES-BASELINE-LTA, TOTAL_PASSED, for a form certified with a field locked and then given long-term data. **Not checked:** Acrobat's view of
-  the lock.
-  **Batch's long-term action**, Windows done 2026-11-03 (`AddLongTermStep`, same Pro gate; presets save it as `addLongTermData`
-  with its `timestampServer`): Add Verification Information on each signed file, with checks, reports and exports only.
-  The window lists every address the signed files would ask before the run (the command line: `--online`); the run has one
-  `LtvClient`, one file at a time, each file the request budget a single file has (`NextFile`); an answer is used again for
-  the next file and a server that didn't answer (time out, no connection) isn't asked again, so a batch can't hammer it.
-  Per file: no signature, already long-term (no copy), offline (`BatchHost.IsOnline`), couldn't reach the service; the
-  originals as Batch keeps them. **Checked:** `BatchLongTermTests` (a mixed batch, B-LTA, offline and unreachable, cancel,
-  oversized and garbage replies, presets, the command line); EU DSS 6.5.1 reports PAdES-BASELINE-LTA, TOTAL_PASSED, for a
-  batch's second file, whose answers came from the first's. **Not checked:** many files against a real authority; the
-  app's watched folders don't go online (their files fail "may not go online").
-  Encrypted files are refused, since `Incremental` can't append to them.
-  **Mac** done 2026-11-11 (`mac/docs/PLAN.md`, "Long-term validation"): all of the above, Windows' tests ported under their names
-  (LtvTests, FieldLockTests, BatchLongTermTests, SignatureChangeTests' FieldMDP additions) against the same kind of local authority on
-  loopback. Mac differences: `LtvClient` resolves a name itself, refuses it when any address is this Mac's or a local network's and
-  connects only to those it checked (Network.framework); chains are built by SecTrust with fetching off; every timestamp the Mac app
-  asks for now goes through `LtvClient` (https only, Sectigo suggested). **Not checked on the Mac:** EU DSS on its files, Acrobat, a real
-  authority.
+Done, Windows and Mac. Sign Digitally and Add Verification Information store OCSP answers or CRLs for the whole chain
+(/DSS, /VRI) and document timestamps (B-LT, B-LTA) as incremental updates; certifying with fields locked (FieldMDP);
+Batch's long-term action (one `LtvClient` a run, answers reused, a silent server not asked again). Online only through
+`LtvClient`, after a window listing every address. Opening or signing a file no longer goes online by itself (Windows
+fetching issuers a file's certificates name let a file probe the local network). Encrypted files are refused
+(`Incremental` can't append to them). Checked: `LtvTests`, `FieldLockTests`, `BatchLongTermTests` against a generated
+authority on loopback; EU DSS 6.5.1 run locally (`pdf/tools/pades-check`) reports PAdES-BASELINE-LTA, TOTAL_PASSED.
+- **Not checked:** Acrobat's "LTV enabled" and its view of a field lock (`pdf/tools/pades-check` says how, by hand); real
+  certificate authorities and timestamp servers (an OCSP answer issued ahead of a fresh timestamp by a CDN is accepted
+  only as far as "still in force at that time" in our check; EU DSS may ask for a later one); smart cards; many files
+  against a real authority. Watched folders don't go online (their files fail "may not go online").
+- **Mac** differences (`LtvClient` resolves names itself, SecTrust with fetching off): `mac/docs/PLAN.md`, "Long-term
+  validation". Not checked on the Mac: EU DSS on its files, Acrobat, a real authority.
 
 ### 3.5 Indexed folder search
-- **Leader.** Acrobat Pro's catalog: a full-text index (.pdx) over a folder, searched in Advanced Search
-  ([Adobe](https://helpx.adobe.com/acrobat/current/creating-pdf-indexes.html)).
-- **Beat it when:** a folder is indexed in the background (a local file beside our settings), kept current as files
-  change, OCR text included; results with context, opened at the hit; accents and case ignored as Find does. Test:
-  10,000 PDFs indexed once, a word query answered in under 1 s, a changed file found again within a minute.
-- **Effort** M. Windows and Mac.
-- **Now.** Windows done 2026-10-31: Edit › Search Folders… (Ctrl+Alt+Shift+F, the command palette), Pro (`ProFeature.FolderSearch`; the gate stays off). No new
-  dependency: a small inverted index of our own, one file per folder in the data folder's `FolderIndex` (`FolderIndex`): terms to pages, each page's text compressed, written
-  only at the end, a commit at a time, flushed before its footer, so a crash leaves the last commit; compaction writes a new file. Terms fold what Find's own comparer reads alike,
-  asked of the comparer (`IndexTerms`), and a word is found inside longer ones; the index only proposes pages, Find runs on the kept text and has the last word, so no search opens a PDF.
-  Only **index workers** parse PDFs (`IndexWorkers`, the find workers' pattern, below normal priority, 2 GB each); `FolderIndexer` keeps it current by the system's change notices and a look every 30 s.
-  OCR text layers are indexed; no OCR runs, and a scan with no text is counted and said. Damaged, password-protected, over 512 MB or 50,000 pages, over 2 minutes of processor time, or crashing a worker twice:
-  skipped, counted, listed, read again when it changes or with Rebuild.
-  **Checked** (`tools/bench`, `index-make`, `index-run`; Surface Laptop 7, Snapdragon X, on battery, other work running; Release): 10,000 PDFs and 6 bad ones (72,797 pages, 149 MB, 200,400 terms) indexed from nothing in 158 s
-  (146-158 s in three runs; **not explained:** a fourth took 569 s and a fifth was stopped when it slowed to a few files a second, with workers idle and processors free, single pages taking 0.5-2 s by the clock; Windows holding back low-priority work on battery is the guess, unproved), a 154 MB index file, the app at most 179 MB. Word queries to the last result listed: 3-114 ms, the worst
-  a one-letter query at 219 ms; the first query after opening 84 ms (target 1 s, met). A changed file found again in 3.4 s, three times out of three (target a minute, met); opening the index 27 ms. The Release app on that corpus: indexed with the window answering in at most
-  35 ms, paused and resumed, a result opened at its hit, a new file found. Tests: every byte offset of a commit cut (`FolderIndexTests`), a writer killed 8 times mid-commit (`FolderIndexerTests`), workers dying, hanging, spinning and running out of memory
-  on a file, a folder going away. **Missed, not part of the target:** a phrase of two words common but rarely side by side took 3.2-4.1 s to list 500 pages (first result 14-20 ms; every page has to be read).
-  **Phrases, 2026-11-20:** the cause was reading, not Find: a page's text was fetched through a cursor that filled a whole megabyte on every miss, and the threads took a file's pages apart, so the 45,500 pages read for "the lantern" fetched gigabytes (36.7 s of thread time reading, 3.8 s in `SideBySide`, 0.2 s in Find). Now a file's pages go to one thread together, its text read once (a megabyte at most; past it, a page exactly), and a phrase is told on the page's UTF-8 when page and terms are plain ASCII (`SideBySideAscii`: the last term found vectorized where a word starts, the words before read backwards; anything else, a broken line's "-\n" included, goes to `SideBySide` as before). Same corpus and PC, old and new built side by side, run in turn (`tools/bench`, which now prints each query's processor time): processor 7.0-8.4 s → 2.1-3.2 s; to the 500th page 3.4-5.2 s → 0.60-1.22 s with the PC otherwise quiet (0.60-0.86 s in 7 runs of 9), 1.1-6.7 s while another session's tests took 2-3 cores (old: 4.2-6.7 s then). Word queries are unchanged or faster (processor 188-234 → 62-156 ms for "lantern"). What is left is inflating each page (40-57 µs of the ~50 µs a page). **Then (review, same day):** a file's pages go to the threads 32 at a time (one big PDF no longer runs on one thread), the threads are all processors but two (12 at most; 10 on this PC, was half, 6 at most: 6 threads 0.64-1.24 s, 9 threads 0.49-1.06 s, 11 threads 0.48-0.95 s, the same index, runs in turn), and the index file is opened overlapped (a synchronous handle took the threads' reads one at a time: reading the files' texts 1.2 s of thread time on an index opened anew, 0.3-0.56 s overlapped). The phrase now lists its 500 pages in 0.45-0.55 s (processor 1.9-2.6 s) on the index the indexer has open, 0.42-0.74 s on one opened anew in a fresh process (`index-query`, 5 runs, the first with its start-up), 0.71-0.84 s on an index just built, and 0.68-1.09 s on one reopened in the bench's process after its indexer stopped (not explained; not seen in a fresh process). A cheaper page form wasn't needed, so no rebuild. After merging master, with another session's tests on 3-6 cores: 0.85-0.96 s (the index itself took 891 s then, below). **Second review:** in a round of fewer files than threads a file's pages are shared among them (each at least 4, at most 32), and a file's list of pages is read once a round for all of them (each page's place from running sums, where it was added up page by page), by the thread that reads the file's text with it (256 KB at a time). A folder of one PDF of 5,000 pages (`text.pdf` of `make`, "lantern" on 4,428): the phrase read across all of them in 43-123 ms (`index-query`, the first run with its start-up; the previous code 73-151 ms beside it), "lantern" to 500 pages in 20-99 ms; indexed in 74 s. On the 10,000 files, the same processor time as the previous code, run in turn on one kept index (1.9-2.6 s against 2.0-2.5 s); the clock varied too much then to compare (0.50-8.7 s against 1.6-7.5 s; other sessions' tests, a `find` over the disk and Defender at a core had the PC, and the index took 1,270 s). Under that load the bench's full run listed the phrase in 1.09-1.23 s.
-  **The slow index runs, 2026-11-20 (`index-read`, a sampler of each process's processor time):** not the battery. A file a worker opens waits for Windows Defender's real-time scan; when Defender is busy (a corpus not scanned yet, another program writing files) the workers sit idle with processors free. Reading the 10,006 files with nothing parsed: 14.0 s on 4 threads the first time (a file 2.4 ms, 99% 27.5 ms), 0.2 s after. Indexing the same corpus from nothing: 270 s with another session's tests running and MsMpEng at a full core (workers at 0.1-0.4 of a core each, half the processors free), 170 s and 137 s once read, 145 s for a corpus just made on a quiet PC (workers 3-3.5 cores, Defender 0-1 core). Also seen: workers are replaced every 1,000 files (`FilesPerWorker`), all four at once, and indexing runs at about half speed for those 5-10 s. Not fixed: Defender's scan isn't the app's to change (an exclusion is the user's call), and files/s falls through a run by design (small files first). Seen again after the review (2026-11-20, another session's tests on 3-6 cores): the index crawled at 1-2 files a second with its workers at 0.00-0.06 of a core, the indexer at 0.01-0.02, Defender at 0.04-0.7, the disk idle and half the processors free; at that moment plain reads of the same 10,006 files, read many times before, took 36.9 s (a file 11.3 ms, 99% 152 ms) against 0.2 s on a quiet PC. Opening a file is what waits, for every program, while the other work runs; nothing in the indexer is.
-  **Not checked:** real-world PDFs at this scale (the corpus is generated), a real hostile PDF (a worker's death is simulated), a network drive, a disk filling up. An MSIX install indexes and searches a folder in the pack's smoke run (`smoke-msix.ps1`), passed with 1.5.0. **Cloud drives:** real Cloud Files placeholders are tested on a sync root the test makes, on this PC, with no provider running (read when on the PC, counted and left alone when only in the cloud, a sub-folder included). Of OneDrive itself only one folder on one PC was measured, its 7 PDFs listed, all on the PC already: a file only in OneDrive's cloud has not been seen staying there, nor Dropbox or Google Drive at all.
-  **Long runs** (2026-11-07, as the Mac port does): a run of letters and digits longer than a term (48: an identifier, a hash, base64, a German compound) was filed under its first 48 only, so a search for its end found nothing while Find in the open document did. Now it is filed in overlapping pieces of 48, one every 24, its first 1,024 characters at most (43 terms a run at most, at most twice what is read of it), and a query's long word looks up its first 23; a phrase that starts at the end of a long run is found too. `IndexTerms` version 2: an index of version 1 is thrown away on opening and read again once, by itself. Bench (the corpus now has a 64-character checksum on each file's first page; same PC, before and after): indexed in 119.1 s and 118.2 s; index 154.9 MB and 155.3 MB, 210,402 and 220,402 terms; word queries as before (one letter 208 ms, the rest 3-107 ms); the end of a checksum 0 pages before, its page after in 2.6-16.6 ms.
-  **Known:** a moved file is read again; the text of a changed file stays in the index file, shown by no search, until the next compaction (within about 2 minutes); a run's characters past its first 1,024 are found only by a page's other words. The Mac files long runs the same way (its port, below).
-- **Mac (2026-11-07):** Edit › Find › Search Folders… (⌥⇧⌘F, the command palette), Pro (`ProFeature.folderSearch`; the gate stays off). PdfCore's `FolderIndex`, `FolderIndexer` and `IndexTerms`
-  ported with their tests (IndexTermsTests, FolderIndexTests, FolderIndexerTests): the same file layout, commits and search, the index in the app's own Application Support, nothing sent anywhere;
-  Spotlight isn't used (its text isn't Find's). Read in process on reading threads, as the Mac's Find, not in worker processes: each page through the engine's page check (a bomb page refused at its
-  budget, the rest of the file indexed), a watchdog on each file's processor time and silence, and a journal beside the index for a file that was being read when the app ended (twice: skipped,
-  counted, listed). FSEvents and a look every 30 s; iCloud files not downloaded are counted and left there. Bounded as on Windows, plus 100,000 PDFs a folder and 2 GB of index file. The self-test
-  indexes a folder of synthetic PDFs and finds, opens and re-finds a word (`--only-folder-search`). **Not checked on the Mac:** the 10,000-PDF bench, a real crashing PDF, a network volume.
-  What differs and why: mac/docs/PLAN.md, "Indexed folder search".
+Done, Windows and Mac. Edit › Search Folders… (Pro). A small inverted index of our own, no new dependency (`FolderIndex`:
+one file per folder, commits, compaction; `IndexTerms` folds as Find compares, so the index only proposes pages and Find
+on the kept text has the last word). Only **index workers** parse PDFs (`IndexWorkers`, below normal priority), so a
+hostile file costs a worker; `FolderIndexer` follows change notices and looks every 30 s. Runs longer than 48 characters
+are filed in overlapping pieces (`IndexTerms` version 2). Latest (`pdf/tools/bench` `index-run`, 10,000 generated PDFs,
+72,797 pages): indexed in about 2.5 minutes on a quiet PC, word queries to the last result under 0.25 s, a changed file
+found in seconds, a phrase of two common words to 500 pages in under 1 s.
+- **Slow index runs are Windows Defender**, not the app: a file a worker opens waits for its real-time scan, and when
+  Defender is busy the workers sit idle with processors free (`index-read` shows it). An exclusion is the user's call.
+- **Not checked:** real-world PDFs at this scale, a real hostile PDF (a worker's death is simulated), a network drive, a
+  disk filling up; of cloud drives, only placeholders on a test sync root and one OneDrive folder already on the PC.
+- **Mac:** reads in process on reading threads through the engine's page check (no workers), Spotlight not used (its
+  text isn't Find's): `mac/docs/PLAN.md`, "Indexed folder search". The phrase speed-up (2026-11-20) isn't ported. Not
+  checked on the Mac: the 10,000-PDF bench, a real crashing PDF, a network volume.
 
 ### 3.6 Speed on huge files (differentiator)
-- **The gap.** Acrobat users report freezes on 200-500 page files and on large drawings, and Adobe staff suggest
-  leaving continuous scrolling ([Adobe Community](https://community.adobe.com/t5/acrobat-discussions/acrobat-becomes-very-slow-when-i-open-large-pdf-files-200-pages/td-p/15579541)).
-  No vendor publishes numbers.
-- **Now.** Windows: the benchmark is in (`tools/bench`, see its README): a deterministic corpus made on the PC (a
-  5,000-page text in four standard fonts, a 500-page 300 dpi JPEG scan, a 1 GB drawing set of 400 sheets with 72,000
-  paths each, 250 pages with 10,000 comments and replies), measured at Core level three times in fresh processes, the
-  medians against the targets in [tools/bench/RESULTS.md](tools/bench/RESULTS.md); `scrollbench` in the dev script
-  times the on-screen scroll; `BenchTests` keeps the generator and harness working. First run (2026-10-30, Surface
-  Laptop 7 with a Snapdragon X, a busy PC): first page 0.06 s (text), 0.27 s (scan), 0.35 s (comments); 10,000 comments
-  listed in 0.79 s; 4, 37 and 12 ms per page scrolling those three, 73–75 fps in the app with no blank page. The
-  speed work since (second run the same day, branch `speed`, same busy PC): Find runs as one search on two threads in
-  page order and remembers each page's text for the document's lifetime (whole for pages with little text); a file of
-  256 MB or more opens in place and its bytes are read only when needed, with a name scan so the panes skip PDFsharp
-  when the file has nothing for them; big renders run in four strips on cloned contexts; the viewer shows a small
-  preview of a page before its full render. Drawing set: first page 1.47 s to 0.47 s, peak 2.08 GB to 0.16 GB, no sheet
-  blank 200 ms after the scroll stops (was 2), a second search a millisecond. Still missed: Find across 5,000 pages
-  9.7 s (was 12.8 s), the drawing set's 20-page scroll proxy 848 ms a sheet (was 1,597; the 72,000 paths cost per path,
-  not per pixel, so a preview still takes a few hundred ms) and its first Find 164 s on that run (106 s in a quieter
-  moment; about 250 ms a sheet of MuPDF parsing the paths for a text pass that ignores them). Threads in one process
-  can't take these further: MuPDFCore's native wrapper guards MuPDF's allocations with process-wide mutexes (four
-  instances use four times the CPU of one for no gain), while four processes run four times as fast. So (third run,
-  2026-10-30, decided with the owner) a long Find reads text in **find workers** (`Core/FindWorkers.cs`,
-  `PdfEngine.Find.cs`): the app started again with `--find-worker` and a per-launch pipe name, no WPF on that path. Find
-  across 5,000 pages 2.71 s (9.64 s before, run straight after on the same PC), target met; the drawing set's first
-  Find 31.7 s (106 s); the app with its workers at most 0.87 GB, against 1.5 GB. A search starts on its two threads and
-  starts workers when its pace, from 200 ms on, says over 2 s is left and 16 pages or more (about 1,000 pages of a
-  text); up to eight, two cores left free, 100 MB each within half the free memory and 1.2 GB. A worker that fails, can't
-  start or stalls for 2 minutes loses nothing: its pages go to the threads, with no message. Workers end with the
-  search, on Cancel, with the engine and with the app, even a crash (a Job Object, and a watch of the parent in the worker).
-  A file with a password stays in process, so no password crosses a pipe; a PDF in memory is shared through a section
-  with no file behind it, and nothing is written to disk. Formats other than PDF stay in process. The Store smoke test
-  searches in workers. The drawing set's scroll stays over target (761 ms a sheet): a display list kept per sheet
-  doesn't change that, as the engine already keeps 32 and painting is three quarters of the cost (581 ms again against 761 ms
-  the first time), so that idea was dropped. **Mac (E16, 2026-11-02):** `mac/tools/bench` makes the same corpus and
-  measures (RESULTS.md, on the M1 Air, to be run again on the M6 Mac mini): MuPDF instances don't wait on each other there, so
-  Find reads pages on threads in process (`PdfEngine.findAll`, every core but one, no workers): 5,000 pages in 0.55 s, the
-  drawing set in 6.9 s (33.5 s before); one copy of a file's bytes for all of an engine's instances took the drawing set's
-  peak from 2.6 GB to 1.3 GB. Still over target on the Mac too: the drawing set's scroll (584 ms a sheet) and its Find.
-  **Mac, drawing in bands (2026-11-07).** A sheet's time was the draw device's (568 ms of one core drawing its kept
-  display list, 80 ms making it). The shim now draws a list of 2,000 paths or more and no pictures in bands of rows, one
-  a core, each a clone of the render's context running the one list into its rows (`inkv_draw_bands`; Windows draws big
-  renders in four strips on cloned contexts, which its wrapper's process-wide locks hold back). MuPDF's locks are taken for every
-  node of the list in every band: pthread mutexes made the threads queue in the kernel (8 bands: 192 ms), unfair locks
-  162 ms; 16 bands on the M1's 8 cores were slower again. The bands share the cookie's stops and one CPU budget, so a
-  hostile page is refused as on one thread (`DrawingBandsTests`), and a drawing out of time in bands is drawn again on
-  one thread before the page is refused; a page with pictures (Type3 glyphs that draw one included) stays on one thread
-  (each band decodes and scales its part of a picture, which can shift a source row at a band's edge); each band is byte
-  for byte what one thread draws of its rows. The viewer also asks for the next page ahead, the way it last scrolled,
-  once what is shown is drawn. Bench (M1 Air, base and branch
-  interleaved, load 2 to 14): the drawing set's first render 617 to 257 ms, scroll proxy 707 to 261 ms a sheet (607 to
-  237 on the quietest pair; `run`: 223 ms, slowest 251), the same pages again 587 to 166 ms; the other files, Find and
-  memory unchanged. Still missed: the scroll proxy (each sheet's list, about 80 ms on one thread, plus its drawing), and
-  Find (9.8 s under that load, 6.9 s quiet): 80% of it is MuPDF's content lexer (`fz_strtof`, `lex_number`, one byte at
-  a time) and inflate, which only a change to MuPDF itself would make faster (the owner's call); the text device's work
-  on the 72,000 paths is under 2% of it.
-  **A hostile file's time: MuPDF's own inflating, bounded by time (Windows, 2026-11-05).** PDFsharp's filters are bounded
-  (`BoundedFilters`, 256 MB a stream); MuPDF's inflating kept memory flat but not time: a 7 KB page Flate twice to 4 GB
-  took 52 to 116 s of one core to draw, a 1 MB one Flate once to 1 GB 13 s, a 20,000 × 20,000 picture of 1.2 MB 9 s a
-  draw (MuPDF reads a picture's samples only up to its width × height: a 10 × 10 one of 1 GB, milliseconds). MuPDF's
-  abort cookie can't reach it: the page's content is read while the display list is made, and MuPDFCore 2.0.1's wrapper
-  passes no cookie there and exports nothing of MuPDF's own; nor does MuPDF look at a render's cookie while it inflates
-  a picture. So (option A's fallback, the owner's choice over the rejected `InflateGuard` pre-scan) a page is first
-  drawn small, every picture decoded, in a **page check** (`Core/PageChecks.cs`, `PdfEngine.Checks.cs`): the app
-  started again with `--page-check`, killed after 10 s (about 30 times a drawing-set sheet's 0.3 s), the page then
-  refused with a note in the viewer and a reported empty page in exports, blank in print; Find, the other pages, text and
-  export go on. Every path that runs a page's content waits for its check once (render, save as image, text, Compare,
-  export, redaction's picture boxes, Find in process); Reduce File Size checks a picture of over 64 M samples first. In
-  the app the 7 KB page says so within 14 s, its neighbours draw, Find finds the rest (`PageCheckTests`, the dev script).
-  Cost (bench `one`, single runs on a busy PC, `INKVOLTPDF_BENCH_CHECKS=0` for without): drawing set first page 0.53 to
-  0.96 s, scroll proxy 1,068 to 1,167 ms a sheet, Find 32.9 to 34.0 s; text first page 0.09 to 0.24 s (the check
-  process starting), 5.8 to 9.6 ms a page, Find 2.78 to 2.74 s; two check processes of about 50 MB each, not in the
-  peaks above. A sheet drawn back to back costs about twice (0.45 to 1.0 s): its check (0.3 s in process) competes for
-  the same cores. Not covered: a document with a password (no secret crosses a pipe) and formats other than PDF run
-  unchecked; a document a check process can't open runs unchecked; the folder index's workers keep their own 2-minute
-  limit a file; the Mac (done 2026-11-06, in process: below).
-  **Its review (2026-11-05):** a check whose drawing MuPDF gave up on (damaged, or past the process's 2 GB) refuses the
-  page instead of passing it on to be drawn here unlimited; a picture of over 4,096 × 4,096 is also decoded at its full
-  size in the check (the small drawing decodes a JPEG at an eighth, a JPEG 2000 at its smallest level: a 30,000 ×
-  30,000 JPEG passed, then cost 900 M pixels in an export or a deep zoom), one too big for the 2 GB refused. When no
-  check process starts (the program missing, an antivirus holding it past 15 s), pages run unchecked (failing open, as
-  before page checks: failing safe would leave every document blank on that PC), nothing is kept of it, and a start is
-  tried again after 30 s, doubling to 5 minutes. Starting a check process and ending it can't cross any more (one
-  ended while it started opened a closed file). Only the document the user opens checks its first page as it opens
-  (not an engine opened for page sizes, a password or a thumbnail; a thumbnail checks its one page in the shared
-  process); a page asked ahead is withdrawn with the page it was asked for when that is scrolled past. Both processes
-  open one shared copy of a document.
-  Export as images, Batch's page images and Read Aloud leave a refused page out and say so; Reduce File Size measures a
-  soft mask by its picture's rule. Bench `one` after it (single runs, the PC at 50 to 100% from other work): text first
-  page 0.25 s with checks (0.07 without), 9.1 ms a page (5.6), Find 2.7 to 3.0 s (2.7); drawing set first page 1.03 s
-  (0.58), scroll and Find within the load's noise (1.1 to 1.7 s a sheet, 36 to 61 s either way); scan first page 0.21 s
-  (0.07), 27 ms a page (25). To measure again on an idle PC.
-  **Its second review (2026-11-05):** no verdict is carried to another engine any more (`PageIdentity` removed: PDFsharp's
-  view of a page vouched for what MuPDF would read, two parsers a hostile file can make disagree; a refusal stuck
-  whatever the edit changed; every edit hashed the document): an edit's, undo's or Reload's engine checks each page
-  again when it is first drawn. Measured (5 notes each, median, PC at 93%): the first draw after an edit 33 ms with
-  checks (14 without) on a text page, 1.54 s (0.99) on a 72,000-path sheet. Only MuPDF running out of the check
-  process's memory refuses a page (`PageChecks.OutOfResources`: a picture to decode of more than half of its 2 GB, or
-  the process past half of it during the check); a page MuPDF reads in part (it warns and draws what it can) is drawn
-  as before. An image's own soft mask, which MuPDF's structured text doesn't list, is decoded at its full size too
-  when over 4,096 × 4,096 (`PageMasks`: found through PDFsharp in the check process, documents up to 64 MB, only to
-  decode more); the pictures it does list (patterns, forms, comments) come from the drawing's display list, 40 to 48
-  ms after the 270 ms drawing of that sheet. A check process that fails to start leaves its page to the other one;
-  pages run unchecked only when none runs. A document closed just before its check process opens it no longer ends
-  that process. Bench `one` after it (single runs, the PC at 45 to 100%): text first page 0.27 s (0.08 without), 11 ms a
-  page (5.4); scan first page 0.33 s (0.08), 28 ms a page (29); a 2.7 MB scan, its masks read, 0.28 s (0.06); drawing
-  set first page 1.03 s (0.78), 0.98 s a sheet (1.09), Find 33 s (35).
-  **The drawing set after page checks (2026-11-06).** Where a sheet's time goes (one core, PC at 30 to 70% from other
-  sessions): MuPDF making its display list (reading the 72,000 paths) 190 to 350 ms; the text from that list 40 to 60
-  ms; drawing it at 1,200 px 750 to 1,500 ms on one thread, about half that on four strips; the check's 64 px drawing
-  110 to 280 ms, almost as dear as a large one (anti-aliasing costs per path, not per pixel). Before, every sheet's list
-  was made twice (the check, then the render) and drawn twice. Now (`PageChecks`, `PdfEngine.Checks.cs`) a render
-  waiting for its page's check gets the check's own drawing of the whole page at its scale (after the check as before,
-  from the list just made, up to 8.4 MP, only of the size asked), and the next two pages are drawn ahead, one in each
-  check process, so sheets come in pairs; the check's small drawing was unsmoothed (215 to 93 ms a sheet; undone by the
-  review below); the viewer asks at once for the
-  full render of a page its check draws (`PdfEngine.CheckDraws`), with no preview first that would leave the full render
-  to make the list again on the one view lane. The bomb tests stay green: the check itself is unchanged. Bench `run` (the
-  PC at 25 to 30%, other sessions idle; RESULTS.md): first page 1.01 s to 0.81 s on one run and 1.03 s (runs of 0.77,
-  1.0, 1.0 s) on the next, still on the line: a check process already running (as after the start page's thumbnails)
-  takes 0.15 to 0.35 s off; scroll proxy 969 to 524 ms a sheet; frames with a blank page on screen 214 of 238 to 165 of
-  241, a page still blank 200 ms after the stop (1, as before; 2 on the run before the viewer change); the same pages
-  again 742 to 923 ms (their lists are in the check processes now). Find 38.4 to 29.5 s, its code unchanged (the
-  load's noise): it is MuPDF's list making, 80% of a sheet's text, and MuPDFCore 2.0.1's wrapper extracts text only
-  from a display list (no text-only device, no page run without one); eight processes sustain about 13 sheets a second
-  here (one alone, 4), so 400 sheets take some 30 s. Still missed: Find (a text-only reading would take MuPDF's own
-  entry points, which the wrapper doesn't export, or a content reader of our own, which the review ruled out for
-  disagreeing with MuPDF), the scroll proxy (no sheet's list and drawing fit in 200 ms on one process), and a page blank
-  after the stop.
-  **Its review (2026-11-06):** the picture is only a shortcut: it must never make a fine page fail, weaken the guard or
-  leave a page blank longer. The check process now sends the verdict first, then draws the picture within its own 1.5 s
-  (`PageChecks.PictureLimit`), so its time never counts against the limit; the render waits for it only that long plus
-  half a second each to arrive, then draws the page here, and the viewer's quick previews come back for a document
-  whose last picture was late (`CheckedDocument.PictureLate`). A picture of another size, late, or from a process gone
-  mid-picture is dropped and the process ended, the page fine (it was refused before). The check's small drawing is
-  smoothed again: the limit stands for what a page costs here, and a path of 100,000 edges across the page took a
-  fifteenth of its time drawn unsmoothed (3 s against 0.2 s), so a page twice over the limit passed; the test
-  `APageTheLimitRefusedDrawnSmoothIsRefusedStill` keeps it refused. A picture a render waits for is never let go of (two
-  pages on screen dropped each other's), only those asked ahead past the last three, and one let go of before it is
-  sent isn't drawn; `CheckDraws` holds only for a picture still coming; pages asked ahead are drawn at the scale the view
-  gives each (`ViewScale`, the viewer's rule now in Core: an A1 sheet after A4 pages gets its picture). A check process
-  starts with the app's window (`PageChecks.Prestart`): bench `one`, drawings.pdf, three runs each, first page 813, 864,
-  813 ms against 958, 877, 1,012 ms without. Bench `run`, master c932ac4 and this branch back to back (PC at 2 to 10%
-  before each; RESULTS.md): drawings.pdf first page 0.91 to 0.82 s, scroll proxy 873 to 685 ms a sheet (524 on the
-  unsmoothed run before, at 25 to 30% load: smoothing back costs the check some 120 ms a sheet), frames with a blank
-  page 216 to 174 of 240, pages still blank after the stop 2 to 1, the same pages again 579 to 919 ms, Find 35.0 to
-  30.7 s; text first page 0.29 to 0.24 s, scan 0.25 to 0.23 s, comments 0.89 to 0.67 s. Still missed as above.
-  **Find on the drawing set, the options looked at (2026-11-06), none taken.** (a) MuPDF's text without the paths:
-  MuPDFWrapper.dll (MuPDFCore 2.0.1) exports 90 functions, and text comes only from `GetStructuredTextPage` on a display
-  list that `GetDisplayList` makes by running the whole page (no text device, no page run, no flags to leave paths or
-  pictures out). MuPDF's own text device run straight on the page (`fz_new_stext_page_from_page`, as PyMuPDF does) took
-  112 to 121 ms for one 4.4 MB sheet of drawings.pdf here, against 230 to 410 ms for list and text: about twice as fast,
-  but only with a wrapper built with that export, a native change for the owner to decide. (b) Our own reading of the
-  text operators as Find's first pass: `ContentLexer.Parse` takes 380 to 540 ms on that sheet's content (Debug build), no
-  faster than MuPDF; a byte scan for BT … ET could take tens of milliseconds, but a page left out on its word trusts a
-  second reader over MuPDF's (fonts without /ToUnicode, reading order across operators, forms, annotations), the
-  disagreement the review ruled out, and as a filter that only confirms it saves nothing (every page must still be read
-  to know it has no hit). (c) A page's text kept across Finds is already kept for the document's lifetime (a second Find
-  about a millisecond); keeping it across sessions would write the document's text to disk, which Find never does.
-  **A hostile file's time on the Mac (2026-11-06): bounded in process, no check process.** The Mac calls MuPDF 1.25
-  directly (`MuPDFShim`), so each call that reads a page's content takes a cookie with a time budget (10 s of the
-  reading thread's own CPU time, Windows' limit) and a largest picture (268 M pixels, where Windows' check process runs
-  out of memory). The cookie alone stops nothing while MuPDF inflates (the 7 KB page is one lexer call over 4 GB of
-  white space), so the shim opens every document over its own stream, which hands MuPDF small chunks while a page is
-  read and throws MuPDF's progressive-loading "not yet" (`FZ_ERROR_TRYLATER`) once the budget is spent or Cancel fired:
-  no repair, nothing half read kept. A stream decompressed more than twice in a row, which that bound can't see (four
-  Flates make gigabytes of each byte), is refused before the page is read. A device in front of the list, text and
-  draw devices looks at the clock at each drawing call, refuses a picture over the cap before it is decoded (MuPDF
-  inflates all of a picture's samples for every draw, even drawn small) and a pattern whose tiles would outlast the
-  budget. The page is then refused at once from then on: the viewer says "This page took too long to read and isn't
-  shown", Find finds the rest and says which pages it skipped, as do Redact by Pattern, the redaction check, Prepare
-  Form, Recognize Text and the AI assistant (Windows' versions of those stop at it); Batch's page images leave it out,
-  export reports it empty, print leaves it blank; Cancel and closing the document stop a reading at once, export
-  between pictures. In the tests (1 s budget) the 7 KB and 1 MB pages are refused within
-  about a second (red first: 74 s for both), the 20,000 × 20,000 picture at once, a 72,000-path sheet draws as without.
-  Cost (bench `one`, the base commit against this one on the same Mac): the drawing set's first page and a sheet within
-  1% (576 against 579 ms a sheet), Find 7.2 s either way; text and scan unchanged. After the code review's fixes the
-  sheets draw as before; Find on the drawing set measured 8-25% slower under another process's load. After the
-  re-review's fixes, on a quiet Mac (three interleaved pairs, medians): sheets even (599/577 ms), Find on the drawing
-  set 7.63 against 7.92 s (+3.8%), on the text 0.60 against 0.63 s (+3.7%), scan unchanged (mac/docs/PLAN.md).
-  After the re-review: each object's streams are checked once a document (not on every call), the stream reads the CPU
-  clock once per 256 bytes, a pattern of no area or no step draws nothing (one with no step at all read for ever in
-  MuPDF's own tile loop: now stopped at the budget), and an inline or JPEG 2000 picture over the cap is refused before
-  it decodes (they're decoded while the content is read, before the device sees them).
-  Not covered: a picture under the cap decodes in full (a second or two; the clock is looked at between pictures); an
-  inline picture's filters aren't counted (a patch to MuPDF, the owner's call); image files and `PdfEdit`'s editing documents run unbounded; a hostile page
-  holds its engine (its neighbours, its thumbnails) for up to 10 s once.
-  `PageCheckTests` (Windows' names where they apply); mac/docs/PLAN.md "A hostile file's time".
-  **The comments' first page and the drawing set's sheets ahead (Windows, 2026-11-19).** Profiled first (bench `one` and
-  timings in process; the PC loaded by other sessions throughout, its CPU at about half clock). comments.pdf's first page
-  was two waits in a row: PDFsharp's read of the bytes as they open (`PdfRepair.Normalize`, 0.7 to 1.0 s), then the first
-  page's check (0.4 to 0.5 s), which began only after that read and whose process opened the document by reading every
-  page's size; and MuPDF loads a page with comments the slower the more pages it holds (all 250 sizes: 120 ms one page
-  held at a time, 290 to 390 ms 32 at a time). Now `PdfEngine` reads the sizes one page held at a time; a document the
-  user sees has its first page asked for as soon as MuPDF has opened it (`DocumentSession.OpenReadable(shown)`), so the
-  check runs while PDFsharp reads; a second check process starts before it takes a page (the first goes on checking
-  meanwhile), and opens a document the other has open before it takes one of its pages (`PageCheckPlan` `Prepare`), so a
-  page of text no longer waits 0.2 s for a process to start and open it. The review panes read the comments, attachments,
-  signature stamps and links from one PDFsharp read instead of four (`Annotations.ReadPages`). bench `one`, branch and
-  master alternating, three pairs: comments.pdf first page 1.05 to 1.10 s against 1.18 to 1.53 s (its render 0.04 to 0.11
-  s against 0.37 to 0.55; the rest is PDFsharp's read, 0.7 s on a quiet PC), the scroll proxy's slowest page 52 to 115 ms
-  against 433 to 469 (none over 200 ms, one before).
-  The drawing set: the Mac's bands on every core don't port, as MuPDFCore's process-wide locks hold threads in one
-  process back (a sheet's kept list drawn on 1, 2, 4, 6, 8 and 12 strips: 740 to 1,558, about 340, 280 to 490, 377 to
-  1,233, 772 to 1,068 and 1,092 to 2,928 ms), but processes don't wait on each other. A document whose last three
-  checks each took 200 ms or more, their pictures not counted (`CheckedDocument.Slow`: a sheet's list, 170 to 350 ms, and
-  its small drawing) has as many pages checked ahead as there are processes for it, up to `SlowWorkers` (a third of the
-  cores, 2 to 4; some 100 MB each), the extra ones started only while the others are busy (and one ended replaced up to
-  the same number); one picture more than the pages asked ahead is kept (three for two, as before). Scroll proxy (20 sheets after a cold open, four pairs in turn): 3.07 to 3.66 s a sheet before, 1.79 to 3.07 s
-  after (medians 3.36 and 1.97 s; 0.6 s on the quiet PC of RESULTS.md). Tried and dropped: the check drawing the render's
-  picture first in place of its small drawing (a fifth of a sheet's check), slower under load, as a picture past its
-  1.5 s limit then cost both; two strips a check process (four did better with four processes).
-  Bench `run`, branch then master then branch then master, 15:06 to 15:58 (the load swung: master's text Find took 59.8
-  s in one run, 4.8 s in the next; no RESULTS.md committed), branch's two runs against master's: comments.pdf first page
-  1.12 and 1.10 s against 1.33 and 1.46 s, its scroll proxy's slowest page 28 and 24 ms against 344 and 374 (none over
-  200 ms against one); drawings.pdf scroll proxy 706 and 1,684 ms a sheet (10 and 14 over 200 ms) against 3,089 and 1,199
-  (18 and 17), first page 0.94 and 1.33 s against 1.19 and 0.99 s, Find 43.8 and 66.7 s against 75.6 and 55.4 s, pages
-  still blank 200 ms after the on-screen scroll 0 and 6 against 6 and 6; text and scan within the load's noise; peak
-  working sets unchanged (0.17 to 0.42 GB, with the find workers' at most 0.95 GB).
-  Still missed, and why: the drawing set's Find (400 sheets of some 250 ms of MuPDF's content lexer each, 100 s of CPU:
-  on every core of this PC at once at best 8 s; a text-only reading needs MuPDF entry points MuPDFCore 2.0.1 doesn't
-  export, the owner's call as before); its scroll proxy (a sheet's list and its drawing on four strips take 450 ms or more
-  on one process, so the first sheets can't come in 200 ms; later ones come as fast as the processes draw them);
-  comments.pdf's on-screen scroll, on a busy PC, was the garbage collector's, not the viewer's: during a 4 s scroll right
-  after opening, its collections paused the app for 2.1 to 2.4 s (130 to 210) while the review panes' PDFsharp read of
-  10,000 comments ran, 0.7 to 0.9 s with that read left out; one read instead of four didn't change it, as the first
-  alone spans the scroll. **Its review (2026-11-19):** a document's first read for its review panes now waits until the
-  view has stood still for 1 s, its pages in view drawn and no scroll since (at most 10 s; `PageViewer.SettledAsync`), so
-  a scroll begun just after opening goes first and the panes fill once it stops (later reads, after an edit, go at
-  once). Same app scroll (dev script `scrollbench`, comments.pdf): collections paused 0.37 to 1.22 s in 7 runs (2.25 to
-  2.42 s in 4 before it), 59 to 73 fps with the longest gap 47 to 78 ms in 6 of them (one gap of 411 ms), master in turn
-  55 to 61 fps, longest gap 65 to 84 ms. A wait of 0.4 s after the pages showed left the read under the scroll (it begins
-  0.5 s after opening): 2.26 to 2.42 s paused. The review's other fixes: a check process opening a document ahead
-  (`Prepare`, now its own state, not a placeholder request) that fails decides nothing (the document isn't marked
-  unopenable) and isn't remembered past the document's close; one open sequence for both (`EnsureOpen`); a shown
-  document whose bytes are repaired lets go of the bytes as they are, and their first page's check, before the repaired
-  copy opens; a reload read in the background asks for its first page only once it is kept. Pages are checked further
-  ahead, on more processes, only for the view (renders with a picture), not for Find or text: comments.pdf's checks
-  took 200 ms in a row under this load, and Find then shared the cores with four check processes. Bench `one` after it,
-  master in turn: comments.pdf first page 0.96 to 1.21 s against 1.35 to 1.61 s, the scroll proxy's slowest page 43 to
-  88 ms against 342 to 1,094, Find 1.6 to 2.5 s against 1.4 to 1.8 s (no find workers started: its pace in process now
-  says under 2 s left; target 5 s); drawings.pdf scroll proxy 707, 751 and 1,494 ms a sheet against 743, 921 and 977
-  (medians 751 and 921; whole runs of sheets ready ahead, between stalls where a picture missed its 1.5 s on this load).
-- **Build:** a benchmark kept in the repo and run before each release, with published results: a 5,000-page text PDF, a
-  500-page scan, a 1 GB drawing set, a file with 10,000 comments. Targets on a mid-range ARM64 laptop: first page in
-  under 1 s, scrolling at 60 fps without blank pages after a 200 ms pause, find across 5,000 pages in under 5 s, the
-  comment list ready in under 2 s, memory under 1.5 GB. A release that misses a target says so.
-- **Effort** M. Windows: the benchmark, the first round of fixes and Find in worker processes are done (2026-10-30),
-  page checks that draw the render's picture (2026-11-06), the comments' first page and the drawing set's sheets checked
-  further ahead, the review panes' first read after the view settles (2026-11-19); the drawing set's scroll and first
-  Find remain over target; Mac: the benchmark and Find on threads done (E16,
-  2026-11-02), drawings in bands on every core (2026-11-07: a sheet 584 to 223 ms); the same two still over target.
+Acrobat users report freezes on 200-500 page files and large drawings
+([Adobe Community](https://community.adobe.com/t5/acrobat-discussions/acrobat-becomes-very-slow-when-i-open-large-pdf-files-200-pages/td-p/15579541));
+no vendor publishes numbers. **Targets** on a mid-range ARM64 laptop: first page under 1 s, scrolling at 60 fps with no
+blank page after a 200 ms pause, Find across 5,000 pages under 5 s, the comment list under 2 s, memory under 1.5 GB. The
+benchmark (`pdf/tools/bench`, a release step) measures them; the latest run is
+[tools/bench/RESULTS.md](tools/bench/RESULTS.md): every target met but the 1 GB drawing set's scroll and Find (the
+accepted limit, below). A release that misses a target says so.
+- **Find workers** (`Core/FindWorkers.cs`): a long Find reads text in helper processes of the app (`--find-worker`),
+  because MuPDFCore's native wrapper guards MuPDF's allocations with process-wide mutexes: threads in one process don't
+  scale, processes do. A file with a password stays in process (no secret crosses a pipe).
+- **Page checks** (`Core/PageChecks.cs`, `PdfEngine.Checks.cs`): MuPDF's inflating isn't bounded in time (a 7 KB page
+  inflating to 4 GB drew for a minute) and MuPDFCore 2.0.1 passes no cookie where content is read, so each page is first
+  drawn small in a check process (`--page-check`, 10 s, 2 GB) and refused past it. Chosen over a pre-scan of the streams
+  (`InflateGuard`, rejected). When no check process starts, pages run unchecked (failing safe would leave every document
+  blank on that PC). No verdict passes to another engine: two parsers a hostile file can make disagree. The check's
+  small drawing stays smoothed: unsmoothed, a page twice over the limit passed. The check also draws the render's
+  picture for the page waiting on it (`PictureLimit` 1.5 s, outside the verdict's time), and a document slow to check
+  (a drawing set) gets more check processes for pages ahead (`SlowWorkers`). Not covered: documents with a password and
+  formats other than PDF run unchecked.
+- **The comments' first page:** the review panes' first PDFsharp read waits until the view has settled
+  (`PageViewer.SettledAsync`), since its garbage collections paused a scroll begun just after opening for seconds.
+- **Still missed, and why:** the drawing set's Find (400 sheets of about 250 ms of MuPDF's content lexer each; a
+  text-only reading needs MuPDF entry points MuPDFCore 2.0.1 doesn't export, a native change for the owner to decide;
+  our own content reader was ruled out for disagreeing with MuPDF; keeping text across sessions would write it to disk)
+  and its scroll (a sheet's list and drawing take 450 ms or more in one process; the Mac's bands on every core don't
+  port, as threads in one process wait on MuPDFCore's locks). Tried and dropped: a display list kept per sheet (the
+  engine keeps 32 already; painting is three quarters of the cost), the check drawing the render's picture in place of
+  its small drawing, two strips a check process.
+- **Mac:** `mac/tools/bench`. Find on threads in process (MuPDF instances don't wait on each other there), drawings in
+  bands on every core, a hostile page bounded in process (the shim's cookie and own stream): `mac/docs/PLAN.md`, "A
+  hostile file's time". The drawing set's scroll and Find are over target there too.
 
 ### 3.7 Spanish interface
-
-- **Built (Windows, 2026-11-03):** every string the app shows, and what Core shows (the accessibility check, the
-  redaction check, What's in This PDF, Batch), moved to resources (`Strings`, 3,294 strings; `PdfStrings`, 1,878) and
-  translated as Inkvolt Print's (`print/docs/SPANISH-REVIEW.md`), the language following Windows or Settings ›
-  Language; the shared library's scanner and printer text through `CoreLanguage`. 0 UIA findings on the Spanish window,
-  panes and dialogs, light and at Text size 150 %; the shots in `docs/ux-review/spanish-pdf/`. The command line stays
-  English. Not checked: a PC whose Windows really is in Spanish (`--lang es`, and the choice's logic in
-  `LocalizationTests`), every dialog by eye (about 30 of them were).
-- **Built (Inkvolt PDF for Mac, 2026-11-06):** every sentence of the app and of PdfCore through PrintCore's `loc`
-  (`mac/InkvoltPdf/Resources`: `Localizable.xcstrings`, 1,738; `PdfStrings.xcstrings`, 1,912; Windows' Spanish word for
-  word where the sentence is the same, about 2,800), the menus in macOS's own Spanish names, the language following
-  macOS's per-app choice or Settings › Language (next launch), the command line English. What's New in Spanish on the
-  Mac (`WHATS-NEW.es.md`, the appcast's `xml:lang="es"` notes). Checked: `PdfStringsTests` on the PC, `--self-test
-  --strings` complete and the self-test passing in both languages on `ignia-mac` (but Vision's known flake) (mac/docs/PLAN.md, 3.7). The Mac-only
-  wording: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
-- **Done since:** the owner approved the Windows wording (2026-11-04); the Store listing lost "La aplicación está en
-  inglés." in 1.7.0.0 and names "Qué hay en este PDF" since 1.8.0.0 (`pdf/packaging/README.md`, "Spanish listing (es)");
-  `pdf/WHATS-NEW.es.md` gives the Store's es release notes. **Next:** the app's What's New in Spanish on Windows (it shows
-  the English); the owner's review of the Mac-only wording (`pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac").
+Done, Windows and Mac: every string in resources (`Strings`, `PdfStrings`; Mac `Localizable.xcstrings`,
+`PdfStrings.xcstrings`), the language following the system or Settings › Language, What's New in Spanish
+(`WHATS-NEW.es.md`); the command line stays English. The owner approved the Windows wording; the Store listing is in
+Spanish (`pdf/packaging/README.md`, "Spanish listing (es)").
+- **Next:** the owner's review of the Mac-only wording (`pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac").
+- **Not checked:** a PC whose Windows really is in Spanish (`--lang es` and `LocalizationTests` cover the choice);
+  every dialog by eye.
 
 ## Where we already win
 
@@ -1621,8 +349,8 @@ Kept up with the same rule: a claim here has a test or a source.
 - **Recovery copies**, signed files edited by appending (signatures kept), protection kept through every edit.
 - **Prepare Form** with field detection, Acrobat's own format scripts, fields that show filled in every viewer.
 - **PDF/A-2b** checked with veraPDF on the test documents; **Bates**, header and footer, watermark; **measure** written
-  as Acrobat writes it; **booklet and poster** printing; **Batch** of 16 actions on worker threads.
-- **Native ARM64** on Windows, and a native Mac app (1.5.0 released), not a cross-platform shell.
+  as Acrobat writes it; **booklet and poster** printing; **Batch** on worker threads.
+- **Native ARM64** on Windows, and a native Mac app, not a cross-platform shell.
 
 ## Not doing, and why
 

@@ -2,8 +2,6 @@
 
 Made by `dotnet run --project pdf/tools/ocr-corpus -c Release -- run` on 2026-11-04, Windows 10.0.26300.0, Arm64. See [README.md](README.md) for the corpus and the measure.
 
-Words inside lines, and 1111 (2026-11-04): a run of four 1s or more (`1111`), which Windows' recognizer never reads and for which it leaves out the whole line, is read three strokes at a time; a word left out inside a line that was read is read again on its own (`MissedLines.FindInLines`). `skipped-lines` 21.7 % → **8.7 %** (the three 1111 now read; a comma lost twice is what is left). The six scans are unchanged: the words they lack inside lines are two words read as one (journeyxletter), not words left out. `probe --count 18` (36 pages, 14,108 words): 752 → 747 edits, 7 words found inside lines, none worse.
-
 | File | Words | Today | Today, its language chosen | Cleaned | Stage A (cleaned, missed lines re-read) | ms a page, today → cleaned → stage A |
 |---|---:|---:|---:|---:|---:|---:|
 | `en-skew3-light` | 767 | 1.8 % (en-US) | 1.8 % (en-US) | 1.3 % | **1.3 %** | 502 → 826 → 1071 |

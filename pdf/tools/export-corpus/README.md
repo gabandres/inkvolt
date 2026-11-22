@@ -1,7 +1,7 @@
 # Export corpus
 
 Unit tests check the export's XML and its rules on made-up lines. They can't tell you that a real form came out as three
-pages of broken text. That is how the S-73-S form went wrong in October 2026, with 999 tests passing. This tool exports
+pages of broken text. That is how the S-73-S form went wrong, with every unit test passing. This tool exports
 real public PDFs to Word with the current code and has Word count the pages. A layout regression usually shows up as
 extra pages: text that leaves its frames, rows that wrap, spacing that grows.
 
@@ -24,12 +24,11 @@ It also checks the same documents' **PowerPoint and HTML** exports, written besi
 | .html | The W3C's Nu validator, errors only | When Java and `.cache\vnu` are there: `npm install --prefix pdf\tools\export-corpus\.cache\vnu vnu-jar --ignore-scripts` |
 
 A check that can't run says so, doesn't count, and is named again in the last line ("Not run here: ..."). Everything runs on this PC; no document goes to an online service.
-`-SkipWord` leaves out Word's page count. **Last run, 2026-11-20, 7 documents, 174 pages:** the validator, PowerPoint
-(16.0) and the Nu validator pass on all, the HTML carries 869 links (all web, mail or page anchors; a link over two lines is two), and 3,617 of 3,641
-lines read in order (the rest are repeated lines and rows the two exports break differently). Word's page counts are the
-baseline's. **2026-11-21, Excel (16.0) added:** it opens all 6 workbooks (the seventh document has no tables) with every
-sheet and cell, 132 sheets and 14,241 cells in all; the rest as above. **LibreOffice isn't installed on that PC, so `-LibreOffice` hasn't been run** (it said so). No screen reader
-has been run either.
+`-SkipWord` leaves out Word's page count. **Latest run (2026-11-21), 7 documents, 174 pages:** Word's page counts are the
+baseline's; the validator, PowerPoint (16.0) and the Nu validator pass on all; Excel (16.0) opens all 6 workbooks (the
+seventh document has no tables) with every sheet and cell; the HTML's links are all web, mail or page anchors (a link
+over two lines is two); 3,617 of 3,641 lines read in order (the rest are repeated lines and rows the two exports break
+differently). **Never run:** `-LibreOffice` (not installed on that PC) and a screen reader.
 
 Run it after changing `DocLayout`, `DocxWriter`, `PptxWriter`, `HtmlWriter`, `DocumentExport`, or the glyph reading in `PdfEngine`. Fewer pages is
 not automatically better: open the changed exports in `.cache\out` beside their PDFs before you update the baseline.

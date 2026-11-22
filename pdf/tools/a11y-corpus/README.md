@@ -26,9 +26,8 @@ iText); arXiv papers, tagged (LuaTeX) and untagged (pdfTeX); IRS form W-9, a NIS
 of veraPDF's own PDF/UA-1 test files (one pass and one fail for headings, tables, figures, tab order, fonts, notes).
 14 pass veraPDF, 36 fail.
 
-**Result (2026-10-30, veraPDF 1.30.3):** the same pass or fail for 50 of 50 files; the same failing conditions for 50 of 50.
-With `-Synthetic`: 296 of 297 files (the other can't be opened, below), conditions the same for 296. Again on 2026-11-19
-with CFF and Type 1 widths checked (31-016): the same, 50 of 50 and 296 of 297.
+**Latest result (2026-11-19, veraPDF 1.30.3):** the same pass or fail, and the same failing conditions, for 50 of 50
+files. With `-Synthetic`: 296 of 297 files (the other can't be opened, below), conditions the same for 296.
 
 ## Make Accessible on the corpus
 
@@ -38,9 +37,8 @@ untagged export of theirs would be tagged; each figure gets a stand-in alternate
 veraPDF validates both folders and the comparison runs as above. `tag [--all] <out> <pdf>…` and `pdfa <out> <pdf>…`
 (Save as PDF/A-2a, for `verapdf -f 2a`) do the steps one at a time.
 
-**Result (2026-10-30, veraPDF 1.30.3, branch `pdf-accessible-2`):** the 2 untagged files (pdfTeX papers) pass PDF/UA-1
-in the checker and in veraPDF: Make Accessible now gives the TeX math fonts' glyphs their Unicode (`FontUnicode`; they
-failed 31-027 / 7.21.7-1 before). Of the 12 re-tagged files, 5 pass veraPDF PDF/UA-1; the other 7 fail only on
+**Latest result (veraPDF 1.30.3):** the 2 untagged files (pdfTeX papers) pass PDF/UA-1 in the checker and in veraPDF
+(Make Accessible gives the TeX math fonts' glyphs their Unicode, `FontUnicode`). Of the 12 re-tagged files, 5 pass veraPDF PDF/UA-1; the other 7 fail only on
 form-field tooltips (28-005) or fonts (31-009, 31-014, 31-030), which tagging doesn't change. Same pass/fail and
 conditions as the checker for 14 of 14. Saved as PDF/A-2a (`pdfa`), 10 of the 14 are made and all 10 pass veraPDF 2a
 and ua1 (both papers, the NIST standard, the Word files); 4 are refused (a signature, CMYK without a profile twice, a
@@ -56,7 +54,7 @@ Times that would move).
 ## What veraPDF taught the checker
 
 Each was found by this comparison and fixed (with a unit test where a hand-built file can show it): Word's
-hybrid-reference files keep the structure tree where PDFsharp doesn't look (`HybridXref`); a later revision's object stream holds the current tags, and PDFsharp kept the older stream's (wcag-table-word.pdf, which this README long called a veraPDF inconsistency); tags the structure tree's root
+hybrid-reference files keep the structure tree where PDFsharp doesn't look (`HybridXref`); a later revision's object stream holds the current tags, and PDFsharp kept the older stream's (wcag-table-word.pdf, once taken for a veraPDF inconsistency); tags the structure tree's root
 doesn't lead to tag nothing; an artifact inside tagged content fails both 01-003 and 01-004; a standard type mapped to
 itself is a circular mapping; indirect /Lang and DisplayDocTitle values; TrueType glyph lookup through a Mac (1,0) cmap
 by glyph name and through Unicode-platform cmaps; CIDSet must match the font program exactly (subset TrueType fonts that
