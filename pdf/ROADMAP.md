@@ -357,11 +357,11 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   (NSSpellChecker behind the same rules). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
   the replacements a font can't draw listed): Done, Windows (`TextReplace` over `ContentEditor.ReplaceParagraphIn`, one save
   for all; tests `TextReplaceTests`, pdf.js `ReplacedTextReadsTheSameInPdfJs`; the app's `ReplaceDialog`); Mac waits.
-- **Batch B:** 4.8 Smaller black-and-white scans as CCITT G4 (the shared encoder from Inkvolt Print's 4.4; JBIG2 needs a
-  package: the owner's call). 4.6 Copy text from an area of a scan, and an area as a table. 4.15 Links from the addresses
-  in the text. 4.18 Mark every search hit. 4.17 Proofreading marks (Insert Text, Replace Text). 4.10 AI redaction
-  suggestions through the user's own endpoint (Pro; never on by default; the review list and Check Redaction as for
-  patterns). 4.20 Save an AI answer (Word, PDF, a comment; the conversation kept).
+- **Batch B:**
+  - 4.8 Smaller black-and-white scans: lossless JBIG2 (our own generic-region encoder; never symbol substitution) or CCITT G4 (the shared encoder from Inkvolt Print's 4.4), whichever is smaller. Done on Windows (`Jbig2Generic`, `OneBitImages`; File › Scan, Recognize Text's cleaned pages, Reduce File Size); the Mac's waits.
+  - 4.6 Copy text from an area of a scan, and an area as a table. Done on Windows (`AreaCopy`: Copy Text from Area, Copy Area as Table); the Mac's waits.
+  - 4.15 Links from the addresses in the text. Done on Windows (`AddressLinks`, Links from Addresses); the Mac's waits.
+  - 4.18 Mark every search hit. Done on Windows (`SearchMarks`: Highlight, Underline or Strike Out All Matches); the Mac's waits.
   - 4.17 Proofreading marks. Done on Windows (`Annotations.AddInsertText`, `AddReplaceText`: a caret, and a strike-out grouped with it as Acrobat groups them; the Comments pane, Summarize Comments, XFDF and FDF); the Mac's waits.
   - 4.10 AI redaction suggestions (Pro). Done on Windows (`RedactionSuggestions`: the user's endpoint only, the send window always shown, the answer read as quotes and kept only where the text sent holds them; `RedactionTerms`, the no-AI names and terms list; both into Redact by Pattern's review list, read-back, check and report); the Mac's waits.
   - 4.20 Save an AI answer. Done on Windows (`AiAnswerExport`: an answer or the conversation to Word through `DocxWriter` or to a PDF, or an answer as a note on the page it cites; `AiConversation` kept on the `DocumentSession`); the Mac's waits.

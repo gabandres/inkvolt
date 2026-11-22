@@ -100,12 +100,37 @@ public sealed partial class PageViewer : ScrollViewer
     private TextPos? _selAnchor, _selActive;
     private int _snapPage = -1;
     private Point _snapStartPt, _snapEndPt;
+    private (int Page, RectD Area)? _snapArea;
 
     public event EventHandler? CurrentPageChanged;
     public event EventHandler? ZoomChanged;
     public event EventHandler? SelectionChanged;
     public event EventHandler? ToolChanged;
     public event EventHandler<string>? StatusMessage;
+
+    /// <summary>A Snapshot copied its picture; the argument is the line to show. Unhandled, it goes to <see cref="StatusMessage"/>.</summary>
+    public event EventHandler<string>? SnapshotCopied;
+
+    /// <summary>
+    /// A Snapshot box was drawn for its words (<see cref="SnapshotCopies"/> was Text or Table): the page, the area (page
+    /// space) and what to copy. Its picture isn't copied.
+    /// </summary>
+    public event EventHandler<(int Page, RectD Area, AreaCopyKind Kind)>? SnapshotForWords;
+
+    /// <summary>What the next Snapshot box copies: its picture (as always), or, once, its words or a table of them.</summary>
+    public AreaCopyKind SnapshotCopies { get; set; }
+
+    /// <summary>The last Snapshot box, still shown on its page until another tool is chosen or the document changes.</summary>
+    public (int Page, RectD Area)? SnapshotArea => _snapArea;
+
+    /// <summary>No Snapshot box any more (its outline goes), and the next one copies its picture.</summary>
+    private void ClearSnapshotArea()
+    {
+        SnapshotCopies = AreaCopyKind.Picture;
+        if (_snapArea is null) return;
+        _snapArea = null;
+        _surface.InvalidateVisual();
+    }
     /// <summary>A (new) engine was attached (<see cref="SetEngine"/>); the argument is its contentOnly flag.</summary>
     public event EventHandler<bool>? EngineChanged;
 
@@ -272,6 +297,7 @@ public sealed partial class PageViewer : ScrollViewer
             if (_tool == value) return;
             CommitEditor();
             _tool = value;
+            if (value != ViewerTool.Snapshot) ClearSnapshotArea();
             _lastClick = null;
             CancelMeasure();
             IsManipulationEnabled = value == ViewerTool.Hand;
@@ -296,6 +322,7 @@ public sealed partial class PageViewer : ScrollViewer
     {
         var anchor = keepPosition && _engine is not null ? CaptureAnchor() : (Anchor?)null;
         contentOnly &= anchor is not null && _rects.Length == engine.PageCount;
+        if (!contentOnly) ClearSnapshotArea(); // the page under it may have changed
         if (!contentOnly)
         {
             // Save what the editor holds (by field name, so it lands on the right field wherever it moved) and close it.
@@ -1232,6 +1259,8 @@ public sealed partial class PageViewer : ScrollViewer
                 var sr = RectD.FromEdges(_snapStartPt.X, _snapStartPt.Y, _snapEndPt.X, _snapEndPt.Y);
                 dc.DrawRectangle(pal.SnapFill, pal.SnapPen, ToSurfaceRect(i, sr));
             }
+            else if (_snapArea is { } shown && shown.Page == i)
+                dc.DrawRectangle(null, pal.SnapPen, ToSurfaceRect(i, shown.Area)); // what Copy Text and Copy as Table take
 
             if (focused && _focusLink is { } fl && fl.Page == i)
             {
@@ -1415,6 +1444,8 @@ public sealed partial class PageViewer : ScrollViewer
                 _markStartPt = _markEndPt = ToPagePoint(page, sp);
                 break;
             case ViewerTool.Snapshot when page >= 0:
+                if (_snapArea is not null) _surface.InvalidateVisual();
+                _snapArea = null;
                 _snapPage = page;
                 _snapStartPt = _snapEndPt = ToPagePoint(page, sp);
                 break;
@@ -1579,7 +1610,19 @@ public sealed partial class PageViewer : ScrollViewer
         }
 
         if (wasMark >= 0) EndRedactDrag(wasMark, dragged);
-        if (wasSnap >= 0 && dragged) CopySnapshot(wasSnap, RectD.FromEdges(_snapStartPt.X, _snapStartPt.Y, _snapEndPt.X, _snapEndPt.Y));
+        if (wasSnap >= 0 && dragged)
+        {
+            var area = RectD.FromEdges(_snapStartPt.X, _snapStartPt.Y, _snapEndPt.X, _snapEndPt.Y);
+            if (area.Width >= 2 && area.Height >= 2)
+            {
+                _snapArea = (wasSnap, area);
+                _surface.InvalidateVisual();
+                var kind = SnapshotCopies;
+                SnapshotCopies = AreaCopyKind.Picture;
+                if (kind == AreaCopyKind.Picture) CopySnapshot(wasSnap, area);
+                else SnapshotForWords?.Invoke(this, (wasSnap, area, kind));
+            }
+        }
         UpdateCursor(sp);
     }
 
@@ -1637,7 +1680,9 @@ public sealed partial class PageViewer : ScrollViewer
             try
             {
                 Clipboard.SetImage(bmp);
-                StatusMessage?.Invoke(this, Loc.Format(Strings.Viewer_SnapshotCopied, bmp.PixelWidth, bmp.PixelHeight));
+                var copied = Loc.Format(Strings.Viewer_SnapshotCopied, bmp.PixelWidth, bmp.PixelHeight);
+                if (SnapshotCopied is { } handler) handler(this, copied);
+                else StatusMessage?.Invoke(this, copied);
             }
             catch (System.Runtime.InteropServices.COMException ex)
             {

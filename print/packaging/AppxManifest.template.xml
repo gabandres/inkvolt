@@ -11,7 +11,8 @@
   actions start Windows PowerShell (outside the package) with the "runas" verb, a normal UAC prompt (packaging/README.md, "Elevation").
   Firewall: a full-trust app's capability opens no port by itself, so the package declares its one inbound rule (desktop2
   windows.firewallRules): TCP 9780, private networks only, added when the package is installed and removed with it, no prompt.
-  Nothing listens on it until the person turns sharing on (off by default).
+  Nothing listens on it until the person turns sharing on (off by default). A second rule the same way for the phone's page
+  (roadmap 4.6): TCP 9781, private networks only, listened on only while a phone scan is open.
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -120,6 +121,8 @@
     <desktop2:Extension Category="windows.firewallRules">
       <desktop2:FirewallRules Executable="InkvoltPrint.exe">
         <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9780" LocalPortMax="9780" Profile="private" />
+        <!-- Phone as a scanner (roadmap 4.6): the phone's page, open only while a phone scan is. Port: Core.Capture.PhoneScan.DefaultPort -->
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9781" LocalPortMax="9781" Profile="private" />
       </desktop2:FirewallRules>
     </desktop2:Extension>
   </Extensions>
@@ -127,5 +130,7 @@
   <Capabilities>
     <Capability Name="privateNetworkClientServer" />
     <rescap:Capability Name="runFullTrust" />
+    <!-- Scan with a camera (roadmap 4.12): Windows asks once whether Inkvolt Print may use the camera (Settings › Privacy › Camera) -->
+    <DeviceCapability Name="webcam" />
   </Capabilities>
 </Package>

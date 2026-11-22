@@ -12045,6 +12045,159 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Scan_Twain32Label" xml:space="preserve">
     <value>{0}  (TWAIN, solo de 32 bits)</value>
   </data>
+  <data name="File_BlackAndWhiteScans" xml:space="preserve">
+    <value>Pasar a blanco y negro las páginas escaneadas de texto (mucho más pequeñas; se pierden sus tonos de gris)</value>
+  </data>
+  <data name="Batch_DescBlackAndWhite" xml:space="preserve">
+    <value>{0}, escaneos en blanco y negro</value>
+    <comment>{0} = the image quality chosen (High, Medium…)</comment>
+  </data>
+  <data name="Cmd_CopyAreaText" xml:space="preserve">
+    <value>Copiar te_xto de un área</value>
+  </data>
+  <data name="Cmd_CopyAreaTable" xml:space="preserve">
+    <value>Copiar área como ta_bla</value>
+  </data>
+  <data name="Area_CopyTextAction" xml:space="preserve">
+    <value>Copiar texto</value>
+    <comment>The toast's button after a snapshot: copy the words in the box instead</comment>
+  </data>
+  <data name="Area_BoxText" xml:space="preserve">
+    <value>Arrastra un recuadro alrededor del texto que quieras copiar.</value>
+  </data>
+  <data name="Area_BoxTable" xml:space="preserve">
+    <value>Arrastra un recuadro alrededor de la tabla que quieras copiar.</value>
+  </data>
+  <data name="Area_Reading" xml:space="preserve">
+    <value>Leyendo el texto del recuadro…</value>
+  </data>
+  <data name="Area_TextCopied_One" xml:space="preserve">
+    <value>Texto copiado (1 palabra)</value>
+  </data>
+  <data name="Area_TextCopied_Many" xml:space="preserve">
+    <value>Texto copiado ({0} palabras)</value>
+  </data>
+  <data name="Area_TextRead_One" xml:space="preserve">
+    <value>Texto leído del escaneo y copiado (1 palabra)</value>
+  </data>
+  <data name="Area_TextRead_Many" xml:space="preserve">
+    <value>Texto leído del escaneo y copiado ({0} palabras)</value>
+  </data>
+  <data name="Area_TableCopied" xml:space="preserve">
+    <value>Tabla copiada ({0} × {1}): pégala en Excel o Word</value>
+    <comment>{0} = rows, {1} = columns</comment>
+  </data>
+  <data name="Area_NoText" xml:space="preserve">
+    <value>No se encontró texto en ese recuadro.</value>
+  </data>
+  <data name="Area_CouldntRead" xml:space="preserve">
+    <value>No se pudo leer esa parte de la página.</value>
+  </data>
+  <data name="Cmd_LinkAddresses" xml:space="preserve">
+    <value>Vínculos a partir de las _direcciones…</value>
+  </data>
+  <data name="Links_Finding" xml:space="preserve">
+    <value>Buscando direcciones web y de correo</value>
+  </data>
+  <data name="Links_NoneTitle" xml:space="preserve">
+    <value>No hay direcciones que vincular</value>
+  </data>
+  <data name="Links_NoneBody" xml:space="preserve">
+    <value>Ninguna dirección web o de correo del texto necesita un vínculo: todas las encontradas ya lo son. Una página escaneada necesita Reconocer texto primero.</value>
+  </data>
+  <data name="Links_Title" xml:space="preserve">
+    <value>Vínculos a partir de las direcciones</value>
+  </data>
+  <data name="Links_Add" xml:space="preserve">
+    <value>Agregar vínculos</value>
+  </data>
+  <data name="Links_Found_One" xml:space="preserve">
+    <value>1 dirección del texto todavía no es un vínculo. Desmárcala para dejarla como está.</value>
+  </data>
+  <data name="Links_Found_Many" xml:space="preserve">
+    <value>{0} direcciones del texto todavía no son vínculos. Desmarca las que quieras dejar como están.</value>
+  </data>
+  <data name="Links_FoundMax" xml:space="preserve">
+    <value>Solo se muestran las primeras {0}: vuelve a ejecutarlo para las demás.</value>
+  </data>
+  <data name="Links_Item" xml:space="preserve">
+    <value>Página {0}: {1}</value>
+    <comment>{0} = page label, {1} = the address as printed</comment>
+  </data>
+  <data name="Links_LeadsTo" xml:space="preserve">
+    <value>Abre {0}</value>
+    <comment>{0} = the address the link opens (https://…, mailto:…)</comment>
+  </data>
+  <data name="Links_NoneTicked" xml:space="preserve">
+    <value>Marca al menos una dirección.</value>
+  </data>
+  <data name="Links_Edit_One" xml:space="preserve">
+    <value>Agregar 1 vínculo</value>
+  </data>
+  <data name="Links_Edit_Many" xml:space="preserve">
+    <value>Agregar {0} vínculos</value>
+  </data>
+  <data name="Main_MenuMarkAllMatches" xml:space="preserve">
+    <value>Marcar _todas las coincidencias</value>
+  </data>
+  <data name="Cmd_HighlightAllMatches" xml:space="preserve">
+    <value>_Resaltar todas las coincidencias</value>
+  </data>
+  <data name="Cmd_UnderlineAllMatches" xml:space="preserve">
+    <value>_Subrayar todas las coincidencias</value>
+  </data>
+  <data name="Cmd_StrikeOutAllMatches" xml:space="preserve">
+    <value>_Tachar todas las coincidencias</value>
+  </data>
+  <data name="Tab_HighlightAllMatches" xml:space="preserve">
+    <value>Resaltar todas las coincidencias</value>
+  </data>
+  <data name="Tab_HighlightAllMatchesTip" xml:space="preserve">
+    <value>Cada coincidencia se convierte en un comentario resaltado, en un solo paso que se puede deshacer. Revisar › Marcar todas las coincidencias también las subraya o las tacha.</value>
+  </data>
+  <data name="Marks_SearchFirst" xml:space="preserve">
+    <value>Busca las palabras que quieras marcar y vuelve a elegirlo.</value>
+  </data>
+  <data name="Marks_StillSearching" xml:space="preserve">
+    <value>Todavía se está buscando: vuelve a elegirlo cuando termine la búsqueda.</value>
+  </data>
+  <data name="Marks_NoMatches" xml:space="preserve">
+    <value>La búsqueda no encontró nada que marcar.</value>
+  </data>
+  <data name="Marks_AllMarkedAlready" xml:space="preserve">
+    <value>Todas las coincidencias ya están marcadas.</value>
+  </data>
+  <data name="Marks_Limit" xml:space="preserve">
+    <value>Se marcaron las primeras {0} de {1} coincidencias; vuelve a elegirlo para las demás.</value>
+    <comment>{0} = matches marked, {1} = matches found</comment>
+  </data>
+  <data name="Marks_Highlight_One" xml:space="preserve">
+    <value>Resaltar 1 coincidencia</value>
+  </data>
+  <data name="Marks_Highlight_Many" xml:space="preserve">
+    <value>Resaltar {0} coincidencias</value>
+  </data>
+  <data name="Marks_Underline_One" xml:space="preserve">
+    <value>Subrayar 1 coincidencia</value>
+  </data>
+  <data name="Marks_Underline_Many" xml:space="preserve">
+    <value>Subrayar {0} coincidencias</value>
+  </data>
+  <data name="Marks_StrikeOut_One" xml:space="preserve">
+    <value>Tachar 1 coincidencia</value>
+  </data>
+  <data name="Marks_StrikeOut_Many" xml:space="preserve">
+    <value>Tachar {0} coincidencias</value>
+  </data>
+  <data name="Links_NoneMade" xml:space="preserve">
+    <value>No se agregó ningún vínculo: ninguna de las direcciones marcadas se pudo convertir en vínculo.</value>
+  </data>
+  <data name="Marks_SearchStopped" xml:space="preserve">
+    <value>La búsqueda se detuvo antes de terminar: vuelve a buscar y vuelve a elegirlo.</value>
+  </data>
+  <data name="Marks_CouldntMark" xml:space="preserve">
+    <value>No se pudieron marcar las coincidencias: no se pudo leer el documento.</value>
+  </data>
   <data name="Cmd_InsertText" xml:space="preserve">
     <value>Insertar te_xto…</value>
   </data>

@@ -396,6 +396,7 @@ public partial class DocumentTab
             UpdateRedactBar();
         };
         RedactHitsButton.Click += (_, _) => RedactSearchHits();
+        HighlightHitsButton.Click += (_, _) => _ = MarkAllMatches(TextMarkupKind.Highlight);
         Viewer.RedactionsChanged += (_, _) => UpdateRedactBar();
         Viewer.ToolChanged += (_, _) => UpdateRedactBar();
         Viewer.NoteRequested += (_, n) => _ = AddNoteAt(n.PageIndex, n.X, n.Y, null);
@@ -671,13 +672,7 @@ public partial class DocumentTab
             Notify(Strings.Review_NoTextToMark);
             return false;
         }
-        var color = kind switch
-        {
-            TextMarkupKind.Underline => new AnnotColor(0.1, 0.55, 0.2),
-            TextMarkupKind.StrikeOut => AnnotColor.Red,
-            TextMarkupKind.Squiggly => new AnnotColor(0.1, 0.45, 0.85),
-            _ => AnnotColor.Yellow,
-        };
+        var color = SearchMarks.ColorOf(kind);
         var author = Author;
         var label = kind switch
         {
@@ -1247,7 +1242,7 @@ public partial class DocumentTab
             : marks.Count == 1 ? Strings.Review_RedactBarOne
             : Loc.Format(pages == 1 ? Strings.Review_RedactBarOnePage : Strings.Review_RedactBarManyPages, marks.Count, pages);
         RedactApply.IsEnabled = RedactClear.IsEnabled = marks.Count > 0;
-        RedactHitsButton.Visibility = _results.Count > 0 && Session.IsPdf ? Visibility.Visible : Visibility.Collapsed;
+        RedactHitsButton.Visibility = HighlightHitsButton.Visibility = _results.Count > 0 && Session.IsPdf ? Visibility.Visible : Visibility.Collapsed;
         StateChanged?.Invoke(this, EventArgs.Empty);
     }
 
