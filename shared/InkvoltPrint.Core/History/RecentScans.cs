@@ -35,6 +35,12 @@ public static class RecentScans
 
     public const int MaxPath = 1024, MaxText = 128, MaxPages = 100_000;
 
+    /// <summary>
+    /// The kinds of file a scan saves. Open hands a file to the shell, so an entry naming anything else (a program planted in the
+    /// settings file) is left out rather than run.
+    /// </summary>
+    public static readonly IReadOnlyList<string> Extensions = [".pdf", ".jpg", ".jpeg"];
+
     /// <summary><paramref name="scan"/> at the top: any entry sharing one of its files goes (saved again), and the oldest past <see cref="Max"/>.</summary>
     public static IReadOnlyList<RecentScan> Add(IReadOnlyList<RecentScan>? list, RecentScan scan)
     {
@@ -75,7 +81,8 @@ public static class RecentScans
     {
         if (string.IsNullOrWhiteSpace(path) || path.Length > MaxPath || path.IndexOfAny(Path.GetInvalidPathChars()) >= 0) return false;
         if (path.StartsWith(@"\\.\", StringComparison.Ordinal) || path.StartsWith(@"\\?\", StringComparison.Ordinal)) return false;
-        if (path.Contains("://", StringComparison.Ordinal)) return false;
+        if (path.Contains("://", StringComparison.Ordinal) || path.Contains('"')) return false;
+        if (!Extensions.Contains(Path.GetExtension(path), StringComparer.OrdinalIgnoreCase)) return false;
         var drive = path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] == '\\';
         var share = path.StartsWith(@"\\", StringComparison.Ordinal) && path.Length > 4 && path.IndexOf('\\', 2) > 2;
         return (drive || share) && path.IndexOf(':', 2) < 0 && Path.GetFileName(path).Length > 0; // no alternate data stream

@@ -22,13 +22,18 @@ public static class CommentSummary
     /// <summary>One comment as the summary lists it.</summary>
     /// <param name="Number">Its number (replies carry their comment's).</param>
     /// <param name="Depth">0 for a comment, 1 and more for replies.</param>
-    public sealed record Entry(int Number, int Depth, AnnotationInfo Comment);
+    /// <param name="Proof">A caret's proofreading mark (Insert Text, Replace Text): its strike-out is part of it, not listed.</param>
+    public sealed record Entry(int Number, int Depth, AnnotationInfo Comment, ProofMarkKind? Proof = null);
 
     /// <summary>The comments of each page in the order the summary lists them, numbered from 1 through the document.</summary>
     public static IReadOnlyList<(int Page, IReadOnlyList<Entry> Entries)> Plan(IReadOnlyList<AnnotationInfo> comments)
     {
-        var listed = comments.Where(c => !c.IsInkvoltPdfStamp && c.Kind != AnnotationKind.Redact).ToList();
+        var all = comments.Where(c => !c.IsInkvoltPdfStamp && c.Kind != AnnotationKind.Redact).ToList();
+        var allIds = all.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        // A group (Replace Text's strike-out with its caret) is one comment: its head is listed, its members aren't.
+        var listed = all.Where(c => !Annotations.IsGroupMember(c, allIds)).ToList();
         var ids = listed.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
+        var replaced = Annotations.ReplacedCarets(all);
         var replies = listed.Where(c => c.ReplyTo is { } to && ids.Contains(to) && to != c.Id).GroupBy(c => c.ReplyTo!).ToDictionary(g => g.Key, g => g.OrderBy(c => c.Modified).ToList());
         var number = 0;
         var result = new List<(int, IReadOnlyList<Entry>)>();
@@ -38,7 +43,7 @@ public static class CommentSummary
             foreach (var top in page.OrderBy(c => Math.Round(c.Rect.Y / 4)).ThenBy(c => c.Rect.X))
             {
                 number++;
-                entries.Add(new Entry(number, 0, top));
+                entries.Add(new Entry(number, 0, top, Annotations.ProofKindOf(top, replaced)));
                 var seen = new HashSet<string>(StringComparer.Ordinal) { top.Id };
                 void Add(string id, int depth)
                 {
@@ -188,7 +193,13 @@ public static class CommentSummary
     private static string Meta(Entry e, CultureInfo culture)
     {
         var c = e.Comment;
-        var kind = e.Depth > 0 ? PdfStrings.Comment_SummaryReply : Capital(CommentFiles.KindName(c.Subtype));
+        var kind = e.Depth > 0 ? PdfStrings.Comment_SummaryReply
+            : e.Proof switch
+            {
+                ProofMarkKind.ReplaceText => PdfStrings.Comment_SummaryReplaceText,
+                ProofMarkKind.InsertText => PdfStrings.Comment_SummaryInsertText,
+                _ => Capital(CommentFiles.KindName(c.Subtype)),
+            };
         var parts = new List<string> { kind };
         if (!string.IsNullOrWhiteSpace(c.Author)) parts.Add(c.Author.Trim());
         if (c.Modified is { } m) parts.Add(m.ToLocalTime().ToString("g", culture));

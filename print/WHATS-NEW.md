@@ -5,6 +5,11 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Print log: the sidebar's Print log lists every job this PC printed while Inkvolt Print was running, from any app, with each month's pages per printer and per person. It stays on this PC, and you can turn it off or clear it. Saving it as a CSV file is part of Inkvolt Pro.
+- Share a printer with phones: a USB printer (or any printer set up in Windows) can take print jobs from Android phones, Macs and other computers on your home network. Turn on Share this printer on the network in its Print tab; it's off until you turn it on, works only on networks Windows calls Private and only while Inkvolt Print runs, and it's free.
+- Set up a new printer's Wi-Fi: Add a printer › Set up a new printer… finds a new printer's setup network nearby, joins it when you press Connect, opens the printer's own page where you choose your Wi-Fi, then brings this PC back to your network and finds the printer there. Your Wi-Fi password is typed only on the printer's page or in Windows, never in Inkvolt Print.
+
+## 1.8.0
 - Both sides on a feeder that scans one side: check Both sides: turn the stack over (or the preset option), scan the fronts, turn the stack over when asked and scan the backs. The pages come out in order; if your scanner's tray reverses the stack, Backs in the other order fixes it, and the review says when the fronts and backs don't match up.
 - Pages fed sideways or upside down are turned upright on their own when their text shows which way is up (Turn pages upright, on by default, also per preset). Pages it isn't sure of stay as they came, and Undo turns them back.
 - Smaller PDFs: a preset's new Smaller file (black and white) choice saves each page in black and white, often a tenth of the size or less. Scans in black and white are saved that way too.
@@ -13,9 +18,6 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Both sides on a printer that prints one side: Print a PDF, Batch and Copy offer Print on both sides by hand. The fronts print, then the app shows how to put the stack back for your printer (it asks which way up the sheets came out) and prints the backs.
 - Print the clipboard: in the Print tab, Print the clipboard prints text you copied (laid out on pages, with the usual options), a copied picture through Photos, or files you copied in File Explorer.
 - Recent scans: the Scan tab's Recent scans… lists your last saved scans from every scanner, to open, show in their folder, email again or print. The list stays on this PC.
-- Print log: the sidebar's Print log lists every job this PC printed while Inkvolt Print was running, from any app, with each month's pages per printer and per person. It stays on this PC, and you can turn it off or clear it. Saving it as a CSV file is part of Inkvolt Pro.
-- Share a printer with phones: a USB printer (or any printer set up in Windows) can take print jobs from Android phones, Macs and other computers on your home network. Turn on Share this printer on the network in its Print tab; it's off until you turn it on, works only on networks Windows calls Private and only while Inkvolt Print runs, and it's free.
-- Set up a new printer's Wi-Fi: Add a printer › Set up a new printer… finds a new printer's setup network nearby, joins it when you press Connect, opens the printer's own page where you choose your Wi-Fi, then brings this PC back to your network and finds the printer there. Your Wi-Fi password is typed only on the printer's page or in Windows, never in Inkvolt Print.
 
 ## 1.7.0
 - Print to a network printer that isn't set up in Windows: Print a PDF, Copy and Print photos now send the pages straight to the printer over the network, in its own format, with no driver and no administrator. Where Windows has a queue for it, the queue stays the default and Print offers "Print straight to the printer" too. You see each page print, and the print queue card lists the printer's own jobs.

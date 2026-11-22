@@ -12064,4 +12064,233 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>{0}  (TWAIN, 32-bit only)</value>
     <comment>{0} = scanner name; a scanner whose only driver is a 32-bit TWAIN one (listed, can't be used)</comment>
   </data>
+  <data name="Cmd_InsertText" xml:space="preserve">
+    <value>Insert Te_xt…</value>
+  </data>
+  <data name="Cmd_ReplaceText" xml:space="preserve">
+    <value>Re_place Text…</value>
+  </data>
+  <data name="Tab_InsertText" xml:space="preserve">
+    <value>Insert text</value>
+  </data>
+  <data name="Tab_InsertTextTip" xml:space="preserve">
+    <value>Insert text: after the selection, or where you clicked in the text</value>
+  </data>
+  <data name="Tab_ReplaceText" xml:space="preserve">
+    <value>Replace text</value>
+  </data>
+  <data name="Tab_ReplaceTextTip" xml:space="preserve">
+    <value>Replace text: cross out the selection and type what goes in its place</value>
+  </data>
+  <data name="Tab_MenuInsertTextHere" xml:space="preserve">
+    <value>Insert Text Here…</value>
+  </data>
+  <data name="Review_KindReplaceText" xml:space="preserve">
+    <value>Replace text</value>
+    <comment>What a comment is called in the Comments pane</comment>
+  </data>
+  <data name="Review_InsertTextTitle" xml:space="preserve">
+    <value>Insert text</value>
+  </data>
+  <data name="Review_InsertTextNote" xml:space="preserve">
+    <value>A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.</value>
+  </data>
+  <data name="Review_ReplaceTextTitle" xml:space="preserve">
+    <value>Replace text</value>
+  </data>
+  <data name="Review_ReplaceTextNote" xml:space="preserve">
+    <value>“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.</value>
+  </data>
+  <data name="Review_ProofTextEmpty" xml:space="preserve">
+    <value>Type the text.</value>
+  </data>
+  <data name="Review_InsertNoCaret" xml:space="preserve">
+    <value>Click in the text where the words go (Select Text tool), or select text, then choose Insert Text.</value>
+  </data>
+  <data name="Review_ReplaceOnePage" xml:space="preserve">
+    <value>Select text on one page to replace it.</value>
+  </data>
+  <data name="Cmd_SuggestRedactions" xml:space="preserve">
+    <value>Su_ggest Redactions…</value>
+  </data>
+  <data name="Redact_SuggestTitle" xml:space="preserve">
+    <value>Suggest redactions</value>
+  </data>
+  <data name="Redact_SuggestNoteAi" xml:space="preserve">
+    <value>Your AI assistant ({0} · {1}) reads the pages' text and suggests what to redact. You see exactly what is sent, and where, before it goes.</value>
+  </data>
+  <data name="Redact_SuggestNoteNoAi" xml:space="preserve">
+    <value>The AI assistant is off, so nothing is sent anywhere: only your names and terms list is searched. To get suggestions by meaning, set up your own assistant in Settings › AI assistant.</value>
+  </data>
+  <data name="Redact_SuggestLookFor" xml:space="preserve">
+    <value>Ask the assistant for</value>
+  </data>
+  <data name="Redact_SuggestNames" xml:space="preserve">
+    <value>Names of people</value>
+  </data>
+  <data name="Redact_SuggestOrganizations" xml:space="preserve">
+    <value>Companies and organizations</value>
+  </data>
+  <data name="Redact_SuggestAddresses" xml:space="preserve">
+    <value>Postal addresses</value>
+  </data>
+  <data name="Redact_SuggestAccounts" xml:space="preserve">
+    <value>Account and ID numbers</value>
+  </data>
+  <data name="Redact_SuggestDescribe" xml:space="preserve">
+    <value>Also anything that is (optional)</value>
+  </data>
+  <data name="Redact_SuggestDescribeTip" xml:space="preserve">
+    <value>Describe it in your words, for example: diagnoses and medicines, or salaries</value>
+  </data>
+  <data name="Redact_SuggestUseList_One" xml:space="preserve">
+    <value>Also my names and terms list ({0} entry)</value>
+  </data>
+  <data name="Redact_SuggestUseList_Many" xml:space="preserve">
+    <value>Also my names and terms list ({0} entries)</value>
+  </data>
+  <data name="Redact_SuggestEditList" xml:space="preserve">
+    <value>Edit List…</value>
+  </data>
+  <data name="Redact_SuggestReviewNote" xml:space="preserve">
+    <value>Nothing is removed yet: every place found is listed for you to accept or skip, and the result is read back and checked.</value>
+  </data>
+  <data name="Redact_SuggestNeedSomething" xml:space="preserve">
+    <value>Choose something to ask the assistant for, or use your list.</value>
+  </data>
+  <data name="Redact_SuggestNeedList" xml:space="preserve">
+    <value>Your names and terms list is empty. Add names with Edit List, or set up the AI assistant.</value>
+  </data>
+  <data name="Redact_TermsTitle" xml:space="preserve">
+    <value>Names and terms to redact</value>
+  </data>
+  <data name="Redact_TermsNote" xml:space="preserve">
+    <value>One per line: names, companies, case numbers, words. Kept on this PC only. Lines starting with # are skipped.</value>
+  </data>
+  <data name="Redact_TermsLabel" xml:space="preserve">
+    <value>Names and terms</value>
+  </data>
+  <data name="Redact_TermsNotSaved" xml:space="preserve">
+    <value>The list couldn't be saved. Check that the app's data folder can be written to, then try again.</value>
+  </data>
+  <data name="Redact_SuggestDropped_One" xml:space="preserve">
+    <value>{0} suggestion wasn't in the text as written, or couldn't be read, and was left out.</value>
+  </data>
+  <data name="Redact_SuggestDropped_Many" xml:space="preserve">
+    <value>{0} suggestions weren't in the text as written, or couldn't be read, and were left out.</value>
+  </data>
+  <data name="Redact_SuggestUnreadable_One" xml:space="preserve">
+    <value>{0} answer from the assistant wasn't a list and was skipped.</value>
+  </data>
+  <data name="Redact_SuggestUnreadable_Many" xml:space="preserve">
+    <value>{0} answers from the assistant weren't a list and were skipped.</value>
+  </data>
+  <data name="Redact_SuggestNothing" xml:space="preserve">
+    <value>Nothing to redact was suggested.</value>
+  </data>
+  <data name="Redact_SuggestNoText_One" xml:space="preserve">
+    <value>Nothing was sent: {1} has no text. Scanned pages need Recognize Text (OCR) first.</value>
+  </data>
+  <data name="Redact_SuggestNoText_Many" xml:space="preserve">
+    <value>Nothing was sent: {1} have no text. Scanned pages need Recognize Text (OCR) first.</value>
+  </data>
+  <data name="Redact_SuggestSent" xml:space="preserve">
+    <value>The text of {0}, to find what to redact</value>
+  </data>
+  <data name="Redact_SuggestSendTitle" xml:space="preserve">
+    <value>Send for redaction suggestions?</value>
+  </data>
+  <data name="Redact_SuggestDone_One" xml:space="preserve">
+    <value>{0} suggestion found in the text.</value>
+  </data>
+  <data name="Redact_SuggestDone_Many" xml:space="preserve">
+    <value>{0} suggestions found in the text.</value>
+  </data>
+  <data name="Redact_SuggestFailed" xml:space="preserve">
+    <value>No suggestions</value>
+  </data>
+  <data name="Cmd_AiSaveAnswer" xml:space="preserve">
+    <value>Save AI _Answer…</value>
+  </data>
+  <data name="Cmd_AiSaveConversation" xml:space="preserve">
+    <value>Save AI C_onversation…</value>
+  </data>
+  <data name="Ai_SaveConversation" xml:space="preserve">
+    <value>Save the conversation</value>
+  </data>
+  <data name="Ai_SaveAnswer" xml:space="preserve">
+    <value>Save this answer</value>
+  </data>
+  <data name="TabAi_NothingToSave" xml:space="preserve">
+    <value>No AI answer to save yet: ask, summarize or explain first.</value>
+  </data>
+  <data name="TabAi_SaveAnswerTitle" xml:space="preserve">
+    <value>Save AI answer</value>
+  </data>
+  <data name="TabAi_SaveConversationTitle" xml:space="preserve">
+    <value>Save AI conversation</value>
+  </data>
+  <data name="TabAi_SaveAnswerNote" xml:space="preserve">
+    <value>The answer to “{0}”.</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_One" xml:space="preserve">
+    <value>{0} answer, with what was asked.</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_Many" xml:space="preserve">
+    <value>{0} answers, each with what was asked.</value>
+  </data>
+  <data name="TabAi_SaveAs" xml:space="preserve">
+    <value>Save as</value>
+  </data>
+  <data name="TabAi_SaveAsWord" xml:space="preserve">
+    <value>A Word document (.docx)</value>
+  </data>
+  <data name="TabAi_SaveAsPdf" xml:space="preserve">
+    <value>A PDF</value>
+  </data>
+  <data name="TabAi_SaveAsComment" xml:space="preserve">
+    <value>A comment on page {0} of this document</value>
+  </data>
+  <data name="TabAi_SaveMarked" xml:space="preserve">
+    <value>It says it was written by an AI model, and which one; it may be wrong. A comment goes on the first page the answer cites.</value>
+  </data>
+  <data name="TabAi_SaveCommentUndo" xml:space="preserve">
+    <value>Add AI answer as comment</value>
+  </data>
+  <data name="TabAi_SavedComment" xml:space="preserve">
+    <value>The answer is now a comment on page {0}.</value>
+  </data>
+  <data name="TabAi_SavedFileName" xml:space="preserve">
+    <value>{0} - AI answers</value>
+  </data>
+  <data name="TabAi_CantSave" xml:space="preserve">
+    <value>Not saved</value>
+  </data>
+  <data name="TabAi_CantSaveBody" xml:space="preserve">
+    <value>The file couldn't be written. Check that the folder exists and the file isn't open in another app, then try again.</value>
+  </data>
+  <data name="TabAi_SavedFile" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="TabAi_OpenSaved" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="Redact_SuggestAiDidntRun" xml:space="preserve">
+    <value>The assistant's suggestions aren't included (nothing came back from it): only your names and terms list was searched.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_One" xml:space="preserve">
+    <value>The assistant didn't read {1}: it has no text. Scanned pages need Recognize Text (OCR) first; the search below still reads them for your list and shows them to look at.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_Many" xml:space="preserve">
+    <value>The assistant didn't read {1}: they have no text. Scanned pages need Recognize Text (OCR) first; the search below still reads them for your list and shows them to look at.</value>
+  </data>
+  <data name="Redact_TermsTooLarge" xml:space="preserve">
+    <value>Your saved names and terms list is larger than {0} MB, so none of it is used. Edit it to shorten it.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_One" xml:space="preserve">
+    <value>{0} entry in your saved list is too long, or past what a list can hold, and isn't searched. Edit the list to fix it.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
+    <value>{0} entries in your saved list are too long, or past what a list can hold, and aren't searched. Edit the list to fix it.</value>
+  </data>
 </root>

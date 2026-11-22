@@ -122,6 +122,8 @@ public static class CommandBarLayout
             [new("Highlight", "\uE7E6", Description: PdfStrings.Bar_HighlightDesc, AtOnce: true), // no selection: the highlighter
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
              new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
+             new("InsertText", "\uE8D2", Description: PdfStrings.Bar_InsertTextDesc),
+             new("ReplaceText", "\uE8AC", Description: PdfStrings.Bar_ReplaceTextDesc),
              new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
              new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)], "\uE7E6"),
         // "Llenar y firmar" is the bar's longest label: in Spanish Fill & Sign goes into "\u2026" before the bar drops its
@@ -148,6 +150,7 @@ public static class CommandBarLayout
              new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc, AtOnce: true, StartsSection: true),
              new("ApplyRedactions", "", Description: PdfStrings.Bar_ApplyRedactionsDesc, IconBrush: "ApplyRedactionsBrush"), // the bar's only red
              new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
+             new("SuggestRedactions", "\uE99A", Description: PdfStrings.Bar_SuggestRedactionsDesc),
              new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
              new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),
              new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc, StartsSection: true),
