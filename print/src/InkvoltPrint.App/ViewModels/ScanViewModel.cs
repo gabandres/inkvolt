@@ -185,7 +185,7 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>The feeder is chosen and scans one side only: the tab offers <see cref="TurnStack"/>.</summary>
-    public bool OffersTurnStack => Source?.Value == ScanSource.Adf && !_caps.AdfDuplex;
+    public bool OffersTurnStack => ScanChoices.OffersTurnStack(_caps, Source?.Value ?? ScanSource.Platen);
 
     /// <summary>The color modes the current source offers (black and white where it does), the remembered one chosen as it allows.</summary>
     [ObservableProperty] public partial IReadOnlyList<Option<ScanColor>> ColorModes { get; set; } = [];
@@ -721,7 +721,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, ColorMode?.Value ?? ScanColor.Color, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
         return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos, TabCleanup, OcrLanguage?.Value,
-            TurnUpright, OffersTurnStack && TurnStack, request.Color == ScanColor.BlackAndWhite);
+            TurnUpright, OffersTurnStack && TurnStack, ScanChoices.SavesOneBit(request.Color));
     }
 
     /// <summary>
@@ -760,7 +760,7 @@ public sealed partial class ScanViewModel : ObservableObject
             var dpi = request.Resolution;
             _batchKeep = job.KeepSeparators;
             var findPhotos = job.FindPhotos && request.Source == ScanSource.Platen; // photos lie on the glass, not in the feeder
-            var turnStack = job.TurnStack && request.Source == ScanSource.Adf;
+            var turnStack = job.TurnStack && ScanChoices.OffersTurnStack(_caps, request.Source);
             // Which way up is told by Latin-like letters only: a page in Hebrew, Arabic or Chinese isn't turned.
             var upright = job.Upright && PageUpright.SuitsLanguage(job.OcrLanguage ?? WindowsOcr.DefaultLanguage);
             // What made-up scanners then hold.
@@ -812,16 +812,21 @@ public sealed partial class ScanViewModel : ObservableObject
                         // The fronts are kept: what went wrong with the backs is said, and they can be scanned again by hand.
                         stackNote = string.Format(Strings.Scan_BacksFailed, ex.Message);
                     }
+                    catch (OperationCanceledException) when (_scanCts!.IsCancellationRequested)
+                    {
+                        // Stopped part-way: the backs scanned so far are put in order like any others, and that is said.
+                        stackNote = Strings.Scan_BacksStopped;
+                    }
                     await Task.WhenAll(checks);
                     if (backs.Count > 0)
                     {
-                        PutStackInOrder(fronts, backs);
+                        PutStackInOrder(fronts, backs); // with each separator sheet's other side
                         added = [.. Pages.Where(added.Contains)];
-                        SeparatorBacks(added); // the other side of a patch sheet is part of the sheet, as in a two-sided scan
                     }
-                    if (stackNote.Length == 0) stackNote = fronts.Count != backs.Count
-                        ? string.Format(backs.Count == 0 ? Strings.Scan_NoBacks : Strings.Scan_StackCountsDiffer, fronts.Count, backs.Count)
-                        : Strings.Scan_StackInOrder;
+                    var counts = fronts.Count == backs.Count ? Strings.Scan_StackInOrder
+                        : backs.Count == 0 ? Plural.Of(fronts.Count, Strings.Scan_NoBacks_One, Strings.Scan_NoBacks_Many)
+                        : string.Format(Strings.Scan_StackCountsDiffer, fronts.Count, backs.Count);
+                    stackNote = stackNote.Length == 0 ? counts : backs.Count > 0 && fronts.Count != backs.Count ? stackNote + " " + counts : stackNote;
                 }
             }
             await Task.WhenAll(checks);
@@ -917,8 +922,29 @@ public sealed partial class ScanViewModel : ObservableObject
         return turned.Count;
     }
 
-    /// <summary>The last turned stack's fronts and backs as scanned, and whether its backs are now in last-sheet-first order.</summary>
-    private sealed record StackScan(List<ScanPageViewModel> Fronts, List<ScanPageViewModel> Backs, bool Reversed);
+    /// <summary>
+    /// The last turned stack's fronts and backs as scanned, whether its backs are now in last-sheet-first order, and the pages
+    /// that order made the other side of a separator sheet (<see cref="MarkSheetBacks"/>).
+    /// </summary>
+    private sealed class StackScan(List<ScanPageViewModel> fronts, List<ScanPageViewModel> backs)
+    {
+        public List<ScanPageViewModel> Fronts { get; } = fronts;
+        public List<ScanPageViewModel> Backs { get; } = backs;
+        public bool Reversed { get; set; } = TurnedStack.BacksReversed;
+        public List<SheetBackMark> Marks { get; set; } = [];
+
+        /// <summary>The pages in the order <paramref name="reversed"/> says, in the places they hold in <paramref name="pages"/>, each separator sheet's other side marked again.</summary>
+        public void Pair(IReadOnlyList<ScanPageViewModel> pages, bool reversed, Action<IReadOnlyList<ScanPageViewModel>> reorder)
+        {
+            Unmark(Marks);
+            reorder(TurnedStack.Rearrange(pages, Fronts, Backs, reversed));
+            Reversed = reversed;
+            Marks = MarkSheetBacks(Fronts, Backs, reversed);
+        }
+    }
+
+    /// <summary>A page made the other side of a separator sheet, with what it was before, to put back when the pairing changes.</summary>
+    private sealed record SheetBackMark(ScanPageViewModel Page, SeparatorFound Separator, PageEdits Edits, bool Skipped);
 
     /// <summary>The last scan's turned stack, while its backs can be put the other way (until the next scan or Clear).</summary>
     private StackScan? Stack
@@ -940,13 +966,16 @@ public sealed partial class ScanViewModel : ObservableObject
     /// <summary>A turned stack's fronts and backs put in page order (backs last sheet first); Undo puts them back as scanned.</summary>
     private void PutStackInOrder(List<ScanPageViewModel> fronts, List<ScanPageViewModel> backs)
     {
+        var stack = new StackScan(fronts, backs);
+        stack.Pair(Pages.ToList(), TurnedStack.BacksReversed, Reorder);
+        Stack = stack;
         History.Record(Strings.Scan_UndoStackOrder, () =>
         {
+            Unmark(stack.Marks);
+            stack.Marks = [];
             Reorder(TurnedStack.InPlaces(Pages.ToList(), fronts.Concat(backs)));
-            Stack = null;
+            if (_stack == stack) Stack = null;
         });
-        Reorder(TurnedStack.Rearrange(Pages.ToList(), fronts, backs, TurnedStack.BacksReversed));
-        Stack = new(fronts, backs, TurnedStack.BacksReversed);
     }
 
     /// <summary>The backs matched the other way round: first sheet first, or back to last sheet first.</summary>
@@ -958,15 +987,52 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelPhotos();
         CancelClean();
         var before = Pages.ToList();
+        var was = stack.Reversed;
+        // The sheets pair differently now: each separator sheet's other side is found again on the new pairing (the old marks put back).
+        stack.Pair(Pages.ToList(), !was, Reorder);
         History.Record(Strings.Scan_UndoSwapBacks, () =>
         {
+            stack.Pair(Pages.ToList(), was, Reorder);
             Reorder(TurnedStack.InPlaces(Pages.ToList(), before));
             Stack = stack;
         });
-        Reorder(TurnedStack.Rearrange(Pages.ToList(), stack.Fronts, stack.Backs, !stack.Reversed));
-        Stack = stack with { Reversed = !stack.Reversed };
-        Message = stack.Reversed ? Strings.Scan_BacksFirstSheetFirst : Strings.Scan_BacksLastSheetFirst;
+        Message = was ? Strings.Scan_BacksFirstSheetFirst : Strings.Scan_BacksLastSheetFirst;
         Prompt.Announce(Message);
+    }
+
+    /// <summary>
+    /// A turned stack's separator sheets: the other side of each, on the sheets as <paramref name="reversed"/> pairs them
+    /// (<see cref="TurnedStack.SeparatorBacks"/>), is part of the sheet, as in a two-sided scan. Returns what was changed, to put back.
+    /// </summary>
+    private static List<SheetBackMark> MarkSheetBacks(List<ScanPageViewModel> fronts, List<ScanPageViewModel> backs, bool reversed)
+    {
+        var all = fronts.Concat(backs).ToList();
+        var marks = new List<SheetBackMark>();
+        foreach (var page in TurnedStack.SeparatorBacks(fronts.Count, backs.Count, reversed, [.. all.Select(p => p.Separator.IsSheet)], [.. all.Select(p => p.LooksBlank)])
+                     .Select(i => all[i]).Where(p => !p.IsSeparator))
+        {
+            marks.Add(new(page, page.Separator, page.Edits, page.IsSkipped));
+            MarkSheetBack(page);
+        }
+        return marks;
+    }
+
+    /// <summary>Pages marked by <see cref="MarkSheetBacks"/> as they were before (the marks of a pairing given up).</summary>
+    private static void Unmark(IEnumerable<SheetBackMark> marks)
+    {
+        foreach (var m in marks)
+        {
+            m.Page.Separator = m.Separator;
+            m.Page.Edits = m.Edits;
+            m.Page.IsSkipped = m.Skipped;
+        }
+    }
+
+    private static void MarkSheetBack(ScanPageViewModel back)
+    {
+        back.IsSkipped = false;
+        back.Separator = new SeparatorFound(SeparatorKind.SheetBack);
+        back.Edits = PageEdits.None; // not straightened: it isn't saved (unless separators are kept)
     }
 
     /// <summary>The pages moved into <paramref name="order"/> (the same pages), one move each that's out of place.</summary>
@@ -988,12 +1054,7 @@ public sealed partial class ScanViewModel : ObservableObject
     private static void SeparatorBacks(List<ScanPageViewModel> added)
     {
         var backs = BatchSplit.DuplexSeparatorBacks([.. added.Select(p => p.Separator.IsSheet)], [.. added.Select(p => p.LooksBlank)]);
-        foreach (var back in backs.Select(i => added[i]).Where(p => !p.IsSeparator))
-        {
-            back.IsSkipped = false;
-            back.Separator = new SeparatorFound(SeparatorKind.SheetBack);
-            back.Edits = PageEdits.None; // not straightened: it isn't saved (unless separators are kept)
-        }
+        foreach (var back in backs.Select(i => added[i]).Where(p => !p.IsSeparator)) MarkSheetBack(back);
     }
 
     [RelayCommand]
@@ -1907,7 +1968,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
     public int UprightTurns { get; private set; }
 
     /// <summary>Still turned as the check turned it (not turned back by hand or by Undo).</summary>
-    public bool TurnedUpright => UprightTurns != 0 && Edits.QuarterTurns == UprightTurns;
+    public bool TurnedUpright => Edits.TurnedUprightBy(UprightTurns);
 
     /// <summary>A save was cancelled: what's being encoded stops, and the next save starts it again.</summary>
     public void CancelWork()
@@ -2140,24 +2201,21 @@ public sealed partial class ScanPageViewModel : ObservableObject
                     var looksBlank = separator.Kind == SeparatorKind.BlankPage || BlankPage.IsBlank(image);
                     var isBlank = skipBlank && looksBlank && !separator.IsSeparator;
                     var photos = findPhotos && !isBlank && !separator.IsSeparator ? PhotoFinder.Find(image, ppi) : null;
-                    var page = !isBlank && !looksBlank && !separator.IsSeparator && photos is null;
-                    var found = upright && page ? PageUpright.Find(image, ppi) : UprightFound.Unsure;
-                    // A page lying sideways is straightened by the skew of its lines as they run (down the page), not across it.
-                    var angle = !straighten || isBlank || separator.IsSeparator || photos is not null ? 0
-                        : found.Turns % 2 == 1 ? PageUpright.StraightenBy(found.Skew)
-                        : Deskew.Angle(image);
+                    var mayStraighten = !isBlank && !separator.IsSeparator && photos is null;
+                    var page = mayStraighten && !looksBlank;
+                    var (angle, turns) = PageUpright.Orient(image, ppi, straighten, upright, mayStraighten, hasText: page);
                     var searched = cleanup.HasFlag(PageFilters.CropToPaper) && page;
                     var crop = searched ? PaperEdge.Find(image, ppi, angle) : null;
-                    return (isBlank, angle, found.Turns, separator, looksBlank, photos, searched, crop);
+                    return (isBlank, angle, turns, separator, looksBlank, photos, searched, crop);
                 });
                 LooksBlank = looksBlank;
                 Separator = separator;
                 IsSkipped = blank;
                 if (photos is not null) Photos = photos;
-                if ((angle != 0 || turns != 0) && Edits.IsEmpty)
+                if (Edits.Checked(angle, turns) is { } checkedEdits)
                 {
                     UprightTurns = turns;
-                    Edits = PageEdits.None with { Deskew = angle, QuarterTurns = turns };
+                    Edits = checkedEdits;
                 }
                 NoPaperEdge = Edits.NoPaperEdge(cleanup, searched, crop);
                 // The edge was found on the page straightened by angle: a page edited meanwhile keeps its whole page.

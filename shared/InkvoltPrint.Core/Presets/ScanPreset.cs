@@ -266,6 +266,15 @@ public static partial class ScanPresets
             if (!taken.Contains($"{wanted} ({i})")) return $"{wanted} ({i})";
     }
 
+    /// <summary>
+    /// The preset's pages go into its PDF in black and white (<see cref="ScanPreset.SmallerFile"/>): not for JPEG files, nor for
+    /// photos found on the glass, which stay pictures in color. <paramref name="source"/>: where it scans from this time; null:
+    /// as the preset says (glass when it says glass).
+    /// </summary>
+    public static bool SavesSmallerFile(ScanPreset p, ScanSource? source = null) =>
+        p.SmallerFile && p.FileType != PresetFileType.Jpeg
+        && !(p.FindPhotos && (source is { } s ? s == ScanSource.Platen : p.Source == PresetSource.Glass));
+
     private static string Cut(string name) => name.Length > MaxNameLength ? name[..MaxNameLength] : name;
 
     private static string NewId() => Guid.NewGuid().ToString("N")[..12];
@@ -290,7 +299,7 @@ public static class ScanPresetText
 
     /// <summary>The preset's color as its summary says it: color, grey, or black and white for a smaller file.</summary>
     public static string ColorDpi(ScanPreset p) => string.Format(
-        p.SmallerFile && p.FileType != PresetFileType.Jpeg ? CoreStrings.Preset_SmallerFileDpi : p.Color ? CoreStrings.Preset_ColorDpi : CoreStrings.Preset_GreyDpi,
+        ScanPresets.SavesSmallerFile(p) ? CoreStrings.Preset_SmallerFileDpi : p.Color ? CoreStrings.Preset_ColorDpi : CoreStrings.Preset_GreyDpi,
         p.Resolution);
 
     public static string After(PresetAfter a) => a switch

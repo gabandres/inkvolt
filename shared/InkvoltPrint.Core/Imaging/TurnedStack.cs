@@ -20,20 +20,52 @@ public static class TurnedStack
     {
         ArgumentOutOfRangeException.ThrowIfNegative(fronts);
         ArgumentOutOfRangeException.ThrowIfNegative(backs);
-        // backOf[f]: the back scanned for front f, or -1. Reversed, the first back is the last front's.
+        // backOf[f]: the back scanned for front f, or -1.
         var backOf = new int[fronts];
         Array.Fill(backOf, -1);
-        var paired = Math.Min(fronts, backs);
-        for (var j = 0; j < paired; j++)
-            backOf[reversed ? fronts - 1 - j : j] = j;
+        var pairs = Pairs(fronts, backs, reversed);
+        foreach (var (front, back) in pairs) backOf[front] = back;
         var order = new List<int>(fronts + backs);
         for (var f = 0; f < fronts; f++)
         {
             order.Add(f);
             if (backOf[f] >= 0) order.Add(fronts + backOf[f]);
         }
-        for (var j = paired; j < backs; j++) order.Add(fronts + j);
+        for (var j = pairs.Count; j < backs; j++) order.Add(fronts + j);
         return order;
+    }
+
+    /// <summary>
+    /// The sheets: each front (0 to <paramref name="fronts"/> − 1) with the back scanned for it (0 to <paramref name="backs"/> − 1).
+    /// Reversed, the first back is the last front's; fronts or backs past the shorter pass have no other side here.
+    /// </summary>
+    public static IReadOnlyList<(int Front, int Back)> Pairs(int fronts, int backs, bool reversed = BacksReversed)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(fronts);
+        ArgumentOutOfRangeException.ThrowIfNegative(backs);
+        var paired = Math.Min(fronts, backs);
+        return [.. Enumerable.Range(0, paired).Select(j => (reversed ? fronts - 1 - j : j, j))];
+    }
+
+    /// <summary>
+    /// The other side of each separator sheet (a patch, QR or barcode sheet), which belongs to the sheet: indexes as
+    /// <see cref="Order"/>'s (fronts, then backs as scanned), sorted. Only the real sheets count (<see cref="Pairs"/>, never a
+    /// guess from page positions); when the counts differ the pairing isn't sure, so only an other side that looks blank is taken.
+    /// </summary>
+    /// <param name="sheet">Each page (fronts, then backs) is a separator sheet printed as one.</param>
+    /// <param name="blank">Each page looks blank.</param>
+    public static List<int> SeparatorBacks(int fronts, int backs, bool reversed, IReadOnlyList<bool> sheet, IReadOnlyList<bool> blank)
+    {
+        if (sheet.Count != fronts + backs || blank.Count != fronts + backs) throw new ArgumentException("One flag a page");
+        var sure = fronts == backs;
+        var result = new SortedSet<int>();
+        foreach (var (f, j) in Pairs(fronts, backs, reversed))
+        {
+            var b = fronts + j;
+            if (sheet[f] && !sheet[b] && (sure || blank[b])) result.Add(b);
+            if (sheet[b] && !sheet[f] && (sure || blank[f])) result.Add(f);
+        }
+        return [.. result];
     }
 
     /// <summary>

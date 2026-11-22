@@ -3724,9 +3724,6 @@ Empezar de nuevo</value>
   <data name="Scan_BacksFailed" xml:space="preserve">
     <value>No se pudieron escanear los reversos: {0} Los anversos se conservan.</value>
   </data>
-  <data name="Scan_NoBacks" xml:space="preserve">
-    <value>El alimentador no envió reversos, así que solo están los {0} anversos.</value>
-  </data>
   <data name="Scan_StackCountsDiffer" xml:space="preserve">
     <value>{0} anversos pero {1} reversos: puede que una hoja pasara dos veces o se quedara atrás. Los reversos se emparejaron desde la última hoja: revisa el orden y arrastra la página que esté fuera de lugar, o presiona Deshacer para poner los reversos después de los anversos.</value>
   </data>
@@ -3777,5 +3774,14 @@ Empezar de nuevo</value>
   </data>
   <data name="Presets_UprightHelp" xml:space="preserve">
     <value>Las páginas de lado o al revés</value>
+  </data>
+  <data name="Scan_NoBacks_One" xml:space="preserve">
+    <value>El alimentador no envió reversos, así que solo hay {0} anverso.</value>
+  </data>
+  <data name="Scan_NoBacks_Many" xml:space="preserve">
+    <value>El alimentador no envió reversos, así que solo hay {0} anversos.</value>
+  </data>
+  <data name="Scan_BacksStopped" xml:space="preserve">
+    <value>Se detuvo el escaneo de los reversos: las páginas escaneadas están en orden.</value>
   </data>
 </root>

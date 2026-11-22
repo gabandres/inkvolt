@@ -118,6 +118,39 @@ public class UprightTests
     public void Only_scripts_whose_letters_rise_above_the_line_are_turned(string? language, bool suits) =>
         Assert.Equal(suits, PageUpright.SuitsLanguage(language));
 
+    [Fact]
+    public void The_reviews_check_turns_and_straightens_only_what_it_may()
+    {
+        // Fed a quarter turn: turned back three quarters; a page the check may not straighten (blank, a separator, photos)
+        // or one with no text to read is neither turned nor straightened.
+        var page = Page(30);
+        var sideways = new GrayImage(H, W, ScanCleanup.Turn(page.Pixels, W, H, 1, 1));
+        Assert.Equal((0.0, 3), PageUpright.Orient(sideways, 100, straighten: true, upright: true, mayStraighten: true, hasText: true));
+        Assert.Equal(0, PageUpright.Orient(sideways, 100, straighten: true, upright: false, mayStraighten: true, hasText: true).QuarterTurns);
+        Assert.Equal((0.0, 0), PageUpright.Orient(sideways, 100, straighten: true, upright: true, mayStraighten: false, hasText: false));
+        Assert.Equal((0.0, 0), PageUpright.Orient(sideways, 100, straighten: true, upright: true, mayStraighten: true, hasText: false));
+
+        // Straightened by its lines' skew as they run: the sideways page 3° crooked.
+        var crooked = new GrayImage(H, W, PageRotate.Rotate(sideways.Pixels, H, W, H, 1, 3));
+        var (angle, turns) = PageUpright.Orient(crooked, 100, straighten: true, upright: true, mayStraighten: true, hasText: true);
+        Assert.Equal(3, turns);
+        Assert.Equal(3, angle, 0.5);
+        Assert.Equal(0, PageUpright.Orient(crooked, 100, straighten: false, upright: true, mayStraighten: true, hasText: true).Deskew);
+    }
+
+    [Fact]
+    public void Only_a_page_nobody_edited_takes_the_checks_turn_and_it_reads_as_turned_until_turned_back()
+    {
+        Assert.Equal(PageEdits.None with { Deskew = 1.5, QuarterTurns = 2 }, PageEdits.None.Checked(1.5, 2));
+        Assert.Null(PageEdits.None.Checked(0, 0));
+        Assert.Null(PageEdits.None.Checked(0, 4));
+        Assert.Null(PageEdits.None.Turned(1).Checked(1.5, 2)); // turned by hand during the check
+        var turned = PageEdits.None.Checked(0, 3)!;
+        Assert.True(turned.TurnedUprightBy(3));
+        Assert.False(turned.Turned(1).TurnedUprightBy(3));
+        Assert.False(PageEdits.None.TurnedUprightBy(0));
+    }
+
     [Theory]
     [InlineData(0.2, 0)]
     [InlineData(-3.5, -3.5)]

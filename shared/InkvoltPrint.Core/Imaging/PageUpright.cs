@@ -44,6 +44,19 @@ public static class PageUpright
     }
 
     /// <summary>
+    /// The scan review's check for one page, on its small copy: how far to straighten it and how many quarter turns stand it
+    /// upright. <paramref name="mayStraighten"/>: not blank-and-skipped, a separator or a scan of photos; <paramref name="hasText"/>:
+    /// that, and not looking blank either (only such a page is looked at for its way up). A page lying sideways is straightened
+    /// by its lines' skew as they run (<see cref="StraightenBy"/>), any other as <see cref="Deskew.Angle"/> says.
+    /// </summary>
+    public static (double Deskew, int QuarterTurns) Orient(GrayImage image, double ppi, bool straighten, bool upright, bool mayStraighten, bool hasText)
+    {
+        var found = upright && hasText && mayStraighten ? Find(image, ppi) : UprightFound.Unsure;
+        var angle = !straighten || !mayStraighten ? 0 : found.Turns % 2 == 1 ? StraightenBy(found.Skew) : Deskew.Angle(image);
+        return (angle, found.Turns);
+    }
+
+    /// <summary>
     /// The straightening a scan's check gives a page by <paramref name="skew"/> (<see cref="UprightFound.Skew"/>): what
     /// <see cref="Deskew.Angle"/> would, within its limits (<see cref="Deskew.MinAngle"/> to <see cref="Deskew.MaxAngle"/>), else none.
     /// </summary>

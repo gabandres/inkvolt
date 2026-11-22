@@ -82,6 +82,37 @@ public class TurnedStackTests
         Assert.Equal("earlier F1 F2 F3 b3 b1 later", Names(TurnedStack.InPlaces(current, [.. f, .. b])));
     }
 
+    [Fact]
+    public void A_separator_sheets_other_side_is_its_real_back_not_the_next_page()
+    {
+        // Four sheets, the first a patch sheet; the backs pass took two (sheets 4 and 3). Paired by position, the patch
+        // sheet's "back" would be front 2, a page of the document; really its back wasn't scanned, so nothing is taken.
+        bool[] sheet = [true, false, false, false, false, false];
+        bool[] blank = [false, false, false, false, false, false];
+        Assert.Empty(TurnedStack.SeparatorBacks(4, 2, reversed: true, sheet, blank));
+        Assert.Equal([(3, 0), (2, 1)], TurnedStack.Pairs(4, 2));
+
+        // Counts equal: the sheet's own back (scanned last, as the stack's last back) is taken whatever is on it.
+        bool[] even = [true, false, false, false, false, false, false, false];
+        Assert.Equal([7], TurnedStack.SeparatorBacks(4, 4, reversed: true, even, new bool[8]));
+        Assert.Equal([4], TurnedStack.SeparatorBacks(4, 4, reversed: false, even, new bool[8]));
+        // A sheet among the backs takes its front; counts differing, only a blank other side is taken.
+        bool[] back = [false, false, false, true, false];
+        Assert.Empty(TurnedStack.SeparatorBacks(3, 2, true, back, new bool[5]));
+        Assert.Equal([2], TurnedStack.SeparatorBacks(3, 2, true, back, [false, false, true, false, false]));
+        Assert.Throws<ArgumentException>(() => TurnedStack.SeparatorBacks(2, 2, true, new bool[3], new bool[4]));
+    }
+
+    [Fact]
+    public void One_sided_feeders_offer_the_turned_stack_and_black_and_white_saves_one_bit()
+    {
+        Assert.True(ScanChoices.OffersTurnStack(Caps(duplex: false), ScanSource.Adf));
+        Assert.False(ScanChoices.OffersTurnStack(Caps(duplex: true), ScanSource.Adf));
+        Assert.False(ScanChoices.OffersTurnStack(Caps(duplex: false), ScanSource.Platen));
+        Assert.True(ScanChoices.SavesOneBit(ScanColor.BlackAndWhite));
+        Assert.False(ScanChoices.SavesOneBit(ScanColor.Grayscale));
+    }
+
     private sealed record Page(string Name);
 
     private static string Names(IEnumerable<Page> pages) => string.Join(' ', pages.Select(p => p.Name));

@@ -412,7 +412,15 @@ public class PresetPlanTests
         // Roadmap 4.4: black and white at 1 bit from a grey scan, whatever the color setting; pictures (JPEG) stay as they are.
         var small = PresetPlan.For(Doc with { Color = true, SmallerFile = true, FileType = PresetFileType.Pdf }, Caps(), null, true, false);
         Assert.Equal((ScanColor.Grayscale, true), (small.Request.Color, small.OneBit));
-        Assert.False(PresetPlan.For(Doc with { SmallerFile = true, FileType = PresetFileType.Jpeg }, Caps(), null, true, false).OneBit);
+        // Nothing is saved at 1 bit for pictures, so their color stays as chosen: JPEG files, photos found on the glass.
+        var jpeg = PresetPlan.For(Doc with { Color = true, SmallerFile = true, FileType = PresetFileType.Jpeg }, Caps(), null, true, false);
+        Assert.Equal((ScanColor.Color, false), (jpeg.Request.Color, jpeg.OneBit));
+        var photos = PresetPlan.For(Doc with { Color = true, SmallerFile = true, FindPhotos = true, Source = PresetSource.Glass }, Caps(), null, true, false);
+        Assert.Equal((ScanColor.Color, false), (photos.Request.Color, photos.OneBit));
+        // Photos are looked for on the glass only: from the feeder, the smaller file holds.
+        Assert.True(PresetPlan.For(Doc with { SmallerFile = true, FindPhotos = true, Source = PresetSource.Feeder }, Caps(), null, true, false).OneBit);
+        Assert.Contains("color, 300 dpi", ScanPresetText.Summary(Doc with { Color = true, SmallerFile = true, FileType = PresetFileType.Jpeg }));
+        Assert.Contains("color, 300 dpi", ScanPresetText.Summary(Doc with { Color = true, SmallerFile = true, FindPhotos = true, Source = PresetSource.Glass }));
         Assert.False(PresetPlan.For(Doc, Caps(), null, true, false).OneBit);
         // Inkvolt PDF's black-and-white presets: saved at 1 bit too.
         Assert.True(PresetPlan.For(Doc with { BlackAndWhite = true, Color = false }, Caps(), null, true, false).OneBit);

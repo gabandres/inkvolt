@@ -10,7 +10,10 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
     /// <summary>Both sides on a one-sided feeder: scan the fronts, then ask for the stack turned over (<see cref="Imaging.TurnedStack"/>).</summary>
     public bool TurnStack { get; init; }
 
-    /// <summary>The PDF's pages in black and white (<see cref="ScanPreset.SmallerFile"/>): scanned in grey, saved at 1 bit.</summary>
+    /// <summary>
+    /// The PDF's pages in black and white: a smaller file (<see cref="ScanPresets.SavesSmallerFile"/>, scanned in grey) or a
+    /// black-and-white preset's, saved at 1 bit; never a JPEG preset's or photos found on the glass.
+    /// </summary>
     public bool OneBit { get; init; }
 
     /// <param name="feederLoaded">The scanner's feeder holds pages (eSCL AdfState); null = unknown.</param>
@@ -41,9 +44,11 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
         }
 
         // A smaller file is black and white at 1 bit, made from grey (a scan in color would only take longer); a black-and-white
-        // scan (Inkvolt PDF's presets) is saved at 1 bit too.
-        var oneBit = (preset.SmallerFile || preset.BlackAndWhite) && preset.FileType != PresetFileType.Jpeg;
-        var color = ScanChoices.Pick(ScanChoices.Colors(caps, source), preset.Color && !preset.SmallerFile, preset.BlackAndWhite && !preset.SmallerFile);
+        // scan (Inkvolt PDF's presets) is saved at 1 bit too. Neither for pictures: JPEG files, photos found on the glass.
+        var smaller = ScanPresets.SavesSmallerFile(preset, source);
+        var pictures = preset.FileType == PresetFileType.Jpeg || (preset.FindPhotos && source == ScanSource.Platen);
+        var color = ScanChoices.Pick(ScanChoices.Colors(caps, source), preset.Color && !smaller, preset.BlackAndWhite && !smaller);
+        var oneBit = smaller || (!pictures && preset.BlackAndWhite && !preset.Color);
 
         // The closest the source offers; between two equally close, the sharper one.
         var supported = caps.For(source)?.Resolutions ?? [];

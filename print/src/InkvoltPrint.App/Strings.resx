@@ -4572,10 +4572,6 @@ Start over</value>
     <value>The backs couldn't be scanned: {0} The fronts are kept.</value>
     <comment>{0} = what the scanner said, a sentence</comment>
   </data>
-  <data name="Scan_NoBacks" xml:space="preserve">
-    <value>The feeder sent no backs, so only the {0} fronts are here.</value>
-    <comment>{0} = fronts scanned</comment>
-  </data>
   <data name="Scan_StackCountsDiffer" xml:space="preserve">
     <value>{0} fronts but {1} backs: a sheet may have gone through twice or been left behind. The backs were matched from the last sheet: check the order and drag any page that's out of place, or press Undo to put the backs after the fronts.</value>
     <comment>{0} = fronts, {1} = backs</comment>
@@ -4635,5 +4631,16 @@ Start over</value>
   </data>
   <data name="Presets_UprightHelp" xml:space="preserve">
     <value>Pages lying sideways or upside down</value>
+  </data>
+  <data name="Scan_NoBacks_One" xml:space="preserve">
+    <value>The feeder sent no backs, so only {0} front is here.</value>
+    <comment>{0} = fronts scanned (1)</comment>
+  </data>
+  <data name="Scan_NoBacks_Many" xml:space="preserve">
+    <value>The feeder sent no backs, so only the {0} fronts are here.</value>
+    <comment>{0} = fronts scanned</comment>
+  </data>
+  <data name="Scan_BacksStopped" xml:space="preserve">
+    <value>Scanning the backs was stopped: the pages scanned are in order.</value>
   </data>
 </root>
