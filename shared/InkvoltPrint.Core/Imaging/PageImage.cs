@@ -206,6 +206,16 @@ public sealed record PageEdits(int QuarterTurns = 0, double Deskew = 0, CropBox?
 
     public PageEdits Turned(int quarters) => this with { QuarterTurns = (((QuarterTurns + quarters) % 4) + 4) % 4 };
 
+    /// <summary>
+    /// What the scan's check (<see cref="PageUpright.Orient"/>) makes of these edits: straightened by <paramref name="deskew"/> and
+    /// turned <paramref name="quarterTurns"/>, only on a page nobody has edited yet; null when nothing changes.
+    /// </summary>
+    public PageEdits? Checked(double deskew, int quarterTurns) =>
+        IsEmpty && (deskew != 0 || quarterTurns % 4 != 0) ? None with { Deskew = deskew, QuarterTurns = ((quarterTurns % 4) + 4) % 4 } : null;
+
+    /// <summary>Still turned as the check turned it (<paramref name="uprightTurns"/>), not turned back by hand or by Undo.</summary>
+    public bool TurnedUprightBy(int uprightTurns) => uprightTurns % 4 != 0 && QuarterTurns == ((uprightTurns % 4) + 4) % 4;
+
     /// <summary>These edits on a page of this size: past <see cref="PageCleanup.MaxPixels"/> no filter runs, so filters alone don't make it re-encoded (or even decoded).</summary>
     public PageEdits For(int width, int height) => PageCleanup.TooLarge(width, height) ? this with { Filters = Filters & ~PageFilters.PixelFilters } : this;
 

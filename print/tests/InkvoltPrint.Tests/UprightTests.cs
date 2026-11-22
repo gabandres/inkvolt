@@ -54,6 +54,111 @@ public class UprightTests
     [Fact]
     public void A_page_of_text_reads_which_way_up_it_is() => ReadsUpright(Page(30));
 
+    // ---- PageUpright: the scan review's turn (roadmap 4.3) ----
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void A_page_fed_any_way_round_is_turned_upright(int fedTurns)
+    {
+        var page = Page(30);
+        var fed = new GrayImage(fedTurns % 2 == 0 ? W : H, fedTurns % 2 == 0 ? H : W, ScanCleanup.Turn(page.Pixels, W, H, 1, fedTurns));
+        var found = PageUpright.Find(fed, 100);
+        Assert.True(found.Sure);
+        Assert.Equal((4 - fedTurns) % 4, found.Turns);
+    }
+
+    [Fact]
+    public void A_page_it_isnt_sure_of_isnt_turned()
+    {
+        // Blank paper, a picture alone, lines with as much ink above as below (bars): no turn.
+        Assert.Equal(0, PageUpright.Find(new GrayImage(W, H, Paper()), 100).Turns);
+        var picture = Paper();
+        Picture(picture, 300);
+        Assert.False(PageUpright.Find(new GrayImage(W, H, picture), 100).Sure);
+        var bars = Paper();
+        for (var l = 0; l < 30; l++)
+            for (var y = 80 + l * 26; y < 92 + l * 26; y++)
+                for (var x = 100; x < 750; x++)
+                    bars[y * W + x] = 20;
+        var found = PageUpright.Find(new GrayImage(W, H, bars), 100);
+        Assert.Equal(0, found.Turns);
+        Assert.Equal(UprightFound.Unsure, PageUpright.Find(new GrayImage(10, 10, new byte[100]), 100));
+        Assert.Equal(UprightFound.Unsure, PageUpright.Find(Page(30), double.NaN));
+    }
+
+    [Fact]
+    public void A_copy_finer_than_150_dpi_is_read_at_about_100()
+    {
+        // The same page at 300 dpi (each pixel 3 × 3): read as at 100.
+        var page = UpsideDown(Page(30));
+        var big = new byte[W * 3 * H * 3];
+        for (var y = 0; y < H * 3; y++)
+            for (var x = 0; x < W * 3; x++)
+                big[y * W * 3 + x] = page.Pixels[y / 3 * W + x / 3];
+        Assert.Equal(2, PageUpright.Find(new GrayImage(W * 3, H * 3, big), 300).Turns);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("en-US", true)]
+    [InlineData("es", true)]
+    [InlineData("ru-RU", true)]
+    [InlineData("el", true)]
+    [InlineData("he-IL", false)]
+    [InlineData("ar", false)]
+    [InlineData("fa-IR", false)]
+    [InlineData("zh-Hans-CN", false)]
+    [InlineData("ja", false)]
+    [InlineData("hi-IN", false)]
+    [InlineData("not a tag!", true)]
+    public void Only_scripts_whose_letters_rise_above_the_line_are_turned(string? language, bool suits) =>
+        Assert.Equal(suits, PageUpright.SuitsLanguage(language));
+
+    [Fact]
+    public void The_reviews_check_turns_and_straightens_only_what_it_may()
+    {
+        // Fed a quarter turn: turned back three quarters; a page the check may not straighten (blank, a separator, photos)
+        // or one with no text to read is neither turned nor straightened.
+        var page = Page(30);
+        var sideways = new GrayImage(H, W, ScanCleanup.Turn(page.Pixels, W, H, 1, 1));
+        Assert.Equal((0.0, 3), PageUpright.Orient(sideways, 100, straighten: true, upright: true, mayStraighten: true, hasText: true));
+        Assert.Equal(0, PageUpright.Orient(sideways, 100, straighten: true, upright: false, mayStraighten: true, hasText: true).QuarterTurns);
+        Assert.Equal((0.0, 0), PageUpright.Orient(sideways, 100, straighten: true, upright: true, mayStraighten: false, hasText: false));
+        Assert.Equal((0.0, 0), PageUpright.Orient(sideways, 100, straighten: true, upright: true, mayStraighten: true, hasText: false));
+
+        // Straightened by its lines' skew as they run: the sideways page 3° crooked.
+        var crooked = new GrayImage(H, W, PageRotate.Rotate(sideways.Pixels, H, W, H, 1, 3));
+        var (angle, turns) = PageUpright.Orient(crooked, 100, straighten: true, upright: true, mayStraighten: true, hasText: true);
+        Assert.Equal(3, turns);
+        Assert.Equal(3, angle, 0.5);
+        Assert.Equal(0, PageUpright.Orient(crooked, 100, straighten: false, upright: true, mayStraighten: true, hasText: true).Deskew);
+    }
+
+    [Fact]
+    public void Only_a_page_nobody_edited_takes_the_checks_turn_and_it_reads_as_turned_until_turned_back()
+    {
+        Assert.Equal(PageEdits.None with { Deskew = 1.5, QuarterTurns = 2 }, PageEdits.None.Checked(1.5, 2));
+        Assert.Null(PageEdits.None.Checked(0, 0));
+        Assert.Null(PageEdits.None.Checked(0, 4));
+        Assert.Null(PageEdits.None.Turned(1).Checked(1.5, 2)); // turned by hand during the check
+        var turned = PageEdits.None.Checked(0, 3)!;
+        Assert.True(turned.TurnedUprightBy(3));
+        Assert.False(turned.Turned(1).TurnedUprightBy(3));
+        Assert.False(PageEdits.None.TurnedUprightBy(0));
+    }
+
+    [Theory]
+    [InlineData(0.2, 0)]
+    [InlineData(-3.5, -3.5)]
+    [InlineData(12, 0)]
+    [InlineData(double.NaN, 0)]
+    public void A_sideways_page_is_straightened_within_the_reviews_limits(double skew, double expected) =>
+        Assert.Equal(expected, PageUpright.StraightenBy(skew));
+
     [Fact]
     public void A_shaded_picture_doesnt_turn_a_page_of_text_over() =>
         // Ten lines of text above a picture whose shading ends in paper at its foot: as a "line", nearly all of it lies

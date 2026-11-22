@@ -92,6 +92,14 @@
                             <ComboBox ItemsSource="{x:Static vm:ScanPresetsViewModel.Sources}" SelectedItem="{Binding Source}" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="{x:Static loc:Strings.Presets_Source}" />
                             <CheckBox Content="{x:Static loc:Strings.Presets_BothSides}" IsChecked="{Binding TwoSided}" Margin="0,8,0,0" />
+                            <!-- A feeder that scans one side: the stack turned over for the backs -->
+                            <CheckBox IsChecked="{Binding TurnStack}" IsEnabled="{Binding TwoSided}" Margin="24,6,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Presets_TurnStack}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_TurnStackHelp}">
+                                <StackPanel>
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_TurnStack}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_TurnStackHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </CheckBox>
                             <TextBlock Text="{x:Static loc:Strings.Presets_PageSize}" Style="{StaticResource Label}" Margin="0,12,0,4" />
                             <ComboBox ItemsSource="{x:Static vm:ScanPresetsViewModel.PageSizes}" SelectedItem="{Binding PageSize}" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="{x:Static loc:Strings.Presets_PageSize}" />
@@ -100,7 +108,15 @@
                             <TextBlock Text="{x:Static loc:Strings.Presets_Quality}" Style="{StaticResource Label}" />
                             <ComboBox ItemsSource="{x:Static vm:ScanPresetsViewModel.Resolutions}" SelectedItem="{Binding Resolution}" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="{x:Static loc:Strings.Presets_Quality}" />
-                            <CheckBox Content="{x:Static loc:Strings.Presets_Color}" IsChecked="{Binding Color}" Margin="0,8,0,0" />
+                            <CheckBox Content="{x:Static loc:Strings.Presets_Color}" IsChecked="{Binding Color}" IsEnabled="{Binding SmallerFileApplies, Converter={StaticResource Not}}" Margin="0,8,0,0" />
+                            <!-- A PDF in black and white: a page of text a tenth of its size or less -->
+                            <CheckBox IsChecked="{Binding SmallerFile}" Visibility="{Binding IsPdf, Converter={StaticResource VisibleWhen}}" Margin="0,6,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Presets_SmallerFile}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_SmallerFileHelp}">
+                                <StackPanel>
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_SmallerFile}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_SmallerFileHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </CheckBox>
                             <TextBlock Text="{x:Static loc:Strings.Presets_FileType}" Style="{StaticResource Label}" Margin="0,12,0,4" />
                             <ComboBox ItemsSource="{x:Static vm:ScanPresetsViewModel.FileTypes}" SelectedItem="{Binding FileType}" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="{x:Static loc:Strings.Presets_FileType}" />
@@ -119,10 +135,16 @@
                                 <TextBlock Text="{x:Static loc:Strings.Presets_SkipBlankHelp}" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
-                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.Presets_Straighten}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_StraightenHelp}" IsChecked="{Binding Straighten}" Margin="0,0,0,6">
+                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.Presets_Straighten}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_StraightenHelp}" IsChecked="{Binding Straighten}" Margin="0,0,24,6">
                             <StackPanel>
                                 <TextBlock Text="{x:Static loc:Strings.Presets_Straighten}" />
                                 <TextBlock Text="{x:Static loc:Strings.Presets_StraightenHelp}" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.Presets_Upright}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_UprightHelp}" IsChecked="{Binding TurnUpright}" Margin="0,0,0,6">
+                            <StackPanel>
+                                <TextBlock Text="{x:Static loc:Strings.Presets_Upright}" />
+                                <TextBlock Text="{x:Static loc:Strings.Presets_UprightHelp}" Style="{StaticResource Caption}" FontSize="12" />
                             </StackPanel>
                         </CheckBox>
                     </WrapPanel>

@@ -13,6 +13,16 @@ public static class WindowsOcr
 
     public static bool IsAvailable => OcrEngine.TryCreateFromUserProfileLanguages() is not null;
 
+    /// <summary>The language Windows reads in when none is chosen (its first display language that has OCR), as a BCP-47 tag; null when none.</summary>
+    public static string? DefaultLanguage
+    {
+        get
+        {
+            try { return OcrEngine.TryCreateFromUserProfileLanguages()?.RecognizerLanguage.LanguageTag; }
+            catch (Exception) { return null; } // Windows' OCR not there (an N edition): nothing to go by
+        }
+    }
+
     private static OcrEngine? Engine(string? language)
     {
         if (language is { Length: > 0 })

@@ -31,7 +31,22 @@ public sealed record ScanPreset
 
     /// <summary>Both sides of each page, when the feeder is used and can.</summary>
     public bool TwoSided { get; init; }
+
+    /// <summary>
+    /// With <see cref="TwoSided"/>, on a feeder that scans one side: the fronts, then the stack turned over for the backs, put
+    /// in order (<see cref="Imaging.TurnedStack"/>). Off: one side only, as before.
+    /// </summary>
+    public bool TurnStack { get; init; }
     public bool Color { get; init; } = true;
+
+    /// <summary>
+    /// A PDF's pages saved in black and white (1 bit, CCITT G4) for a much smaller file; scanned in grey. Not for photos on the
+    /// glass, which stay in color.
+    /// </summary>
+    public bool SmallerFile { get; init; }
+
+    /// <summary>Pages lying sideways or upside down turned upright, when their text says so clearly (<see cref="Imaging.PageUpright"/>).</summary>
+    public bool TurnUpright { get; init; } = true;
 
     /// <summary>Black and white (1 bit) where the scanner offers it, else grey; <see cref="Color"/> off. Inkvolt PDF's presets set it.</summary>
     public bool BlackAndWhite { get; init; }
@@ -251,6 +266,15 @@ public static partial class ScanPresets
             if (!taken.Contains($"{wanted} ({i})")) return $"{wanted} ({i})";
     }
 
+    /// <summary>
+    /// The preset's pages go into its PDF in black and white (<see cref="ScanPreset.SmallerFile"/>): not for JPEG files, nor for
+    /// photos found on the glass, which stay pictures in color. <paramref name="source"/>: where it scans from this time; null:
+    /// as the preset says (glass when it says glass).
+    /// </summary>
+    public static bool SavesSmallerFile(ScanPreset p, ScanSource? source = null) =>
+        p.SmallerFile && p.FileType != PresetFileType.Jpeg
+        && !(p.FindPhotos && (source is { } s ? s == ScanSource.Platen : p.Source == PresetSource.Glass));
+
     private static string Cut(string name) => name.Length > MaxNameLength ? name[..MaxNameLength] : name;
 
     private static string NewId() => Guid.NewGuid().ToString("N")[..12];
@@ -272,6 +296,11 @@ public static class ScanPresetText
         PresetSource.Feeder => twoSided ? CoreStrings.Preset_SourceFeederBoth : CoreStrings.Preset_SourceFeeder,
         _ => twoSided ? CoreStrings.Preset_SourceAutoBoth : CoreStrings.Preset_SourceAuto,
     };
+
+    /// <summary>The preset's color as its summary says it: color, grey, or black and white for a smaller file.</summary>
+    public static string ColorDpi(ScanPreset p) => string.Format(
+        ScanPresets.SavesSmallerFile(p) ? CoreStrings.Preset_SmallerFileDpi : p.Color ? CoreStrings.Preset_ColorDpi : CoreStrings.Preset_GreyDpi,
+        p.Resolution);
 
     public static string After(PresetAfter a) => a switch
     {
@@ -308,9 +337,10 @@ public static class ScanPresetText
         {
             FileType(p.FileType),
             Source(p.Source, p.TwoSided),
-            string.Format(p.Color ? CoreStrings.Preset_ColorDpi : CoreStrings.Preset_GreyDpi, p.Resolution),
+            ColorDpi(p),
             Folder(p),
         };
+        if (p.TwoSided && p.TurnStack && p.Source != PresetSource.Glass) parts.Add(CoreStrings.Preset_TurnStackShort);
         if (p.SplitAt != SplitAt.None) parts.Add(string.Format(CoreStrings.Preset_NewFileAtEach, SplitText(p.SplitAt)));
         if (p.FindPhotos) parts.Add(CoreStrings.Preset_EachPhoto);
         if (PageCleanup.Describe(p.Cleanup) is { Length: > 0 } cleanup) parts.Add(cleanup);
