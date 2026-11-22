@@ -8,8 +8,26 @@ namespace InkvoltPdf.App;
 public partial class App : Application
 {
     private SingleInstance? _instance;
-    private MainWindow? _ready;
     private readonly List<string[]> _pendingArgs = [];
+
+    /// <summary>The main windows and the tabs each owns (roadmap 4.9): the rules; <see cref="MainWindow"/>s report to it.</summary>
+    internal static Core.DocumentWindows Hub { get; } = new();
+
+    // The main windows, in the order they opened.
+    private readonly List<MainWindow> _windows = [];
+    // The first window has opened its startup files: launches go to a window now (until then they wait in _pendingArgs).
+    private bool _ready;
+
+    /// <summary>The main window used last (it takes other launches' files), or null when none is open.</summary>
+    internal MainWindow? ActiveMain => _windows.FirstOrDefault(w => w.WindowId == Hub.Active) ?? _windows.LastOrDefault();
+
+    /// <summary>The open main windows, the one used last first (front to back, near enough: each is brought forward as it's used).</summary>
+    internal IReadOnlyList<MainWindow> MainsFrontFirst =>
+        [.. _windows.OrderBy(w => w.WindowId == Hub.Active ? 0 : 1).ThenByDescending(w => w.LastActivated)];
+
+    internal MainWindow? MainById(int id) => _windows.FirstOrDefault(w => w.WindowId == id);
+
+    internal static new App Current => (App)Application.Current;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -94,14 +112,21 @@ public partial class App : Application
         // Their files wait in a queue until the window is ready.
         ListenForLaunches();
         ExplorerConvert.ChangeOptions = ChangeOptions;
-        ExplorerConvert.MainFor = () => _ready;
+        ExplorerConvert.MainFor = () => _ready ? ActiveMain : null;
         ExplorerConvert.Quiet = () => Dispatcher.BeginInvoke(MaybeExit);
+        // Before any window subscribes, so it runs first: Windows ending the session closes every window at once.
+        SessionEnding += (_, _) =>
+        {
+            ClosingAll = true;
+            Hub.CloseAllStarting();
+        };
+        JumpListTasks.Set();
         // Conversion launches that gave up on this copy while it didn't answer left their files: converted here.
         var dropped = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         dropped.Tick += (_, _) =>
         {
             SingleInstance.TakeDropped(OnForwarded);
-            if (_main is null && _exitRetry is null) MaybeExit(); // one already put off tries again on its own
+            if (_windows.Count == 0 && _exitRetry is null) MaybeExit(); // one already put off tries again on its own
         };
         dropped.Start();
 
@@ -125,11 +150,11 @@ public partial class App : Application
             {
                 Interlocked.Decrement(ref _forwardsQueued);
                 OnForwarded(forwarded);
-                if (_main is null) MaybeExit(); // a launch refused, or nothing left to do
+                if (_windows.Count == 0) MaybeExit(); // a launch refused, or nothing left to do
             });
         },
         // A read that delivered nothing (a launch that gave up) may have been all that kept the app up.
-        () => Dispatcher.BeginInvoke(() => { if (_main is null) MaybeExit(); }));
+        () => Dispatcher.BeginInvoke(() => { if (_windows.Count == 0) MaybeExit(); }));
 
     /// <summary>
     /// Exits once nothing is left (<see cref="Core.ConvertCommand.MayExit"/>): no main window, no conversions, no launch
@@ -139,7 +164,7 @@ public partial class App : Application
     private void MaybeExit()
     {
         SingleInstance.TakeDropped(OnForwarded); // left meanwhile: this copy's to convert before it goes
-        bool Done() => Core.ConvertCommand.MayExit(_main is not null, ExplorerConvert.ListOpen, ExplorerConvert.Converting,
+        bool Done() => Core.ConvertCommand.MayExit(_windows.Count > 0, ExplorerConvert.ListOpen, ExplorerConvert.Converting,
             Volatile.Read(ref _forwardsQueued));
         if (!Done()) return;
         var stopped = _instance?.StopListening() ?? true;
@@ -175,12 +200,22 @@ public partial class App : Application
     // The exit put off by a listener that didn't stop in time, waiting to try again (MaybeExit).
     private System.Windows.Threading.DispatcherTimer? _exitRetry;
 
-    /// <summary>The main window closed: the app exits, unless Explorer's conversions go on (their window shows them).</summary>
+    /// <summary>
+    /// A main window closed. While others are open the app goes on in them; the last one closing exits the app, unless
+    /// Explorer's conversions go on (their window shows them).
+    /// </summary>
     private void OnMainClosed(MainWindow window)
     {
-        if (_main != window) return;
-        _main = null;
-        _ready = null;
+        if (!_windows.Remove(window)) return;
+        Hub.Close(window.WindowId);
+        if (_windows.Count > 0)
+        {
+            ExplorerConvert.MainClosed(window);
+            if (MainWindow == window) MainWindow = ActiveMain;
+            return;
+        }
+        _ready = false;
+        ClosingAll = false;
         ExplorerConvert.MainClosed();
         if (ExplorerConvert.ListOpen)
         {
@@ -201,27 +236,112 @@ public partial class App : Application
                 Log.Write($"Forwarded convert command refused: {error}");
                 return;
             }
-            if (_main is not null && _ready is null) _pendingConverts.Add(request!);
+            if (_windows.Count > 0 && !_ready) _pendingConverts.Add(request!);
             else ExplorerConvert.Route(request!);
             return;
         }
-        if (_main is null)
+        if (_windows.Count == 0)
         {
             // The app ran only for conversions until now: this launch opens the window, as a first launch would.
             StartMainWindow(forwarded);
             return;
         }
-        if (_ready is null)
+        if (!_ready)
         {
             _pendingArgs.Add(forwarded);
             return;
         }
-        _ready.BringToFront();
-        _ready.OpenForwarded(forwarded);
+        var launch = Core.WindowLaunch.Parse(forwarded);
+        // The jump list's New Window (or a launch asking for one): a window of its own, with the files asked for.
+        if (launch.NewWindow)
+        {
+            OpenNewWindow(launch.Files);
+            return;
+        }
+        if (ActiveMain is not { } target) return;
+        target.BringToFront();
+        target.OpenForwarded(launch.Files);
     }
 
-    private MainWindow? _main;
     private readonly List<Core.ConvertCommand.Request> _pendingConverts = [];
+
+    /// <summary>
+    /// Every window is closing at once (File › Exit, or Windows ending the session): the first to close remembers all
+    /// windows' files for the next start (<see cref="Core.DocumentWindows.Remember"/>).
+    /// </summary>
+    internal static bool ClosingAll { get; set; }
+
+    /// <summary>
+    /// Windows' sign-out or shutdown was cancelled (WM_ENDSESSION false), or a window asking about it was kept open: once
+    /// no window is still asking, closing a window is one window's close again, saving the open tabs and placement.
+    /// </summary>
+    internal void SessionEndCancelled()
+    {
+        if (_windows.Any(w => w.SessionPromptRunning)) return;
+        ClosingAll = false;
+    }
+
+    /// <summary>
+    /// File › Exit: closes every main window, the one in use first, each asking about its own unsaved documents; stops at
+    /// the first the user keeps open.
+    /// </summary>
+    internal async Task ExitAllAsync()
+    {
+        ClosingAll = true;
+        Hub.CloseAllStarting();
+        try
+        {
+            foreach (var window in MainsFrontFirst)
+                if (_windows.Contains(window) && !await window.CloseAsync()) return;
+        }
+        finally
+        {
+            if (_windows.Count > 0) ClosingAll = false;
+        }
+    }
+
+    /// <summary>
+    /// A new main window (File › New Window, the jump list's New Window, a tab torn off): placed a little down and right of
+    /// the window in use, or at <paramref name="bounds"/> (DIPs), not maximized, so Snap can put it beside the other. It
+    /// opens <paramref name="files"/>; recovery copies, the last session and What's New stay the first window's.
+    /// </summary>
+    internal MainWindow OpenNewWindow(IReadOnlyList<string> files, Rect? bounds = null)
+    {
+        var from = ActiveMain;
+        var window = new MainWindow();
+        if (bounds is { } b)
+        {
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            (window.Left, window.Top, window.Width, window.Height) = (b.Left, b.Top, Math.Max(window.MinWidth, b.Width), Math.Max(window.MinHeight, b.Height));
+            window.WindowState = WindowState.Normal;
+        }
+        else if (from is not null)
+        {
+            var r = from.WindowState == WindowState.Normal ? new Rect(from.Left, from.Top, from.Width, from.Height) : from.RestoreBounds;
+            const double Step = 32;
+            var work = SystemParameters.WorkArea;
+            window.WindowStartupLocation = WindowStartupLocation.Manual;
+            window.WindowState = WindowState.Normal;
+            window.Width = Math.Max(window.MinWidth, Math.Min(r.Width, work.Width));
+            window.Height = Math.Max(window.MinHeight, Math.Min(r.Height, work.Height));
+            window.Left = r.Left + Step + window.Width > work.Right ? work.Left : r.Left + Step;
+            window.Top = r.Top + Step + window.Height > work.Bottom ? work.Top : r.Top + Step;
+        }
+        window.ShowActivated = from?.ShowActivated ?? true; // a dev script's windows stay off-screen and unfocused
+        Register(window);
+        window.Show();
+        if (window.ShowActivated) window.Activate();
+        if (files.Count > 0) window.OpenFiles(files);
+        return window;
+    }
+
+    /// <summary>A main window joins the app: <see cref="Hub"/> knows it (its constructor), and its closing is followed.</summary>
+    private void Register(MainWindow window)
+    {
+        _windows.Add(window);
+        MainWindow ??= window;
+        window.Closed += (_, _) => OnMainClosed(window);
+    }
     private readonly List<Func<MainWindow, Task>> _whenReady = [];
     private bool _foldersStarted;
 
@@ -231,11 +351,14 @@ public partial class App : Application
     /// </summary>
     private void StartMainWindow(string[] args, bool reopenLast = true)
     {
+        // The jump list's New Window when the app wasn't running: an empty window, not the last session's documents.
+        var launch = Core.WindowLaunch.Parse(args);
+        args = [.. launch.Files];
+        reopenLast &= !launch.NewWindow;
         var window = new MainWindow();
         FitToScreen(window);
-        _main = window;
         MainWindow = window;
-        window.Closed += (_, _) => OnMainClosed(window);
+        Register(window);
         window.Show();
         if (_instance!.IsOwner && !_foldersStarted)
         {
@@ -254,14 +377,14 @@ public partial class App : Application
     private void ChangeOptions(string pdf, Core.ExportFormat format)
     {
         Func<MainWindow, Task> export = w => w.ExportWithOptions(pdf, format);
-        if (_ready is { } ready)
+        if (_ready && ActiveMain is { } ready)
         {
             ready.BringToFront();
             _ = export(ready);
             return;
         }
         _whenReady.Add(export);
-        if (_main is null) StartMainWindow([], reopenLast: false);
+        if (_windows.Count == 0) StartMainWindow([], reopenLast: false);
     }
 
     private async Task RunCommandLineAsync(string[] args) => Shutdown(await CommandLine.RunAsync(args));
@@ -280,10 +403,21 @@ public partial class App : Application
         if (args.Length > 0) window.OpenFiles(args);
         else if (reopenLast) window.ReopenLastSession();
 
-        if (_main != window) return; // closed meanwhile (OnMainClosed)
-        _ready = window;
-        foreach (var queued in _pendingArgs) window.OpenFiles(queued);
-        if (_pendingArgs.Count > 0) window.BringToFront();
+        if (!_windows.Contains(window)) return; // closed meanwhile (OnMainClosed)
+        _ready = true;
+        // Launches that came while the window started, as OnForwarded takes them: --new-window is a window, not a file.
+        var toFront = false;
+        foreach (var queued in _pendingArgs)
+        {
+            var launch = Core.WindowLaunch.Parse(queued);
+            if (launch.NewWindow) OpenNewWindow(launch.Files);
+            else
+            {
+                window.OpenFiles(launch.Files);
+                toFront = true;
+            }
+        }
+        if (toFront) window.BringToFront();
         _pendingArgs.Clear();
         foreach (var request in _pendingConverts) ExplorerConvert.Route(request);
         _pendingConverts.Clear();
@@ -311,6 +445,8 @@ public partial class App : Application
         var dev = new MainWindow { WindowStartupLocation = WindowStartupLocation.Manual, Left = -20000, Top = 0, Width = 1400, Height = 900, ShowActivated = false };
         dev.WindowState = WindowState.Normal;
         MainWindow = dev;
+        Register(dev);
+        _ready = true;
         dev.Show();
         dev.OpenFiles(args.Where((_, i) => i != script && i != script + 1));
         _ = DevScript.RunAsync(dev, args[script + 1]);

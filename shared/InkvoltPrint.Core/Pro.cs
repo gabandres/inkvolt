@@ -17,6 +17,9 @@ public enum ProFeature
 
     /// <summary>3.2: SNMPv3 (a community per printer stays free).</summary>
     SnmpV3,
+
+    /// <summary>4.9: the print log as CSV (the log and its month totals stay free).</summary>
+    PrintLogExport,
 }
 
 /// <summary>
@@ -69,7 +72,7 @@ public static class Pro
         ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport,
         ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation,
         ProFeature.FleetExport => CoreStrings.Pro_FleetExport,
-
+        ProFeature.PrintLogExport => CoreStrings.Pro_PrintLogExport,
         _ => "SNMPv3",
     };
 
@@ -79,7 +82,7 @@ public static class Pro
         ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport_Describe,
         ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation_Describe,
         ProFeature.FleetExport => CoreStrings.Pro_FleetExport_Describe,
-
+        ProFeature.PrintLogExport => CoreStrings.Pro_PrintLogExport_Describe,
         _ => CoreStrings.Pro_Snmpv3_Describe,
     };
 
@@ -89,7 +92,7 @@ public static class Pro
         ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport_Locked,
         ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation_Locked,
         ProFeature.FleetExport => CoreStrings.Pro_FleetExport_Locked,
-
+        ProFeature.PrintLogExport => CoreStrings.Pro_PrintLogExport_Locked,
         _ => CoreStrings.Pro_Snmpv3_Locked,
     };
 

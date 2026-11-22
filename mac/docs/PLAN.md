@@ -1678,6 +1678,10 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
+  `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
+  a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
+  `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
   (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
   `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
@@ -1687,6 +1691,10 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).
+- Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
+  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
+  phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN
+  to list and join networks, which needs location access and a check of what the sandbox allows).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
 - Inkvolt Print Wave 4 (`print/ROADMAP.md`), done on Windows: 4.12 a camera as a scan source (`CameraSession`,

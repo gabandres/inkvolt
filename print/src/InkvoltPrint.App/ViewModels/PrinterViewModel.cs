@@ -984,6 +984,17 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     private Core.Sharing.ScannerShare? _share;
 
+    /// <summary>"Share with phones" (roadmap 4.10): the Print tab's card for this entry's Windows queue; null until the app hands over the share.</summary>
+    public PrinterShareViewModel? PrinterSharing { get; private set; }
+
+    /// <summary>The app's printer sharing: this entry's card shows it for its Windows queue.</summary>
+    public void UsePrinterShare(Core.Sharing.PrinterShare share)
+    {
+        if (PrinterSharing is not null) return;
+        PrinterSharing = new PrinterShareViewModel(share, () => WindowsQueue, line => Log.Write($"[{Name}] {line}"));
+        OnPropertyChanged(nameof(PrinterSharing));
+    }
+
     /// <summary>The app's one scanner share: this entry's card shows it, and the share gets this entry's scanner when it connects.</summary>
     public void UseShare(Core.Sharing.ScannerShare share)
     {
@@ -1546,6 +1557,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         Fixer.CloseCommand.Execute(null);
         ScanButton.Dispose();
         Sharing?.Dispose();
+        PrinterSharing?.Dispose();
         // The entry goes (its scanner unplugged, or forgotten): a share of its scanner stops listening until it's back. At exit the
         // share has closed first, and this does nothing.
         if (_wia is { } scanner) _ = OfferToShareAsync(scanner.Device.Id, null);

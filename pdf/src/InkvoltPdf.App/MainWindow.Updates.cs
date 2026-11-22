@@ -110,11 +110,28 @@ public partial class MainWindow
         try
         {
             List<string> closed = [];
+            // The update ends the app: the other windows close first, each asking about its own documents; the first to
+            // close remembers every window's files (DocumentWindows.Remember).
+            var others = App.Current.MainsFrontFirst.Where(w => w != this).ToList();
+            if (others.Count > 0)
+            {
+                App.ClosingAll = true;
+                App.Hub.CloseAllStarting();
+                foreach (var other in others)
+                    if (!await other.CloseAsync())
+                    {
+                        App.ClosingAll = false;
+                        return;
+                    }
+                if (_closed) return;
+            }
             var settled = await PrepareToCloseAll(() => [.. _tabs], () =>
             {
                 // Everything is saved or let go: close the documents (their recovery copies go with them), remembering
                 // them so "Reopen the files I had open" brings them back after the update.
-                RememberOpenTabs();
+                if (others.Count == 0) RememberOpenTabs(everyWindow: false);
+                else AppSettings.Current.OpenTabs = [.. AppSettings.Current.OpenTabs
+                    .Union(_tabs.Select(t => t.Tab.Session.FilePath).OfType<string>(), StringComparer.OrdinalIgnoreCase)];
                 closed = [.. AppSettings.Current.OpenTabs];
                 foreach (var m in _tabs.ToList()) Discard(m);
                 _autosave.Copy(wait: true);
@@ -142,6 +159,7 @@ public partial class MainWindow
         finally
         {
             _updateInstalling = false;
+            if (!_closed) App.ClosingAll = false;
         }
     }
 

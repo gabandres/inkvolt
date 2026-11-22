@@ -4912,6 +4912,195 @@ The files stay where they are.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
+  <data name="Nav_PrintLog" xml:space="preserve">
+    <value>Print log</value>
+  </data>
+  <data name="Nav_PrintLogTip" xml:space="preserve">
+    <value>Every print job this PC sent, with month totals per printer and per person</value>
+  </data>
+  <data name="PrintLog_Title" xml:space="preserve">
+    <value>Print log</value>
+  </data>
+  <data name="PrintLog_Intro" xml:space="preserve">
+    <value>Every job this PC's print queues saw while Inkvolt Print was running, with month totals. Kept on this PC only, for 13 months; nothing is sent.</value>
+  </data>
+  <data name="PrintLog_Keep" xml:space="preserve">
+    <value>Keep a log of print jobs on this PC</value>
+  </data>
+  <data name="PrintLog_TurnedOn" xml:space="preserve">
+    <value>The print log is on: jobs are logged from now on.</value>
+  </data>
+  <data name="PrintLog_TurnedOff" xml:space="preserve">
+    <value>The print log is off: no more jobs are logged. What's already in it stays until you clear it.</value>
+  </data>
+  <data name="PrintLog_Empty" xml:space="preserve">
+    <value>No print jobs logged yet. Jobs show here as they print while Inkvolt Print is running (in its window or in the notification area).</value>
+  </data>
+  <data name="PrintLog_Month" xml:space="preserve">
+    <value>Month</value>
+  </data>
+  <data name="PrintLog_ByPrinter" xml:space="preserve">
+    <value>By printer</value>
+  </data>
+  <data name="PrintLog_ByUser" xml:space="preserve">
+    <value>By person</value>
+  </data>
+  <data name="PrintLog_Jobs" xml:space="preserve">
+    <value>Jobs</value>
+  </data>
+  <data name="PrintLog_Jobs_One" xml:space="preserve">
+    <value>{0} job</value>
+  </data>
+  <data name="PrintLog_Jobs_Many" xml:space="preserve">
+    <value>{0} jobs</value>
+  </data>
+  <data name="PrintLog_Pages_One" xml:space="preserve">
+    <value>{0} page</value>
+  </data>
+  <data name="PrintLog_Pages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+  </data>
+  <data name="PrintLog_InColor" xml:space="preserve">
+    <value>({0:N0} in color)</value>
+  </data>
+  <data name="PrintLog_More" xml:space="preserve">
+    <value>The latest {0:N0} of this month's {1:N0} jobs are listed; the totals and Export count them all.</value>
+  </data>
+  <data name="PrintLog_Untitled" xml:space="preserve">
+    <value>(no name)</value>
+  </data>
+  <data name="PrintLog_UserOn" xml:space="preserve">
+    <value>{0} on {1}</value>
+  </data>
+  <data name="PrintLog_Export" xml:space="preserve">
+    <value>Export…</value>
+  </data>
+  <data name="PrintLog_ExportTip" xml:space="preserve">
+    <value>Save the whole log as a CSV file for a spreadsheet (Inkvolt Pro)</value>
+  </data>
+  <data name="PrintLog_ExportTitle" xml:space="preserve">
+    <value>Export the print log</value>
+  </data>
+  <data name="PrintLog_ExportFilter" xml:space="preserve">
+    <value>CSV file (*.csv)|*.csv</value>
+  </data>
+  <data name="PrintLog_Saved" xml:space="preserve">
+    <value>Saved {0}.</value>
+  </data>
+  <data name="PrintLog_CouldNotSave" xml:space="preserve">
+    <value>The print log couldn't be saved: {0}</value>
+  </data>
+  <data name="PrintLog_Clear" xml:space="preserve">
+    <value>Clear the log…</value>
+  </data>
+  <data name="PrintLog_ClearTip" xml:space="preserve">
+    <value>Forget every job in the print log</value>
+  </data>
+  <data name="PrintLog_ClearAsk" xml:space="preserve">
+    <value>Clear the print log? Every job in it is forgotten, on this PC. This can't be undone.</value>
+  </data>
+  <data name="PrintLog_ClearConfirm" xml:space="preserve">
+    <value>Clear the log</value>
+  </data>
+  <data name="PrintLog_Cleared" xml:space="preserve">
+    <value>The print log is empty.</value>
+  </data>
+  <data name="PrintTab_Share" xml:space="preserve">
+    <value>Share with phones</value>
+  </data>
+  <data name="PrintTab_ShareSwitch" xml:space="preserve">
+    <value>Share this printer on the network</value>
+  </data>
+  <data name="AddPrinter_NewTitle" xml:space="preserve">
+    <value>A new printer, not on your Wi-Fi yet</value>
+  </data>
+  <data name="AddPrinter_NewHint" xml:space="preserve">
+    <value>Join its setup network, enter your Wi-Fi on its own page, and come back here.</value>
+  </data>
+  <data name="AddPrinter_SetUpNew" xml:space="preserve">
+    <value>Set up a new printer…</value>
+  </data>
+  <data name="Setup_Title" xml:space="preserve">
+    <value>Set up a new printer's Wi-Fi</value>
+  </data>
+  <data name="Setup_Intro" xml:space="preserve">
+    <value>A new printer offers a network of its own until it's told your Wi-Fi. Join it here, enter your Wi-Fi's name and password on the printer's own page, and this PC goes back to your network and finds the printer there.</value>
+  </data>
+  <data name="Setup_Looking" xml:space="preserve">
+    <value>Looking for a printer's setup network nearby…</value>
+  </data>
+  <data name="Setup_Choose" xml:space="preserve">
+    <value>These look like a printer's networks. Connect to yours: this PC leaves your Wi-Fi for a few minutes and comes back on its own.</value>
+  </data>
+  <data name="Setup_Promise" xml:space="preserve">
+    <value>Inkvolt Print never sees or sends a Wi-Fi password, changes networks only when you press Connect or Done, and always goes back to your network.</value>
+  </data>
+  <data name="Setup_Networks" xml:space="preserve">
+    <value>Printers' networks nearby</value>
+  </data>
+  <data name="Setup_KindSetup" xml:space="preserve">
+    <value>{0}'s setup network</value>
+  </data>
+  <data name="Setup_KindDirect" xml:space="preserve">
+    <value>{0}'s Wi-Fi Direct</value>
+  </data>
+  <data name="Setup_AsksPassword" xml:space="preserve">
+    <value>asks for a password in Windows</value>
+  </data>
+  <data name="Setup_Connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="Setup_Connecting" xml:space="preserve">
+    <value>Joining "{0}"…</value>
+  </data>
+  <data name="Setup_OnPrinter" xml:space="preserve">
+    <value>This PC is on "{0}", the printer's network (no internet here).</value>
+  </data>
+  <data name="Setup_OnPage" xml:space="preserve">
+    <value>Open the printer's page, choose your Wi-Fi there and type its password, and save. The printer then joins your Wi-Fi and its own network goes away. Then press Done.</value>
+  </data>
+  <data name="Setup_OpenPage" xml:space="preserve">
+    <value>Open the printer's page</value>
+  </data>
+  <data name="Setup_Done" xml:space="preserve">
+    <value>Done: go back to my Wi-Fi</value>
+  </data>
+  <data name="Setup_Returning" xml:space="preserve">
+    <value>Going back to "{0}"…</value>
+  </data>
+  <data name="Setup_YourNetwork" xml:space="preserve">
+    <value>your network</value>
+  </data>
+  <data name="Setup_Back" xml:space="preserve">
+    <value>Back on "{0}". Looking for the printer there; it can take a minute or two after it joins.</value>
+  </data>
+  <data name="Setup_BackOffWifi" xml:space="preserve">
+    <value>This PC left the printer's network. Looking for the printer on your network; it can take a minute or two.</value>
+  </data>
+  <data name="Setup_Found" xml:space="preserve">
+    <value>Found it: {0} is on your network.</value>
+  </data>
+  <data name="Setup_ShowFound" xml:space="preserve">
+    <value>Show the printer</value>
+  </data>
+  <data name="Setup_OpenWifiList" xml:space="preserve">
+    <value>Open Windows' Wi-Fi list</value>
+  </data>
+  <data name="Setup_CheckAgain" xml:space="preserve">
+    <value>I'm back: check again</value>
+  </data>
+  <data name="Setup_LookAgain" xml:space="preserve">
+    <value>Look again</value>
+  </data>
+  <data name="Setup_LocationSettings" xml:space="preserve">
+    <value>Open location settings</value>
+  </data>
+  <data name="Setup_DemoPage" xml:space="preserve">
+    <value>Demo: the printer's page would open here: {0}</value>
+  </data>
+  <data name="PrintLog_NotCleared" xml:space="preserve">
+    <value>The print log couldn't be cleared (its file is in use). Nothing was removed; try again in a moment.</value>
+  </data>
   <data name="Scan_DropColor" xml:space="preserve">
     <value>Drop a color</value>
     <comment>clean up check box</comment>
