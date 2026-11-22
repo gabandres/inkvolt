@@ -178,5 +178,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   a page instead of its number ("iv", "A-3"), a numbering, prefix and first number per range. Page Labels sets them for a
   range; every page edit keeps each page's label with it (`PdfStructure.WriteLabels`; a replacing page takes the label
   of the page it replaces).
+- **Black-and-white picture** (`Core/OneBitImages.cs`; the codings in the shared `InkvoltPrint.Core/Imaging`: `CcittG4`,
+  `Jbig2Generic`, chosen by `PdfWriter.OneBit`): a picture stored at 1 bit, in the smallest of lossless JBIG2 (one
+  generic region, every pixel coded as it is: never symbol matching, which can swap one digit for another), CCITT G4 or
+  Flate. File › Scan saves a page scanned in black and white this way; Recognize Text's cleaned page of a black-and-white
+  scan stays one; Reduce File Size codes one again when smaller, proving the new coding draws the same pixels, and makes a
+  grey **scan of text** (ink and paper, few shades between: `LooksBlackAndWhite`) one only when asked.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).

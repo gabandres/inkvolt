@@ -354,9 +354,12 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
 - **Batch A (text):** 4.1 Spell check where people type (edited text, notes, text boxes, callouts, form fields; Windows'
   own spell checker). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
   the replacements a font can't draw listed).
-- **Batch B:** 4.8 Smaller black-and-white scans as CCITT G4 (the shared encoder from Inkvolt Print's 4.4; JBIG2 needs a
-  package: the owner's call). 4.6 Copy text from an area of a scan, and an area as a table. 4.15 Links from the addresses
-  in the text. 4.18 Mark every search hit. 4.17 Proofreading marks (Insert Text, Replace Text). 4.10 AI redaction
+- **Batch B:**
+  - 4.8 Smaller black-and-white scans: lossless JBIG2 (our own generic-region encoder; never symbol substitution) or CCITT G4 (the shared encoder from Inkvolt Print's 4.4), whichever is smaller. Done on Windows (`Jbig2Generic`, `OneBitImages`; File › Scan, Recognize Text's cleaned pages, Reduce File Size); the Mac's waits.
+  - 4.6 Copy text from an area of a scan, and an area as a table.
+  - 4.15 Links from the addresses in the text.
+  - 4.18 Mark every search hit.
+  - 4.17 Proofreading marks (Insert Text, Replace Text). 4.10 AI redaction
   suggestions through the user's own endpoint (Pro; never on by default; the review list and Check Redaction as for
   patterns). 4.20 Save an AI answer (Word, PDF, a comment; the conversation kept).
 - **Batch C:** 4.9 Two documents side by side (a second window; a tab dragged out). 4.16 Reflow view (`HtmlWriter`'s one

@@ -87,7 +87,8 @@ internal sealed class ScanDialog : Window
         public override string ToString() => Label;
     }
 
-    private sealed record Scanned(byte[] Jpeg, int Dpi);
+    /// <param name="OneBit">Scanned in black and white: saved at 1 bit (<see cref="ScanRun.ToPdf"/>).</param>
+    private sealed record Scanned(byte[] Jpeg, int Dpi, bool OneBit);
 
     private readonly string _title;
     private readonly (int Count, int Current)? _insert;
@@ -599,7 +600,7 @@ internal sealed class ScanDialog : Window
                     else unreadable++;
                     continue;
                 }
-                _pages.Add(new Scanned(page.Jpeg, dpi.Value));
+                _pages.Add(new Scanned(page.Jpeg, dpi.Value, ScanChoices.SavesOneBit(color)));
                 _thumbs.Children.Add(await ThumbnailAsync(page.Jpeg, _pages.Count));
                 added++;
                 UpdateState();
@@ -670,7 +671,7 @@ internal sealed class ScanDialog : Window
             _message.Text = error;
             return;
         }
-        var pages = _pages.Select(p => (p.Jpeg, p.Dpi)).ToList();
+        var pages = _pages.Select(p => (p.Jpeg, p.Dpi, p.OneBit)).ToList();
         var ocr = _ocr.IsChecked == true ? await PageOcr.ChosenAsync() : null;
         AppSettings.Current.ScanOcr = _ocr.IsChecked == true;
         SetBusy(true);
@@ -678,18 +679,20 @@ internal sealed class ScanDialog : Window
         try
         {
             var title = _title;
-            var pdf = await Task.Run(() => ScanRun.ToPdf(pages, title));
+            var pdf = await Task.Run(() => ScanRun.ToPdf(pages, title, DecodeGray));
             if (ocr is not null)
             {
                 using var progress = new ProgressPrompt(this, Strings.Scan_Recognizing, Strings.Scan_Starting);
                 try
                 {
                     // Read as Recognize Text is set (cleaned or as scanned, suspect words for the Suspect words pane).
+                    // Pages kept in black and white are read from the scan as it came: letters read better before they're cut to 1 bit.
                     var reader = PageOcr.AsSet(ocr);
                     var suspect = 0;
                     pdf = await Task.Run(() =>
                     {
-                        var read = reader.Recognize(pdf, null, [.. Enumerable.Range(0, pages.Count)], progress: DocumentTab.PageProgress(progress, Strings.Scan_Recognizing),
+                        var asScanned = pages.Any(p => p.OneBit) ? ScanRun.ToPdf([.. pages.Select(p => (p.Jpeg, p.Dpi, false))], title) : pdf;
+                        var read = reader.Recognize(asScanned, null, [.. Enumerable.Range(0, pages.Count)], progress: DocumentTab.PageProgress(progress, Strings.Scan_Recognizing),
                             cancel: progress.Token);
                         suspect = read.SuspectCount;
                         return read.Write(pdf, null);
@@ -893,6 +896,13 @@ internal sealed class ScanDialog : Window
         return (pixels, bmp.PixelWidth, bmp.PixelHeight, channels);
     }
 
+    /// <summary>A JPEG as grey pixels (WIC), for a page saved in black and white (<see cref="ScanRun.ToPdf"/>).</summary>
+    private static (byte[] Gray, int Width, int Height) DecodeGray(byte[] jpeg)
+    {
+        var (pixels, width, height, channels) = DecodePixels(jpeg);
+        return (channels == 1 ? pixels : ScanCleanup.ToGray(pixels, width, height), width, height);
+    }
+
     /// <summary>Cleaned pixels as a JPEG, at the quality Inkvolt Print saves an edited page with.</summary>
     private static byte[] EncodeJpeg(byte[] pixels, int width, int height, int channels)
     {
@@ -934,10 +944,10 @@ internal sealed class ScanDialog : Window
     }
 
     /// <summary>Dev check: adds a page as if the scanner had sent it (no scanner needed).</summary>
-    internal async Task DevAddPageAsync(byte[] jpeg, int dpi)
+    internal async Task DevAddPageAsync(byte[] jpeg, int dpi, bool blackAndWhite)
     {
         ScanPdfWriter.JpegInfo(jpeg);
-        _pages.Add(new Scanned(jpeg, dpi));
+        _pages.Add(new Scanned(jpeg, dpi, blackAndWhite));
         _thumbs.Children.Add(await ThumbnailAsync(jpeg, _pages.Count));
         UpdateState();
     }

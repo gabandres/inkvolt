@@ -11922,4 +11922,11 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>{0}  (TWAIN, 32-bit only)</value>
     <comment>{0} = scanner name; a scanner whose only driver is a 32-bit TWAIN one (listed, can't be used)</comment>
   </data>
+  <data name="File_BlackAndWhiteScans" xml:space="preserve">
+    <value>Make scanned pages of text black and white (much smaller; their shades of grey go)</value>
+  </data>
+  <data name="Batch_DescBlackAndWhite" xml:space="preserve">
+    <value>{0}, scans in black and white</value>
+    <comment>{0} = the image quality chosen (High, Medium…)</comment>
+  </data>
 </root>

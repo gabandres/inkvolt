@@ -178,6 +178,7 @@ public static class FileTools
         var dlg = new FormDialog(owner, Strings.File_ReduceTitle, Strings.File_Reduce, 480);
         dlg.AddNote(Loc.Format(Strings.File_ReduceNote, FileActions.FormatSize(tab.Session.Data.Length)));
         var quality = dlg.AddChoice(Strings.File_ImageQuality, Qualities.Select(q => q.Name), 1);
+        var blackAndWhite = dlg.AddCheck(Strings.File_BlackAndWhiteScans);
         dlg.Add(Strings.File_Also, new System.Windows.Controls.StackPanel());
         var thumbs = dlg.AddCheck(Strings.File_RemoveThumbs, true);
         var pieces = dlg.AddCheck(Strings.File_RemovePieces, true);
@@ -190,6 +191,7 @@ public static class FileTools
         {
             MaxImageDpi = q.Dpi,
             JpegQuality = q.Quality,
+            BlackAndWhiteScans = blackAndWhite.IsChecked == true,
             RemoveThumbnails = thumbs.IsChecked == true,
             RemovePieceInfo = pieces.IsChecked == true,
             DeduplicateStreams = dedupe.IsChecked == true,

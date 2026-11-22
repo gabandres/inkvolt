@@ -11919,4 +11919,11 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Scan_Twain32Label" xml:space="preserve">
     <value>{0}  (TWAIN, solo de 32 bits)</value>
   </data>
+  <data name="File_BlackAndWhiteScans" xml:space="preserve">
+    <value>Pasar a blanco y negro las páginas escaneadas de texto (mucho más pequeñas; se pierden sus tonos de gris)</value>
+  </data>
+  <data name="Batch_DescBlackAndWhite" xml:space="preserve">
+    <value>{0}, escaneos en blanco y negro</value>
+    <comment>{0} = the image quality chosen (High, Medium…)</comment>
+  </data>
 </root>
