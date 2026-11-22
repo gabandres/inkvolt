@@ -2072,11 +2072,13 @@ public sealed partial class ScanViewModel : ObservableObject
         }
         // A preset's password (roadmap 4.18): kept in Credential Manager, else asked now (and kept when the person says so).
         string? password = null;
-        if (ScanPresets.SavesWithPassword(preset) && (password = _presets.Passwords.Get(preset.Id)) is null)
+        if (ScanPresets.SavesWithPassword(preset) && !PdfEncryption.Usable(password = _presets.Passwords.Get(preset.Id)))
         {
+            var keptEmpty = password is not null;
+            if (keptEmpty) _presets.Passwords.Delete(preset.Id); // kept but empty: never a reason to save without one
             if (AskPresetPassword?.Invoke(preset.Name) is not { } asked || !PdfEncryption.Usable(asked.Password))
             {
-                Message = Strings.Scan_PasswordNotSet;
+                Message = keptEmpty ? Strings.Scan_PasswordUnusable : Strings.Scan_PasswordNotSet;
                 return;
             }
             password = asked.Password;

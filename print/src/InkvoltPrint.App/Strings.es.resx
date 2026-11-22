@@ -4654,6 +4654,21 @@ Los archivos se quedan donde están.</value>
     <value>Se guardó {0} ({1}).</value>
   </data>
   <data name="Photos_SavePdfFailed" xml:space="preserve">
-    <value>No se pudo guardar el PDF: {0}</value>
+    <value>No se pudo guardar el PDF. Comprueba que se puede escribir en la carpeta y que las fotos siguen donde estaban, y vuelve a intentarlo.</value>
+  </data>
+  <data name="PrintLayout_NoBothSides" xml:space="preserve">
+    <value>Este diseño imprime a doble cara, y esta impresora no ha dicho que pueda ni ofrece la doble cara a mano. Elige otro diseño o espera a que la impresora responda.</value>
+  </data>
+  <data name="PrintLayout_Counting" xml:space="preserve">
+    <value>Contando las hojas…</value>
+  </data>
+  <data name="PrintLayout_SizesUnread" xml:space="preserve">
+    <value>No se imprimió: no se pudieron leer los tamaños de las páginas del PDF. Ábrelo de nuevo o imprime una página por hoja.</value>
+  </data>
+  <data name="Photos_CardOneSided" xml:space="preserve">
+    <value>Esta impresora imprime por un solo lado: el interior de cada tarjeta salió en una hoja aparte.</value>
+  </data>
+  <data name="Scan_PasswordUnusable" xml:space="preserve">
+    <value>No se guardó: la contraseña guardada para este ajuste estaba vacía y no se escribió una nueva.</value>
   </data>
 </root>

@@ -314,8 +314,12 @@ public static partial class ScanPresets
     /// How the preset's PDF is written (<see cref="Pdf.PdfWriter.Write"/>): PDF/A, or with <paramref name="password"/> when it
     /// asks for one; null for the plain file. A PDF/A or protected file is always written here, never the scanner's own PDF as sent.
     /// </summary>
+    /// <exception cref="ArgumentException">The preset asks for a password and <paramref name="password"/> can't be one: a protected
+    /// preset never saves its PDF open.</exception>
     public static Pdf.PdfWriteOptions? WriteOptions(ScanPreset p, string? password) =>
-        SavesWithPassword(p) && Pdf.PdfEncryption.Usable(password) ? new Pdf.PdfWriteOptions { Password = password }
+        SavesWithPassword(p)
+            ? Pdf.PdfEncryption.Usable(password) ? new Pdf.PdfWriteOptions { Password = password }
+                : throw new ArgumentException("The preset protects its PDF and no usable password was given.", nameof(password))
         : SavesPdfA(p) ? new Pdf.PdfWriteOptions { PdfA = true }
         : null;
 

@@ -5567,6 +5567,21 @@ The files stay where they are.</value>
     <value>Saved {0} ({1}).</value>
   </data>
   <data name="Photos_SavePdfFailed" xml:space="preserve">
-    <value>Couldn't save the PDF: {0}</value>
+    <value>Couldn't save the PDF. Check that the folder can be written to, and that the photos are still where they were, then try again.</value>
+  </data>
+  <data name="PrintLayout_NoBothSides" xml:space="preserve">
+    <value>This layout prints on both sides, and this printer hasn't said it can, nor offered both sides by hand. Choose another layout, or wait until the printer has answered.</value>
+  </data>
+  <data name="PrintLayout_Counting" xml:space="preserve">
+    <value>Counting the sheets…</value>
+  </data>
+  <data name="PrintLayout_SizesUnread" xml:space="preserve">
+    <value>Not printed: the PDF's page sizes couldn't be read. Open it again, or print one page per sheet.</value>
+  </data>
+  <data name="Photos_CardOneSided" xml:space="preserve">
+    <value>This printer prints one side: each card's inside came out on a sheet of its own.</value>
+  </data>
+  <data name="Scan_PasswordUnusable" xml:space="preserve">
+    <value>Not saved: the password kept for this preset was empty, and no new one was entered.</value>
   </data>
 </root>

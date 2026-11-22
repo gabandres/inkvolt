@@ -30,8 +30,10 @@ public static class SheetPrinting
         {
             // A booklet's or pages per sheet's sides don't depend on the paper: count them on any.
             var (w, h) = SheetPrint.GuessPaper(false);
-            var sides = SheetPrint.Plan(Sizes(pages), w, h, setup).SheetCount;
-            var plan = HandDuplexPlan.For([.. Enumerable.Range(0, sides)], options.Copies);
+            var counted = SheetPrint.Plan(Sizes(pages), w, h, setup);
+            var sides = counted.SheetCount;
+            // The prompt names a set-aside sheet by the first document page on it, never by its side's number.
+            var plan = HandDuplexPlan.For([.. Enumerable.Range(0, sides)], options.Copies, side => SheetPrint.PageOnSide(counted, side, options.Pages));
             return await HandDuplexPrinting.PrintAsync(target, plan,
                 order => (paper, images) => new SheetsPaginator(pages, setup, order, twoSided: true, copies: 1, paper, images),
                 options.JobName, byHand, progress, ct, onSpooling, onSent);
@@ -115,7 +117,8 @@ public static class SheetPrinting
         private Canvas Placed(PlacedPage placed)
         {
             var drawn = _pages[placed.Page];
-            var (pageW, pageH) = (drawn.WidthInches * 96, drawn.HeightInches * 96);
+            // At the size the plan took it (a page past 200 in brought down, its shape kept), so a poster's tiles show what they say.
+            var (pageW, pageH) = SheetPrint.Bounded((drawn.WidthInches * 96, drawn.HeightInches * 96));
             var shown = placed.Source ?? new Placement(0, 0, pageW, pageH);
             var turned = placed.Turns == 1;
             var (w, h) = turned ? (placed.Box.Height, placed.Box.Width) : (placed.Box.Width, placed.Box.Height);

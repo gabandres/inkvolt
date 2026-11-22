@@ -78,7 +78,7 @@ public static class PdfWriter
         w.Encryption = crypt;
         w.Obj(1, catalog + " >>");
         w.Obj(2, $"<< /Type /Pages /Count {pages.Count} /Kids [{string.Join(' ', pageIds.Select(id => $"{id} 0 R"))}] >>");
-        w.Obj(infoId, $"<< /Producer (Inkvolt Print) /Title {TextString(shownTitle)} /CreationDate (D:{created:yyyyMMddHHmmss}Z) >>");
+        w.Obj(infoId, $"<< /Producer (Inkvolt Print) /Title {TextString(shownTitle)} /CreationDate ({PdfDate(created)}) >>");
 
         // The black-and-white pages' coding, several at a time (each tries two or three codings).
         var oneBits = new (string Filter, byte[] Data)[pages.Count];
@@ -240,7 +240,7 @@ public static class PdfWriter
         w.Obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
         w.Obj(2, "<< /Type /Pages /Count 1 /Kids [5 0 R] >>");
         w.Obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-        w.Obj(4, $"<< /Producer (Inkvolt Print) /Title ({Escape(title)}) /CreationDate (D:{DateTime.UtcNow:yyyyMMddHHmmss}Z) >>");
+        w.Obj(4, $"<< /Producer (Inkvolt Print) /Title ({Escape(title)}) /CreationDate ({PdfDate(DateTime.UtcNow)}) >>");
         w.Obj(5, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(widthPt)} {F(heightPt)}] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>");
         w.Stream(6, $"<< /Length {bytes.Length} >>", bytes);
         w.Finish(rootId: 1, infoId: 4);
@@ -259,6 +259,12 @@ public static class PdfWriter
     }
 
     internal static string F(double d) => d.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A PDF date in UTC (D:YYYYMMDDHHmmSSZ), always in the Gregorian calendar: a Thai or Hijri regional format would otherwise write
+    /// another year, and a PDF/A file's Info date would no longer match its XMP one.
+    /// </summary>
+    internal static string PdfDate(DateTime utc) => "D:" + utc.ToUniversalTime().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "Z";
 
     internal static string Escape(string s)
     {

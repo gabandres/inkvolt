@@ -533,8 +533,7 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
     }
 
     private PhotoJobSettings Settings(PaperChoice? paper) =>
-        new(paper, MediaType?.Value, Quality?.Value, ColorMode?.Value, Borderless && CanBorderless,
-            TwoSided: IsCard && PhotoProjects.Message(CardMessage).Length > 0); // a card's inside on the back of its outside
+        new(paper, MediaType?.Value, Quality?.Value, ColorMode?.Value, Borderless && CanBorderless); // two-sided only once the printer says it can (PrintAsync)
 
     /// <summary>The sheet as laid out: the queue's printable area when known, none when borderless, else ¼ in.</summary>
     private SheetPaper SheetPaper
@@ -674,11 +673,26 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
                 return;
             }
             SetMessage(Strings.Photos_Sending);
+            // A card's inside goes on the back only on a printer that says it prints both sides (a straight-to-printer job asking for
+            // it otherwise may be refused); else each inside comes out as a sheet of its own, and the message says so.
+            var oneSidedCard = false;
+            if (PhotoProjects.NeedsTwoSided(PrintPlan().Sheets))
+            {
+                bool both;
+                try { both = await PrintTargets.SupportsTwoSidedAsync(target, state); }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    Log.Write($"Photos two-sided check: {ex.Message}");
+                    both = false;
+                }
+                settings = settings with { TwoSided = both };
+                oneSidedCard = !both;
+            }
             _printCts = new CancellationTokenSource();
             CanCancel = target is PrintTarget.Direct;
             var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
             var sent = await PhotoPrinting.PrintAsync(target, settings, photos, layout, "Photos", progress, _printCts.Token);
-            SetMessage(string.Format(Strings.Photos_Sent, SheetCount(sent)));
+            SetMessage(string.Format(Strings.Photos_Sent, SheetCount(sent)) + (oneSidedCard ? " " + Strings.Photos_CardOneSided : ""));
             RatingRequest.NoteSuccess(state);
         }
         catch (OperationCanceledException)
@@ -738,10 +752,10 @@ public sealed partial class PhotosViewModel(Func<Task<PrintTarget?>> findTarget,
             await PhotoPrinting.SavePdfAsync(path, sheets, photos, paper, Layout.Label);
             SetMessage(string.Format(Strings.Photos_SavedPdf, Path.GetFileName(path), SheetCount(sheets.Count)));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        catch (Exception ex) when (ex is not OutOfMemoryException) // the disk, a picture WIC can't read (FileFormat, NotSupported, COM), the drawing: a plain message, the details in the log
         {
             Log.Write($"Photos as PDF failed: {ex}");
-            SetMessage(string.Format(Strings.Photos_SavePdfFailed, ex.Message), error: true);
+            SetMessage(Strings.Photos_SavePdfFailed, error: true);
         }
         finally
         {

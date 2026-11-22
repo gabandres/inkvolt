@@ -49,6 +49,25 @@ public class ScanArchiveTests
     }
 
     [Fact]
+    public void DatesAreGregorianWhateverTheRegionalCalendar()
+    {
+        var before = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("th-TH"); // the Thai Buddhist calendar: 2569
+            var created = new DateTime(2026, 11, 22, 14, 30, 5, DateTimeKind.Utc);
+            var pdf = Write(new PdfWriteOptions { PdfA = true, Now = created });
+            Assert.Contains("/CreationDate (D:20261122143005Z)", pdf);
+            Assert.Contains("<xmp:CreateDate>2026-11-22T14:30:05Z</xmp:CreateDate>", pdf);
+            Assert.DoesNotContain("2569", pdf);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = before;
+        }
+    }
+
+    [Fact]
     public void ThePdfAProfileIsSrgbNamedForInkvoltPrint()
     {
         var p = IccProfiles.SrgbForPrint();
@@ -179,7 +198,9 @@ public class ScanArchiveTests
         Assert.Null(ScanPresets.WriteOptions(new ScanPreset(), null));
         Assert.True(ScanPresets.WriteOptions(new ScanPreset { PdfA = true }, null)!.PdfA);
         Assert.Equal("pw", ScanPresets.WriteOptions(new ScanPreset { Password = true }, "pw")!.Password);
-        Assert.Null(ScanPresets.WriteOptions(new ScanPreset { Password = true }, "")); // no password, no protection: the save stops first
+        Assert.Throws<ArgumentException>(() => ScanPresets.WriteOptions(new ScanPreset { Password = true }, "")); // never saved open
+        Assert.Throws<ArgumentException>(() => ScanPresets.WriteOptions(new ScanPreset { Password = true, PdfA = true }, null));
+        Assert.Null(ScanPresets.WriteOptions(new ScanPreset { Password = true, FileType = PresetFileType.Jpeg }, null)); // not a PDF: nothing to protect
     }
 
     [Fact]

@@ -5,6 +5,9 @@ namespace InkvoltPrint.Core.Sheets;
 /// <summary>Print a PDF's layouts (roadmap 4.18): as before, several pages per sheet, a booklet, or a poster.</summary>
 public enum PdfLayout { Normal, PagesPerSheet, Booklet, Poster }
 
+/// <summary>How a laid-out job's two sides are printed (<see cref="SheetPrint.Route"/>).</summary>
+public enum SheetRoute { OneSided, Printer, ByHand, NoBothSides }
+
 /// <summary>What the person chose for Print a PDF's layout.</summary>
 /// <param name="PagesPerSheet">2, 4, 6, 9 or 16 (<see cref="PrintSetup.PagesPerSheetChoices"/>).</param>
 /// <param name="PosterPercent">The poster's size as a percentage of the page's (<see cref="SheetPrint.PosterPercents"/>).</param>
@@ -64,8 +67,39 @@ public static class SheetPrint
     public static PrintPlan Plan(IReadOnlyList<(double W, double H)> sizes, double paperW, double paperH, PrintSetup setup) =>
         new([.. Enumerable.Range(0, sizes.Count)], i => Bounded(sizes[i]), Area(paperW, paperH), setup);
 
-    private static (double W, double H) Bounded((double W, double H) s) =>
-        (double.IsFinite(s.W) ? Math.Clamp(s.W, 1, MaxPageSide) : MaxPageSide, double.IsFinite(s.H) ? Math.Clamp(s.H, 1, MaxPageSide) : MaxPageSide);
+    /// <summary>
+    /// A page's size as the layout takes it: a side past <see cref="MaxPageSide"/> brings the page down to it, its shape kept, so a
+    /// poster's tiles and the drawing of the page agree; a size that isn't a number is a square of that side, a side under 1 is 1.
+    /// The print path draws each page at this size (<c>SheetPrinting</c>).
+    /// </summary>
+    public static (double W, double H) Bounded((double W, double H) s)
+    {
+        if (!double.IsFinite(s.W) || !double.IsFinite(s.H) || s.W <= 0 || s.H <= 0) return (MaxPageSide, MaxPageSide);
+        var k = Math.Min(1, MaxPageSide / Math.Max(s.W, s.H));
+        return (Math.Max(1, s.W * k), Math.Max(1, s.H * k));
+    }
+
+    /// <summary>
+    /// How a job's two sides get printed: one-sided; by the printer; by hand (fronts, the stack put back, backs); or not at all
+    /// (<see cref="SheetRoute.NoBothSides"/>: a booklet, or both sides asked, on a printer that can't and with no by-hand offered),
+    /// which Print a PDF refuses rather than sending a two-sided job the printer would print on one side.
+    /// </summary>
+    public static SheetRoute Route(PrintSetup setup, bool asked, bool printerTwoSided, bool byHand) =>
+        !TwoSided(setup, asked) ? SheetRoute.OneSided
+        : printerTwoSided ? SheetRoute.Printer
+        : byHand ? SheetRoute.ByHand
+        : SheetRoute.NoBothSides;
+
+    /// <summary>
+    /// The document's page number a side shows first (pages per sheet's first cell, a booklet's left page or its only one), for
+    /// two-sided by hand's words ("page 7"): <paramref name="numbers"/> are the 1-based pages printed, in the job's order.
+    /// </summary>
+    public static int PageOnSide(PrintPlan plan, int side, IReadOnlyList<int> numbers)
+    {
+        if (side < 0 || side >= plan.SheetCount) return 0;
+        var pages = plan.Sheet(side).Pages;
+        return pages.Count == 0 ? 0 : numbers[Math.Clamp(pages.Min(p => p.Page), 0, numbers.Count - 1)];
+    }
 
     /// <summary>The job is too big to print in one go (<see cref="MaxSides"/>, counted on the guessed paper as <see cref="Count"/> does).</summary>
     public static bool TooMany(PrintSetup setup, IReadOnlyList<(double W, double H)> sizes, (double W, double H) paper, int copies) =>

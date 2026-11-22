@@ -150,7 +150,25 @@ public class PhotoProjectsTests
     {
         Assert.Equal((2027, 1), PhotoProjects.MonthAt(2026, 12, 1));
         Assert.Equal((2026, 1), PhotoProjects.MonthAt(2026, 0, 0)); // a month out of range is clamped
-        Assert.Equal((9998, 12), PhotoProjects.MonthAt(99999, 12, 0));
+        Assert.Equal((9999, 12), PhotoProjects.MonthAt(99999, 12, 0));
+        Assert.Equal((9999, 12), PhotoProjects.MonthAt(9999, 12, 5)); // no month past the last a date can hold
+        Assert.Equal((9999, 12), PhotoProjects.MonthAt(9999, 11, int.MaxValue));
+    }
+
+    [Fact]
+    public void ACalendarInTheLastYearAnyDateHoldsDoesntCrash()
+    {
+        var sheets = Sheets(PhotoLayoutKind.MonthCalendar, [Landscape(), Landscape(), Landscape()], Letter, o => o with { CalendarYear = 9999, CalendarMonth = 12 });
+        Assert.All(sheets, s => Assert.Equal("December 9999", s.Texts[0].Text));
+        Assert.Single(Sheets(PhotoLayoutKind.YearCalendar, [Landscape()], Letter, o => o with { CalendarYear = 9999 }));
+    }
+
+    [Fact]
+    public void OnlyACardWithAMessageNeedsBothSides()
+    {
+        Assert.False(PhotoProjects.NeedsTwoSided(Sheets(PhotoLayoutKind.Card, [Portrait()], Letter)));
+        Assert.True(PhotoProjects.NeedsTwoSided(Sheets(PhotoLayoutKind.Card, [Portrait()], Letter, o => o with { CardMessage = "Hi" })));
+        Assert.False(PhotoProjects.NeedsTwoSided(Sheets(PhotoLayoutKind.Collage, [Portrait(), Portrait()], Letter)));
     }
 
     // ---- Collages ----

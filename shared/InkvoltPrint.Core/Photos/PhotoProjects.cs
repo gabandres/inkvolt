@@ -108,6 +108,9 @@ public static class PhotoProjects
         return sheets;
     }
 
+    /// <summary>The sheets need both sides of the paper: a card with an inside (its message on the back of its outside).</summary>
+    public static bool NeedsTwoSided(IReadOnlyList<PhotoSheet> sheets) => sheets.Any(s => s.Inside);
+
     /// <summary>The <paramref name="k"/>th card (0 the top, 1 the bottom) on the paper: half of it, whole width.</summary>
     public static Placement CardBox(SheetPaper paper, int k) => new(0, k * paper.Height / 2, paper.Width, paper.Height / 2);
 
@@ -167,8 +170,10 @@ public static class PhotoProjects
     /// <summary>The <paramref name="index"/>th month from the options' first month (photo 2 of a month calendar is the month after photo 1's).</summary>
     public static (int Year, int Month) MonthAt(int year, int month, int index)
     {
-        var start = new DateTime(Math.Clamp(year, 1, 9998), Math.Clamp(month, 1, 12), 1).AddMonths(Math.Clamp(index, 0, 1200));
-        return (start.Year, start.Month);
+        // Counted in months from year 1, never through a date: past December 9999 the last month stays the last.
+        var at = (Math.Clamp(year, 1, 9999) - 1) * 12L + (Math.Clamp(month, 1, 12) - 1) + Math.Max(0, index);
+        at = Math.Min(at, 9999 * 12L - 1);
+        return ((int)(at / 12) + 1, (int)(at % 12) + 1);
     }
 
     /// <summary>A month's sheet: the photo over the top half, the month's name and year, and its days in a grid of weeks.</summary>

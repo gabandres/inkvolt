@@ -131,6 +131,49 @@ public class SheetPrintTests
     }
 
     [Fact]
+    public void ABookletWithNoWayToPrintBothSidesIsRefused()
+    {
+        var booklet = SheetPrint.Setup(new SheetChoice(PdfLayout.Booklet))!;
+        var four = SheetPrint.Setup(new SheetChoice(PdfLayout.PagesPerSheet, PagesPerSheet: 4))!;
+        var poster = SheetPrint.Setup(new SheetChoice(PdfLayout.Poster))!;
+        Assert.Equal(SheetRoute.NoBothSides, SheetPrint.Route(booklet, asked: false, printerTwoSided: false, byHand: false));
+        Assert.Equal(SheetRoute.ByHand, SheetPrint.Route(booklet, false, printerTwoSided: false, byHand: true));
+        Assert.Equal(SheetRoute.Printer, SheetPrint.Route(booklet, false, printerTwoSided: true, byHand: true));
+        Assert.Equal(SheetRoute.OneSided, SheetPrint.Route(four, asked: false, false, false));
+        Assert.Equal(SheetRoute.NoBothSides, SheetPrint.Route(four, asked: true, false, false));
+        Assert.Equal(SheetRoute.OneSided, SheetPrint.Route(poster, asked: true, true, true));
+    }
+
+    [Fact]
+    public void AnOversizedPageKeepsItsShapeAndThePlanDrawsAtThatSize()
+    {
+        var (w, h) = SheetPrint.Bounded((400 * 96, 10 * 96)); // a 400 x 10 in banner
+        Assert.Equal(SheetPrint.MaxPageSide, w, 6);
+        Assert.Equal(40.0, w / h, 6); // its shape kept, not squashed to 200 x 10
+        Assert.Equal((816.0, 1056.0), SheetPrint.Bounded(Letter)); // a normal page is left as it is
+        // The poster's tiles cover the bounded page exactly: what the paginator draws (SheetPrinting) at that same size.
+        var poster = SheetPrint.Setup(new SheetChoice(PdfLayout.Poster, PosterPercent: 150))!;
+        var plan = SheetPrint.Plan([(400 * 96, 10 * 96)], Letter.W, Letter.H, poster);
+        var shown = Enumerable.Range(0, plan.SheetCount).Select(i => plan.Sheet(i).Pages.Single().Source!.Value).ToList();
+        Assert.Equal(w, shown.Max(s => s.Right), 3);
+        Assert.Equal(h, shown.Max(s => s.Bottom), 3);
+    }
+
+    [Fact]
+    public void ASideIsNamedByTheFirstDocumentPageOnIt()
+    {
+        // Pages 3, 5, 7, 9 and 11 printed four to a sheet: side 1 holds the fifth, page 11.
+        var four = SheetPrint.Plan(Pages(5), Letter.W, Letter.H, SheetPrint.Setup(new SheetChoice(PdfLayout.PagesPerSheet, PagesPerSheet: 4))!);
+        int[] printed = [3, 5, 7, 9, 11];
+        Assert.Equal(3, SheetPrint.PageOnSide(four, 0, printed));
+        Assert.Equal(11, SheetPrint.PageOnSide(four, 1, printed));
+        Assert.Equal(0, SheetPrint.PageOnSide(four, 5, printed));
+        // A booklet's first back carries the second page printed.
+        var booklet = SheetPrint.Plan(Pages(4), Letter.W, Letter.H, SheetPrint.Setup(new SheetChoice(PdfLayout.Booklet))!);
+        Assert.Equal(5, SheetPrint.PageOnSide(booklet, 1, printed));
+    }
+
+    [Fact]
     public void TheAreaKeepsAQuarterInchClear()
     {
         var a = SheetPrint.Area(816, 1056);
