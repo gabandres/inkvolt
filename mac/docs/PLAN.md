@@ -1661,6 +1661,8 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
+- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.3, 4.4, 4.5, 4.7, 4.13, 4.14), done on Windows. Until 4.4 is
+  ported, a Batch preset with `removeBlankPages` or `splitAtBlankPages` is refused on the Mac as an unknown action.
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).

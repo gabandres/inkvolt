@@ -25,7 +25,7 @@ public sealed record PdfSource(byte[] Data, string? Password, string Name);
 /// bring their bookmarks, links and form fields along (never hidden copies of pages they lead to). Page labels follow
 /// their pages.
 /// </summary>
-public static class PageEditor
+public static partial class PageEditor
 {
     public static byte[] Delete(byte[] data, string? password, IReadOnlyCollection<int> pages)
     {
@@ -45,17 +45,22 @@ public static class PageEditor
         {
             if (order.Count != doc.PageCount || order.Distinct().Count() != order.Count || order.Any(i => i < 0 || i >= doc.PageCount))
                 throw new ArgumentException(PdfStrings.Page_OrderPermutation, nameof(order));
-
-            var current = Enumerable.Range(0, doc.PageCount).ToList();
-            for (var target = 0; target < order.Count; target++)
-            {
-                var from = current.IndexOf(order[target]);
-                if (from == target) continue;
-                doc.Pages.MovePage(from, target);
-                current.RemoveAt(from);
-                current.Insert(target, order[target]);
-            }
+            ApplyOrder(doc, order);
         });
+    }
+
+    /// <summary>Moves the pages into <paramref name="order"/>, a permutation of 0..n-1 already checked.</summary>
+    private static void ApplyOrder(PdfDocument doc, IReadOnlyList<int> order)
+    {
+        var current = Enumerable.Range(0, doc.PageCount).ToList();
+        for (var target = 0; target < order.Count; target++)
+        {
+            var from = current.IndexOf(order[target]);
+            if (from == target) continue;
+            doc.Pages.MovePage(from, target);
+            current.RemoveAt(from);
+            current.Insert(target, order[target]);
+        }
     }
 
     /// <summary>The page order after moving <paramref name="pages"/> so they sit before original page <paramref name="before"/> (count = end).</summary>
@@ -283,13 +288,20 @@ public static class PageEditor
 
     /// <param name="rewrite">Always write a new file, never an incremental update of a signed one (a new document,
     /// e.g. extracted pages, mustn't carry the whole original along).</param>
-    private static byte[] Edit(byte[] data, string? password, Action<PdfDocument> edit, bool rewrite = false)
+    private static byte[] Edit(byte[] data, string? password, Action<PdfDocument> edit, bool rewrite = false) =>
+        Edit(data, password, (doc, _) => edit(doc), rewrite);
+
+    /// <param name="edit">Also given each page's label before the edit (null: the document has none), for an edit that
+    /// adds a page with a label of its own (an added page otherwise goes on from the page before it). Emptied, the
+    /// document is left with no labels.</param>
+    private static byte[] Edit(byte[] data, string? password, Action<PdfDocument, List<(PdfPage Page, PdfStructure.PageLabel Label)>?> edit, bool rewrite = false)
     {
         using var doc = Open(data, password, PdfDocumentOpenMode.Modify);
         var xmp = Xmp.Read(doc);
         var labels = PdfStructure.ReadLabels(doc);
-        edit(doc);
-        if (labels is not null) PdfStructure.WriteLabels(doc, labels);
+        edit(doc, labels);
+        if (labels is { Count: 0 }) doc.Internals.Catalog.Elements.Remove("/PageLabels");
+        else if (labels is not null) PdfStructure.WriteLabels(doc, labels);
         doc.Info.ModificationDate = DateTime.Now;
         return Save(doc, xmp, rewrite);
     }
@@ -390,13 +402,27 @@ internal static class PdfStructure
         var known = new Dictionary<PdfPage, PageLabel>(ReferenceEqualityComparer.Instance);
         foreach (var (page, label) in before) known.TryAdd(page, label);
 
-        var nums = new PdfArray(doc);
+        var labels = new List<PageLabel>(doc.PageCount);
         PageLabel? previous = null;
         for (var i = 0; i < doc.PageCount; i++)
         {
             var label = known.TryGetValue(doc.Pages[i], out var l) ? l
                 : previous is { } p ? p with { Number = p.Number == int.MaxValue ? p.Number : p.Number + 1 }
                 : new PageLabel("D", "", 1);
+            labels.Add(label);
+            previous = label;
+        }
+        WriteRanges(doc, labels);
+    }
+
+    /// <summary>Writes each page's label (one per page, in order) as the fewest /PageLabels ranges (/S, /P, /St).</summary>
+    internal static void WriteRanges(PdfDocument doc, IReadOnlyList<PageLabel> labels)
+    {
+        var nums = new PdfArray(doc);
+        PageLabel? previous = null;
+        for (var i = 0; i < labels.Count; i++)
+        {
+            var label = labels[i];
             if (previous is not { } prev || prev.Style != label.Style || prev.Prefix != label.Prefix || (label.Style is not null && label.Number != prev.Number + 1))
             {
                 var range = new PdfDictionary(doc);

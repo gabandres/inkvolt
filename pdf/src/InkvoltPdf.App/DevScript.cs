@@ -25,7 +25,7 @@ namespace InkvoltPdf.App;
 /// pane: opens it, logs this page's pieces) · suspects (the Suspect words pane: opens it, logs its words) · tesseract [tag …] (its files here, the recognizer chosen, where a language is in Recognize Text's list) · suspectsel i ·
 /// suspectfix text|keep · findcount word (how often search finds it) · rosel i|pic · romove i by · ropage i by · roshow by · roalt text · rodecorative · rokind kind [level] · roapply · pdfa2a (with
 /// <c>savepath</c>) · attachments · attach path · extract i path · open-attachment i · remove-attachment i ·
-/// layers · layer name on|off · sigs · bars · labels · gotopage label · title · open path · pane-state</c>. Signing:
+/// layers · layer name on|off · sigs · bars · labels · pages</c> (each page's size and first words) <c>· gotopage label · title · open path · pane-state</c>. Signing:
 /// <c>makepfx path password name · sign pfx password [box p x y w h | field name | invisible] [ts url] [lt|lta] · ltvloopback tsaurl · addvri · checkonline · levels · addsig p x y ·
 /// movesig i p x y w h · delsig i</c> (these two move any placed signature or picture). Pictures and links: <c>addimage p x y file ·
 /// placed · tool link · linktarget url|#page|cancel · addlink p x y w h · links · selectlink i|none · editlink i · movelink i p x y w h · dellink i</c>.
@@ -771,6 +771,18 @@ internal static class DevScript
                 log.Add($"labels: {string.Join(' ', Enumerable.Range(0, v!.PageCount).Take(12).Select(tab!.PageLabel))}; pill: " +
                         $"'{(tab.FindName("PageBox") as System.Windows.Controls.TextBox)?.Text}' '{(tab.FindName("PageCountText") as System.Windows.Controls.TextBlock)?.Text}'");
                 break;
+            case "pages":
+            {
+                // pages: each page's size (points, as shown) and the start of its text, to check what a page edit did
+                var engine = tab!.Session.Engine;
+                for (var i = 0; i < Math.Min(engine.PageCount, 40); i++)
+                {
+                    var g = engine.GetPage(i);
+                    log.Add($"  page {i + 1}: {g.Width:0}x{g.Height:0} '{Trunc(engine.GetText(i).Text.ReplaceLineEndings(" ").Trim())}'");
+                }
+                log.Add($"pages: {engine.PageCount}");
+                break;
+            }
             case "gotopage":
                 // gotopage <label or number>: what typing it into the page box does
                 log.Add($"gotopage {arg}: page index {tab!.FindPage(arg)?.ToString() ?? "none"}");

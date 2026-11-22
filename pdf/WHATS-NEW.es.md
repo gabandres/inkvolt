@@ -6,6 +6,12 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Intercalar páginas (Organizar): las hojas a doble cara escaneadas primero por un lado y luego por el otro vuelven a quedar en orden: anverso 1, reverso 1, anverso 2… Los reversos pueden ser páginas del mismo archivo o de otro PDF, en orden inverso (una pila a la que se le dio la vuelta) o no. Escanear los reversos (menú Archivo, y Escanear y OCR en la barra) escanea los reversos directamente en su lugar.
+- Quitar páginas en blanco (Organizar) encuentra las páginas que son casi solo papel, te las muestra para que desmarques las que quieras conservar y las elimina en un solo paso que Deshacer revierte. Dividir en las páginas en blanco guarda las páginas que hay entre hojas separadoras en blanco como PDF separados. Las dos son también acciones de En lote.
+- Marcadores a partir de los títulos (menú Ver, y un botón en el panel Marcadores): marcadores creados a partir de los títulos del documento, anidados por nivel y mostrados antes de crearlos. Reemplazan los marcadores o se agregan después.
+- Cambiar el tamaño de las páginas (Organizar): pon las páginas en Carta, A4, Legal o un tamaño que escribas, con el contenido ajustado al papel o con su tamaño y márgenes agregados. Las páginas de distintos tamaños quedan de un solo tamaño, y los comentarios y los campos de formulario se mueven con el contenido.
+- Reemplazar páginas (Organizar): cambia páginas por páginas de otro PDF. Los marcadores y los vínculos que llevaban a una página reemplazada llevan ahora a la página que ocupa su lugar.
+- Etiquetas de página (Organizar): numera las páginas i, ii, iii o I, II, A, B, a, b, 1, 2, 3, con un prefijo (A-1) y un primer número, para cualquier intervalo: un prólogo en números romanos y el cuerpo desde 1 en un solo paso. El cuadro de página, las miniaturas e Ir a la página las muestran.
 
 ## 1.16.0
 - Escanear: un ajuste predefinido con limpieza (creado en Inkvolt Print: recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar colores desvaídos) ahora limpia cada página de la misma manera aquí.

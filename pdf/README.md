@@ -501,6 +501,29 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   default shortcut, since it changes the file), delete, insert from file or blank,
   extract (new tab, one file, or a file per page), split (by count, ranges, or bookmarks), move, duplicate, reverse,
   crop/uncrop, combine files. Drag thumbnails onto another tab to copy pages; drop PDFs onto thumbnails to insert them.
+- **Interleave Pages** (Organize menu, the Organize view's right-click, the bar's Organize group): the fronts and backs of
+  two-sided sheets scanned one side at a time, as two ranges of the document or as the document (fronts) and another PDF
+  (backs), the backs reversed (a stack turned over) or not; uneven counts are asked about and the pages left over follow
+  (`PageEditor.InterleaveOrder`). **Scan the Backs** (File, Organize, Scan & OCR) scans the backs into the document after
+  their fronts, keeping blank backs so each stays beside its front. One undo step each.
+- **Remove Blank Pages** and **Split at Blank Pages** (Organize): pages that are almost all paper, by File › Scan's own
+  test (`BlankPages` over the shared `BlankPage`: a short line of text is not blank), shown with pictures to untick, then
+  deleted as one undo step or used as separator sheets: the runs between them saved as `name - part 1.pdf` and on. Batch
+  has both as actions.
+- **Bookmarks from Headings** (View menu, the Bookmarks pane's button and right-click): `DocLayout`'s headings (as Export
+  to Word and Make Accessible find them; running headers left out) as bookmarks nested by level, each at its heading's
+  line, shown first (all levels, or the top one to three), replacing the bookmarks or added after them
+  (`HeadingBookmarks`). One undo step; a signed file gets them appended.
+- **Resize Pages** (Organize): Letter, Legal, Tabloid, A3, A4, A5 or a size typed (inches or millimetres), the content
+  scaled to fit or kept at its size with margins added (shrunk only when it doesn't fit), for all, the selected or a range
+  of pages; a page that shows landscape gets the paper sideways, a crop becomes the page, and comments, links and fields
+  move and scale with the content (`PageEditor.Resize`).
+- **Replace Pages** (Organize): pages swapped one for one for pages of another PDF; bookmarks, links, named destinations
+  and the opening view that led to a replaced page lead to the page that took its place, which keeps its page label
+  (`PageEditor.Replace`).
+- **Page Labels** (Organize): numbering (1, i, I, a, A or none), prefix and first number for a range of pages, with what
+  they will show; the pages after keep their labels or are numbered from 1 again (i, ii, then 1, 2 in one step); Use Plain
+  Numbers removes them all (`PageLabels`).
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
   the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
   by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can
@@ -613,7 +636,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   Check Redaction (a file with anything recoverable left fails and isn't saved; after Redact Patterns it also looks for
   what that action redacted), Check Accessibility (PDF/UA-1's machine checks: a report, "name accessibility.html", beside each
   file; a file that fails any, or can't be checked in full, isn't saved and counts as failed, its notes saying what wasn't checked), Report What's in Each File ("name contents.html" and "name contents.json"
-  beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages,
+  beside each file; never fails one), Add Watermark, Add Header, Footer & Bates Numbers (Bates numbers can continue from file to file), Rotate Pages, Remove Blank Pages, Split at Blank Pages (a PDF per part between blank separator pages),
   Flatten, Recognize Text (OCR), Make Accessible (Tag) (the proposed title, else the file name, and language; the notes
   say how many pictures need alternate text), Save as PDF/A-2b or PDF/A-2a (Tagged) (last of the changes; a file that
   can't be made PDF/A fails, saying why), Add Long-Term Validation Data (Pro, as Add Verification Information, a document

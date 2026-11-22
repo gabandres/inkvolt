@@ -344,10 +344,13 @@ From a fresh comparison with Acrobat Pro, Foxit, Nitro, PDF-XChange, PDFgear, UP
 of them", 2026-11-21). Built in the order of the batches; each item's line says Done when merged, with its Mac half waiting
 for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says Pro.
 
-- **Batch A (paper and pages):** 4.3 Interleave two scans (fronts, then backs reversed; Organize and File › Scan). 4.4 Remove
-  blank pages, and split at blank separator pages (Organize, Batch). 4.5 Bookmarks from headings (`DocLayout`'s headings,
-  nested by level). 4.7 Resize pages (Letter and A4, scale or add margins). 4.13 Replace pages (keeping bookmarks and links
-  to them). 4.14 Edit page labels (i, ii, then 1, 2; prefixes).
+- **Batch A (paper and pages):**
+  - 4.3 Interleave two scans (fronts, then backs reversed; Organize and File › Scan). Done on Windows (`PageEditor.Interleave`, Scan the Backs); the Mac's waits.
+  - 4.4 Remove blank pages, and split at blank separator pages (Organize, Batch). Done on Windows (`BlankPages`, both Batch actions); the Mac's waits.
+  - 4.5 Bookmarks from headings (`DocLayout`'s headings, nested by level). Done on Windows (`HeadingBookmarks`); the Mac's waits.
+  - 4.7 Resize pages (Letter and A4, scale or add margins). Done on Windows (`PageEditor.Resize`); the Mac's waits.
+  - 4.13 Replace pages (keeping bookmarks and links to them). Done on Windows (`PageEditor.Replace`); the Mac's waits.
+  - 4.14 Edit page labels (i, ii, then 1, 2; prefixes). Done on Windows (`PageLabels`); the Mac's waits.
 - **Batch A (text):** 4.1 Spell check where people type (edited text, notes, text boxes, callouts, form fields; Windows'
   own spell checker). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
   the replacements a font can't draw listed).

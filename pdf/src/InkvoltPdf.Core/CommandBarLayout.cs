@@ -136,6 +136,10 @@ public static class CommandBarLayout
              new("InsertPages", "\uE8B5", Description: PdfStrings.Bar_InsertPagesDesc),
              new("ExtractPages", "\uEDE1", Description: PdfStrings.Bar_ExtractPagesDesc),
              new("SplitDocument", "\uE8C6", Description: PdfStrings.Bar_SplitDesc),
+             new("InterleavePages", "\uE8AB", Description: PdfStrings.Bar_InterleaveDesc, StartsSection: true),
+             new("RemoveBlankPages", "\uE894", Description: PdfStrings.Bar_RemoveBlankDesc),
+             new("ResizePages", "\uE740", Description: PdfStrings.Bar_ResizeDesc),
+             new("ReplacePages", "\uE8EE", Description: PdfStrings.Bar_ReplaceDesc),
              new("Combine", "\uE8F1", Description: PdfStrings.Bar_CombineDesc, StartsSection: true),
              new("ReduceSize", "\uE73F", Description: PdfStrings.Bar_ReduceSizeDesc)], ""),
         new("Protect", PdfStrings.Bar_Protect, 60,
@@ -151,6 +155,7 @@ public static class CommandBarLayout
             [new("RecognizeText", "\uE8C1", Description: PdfStrings.Bar_RecognizeDesc, AtOnce: true),
              new("Scan", "\uE8FE", Description: PdfStrings.Bar_ScanDesc),
              new("InsertFromScanner", "\uE8B5", Description: PdfStrings.Bar_ScanInsertDesc),
+             new("ScanBacks", "\uE8AB", Description: PdfStrings.Bar_ScanBacksDesc),
              new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc, StartsSection: true),
              new("MakeTextEditable", "\uE8AC", Description: PdfStrings.Bar_MakeEditableDesc)],""),
     ]);

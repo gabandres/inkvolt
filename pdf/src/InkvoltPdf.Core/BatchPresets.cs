@@ -276,7 +276,7 @@ public static class BatchPresets
 
     /// <summary>Each action's name in a preset, in the order the Batch window offers them.</summary>
     public static IReadOnlyList<string> ActionNames { get; } =
-        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark", "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "addLongTermData", "export"];
+        ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark", "headerFooter", "rotate", "removeBlankPages", "splitAtBlankPages", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "addLongTermData", "export"];
 
     private static string ActionName(BatchStep step) => step switch
     {
@@ -291,6 +291,8 @@ public static class BatchPresets
         WatermarkStep => "watermark",
         HeaderFooterStep => "headerFooter",
         RotateStep => "rotate",
+        RemoveBlankPagesStep => "removeBlankPages",
+        SplitAtBlankPagesStep => "splitAtBlankPages",
         FlattenStep => "flatten",
         OcrStep => "ocr",
         SaveAsPdfAStep => "saveAsPdfA",
@@ -459,6 +461,8 @@ public static class BatchPresets
                 PrintableOnly = f.Bool("printableOnly", false),
             }),
             "ocr" => new OcrStep(),
+            "removeBlankPages" => new RemoveBlankPagesStep(),
+            "splitAtBlankPages" => new SplitAtBlankPagesStep(),
             "saveAsPdfA" => new SaveAsPdfAStep { Conformance = f.Choice("conformance", PdfAConformance.B) },
             "makeAccessible" => new MakeAccessibleStep { Language = f.Text("language", null) is { Length: > 0 } l ? l : null },
             "addLongTermData" => new AddLongTermStep(f.Text("timestampServer", null) is { Length: > 0 } t

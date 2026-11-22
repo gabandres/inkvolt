@@ -331,6 +331,7 @@ public static class PdfFiles
 
     public static string? PickPdf(Window owner, string title)
     {
+        if (DevScript.TakeSavePath(out var scripted)) return scripted;
         var dlg = new OpenFileDialog { Title = title, Filter = PdfFilter, InitialDirectory = AppSettings.Current.LastFolder };
         return dlg.ShowDialog(owner) == true ? dlg.FileName : null;
     }
@@ -352,6 +353,7 @@ public static class PdfFiles
 
     public static string? PickFolder(Window owner, string title, string? initial = null)
     {
+        if (DevScript.TakeSavePath(out var scripted)) return scripted;
         var dlg = new OpenFolderDialog { Title = title, InitialDirectory = initial ?? AppSettings.Current.LastFolder };
         return dlg.ShowDialog(owner) == true ? dlg.FolderName : null;
     }
