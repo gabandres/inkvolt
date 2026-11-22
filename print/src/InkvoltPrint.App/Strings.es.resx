@@ -4075,7 +4075,7 @@ Los archivos se quedan donde están.</value>
     <value>O abre esta dirección en el navegador del teléfono:</value>
   </data>
   <data name="Phone_CertificateNote" xml:space="preserve">
-    <value>El navegador del teléfono avisa de que la conexión no es privada: este PC creó su propio certificado, como al compartir un escáner. Continúa a la página (Configuración avanzada y luego Acceder). La huella digital del certificado empieza por:</value>
+    <value>La página viene de este PC, no de un sitio web, así que ninguna entidad de certificación la respalda y el navegador del teléfono dice que la conexión no es privada. En Android (Chrome): toca Configuración avanzada y luego Acceder a la dirección. En un iPhone (Safari): toca Mostrar detalles y luego visitar este sitio web. Para asegurarte de que es este PC, abre los detalles del certificado del aviso: su huella digital SHA-256 empieza como se ve abajo.</value>
   </data>
   <data name="Phone_Fingerprint" xml:space="preserve">
     <value>SHA-256 {0}…</value>
@@ -4127,5 +4127,29 @@ Los archivos se quedan donde están.</value>
   </data>
   <data name="Camera_PreviewName" xml:space="preserve">
     <value>Lo que ve la cámara</value>
+  </data>
+  <data name="Nav_Capture" xml:space="preserve">
+    <value>Escanear con tu teléfono</value>
+  </data>
+  <data name="Nav_CaptureTip" xml:space="preserve">
+    <value>Escanea con tu teléfono o una cámara, con o sin escáner</value>
+  </data>
+  <data name="Capture_PageTitle" xml:space="preserve">
+    <value>Escanear con tu teléfono o una cámara</value>
+  </data>
+  <data name="Capture_PageName" xml:space="preserve">
+    <value>Teléfono o cámara</value>
+  </data>
+  <data name="Capture_EmptyHint" xml:space="preserve">
+    <value>Usa tu teléfono o una cámara arriba: las páginas llegan aquí, para revisarlas y guardarlas como un escaneo.</value>
+  </data>
+  <data name="Capture_NoScanner" xml:space="preserve">
+    <value>Aquí no hay escáner: usa tu teléfono o una cámara.</value>
+  </data>
+  <data name="Main_CloseCapturing" xml:space="preserve">
+    <value>Todavía hay un escaneo con tu teléfono o una cámara en curso, y sus páginas no están guardadas. ¿Cerrar Inkvolt Print de todos modos?</value>
+  </data>
+  <data name="Phone_CertificateHeading" xml:space="preserve">
+    <value>Tu teléfono te avisará primero: es normal</value>
   </data>
 </root>

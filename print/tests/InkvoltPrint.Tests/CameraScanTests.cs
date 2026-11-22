@@ -34,17 +34,23 @@ public class CameraScanTests
         Assert.Null(CameraFormats.Bgr([], 0, 0));
     }
 
-    private sealed class FakeFeed(Picture? latest) : ICameraFeed
+    /// <summary>A camera whose every frame is <paramref name="picture"/>, numbered in turn (or always <paramref name="fixedNumber"/>).</summary>
+    private sealed class FakeFeed(Picture? picture, long? fixedNumber = null) : ICameraFeed
     {
-        public (int Width, int Height) Size => (latest?.Width ?? 0, latest?.Height ?? 0);
+        private long _number;
 
-        public event Action<byte[], int, int>? Frame
+        public (int Width, int Height) Size => (picture?.Width ?? 0, picture?.Height ?? 0);
+
+        public event Action<CameraPreview>? Preview
         {
             add { }
             remove { }
         }
 
-        public Picture? Latest() => latest;
+        public void Shown() { }
+
+        public Task<CameraFrame?> CaptureAsync(CancellationToken ct = default) =>
+            Task.FromResult(picture is null ? null : new CameraFrame(picture, fixedNumber ?? Interlocked.Increment(ref _number)));
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
@@ -56,24 +62,30 @@ public class CameraScanTests
         public byte[] EncodeJpeg(Picture page, int dpi) => Encoding.ASCII.GetBytes($"{page.Width}x{page.Height}@{dpi}");
     }
 
+    private static Picture Gray(int w, int h) => new(Enumerable.Repeat((byte)230, w * h * 3).ToArray(), w, h, 3);
+
     [Fact]
     public async Task Each_capture_is_a_page_until_Done()
     {
         var session = new CameraSession();
         Assert.Equal(CoreStrings.Camera_StatusNone, session.StatusText());
-        Assert.False(session.Capture(null));
-        Assert.False(session.Capture(new FakeFeed(null))); // no frame yet
-        var frame = new FakeFeed(new Picture(Enumerable.Repeat((byte)230, 1920 * 1080 * 3).ToArray(), 1920, 1080, 3));
-        Assert.True(session.Capture(frame));
-        Assert.True(session.Capture(frame));
-        Assert.Equal(string.Format(CoreStrings.Camera_StatusTaken_Many, 2), session.StatusText());
-        session.Finish();
-        Assert.False(session.Capture(frame));
-        Assert.False(session.CanCapture);
-
+        Assert.False(await session.CaptureAsync(null));
+        Assert.False(await session.CaptureAsync(new FakeFeed(null))); // no frame came
+        var frame = new FakeFeed(Gray(1920, 1080));
+        Assert.True(await session.CaptureAsync(frame));
         var pages = new List<string>();
-        await foreach (var page in new CaptureScanner(session.Photos, new SizeCodec()).ScanAsync(new ScanRequest(ScanSource.Platen, ScanColor.Color, 200)))
-            pages.Add(Encoding.ASCII.GetString(page));
+        var reading = Task.Run(async () =>
+        {
+            await foreach (var page in new CaptureScanner(session.Photos, new SizeCodec()).ScanAsync(new ScanRequest(ScanSource.Platen, ScanColor.Color, 200)))
+                lock (pages) pages.Add(Encoding.ASCII.GetString(page));
+        });
+        for (var i = 0; i < 100 && session.Photos.Count > 0; i++) await Task.Delay(20);
+        Assert.True(await session.CaptureAsync(frame));
+        Assert.Equal(2, session.Taken);
+        session.Finish();
+        Assert.False(await session.CaptureAsync(frame));
+        Assert.False(session.CanCapture);
+        await reading;
         // A frame with no page found in it: 16:9 is the camera's, not a paper's, so a page 11 inches the long way at 200 dpi.
         Assert.Equal(["2200x1238@200", "2200x1238@200"], pages);
         Assert.Equal(new PaperGuess("Photo", 11), PhotoPage.Paper(1920, 1080, foundPage: false));
@@ -82,12 +94,42 @@ public class CameraScanTests
     }
 
     [Fact]
-    public void A_scan_takes_at_most_its_limit_of_pages()
+    public async Task The_same_frame_is_never_taken_twice()
     {
         var session = new CameraSession();
-        var frame = new FakeFeed(new Picture(new byte[640 * 480 * 3], 640, 480, 3));
-        for (var i = 0; i < CameraSession.MaxPages; i++) Assert.True(session.Capture(frame));
-        Assert.False(session.Capture(frame));
+        var still = new FakeFeed(Gray(640, 480), fixedNumber: 7); // a held key, or a camera that sent nothing new
+        Assert.True(await session.CaptureAsync(still));
+        Assert.False(await session.CaptureAsync(still));
+        Assert.Equal(1, session.Taken);
+    }
+
+    [Fact]
+    public async Task Frames_wait_at_most_two_and_Capture_is_off_till_the_PC_catches_up()
+    {
+        var session = new CameraSession();
+        var feed = new FakeFeed(Gray(640, 480));
+        for (var i = 0; i < CameraSession.Waiting; i++) Assert.True(await session.CaptureAsync(feed));
+        Assert.False(session.CanCapture);
+        Assert.Equal(CoreStrings.Camera_StatusBusy, session.StatusText());
+        Assert.False(await session.CaptureAsync(feed)); // refused, and not counted
+        Assert.Equal(CameraSession.Waiting, session.Taken);
+        Assert.True(session.Photos.TryRead(out _));
+        Assert.True(session.CanCapture);
+        Assert.True(await session.CaptureAsync(feed));
+        Assert.Equal(CameraSession.Waiting + 1, session.Taken);
+    }
+
+    [Fact]
+    public async Task A_scan_takes_at_most_its_limit_of_pages()
+    {
+        var session = new CameraSession();
+        var feed = new FakeFeed(new Picture(new byte[640 * 480 * 3], 640, 480, 3));
+        for (var i = 0; i < CameraSession.MaxPages; i++)
+        {
+            Assert.True(await session.CaptureAsync(feed));
+            Assert.True(session.Photos.TryRead(out _));
+        }
+        Assert.False(await session.CaptureAsync(feed));
         Assert.False(session.CanCapture);
         Assert.Equal(CoreStrings.Camera_StatusFull, session.StatusText());
     }

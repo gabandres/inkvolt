@@ -390,27 +390,48 @@ public static class PhoneScan
             if (shown is null) return new PhoneOpening(null, CoreStrings.Phone_NoPrivateNetwork);
         }
         X509Certificate2? certificate = null;
+        IShareListener? listener = null;
         try
         {
             certificate = env.Certificates.Get(ShareDnssd.HostName(computerName), (time ?? TimeProvider.System).GetUtcNow());
             var session = new PhoneSession(computerName, limits);
             var loopback = env.LoopbackOnly;
-            var listener = await env.Host.StartAsync(new PhoneListen(loopback ? IPAddress.Loopback : IPAddress.IPv6Any, env.Port, certificate,
+            listener = await env.Host.StartAsync(new PhoneListen(loopback ? IPAddress.Loopback : IPAddress.IPv6Any, env.Port, certificate,
                 (peer, local) => loopback ? IPAddress.IsLoopback(SharePeers.Normal(peer)) : SharePeers.Allows(peer, local, served), session), ct).ConfigureAwait(false);
-            log($"Phone scan: listening on port {listener.Port} ({(loopback ? "this PC only" : $"{served.Count} private network address(es)")}).");
-            return new PhoneOpening(new PhoneLink(session, UrlFor(shown, listener.Port, session), listener, certificate), null);
+            var port = listener.Port;
+            log($"Phone scan: listening on port {port} ({(loopback ? "this PC only" : $"{served.Count} private network address(es)")}).");
+            var link = new PhoneLink(session, UrlFor(shown, port, session), listener, certificate);
+            (listener, certificate) = (null, null); // the link's now: it closes them
+            return new PhoneOpening(link, null);
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !ct.IsCancellationRequested)
         {
-            certificate?.Dispose();
+            await CloseAsync(listener, certificate, log).ConfigureAwait(false);
             log($"Phone scan didn't start: {ex.GetType().Name}: {ex.Message}");
             var inUse = ex is SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse } || ex.InnerException is SocketException { SocketErrorCode: SocketError.AddressAlreadyInUse };
             return new PhoneOpening(null, inUse ? string.Format(CoreStrings.Phone_PortInUse, env.Port) : CoreStrings.Phone_Failed);
         }
         catch
         {
-            certificate?.Dispose();
+            await CloseAsync(listener, certificate, log).ConfigureAwait(false);
             throw;
+        }
+    }
+
+    /// <summary>What a failed open had opened, closed: nothing is left listening.</summary>
+    private static async Task CloseAsync(IShareListener? listener, X509Certificate2? certificate, Action<string> log)
+    {
+        try
+        {
+            if (listener is not null) await listener.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            log($"Phone scan: not closed cleanly: {ex.GetType().Name}: {ex.Message}");
+        }
+        finally
+        {
+            certificate?.Dispose();
         }
     }
 }

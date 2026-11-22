@@ -383,6 +383,43 @@ public class PhoneScanTests
         }
     }
 
+    /// <summary>A host whose listener fails as soon as it's asked anything, and says whether it was closed.</summary>
+    private sealed class BrokenHost : IPhoneHost
+    {
+        public bool Closed { get; private set; }
+
+        public Task<IShareListener> StartAsync(PhoneListen listen, CancellationToken ct) => Task.FromResult<IShareListener>(new Listener(this));
+
+        private sealed class Listener(BrokenHost host) : IShareListener
+        {
+            public int Port => throw new InvalidOperationException("No port.");
+
+            public ValueTask DisposeAsync()
+            {
+                host.Closed = true;
+                return ValueTask.CompletedTask;
+            }
+        }
+    }
+
+    [Fact]
+    public async Task A_failure_after_the_server_started_leaves_nothing_listening()
+    {
+        var host = new BrokenHost();
+        var opening = await PhoneScan.OpenAsync(PhoneEnvironment.ThisPcOnly(host), "PC");
+        Assert.Null(opening.Link);
+        Assert.Equal(CoreStrings.Phone_Failed, opening.Problem);
+        Assert.True(host.Closed);
+    }
+
+    [Fact]
+    public async Task The_page_says_the_certificate_warning_was_expected()
+    {
+        var s = new PhoneSession("OFFICE-PC");
+        var html = Encoding.UTF8.GetString((await Ask(s, "GET", s.PagePath)).Body!);
+        Assert.Contains(System.Net.WebUtility.HtmlEncode(string.Format(CoreStrings.Phone_CertExpected, "OFFICE-PC")), html);
+    }
+
     [Fact]
     public async Task No_private_network_opens_nothing()
     {

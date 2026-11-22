@@ -60,6 +60,7 @@ public static class PhonePage
             ol { padding-left: 22px; margin: 16px 0; }
             li.bad { color: var(--bad); }
             #state { font-weight: 600; color: var(--fg); }
+            p.small { font-size: 14px; }
             .off { opacity: .45; pointer-events: none; }
             </style>
             </head>
@@ -67,6 +68,7 @@ public static class PhonePage
             <main>
             <h1>{{H(string.Format(CoreStrings.Phone_Heading, pcName))}}</h1>
             <p>{{H(CoreStrings.Phone_Tip)}}</p>
+            <p class="small">{{H(string.Format(CoreStrings.Phone_CertExpected, pcName))}}</p>
             <div id="controls">
             <label class="button primary" for="take">{{H(CoreStrings.Phone_Take)}}</label>
             <input id="take" type="file" accept="image/*" capture="environment">

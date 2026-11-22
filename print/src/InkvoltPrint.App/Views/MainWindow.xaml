@@ -648,9 +648,11 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
+            <!-- The scanner's own cards: not on the phone and camera page, which has no scanner -->
+            <StackPanel DockPanel.Dock="Top" Visibility="{Binding CaptureOnly, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
             <!-- Scan from the printer's button (roadmap 2.2): HP's Scan to Computer on the panel, or the scanner's button through
                  Windows; says so when the printer offers neither -->
-            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12"
+            <Border Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12"
                     DataContext="{Binding DataContext.Selected.ScanButton, RelativeSource={RelativeSource AncestorType=Window}}"
                     Visibility="{Binding IsShown, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
                 <DockPanel>
@@ -669,7 +671,7 @@
                 </DockPanel>
             </Border>
             <!-- Share on the network (roadmap 3.1, Inkvolt Pro): a WIA or TWAIN scanner as an eSCL scanner for phones, Macs and other PCs -->
-            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12"
+            <Border Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12"
                     DataContext="{Binding DataContext.Selected.Sharing, RelativeSource={RelativeSource AncestorType=Window}}"
                     Visibility="{Binding IsShown, Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
                 <DockPanel>
@@ -687,6 +689,7 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+            </StackPanel>
             <!-- Scan with your phone or a camera (roadmap 4.6, 4.12): photos made pages, into this review, at the settings below or a preset -->
             <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12">
                 <DockPanel>
@@ -711,7 +714,7 @@
                             </Button>
                             <StackPanel Orientation="Horizontal" Margin="8,0,0,4">
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_CaptureWith}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <ComboBox ItemsSource="{Binding CaptureChoices}" SelectedIndex="{Binding CaptureChoice}" MinWidth="200" VerticalAlignment="Center"
+                                <ComboBox ItemsSource="{Binding CaptureChoices}" SelectedValuePath="Value" SelectedValue="{Binding CapturePresetId}" MinWidth="200" VerticalAlignment="Center"
                                           AutomationProperties.Name="{x:Static loc:Strings.ScanTab_CaptureWith}" />
                             </StackPanel>
                         </WrapPanel>
@@ -726,7 +729,9 @@
                                 <TextBlock Text="{x:Static loc:Strings.Phone_OrOpen}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,8,0,0" />
                                 <TextBox Text="{Binding Url, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0" TextWrapping="Wrap"
                                          FontFamily="Cascadia Mono, Consolas" AutomationProperties.Name="{x:Static loc:Strings.Phone_OrOpen}" />
-                                <TextBlock Text="{x:Static loc:Strings.Phone_CertificateNote}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                                <!-- Before the phone shows it: the certificate warning is expected, how to go on, and how to tell it's this PC -->
+                                <TextBlock Text="{x:Static loc:Strings.Phone_CertificateHeading}" TextWrapping="Wrap" FontWeight="SemiBold" Margin="0,10,0,0" />
+                                <TextBlock Text="{x:Static loc:Strings.Phone_CertificateNote}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,2,0,0" />
                                 <TextBlock Text="{Binding Fingerprint}" TextWrapping="Wrap" Style="{StaticResource Caption}" FontFamily="Cascadia Mono, Consolas" />
                                 <Button Content="{x:Static loc:Strings.Phone_Finish}" Command="{Binding FinishCommand}" HorizontalAlignment="Left" Padding="16,6" Margin="0,10,0,0"
                                         ToolTip="{x:Static loc:Strings.Phone_FinishTip}" AutomationProperties.HelpText="{x:Static loc:Strings.Phone_FinishTip}" />
@@ -751,8 +756,9 @@
                             VerticalAlignment="Top" Margin="12,8,0,0" />
                     <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.ScanTab_RecentScans}" Command="{Binding OpenRecentCommand}" Style="{StaticResource LinkButton}"
                             VerticalAlignment="Top" Margin="12,8,0,0" ToolTip="{x:Static loc:Strings.ScanTab_RecentScansTip}" />
-                    <TextBlock DockPanel.Dock="Left" Text="{x:Static loc:Strings.ScanTab_OneClick}" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,8,16,0" />
-                    <ItemsControl ItemsSource="{Binding Presets}" AlternationCount="100" Focusable="False"
+                    <TextBlock DockPanel.Dock="Left" Text="{x:Static loc:Strings.ScanTab_OneClick}" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,8,16,0"
+                               Visibility="{Binding CaptureOnly, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}" />
+                    <ItemsControl ItemsSource="{Binding Presets}" AlternationCount="100" Focusable="False" Visibility="{Binding CaptureOnly, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}"
                                   AutomationProperties.Name="{x:Static loc:Strings.Overview_ScanPresetsName}"
                                   AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_OneClickHelp}">
                         <ItemsControl.ItemContainerStyle>
@@ -787,7 +793,7 @@
                 <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,0,16,0" VerticalAlignment="Top">
                     <DockPanel>
                     <StackPanel DockPanel.Dock="Bottom">
-                        <Button Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}" AutomationProperties.Name="{Binding ScanButtonText}"
+                        <Button Command="{Binding ScanCommand}" Style="{DynamicResource AccentButtonStyle}" AutomationProperties.Name="{Binding ScanButtonText}" Visibility="{Binding CaptureOnly, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}"
                                 HorizontalAlignment="Stretch" Padding="0,10" Margin="0,16,0,0">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Style="{StaticResource Icon}" Text="&#xE8FE;" Margin="0,0,8,0" />
@@ -1815,6 +1821,14 @@
                     <TextBlock Text="{x:Static loc:Strings.Nav_Fleet}" />
                 </StackPanel>
             </Button>
+            <!-- Scan with your phone or a camera, scanner or not (roadmap 4.6, 4.12) -->
+            <Button x:Name="CaptureButton" DockPanel.Dock="Top" Click="Capture_Click" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="10,8" Margin="0,-6,0,12"
+                    AutomationProperties.Name="{x:Static loc:Strings.Nav_Capture}" ToolTip="{x:Static loc:Strings.Nav_CaptureTip}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8EA;" Margin="0,0,10,0" />
+                    <TextBlock Text="{x:Static loc:Strings.Nav_Capture}" />
+                </StackPanel>
+            </Button>
             <TextBlock DockPanel.Dock="Top" Text="{x:Static loc:Strings.Nav_Printers}" Style="{StaticResource Caption}" Margin="8,0,0,6" />
 
             <!-- Add a printer that discovery can't see -->
@@ -1957,6 +1971,12 @@
                 <!-- The Fleet page takes the printer's place -->
                 <views:FleetView x:Name="FleetPage" DataContext="{Binding Fleet}" Margin="32,24,16,0"
                                  Visibility="{Binding DataContext.IsFleetShown, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />
+                <!-- Scan with your phone or a camera takes the printer's place: a Scan page with no scanner -->
+                <DockPanel x:Name="CapturePage" Margin="32,24,16,0"
+                           Visibility="{Binding IsCaptureShown, Converter={StaticResource VisibleWhen}}">
+                    <TextBlock DockPanel.Dock="Top" Text="{x:Static loc:Strings.Capture_PageTitle}" FontSize="28" FontWeight="SemiBold" Margin="0,0,16,16" />
+                    <ContentControl Content="{Binding CaptureScan}" Focusable="False" />
+                </DockPanel>
                 <!-- A USB printer that needs its driver takes the printer's place while it's chosen -->
                 <views:NeedsDriverPage x:Name="NeedsDriverPane" DataContext="{Binding SelectedNeedsDriver}" Margin="32,24,16,0"
                                        Visibility="{Binding DataContext.ShowNeedsDriverPane, RelativeSource={RelativeSource AncestorType=Window}, Converter={StaticResource VisibleWhen}}" />

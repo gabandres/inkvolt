@@ -4427,4 +4427,10 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Camera_StatusFull" xml:space="preserve">
     <value>That's the most pages one scan takes: press Done, then start another.</value>
   </data>
+  <data name="Camera_StatusBusy" xml:space="preserve">
+    <value>Wait a moment: the PC is making pages of the last captures.</value>
+  </data>
+  <data name="Phone_CertExpected" xml:space="preserve">
+    <value>The warning before this page was expected: {0} made its own certificate for it.</value>
+  </data>
 </root>

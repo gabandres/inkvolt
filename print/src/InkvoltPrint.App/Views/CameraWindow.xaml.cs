@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using System.Windows.Input;
 using InkvoltPrint.App.ViewModels;
 
 namespace InkvoltPrint.App.Views;
@@ -32,6 +33,17 @@ public partial class CameraWindow : Window
         {
             if (window.IsLoaded) window.Close();
         };
+    }
+
+    /// <summary>
+    /// Space captures a page wherever the focus is (not pressing a focused Done, nor opening the camera list), once per press: a key held
+    /// down repeats nothing.
+    /// </summary>
+    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space) return;
+        e.Handled = true;
+        if (!e.IsRepeat && _vm.CaptureCommand.CanExecute(null)) _vm.CaptureCommand.Execute(null);
     }
 
     protected override void OnClosing(CancelEventArgs e)

@@ -104,9 +104,11 @@ public sealed partial class ScanViewModel : ObservableObject
         // The presets outlive this tab: heard weakly, so a tab made anew isn't kept by them.
         System.Collections.Specialized.CollectionChangedEventManager.AddHandler(presets.Items, (_, _) =>
         {
-            var choice = CaptureChoice;
+            // The choice is a preset's id, so it stays on that preset wherever it moves; a deleted one falls back to the settings below.
+            var id = CapturePresetId;
             OnPropertyChanged(nameof(CaptureChoices));
-            CaptureChoice = choice <= Presets.Count ? choice : 0;
+            CapturePresetId = id.Length > 0 && _presets.FindById(id) is not null ? id : "";
+            OnPropertyChanged(nameof(CapturePresetId));
         });
         EditedPhotos.CollectionChanged += (_, _) =>
         {
@@ -571,7 +573,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     public string ScanButtonText => HasPages ? Strings.Scan_ScanMorePages : Strings.Common_Scan;
 
-    public string EmptyHint => IsPhoneOpen ? Strings.Phone_EmptyHint : Source?.Value == ScanSource.Platen || Source is null
+    public string EmptyHint => IsPhoneOpen ? Strings.Phone_EmptyHint : CaptureOnly ? Strings.Capture_EmptyHint : Source?.Value == ScanSource.Platen || Source is null
         ? Strings.Scan_EmptyHintGlass
         : Strings.Scan_EmptyHintFeeder;
 
@@ -1690,13 +1692,14 @@ public sealed partial class ScanViewModel : ObservableObject
 
     // ---------------------------------------------------------------- phone and camera (roadmap 4.6, 4.12)
 
-    /// <summary>What a phone or camera scan uses: the settings below (0), or the n-th preset (n).</summary>
-    public IReadOnlyList<string> CaptureChoices => [Strings.ScanTab_CaptureTabSettings, .. Presets.Select(p => p.Name)];
+    /// <summary>What a phone or camera scan uses: the settings below (an empty id), or a preset (its id).</summary>
+    public IReadOnlyList<Option<string>> CaptureChoices => [new("", Strings.ScanTab_CaptureTabSettings), .. Presets.Select(p => new Option<string>(p.Id, p.Name))];
 
+    /// <summary>The preset a phone or camera scan uses, by its id (empty: the settings below).</summary>
     [ObservableProperty]
-    public partial int CaptureChoice { get; set; }
+    public partial string CapturePresetId { get; set; } = "";
 
-    private ScanPreset? CapturePreset => CaptureChoice > 0 && CaptureChoice <= Presets.Count ? Presets[CaptureChoice - 1] : null;
+    private ScanPreset? CapturePreset => CapturePresetId.Length > 0 ? _presets.FindById(CapturePresetId) : null;
 
     /// <summary>The phone panel while a phone scan is open; null otherwise.</summary>
     [ObservableProperty]
@@ -1704,6 +1707,15 @@ public sealed partial class ScanViewModel : ObservableObject
     public partial PhoneScanViewModel? Phone { get; set; }
 
     public bool IsPhoneOpen => Phone is not null;
+
+    /// <summary>
+    /// The page with no scanner (roadmap 4.6: Microsoft Lens's place): the review fills only from a phone or a camera, so the scanner's
+    /// own Scan button, one-click presets and scanner cards aren't there.
+    /// </summary>
+    public bool CaptureOnly { get; init; }
+
+    /// <summary>A phone or camera scan is under way: pages may still come in (closing the window asks first).</summary>
+    public bool IsCapturing => Phone is not null || _camera is not null;
 
     /// <summary>
     /// Scan with your phone (roadmap 4.6): opens the phone's page on this PC's private network and shows its QR code; each photo the
@@ -1715,7 +1727,7 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (IsBusy) return;
         var preset = CapturePreset;
-        if (!StartCapture(preset)) return;
+        if (!ConfirmCapture(preset)) return;
         IsBusy = true; // until the scan starts: the port is being opened
         PhoneOpening opening;
         try
@@ -1730,10 +1742,11 @@ public sealed partial class ScanViewModel : ObservableObject
         {
             Message = opening.Problem;
             Prompt.Announce(opening.Problem ?? "");
-            return;
+            return; // the pages there stay: nothing was started
         }
         await using (link)
         {
+            BeginCapture(preset);
             var phone = new PhoneScanViewModel(link);
             Phone = phone;
             Prompt.Announce(phone.Status);
@@ -1750,25 +1763,30 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>
-    /// The pages a phone or camera scan adds to: a preset's starts afresh (asking first when unsaved pages would go), the settings below
-    /// add to the pages there (with the preset they were scanned with, if any). False: the person kept the pages.
+    /// A preset's phone or camera scan starts afresh: asked first when unsaved pages would go. False: the person kept them. Nothing is
+    /// dropped yet (<see cref="BeginCapture"/>, once the scan has started).
     /// </summary>
-    private bool StartCapture(ScanPreset? preset)
+    private bool ConfirmCapture(ScanPreset? preset)
+    {
+        if (preset is null || !HasUnsavedPages) return true;
+        using (HoldRestore())
+            return Prompt.Ask(Plural.Of(Pages.Count, Strings.Scan_DiscardAndScanQuestion_One, Strings.Scan_DiscardAndScanQuestion_Many, preset.Name),
+                Strings.Scan_DiscardAndScan);
+    }
+
+    /// <summary>
+    /// The pages a phone or camera scan adds to, once it has started: a preset's starts afresh, the settings below add to the pages there
+    /// (with the preset they were scanned with, if any).
+    /// </summary>
+    private void BeginCapture(ScanPreset? preset)
     {
         if (preset is null)
         {
             if (!HasPages) ActivePreset = null;
-            return true;
+            return;
         }
-        using (HoldRestore())
-        {
-            if (HasUnsavedPages && !Prompt.Ask(
-                    Plural.Of(Pages.Count, Strings.Scan_DiscardAndScanQuestion_One, Strings.Scan_DiscardAndScanQuestion_Many, preset.Name), Strings.Scan_DiscardAndScan))
-                return false;
-            DropPages();
-        }
+        DropPages();
         ActivePreset = preset;
-        return true;
     }
 
     /// <summary>The scan from <paramref name="source"/>, into the review; with a preset, then saved by it as a one-click scan is.</summary>
@@ -1828,7 +1846,8 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         if (IsBusy || Prompt.ShowCamera is not { } show) return;
         var preset = CapturePreset;
-        if (!StartCapture(preset)) return;
+        if (!ConfirmCapture(preset)) return;
+        BeginCapture(preset);
         var session = new CameraSession();
         _camera = session;
         var close = show(new CameraScanViewModel(_pc.Cameras, session, line => Log.Write(line)));

@@ -20,16 +20,16 @@ public partial class MainWindow : Window
         {
             if (_sidebarOpen) Dispatcher.BeginInvoke(() => ShowSidebar(open: false));
             // Moving through the list by keyboard leaves the Fleet page; the list changing by itself (a queue added, a printer gone) doesn't.
-            if (PrinterList.IsKeyboardFocusWithin && Vm is { } vm) vm.IsFleetShown = false;
+            if (PrinterList.IsKeyboardFocusWithin && Vm is { } vm) vm.LeavePages();
         };
         // The printer already selected is chosen again: the selection doesn't change, the Fleet page still goes.
         PrinterList.PreviewMouseLeftButtonUp += (_, e) =>
         {
-            if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(PrinterList, d) is ListBoxItem && Vm is { } vm) vm.IsFleetShown = false;
+            if (e.OriginalSource is DependencyObject d && ItemsControl.ContainerFromElement(PrinterList, d) is ListBoxItem && Vm is { } vm) vm.LeavePages();
         };
         PrinterList.PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Enter && Vm is { } vm) vm.IsFleetShown = false;
+            if (e.Key == Key.Enter && Vm is { } vm) vm.LeavePages();
         };
         PreviewKeyDown += OnPreviewKey;
         CommandBindings.Add(new CommandBinding(PaletteCommand, (_, _) => OpenPalette()));
@@ -231,7 +231,7 @@ public partial class MainWindow : Window
         if (PrintPalette.OnOther(id) is var (index, command))
         {
             if (PrintPalette.Target(index, _palettePrinters, vm.Printers) is not { } target) return; // gone since the palette opened
-            vm.IsFleetShown = false;
+            vm.LeavePages();
             vm.Selected = target;
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
             {
@@ -244,7 +244,7 @@ public partial class MainWindow : Window
         {
             if (command?.CanExecute(parameter) == true) command.Execute(parameter);
         }
-        if (kind is "section" or "show" or "preset" or "printer") vm.IsFleetShown = false; // what they do is on the printer's page
+        if (kind is "section" or "show" or "preset" or "printer") vm.LeavePages(); // what they do is on the printer's page
         switch (kind, arg)
         {
             case ("app", "fleet"): ShowFleet(); break;
@@ -297,6 +297,15 @@ public partial class MainWindow : Window
 
     private void Fleet_Click(object sender, RoutedEventArgs e) => ShowFleet();
 
+    /// <summary>Scan with your phone or a camera, with or without a scanner (roadmap 4.6, 4.12).</summary>
+    private void Capture_Click(object sender, RoutedEventArgs e)
+    {
+        if (Vm is not { } vm) return;
+        ShowSidebar(open: false, focus: false);
+        vm.IsCaptureShown = true;
+        Motion.Enter(CapturePage);
+    }
+
     /// <summary>The Fleet page, with the keyboard on its first row.</summary>
     public void ShowFleet()
     {
@@ -325,8 +334,6 @@ public partial class MainWindow : Window
     /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
-        // A phone's page is served, and a camera open, only while this window is: they end here, their pages kept.
-        Vm?.EndCaptures();
         if (RemembersPlacement && Vm?.State is { } state && WindowFrame.Placement(this) is { } placement && placement != state.Window)
         {
             state.Window = placement;
@@ -336,21 +343,28 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
             app.Tray!.HideWindow();
+            // A phone's page is served, and a camera open, only while this window is: they end now, their pages kept (the app runs on).
+            Vm?.EndCaptures();
             base.OnClosing(e);
             return;
         }
-        // Signing out: the scans are on disk and come back next start, so Windows isn't held up by a question.
-        if (Application.Current is not App { SigningOut: true, KeepsScans: true } && Vm?.PrintersWithUnsavedScans is { Count: > 0 } printers)
+        // Signing out: the scans are on disk and come back next start, so Windows isn't held up by a question. A phone or camera scan
+        // under way counts as unsaved work: pages may still be coming.
+        if (Application.Current is not App { SigningOut: true, KeepsScans: true } && Vm?.UnsavedScans is { Count: > 0 } scans)
         {
-            var pages = printers.Sum(p => p.Scan!.Pages.Count);
-            if (!ConfirmDialog.Ask(this, Core.Plural.Of(pages, Strings.Main_CloseUnsaved_One, Strings.Main_CloseUnsaved_Many),
-                    Strings.Main_CloseWithoutSaving))
+            var pages = scans.Sum(s => s.Pages.Count);
+            var question = scans.Any(s => s.IsCapturing)
+                ? Strings.Main_CloseCapturing
+                : Core.Plural.Of(pages, Strings.Main_CloseUnsaved_One, Strings.Main_CloseUnsaved_Many);
+            if (!ConfirmDialog.Ask(this, question, Strings.Main_CloseWithoutSaving))
             {
-                e.Cancel = true;
-                if (Vm.Selected is { Scan: not null } sel && sel.Scan.HasUnsavedPages) sel.SelectedSection = PrinterViewModel.ScanSection;
-                else Vm.ShowPrinter(printers[0]);
+                e.Cancel = true; // nothing ended: a phone or camera scan goes on
+                if (Vm.Selected is { Scan: { } sel } shown && scans.Contains(sel) && !Vm.IsCaptureShown) shown.SelectedSection = PrinterViewModel.ScanSection;
+                else if (!(Vm.IsCaptureShown && scans.Contains(Vm.CaptureScan))) Vm.ShowScan(scans[0]);
             }
         }
+        // Decided: the window closes. A phone's page and a camera end with it.
+        if (!e.Cancel) Vm?.EndCaptures();
         base.OnClosing(e);
     }
 

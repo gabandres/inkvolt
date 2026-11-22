@@ -3703,4 +3703,10 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Camera_StatusFull" xml:space="preserve">
     <value>Es el máximo de páginas de un escaneo: pulsa Terminar y luego empieza otro.</value>
   </data>
+  <data name="Camera_StatusBusy" xml:space="preserve">
+    <value>Espera un momento: el PC está creando las páginas de las últimas capturas.</value>
+  </data>
+  <data name="Phone_CertExpected" xml:space="preserve">
+    <value>El aviso antes de esta página era normal: {0} creó su propio certificado para ella.</value>
+  </data>
 </root>

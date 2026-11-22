@@ -76,15 +76,22 @@ public sealed class WindowsCameras : ICameras
     private static CameraFormat Describe(MediaFrameFormat f) => new((int)f.VideoFormat.Width, (int)f.VideoFormat.Height,
         f.FrameRate is { Denominator: > 0 } r ? r.Numerator / (double)r.Denominator : 0, f.Subtype);
 
+    /// <summary>
+    /// The frames of one camera. Most are never copied: only a preview frame (ten a second at most, into one buffer reused, none while
+    /// the last one isn't shown yet) and the frame a capture waits for (in full, its own copy).
+    /// </summary>
     private sealed class Feed : ICameraFeed
     {
+        /// <summary>A capture gives up after this long without a frame (the camera stalled or was unplugged).</summary>
+        private static readonly TimeSpan CaptureWait = TimeSpan.FromSeconds(5);
+
         private readonly MediaCapture _capture;
         private readonly MediaFrameReader _reader;
         private readonly Lock _gate = new();
-        private byte[]? _latest;
-        private int _width, _height;
-        private long _lastShown;
-        private int _disposed;
+        private TaskCompletionSource<CameraFrame?>? _wanted;
+        private byte[]? _preview;
+        private int _width, _height, _previewFree = 1, _disposed;
+        private long _lastShown, _number;
 
         public Feed(MediaCapture capture, MediaFrameReader reader)
         {
@@ -98,44 +105,90 @@ public sealed class WindowsCameras : ICameras
             get { lock (_gate) return (_width, _height); }
         }
 
-        public event Action<byte[], int, int>? Frame;
+        public event Action<CameraPreview>? Preview;
+
+        public void Shown() => Volatile.Write(ref _previewFree, 1);
 
         private void OnFrame(MediaFrameReader sender, MediaFrameArrivedEventArgs args)
         {
+            var number = Interlocked.Increment(ref _number);
+            TaskCompletionSource<CameraFrame?>? wanted;
+            lock (_gate) (wanted, _wanted) = (_wanted, null);
+            var now = Environment.TickCount64;
+            var previewDue = Preview is not null && Volatile.Read(ref _previewFree) == 1 && now - Interlocked.Read(ref _lastShown) >= 100;
+            if (wanted is null && !previewDue) return; // the frame is let go uncopied
             try
             {
                 using var reference = sender.TryAcquireLatestFrame();
-                if (reference?.VideoMediaFrame?.SoftwareBitmap is not { } frame) return;
-                using var bgra = frame.BitmapPixelFormat == BitmapPixelFormat.Bgra8 ? null : SoftwareBitmap.Convert(frame, BitmapPixelFormat.Bgra8);
-                var bitmap = bgra ?? frame;
+                if (reference?.VideoMediaFrame?.SoftwareBitmap is not { } frame)
+                {
+                    lock (_gate) _wanted ??= wanted; // the next frame, then
+                    return;
+                }
+                using var converted = frame.BitmapPixelFormat == BitmapPixelFormat.Bgra8 ? null : SoftwareBitmap.Convert(frame, BitmapPixelFormat.Bgra8);
+                var bitmap = converted ?? frame;
                 var (w, h) = (bitmap.PixelWidth, bitmap.PixelHeight);
-                if (w < 1 || h < 1 || (long)w * h > PhotoInput.MaxPixels) return;
-                var bytes = new byte[w * h * 4];
-                bitmap.CopyToBuffer(bytes.AsBuffer());
-                lock (_gate) (_latest, _width, _height) = (bytes, w, h);
-                // The preview: ten frames a second at most.
-                var now = Environment.TickCount64;
-                if (now - Interlocked.Read(ref _lastShown) < 100) return;
-                Interlocked.Exchange(ref _lastShown, now);
-                Frame?.Invoke(bytes, w, h);
+                if (w < 1 || h < 1 || (long)w * h > PhotoInput.MaxPixels)
+                {
+                    wanted?.TrySetResult(null);
+                    return;
+                }
+                lock (_gate) (_width, _height) = (w, h);
+                if (wanted is not null)
+                {
+                    var full = new byte[w * h * 4];
+                    bitmap.CopyToBuffer(full.AsBuffer());
+                    wanted.TrySetResult(CameraFormats.Bgr(full, w, h) is { } picture ? new CameraFrame(picture, number) : null);
+                }
+                if (previewDue)
+                {
+                    if (_preview is null || _preview.Length != w * h * 4) _preview = new byte[w * h * 4];
+                    bitmap.CopyToBuffer(_preview.AsBuffer());
+                    Volatile.Write(ref _previewFree, 0);
+                    Interlocked.Exchange(ref _lastShown, now);
+                    Preview?.Invoke(new CameraPreview(_preview, w, h));
+                }
             }
             catch (Exception)
             {
-                // A frame that doesn't convert is skipped; the next one comes.
+                // A frame that doesn't convert is skipped; a capture waiting for it gets nothing.
+                wanted?.TrySetResult(null);
             }
         }
 
-        public Picture? Latest()
+        public async Task<CameraFrame?> CaptureAsync(CancellationToken ct = default)
         {
-            byte[]? bgra;
-            int w, h;
-            lock (_gate) (bgra, w, h) = (_latest, _width, _height);
-            return bgra is null ? null : CameraFormats.Bgr(bgra, w, h);
+            var wanted = new TaskCompletionSource<CameraFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_gate)
+            {
+                if (_disposed != 0) return null;
+                _wanted?.TrySetResult(null);
+                _wanted = wanted;
+            }
+            try
+            {
+                return await wanted.Task.WaitAsync(CaptureWait, ct).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException)
+            {
+                lock (_gate)
+                {
+                    if (_wanted == wanted) _wanted = null;
+                }
+                return null;
+            }
         }
 
         public async ValueTask DisposeAsync()
         {
-            if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+            TaskCompletionSource<CameraFrame?>? wanted;
+            lock (_gate)
+            {
+                if (_disposed != 0) return;
+                _disposed = 1;
+                (wanted, _wanted) = (_wanted, null);
+            }
+            wanted?.TrySetResult(null);
             _reader.FrameArrived -= OnFrame;
             try
             {

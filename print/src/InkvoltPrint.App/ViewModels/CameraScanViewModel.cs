@@ -84,9 +84,13 @@ public sealed partial class CameraScanViewModel : ObservableObject
                 return;
             }
             _feed = feed;
-            feed.Frame += OnFrame;
+            feed.Preview += OnPreview;
             Status = _session.StatusText();
             _log($"Camera scan: {feed.Size.Width} × {feed.Size.Height}.");
+        }
+        catch (Exception ex) when (turn != _opening)
+        {
+            _log($"Camera scan: an earlier camera didn't start: {ex.Message}"); // a newer choice's status stands
         }
         catch (CameraException ex)
         {
@@ -101,24 +105,38 @@ public sealed partial class CameraScanViewModel : ObservableObject
         CaptureCommand.NotifyCanExecuteChanged();
     }
 
-    private void OnFrame(byte[] bgra, int width, int height) => UiThread.Run(() =>
+    /// <summary>A preview frame: copied into the picture on the dispatcher, then handed back so the camera may send the next.</summary>
+    private void OnPreview(CameraPreview frame)
     {
-        if (_feed is null) return;
-        if (Preview is not { } bmp || bmp.PixelWidth != width || bmp.PixelHeight != height)
-            Preview = bmp = new WriteableBitmap(width, height, 96, 96, PixelFormats.Bgr32, null);
-        bmp.WritePixels(new Int32Rect(0, 0, width, height), bgra, width * 4, 0);
-        CaptureCommand.NotifyCanExecuteChanged();
-    });
+        var feed = _feed;
+        UiThread.Run(() =>
+        {
+            try
+            {
+                if (_feed is null || !ReferenceEquals(_feed, feed)) return;
+                if (Preview is not { } bmp || bmp.PixelWidth != frame.Width || bmp.PixelHeight != frame.Height)
+                    Preview = bmp = new WriteableBitmap(frame.Width, frame.Height, 96, 96, PixelFormats.Bgr32, null);
+                bmp.WritePixels(new Int32Rect(0, 0, frame.Width, frame.Height), frame.Bgra, frame.Width * 4, 0);
+                Status = _session.StatusText();
+                CaptureCommand.NotifyCanExecuteChanged();
+            }
+            finally
+            {
+                feed?.Shown();
+            }
+        });
+    }
 
     private bool CanCapture() => _feed is not null && Preview is not null && _session.CanCapture;
 
-    /// <summary>The camera's latest frame becomes the scan's next page.</summary>
+    /// <summary>The camera's next frame becomes the scan's next page (one capture at a time; Capture is off while the PC catches up).</summary>
     [RelayCommand(CanExecute = nameof(CanCapture))]
-    private void Capture()
+    private async Task CaptureAsync()
     {
-        if (!_session.Capture(_feed)) return;
+        CaptureCommand.NotifyCanExecuteChanged();
+        var taken = await _session.CaptureAsync(_feed);
         Status = _session.StatusText();
-        Prompt.Announce(Status);
+        if (taken) Prompt.Announce(Status);
         CaptureCommand.NotifyCanExecuteChanged();
     }
 
@@ -141,7 +159,7 @@ public sealed partial class CameraScanViewModel : ObservableObject
     {
         if (_feed is not { } feed) return;
         _feed = null;
-        feed.Frame -= OnFrame;
+        feed.Preview -= OnPreview;
         try
         {
             await feed.DisposeAsync();

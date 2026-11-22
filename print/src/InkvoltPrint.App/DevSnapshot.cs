@@ -127,8 +127,13 @@ internal static class DevSnapshot
         if (args.Contains("--share") && window.DataContext is ViewModels.MainViewModel main0) await ShareAsync(main0, wait: false);
         // --phone [send|done|hold] (demo only): Use your phone on the shown Scan tab; send then plays the phone over HTTPS on this PC (pairs,
         // sends a made-up photo of a page at an angle), done then taps Done on it. hold logs the page's address for a browser here and waits for its Done.
-        if (args.Contains("--phone") && window.DataContext is ViewModels.MainViewModel { Selected: { Pc.IsDemo: true, Scan: { } phoneTab } })
-            await PhoneAsync(phoneTab, Value(args, "--phone"));
+        // --capture-page: the phone and camera page (no scanner) instead of the shown printer's Scan tab, for --phone and --camera too.
+        if (args.Contains("--capture-page") && window.DataContext is ViewModels.MainViewModel { Pc.IsDemo: true } capturing)
+        {
+            capturing.IsCaptureShown = true;
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+        if (args.Contains("--phone") && CaptureTab(window, args) is { } phoneTab) await PhoneAsync(phoneTab, Value(args, "--phone"));
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
             // --source glass|feeder|duplex, --split none|patch|blank|either and --keep-separators set the tab first.
@@ -387,8 +392,7 @@ internal static class DevSnapshot
         Window shot = window;
         // --camera [capture|done] (demo only): Use a camera on the shown Scan tab, with the made-up document camera; capture takes a
         // page; the camera window is the snapshot, or with done (Done pressed) the Scan tab with its page.
-        if (args.Contains("--camera") && window.DataContext is ViewModels.MainViewModel { Selected: { Pc.IsDemo: true, Scan: { } cameraTab } })
-            shot = await CameraAsync(cameraTab, Value(args, "--camera")) ?? window;
+        if (args.Contains("--camera") && CaptureTab(window, args) is { } cameraTab) shot = await CameraAsync(cameraTab, Value(args, "--camera")) ?? window;
         if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
         {
             var editor = ScanPresetsDialog.Create(editMain.Presets, editMain.Selected?.Name ?? "Demo printer");
@@ -527,6 +531,11 @@ internal static class DevSnapshot
     private static string? Value(string[] args, string name) =>
         Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
 
+    /// <summary>Where <c>--phone</c> and <c>--camera</c> scan in demo mode: the phone and camera page with <c>--capture-page</c>, else the shown printer's Scan tab.</summary>
+    private static ViewModels.ScanViewModel? CaptureTab(MainWindow window, string[] args) => window.DataContext is ViewModels.MainViewModel { Pc.IsDemo: true } main
+        ? args.Contains("--capture-page") ? main.CaptureScan : main.Selected?.Scan
+        : null;
+
     /// <summary><c>--camera [capture|done]</c>: presses Use a camera, waits for the made-up camera's picture, then captures and presses Done as asked; the camera window, or null once it closed.</summary>
     private static async Task<Window?> CameraAsync(ViewModels.ScanViewModel scan, string? mode)
     {
@@ -535,7 +544,7 @@ internal static class DevSnapshot
         if (CameraWindow.Last is not { DataContext: ViewModels.CameraScanViewModel camera } shown) return null;
         if (mode is "capture" or "done")
         {
-            camera.CaptureCommand.Execute(null);
+            await camera.CaptureCommand.ExecuteAsync(null);
             await Task.Delay(TimeSpan.FromMilliseconds(500));
         }
         if (mode != "done") return shown;

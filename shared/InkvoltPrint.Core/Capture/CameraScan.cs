@@ -17,17 +17,29 @@ public interface ICameras
     Task<ICameraFeed> OpenAsync(CameraInfo camera, CancellationToken ct = default);
 }
 
-/// <summary>A camera streaming: its frames as they come, and the latest one in full. Disposing stops the camera (its light goes off).</summary>
+/// <summary>A preview frame: BGRA, rows of <see cref="Width"/> × 4 bytes, in a buffer the feed reuses once <see cref="ICameraFeed.Shown"/> is called.</summary>
+public sealed record CameraPreview(byte[] Bgra, int Width, int Height);
+
+/// <summary>A frame taken in full for a page: upright BGR, and the camera's count of it (two captures of one frame have the same).</summary>
+public sealed record CameraFrame(Picture Picture, long Number);
+
+/// <summary>
+/// A camera streaming. Only frames shown or taken are copied: a preview at most ten times a second, and none while the last one isn't
+/// <see cref="Shown"/> yet; <see cref="CaptureAsync"/> copies the next frame in full. Disposing stops the camera (its light goes off).
+/// </summary>
 public interface ICameraFeed : IAsyncDisposable
 {
-    /// <summary>The frames' size.</summary>
+    /// <summary>The frames' size (0 × 0 before the first).</summary>
     (int Width, int Height) Size { get; }
 
-    /// <summary>A new frame came (from the camera's thread, a few a second at most): BGRA, rows of width × 4 bytes. Copy what's kept.</summary>
-    event Action<byte[], int, int>? Frame;
+    /// <summary>A preview frame came (from the camera's thread). Its buffer is the feed's: copy it, then call <see cref="Shown"/>.</summary>
+    event Action<CameraPreview>? Preview;
 
-    /// <summary>The latest frame in full, upright, as BGR; null before the first one came.</summary>
-    Picture? Latest();
+    /// <summary>The last preview was copied: the next may come, in the same buffer.</summary>
+    void Shown();
+
+    /// <summary>The next frame in full; null when none comes (the camera stopped, or <paramref name="ct"/> was cancelled first).</summary>
+    Task<CameraFrame?> CaptureAsync(CancellationToken ct = default);
 }
 
 /// <summary>A camera couldn't be started; <see cref="Exception.Message"/> says why in plain words.</summary>
@@ -72,17 +84,23 @@ public static class CameraFormats
 }
 
 /// <summary>
-/// One camera scan (roadmap 4.12): each Capture takes the camera's latest frame in full and hands it to the scan as a photo
-/// (<see cref="CaptureScanner"/> makes it a page), at most <see cref="MaxPages"/>; Done (or the window closing) ends it.
+/// One camera scan (roadmap 4.12): each Capture takes the camera's next frame in full and hands it to the scan as a photo
+/// (<see cref="CaptureScanner"/> makes it a page), one capture at a time, never the same frame twice, at most <see cref="Waiting"/>
+/// frames held while the PC makes pages of earlier ones (Capture is off past that) and <see cref="MaxPages"/> in all; Done (or the
+/// window closing) ends it.
 /// </summary>
 public sealed class CameraSession
 {
     public const int MaxPages = 100;
 
-    private readonly Channel<CapturedPhoto> _photos = Channel.CreateUnbounded<CapturedPhoto>(new UnboundedChannelOptions { SingleReader = true });
+    /// <summary>Full frames held before they're made pages (each tens of megabytes at 4K).</summary>
+    public const int Waiting = 2;
+
+    private readonly Channel<CapturedPhoto> _photos = Channel.CreateBounded<CapturedPhoto>(new BoundedChannelOptions(Waiting) { SingleReader = true });
     private readonly Lock _gate = new();
     private int _taken;
-    private bool _finished;
+    private long _lastFrame = -1;
+    private bool _finished, _capturing;
 
     public ChannelReader<CapturedPhoto> Photos => _photos.Reader;
 
@@ -96,21 +114,46 @@ public sealed class CameraSession
         get { lock (_gate) return _finished; }
     }
 
-    /// <summary>Takes <paramref name="feed"/>'s latest frame. False: there's none yet, the scan ended, or it holds <see cref="MaxPages"/>.</summary>
-    public bool Capture(ICameraFeed? feed)
-    {
-        if (feed?.Latest() is not { } frame) return false;
-        lock (_gate)
-        {
-            if (_finished || _taken >= MaxPages) return false;
-            _taken++;
-        }
-        return _photos.Writer.TryWrite(new CapturedPhoto(Frame: frame));
-    }
-
+    /// <summary>
+    /// A capture may start now: the scan is on, under <see cref="MaxPages"/>, no capture under way and fewer than <see cref="Waiting"/>
+    /// frames waiting to be made pages.
+    /// </summary>
     public bool CanCapture
     {
-        get { lock (_gate) return !_finished && _taken < MaxPages; }
+        get { lock (_gate) return !_finished && _taken < MaxPages && !_capturing && _photos.Reader.Count < Waiting; }
+    }
+
+    /// <summary>
+    /// Takes <paramref name="feed"/>'s next frame as the next page. False when it can't now (<see cref="CanCapture"/>), no frame came, the
+    /// frame is the one taken last, or the scan ended meanwhile.
+    /// </summary>
+    public async Task<bool> CaptureAsync(ICameraFeed? feed, CancellationToken ct = default)
+    {
+        if (feed is null) return false;
+        lock (_gate)
+        {
+            if (_finished || _taken >= MaxPages || _capturing || _photos.Reader.Count >= Waiting) return false;
+            _capturing = true;
+        }
+        CameraFrame? frame;
+        try
+        {
+            frame = await feed.CaptureAsync(ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            lock (_gate) _capturing = false;
+        }
+        if (frame is null) return false;
+        lock (_gate)
+        {
+            if (_finished || _taken >= MaxPages || frame.Number == _lastFrame) return false;
+            // Counted only once it's in, under the lock, so Finish can't come between.
+            if (!_photos.Writer.TryWrite(new CapturedPhoto(Frame: frame.Picture))) return false;
+            _taken++;
+            _lastFrame = frame.Number;
+        }
+        return true;
     }
 
     /// <summary>Done: the frames taken go on to be pages, nothing more is taken.</summary>
@@ -120,15 +163,19 @@ public sealed class CameraSession
         {
             if (_finished) return;
             _finished = true;
+            _photos.Writer.TryComplete();
         }
-        _photos.Writer.TryComplete();
     }
 
-    /// <summary>The line under the preview: how many pages were taken, and when no more can be.</summary>
-    public string StatusText() => Taken switch
+    /// <summary>The line under the preview: how many pages were taken, when the PC is catching up, and when no more can be.</summary>
+    public string StatusText()
     {
-        0 => CoreStrings.Camera_StatusNone,
-        >= MaxPages => CoreStrings.Camera_StatusFull,
-        var n => Plural.Of(n, CoreStrings.Camera_StatusTaken_One, CoreStrings.Camera_StatusTaken_Many),
-    };
+        int taken, waiting;
+        lock (_gate) (taken, waiting) = (_taken, _photos.Reader.Count);
+        return taken >= MaxPages ? CoreStrings.Camera_StatusFull
+            : waiting >= Waiting ? CoreStrings.Camera_StatusBusy
+            : taken == 0 ? CoreStrings.Camera_StatusNone
+            : Plural.Of(taken, CoreStrings.Camera_StatusTaken_One, CoreStrings.Camera_StatusTaken_Many);
+    }
 }
+

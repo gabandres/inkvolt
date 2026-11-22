@@ -4934,7 +4934,7 @@ The files stay where they are.</value>
     <value>Or open this address in the phone's browser:</value>
   </data>
   <data name="Phone_CertificateNote" xml:space="preserve">
-    <value>The phone's browser warns that the connection isn't private: this PC made its own certificate, as for scanner sharing. Continue to the page (Advanced, then Proceed). The certificate's fingerprint begins:</value>
+    <value>The page comes from this PC, not from a website, so no certificate authority vouches for it, and the phone's browser says the connection isn't private. On Android (Chrome): tap Advanced, then Proceed to the address. On an iPhone (Safari): tap Show Details, then visit this website. To be sure it's this PC, open the warning's certificate details: its SHA-256 fingerprint begins as below.</value>
   </data>
   <data name="Phone_Fingerprint" xml:space="preserve">
     <value>SHA-256 {0}…</value>
@@ -4986,5 +4986,29 @@ The files stay where they are.</value>
   </data>
   <data name="Camera_PreviewName" xml:space="preserve">
     <value>What the camera sees</value>
+  </data>
+  <data name="Nav_Capture" xml:space="preserve">
+    <value>Scan with your phone</value>
+  </data>
+  <data name="Nav_CaptureTip" xml:space="preserve">
+    <value>Scan with your phone or a camera, with or without a scanner</value>
+  </data>
+  <data name="Capture_PageTitle" xml:space="preserve">
+    <value>Scan with your phone or a camera</value>
+  </data>
+  <data name="Capture_PageName" xml:space="preserve">
+    <value>Phone or camera</value>
+  </data>
+  <data name="Capture_EmptyHint" xml:space="preserve">
+    <value>Use your phone or a camera above: the pages come in here, to review and save like a scan.</value>
+  </data>
+  <data name="Capture_NoScanner" xml:space="preserve">
+    <value>There's no scanner here: use your phone or a camera.</value>
+  </data>
+  <data name="Main_CloseCapturing" xml:space="preserve">
+    <value>A scan with your phone or a camera is still under way, and its pages aren't saved. Close Inkvolt Print anyway?</value>
+  </data>
+  <data name="Phone_CertificateHeading" xml:space="preserve">
+    <value>Your phone will warn you first: that's expected</value>
   </data>
 </root>

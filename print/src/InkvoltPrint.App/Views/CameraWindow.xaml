@@ -3,12 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:loc="clr-namespace:InkvoltPrint.App"
         Title="{x:Static loc:Strings.Camera_Title}" Icon="/InkvoltPrint.ico" Width="860" Height="700" MinWidth="480" MinHeight="420"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" PreviewKeyDown="Window_PreviewKeyDown">
     <!-- A camera scan (roadmap 4.12): the camera's live picture, Capture page (Space) for each page, Done. Closing it ends the scan
          and stops the camera; the pages go to the Scan tab's review. -->
-    <Window.InputBindings>
-        <KeyBinding Key="Space" Command="{Binding CaptureCommand}" />
-    </Window.InputBindings>
     <DockPanel>
         <Border DockPanel.Dock="Bottom" Padding="20,14" BorderThickness="0,1,0,0"
                 Background="{DynamicResource LayerFillColorDefaultBrush}" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}">
