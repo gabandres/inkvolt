@@ -93,6 +93,20 @@ public class ProofreadingTests
 
         // One comment: deleting it takes the strike-out along.
         Assert.Empty(Annotations.Read(Annotations.Delete(marked, null, "rep-1"), null));
+        // Deleting the strike-out (picked on the page) takes the group too: never a caret left as Insert Text.
+        Assert.Same(caret, Annotations.GroupHead(strike, all));
+        Assert.Same(caret, Annotations.GroupHead(caret, all));
+        Assert.Empty(Annotations.Read(Annotations.Delete(marked, null, strike.Id), null));
+    }
+
+    [Fact]
+    public void AGroupThatLoops_StopsClimbing()
+    {
+        AnnotationInfo Grouped(string id, string to) =>
+            new(id, AnnotationKind.StrikeOut, "StrikeOut", 0, default, "", null, null, null, null, [], false, to, false, Grouped: true);
+        List<AnnotationInfo> loop = [Grouped("a", "b"), Grouped("b", "a")];
+        Assert.Contains(Annotations.GroupHead(loop[0], loop).Id, new[] { "a", "b" });
+        Assert.Same(loop[0], Annotations.GroupHead(loop[0], [loop[0]])); // its head isn't there: itself
     }
 
     [Fact]

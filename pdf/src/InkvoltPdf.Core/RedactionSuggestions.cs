@@ -82,6 +82,9 @@ public static partial class RedactionSuggestions
             Marker().Replace(c.Text, "\n")))];
     }
 
+    /// <summary>The pages whose text is empty once tidied (scans without a text layer, pages that couldn't be read): the model reads nothing of them.</summary>
+    public static List<int> PagesWithoutText(IEnumerable<AiPageText> pages) => [.. pages.Where(p => AiText.Clean(p.Text).Length == 0).Select(p => p.Page)];
+
     /// <summary>The user's description on one line, without quotes that would close the prompt's, at most <see cref="MaxDescription"/> characters.</summary>
     public static string CleanDescription(string? text)
     {
@@ -94,12 +97,17 @@ public static partial class RedactionSuggestions
     /// list, a list of strings, other property names ("value", "type"); else bulleted lines. <paramref name="readable"/> is
     /// false when nothing like a list was found. Only text is taken; nothing in an answer is ever followed.
     /// </summary>
-    public static List<RedactionProposal> Parse(string answer, out bool readable)
+    public static List<RedactionProposal> Parse(string answer, out bool readable) => Parse(answer, out readable, out _);
+
+    /// <summary><see cref="Parse(string, out bool)"/>, with <paramref name="ignored"/>: the list's items it couldn't take
+    /// (no text under a key it knows, a nested list or true/false, or past <see cref="MaxProposalsPerAnswer"/>), counted, never lost silently.</summary>
+    public static List<RedactionProposal> Parse(string answer, out bool readable, out int ignored)
     {
         var text = AiText.WithoutThinking(answer ?? "", out _).Trim();
         text = Fence().Replace(text, "").Trim();
         var found = new List<RedactionProposal>();
         readable = false;
+        ignored = 0;
         foreach (var start in new[] { text.IndexOf('{'), text.IndexOf('[') }.Where(i => i >= 0).Order())
         {
             var end = text.LastIndexOf(text[start] == '{' ? '}' : ']');
@@ -111,10 +119,17 @@ public static partial class RedactionSuggestions
                 readable = true;
                 foreach (var item in list.EnumerateArray())
                 {
-                    if (found.Count >= MaxProposalsPerAnswer) break;
-                    if (item.ValueKind == JsonValueKind.String) found.Add(new RedactionProposal(item.GetString() ?? "", "other"));
-                    else if (item.ValueKind == JsonValueKind.Object && Field(item, "text", "value", "quote", "item", "span") is { } t)
-                        found.Add(new RedactionProposal(t, NormalizeKind(Field(item, "kind", "type", "category", "label"))));
+                    // A proposal's words: a string, a number as written (an account number the model didn't quote), or an
+                    // object's text under any of the usual keys; its kind under the usual others.
+                    var (words, kind) = item.ValueKind switch
+                    {
+                        JsonValueKind.String => (item.GetString(), "other"),
+                        JsonValueKind.Number => (item.GetRawText(), "account"),
+                        JsonValueKind.Object => (Field(item, TextKeys), NormalizeKind(Field(item, KindKeys))),
+                        _ => (null, "other"),
+                    };
+                    if (words is null || found.Count >= MaxProposalsPerAnswer) ignored++;
+                    else found.Add(new RedactionProposal(words, kind));
                 }
                 return found;
             }
@@ -129,6 +144,7 @@ public static partial class RedactionSuggestions
             if (!m.Success) continue;
             readable = true;
             if (found.Count < MaxProposalsPerAnswer) found.Add(new RedactionProposal(m.Groups["t"].Value, "other"));
+            else ignored++;
         }
         return found;
 
@@ -142,13 +158,25 @@ public static partial class RedactionSuggestions
             return null;
         }
 
-        static string? Field(JsonElement e, params string[] names)
+        // The first of the keys (in their order) that holds a string, or a number as written.
+        static string? Field(JsonElement e, string[] names)
         {
-            foreach (var p in e.EnumerateObject())
-                if (names.Contains(p.Name, StringComparer.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String) return p.Value.GetString();
+            foreach (var name in names)
+                foreach (var p in e.EnumerateObject())
+                    if (p.Name.Equals(name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (p.Value.ValueKind == JsonValueKind.String) return p.Value.GetString();
+                        if (p.Value.ValueKind == JsonValueKind.Number) return p.Value.GetRawText();
+                    }
             return null;
         }
     }
+
+    /// <summary>Where a proposal's words may be in a model's object, most likely first ("name" after "text": {"text": "Jane", "kind": "name"} is plain).</summary>
+    private static readonly string[] TextKeys = ["text", "value", "quote", "span", "entity", "item", "name", "word", "words", "phrase", "string", "content", "match"];
+
+    /// <summary>Where its kind may be.</summary>
+    private static readonly string[] KindKeys = ["kind", "type", "category", "label", "entity_type", "class", "tag"];
 
     /// <summary>A model's word for a kind as one of <see cref="KindNames"/> ("person" is a name, "company" an organization…).</summary>
     public static string NormalizeKind(string? kind)
@@ -234,10 +262,10 @@ public static partial class RedactionSuggestions
             var r = requests[i];
             var answer = await ask(r.Messages, new AiStep(i + 1, requests.Count, i == requests.Count - 1,
                 Loc.Format(PdfStrings.Redact_SuggestAsking, AiText.PagesText(r.FirstPage, r.LastPage))), cancel);
-            var proposals = Parse(answer, out var readable);
+            var proposals = Parse(answer, out var readable, out var ignored);
             if (!readable) unreadable++;
             var verified = Verify(proposals, [r.Text]);
-            dropped += verified.Dropped;
+            dropped += verified.Dropped + ignored; // items it couldn't take count as left out, never lost silently
             kept.AddRange(verified.Kept.Where(p => seen.Add(Key(p.Text))));
         }
         return new RedactionSuggestResult(kept, dropped, unreadable);
@@ -300,6 +328,11 @@ public static partial class RedactionSuggestions
     private static partial Regex Bullet();
 }
 
+/// <param name="Text">The file as written (empty when there is none or it is too large).</param>
+/// <param name="LeftOut">Terms the list holds but can't use: longer than a phrase may be, or past the most a list holds.</param>
+/// <param name="TooLarge">Larger than <see cref="RedactionTerms.MaxBytes"/>: nothing in it was read.</param>
+public sealed record RedactionTermsFile(string Text, List<string> Terms, int LeftOut, bool TooLarge);
+
 /// <summary>
 /// The names and terms the user keeps for redaction (the no-AI way to 4.10's suggestions): one per line in a text file on
 /// this PC; blank lines and lines starting with # are skipped. Bounded as phrases are.
@@ -309,43 +342,84 @@ public static class RedactionTerms
     public const int MaxBytes = 1 << 20;
 
     /// <summary>The terms in <paramref name="text"/>: trimmed, each once (any case), at most <see cref="RedactionPatterns.MaxPhrases"/>, none longer than a phrase may be.</summary>
-    public static List<string> Parse(string text)
+    public static List<string> Parse(string text) => Parse(text, out _);
+
+    /// <summary><see cref="Parse(string)"/>, with how many terms it <paramref name="leftOut"/>: too long, or past the most a list holds.</summary>
+    public static List<string> Parse(string text, out int leftOut)
     {
         var terms = new List<string>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        leftOut = 0;
         foreach (var raw in text.Replace("\r\n", "\n").Split('\n'))
         {
             var t = raw.Trim();
-            if (t.Length == 0 || t.StartsWith('#') || t.Length > RedactionPatterns.MaxPhraseLength) continue;
-            if (seen.Add(t)) terms.Add(t);
-            if (terms.Count >= RedactionPatterns.MaxPhrases) break;
+            if (t.Length == 0 || t.StartsWith('#')) continue;
+            if (t.Length > RedactionPatterns.MaxPhraseLength) leftOut++;
+            else if (seen.Add(t))
+            {
+                if (terms.Count < RedactionPatterns.MaxPhrases) terms.Add(t);
+                else leftOut++;
+            }
         }
         return terms;
+    }
+
+    /// <summary>What keeps <paramref name="text"/> from being kept as it is (a line too long, too many terms), in plain words; null when nothing does.</summary>
+    public static string? Check(string text)
+    {
+        var lines = text.Replace("\r\n", "\n").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var t = lines[i].Trim();
+            if (!t.StartsWith('#') && t.Length > RedactionPatterns.MaxPhraseLength)
+                return Loc.Format(PdfStrings.Redact_TermsLineTooLong, i + 1, RedactionPatterns.MaxPhraseLength);
+        }
+        var count = lines.Select(l => l.Trim()).Where(t => t.Length > 0 && !t.StartsWith('#')).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+        return count > RedactionPatterns.MaxPhrases ? Loc.Format(PdfStrings.Redact_TermsTooMany, count, RedactionPatterns.MaxPhrases) : null;
     }
 
     public static string Format(IEnumerable<string> terms) => string.Join("\r\n", terms) + "\r\n";
 
     /// <summary>The list kept at <paramref name="path"/>; empty when there is none, it can't be read, or it is too large.</summary>
-    public static List<string> Load(string path)
+    public static List<string> Load(string path) => Read(path).Terms;
+
+    /// <summary>
+    /// The list kept at <paramref name="path"/>: its text as written (comments too), its terms, how many terms it left out
+    /// (too long, past the most a list holds) and whether the file is too large to be read at all; never silently short.
+    /// </summary>
+    public static RedactionTermsFile Read(string path)
     {
         try
         {
             var info = new FileInfo(path);
-            if (!info.Exists || info.Length > MaxBytes) return [];
-            return Parse(File.ReadAllText(path, Encoding.UTF8));
+            if (!info.Exists) return new RedactionTermsFile("", [], 0, false);
+            if (info.Length > MaxBytes) return new RedactionTermsFile("", [], 0, true);
+            var text = File.ReadAllText(path, Encoding.UTF8);
+            return new RedactionTermsFile(text, Parse(text, out var leftOut), leftOut, false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return [];
+            return new RedactionTermsFile("", [], 0, false);
         }
     }
 
     /// <summary>Keeps the list at <paramref name="path"/> (written beside it first, then moved over it).</summary>
-    public static void Save(string path, IEnumerable<string> terms)
+    public static void Save(string path, IEnumerable<string> terms) => Write(path, Format(terms));
+
+    /// <summary>Keeps <paramref name="text"/> as the list, as written (comments too).</summary>
+    /// <exception cref="ArgumentException">It can't be kept whole (<see cref="Check"/>): nothing is written, nothing is dropped.</exception>
+    public static void SaveText(string path, string text)
+    {
+        if (Check(text) is { } problem) throw new ArgumentException(problem, nameof(text));
+        var lines = text.Replace("\r\n", "\n").TrimEnd('\n');
+        Write(path, lines.Length == 0 ? "" : lines.Replace("\n", "\r\n") + "\r\n");
+    }
+
+    private static void Write(string path, string text)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
         var temp = path + ".tmp";
-        File.WriteAllText(temp, Format(terms), new UTF8Encoding(false));
+        File.WriteAllText(temp, text, new UTF8Encoding(false));
         File.Move(temp, path, overwrite: true);
     }
 

@@ -24,8 +24,10 @@ public partial class DocumentTab
         Viewer.ContextMenuOpening += (_, _) =>
         {
             CtxInsertText.Visibility = Session.IsPdf && !IsOrganizing && Viewer.ContextCaret is not null ? Visibility.Visible : Visibility.Collapsed;
-            CtxReplaceText.Visibility = Session.IsPdf && Viewer.HasSelection ? Visibility.Visible : Visibility.Collapsed;
-            if (CtxInsertText.Visibility == Visibility.Visible) CtxMarkupSeparator.Visibility = Visibility.Visible;
+            // Replace Text with the other markup (CanMarkup), the separator below whatever of them shows.
+            CtxReplaceText.Visibility = CanMarkup ? Visibility.Visible : Visibility.Collapsed;
+            CtxMarkupSeparator.Visibility = CtxStrikeOut.Visibility == Visibility.Visible || CtxReplaceText.Visibility == Visibility.Visible
+                || CtxInsertText.Visibility == Visibility.Visible ? Visibility.Visible : Visibility.Collapsed;
         };
     }
 

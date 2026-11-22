@@ -265,6 +265,69 @@ public sealed class RedactionSuggestionsTests : IDisposable
         Assert.Equal(expected, RedactionSuggestions.NormalizeKind(kind));
 
     [Fact]
+    public void Parse_TakesTheUsualKeysAndNumbers_AndCountsWhatItCantTake()
+    {
+        var found = RedactionSuggestions.Parse(
+            """{"entities":[{"name":"Jane Doe"},{"entity":"Acme Corp","type":"ORG"},4471,{"text":2210,"kind":"account"},{"score":0.9},true,["nested"]]}""",
+            out var readable, out var ignored);
+        Assert.True(readable);
+        Assert.Equal(["Jane Doe", "Acme Corp", "4471", "2210"], found.Select(f => f.Text));
+        Assert.Equal(["other", "organization", "account", "account"], found.Select(f => f.Kind));
+        Assert.Equal(3, ignored); // the object without text, true, the nested list
+
+        var many = "[" + string.Join(",", Enumerable.Range(0, 2100).Select(i => $"\"n{i}\"")) + "]";
+        Assert.Equal(RedactionSuggestions.MaxProposalsPerAnswer, RedactionSuggestions.Parse(many, out _, out var past).Count);
+        Assert.Equal(100, past);
+    }
+
+    [Fact]
+    public async Task WhatAnAnswerHeldButCouldntBeTaken_CountsAsLeftOut()
+    {
+        var requests = RedactionSuggestions.Requests([new AiPageText(0, "Agreement between Jane Doe and Acme Corp.")], SuggestKinds.Names, null, 4000);
+        var result = await RedactionSuggestions.SuggestAsync(requests, (_, _, _) => Task.FromResult("""[{"text":"Jane Doe"},{"confidence":1},{"text":"Bob Ray"}]"""));
+        Assert.Equal(["Jane Doe"], result.Kept.Select(k => k.Text));
+        Assert.Equal(2, result.Dropped); // Bob Ray isn't in the text; the object without text couldn't be read
+    }
+
+    [Fact]
+    public void PagesWithoutText_AreNamed()
+    {
+        List<AiPageText> pages = [new(0, "Text."), new(1, "  \n \t"), new(2, ""), new(3, "More.")];
+        Assert.Equal([1, 2], RedactionSuggestions.PagesWithoutText(pages));
+    }
+
+    [Fact]
+    public void TheTermsList_IsNeverReadOrSavedShortSilently()
+    {
+        var text = "# names\nJane Doe\n" + new string('x', 600) + "\nAcme Corp\n";
+        Assert.Equal(["Jane Doe", "Acme Corp"], RedactionTerms.Parse(text, out var leftOut));
+        Assert.Equal(1, leftOut);
+        Assert.Contains("Line 3", RedactionTerms.Check(text));
+        Assert.Null(RedactionTerms.Check("# names\nJane Doe\njane doe\n"));
+        var tooMany = string.Join('\n', Enumerable.Range(0, RedactionPatterns.MaxPhrases + 1).Select(i => $"t{i}"));
+        Assert.Contains($"{RedactionPatterns.MaxPhrases + 1:N0}", RedactionTerms.Check(tooMany));
+        RedactionTerms.Parse(tooMany, out var past);
+        Assert.Equal(1, past);
+
+        // Saved as written, comments too; one that can't be kept whole isn't saved at all.
+        var path = Path.Combine(_root, "terms.txt");
+        RedactionTerms.SaveText(path, "# names\nJane Doe\n");
+        Assert.Equal("# names\r\nJane Doe\r\n", File.ReadAllText(path));
+        Assert.Throws<ArgumentException>(() => RedactionTerms.SaveText(path, text));
+        Assert.Equal("# names\r\nJane Doe\r\n", File.ReadAllText(path));
+
+        // Read says what it left out, and when the file is too large to read at all.
+        File.WriteAllText(path, text);
+        var file = RedactionTerms.Read(path);
+        Assert.Equal(text, file.Text);
+        Assert.Equal(["Jane Doe", "Acme Corp"], file.Terms);
+        Assert.Equal(1, file.LeftOut);
+        Assert.False(file.TooLarge);
+        File.WriteAllBytes(path, new byte[RedactionTerms.MaxBytes + 1]);
+        Assert.True(RedactionTerms.Read(path).TooLarge);
+    }
+
+    [Fact]
     public void ItIsAProFeature()
     {
         Assert.Contains("Inkvolt Pro", Pro.Locked(ProFeature.RedactionSuggestions));

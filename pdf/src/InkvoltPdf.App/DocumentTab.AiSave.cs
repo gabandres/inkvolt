@@ -71,11 +71,18 @@ public partial class DocumentTab
         path ??= CommentFileActions.PickSave(owner, one ? Strings.TabAi_SaveAnswerTitle : Strings.TabAi_SaveConversationTitle,
             word ? Strings.Export_WordFilter : PdfFiles.PdfFilter, name, Path.GetDirectoryName(Session.FilePath));
         if (path is null) return false;
+        // Never over a PDF open in a tab (this one included): its tab reads that file.
+        if (PdfFiles.IsOpenInTab(path))
+        {
+            OpenInTabRefused(path);
+            return false;
+        }
         var documentName = Session.DisplayName;
         try
         {
             var bytes = await Task.Run(() => word ? AiAnswerExport.ToDocx(list, documentName) : AiAnswerExport.ToPdf(list, documentName));
-            await File.WriteAllBytesAsync(path, bytes);
+            var file = path;
+            await Task.Run(() => AtomicFile.WriteAllBytes(file, bytes));
         }
         catch (Exception ex) when (ex is not OutOfMemoryException) // fire-and-forget: anything that fails is said, never lost
         {

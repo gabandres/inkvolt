@@ -12032,10 +12032,10 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>The list couldn't be saved. Check that the app's data folder can be written to, then try again.</value>
   </data>
   <data name="Redact_SuggestDropped_One" xml:space="preserve">
-    <value>{0} suggestion wasn't in the text as written and was left out.</value>
+    <value>{0} suggestion wasn't in the text as written, or couldn't be read, and was left out.</value>
   </data>
   <data name="Redact_SuggestDropped_Many" xml:space="preserve">
-    <value>{0} suggestions weren't in the text as written and were left out.</value>
+    <value>{0} suggestions weren't in the text as written, or couldn't be read, and were left out.</value>
   </data>
   <data name="Redact_SuggestUnreadable_One" xml:space="preserve">
     <value>{0} answer from the assistant wasn't a list and was skipped.</value>
@@ -12135,5 +12135,20 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   </data>
   <data name="Redact_SuggestAiDidntRun" xml:space="preserve">
     <value>The assistant's suggestions aren't included (nothing came back from it): only your names and terms list was searched.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_One" xml:space="preserve">
+    <value>The assistant didn't read {1}: it has no text. Scanned pages need Recognize Text (OCR) first; the search below still reads them for your list and shows them to look at.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_Many" xml:space="preserve">
+    <value>The assistant didn't read {1}: they have no text. Scanned pages need Recognize Text (OCR) first; the search below still reads them for your list and shows them to look at.</value>
+  </data>
+  <data name="Redact_TermsTooLarge" xml:space="preserve">
+    <value>Your saved names and terms list is larger than {0} MB, so none of it is used. Edit it to shorten it.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_One" xml:space="preserve">
+    <value>{0} entry in your saved list is too long, or past what a list can hold, and isn't searched. Edit the list to fix it.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
+    <value>{0} entries in your saved list are too long, or past what a list can hold, and aren't searched. Edit the list to fix it.</value>
   </data>
 </root>

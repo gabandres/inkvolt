@@ -7298,4 +7298,10 @@
   <data name="Redact_SuggestTooMany" xml:space="preserve">
     <value>Hay {0:N0} nombres y términos distintos que buscar, más de los {1:N0} que admite una búsqueda, así que no se buscó nada. Elige menos páginas o acorta tu lista, y vuelve a intentarlo.</value>
   </data>
+  <data name="Redact_TermsLineTooLong" xml:space="preserve">
+    <value>La línea {0:N0} tiene más de {1:N0} caracteres, así que no se podría buscar. Acórtala o divídela y vuelve a guardar.</value>
+  </data>
+  <data name="Redact_TermsTooMany" xml:space="preserve">
+    <value>La lista tiene {0:N0} nombres y términos; caben {1:N0}. Quita algunos y vuelve a guardar.</value>
+  </data>
 </root>

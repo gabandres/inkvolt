@@ -12029,10 +12029,10 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>No se pudo guardar la lista. Comprueba que se puede escribir en la carpeta de datos de la aplicación y vuelve a intentarlo.</value>
   </data>
   <data name="Redact_SuggestDropped_One" xml:space="preserve">
-    <value>{0} sugerencia no estaba en el texto tal como se escribió y se dejó fuera.</value>
+    <value>{0} sugerencia no estaba en el texto tal como se escribió, o no se pudo leer, y se dejó fuera.</value>
   </data>
   <data name="Redact_SuggestDropped_Many" xml:space="preserve">
-    <value>{0} sugerencias no estaban en el texto tal como se escribieron y se dejaron fuera.</value>
+    <value>{0} sugerencias no estaban en el texto tal como se escribieron, o no se pudieron leer, y se dejaron fuera.</value>
   </data>
   <data name="Redact_SuggestUnreadable_One" xml:space="preserve">
     <value>{0} respuesta del asistente no era una lista y se omitió.</value>
@@ -12132,5 +12132,20 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   </data>
   <data name="Redact_SuggestAiDidntRun" xml:space="preserve">
     <value>No se incluyen las sugerencias del asistente (no devolvió nada): solo se buscó tu lista de nombres y términos.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_One" xml:space="preserve">
+    <value>El asistente no leyó {1}: no tiene texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR); la búsqueda de abajo igualmente las lee para tu lista y te las muestra para revisarlas.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_Many" xml:space="preserve">
+    <value>El asistente no leyó {1}: no tienen texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR); la búsqueda de abajo igualmente las lee para tu lista y te las muestra para revisarlas.</value>
+  </data>
+  <data name="Redact_TermsTooLarge" xml:space="preserve">
+    <value>Tu lista guardada de nombres y términos ocupa más de {0} MB, así que no se usa nada de ella. Edítala para acortarla.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_One" xml:space="preserve">
+    <value>{0} entrada de tu lista guardada es demasiado larga, o supera lo que cabe en una lista, y no se busca. Edita la lista para corregirlo.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
+    <value>{0} entradas de tu lista guardada son demasiado largas, o superan lo que cabe en una lista, y no se buscan. Edita la lista para corregirlo.</value>
   </data>
 </root>

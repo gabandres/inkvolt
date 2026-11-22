@@ -750,9 +750,11 @@ public partial class DocumentTab
     public async Task<bool> DeleteComment(AnnotationInfo a)
     {
         if (!ReviewIsCurrent()) return false;
-        var replies = _annotations.Count(x => x.ReplyTo == a.Id && !x.Grouped); // a group's members go as part of it
+        // A group's member (Replace Text's strike-out) goes with its head, as one comment (Core deletes the group whole too).
+        var head = Annotations.GroupHead(a, _annotations);
+        var replies = _annotations.Count(x => x.ReplyTo == head.Id && !x.Grouped); // a group's members go as part of it
         return await RunEdit(replies > 0 ? Loc.Plural(replies, Strings.Review_UndoDeleteReplies_One, Strings.Review_UndoDeleteReplies_Many) : Strings.Review_UndoDeleteComment,
-            (d, pw) => Annotations.Delete(d, pw, a.Id), contentOnly: true);
+            (d, pw) => Annotations.Delete(d, pw, head.Id), contentOnly: true);
     }
 
     // ───────────────────────────── Attachments ─────────────────────────────

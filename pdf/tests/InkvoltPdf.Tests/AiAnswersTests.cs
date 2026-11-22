@@ -108,5 +108,12 @@ public class AiAnswersTests
         Assert.True(engine.PageCount >= 4, $"{engine.PageCount} pages");
         Assert.Contains("Point 200", engine.GetText(engine.PageCount - 1).Text);
         Assert.Throws<ArgumentException>(() => AiAnswerExport.ToPdf([], "x.pdf"));
+
+        // **bold** is drawn bold, the rest of its line regular.
+        using var first = PdfEngine.Open(pdf, InputFileTypes.PDF, null);
+        var spans = first.GetExportPage(0, images: false).Lines.SelectMany(l => l.Spans).ToList();
+        Assert.Contains(spans, s => s.Text.Contains("two", StringComparison.Ordinal) && s.Bold);
+        Assert.Contains(spans, s => s.Text.Contains("lease runs", StringComparison.Ordinal) && !s.Bold);
+        Assert.Contains(spans, s => s.Text.Contains("[p. 2]", StringComparison.Ordinal) && !s.Bold);
     }
 }

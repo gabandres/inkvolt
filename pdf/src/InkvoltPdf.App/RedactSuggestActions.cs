@@ -67,13 +67,19 @@ public static class RedactSuggestActions
         described.MaxLength = RedactionSuggestions.MaxDescription;
         described.ToolTip = Strings.Redact_SuggestDescribeTip;
 
-        var terms = RedactionTerms.Load(TermsPath);
-        var useTerms = dlg.AddCheck(Loc.Plural(terms.Count, Strings.Redact_SuggestUseList_One, Strings.Redact_SuggestUseList_Many), current.UseTerms);
+        var file = RedactionTerms.Read(TermsPath);
+        var useTerms = dlg.AddCheck(Loc.Plural(file.Terms.Count, Strings.Redact_SuggestUseList_One, Strings.Redact_SuggestUseList_Many), current.UseTerms);
+        // A list read short says so: a term it can't use must never look searched.
+        var listNote = dlg.AddNote(ListProblem(file) ?? "");
+        listNote.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
+        listNote.Visibility = listNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         dlg.AddFooterButton(Strings.Redact_SuggestEditList).Click += (_, _) =>
         {
             if (EditTerms(dlg) is not { } saved) return;
-            useTerms.Content = Loc.Plural(saved.Count, Strings.Redact_SuggestUseList_One, Strings.Redact_SuggestUseList_Many);
-            if (saved.Count > 0) useTerms.IsChecked = true;
+            useTerms.Content = Loc.Plural(saved.Terms.Count, Strings.Redact_SuggestUseList_One, Strings.Redact_SuggestUseList_Many);
+            listNote.Text = ListProblem(saved) ?? "";
+            listNote.Visibility = listNote.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (saved.Terms.Count > 0) useTerms.IsChecked = true;
         };
         var range = dlg.AddRange(tab);
         range.SelectAll(); // what to keep private is usually on every page
@@ -93,12 +99,23 @@ public static class RedactSuggestActions
         return new RedactSuggestPlan(config is null ? SuggestKinds.None : chosen, config is null ? null : described.Text, useTerms.IsChecked == true, pages);
     }
 
-    /// <summary>The names and terms list, one per line, edited and kept on this PC; the saved list, or null when cancelled.</summary>
-    internal static List<string>? EditTerms(Window owner)
+    /// <summary>What a list read short is missing, in words; null when it was read whole.</summary>
+    internal static string? ListProblem(RedactionTermsFile file) =>
+        file.TooLarge ? Loc.Format(Strings.Redact_TermsTooLarge, RedactionTerms.MaxBytes / (1 << 20))
+        : file.LeftOut > 0 ? Loc.Plural(file.LeftOut, Strings.Redact_TermsLeftOut_One, Strings.Redact_TermsLeftOut_Many)
+        : null;
+
+    /// <summary>
+    /// The names and terms list, one per line, edited and kept on this PC as written; the saved list, or null when
+    /// cancelled. A list that can't be kept whole (a line too long, too many) isn't saved: the dialog says why.
+    /// </summary>
+    internal static RedactionTermsFile? EditTerms(Window owner)
     {
         var dlg = new FormDialog(owner, Strings.Redact_TermsTitle, Strings.Common_Save, 480);
         dlg.AddNote(Strings.Redact_TermsNote);
-        var box = dlg.AddText(Strings.Redact_TermsLabel, string.Join("\r\n", RedactionTerms.Load(TermsPath)));
+        var file = RedactionTerms.Read(TermsPath);
+        if (ListProblem(file) is { } problem) dlg.AddNote(problem).SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorCautionBrush");
+        var box = dlg.AddText(Strings.Redact_TermsLabel, file.Text);
         box.AcceptsReturn = true;
         box.TextWrapping = TextWrapping.NoWrap;
         box.MinHeight = 200;
@@ -106,11 +123,11 @@ public static class RedactSuggestActions
         box.VerticalContentAlignment = VerticalAlignment.Top;
         box.VerticalScrollBarVisibility = ScrollBarVisibility.Auto;
         box.HorizontalScrollBarVisibility = ScrollBarVisibility.Auto;
+        dlg.Validate(() => RedactionTerms.Check(box.Text));
         if (!dlg.ShowModal()) return null;
-        var terms = RedactionTerms.Parse(box.Text);
         try
         {
-            RedactionTerms.Save(TermsPath, terms);
+            RedactionTerms.SaveText(TermsPath, box.Text);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -118,6 +135,6 @@ public static class RedactSuggestActions
             Prompt.Error(owner, Strings.Redact_TermsTitle, Strings.Redact_TermsNotSaved);
             return null;
         }
-        return terms;
+        return RedactionTerms.Read(TermsPath);
     }
 }

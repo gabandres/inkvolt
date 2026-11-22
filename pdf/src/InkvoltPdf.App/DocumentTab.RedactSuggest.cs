@@ -39,7 +39,12 @@ public partial class DocumentTab
             else if (!plan.UseTerms || _disposed) return false; // not sent, stopped or failed: said where it happened
             else notes.Add(Strings.Redact_SuggestAiDidntRun); // the list is still searched, and the list says the assistant's part is missing
         }
-        if (plan.UseTerms) proposals.AddRange(RedactionTerms.AsProposals(RedactionTerms.Load(RedactSuggestActions.TermsPath)));
+        if (plan.UseTerms)
+        {
+            var file = RedactionTerms.Read(RedactSuggestActions.TermsPath);
+            proposals.AddRange(RedactionTerms.AsProposals(file.Terms));
+            if (RedactSuggestActions.ListProblem(file) is { } problem) notes.Add(problem); // a list read short is said above the list
+        }
         var note = notes.Count > 0 ? string.Join(" ", notes) : null;
         if (proposals.Count == 0)
         {
@@ -78,6 +83,10 @@ public partial class DocumentTab
         var texts = await AiReadPages(plan.Pages);
         if (texts is null) return null;
         var requests = RedactionSuggestions.Requests(texts, plan.Kinds, plan.Description, config.InputTokens);
+        // Pages without text (scans, pages that couldn't be read) go to the model as nothing: always said, by page.
+        var blank = RedactionSuggestions.PagesWithoutText(texts);
+        if (requests.Count > 0 && blank.Count > 0)
+            notes.Add(Loc.Plural(blank.Count, Strings.Redact_SuggestSomeNoText_One, Strings.Redact_SuggestSomeNoText_Many, AiText.PagesText(blank)));
         if (requests.Count == 0)
         {
             // Scans without text: nothing to send; the search after reads them through recognition, and the list says so.

@@ -120,33 +120,64 @@ public static partial class AiAnswerExport
     {
         if (exchanges.Count == 0) throw new ArgumentException(PdfStrings.Ai_NothingToSave, nameof(exchanges));
         var title = Loc.Format(PdfStrings.Ai_SavedTitle, documentName);
-        // What is drawn, as lines: (text, size, bold, gray, indent, space before).
-        var lines = new List<(string Text, double Size, bool Bold, bool Gray, double Indent, double Before)>();
+        // What is drawn, as lines of segments (regular or bold): (segments, size, gray, indent, space before).
+        var lines = new List<(List<(string Text, bool Bold)> Segments, double Size, bool Gray, double Indent, double Before)>();
         var all = new List<string> { title };
         foreach (var e in exchanges) all.AddRange([e.Shown, Note(e), e.Answer]);
         var regular = new TextPainter(StdFont.Helvetica, all);
         var bold = new TextPainter(new StdFont(StdFamily.Helvetica, true, false), all) { CidPrefix = "/PdB" };
-        void Wrap(string text, double size, bool isBold, bool gray, double indent, double before, string first = "")
+        // Word by word, each in its own weight, the line broken where the next word wouldn't fit.
+        void Wrap(IReadOnlyList<(string Text, bool Bold)> runs, double size, bool gray, double indent, double before, string first = "")
         {
-            var painter = isBold ? bold : regular;
-            var wrapped = painter.Wrap(text, Width - indent, size);
-            for (var i = 0; i < wrapped.Count; i++)
-                lines.Add(((i == 0 ? first : "") + wrapped[i], size, isBold, gray, indent - (i == 0 && first.Length > 0 ? 12 : 0), i == 0 ? before : 0));
+            var width = Width - indent;
+            var line = new List<(string Text, bool Bold)>();
+            var used = 0.0;
+            var count = 0;
+            void Close()
+            {
+                var hang = count == 0 && first.Length > 0;
+                if (hang) line.Insert(0, (first, false));
+                lines.Add((line, size, gray, indent - (hang ? 12 : 0), count == 0 ? before : 0));
+                count++;
+                line = [];
+                used = 0;
+            }
+            foreach (var (text, isBold) in runs)
+            {
+                var painter = isBold ? bold : regular;
+                foreach (var token in WordsOf().Split(text).Where(t => t.Length > 0))
+                {
+                    var w = painter.Measure(token.TrimEnd()) * size;
+                    if (line.Count > 0 && used + w > width) Close();
+                    if (w > width) // one word wider than the line: in pieces that fit
+                    {
+                        foreach (var piece in painter.Wrap(token.TrimEnd(), width, size))
+                        {
+                            if (line.Count > 0) Close();
+                            line.Add((piece, isBold));
+                            used = painter.Measure(piece) * size;
+                        }
+                        continue;
+                    }
+                    line.Add((token, isBold));
+                    used += painter.Measure(token) * size;
+                }
+            }
+            if (line.Count > 0 || count == 0) Close();
         }
-        Wrap(title, 18, true, false, 0, 0);
+        Wrap([(title, true)], 18, false, 0, 0);
         foreach (var e in exchanges)
         {
-            Wrap(e.Shown, 13, true, false, 0, 16);
-            Wrap(Note(e), 9, false, true, 0, 2);
+            Wrap([(e.Shown, true)], 13, false, 0, 16);
+            Wrap([(Note(e), false)], 9, true, 0, 2);
             foreach (var b in Blocks(e.Answer))
             {
-                var text = Plain(b.Text);
                 switch (b.Kind)
                 {
                     case BlockKind.Blank: continue;
-                    case BlockKind.Heading: Wrap(text, 11, true, false, 0, 8); break;
-                    case BlockKind.Bullet: Wrap(text, 11, false, false, 12, 3, "•  "); break;
-                    default: Wrap(text, 11, false, false, b.Kind == BlockKind.Numbered ? 12 : 0, 5); break;
+                    case BlockKind.Heading: Wrap([(b.Text, true)], 11, false, 0, 8); break;
+                    case BlockKind.Bullet: Wrap(Runs(b.Text), 11, false, 12, 3, "•  "); break;
+                    default: Wrap(Runs(b.Text), 11, false, b.Kind == BlockKind.Numbered ? 12 : 0, 5); break;
                 }
             }
         }
@@ -157,18 +188,11 @@ public static partial class AiAnswerExport
         var pages = new List<(PdfPage Page, StringBuilder Ops)>();
         StringBuilder? ops = null;
         var y = 0.0;
-        void Flush()
-        {
-            if (ops is null) return;
-            ops.Append(Encoding.Latin1.GetString(regular.Ops("/F1", Black)));
-            ops.Append(Encoding.Latin1.GetString(bold.Ops("/F2", Black)));
-        }
-        foreach (var (text, size, isBold, gray, indent, before) in lines)
+        foreach (var (segments, size, gray, indent, before) in lines)
         {
             var height = size * 1.3;
             if (ops is null || y - before - height < Margin)
             {
-                Flush();
                 var page = doc.AddPage();
                 page.Width = PdfSharp.Drawing.XUnit.FromPoint(PageW);
                 page.Height = PdfSharp.Drawing.XUnit.FromPoint(PageH);
@@ -178,17 +202,16 @@ public static partial class AiAnswerExport
             }
             else y -= before;
             y -= height;
-            if (gray)
+            var x = Margin + indent;
+            foreach (var (text, isBold) in segments)
             {
-                // Gray text goes out at once in its color; the rest waits for the page's black.
-                ops.Append(Encoding.Latin1.GetString(regular.Ops("/F1", Black)));
-                ops.Append(Encoding.Latin1.GetString(bold.Ops("/F2", Black)));
-                regular.Draw(text, Margin + indent, y + size * 0.25, size);
-                ops.Append(Encoding.Latin1.GetString(regular.Ops("/F1", Gray)));
+                // Each piece goes out as it is drawn, in reading order, so the text copies and reads aloud as written.
+                var painter = isBold ? bold : regular;
+                painter.Draw(text.TrimEnd(), x, y + size * 0.25, size);
+                ops.Append(Encoding.Latin1.GetString(painter.Ops(isBold ? "/F2" : "/F1", gray ? Gray : Black)));
+                x += painter.Measure(text) * size;
             }
-            else (isBold ? bold : regular).Draw(text, Margin + indent, y + size * 0.25, size);
         }
-        Flush();
 
         // One font dictionary for every page, each font subset to every page's glyphs (as Summarize Comments does).
         var fonts = new PdfDictionary(doc);
@@ -252,4 +275,8 @@ public static partial class AiAnswerExport
 
     [GeneratedRegex(@"^\s*\d{1,3}[.)]\s+")]
     private static partial Regex Numbered();
+
+    // A word with the spaces after it: what a line breaks between.
+    [GeneratedRegex(@"(?<=\s)(?=\S)")]
+    private static partial Regex WordsOf();
 }

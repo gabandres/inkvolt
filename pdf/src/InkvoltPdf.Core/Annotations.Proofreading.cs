@@ -92,6 +92,31 @@ public static partial class Annotations
     public static bool IsGroupMember(AnnotationInfo a, IReadOnlySet<string> ids) =>
         a.Grouped && a.ReplyTo is { } head && head != a.Id && ids.Contains(head);
 
+    /// <summary>The comment <paramref name="a"/> is part of: its group's head when it is a member (/RT /Group), else itself.
+    /// A chain of groups is climbed a few steps at most; one that loops stops.</summary>
+    public static AnnotationInfo GroupHead(AnnotationInfo a, IEnumerable<AnnotationInfo> all)
+    {
+        var byId = new Dictionary<string, AnnotationInfo>(StringComparer.Ordinal);
+        foreach (var x in all) byId.TryAdd(x.Id, x);
+        var head = a;
+        for (var hops = 0; hops < MaxGroupHops && head.Grouped && head.ReplyTo is { } to && byId.TryGetValue(to, out var up) && up.Id != head.Id; hops++)
+            head = up;
+        return head;
+    }
+
+    /// <summary>The most steps from a group's member to its head (a hostile file can chain or loop them).</summary>
+    internal const int MaxGroupHops = 16;
+
+    /// <summary><see cref="GroupHead"/> on the document itself: what a delete or a move takes as one comment.</summary>
+    internal static PdfDictionary GroupHeadIn(PdfDictionary annot)
+    {
+        var head = annot;
+        for (var hops = 0; hops < MaxGroupHops && PdfObj.Name(head.Elements["/RT"]) == "Group" && PdfObj.Dict(head.Elements["/IRT"]) is { } up
+                           && !ReferenceEquals(up, head) && !ReferenceEquals(up, annot); hops++)
+            head = up;
+        return head;
+    }
+
     private static string CheckProofText(string text)
     {
         text = text.Replace("\r\n", "\n").Trim();

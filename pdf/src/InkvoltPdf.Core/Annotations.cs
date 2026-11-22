@@ -312,7 +312,7 @@ public static partial class Annotations
         return PdfObj.Save(doc);
     }
 
-    /// <summary>Deletes an annotation with its popup and its replies (and theirs).</summary>
+    /// <summary>Deletes an annotation with its popup and its replies (and theirs); a group's member, the whole group.</summary>
     public static byte[] Delete(byte[] data, string? password, string id)
     {
         using var doc = OpenForEdit(data, password);
@@ -324,7 +324,8 @@ public static partial class Annotations
     {
         if (Find(doc, id) is not { } found) return false;
         SignedEdits.NoteRemoval();
-        var doomed = ThreadOf(doc, found.Annot);
+        // A group's member (Replace Text's strike-out) is part of one comment: the whole group goes, never half of it.
+        var doomed = ThreadOf(doc, GroupHeadIn(found.Annot));
         for (var p = 0; p < doc.PageCount; p++)
         {
             if (PdfObj.Array(doc.Pages[p].Elements["/Annots"]) is null) continue;
