@@ -1092,9 +1092,16 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
             return;
         }
         if (Scan is null || (Scan.ViaWindows != (scanner is WiaScanner) && !Scan.HasUnsavedPages))
-            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, PrintTargetAsync, _pc);
+            Scan = new ScanViewModel(scanner, caps, _state, _presets, Name, PrintTargetAsync, _pc) { ShowRecent = () => Prompt.ShowRecentScans?.Invoke(RecentScans()) };
         else Scan.Rebind(scanner);
     }
+
+    /// <summary>The recent scans (roadmap 4.15), whose Print goes to this printer's Print a PDF, Batch or Print photos.</summary>
+    public RecentScansViewModel RecentScans() => new(_state, _pc.OpensOtherApps, CanPrint ? PrintRecentAsync : null);
+
+    /// <summary>A recent scan printed here: one PDF in Print a PDF, several in Batch, pictures in Print photos.</summary>
+    private Task PrintRecentAsync(Core.History.RecentScan scan) =>
+        scan.IsPdf ? scan.Files.Count == 1 ? OpenPdfAsync(scan.Files[0]) : OpenBatchAsync(scan.Files) : OpenPhotosAsync(scan.Files);
 
     /// <summary>
     /// The WIA scanner that belongs to this entry now (null: none). Connecting reads what it offers, in the background; one that

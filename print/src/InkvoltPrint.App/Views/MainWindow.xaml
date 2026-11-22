@@ -663,6 +663,8 @@
                 <DockPanel Grid.ColumnSpan="2" Margin="0,0,0,8">
                     <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.Overview_ManagePresets}" Command="{Binding ManagePresetsCommand}" Style="{StaticResource LinkButton}"
                             VerticalAlignment="Top" Margin="12,8,0,0" />
+                    <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.ScanTab_RecentScans}" Command="{Binding OpenRecentCommand}" Style="{StaticResource LinkButton}"
+                            VerticalAlignment="Top" Margin="12,8,0,0" ToolTip="{x:Static loc:Strings.ScanTab_RecentScansTip}" />
                     <TextBlock DockPanel.Dock="Left" Text="{x:Static loc:Strings.ScanTab_OneClick}" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,8,16,0" />
                     <ItemsControl ItemsSource="{Binding Presets}" AlternationCount="100" Focusable="False"
                                   AutomationProperties.Name="{x:Static loc:Strings.Overview_ScanPresetsName}"

@@ -1456,6 +1456,7 @@ public sealed partial class ScanViewModel : ObservableObject
             }
             LastSavedPath = all[0];
             _savedPdfs = jpg ? [] : all;
+            NoteRecent(all, files.Sum(f => f.Sum(p => p.ImageCount)), null);
             MarkSaved(changes);
             Message = SavedText(Path.GetFileName(LastSavedPath), all.Count, files.Count, jpg)
                       + (jpg ? "" : AsSentNote(files));
@@ -1595,6 +1596,16 @@ public sealed partial class ScanViewModel : ObservableObject
         if (LastSavedPath is not null) Shell.ShowInFolder(LastSavedPath);
     }
 
+    /// <summary>A save goes on the recent scans (roadmap 4.15), with this scanner's name and the preset's.</summary>
+    private void NoteRecent(IReadOnlyList<string> files, int pages, string? preset) =>
+        _state.AddRecentScan(new Core.History.RecentScan([.. files], DateTimeOffset.Now, pages, _printerName, preset));
+
+    /// <summary>Set by the printer: shows the recent scans (<see cref="RecentScansViewModel"/>), printing on this printer.</summary>
+    public Action? ShowRecent { get; set; }
+
+    [RelayCommand]
+    private void OpenRecent() => ShowRecent?.Invoke();
+
     // ---- Presets: one click scans with a preset's settings and saves (or stops on the review first) ----
 
     /// <summary>Shared by every printer; the editor changes them for all.</summary>
@@ -1731,6 +1742,7 @@ public sealed partial class ScanViewModel : ObservableObject
             ActivePreset = _presets.FindById(preset.Id) ?? preset;
             LastSavedPath = saved[0];
             _savedPdfs = jpg ? [] : saved;
+            NoteRecent(saved, kept.Sum(p => p.ImageCount), preset.Name);
             MarkSaved(changes);
             Message = SavedText(Path.GetFileName(saved[0]), saved.Count, files.Count, jpg, folder)
                 + (before.Count == 0 ? "" : " " + string.Format(Strings.Scan_AlreadySaved, string.Join(", ", before.Select(Path.GetFileName))))
@@ -1749,7 +1761,11 @@ public sealed partial class ScanViewModel : ObservableObject
             Log.Write($"Preset save failed: {ex}");
             Message = saved.Count == 0 ? string.Format(Strings.Scan_SaveFailed, ex.Message)
                 : string.Format(Strings.Scan_PartSaveFailed, done, files.Count, string.Join(", ", saved.Select(Path.GetFileName)), done + 1, ex.Message);
-            if (saved.Count > 0) LastSavedPath = saved[0];
+            if (saved.Count > 0)
+            {
+                LastSavedPath = saved[0];
+                NoteRecent(saved, 0, preset.Name); // the files that were written, pages not counted
+            }
             return;
         }
         finally

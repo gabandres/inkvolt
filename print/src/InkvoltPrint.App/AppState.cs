@@ -274,6 +274,29 @@ public sealed class AppState
     /// <summary>Printers the person prints to straight over IPP although they have a Windows queue (roadmap 2.1).</summary>
     public List<string> DirectPrinters { get; set; } = [];
 
+    /// <summary>The last saved scans, newest first (roadmap 4.15, <see cref="Core.History.RecentScans"/>): kept in this file, on this PC only.</summary>
+    public List<Core.History.RecentScan> RecentScans { get; set; } = [];
+
+    /// <summary>The recent scans as kept (a copy).</summary>
+    public IReadOnlyList<Core.History.RecentScan> GetRecentScans()
+    {
+        lock (_gate) return [.. RecentScans];
+    }
+
+    /// <summary>A save of scanned pages goes to the top of the recent scans.</summary>
+    public void AddRecentScan(Core.History.RecentScan scan)
+    {
+        lock (_gate) RecentScans = [.. Core.History.RecentScans.Add(RecentScans, scan)];
+        Save();
+    }
+
+    /// <summary>Keeps <paramref name="list"/> as the recent scans (an entry removed, the gone files dropped, the list cleared).</summary>
+    public void SetRecentScans(IReadOnlyList<Core.History.RecentScan> list)
+    {
+        lock (_gate) RecentScans = [.. Core.History.RecentScans.Clean(list)];
+        Save();
+    }
+
     public bool GetPrintDirect(string uuid)
     {
         lock (_gate) return DirectPrinters.Contains(uuid, StringComparer.OrdinalIgnoreCase);
@@ -416,6 +439,7 @@ public sealed class AppState
             state.ForgottenUuids ??= [];
             state.NoFirmwareNotify ??= [];
             state.DirectPrinters = (state.DirectPrinters ?? []).OfType<string>().ToList();
+            state.RecentScans = [.. Core.History.RecentScans.Clean(state.RecentScans)];
             state.AcceptedUuids = new((state.AcceptedUuids ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);

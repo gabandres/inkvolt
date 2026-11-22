@@ -36,6 +36,9 @@ public static class Prompt
 
     /// <summary>Opens the scan presets editor (Views.ScanPresetsDialog); the printer name is for its file-name example. Unset (tests): no-op.</summary>
     public static Action<ScanPresetLibrary, string>? EditPresets { get; set; }
+
+    /// <summary>Opens the recent scans (Views.RecentScansDialog, roadmap 4.15). Unset (tests): no-op.</summary>
+    public static Action<RecentScansViewModel>? ShowRecentScans { get; set; }
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable

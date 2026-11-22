@@ -116,6 +116,7 @@ public partial class App : Application
         Prompt.Confirm = (message, confirm) => ConfirmDialog.Ask(MainWindow, message, confirm);
         Prompt.Inform = message => ConfirmDialog.Tell(MainWindow, message);
         Prompt.EditPresets = (presets, printer) => ScanPresetsDialog.Open(MainWindow, presets, printer);
+        Prompt.ShowRecentScans = recent => RecentScansDialog.Open(MainWindow, recent);
         Prompt.Announcer = message =>
         {
             if (MainWindow is { } w && (System.Windows.Automation.Peers.UIElementAutomationPeer.FromElement(w)

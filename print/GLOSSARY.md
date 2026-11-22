@@ -124,5 +124,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   answering now.
 - **Safe repair**: what Fix all may do, each confirmed: resume a queue, turn off Use Printer Offline (`Repair.IsSafe`). It loses nothing, moves no
   job elsewhere and interrupts no other printer; the rest stays on each printer's own fixer.
+- **Recent scans**: the last saves of scanned pages, newest first, kept with the app's settings on this PC only (`RecentScans`). An
+  entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
+  goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never
+  touches its files.
 - **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
   from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".

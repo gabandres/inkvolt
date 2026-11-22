@@ -3784,4 +3784,72 @@ Empezar de nuevo</value>
   <data name="Scan_BacksStopped" xml:space="preserve">
     <value>Se detuvo el escaneo de los reversos: las páginas escaneadas están en orden.</value>
   </data>
+  <data name="Recent_Title" xml:space="preserve">
+    <value>Escaneos recientes</value>
+  </data>
+  <data name="Recent_Intro" xml:space="preserve">
+    <value>Tus últimos escaneos guardados, de todos los escáneres. La lista se guarda solo en este PC; quitar un escaneo de ella no elimina el archivo.</value>
+  </data>
+  <data name="Recent_Empty" xml:space="preserve">
+    <value>Todavía no hay escaneos guardados. Los escaneos que guardes, o que guardes con un ajuste, aparecen aquí.</value>
+  </data>
+  <data name="Recent_AndMore_One" xml:space="preserve">
+    <value>{1} y {0} más</value>
+  </data>
+  <data name="Recent_AndMore_Many" xml:space="preserve">
+    <value>{1} y {0} más</value>
+  </data>
+  <data name="Recent_Today" xml:space="preserve">
+    <value>Hoy, {0}</value>
+  </data>
+  <data name="Recent_Yesterday" xml:space="preserve">
+    <value>Ayer, {0}</value>
+  </data>
+  <data name="Recent_Email" xml:space="preserve">
+    <value>Enviar de nuevo por correo</value>
+  </data>
+  <data name="Recent_Print" xml:space="preserve">
+    <value>Imprimir</value>
+  </data>
+  <data name="Recent_Remove" xml:space="preserve">
+    <value>Quitar de la lista</value>
+  </data>
+  <data name="Recent_RemoveTip" xml:space="preserve">
+    <value>El archivo se queda donde está.</value>
+  </data>
+  <data name="Recent_OpenName" xml:space="preserve">
+    <value>Abrir {0}</value>
+  </data>
+  <data name="Recent_ShowName" xml:space="preserve">
+    <value>Mostrar {0} en su carpeta</value>
+  </data>
+  <data name="Recent_EmailName" xml:space="preserve">
+    <value>Enviar {0} de nuevo por correo</value>
+  </data>
+  <data name="Recent_PrintName" xml:space="preserve">
+    <value>Imprimir {0}</value>
+  </data>
+  <data name="Recent_RemoveName" xml:space="preserve">
+    <value>Quitar {0} de la lista</value>
+  </data>
+  <data name="Recent_Removed" xml:space="preserve">
+    <value>{0} se quitó de la lista; el archivo sigue ahí.</value>
+  </data>
+  <data name="Recent_Clear" xml:space="preserve">
+    <value>Vaciar la lista</value>
+  </data>
+  <data name="Recent_ClearAsk" xml:space="preserve">
+    <value>¿Vaciar la lista de escaneos recientes?
+
+Los archivos se quedan donde están.</value>
+  </data>
+  <data name="Recent_DemoOpen" xml:space="preserve">
+    <value>(Demostración: en un escaneo real, {0} se abriría aquí.)</value>
+  </data>
+  <data name="ScanTab_RecentScans" xml:space="preserve">
+    <value>Escaneos recientes…</value>
+  </data>
+  <data name="ScanTab_RecentScansTip" xml:space="preserve">
+    <value>Tus últimos escaneos guardados: abrir, mostrar en la carpeta, enviar de nuevo por correo o imprimir</value>
+  </data>
 </root>

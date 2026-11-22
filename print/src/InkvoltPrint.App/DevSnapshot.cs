@@ -397,6 +397,7 @@ internal static class DevSnapshot
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
+                "recent" => RecentScansDialog.Create(dialogMain.Selected?.RecentScans() ?? new ViewModels.RecentScansViewModel(dialogMain.State, false, null)),
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", // protocols other than the defaults: the note shows
                     Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _, Core.Snmp.SnmpAuth.Sha1, Core.Snmp.SnmpPriv.Aes256)!),

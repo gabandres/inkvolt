@@ -4643,4 +4643,72 @@ Start over</value>
   <data name="Scan_BacksStopped" xml:space="preserve">
     <value>Scanning the backs was stopped: the pages scanned are in order.</value>
   </data>
+  <data name="Recent_Title" xml:space="preserve">
+    <value>Recent scans</value>
+  </data>
+  <data name="Recent_Intro" xml:space="preserve">
+    <value>Your last saved scans, from every scanner. The list is kept on this PC only; removing a scan from it doesn't delete the file.</value>
+  </data>
+  <data name="Recent_Empty" xml:space="preserve">
+    <value>No saved scans yet. Scans you save, or save with a preset, show here.</value>
+  </data>
+  <data name="Recent_AndMore_One" xml:space="preserve">
+    <value>{1} and {0} more</value>
+  </data>
+  <data name="Recent_AndMore_Many" xml:space="preserve">
+    <value>{1} and {0} more</value>
+  </data>
+  <data name="Recent_Today" xml:space="preserve">
+    <value>Today, {0}</value>
+  </data>
+  <data name="Recent_Yesterday" xml:space="preserve">
+    <value>Yesterday, {0}</value>
+  </data>
+  <data name="Recent_Email" xml:space="preserve">
+    <value>Email again</value>
+  </data>
+  <data name="Recent_Print" xml:space="preserve">
+    <value>Print</value>
+  </data>
+  <data name="Recent_Remove" xml:space="preserve">
+    <value>Remove from list</value>
+  </data>
+  <data name="Recent_RemoveTip" xml:space="preserve">
+    <value>The file stays where it is.</value>
+  </data>
+  <data name="Recent_OpenName" xml:space="preserve">
+    <value>Open {0}</value>
+  </data>
+  <data name="Recent_ShowName" xml:space="preserve">
+    <value>Show {0} in its folder</value>
+  </data>
+  <data name="Recent_EmailName" xml:space="preserve">
+    <value>Email {0} again</value>
+  </data>
+  <data name="Recent_PrintName" xml:space="preserve">
+    <value>Print {0}</value>
+  </data>
+  <data name="Recent_RemoveName" xml:space="preserve">
+    <value>Remove {0} from the list</value>
+  </data>
+  <data name="Recent_Removed" xml:space="preserve">
+    <value>{0} was removed from the list; the file is still there.</value>
+  </data>
+  <data name="Recent_Clear" xml:space="preserve">
+    <value>Clear the list</value>
+  </data>
+  <data name="Recent_ClearAsk" xml:space="preserve">
+    <value>Clear the list of recent scans?
+
+The files stay where they are.</value>
+  </data>
+  <data name="Recent_DemoOpen" xml:space="preserve">
+    <value>(Demo: in a real scan {0} would open here.)</value>
+  </data>
+  <data name="ScanTab_RecentScans" xml:space="preserve">
+    <value>Recent scans…</value>
+  </data>
+  <data name="ScanTab_RecentScansTip" xml:space="preserve">
+    <value>Your last saved scans: open, show in folder, email again or print</value>
+  </data>
 </root>
