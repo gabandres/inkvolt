@@ -89,7 +89,9 @@ public class SpellCheckerTests
     {
         var check = new SpellChecker(new WordList("hello"));
         Assert.Single(check.Check("hello Inkvolt"));
+        Assert.False(check.IsIgnored("Inkvolt"));
         check.Ignore("Inkvolt");
+        Assert.True(check.IsIgnored("Inkvolt"));
         Assert.Empty(check.Check("Inkvolt hello Inkvolt"));
         Assert.Single(check.Check("inkvolt")); // as written: another spelling is another word
     }

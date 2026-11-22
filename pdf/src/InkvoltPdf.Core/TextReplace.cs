@@ -23,6 +23,26 @@ public sealed record ReplaceMatch(int PageIndex, int Paragraph, int Start, int L
     public string? Blocked { get; init; }
 }
 
+/// <summary>
+/// Where a match is, as Find &amp; Replace's list remembers it from one search to the next (an unticked match stays unticked):
+/// its page, its paragraph and where it starts there.
+/// </summary>
+public readonly record struct ReplaceKey(int PageIndex, int Paragraph, int Start)
+{
+    public static ReplaceKey Of(ReplaceMatch m) => new(m.PageIndex, m.Paragraph, m.Start);
+
+    /// <summary>
+    /// Where this match is after <paramref name="replaced"/> was replaced with text <paramref name="inserted"/> characters
+    /// long: one later in the same paragraph moves by the difference; the replaced one itself is gone (null).
+    /// </summary>
+    public ReplaceKey? After(ReplaceMatch replaced, int inserted)
+    {
+        if (PageIndex != replaced.PageIndex || Paragraph != replaced.Paragraph || Start < replaced.Start) return this;
+        if (Start < replaced.Start + replaced.Length) return null;
+        return this with { Start = Start + inserted - replaced.Length };
+    }
+}
+
 /// <summary>What Find &amp; Replace found: the matches in page order, and whether there were more than it lists.</summary>
 public sealed record ReplaceFound(IReadOnlyList<ReplaceMatch> Matches, bool CutShort)
 {
@@ -158,6 +178,22 @@ public static class TextReplace
         return new ReplaceFound(matches, false);
     }
 
+    /// <summary>
+    /// After Replace changed <paramref name="replaced"/> into text <paramref name="inserted"/> characters long: the first of
+    /// <paramref name="matches"/> (found again) past the inserted text, so a replacement that holds the text found ("cat" →
+    /// "cats") isn't found and replaced again; -1 when none is left after it (no going round to the start, for the same reason).
+    /// </summary>
+    public static int NextAfter(IReadOnlyList<ReplaceMatch> matches, ReplaceMatch replaced, int inserted)
+    {
+        for (var i = 0; i < matches.Count; i++)
+        {
+            var m = matches[i];
+            if (m.PageIndex > replaced.PageIndex || (m.PageIndex == replaced.PageIndex && m.Paragraph > replaced.Paragraph)) return i;
+            if (m.PageIndex == replaced.PageIndex && m.Paragraph == replaced.Paragraph && m.Start >= replaced.Start + inserted) return i;
+        }
+        return -1;
+    }
+
     /// <summary>The words before (<paramref name="direction"/> -1) or after (1) a place, about <see cref="ContextChars"/> of them, on one line.</summary>
     private static string Around(string text, int at, int direction)
     {
@@ -241,6 +277,8 @@ public static class TextReplace
             if (made == 0) continue;
             text = ContentEditor.ParagraphText(text);
             var spans = ContentEditor.Carry(p.Text, text, p.Spans);
+            // The same text again ("cat" for "cat", or a match whose case only Match case would tell): nothing to write or count.
+            if (text == p.Text && ContentEditor.SameSpans(text, spans, p.Spans)) continue;
             var check = p.Check(text, spans);
             if (check.Missing.Count > 0)
             {

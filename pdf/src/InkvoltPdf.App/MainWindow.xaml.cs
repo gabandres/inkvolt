@@ -2423,6 +2423,7 @@ public partial class MainWindow : Window
             session.Set(key, value);
             if (key == "Theme") App.ApplyTheme();
             if (key == "DarkPages") foreach (var t in Tabs) t.SetDarkPages(s.DarkPages);
+            if (key == "SpellCheck") foreach (var t in Tabs) t.PageView.RefreshSpelling(); // an open editor's underlines go (or come)
         }
         void Done()
         {

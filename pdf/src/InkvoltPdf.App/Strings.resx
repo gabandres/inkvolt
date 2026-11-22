@@ -1566,6 +1566,9 @@
   <data name="Replace_StillWorking" xml:space="preserve">
     <value>Still replacing: wait a moment.</value>
   </data>
+  <data name="Replace_StillSearching" xml:space="preserve">
+    <value>The list is still being found for what you typed: wait for it, then check the ticks.</value>
+  </data>
   <data name="Replace_Done_One" xml:space="preserve">
     <value>Replaced 1 match.</value>
   </data>

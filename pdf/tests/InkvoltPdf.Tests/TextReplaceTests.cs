@@ -143,6 +143,43 @@ public class TextReplaceTests(Xunit.Abstractions.ITestOutputHelper output)
     }
 
     [Fact]
+    public void ReplacingWithTheSameTextChangesAndCountsNothing()
+    {
+        var found = TextReplace.Find(Invoices, null, new("Invoice"));
+        var result = TextReplace.Replace(Invoices, null, found.Matches.Where(m => m.Found == "Invoice").ToList(), "Invoice");
+        Assert.Equal(0, result.Replaced);
+        Assert.Empty(result.Notes);
+        Assert.Same(Invoices, result.Data);
+    }
+
+    [Fact]
+    public void AfterReplaceTheNextMatchIsPastTheInsertedText()
+    {
+        // "cat" → "cats": found again, the replaced match still holds "cat"; the next is the one after it.
+        var pdf = Doc([["A cat sat by the cat door, and a third cat slept."]], [["One more cat."]]);
+        var before = TextReplace.Find(pdf, null, new("cat")).Matches;
+        var replaced = before[0];
+        var after = TextReplace.Find(TextReplace.Replace(pdf, null, [replaced], "cats").Data, null, new("cat")).Matches;
+        Assert.Equal(before.Count, after.Count);
+        var next = TextReplace.NextAfter(after, replaced, "cats".Length);
+        Assert.Equal(1, next);
+        Assert.StartsWith(" door", after[next].After);
+        // The last one replaced: nothing after it, and no going round to the start.
+        Assert.Equal(-1, TextReplace.NextAfter(after, after[^1] with { Length = 3 }, "cats".Length));
+    }
+
+    [Fact]
+    public void AMatchKeepsItsKeyAcrossAReplaceBeforeIt()
+    {
+        var replaced = new ReplaceMatch(1, 2, 10, 3, "cat", "", "");
+        Assert.Equal(new ReplaceKey(1, 2, 21), new ReplaceKey(1, 2, 20).After(replaced, inserted: 4)); // later in its paragraph: moves
+        Assert.Equal(new ReplaceKey(1, 2, 4), new ReplaceKey(1, 2, 4).After(replaced, 4)); // before it: stays
+        Assert.Equal(new ReplaceKey(1, 3, 20), new ReplaceKey(1, 3, 20).After(replaced, 4)); // another paragraph: stays
+        Assert.Equal(new ReplaceKey(2, 2, 20), new ReplaceKey(2, 2, 20).After(replaced, 4));
+        Assert.Null(new ReplaceKey(1, 2, 10).After(replaced, 4)); // the one replaced
+    }
+
+    [Fact]
     public void MatchesOfAnOlderVersionAreListedAsChanged()
     {
         var found = TextReplace.Find(Invoices, null, new("office"));

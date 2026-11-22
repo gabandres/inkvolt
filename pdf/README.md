@@ -825,7 +825,7 @@ logs its words), `suspectsel i`, `suspectfix text|keep`, `findcount word` (how o
 from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); spell check: `spellstate`, `spellmenu offset`, `spellchoose Header`,
 `spelling on|off` (a dev run's Add to dictionary never writes Windows' user dictionary); Find and Replace: `replacedialog`
 (drive it with `later`), `replacesearch find|with[|case,whole]`, `replacestate`, `replacesel i`, `replacetoggle i`, `replaceone`,
-`replaceall`, `replaced` (what the last Replace did, with its notes); Split view: `split h|v|off`, `switchpane`, `splitstate` (`page`, `zoom` and `scroll` act on the active pane).
+`replaceall` (refused while the list is from another search), `replacetype text`, `replaced` (what the last Replace did, with its notes); Split view: `split h|v|off`, `switchpane`, `splitstate` (`page`, `zoom` and `scroll` act on the active pane).
 Measuring: `setscale 1 in = 10 ft [all]`, `measure distance|perimeter|area|calibrate p x1 y1 x2 y2 …` (as if clicked),
 `measurements`, `tool measure-distance|measure-perimeter|measure-area` with `mouse click p x y` for the live preview.
 PDF/A: `savepath out.pdf` then `pdfa` (answer its prompts with `later … prompt Button`); `PdfATests` runs veraPDF on its

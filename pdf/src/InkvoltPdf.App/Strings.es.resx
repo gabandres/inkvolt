@@ -1555,6 +1555,9 @@
   <data name="Replace_StillWorking" xml:space="preserve">
     <value>Todavía se está reemplazando: espera un momento.</value>
   </data>
+  <data name="Replace_StillSearching" xml:space="preserve">
+    <value>Todavía se están buscando las coincidencias de lo que escribiste: espera y revisa las marcas.</value>
+  </data>
   <data name="Replace_Done_One" xml:space="preserve">
     <value>Se reemplazó 1 coincidencia.</value>
   </data>

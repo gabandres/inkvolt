@@ -191,17 +191,40 @@ public sealed partial class PageViewer
     /// <summary>WPF's spell check on a plain text box the page view opens.</summary>
     private void AttachSpelling(TextBox box) => Spelling.Attach(box, DocumentLanguage?.Invoke());
 
-    /// <summary>The paragraph editor's own underlines and menu (nothing when spell check is off or Windows has no dictionary).</summary>
+    /// <summary>
+    /// The paragraph editor's own underlines, and its menu (suggestions when spell check is on and Windows has a
+    /// dictionary; Cut, Copy and Paste always).
+    /// </summary>
     private void AttachParagraphSpelling(RichTextBox box)
     {
         DetachParagraphSpelling();
+        Spelling.HookMenu(box, (menu, clicked) =>
+        {
+            var at = clicked ? box.GetPositionFromPoint(Mouse.GetPosition(box), snapToText: true) : box.CaretPosition;
+            FillParagraphMenu(menu, box, at, clicked);
+        });
         if (Spelling.For(DocumentLanguage?.Invoke()) is not { } speller) return;
         _paraSpeller = speller;
         _paraUnderlines = new SpellingUnderlines(box) { HighContrast = _highContrast };
         _overlay.Children.Add(_paraUnderlines);
-        box.ContextMenuOpening += OnParagraphMenu;
         box.SizeChanged += (_, _) => _paraUnderlines?.InvalidateVisual();
         CheckParagraphSpelling();
+    }
+
+    /// <summary>Settings › "Check spelling as I type" changed: the open editor's underlines go, or come.</summary>
+    public void RefreshSpelling()
+    {
+        switch (_editor)
+        {
+            case RichTextBox box when _editorParagraph is not null:
+                if (!Spelling.On) DetachParagraphSpelling();
+                else if (_paraSpeller is null) AttachParagraphSpelling(box);
+                break;
+            case TextBox tb:
+                if (Spelling.On) AttachSpelling(tb);
+                else Spelling.Detach(tb);
+                break;
+        }
     }
 
     private void DetachParagraphSpelling()
@@ -218,25 +241,20 @@ public sealed partial class PageViewer
         lines.Show(speller.Check(EditorText.Of(box).Text));
     }
 
-    private void OnParagraphMenu(object sender, ContextMenuEventArgs e)
+    /// <summary>Fills the paragraph editor's menu about the word at <paramref name="at"/> (right-clicked: the caret goes there).</summary>
+    private void FillParagraphMenu(ContextMenu menu, RichTextBox box, TextPointer? at, bool clicked)
     {
-        if (sender is not RichTextBox box) return;
-        // From the keyboard (the context menu key, Shift+F10): the word at the caret.
-        var mouse = !(e.CursorLeft < 0 && e.CursorTop < 0);
-        var at = mouse ? box.GetPositionFromPoint(Mouse.GetPosition(box), snapToText: true) : box.CaretPosition;
-        if (ParagraphMenu(box, at, mouse) is { } menu) box.ContextMenu = menu;
-    }
-
-    /// <summary>The paragraph editor's menu about the word at <paramref name="at"/> (right-clicked: the caret goes there).</summary>
-    private ContextMenu? ParagraphMenu(RichTextBox box, TextPointer? at, bool clicked)
-    {
-        if (_paraSpeller is not { } speller) return null;
+        if (_paraSpeller is not { } speller || !ReferenceEquals(_editor, box))
+        {
+            Spelling.Fill(menu, box, null, [], _ => { }, () => { }, () => { });
+            return;
+        }
         var text = EditorText.Of(box);
         var found = speller.Check(text.Text);
         var word = at is not null && text.Offset(at) is { } offset ? SpellChecker.At(found, offset) : null;
         if (word is not null && clicked && !box.Selection.Contains(at!))
             box.CaretPosition = at!; // the right-clicked word is the one the menu is about
-        return Spelling.Menu(box, word?.Word, word is { } m ? speller.Suggestions(m.Word) : [],
+        Spelling.Fill(menu, box, word?.Word, word is { } m ? speller.Suggestions(m.Word) : [],
             s => CorrectParagraphWord(box, word!.Value, s),
             () =>
             {
@@ -287,12 +305,14 @@ public sealed partial class PageViewer
         {
             case RichTextBox box when EditorText.Of(box).Pointer(offset) is { } p:
                 box.CaretPosition = p;
-                box.ContextMenu = ParagraphMenu(box, p, clicked: false);
+                box.ContextMenu ??= new ContextMenu();
+                FillParagraphMenu(box.ContextMenu, box, p, clicked: false);
                 editor = box;
                 break;
             case TextBox tb:
                 tb.CaretIndex = Math.Clamp(offset, 0, tb.Text.Length);
-                tb.ContextMenu = Spelling.MenuAt(tb, tb.CaretIndex);
+                tb.ContextMenu ??= new ContextMenu();
+                Spelling.FillAt(tb, tb.ContextMenu, tb.CaretIndex);
                 editor = tb;
                 break;
             default:

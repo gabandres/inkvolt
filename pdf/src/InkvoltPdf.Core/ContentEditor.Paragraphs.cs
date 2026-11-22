@@ -1565,7 +1565,7 @@ public static partial class ContentEditor
     }
 
     /// <summary>Whether two sets of spans give every character of <paramref name="text"/> the same look.</summary>
-    private static bool SameSpans(string text, IReadOnlyList<TextSpan> a, IReadOnlyList<TextSpan> b)
+    internal static bool SameSpans(string text, IReadOnlyList<TextSpan> a, IReadOnlyList<TextSpan> b)
     {
         var x = LooksOf(text, a);
         var y = LooksOf(text, b);

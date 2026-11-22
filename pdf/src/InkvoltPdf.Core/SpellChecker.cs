@@ -86,6 +86,12 @@ public sealed partial class SpellChecker(ISpellingDictionary dictionary, bool sk
         lock (_gate) _ignored.Add(word);
     }
 
+    /// <summary>The word was ignored (<see cref="Ignore"/>): a text box that checks with its own speller leaves it alone too.</summary>
+    public bool IsIgnored(string word)
+    {
+        lock (_gate) return _ignored.Contains(word);
+    }
+
     /// <summary>Add to dictionary: the user's dictionary takes the word (then it is known everywhere); false when it couldn't.</summary>
     public bool Add(string word)
     {

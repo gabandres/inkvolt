@@ -10,9 +10,9 @@ using InkvoltPdf.Core;
 namespace InkvoltPdf.App;
 
 /// <summary>A line of Find &amp; Replace's list: a match, its page and the words around it, ticked to be replaced.</summary>
-internal sealed class ReplaceRow(ReplaceMatch match, string where) : INotifyPropertyChanged
+internal sealed class ReplaceRow(ReplaceMatch match, string where, bool accepted) : INotifyPropertyChanged
 {
-    private bool _accepted = match.Blocked is null;
+    private bool _accepted = accepted && match.Blocked is null;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -69,6 +69,12 @@ internal sealed class ReplaceDialog
     private List<ReplaceRow> _rows = [];
     private CancellationTokenSource? _search;
     private bool _busy;
+    private bool _searching;
+    /// <summary>The query the listed rows were found for (null: none yet).</summary>
+    private ReplaceQuery? _shown;
+    /// <summary>The matches unticked, kept from one search of the same query to the next (a Replace's included).</summary>
+    private HashSet<ReplaceKey> _unticked = [];
+    private ReplaceQuery? _untickedFor;
 
     /// <summary>The dialog on the screen, for the developer script.</summary>
     internal static ReplaceDialog? Open { get; private set; }
@@ -140,7 +146,7 @@ internal sealed class ReplaceDialog
                 _ = Search();
                 e.Handled = true;
             };
-        _dialog.Validate(() => _busy ? Strings.Replace_StillWorking : _rows.Any(r => r.Accepted) ? null : Strings.Replace_NothingTicked);
+        _dialog.Validate(Validation);
         _dialog.Closed += (_, _) =>
         {
             _typing.Stop();
@@ -175,10 +181,33 @@ internal sealed class ReplaceDialog
     {
         _typing.Stop();
         _typing.Start();
+        UpdateButtons();
     }
 
-    /// <summary>Finds the matches again (the previous search, if still running, is dropped).</summary>
-    private async Task Search(int select = 0)
+    /// <summary>The list is for what the boxes say now: no search waiting or running, and the same text and options.</summary>
+    private bool Current => !_typing.IsEnabled && !_searching && _shown == Query;
+
+    /// <summary>Why Replace All can't go yet (the list is from another search, a Replace is running, nothing ticked); null when it can.</summary>
+    private string? Validation()
+    {
+        if (_busy) return Strings.Replace_StillWorking;
+        if (!Current)
+        {
+            if (!_searching)
+            {
+                _typing.Stop();
+                _ = Search();
+            }
+            return Strings.Replace_StillSearching;
+        }
+        return _rows.Any(r => r.Accepted) ? null : Strings.Replace_NothingTicked;
+    }
+
+    /// <summary>
+    /// Finds the matches again (the previous search, if still running, is dropped); <paramref name="select"/> picks the line
+    /// to select from them (the first by default; -1 none).
+    /// </summary>
+    private async Task Search(Func<IReadOnlyList<ReplaceMatch>, int>? select = null)
     {
         _search?.Cancel();
         var cts = _search = new CancellationTokenSource();
@@ -186,9 +215,12 @@ internal sealed class ReplaceDialog
         _tab.LastReplaceQuery = query;
         if (query.Find.Length == 0)
         {
-            Show([], Strings.Replace_TypeToFind, select);
+            _searching = false;
+            Show(query, [], Strings.Replace_TypeToFind, select);
             return;
         }
+        _searching = true;
+        UpdateButtons();
         var pages = _tab.PageView.PageCount;
         _status.Text = Loc.Format(Strings.Replace_Searching, 1, pages);
         var progress = new Progress<int>(page =>
@@ -207,8 +239,12 @@ internal sealed class ReplaceDialog
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             Log.Write($"Find & Replace failed: {ex}");
-            if (!cts.IsCancellationRequested) Show([], Strings.Replace_CantSearch, select);
+            if (!cts.IsCancellationRequested) Show(null, [], Strings.Replace_CantSearch, select);
             return;
+        }
+        finally
+        {
+            if (ReferenceEquals(cts, _search)) _searching = false;
         }
         if (cts.IsCancellationRequested) return;
         var status = found.Matches.Count == 0 ? Strings.Replace_None
@@ -216,16 +252,31 @@ internal sealed class ReplaceDialog
                 Loc.Plural(found.Pages, Strings.Replace_Pages_One, Strings.Replace_Pages_Many));
         if (found.CutShort) status += " " + Loc.Format(Strings.Replace_CutShort, TextReplace.MaxMatches);
         if (found.Matches.Any(m => m.Blocked is not null)) status += " " + Strings.Replace_SomeBlocked;
-        Show(found.Matches, status, select);
+        Show(query, found.Matches, status, select);
     }
 
-    private void Show(IReadOnlyList<ReplaceMatch> matches, string status, int select)
+    /// <param name="query">What they were found for (null: the search failed).</param>
+    private void Show(ReplaceQuery? query, IReadOnlyList<ReplaceMatch> matches, string status, Func<IReadOnlyList<ReplaceMatch>, int>? select)
     {
-        _rows = [.. matches.Select(m => new ReplaceRow(m, Loc.Format(Strings.Viewer_PageN, _tab.PageLabel(m.PageIndex))))];
-        foreach (var row in _rows) row.PropertyChanged += (_, _) => UpdateButtons();
+        _shown = query;
+        // Unticks hold for searches of the same text and options; another search starts with every match ticked.
+        if (_untickedFor != query)
+        {
+            _unticked = [];
+            _untickedFor = query;
+        }
+        _rows = [.. matches.Select(m => new ReplaceRow(m, Loc.Format(Strings.Viewer_PageN, _tab.PageLabel(m.PageIndex)), !_unticked.Contains(ReplaceKey.Of(m))))];
+        foreach (var row in _rows)
+            row.PropertyChanged += (_, _) =>
+            {
+                if (row.Accepted) _unticked.Remove(ReplaceKey.Of(row.Match));
+                else _unticked.Add(ReplaceKey.Of(row.Match));
+                UpdateButtons();
+            };
         _list.ItemsSource = _rows;
         _status.Text = status;
-        if (_rows.Count > 0) _list.SelectedIndex = Math.Clamp(select, 0, _rows.Count - 1);
+        var at = select?.Invoke(matches) ?? 0;
+        _list.SelectedIndex = _rows.Count > 0 && at >= 0 ? Math.Min(at, _rows.Count - 1) : -1;
         UpdateButtons();
     }
 
@@ -233,26 +284,34 @@ internal sealed class ReplaceDialog
     {
         var ticked = _rows.Count(r => r.Accepted);
         _dialog.SetOkText(ticked > 1 ? Loc.Format(Strings.Replace_AllN, ticked) : Strings.Replace_All);
-        _replace.IsEnabled = !_busy && _list.SelectedItem is ReplaceRow { CanReplace: true };
+        _replace.IsEnabled = !_busy && Current && _list.SelectedItem is ReplaceRow { CanReplace: true };
     }
 
     /// <summary>Replace: the selected match now (one undo step), then the list found again, on the next match.</summary>
     private async Task ReplaceSelected()
     {
-        if (_busy || _list.SelectedItem is not ReplaceRow { CanReplace: true } row) return;
-        var at = _list.SelectedIndex;
+        if (_busy || !Current || _list.SelectedItem is not ReplaceRow { CanReplace: true } row) return;
+        var with = _with.Text;
         _busy = true;
         UpdateButtons();
+        bool done;
         try
         {
-            await _tab.ReplaceMatches([row.Match], _with.Text, all: false);
+            done = await _tab.ReplaceMatches([row.Match], with, all: false);
         }
         finally
         {
             _busy = false;
         }
         if (!_dialog.IsVisible) return;
-        await Search(at);
+        if (!done)
+        {
+            UpdateButtons();
+            return;
+        }
+        // The matches after it in its paragraph moved; the next to go to is past the text put in (which may hold the text found).
+        _unticked = [.. _unticked.Select(k => k.After(row.Match, with.Length)).OfType<ReplaceKey>()];
+        await Search(matches => TextReplace.NextAfter(matches, row.Match, with.Length));
         _list.Focus();
     }
 
@@ -278,7 +337,16 @@ internal sealed class ReplaceDialog
 
     internal Task DevReplace() => ReplaceSelected();
 
-    internal void DevReplaceAll() => _dialog.DialogResult = true;
+    /// <summary>Replace All as its button does it: refused (the reason returned) while the list isn't for the boxes as they are.</summary>
+    internal string? DevReplaceAll()
+    {
+        if (Validation() is { } why) return why;
+        _dialog.DialogResult = true;
+        return null;
+    }
+
+    /// <summary>Types into the Find box without waiting for its search (to try Replace All before the list is current).</summary>
+    internal void DevType(string find) => _find.Text = find;
 
     internal Window Window => _dialog;
 }
