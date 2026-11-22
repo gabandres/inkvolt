@@ -1,11 +1,13 @@
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Sheets;
+using Placement = InkvoltPrint.Core.Printing.Placement;
 
 namespace InkvoltPdf.Tests;
 
 public class PrintLayoutTests
 {
     // Letter paper in device-independent pixels, quarter-inch margins.
-    private static readonly RectD Letter = new(24, 24, 768, 1008);
+    private static readonly Placement Letter = new(24, 24, 768, 1008);
     private static (double W, double H) Portrait(int _) => (816, 1056);
 
     [Theory]

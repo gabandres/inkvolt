@@ -7,6 +7,8 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using InkvoltPdf.App.Viewer;
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Sheets;
+using Placement = InkvoltPrint.Core.Printing.Placement;
 
 namespace InkvoltPdf.App;
 
@@ -41,14 +43,14 @@ public static class FileActions
     private static PrintSetup? AskHandling(Window owner, DocumentTab tab)
     {
         var paper = new Size(816, 1056);
-        var printable = new RectD(24, 24, 768, 1008);
+        var printable = new Placement(24, 24, 768, 1008);
         var duplex = false;
         try
         {
             var dlg = new PrintDialog();
             var (origin, area) = ImageableArea(dlg);
             paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-            printable = new RectD(origin.X, origin.Y, area.Width, area.Height);
+            printable = new Placement(origin.X, origin.Y, area.Width, area.Height);
             duplex = CanPrintBothSides(dlg);
         }
         catch (Exception ex) when (ex is PrintQueueException or PrintSystemException or InvalidOperationException)
@@ -93,7 +95,7 @@ public static class FileActions
         // Page sizing & handling (Print with Options): fit, pages per sheet, booklet, poster (the paper is known now).
         var (origin, area) = ImageableArea(dlg);
         var paper = new Size(dlg.PrintableAreaWidth, dlg.PrintableAreaHeight);
-        var printable = new RectD(origin.X, origin.Y, area.Width, area.Height);
+        var printable = new Placement(origin.X, origin.Y, area.Width, area.Height);
         var duplex = CanPrintBothSides(dlg);
         var setup = chosen ?? (withOptions
             ? PrintHandlingDialog.Ask(owner, pages, SizesOf(tab.ViewEngine), paper, printable, duplex)
@@ -201,7 +203,7 @@ public static class FileActions
     internal static async Task<int> WriteXps(PdfEngine engine, int[] pages, string path, PrintSetup? setup = null)
     {
         var paper = new Size(816, 1056);
-        var plan = new PrintPlan(pages, SizesOf(engine), new RectD(24, 24, 768, 1008), setup ?? new PrintSetup());
+        var plan = new PrintPlan(pages, SizesOf(engine), new Placement(24, 24, 768, 1008), setup ?? new PrintSetup());
         var paginator = new PdfPaginator(engine, plan, paper);
         File.Delete(path);
         using var xps = new System.Windows.Xps.Packaging.XpsDocument(path, FileAccess.ReadWrite);

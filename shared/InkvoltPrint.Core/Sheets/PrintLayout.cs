@@ -1,4 +1,6 @@
-namespace InkvoltPdf.Core;
+using InkvoltPrint.Core.Printing;
+
+namespace InkvoltPrint.Core.Sheets;
 
 /// <summary>How pages go onto the paper when printing (Acrobat's "Page Sizing &amp; Handling").</summary>
 public enum PrintHandling
@@ -64,7 +66,7 @@ public sealed record PrintSetup
 /// the part of the page shown (page units, as shown, null for all of it). Page and box sizes keep the page's
 /// proportions: with a turn, the box's width is the source's height.
 /// </summary>
-public sealed record PlacedPage(int Page, RectD Box, int Turns, RectD? Source = null);
+public sealed record PlacedPage(int Page, Placement Box, int Turns, Placement? Source = null);
 
 /// <summary>A cut mark: a short line on the sheet (paper coordinates).</summary>
 public readonly record struct CutMark(double X1, double Y1, double X2, double Y2);
@@ -96,13 +98,13 @@ public static class PrintLayout
     }
 
     /// <summary>One page per sheet: centered in <paramref name="area"/>, turned when that fits better (landscape on portrait paper).</summary>
-    public static PlacedPage Single(int page, double w, double h, RectD area, PrintSizing sizing)
+    public static PlacedPage Single(int page, double w, double h, Placement area, PrintSizing sizing)
     {
         var turn = (w > h) != (area.Width > area.Height) && Math.Abs(w - h) > 1;
         var (fw, fh) = turn ? (h, w) : (w, h);
         var s = Scale(fw, fh, area.Width, area.Height, sizing);
         double dw = fw * s, dh = fh * s;
-        return new PlacedPage(page, new RectD(area.X + (area.Width - dw) / 2, area.Y + (area.Height - dh) / 2, dw, dh), turn ? 1 : 0);
+        return new PlacedPage(page, new Placement(area.X + (area.Width - dw) / 2, area.Y + (area.Height - dh) / 2, dw, dh), turn ? 1 : 0);
     }
 
     // ---- Pages per sheet ----
@@ -139,18 +141,18 @@ public static class PrintLayout
     }
 
     /// <summary>The cell of the <paramref name="k"/>th page on a cols x rows grid of a w x h sheet (sheet coordinates).</summary>
-    public static RectD Cell(int k, int cols, int rows, PagesOrder order, double w, double h)
+    public static Placement Cell(int k, int cols, int rows, PagesOrder order, double w, double h)
     {
         var (col, row) = order == PagesOrder.Across ? (k % cols, k / cols) : (k / rows, k % rows);
         double cw = w / cols, ch = h / rows;
-        return new RectD(col * cw, row * ch, cw, ch);
+        return new Placement(col * cw, row * ch, cw, ch);
     }
 
     /// <summary>
     /// A sheet of <paramref name="pages"/> (at most <paramref name="n"/>; their sizes from <paramref name="size"/>),
     /// laid out on the grid <see cref="Grid"/> picks for the first page. Each page is scaled to fit its cell, centered.
     /// </summary>
-    public static PrintSheet PagesPerSheet(IReadOnlyList<int> pages, Func<int, (double W, double H)> size, int n, PagesOrder order, bool borders, RectD area)
+    public static PrintSheet PagesPerSheet(IReadOnlyList<int> pages, Func<int, (double W, double H)> size, int n, PagesOrder order, bool borders, Placement area)
     {
         if (pages.Count == 0) return PrintSheet.Blank;
         var (pw, ph) = size(pages[0]);
@@ -164,7 +166,7 @@ public static class PrintLayout
             var cell = Cell(k, cols, rows, order, w, h).Inflate(-gap / 2);
             var (sw, sh) = size(pages[k]);
             var s = Math.Min(cell.Width / sw, cell.Height / sh);
-            var box = new RectD(cell.X + (cell.Width - sw * s) / 2, cell.Y + (cell.Height - sh * s) / 2, sw * s, sh * s);
+            var box = new Placement(cell.X + (cell.Width - sw * s) / 2, cell.Y + (cell.Height - sh * s) / 2, sw * s, sh * s);
             list.Add(new PlacedPage(pages[k], ToPaper(box, turned, area), turned ? 1 : 0));
         }
         return new PrintSheet(list, [], borders);
@@ -174,10 +176,10 @@ public static class PrintLayout
     /// A box on a sheet used turned (its width along the paper's height) to the paper: the sheet is turned a quarter
     /// clockwise onto <paramref name="area"/>, so its top-left corner lands at the area's top-right.
     /// </summary>
-    internal static RectD ToPaper(RectD box, bool turned, RectD area) =>
-        turned ? new RectD(area.Right - box.Bottom, area.Y + box.X, box.Height, box.Width) : new RectD(area.X + box.X, area.Y + box.Y, box.Width, box.Height);
+    internal static Placement ToPaper(Placement box, bool turned, Placement area) =>
+        turned ? new Placement(area.Right - box.Bottom, area.Y + box.X, box.Height, box.Width) : new Placement(area.X + box.X, area.Y + box.Y, box.Width, box.Height);
 
-    private static (double X, double Y) ToPaper(double x, double y, bool turned, RectD area) =>
+    private static (double X, double Y) ToPaper(double x, double y, bool turned, Placement area) =>
         turned ? (area.Right - y, area.Y + x) : (area.X + x, area.Y + y);
 
     // ---- Booklet ----
@@ -211,7 +213,7 @@ public static class PrintLayout
     /// One side of a booklet sheet: the sheet used with its long side across (turned onto portrait paper), the two pages
     /// side by side, each scaled to its half and set against the fold.
     /// </summary>
-    public static PrintSheet BookletSide(int left, int right, Func<int, (double W, double H)> size, RectD area)
+    public static PrintSheet BookletSide(int left, int right, Func<int, (double W, double H)> size, Placement area)
     {
         var turned = area.Width < area.Height;
         var (w, h) = turned ? (area.Height, area.Width) : (area.Width, area.Height);
@@ -223,7 +225,7 @@ public static class PrintLayout
             var (pw, ph) = size(page);
             var s = Math.Min(half / pw, h / ph);
             double bw = pw * s, bh = ph * s;
-            var box = new RectD(isLeft ? half - bw : half, (h - bh) / 2, bw, bh);
+            var box = new Placement(isLeft ? half - bw : half, (h - bh) / 2, bw, bh);
             list.Add(new PlacedPage(page, ToPaper(box, turned, area), turned ? 1 : 0));
         }
         return new PrintSheet(list, [], false);
@@ -259,7 +261,7 @@ public static class PrintLayout
     /// (<paramref name="pageW"/> x <paramref name="pageH"/>): the part of the page it shows, centered on the tiles as a
     /// whole, and cut marks at the middle of each overlap with a neighbor.
     /// </summary>
-    public static PrintSheet PosterTile(int page, double pageW, double pageH, int tile, PrintSetup setup, RectD area)
+    public static PrintSheet PosterTile(int page, double pageW, double pageH, int tile, PrintSetup setup, Placement area)
     {
         var scale = setup.PosterScale;
         var (cols, rows, turned) = PosterTiles(pageW, pageH, scale, area.Width, area.Height, setup.Overlap);
@@ -272,13 +274,13 @@ public static class PrintLayout
         var oy = (rows * stepY + ov - ph) / 2;
         var (col, row) = (tile % cols, tile / cols);
         // This sheet's window onto the enlarged page, and the part of the page in it.
-        var window = new RectD(col * stepX - ox, row * stepY - oy, w, h);
-        var shown = window.Intersect(new RectD(0, 0, pw, ph));
+        var window = new Placement(col * stepX - ox, row * stepY - oy, w, h);
+        var shown = window.Intersect(new Placement(0, 0, pw, ph));
         var pages = new List<PlacedPage>();
         if (!shown.IsEmpty)
         {
-            var box = new RectD(shown.X - window.X, shown.Y - window.Y, shown.Width, shown.Height);
-            var source = new RectD(shown.X / scale, shown.Y / scale, shown.Width / scale, shown.Height / scale);
+            var box = new Placement(shown.X - window.X, shown.Y - window.Y, shown.Width, shown.Height);
+            var source = new Placement(shown.X / scale, shown.Y / scale, shown.Width / scale, shown.Height / scale);
             pages.Add(new PlacedPage(page, ToPaper(box, turned, area), turned ? 1 : 0, source));
         }
 
@@ -319,14 +321,14 @@ public sealed class PrintPlan
 {
     private readonly IReadOnlyList<int> _pages;
     private readonly Func<int, (double W, double H)> _size;
-    private readonly RectD _area;
+    private readonly Placement _area;
     private readonly PrintSetup _setup;
     private readonly IReadOnlyList<(int Left, int Right)>? _sides;
     private readonly int[]? _posterStart; // poster: the first sheet of each page, and the total at the end
 
     /// <param name="size">A page's size as shown (rotation applied).</param>
     /// <param name="area">The paper's printable area (paper coordinates: origin at its top-left, y down).</param>
-    public PrintPlan(IReadOnlyList<int> pages, Func<int, (double W, double H)> size, RectD area, PrintSetup setup)
+    public PrintPlan(IReadOnlyList<int> pages, Func<int, (double W, double H)> size, Placement area, PrintSetup setup)
     {
         _pages = pages;
         _size = size;

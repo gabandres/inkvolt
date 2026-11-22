@@ -5209,4 +5209,86 @@ The files stay where they are.</value>
   <data name="Phone_CertificateHeading" xml:space="preserve">
     <value>Your phone will warn you first: that's expected</value>
   </data>
+  <data name="Presets_PdfA" xml:space="preserve">
+    <value>Save as PDF/A, for archiving</value>
+    <comment>preset option (roadmap 4.18)</comment>
+  </data>
+  <data name="Presets_PdfAHelp" xml:space="preserve">
+    <value>PDF/A-2b: a PDF meant to open the same way for years. It can't have a password.</value>
+  </data>
+  <data name="Presets_Password" xml:space="preserve">
+    <value>Put a password on the PDF</value>
+    <comment>preset option (roadmap 4.18)</comment>
+  </data>
+  <data name="Presets_PasswordHelp" xml:space="preserve">
+    <value>AES-256, as Inkvolt PDF protects files. Asked the first time the preset saves; kept in Windows Credential Manager if you choose. Windows' own PDF engine can't open these files, so Print a PDF can't either.</value>
+  </data>
+  <data name="Password_TypeAgain" xml:space="preserve">
+    <value>Type it again</value>
+  </data>
+  <data name="Password_Mismatch" xml:space="preserve">
+    <value>The two passwords don't match.</value>
+  </data>
+  <data name="Password_NewPdfTitle" xml:space="preserve">
+    <value>Password for the PDF</value>
+  </data>
+  <data name="Password_NewPdfHeading" xml:space="preserve">
+    <value>A password for {0}'s PDFs</value>
+    <comment>{0}: the preset's name</comment>
+  </data>
+  <data name="Password_NewPdfPrompt" xml:space="preserve">
+    <value>Whoever opens the PDF will need it. Nobody can open the file without it, Inkvolt Print included: keep it somewhere safe.</value>
+  </data>
+  <data name="Password_RememberPreset" xml:space="preserve">
+    <value>Use it for this preset from now on (kept in Windows Credential Manager)</value>
+  </data>
+  <data name="Scan_PasswordNotSet" xml:space="preserve">
+    <value>Not saved: the preset puts a password on its PDF, and none was entered.</value>
+  </data>
+  <data name="Scan_SavedPdfA" xml:space="preserve">
+    <value>Saved as PDF/A.</value>
+  </data>
+  <data name="Scan_SavedWithPassword" xml:space="preserve">
+    <value>It asks for its password to open.</value>
+  </data>
+  <data name="PrintLayout_Label" xml:space="preserve">
+    <value>Layout</value>
+    <comment>Print a PDF (roadmap 4.18)</comment>
+  </data>
+  <data name="PrintLayout_Normal" xml:space="preserve">
+    <value>One page per sheet</value>
+  </data>
+  <data name="PrintLayout_PerSheet" xml:space="preserve">
+    <value>Several pages per sheet</value>
+  </data>
+  <data name="PrintLayout_Booklet" xml:space="preserve">
+    <value>Booklet</value>
+  </data>
+  <data name="PrintLayout_Poster" xml:space="preserve">
+    <value>Poster</value>
+  </data>
+  <data name="PrintLayout_PerSheetCount" xml:space="preserve">
+    <value>{0} pages per sheet</value>
+  </data>
+  <data name="PrintLayout_PosterPercent" xml:space="preserve">
+    <value>{0}% of the page's size</value>
+  </data>
+  <data name="PrintLayout_PosterSize" xml:space="preserve">
+    <value>Poster size</value>
+  </data>
+  <data name="PrintLayout_CutMarks" xml:space="preserve">
+    <value>Cut marks</value>
+  </data>
+  <data name="PrintLayout_BookletNote" xml:space="preserve">
+    <value>Prints on both sides, two pages a side, in the order a folded stack reads. Fold the stack in the middle and staple along the fold.</value>
+  </data>
+  <data name="PrintLayout_PosterNote" xml:space="preserve">
+    <value>Each page across several sheets that overlap by ¼ in. Trim each sheet at its cut marks and tape the sheets together.</value>
+  </data>
+  <data name="Print_SendingSheets" xml:space="preserve">
+    <value>Sending the sheets to the printer…</value>
+  </data>
+  <data name="PrintLayout_TooMany" xml:space="preserve">
+    <value>Not printed: this layout would take more than {0} sheets. Choose fewer pages, fewer copies or a smaller poster.</value>
+  </data>
 </root>

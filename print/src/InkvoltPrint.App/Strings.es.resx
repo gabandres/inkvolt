@@ -4302,4 +4302,82 @@ Los archivos se quedan donde están.</value>
   <data name="Phone_CertificateHeading" xml:space="preserve">
     <value>Tu teléfono te avisará primero: es normal</value>
   </data>
+  <data name="Presets_PdfA" xml:space="preserve">
+    <value>Guardar como PDF/A, para archivar</value>
+  </data>
+  <data name="Presets_PdfAHelp" xml:space="preserve">
+    <value>PDF/A-2b: un PDF pensado para abrirse igual durante años. No puede llevar contraseña.</value>
+  </data>
+  <data name="Presets_Password" xml:space="preserve">
+    <value>Poner una contraseña al PDF</value>
+  </data>
+  <data name="Presets_PasswordHelp" xml:space="preserve">
+    <value>AES-256, como protege los archivos Inkvolt PDF. Se pide la primera vez que el ajuste guarda; se guarda en el Administrador de credenciales de Windows si lo eliges. El motor de PDF de Windows no puede abrir estos archivos, así que Imprimir un PDF tampoco.</value>
+  </data>
+  <data name="Password_TypeAgain" xml:space="preserve">
+    <value>Escríbela otra vez</value>
+  </data>
+  <data name="Password_Mismatch" xml:space="preserve">
+    <value>Las dos contraseñas no coinciden.</value>
+  </data>
+  <data name="Password_NewPdfTitle" xml:space="preserve">
+    <value>Contraseña del PDF</value>
+  </data>
+  <data name="Password_NewPdfHeading" xml:space="preserve">
+    <value>Una contraseña para los PDF de {0}</value>
+  </data>
+  <data name="Password_NewPdfPrompt" xml:space="preserve">
+    <value>Quien abra el PDF la necesitará. Nadie puede abrir el archivo sin ella, ni siquiera Inkvolt Print: guárdala en un lugar seguro.</value>
+  </data>
+  <data name="Password_RememberPreset" xml:space="preserve">
+    <value>Usarla para este ajuste desde ahora (se guarda en el Administrador de credenciales de Windows)</value>
+  </data>
+  <data name="Scan_PasswordNotSet" xml:space="preserve">
+    <value>No se guardó: el ajuste pone una contraseña a su PDF y no se escribió ninguna.</value>
+  </data>
+  <data name="Scan_SavedPdfA" xml:space="preserve">
+    <value>Guardado como PDF/A.</value>
+  </data>
+  <data name="Scan_SavedWithPassword" xml:space="preserve">
+    <value>Pide su contraseña para abrirse.</value>
+  </data>
+  <data name="PrintLayout_Label" xml:space="preserve">
+    <value>Diseño</value>
+  </data>
+  <data name="PrintLayout_Normal" xml:space="preserve">
+    <value>Una página por hoja</value>
+  </data>
+  <data name="PrintLayout_PerSheet" xml:space="preserve">
+    <value>Varias páginas por hoja</value>
+  </data>
+  <data name="PrintLayout_Booklet" xml:space="preserve">
+    <value>Folleto</value>
+  </data>
+  <data name="PrintLayout_Poster" xml:space="preserve">
+    <value>Póster</value>
+  </data>
+  <data name="PrintLayout_PerSheetCount" xml:space="preserve">
+    <value>{0} páginas por hoja</value>
+  </data>
+  <data name="PrintLayout_PosterPercent" xml:space="preserve">
+    <value>{0} % del tamaño de la página</value>
+  </data>
+  <data name="PrintLayout_PosterSize" xml:space="preserve">
+    <value>Tamaño del póster</value>
+  </data>
+  <data name="PrintLayout_CutMarks" xml:space="preserve">
+    <value>Marcas de corte</value>
+  </data>
+  <data name="PrintLayout_BookletNote" xml:space="preserve">
+    <value>Imprime a doble cara, dos páginas por cara, en el orden en que se lee la pila doblada. Dobla la pila por la mitad y grápala por el pliegue.</value>
+  </data>
+  <data name="PrintLayout_PosterNote" xml:space="preserve">
+    <value>Cada página en varias hojas que se solapan 6 mm. Recorta cada hoja por sus marcas de corte y une las hojas con cinta.</value>
+  </data>
+  <data name="Print_SendingSheets" xml:space="preserve">
+    <value>Enviando las hojas a la impresora…</value>
+  </data>
+  <data name="PrintLayout_TooMany" xml:space="preserve">
+    <value>No se imprimió: este diseño ocuparía más de {0} hojas. Elige menos páginas, menos copias o un póster más pequeño.</value>
+  </data>
 </root>

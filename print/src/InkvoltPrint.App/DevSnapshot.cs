@@ -25,7 +25,9 @@ namespace InkvoltPrint.App;
 /// scanner, and 9 a made-up WIA photo flatbed listed as a scanner of its own); <c>--fix</c> opens the offline fixer and runs its checks, <c>--fix all</c> then applies every repair it
 /// offers, answering yes to its questions, <c>--fix waiting</c> starts the first repair needing permission and leaves the made-up
 /// prompt unanswered, <c>--fix cancel</c> then presses its Cancel (only ever with <c>--demo</c>: the demo printers' fixer works on a made-up PC);
-/// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans);
+/// <c>--preset id|name</c> runs a scan preset (with <c>--demo</c>: saved under %TEMP%\Inkvolt Print demo scans; <c>--pdfa</c> or
+/// <c>--pdf-password text</c> make it save PDF/A-2b or a PDF with that password, roadmap 4.18); <c>--pdf-layout booklet|sheet-N|poster-P</c>
+/// with <c>--sample-pdf [pages]</c> chooses Print a PDF's layout (<see cref="PdfLayoutAsync"/>);
 /// <c>--then print|email|pdf</c> gives it that after-saving step first (demo only); <c>--photos [layout]</c> fills the Photos tab with
 /// generated sample pictures (options: see <see cref="PhotosAsync"/>); <c>--maintenance [n]</c> scrolls to the Maintenance card
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore,drop[-green|-blue],holes</c> sets the tab's clean up before scanning (<c>--glass form</c>: the made-up glass holds a punched order form) and <c>--clean n</c> opens the clean up view on the n-th page; <c>--join n</c> opens the join view on the n-th page and the next (<c>--glass halves</c>: two halves of a made-up plan; <c>--join-nudge left|…</c>, <c>--join-apply</c>); <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
@@ -232,6 +234,14 @@ internal static class DevSnapshot
             // --file-type word|text: the preset saves the text read from the pages as a Word document or a text file (demo only).
             if (Value(args, "--file-type") is { } fileType && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } typed)
                 presetMain.Presets.Update(typed with { FileType = fileType == "text" ? Core.Presets.PresetFileType.Text : Core.Presets.PresetFileType.Word });
+            // --pdfa: the preset saves PDF/A-2b; --pdf-password text: it puts that password on its PDF, kept for it in memory (demo only).
+            if (args.Contains("--pdfa") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } archived)
+                presetMain.Presets.Update(Core.Presets.ScanPresets.WithPdfA(archived, true) with { FileType = Core.Presets.PresetFileType.SearchablePdf });
+            if (Value(args, "--pdf-password") is { } pdfPassword && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } locked)
+            {
+                presetMain.Presets.Update(Core.Presets.ScanPresets.WithPassword(locked, true) with { FileType = Core.Presets.PresetFileType.SearchablePdf });
+                presetMain.Presets.Passwords.Save(locked.Id, pdfPassword);
+            }
             if (args.Contains("--turn-stack") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } stack)
                 presetMain.Presets.Update(stack with { Source = Core.Presets.PresetSource.Feeder, TwoSided = true, TurnStack = true });
             var ask = ViewModels.Prompt.Confirm;
@@ -318,6 +328,10 @@ internal static class DevSnapshot
                 finally { Printing.HandDuplexPrinting.AskReload = ask; }
             }
         }
+        // --pdf-layout booklet|sheet-N|poster-P with --sample-pdf [pages]: Print a PDF's layout (roadmap 4.18); --pdf-sheets folder renders
+        // each side the job sends (the printer's own paginator, Letter, 100 dpi) to PNGs there; --pdf-print presses Print (demo).
+        if (Value(args, "--pdf-layout") is { } layoutArg && window.DataContext is ViewModels.MainViewModel { Selected: { } layoutPrinter })
+            await PdfLayoutAsync(layoutPrinter.Print, layoutArg, args);
         // --clipboard text|picture: Print the clipboard with made-up content in its place (the real clipboard is never read or changed).
         if (Value(args, "--clipboard") is { } clip && window.DataContext is ViewModels.MainViewModel { Selected: { } clipPrinter })
         {
@@ -632,6 +646,48 @@ internal static class DevSnapshot
     }
 
     /// <summary>
+    /// <c>--pdf-layout booklet|sheet-N|poster-P</c>: Print a PDF's layout chosen once the PDF is open; <c>--pdf-sheets folder</c> renders
+    /// each side the job would send to a PNG there (Letter, 100 dpi, through the job's own paginator, so the layout is checked without
+    /// printing); <c>--pdf-print</c> then presses Print (demo: the made-up queue takes it).
+    /// </summary>
+    private static async Task PdfLayoutAsync(ViewModels.PrintViewModel print, string layout, string[] args)
+    {
+        for (var i = 0; i < 80 && !print.HasDocument; i++) await Task.Delay(250);
+        var parts = layout.Split('-');
+        var kind = parts[0] switch { "booklet" => Core.Sheets.PdfLayout.Booklet, "sheet" => Core.Sheets.PdfLayout.PagesPerSheet, "poster" => Core.Sheets.PdfLayout.Poster, _ => Core.Sheets.PdfLayout.Normal };
+        print.Layout = print.Layouts.First(l => l.Value == kind);
+        if (parts.Length > 1 && int.TryParse(parts[1], out var n))
+        {
+            if (print.PerSheetChoices.FirstOrDefault(c => c.Value == n) is { } per) print.PerSheet = per;
+            if (print.PosterChoices.FirstOrDefault(c => c.Value == n) is { } poster) print.PosterPercent = poster;
+        }
+        await Task.Delay(TimeSpan.FromMilliseconds(500));
+        if (Value(args, "--pdf-sheets") is { } folder)
+        {
+            Directory.CreateDirectory(folder);
+            var size = new Size(816, 1056);
+            using var images = new Printing.PrintImages();
+            if (await print.DevPaginatorAsync(size, images) is { } paginator)
+                for (var i = 0; i < paginator.PageCount; i++)
+                {
+                    var page = paginator.GetPage(i);
+                    const double dpi = 100;
+                    var bmp = new RenderTargetBitmap((int)Math.Ceiling(size.Width * dpi / 96), (int)Math.Ceiling(size.Height * dpi / 96), dpi, dpi, PixelFormats.Pbgra32);
+                    bmp.Render(page.Visual);
+                    var enc = new PngBitmapEncoder();
+                    enc.Frames.Add(BitmapFrame.Create(bmp));
+                    await using var fs = File.Create(Path.Combine(folder, $"side-{i + 1}.png"));
+                    enc.Save(fs);
+                }
+        }
+        if (args.Contains("--pdf-print"))
+        {
+            await print.PrintCommand.ExecuteAsync(null);
+            await Task.Delay(TimeSpan.FromSeconds(1));
+        }
+    }
+
+    /// <summary>
     /// <c>--photos [layout]</c>: the Photos tab with the demo's generated sample pictures (Demo.SamplePhotos), in a layout
     /// (full, 4x6in, 5x7in, 8x10in, 10x15cm, 13x18cm, wallet, contact); <c>--paper key</c> (e.g. NorthAmerica4x6),
     /// <c>--borderless</c>, <c>--fit</c>, <c>--one-per-sheet</c>, <c>--per-sheet n</c>, <c>--photo-zoom n</c> (zoom the n-th photo and move
@@ -910,19 +966,19 @@ internal static class DevAutoPrint
 internal static class DevPressPrint
 {
     /// <summary>The made-up PDF <c>--sample-pdf</c> opens, under %TEMP%.</summary>
-    public static string SamplePdf()
+    public static string SamplePdf(int pages = 3)
     {
         var path = Path.Combine(Path.GetTempPath(), "Inkvolt Print demo sample.pdf");
-        File.WriteAllBytes(path, Core.Printing.BatchPrintSamples.Pdf(3, "Sample"));
+        File.WriteAllBytes(path, Core.Printing.BatchPrintSamples.Pdf(pages, "Sample"));
         return path;
     }
 
     /// <summary><c>--sample-pdf [--printer n]</c>: the made-up PDF opened in the n-th demo printer's Print section (else the selected one's).</summary>
-    public static async Task OpenSampleAsync(ViewModels.MainViewModel vm, int printer)
+    public static async Task OpenSampleAsync(ViewModels.MainViewModel vm, int printer, int pages = 3)
     {
         for (var i = 0; i < 80 && vm.Printers.Count < Math.Max(1, printer); i++) await Task.Delay(250);
         if (printer > 0 && printer <= vm.Printers.Count) vm.Selected = vm.Printers[printer - 1];
-        if (vm.Selected is { } selected) await selected.OpenPdfAsync(SamplePdf());
+        if (vm.Selected is { } selected) await selected.OpenPdfAsync(SamplePdf(pages));
     }
 
     public static async Task RunAsync(Window window, ViewModels.MainViewModel vm, string reportPath)

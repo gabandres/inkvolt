@@ -149,6 +149,13 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
   goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never
   touches its files.
+- **Archive PDF**: a preset's PDF saved as PDF/A-2b, meant to open the same way for years: an sRGB **output intent** and XMP
+  metadata that say so (`PdfArchive`, `IccProfiles`). **Password on the PDF**: AES-256 protection a preset puts on its PDF
+  (`PdfEncryption`); never with PDF/A. The password lives in Windows Credential Manager under the preset, never in the presets.
+- **Layout** (Print a PDF): how pages go on the paper (`SheetPrint`, `PrintLayout`, shared with Inkvolt PDF): one per sheet,
+  **pages per sheet** (2, 4, 6, 9, 16 in a grid), **booklet** (saddle-stitch order: two pages a side, both sides, folded and
+  stapled) or **poster** (one page enlarged over **tiles**, sheets that **overlap** and carry **cut marks**). A **turned sheet** has its
+  long side across; its backs are drawn upside down (**half-turned**) so a long-edge flip reads right.
 - **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
   from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".
 - **Capture source**: a phone or a camera standing in for a scanner (roadmap 4.6, 4.12): each photo is made a page (`PhotoPage`: turned upright, the page found on a darker table and warped flat, sized as its paper, at the scan's resolution) and handed to the scan review as a scanner's page (`CaptureScanner`). **Phone scan**: one session of the phone's page, its one-time code in the QR code, the first phone to pair the only one that may send (`PhoneSession`, `PhoneScan` in `shared/InkvoltPrint.Core/Capture`). **Camera scan**: a webcam's or document camera's live picture, each Capture its latest frame in full (`CameraSession`, `CameraFormats`).

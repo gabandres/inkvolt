@@ -2043,6 +2043,12 @@ public sealed partial class ScanViewModel : ObservableObject
 
     private bool CanSaveWithPreset() => ActivePreset is not null && !IsBusy;
 
+    /// <summary>
+    /// Set by the app: asks for the password a preset puts on its PDF (Views.PasswordDialog, typed twice), and whether to keep it
+    /// for the preset on this PC. Arg: the preset's name. Null when the person cancelled.
+    /// </summary>
+    public static Func<string, (string Password, bool Remember)?>? AskPresetPassword { get; set; }
+
     /// <summary>Saves the kept pages into the preset's folder under its file-name template (never over another file), then its "after saving" step.</summary>
     [RelayCommand(CanExecute = nameof(CanSaveWithPreset))]
     private async Task SaveWithPresetAsync()
@@ -2064,6 +2070,19 @@ public sealed partial class ScanViewModel : ObservableObject
             Message = problem;
             return;
         }
+        // A preset's password (roadmap 4.18): kept in Credential Manager, else asked now (and kept when the person says so).
+        string? password = null;
+        if (ScanPresets.SavesWithPassword(preset) && (password = _presets.Passwords.Get(preset.Id)) is null)
+        {
+            if (AskPresetPassword?.Invoke(preset.Name) is not { } asked || !PdfEncryption.Usable(asked.Password))
+            {
+                Message = Strings.Scan_PasswordNotSet;
+                return;
+            }
+            password = asked.Password;
+            if (asked.Remember) _presets.Passwords.Save(preset.Id, password);
+        }
+        var writeOptions = ScanPresets.WriteOptions(preset, password);
         CancelCrop();
         CancelPhotos();
         CancelClean();
@@ -2098,9 +2117,10 @@ public sealed partial class ScanViewModel : ObservableObject
                 // The first file's name as the review shows it, when it was changed there; else the template's.
                 var stem = file == files[0] && _saveNameEdited && !string.IsNullOrWhiteSpace(SaveName)
                     ? FileNameTemplate.Sanitize(SaveName) : FileNameTemplate.FileName(preset.FileName, ctx);
-                var asSent = pdf ? ScannerPdf.KeepAsSent(ToSave(file)) : null;
+                // PDF/A or a password: always our own PDF, never the scanner's as it sent it.
+                var asSent = pdf && writeOptions is null ? ScannerPdf.KeepAsSent(ToSave(file)) : null;
                 List<string> written = jpg ? await WriteImagesAsync(file, into, stem)
-                    : pdf ? [await WritePdfAsync(asSent is null ? await PdfPagesAsync(file) : null, asSent, into, stem)]
+                    : pdf ? [await WritePdfAsync(asSent is null ? await PdfPagesAsync(file) : null, asSent, into, stem, writeOptions)]
                     : [await WriteDocumentAsync(await DocPagesAsync(file), preset.FileType, into, stem)];
                 _savedParts.Add(file, written);
                 saved.AddRange(written);
@@ -2116,7 +2136,8 @@ public sealed partial class ScanViewModel : ObservableObject
             MarkSaved(changes);
             Message = SavedText(Path.GetFileName(saved[0]), saved.Count, files.Count, jpg, folder)
                 + (before.Count == 0 ? "" : " " + string.Format(Strings.Scan_AlreadySaved, string.Join(", ", before.Select(Path.GetFileName))))
-                + (pdf ? AsSentNote(files) : "")
+                + (pdf && writeOptions is null ? AsSentNote(files) : "")
+                + (writeOptions is { PdfA: true } ? " " + Strings.Scan_SavedPdfA : writeOptions is { Password: not null } ? " " + Strings.Scan_SavedWithPassword : "")
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
             RatingRequest.NoteSuccess(_state);
@@ -2168,14 +2189,14 @@ public sealed partial class ScanViewModel : ObservableObject
     /// Writes the PDF next to its final name, then moves it there only if that name is still free (else the next one): made from
     /// <paramref name="pages"/>, or the scanner's own PDF <paramref name="asSent"/> as it is.
     /// </summary>
-    private static Task<string> WritePdfAsync(List<PdfPage>? pages, byte[]? asSent, string folder, string stem) => Task.Run(() =>
+    private static Task<string> WritePdfAsync(List<PdfPage>? pages, byte[]? asSent, string folder, string stem, PdfWriteOptions? options = null) => Task.Run(() =>
     {
         var tmp = TempName(folder);
         try
         {
             using (var fs = File.Create(tmp))
                 if (asSent is not null) fs.Write(asSent);
-                else PdfWriter.Write(fs, pages!, stem);
+                else PdfWriter.Write(fs, pages!, stem, options);
             return FileNameTemplate.PlaceSet([tmp], folder, stem, ".pdf", File.Exists, TryMove)[0];
         }
         finally

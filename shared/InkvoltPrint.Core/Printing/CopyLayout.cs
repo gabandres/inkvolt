@@ -3,7 +3,27 @@ using InkvoltPrint.Core.Escl;
 namespace InkvoltPrint.Core.Printing;
 
 /// <summary>Where an image goes on the paper, in the paper's units (left, top, width, height).</summary>
-public readonly record struct Placement(double X, double Y, double Width, double Height);
+public readonly record struct Placement(double X, double Y, double Width, double Height)
+{
+    public double Right => X + Width;
+    public double Bottom => Y + Height;
+    public double CenterX => X + Width / 2;
+    public double CenterY => Y + Height / 2;
+    public bool IsEmpty => Width <= 0 || Height <= 0;
+
+    /// <summary>The part both cover; empty (all zero) when they don't overlap.</summary>
+    public Placement Intersect(Placement other)
+    {
+        var l = Math.Max(X, other.X);
+        var t = Math.Max(Y, other.Y);
+        var r = Math.Min(Right, other.Right);
+        var b = Math.Min(Bottom, other.Bottom);
+        return r > l && b > t ? new Placement(l, t, r - l, b - t) : default;
+    }
+
+    /// <summary>Grown by <paramref name="d"/> on every side (shrunk when negative).</summary>
+    public Placement Inflate(double d) => new(X - d, Y - d, Width + 2 * d, Height + 2 * d);
+}
 
 /// <summary>
 /// Copying (scan, then print what was scanned): page placement at actual size, and the ID card copy layout, front on

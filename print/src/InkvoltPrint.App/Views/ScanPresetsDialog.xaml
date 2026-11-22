@@ -120,6 +120,21 @@
                             <TextBlock Text="{x:Static loc:Strings.Presets_FileType}" Style="{StaticResource Label}" Margin="0,12,0,4" />
                             <ComboBox ItemsSource="{x:Static vm:ScanPresetsViewModel.FileTypes}" SelectedItem="{Binding FileType}" HorizontalAlignment="Stretch"
                                       AutomationProperties.Name="{x:Static loc:Strings.Presets_FileType}" />
+                            <!-- Roadmap 4.18: PDF/A-2b for archiving, or a password (AES-256); never both -->
+                            <CheckBox IsChecked="{Binding PdfA}" Visibility="{Binding IsPdf, Converter={StaticResource VisibleWhen}}" Margin="0,8,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Presets_PdfA}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_PdfAHelp}">
+                                <StackPanel>
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_PdfA}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_PdfAHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </CheckBox>
+                            <CheckBox IsChecked="{Binding Password}" Visibility="{Binding IsPdf, Converter={StaticResource VisibleWhen}}" Margin="0,6,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Presets_Password}" AutomationProperties.HelpText="{x:Static loc:Strings.Presets_PasswordHelp}">
+                                <StackPanel>
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_Password}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{x:Static loc:Strings.Presets_PasswordHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </CheckBox>
                         </StackPanel>
                     </Grid>
                     <WrapPanel Margin="0,12,0,0">

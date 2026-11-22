@@ -217,14 +217,15 @@ public static class PrintTargets
     }
 
     /// <summary>The PDF's pages drawn for printing, at <see cref="QueuePrinter.RenderDpi"/>.</summary>
-    public static async Task<List<RenderedPage>> RenderAsync(PdfSource pdf, IReadOnlyList<int> numbers, IProgress<string> progress, CancellationToken ct)
+    public static async Task<List<RenderedPage>> RenderAsync(PdfSource pdf, IReadOnlyList<int> numbers, IProgress<string> progress, CancellationToken ct,
+        int dpi = QueuePrinter.RenderDpi)
     {
         var pages = new List<RenderedPage>(numbers.Count);
         for (var i = 0; i < numbers.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
             progress.Report(string.Format(Strings.Print_PreparingPage, i + 1, numbers.Count));
-            pages.Add(await pdf.RenderAsync(numbers[i], QueuePrinter.RenderDpi, ct: ct));
+            pages.Add(await pdf.RenderAsync(numbers[i], dpi, ct: ct));
         }
         return pages;
     }

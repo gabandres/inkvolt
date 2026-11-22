@@ -31,6 +31,20 @@ public sealed class ScanPresetLibrary
     public bool IsDemo { get; }
 
     /// <summary>
+    /// The passwords presets put on their PDFs (<see cref="ScanPreset.Password"/>), by preset id: Windows Credential Manager, or
+    /// (demo) memory. A preset deleted, or whose password was turned off, loses its saved password when the editor saves.
+    /// </summary>
+    public IPrinterPasswords Passwords => field ??= IsDemo ? new MemoryPasswords() : new VaultPasswords();
+
+    private sealed class VaultPasswords : IPrinterPasswords
+    {
+        public string? Get(string id) => InkvoltPrint.Windows.Security.PresetPasswordStore.Get(id);
+        public void Save(string id, string password) => InkvoltPrint.Windows.Security.PresetPasswordStore.Save(id, password);
+        public void Delete(string id) => InkvoltPrint.Windows.Security.PresetPasswordStore.Delete(id);
+        public void Rename(string oldId, string newId) { }
+    }
+
+    /// <summary>
     /// The presets were saved by a newer Inkvolt Print: this one runs them but doesn't change them (the editor says so, and
     /// counters go up for this session only), so going back to the newer version loses nothing.
     /// </summary>
@@ -52,6 +66,7 @@ public sealed class ScanPresetLibrary
     {
         if (IsReadOnly) return;
         var list = ScanPresets.KeepCounters(presets, Items);
+        foreach (var id in ScanPresets.PasswordsToForget(Items, list)) Passwords.Delete(id);
         Items.Clear();
         foreach (var p in list) Items.Add(p);
         Store();

@@ -46,6 +46,15 @@ public sealed record ScanPreset
     /// </summary>
     public bool SmallerFile { get; init; }
 
+    /// <summary>A PDF saved as PDF/A-2b, for archiving (<see cref="ScanPresets.SavesPdfA"/>); never with <see cref="Password"/>.</summary>
+    public bool PdfA { get; init; }
+
+    /// <summary>
+    /// A PDF that asks for a password to open (AES-256, <see cref="ScanPresets.SavesWithPassword"/>). The password itself is never
+    /// in the preset: Windows' Credential Manager keeps it under the preset's id, or the save asks for it.
+    /// </summary>
+    public bool Password { get; init; }
+
     /// <summary>Pages lying sideways or upside down turned upright, when their text says so clearly (<see cref="Imaging.PageUpright"/>).</summary>
     public bool TurnUpright { get; init; } = true;
 
@@ -280,6 +289,36 @@ public static partial class ScanPresets
         p.SmallerFile && IsPdf(p.FileType)
         && !(p.FindPhotos && (source is { } s ? s == ScanSource.Platen : p.Source == PresetSource.Glass));
 
+    /// <summary>The preset's PDF is PDF/A-2b: a PDF file type, and no password (PDF/A forbids encryption: the password wins).</summary>
+    public static bool SavesPdfA(ScanPreset p) => p.PdfA && IsPdf(p.FileType) && !p.Password;
+
+    /// <summary>The preset's PDF asks for a password to open: a PDF file type with the option on.</summary>
+    public static bool SavesWithPassword(ScanPreset p) => p.Password && IsPdf(p.FileType);
+
+    /// <summary>
+    /// The editor's PDF/A box ticked or cleared: ticking it clears the password (they can't go together), the last one ticked winning.
+    /// </summary>
+    public static ScanPreset WithPdfA(ScanPreset p, bool on) => p with { PdfA = on, Password = on ? false : p.Password };
+
+    /// <summary>The editor's password box ticked or cleared: ticking it clears PDF/A.</summary>
+    public static ScanPreset WithPassword(ScanPreset p, bool on) => p with { Password = on, PdfA = on ? false : p.PdfA };
+
+    /// <summary>The ids whose saved password goes when <paramref name="before"/> becomes <paramref name="after"/>: deleted, or the password turned off.</summary>
+    public static IReadOnlyList<string> PasswordsToForget(IEnumerable<ScanPreset> before, IEnumerable<ScanPreset> after)
+    {
+        var kept = after.Where(p => p.Password).Select(p => p.Id).ToHashSet(StringComparer.Ordinal);
+        return [.. before.Where(p => p.Password && !kept.Contains(p.Id)).Select(p => p.Id)];
+    }
+
+    /// <summary>
+    /// How the preset's PDF is written (<see cref="Pdf.PdfWriter.Write"/>): PDF/A, or with <paramref name="password"/> when it
+    /// asks for one; null for the plain file. A PDF/A or protected file is always written here, never the scanner's own PDF as sent.
+    /// </summary>
+    public static Pdf.PdfWriteOptions? WriteOptions(ScanPreset p, string? password) =>
+        SavesWithPassword(p) && Pdf.PdfEncryption.Usable(password) ? new Pdf.PdfWriteOptions { Password = password }
+        : SavesPdfA(p) ? new Pdf.PdfWriteOptions { PdfA = true }
+        : null;
+
     /// <summary>A PDF (searchable or not): what opens in Inkvolt PDF and can be saved in black and white.</summary>
     public static bool IsPdf(PresetFileType type) => type is PresetFileType.Pdf or PresetFileType.SearchablePdf;
 
@@ -359,6 +398,8 @@ public static class ScanPresetText
             ColorDpi(p),
             Folder(p),
         };
+        if (ScanPresets.SavesPdfA(p)) parts.Add(CoreStrings.Preset_PdfAShort);
+        if (ScanPresets.SavesWithPassword(p)) parts.Add(CoreStrings.Preset_PasswordShort);
         if (p.TwoSided && p.TurnStack && p.Source != PresetSource.Glass) parts.Add(CoreStrings.Preset_TurnStackShort);
         if (p.SplitAt != SplitAt.None) parts.Add(string.Format(CoreStrings.Preset_NewFileAtEach, SplitText(p.SplitAt)));
         if (p.FindPhotos) parts.Add(CoreStrings.Preset_EachPhoto);

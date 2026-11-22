@@ -230,6 +230,24 @@ public sealed partial class PresetItem : ObservableObject
         Subfolder = preset.Subfolder;
         FileName = preset.FileName;
         After = ScanPresetsViewModel.Afters.First(o => o.Value == preset.After);
+        PdfA = preset.PdfA;
+        Password = preset.Password;
+    }
+
+    /// <summary>The PDF saved as PDF/A-2b, for archiving; turns the password off (<see cref="ScanPresets.WithPdfA"/>).</summary>
+    [ObservableProperty] public partial bool PdfA { get; set; }
+
+    /// <summary>The PDF asks for a password to open (AES-256); turns PDF/A off (<see cref="ScanPresets.WithPassword"/>).</summary>
+    [ObservableProperty] public partial bool Password { get; set; }
+
+    partial void OnPdfAChanged(bool value)
+    {
+        if (value) Password = ScanPresets.WithPdfA(ToPreset(), true).Password;
+    }
+
+    partial void OnPasswordChanged(bool value)
+    {
+        if (value) PdfA = ScanPresets.WithPassword(ToPreset(), true).PdfA;
     }
 
     [ObservableProperty]
@@ -391,6 +409,8 @@ public sealed partial class PresetItem : ObservableObject
         Subfolder = Subfolder ?? "",
         FileName = FileName ?? "",
         After = After.Value,
+        PdfA = PdfA,
+        Password = Password,
     };
 
     public override string ToString() => Name;

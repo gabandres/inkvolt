@@ -1085,11 +1085,28 @@
                                 </Button>
                             </StackPanel>
 
-                            <TextBlock Text="{x:Static loc:Strings.PrintTab_Size}" Margin="0,20,0,6" FontWeight="SemiBold" />
-                            <RadioButton Content="{x:Static loc:Strings.PrintTab_ActualSize}" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="size"
-                                         ToolTip="{x:Static loc:Strings.PrintTab_ActualSizeTip}" />
-                            <RadioButton Content="{x:Static loc:Strings.PrintTab_FitToPaper}" IsChecked="{Binding FitToPaper}" GroupName="size" Margin="0,6,0,0"
-                                         ToolTip="{x:Static loc:Strings.PrintTab_FitToPaperTip}" />
+                            <!-- Roadmap 4.18: pages per sheet, a booklet, a poster (the shared core's sheet layouts) -->
+                            <TextBlock Text="{x:Static loc:Strings.PrintLayout_Label}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding Layouts}" SelectedItem="{Binding Layout}" HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="{x:Static loc:Strings.PrintLayout_Label}" />
+                            <ComboBox ItemsSource="{Binding PerSheetChoices}" SelectedItem="{Binding PerSheet}" HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.PrintLayout_PerSheet}"
+                                      Visibility="{Binding IsPerSheet, Converter={StaticResource VisibleWhen}}" />
+                            <StackPanel Visibility="{Binding IsPoster, Converter={StaticResource VisibleWhen}}">
+                                <ComboBox ItemsSource="{Binding PosterChoices}" SelectedItem="{Binding PosterPercent}" HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                          AutomationProperties.Name="{x:Static loc:Strings.PrintLayout_PosterSize}" ToolTip="{x:Static loc:Strings.PrintLayout_PosterSize}" />
+                                <CheckBox Content="{x:Static loc:Strings.PrintLayout_CutMarks}" IsChecked="{Binding CutMarks}" Margin="0,8,0,0" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding LayoutNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding LayoutNote, Converter={StaticResource VisibleWhen}}" />
+
+                            <StackPanel Visibility="{Binding IsNormalLayout, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.PrintTab_Size}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                                <RadioButton Content="{x:Static loc:Strings.PrintTab_ActualSize}" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="size"
+                                             ToolTip="{x:Static loc:Strings.PrintTab_ActualSizeTip}" />
+                                <RadioButton Content="{x:Static loc:Strings.PrintTab_FitToPaper}" IsChecked="{Binding FitToPaper}" GroupName="size" Margin="0,6,0,0"
+                                             ToolTip="{x:Static loc:Strings.PrintTab_FitToPaperTip}" />
+                            </StackPanel>
 
                             <CheckBox Content="{Binding TwoSidedText}" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
                                       ToolTip="{x:Static loc:Strings.Hand_BothSidesTip}"

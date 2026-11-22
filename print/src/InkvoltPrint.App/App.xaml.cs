@@ -110,6 +110,7 @@ public partial class App : Application
 
         SettingsViewModel.AskPassword = (printer, rejected, fingerprint) => PasswordDialog.AskAdmin(MainWindow, printer, rejected, fingerprint);
         PrintViewModel.AskPdfPassword = (file, wrong) => PasswordDialog.AskPdf(MainWindow, file, wrong);
+        ScanViewModel.AskPresetPassword = preset => PasswordDialog.AskNewPdf(MainWindow, preset);
         PrinterViewModel.AskSnmpLogin = (printer, save, current) => SnmpAccessDialog.Ask(MainWindow, printer, save, current);
         // Scanners that send only PDF: pages that aren't one JPEG picture are drawn by Windows' PDF engine (roadmap 1.3).
         Core.Escl.ScannerPdf.Renderer = new InkvoltPrint.Windows.Printing.ScannedPdfPages();
@@ -209,7 +210,8 @@ public partial class App : Application
         // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer.
         if (FirstPdf(args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
         else if (demo && args.Contains("--sample-pdf")) // a made-up PDF, on the --printer n (DevPressPrint)
-            _ = DevPressPrint.OpenSampleAsync(_vm, int.TryParse(args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var sp) ? sp : 0);
+            _ = DevPressPrint.OpenSampleAsync(_vm, int.TryParse(args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var sp) ? sp : 0,
+                int.TryParse(args.SkipWhile(a => a != "--sample-pdf").Skip(1).FirstOrDefault(), out var sn) ? Math.Clamp(sn, 1, 64) : 3);
         // InkvoltPrint.exe photo.jpg … ("Open with" on pictures) → Photos for the last-used printer.
         else if (Pictures(args) is { Count: > 0 } pictures) _ = _vm.OpenPhotosAsync(pictures);
         // The jump list's "Scan: <preset>" (InkvoltPrint.exe --preset id). Snapshots run it themselves, in order.

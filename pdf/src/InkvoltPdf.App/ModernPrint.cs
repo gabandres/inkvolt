@@ -12,6 +12,8 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Windows.Xps.Packaging;
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Sheets;
+using Placement = InkvoltPrint.Core.Printing.Placement;
 using Windows.Graphics.Printing;
 using Windows.Graphics.Printing.OptionDetails;
 using WinRT;
@@ -91,7 +93,7 @@ internal static class ModernPrint
     internal static async Task<int> WriteJobXps(PdfEngine engine, int[] pages, string path, PrintSetup? setup = null)
     {
         var paper = new Size(816, 1056);
-        var plan = new PrintPlan(pages, FileActions.SizesOf(engine), new RectD(24, 24, 768, 1008), setup ?? new PrintSetup());
+        var plan = new PrintPlan(pages, FileActions.SizesOf(engine), new Placement(24, 24, 768, 1008), setup ?? new PrintSetup());
         File.Delete(path);
         using var writer = XpsJobWriter.ForFile(path);
         for (var i = 0; i < plan.SheetCount; i++)
@@ -319,8 +321,8 @@ internal sealed class PrintSession
         var paper = d.PageSize.Width > 0 && d.PageSize.Height > 0 ? new Size(d.PageSize.Width, d.PageSize.Height) : new Size(816, 1056);
         var ia = d.ImageableRect;
         var area = ia.Width > 0 && ia.Height > 0
-            ? new RectD(ia.X, ia.Y, ia.Width, ia.Height)
-            : new RectD(24, 24, Math.Max(1, paper.Width - 48), Math.Max(1, paper.Height - 48));
+            ? new Placement(ia.X, ia.Y, ia.Width, ia.Height)
+            : new Placement(24, 24, Math.Max(1, paper.Width - 48), Math.Max(1, paper.Height - 48));
         var setup = _setup;
         if (setup.Handling == PrintHandling.Fit && SizingFor(options) is { } sizing) setup = setup with { Sizing = sizing };
         return new Layout(new PrintPlan([.. Enumerable.Range(0, _pageCount)], _sizes, area, setup), paper, setup);
