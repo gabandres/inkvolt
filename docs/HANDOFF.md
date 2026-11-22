@@ -5,12 +5,15 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## Current state
 
-- **Released:** Inkvolt Print 1.8.0.0 (Wave 4 Batches A and B), Published in the Microsoft Store 2026-11-22 (GitHub
-  release `print-v1.8.0.0`; the website's `softwareVersion` 1.8.0). Inkvolt PDF 1.16.0.0, Published 2026-11-21. The next
-  submission of each must be higher.
+- **Released:** Inkvolt Print 1.8.0.0 and Inkvolt PDF 1.17.0.0 (Wave 4 Batches A and B), both Published in the
+  Microsoft Store 2026-11-22 (GitHub releases `print-v1.8.0.0`, `pdf-v1.17.0.0`; the website's `softwareVersion` 1.8.0
+  and 1.17.0). The next submission of each must be higher. PDF 1.17's bench ran on a loaded PC (`pdf/tools/bench/RESULTS.md`
+  says so): run it again idle before the next PDF release.
+- **Release gotcha:** a branch merged after `## Next` became `## x.y.z` can put its What's New lines under the released
+  version (it happened with 1.17.0; fixed by hand). After each merge during a release, check `## Next` still holds them.
 - **Windows roadmaps:** Waves 1-3 of `pdf/ROADMAP.md` and `print/ROADMAP.md` are built and merged. **Wave 4** (a market
   check, 2026-11-21; the owner: do all of it and release it) is under way in its batches, each released to the Store as
-  it is merged and reviewed: Print 1.8.0.0 carried A and B; PDF 1.17.0.0 carries PDF's A and B; Batch C follows.
+  it is merged and reviewed: Print 1.8.0.0 and PDF 1.17.0.0 carried A and B; Batch C is on master for the next releases.
 - **The Mac waits** (owner, 2026-11-17: no Mac any more; all work is Windows). Every Mac half in both roadmaps waits for
   a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. PrintCore has none of Inkvolt Print's printer-data work
   of 2026-11-20 (pages left and yield from CDM, IPP and the Printer MIB; recordings keeping IPP collections and SNMP
