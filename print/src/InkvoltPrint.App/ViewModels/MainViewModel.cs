@@ -39,6 +39,9 @@ public static class Prompt
 
     /// <summary>Opens the recent scans (Views.RecentScansDialog, roadmap 4.15). Unset (tests): no-op.</summary>
     public static Action<RecentScansViewModel>? ShowRecentScans { get; set; }
+
+    /// <summary>Opens a camera scan's window (Views.CameraWindow, roadmap 4.12), returning what closes it. Unset (tests): no camera scan.</summary>
+    public static Func<CameraScanViewModel, Action>? ShowCamera { get; set; }
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable
@@ -153,9 +156,6 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>The scanner shared on the network (roadmap 3.1, free): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
     public ScannerShare Share { get; }
 
-    /// <summary>This PC, or demo mode's made-up one (the printer setup guide's Wi-Fi, roadmap 4.17).</summary>
-    public PcEnvironment Pc => _pc;
-
     /// <summary>Windows queues shared with phones (roadmap 4.10, free): off by default; a queue printer's Print tab card turns each on.</summary>
     public PrinterShare PrinterShares { get; }
 
@@ -215,11 +215,45 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint), nameof(ShowNeedsDriverPane))]
     public partial bool IsFleetShown { get; set; }
 
-    public bool ShowPrinterPane => Selected is not null && !IsFleetShown && SelectedNeedsDriver is null;
-    public bool ShowNoPrinterHint => Selected is null && !IsFleetShown && SelectedNeedsDriver is null;
+    public bool ShowPrinterPane => Selected is not null && !IsFleetShown && !IsCaptureShown && SelectedNeedsDriver is null;
+    public bool ShowNoPrinterHint => Selected is null && !IsFleetShown && !IsCaptureShown && SelectedNeedsDriver is null;
+
+    /// <summary>
+    /// Scan with your phone or a camera without a scanner (roadmap 4.6, 4.12; Microsoft Lens's place): a Scan page of its own, made when
+    /// first shown, whose review fills only from a phone or a camera.
+    /// </summary>
+    public ScanViewModel CaptureScan => _captureScan ??= new ScanViewModel(new NoScanner(), Core.Capture.CaptureScanner.Capabilities(Strings.Capture_PageName),
+        _state, Presets, Strings.Capture_PageName, () => Task.FromResult<Printing.PrintTarget?>(null), _pc)
+    {
+        CaptureOnly = true,
+        ShowRecent = () => Prompt.ShowRecentScans?.Invoke(new RecentScansViewModel(_state, _pc.OpensOtherApps, null)),
+    };
+
+    private ScanViewModel? _captureScan;
+
+    /// <summary>The main pane shows the phone and camera page instead of the selected printer.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint), nameof(ShowNeedsDriverPane))]
+    public partial bool IsCaptureShown { get; set; }
+
+    partial void OnIsCaptureShownChanged(bool value)
+    {
+        if (!value) return;
+        IsFleetShown = false;
+        SelectedNeedsDriver = null;
+        OnPropertyChanged(nameof(CaptureScan));
+    }
+
+    /// <summary>The printer's page again: the Fleet page and the phone and camera page give way.</summary>
+    public void LeavePages()
+    {
+        IsFleetShown = false;
+        IsCaptureShown = false;
+    }
 
     partial void OnIsFleetShownChanged(bool value)
     {
+        if (value) IsCaptureShown = false;
         if (value) SelectedNeedsDriver = null;
         if (value) Fleet.Show();
         else _fleet?.Hide();
@@ -231,8 +265,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     public void ShowPrinter(PrinterViewModel printer)
     {
         Selected = printer;
-        IsFleetShown = false;
+        LeavePages();
     }
+
+    /// <summary>This PC's environment (the made-up one in demo mode).</summary>
+    public PcEnvironment Pc => _pc;
 
     /// <summary>Remembered printers and preferences (the tray's settings live there too).</summary>
     public AppState State => _state;
@@ -245,7 +282,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     private async Task RunPresetAtAsync(string? number)
     {
         if (!int.TryParse(number, out var n) || n < 1 || n > Presets.Items.Count || Selected is not { Scan: not null } printer) return;
-        IsFleetShown = false; // the scan shows on the printer's page
+        LeavePages(); // the scan shows on the printer's page
         await printer.RunPresetAsync(Presets.Items[n - 1]);
     }
 
@@ -266,7 +303,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
             Prompt.Tell(string.Format(Strings.Main_PresetNoScanner, preset.Name));
             return;
         }
-        IsFleetShown = false; // the scan shows on the printer's page
+        LeavePages(); // the scan shows on the printer's page
         await printer.RunPresetAsync(preset);
     }
 
@@ -510,11 +547,11 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     [NotifyPropertyChangedFor(nameof(ShowPrinterPane), nameof(ShowNoPrinterHint), nameof(ShowNeedsDriverPane), nameof(ListSelected))]
     public partial NeedsDriverViewModel? SelectedNeedsDriver { get; set; }
 
-    public bool ShowNeedsDriverPane => SelectedNeedsDriver is not null && !IsFleetShown;
+    public bool ShowNeedsDriverPane => SelectedNeedsDriver is not null && !IsFleetShown && !IsCaptureShown;
 
     partial void OnSelectedNeedsDriverChanged(NeedsDriverViewModel? value)
     {
-        if (value is not null) IsFleetShown = false;
+        if (value is not null) LeavePages();
     }
 
     /// <summary>
@@ -633,7 +670,7 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
                     ?? Printers.FirstOrDefault(p => p.Scan is not null && UsbScanners.SameModel(which.Name, p.Name));
         if (shown is null) return;
         SelectedNeedsDriver = null;
-        IsFleetShown = false;
+        LeavePages();
         Selected = shown;
         shown.SelectedSection = PrinterViewModel.ScanSection;
         Log.Write($"[{which.Name}] driver installed: selected in the Scan tab as {scanner.Name}");
@@ -836,12 +873,39 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Printers holding scanned pages that haven't been saved (checked before the window closes).</summary>
     public IReadOnlyList<PrinterViewModel> PrintersWithUnsavedScans => Printers.Where(p => p.Scan?.HasUnsavedPages == true).ToList();
 
+    /// <summary>Every Scan page with work that closing would lose: unsaved pages, or a phone or camera scan under way (pages may still come).</summary>
+    public IReadOnlyList<ScanViewModel> UnsavedScans =>
+        [.. Printers.Select(p => p.Scan).Append(_captureScan).OfType<ScanViewModel>().Where(s => s.HasUnsavedPages || s.IsCapturing)];
+
+    /// <summary>Shows <paramref name="scan"/>: its printer's Scan tab, or the phone and camera page.</summary>
+    public void ShowScan(ScanViewModel scan)
+    {
+        if (ReferenceEquals(scan, _captureScan))
+        {
+            IsCaptureShown = true;
+            return;
+        }
+        if (Printers.FirstOrDefault(p => ReferenceEquals(p.Scan, scan)) is not { } printer) return;
+        ShowPrinter(printer);
+        printer.SelectedSection = PrinterViewModel.ScanSection;
+    }
+
+    /// <summary>
+    /// The window closes, once that's decided (or it goes to the notification area): phone and camera scans end there, as if Done were
+    /// pressed, keeping their pages (roadmap 4.6, 4.12).
+    /// </summary>
+    public void EndCaptures()
+    {
+        foreach (var printer in Printers) printer.Scan?.EndCapture();
+        _captureScan?.EndCapture();
+    }
+
     /// <summary>A PDF handed to Inkvolt Print from outside (Open with, a second launch, drag-and-drop).</summary>
     /// <summary>The printer something handed in goes to: the selected one, or the first printer when a scanner on its own is selected.</summary>
     private PrinterViewModel? Printer()
     {
         if (Selected is { CanPrint: false } && Printers.FirstOrDefault(p => p.CanPrint) is { } printer) Selected = printer;
-        if (Selected is { CanPrint: true }) IsFleetShown = false; // what's handed in shows on the printer's page
+        if (Selected is { CanPrint: true }) LeavePages(); // what's handed in shows on the printer's page
         return Selected is { CanPrint: true } p ? p : null;
     }
 

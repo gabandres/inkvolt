@@ -4415,4 +4415,118 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="PrinterShare_Unreadable" xml:space="preserve">
     <value>On, but Windows couldn't say what this printer can do, so it isn't shared yet. It's tried again every half minute; check that the printer is on and its queue works.</value>
   </data>
+  <data name="Capture_NotAPhoto" xml:space="preserve">
+    <value>A photo was left out: it isn't a JPEG or PNG photo the size of a page, or it didn't open.</value>
+  </data>
+  <data name="Phone_NoPrivateNetwork" xml:space="preserve">
+    <value>Your phone can send pages only over a private network, and this PC isn't on one. If you trust this network, set it to Private in Windows Settings › Network &amp; internet, then try again.</value>
+  </data>
+  <data name="Phone_PortInUse" xml:space="preserve">
+    <value>Another program uses port {0}, which scanning with your phone needs. Close it and try again.</value>
+  </data>
+  <data name="Phone_Failed" xml:space="preserve">
+    <value>Scanning with your phone couldn't start. Try again; if it still doesn't start, restart Inkvolt Print.</value>
+  </data>
+  <data name="Phone_Heading" xml:space="preserve">
+    <value>Scan to {0}</value>
+  </data>
+  <data name="Phone_Tip" xml:space="preserve">
+    <value>Lay the page on a darker table and hold the phone above it so the page fills most of the screen. One photo per page: each shows up on the PC as you go.</value>
+  </data>
+  <data name="Phone_Take" xml:space="preserve">
+    <value>Take a photo of a page</value>
+  </data>
+  <data name="Phone_Choose" xml:space="preserve">
+    <value>Choose photos</value>
+  </data>
+  <data name="Phone_Done" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Phone_Sending" xml:space="preserve">
+    <value>Sending page {0}…</value>
+  </data>
+  <data name="Phone_Sent" xml:space="preserve">
+    <value>Page {0} is on the PC.</value>
+  </data>
+  <data name="Phone_PageFailed" xml:space="preserve">
+    <value>Page {0} didn't arrive. {1}</value>
+  </data>
+  <data name="Phone_NotAPhoto" xml:space="preserve">
+    <value>It isn't a JPEG or PNG photo.</value>
+  </data>
+  <data name="Phone_TooBig" xml:space="preserve">
+    <value>The photo is too large.</value>
+  </data>
+  <data name="Phone_TooMany" xml:space="preserve">
+    <value>That's the most pages one scan takes: tap Done, then start a new scan on the PC.</value>
+  </data>
+  <data name="Phone_Lost" xml:space="preserve">
+    <value>The PC can't be reached. Check that the phone is on the same Wi-Fi as the PC.</value>
+  </data>
+  <data name="Phone_Used" xml:space="preserve">
+    <value>Another phone already used this code. On the PC, scan with your phone again for a new code.</value>
+  </data>
+  <data name="Phone_Ended" xml:space="preserve">
+    <value>This scan has ended on the PC. Start a new one there for a new code.</value>
+  </data>
+  <data name="Phone_Finished_One" xml:space="preserve">
+    <value>Done: 1 page sent. You can close this page.</value>
+  </data>
+  <data name="Phone_Finished_Many" xml:space="preserve">
+    <value>Done: {0} pages sent. You can close this page.</value>
+  </data>
+  <data name="Phone_NoScript" xml:space="preserve">
+    <value>This page needs JavaScript to send photos.</value>
+  </data>
+  <data name="Phone_StatusWaiting" xml:space="preserve">
+    <value>Waiting for your phone: point its camera at the code and open the link it shows.</value>
+  </data>
+  <data name="Phone_StatusConnected" xml:space="preserve">
+    <value>Phone connected. Take a photo of each page; tap Done on the phone, or Done here, when you've finished.</value>
+  </data>
+  <data name="Phone_StatusReceived_One" xml:space="preserve">
+    <value>Phone connected: 1 page in. Tap Done on the phone, or Done here, when you've finished.</value>
+  </data>
+  <data name="Phone_StatusReceived_Many" xml:space="preserve">
+    <value>Phone connected: {0} pages in. Tap Done on the phone, or Done here, when you've finished.</value>
+  </data>
+  <data name="Phone_StatusFinished_One" xml:space="preserve">
+    <value>Done: 1 page came from the phone.</value>
+  </data>
+  <data name="Phone_StatusFinished_Many" xml:space="preserve">
+    <value>Done: {0} pages came from the phone.</value>
+  </data>
+  <data name="Camera_Unnamed" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="Camera_Blocked" xml:space="preserve">
+    <value>Windows doesn't let apps use the camera. Turn it on in Windows Settings › Privacy &amp; security › Camera (for desktop apps too), then try again.</value>
+  </data>
+  <data name="Camera_InUse" xml:space="preserve">
+    <value>The camera didn't start. Another app may be using it: close it, or choose another camera, and try again.</value>
+  </data>
+  <data name="Camera_NoPicture" xml:space="preserve">
+    <value>This camera sends no picture Inkvolt Print can use. Choose another camera.</value>
+  </data>
+  <data name="Camera_NoCamera" xml:space="preserve">
+    <value>No camera found. Plug in a webcam or document camera, then try again.</value>
+  </data>
+  <data name="Camera_StatusNone" xml:space="preserve">
+    <value>Put a page under the camera, then Capture page. Each capture is a page.</value>
+  </data>
+  <data name="Camera_StatusTaken_One" xml:space="preserve">
+    <value>1 page captured. Put the next one under the camera, or Done.</value>
+  </data>
+  <data name="Camera_StatusTaken_Many" xml:space="preserve">
+    <value>{0} pages captured. Put the next one under the camera, or Done.</value>
+  </data>
+  <data name="Camera_StatusFull" xml:space="preserve">
+    <value>That's the most pages one scan takes: press Done, then start another.</value>
+  </data>
+  <data name="Camera_StatusBusy" xml:space="preserve">
+    <value>Wait a moment: the PC is making pages of the last captures.</value>
+  </data>
+  <data name="Phone_CertExpected" xml:space="preserve">
+    <value>The warning before this page was expected: {0} made its own certificate for it.</value>
+  </data>
 </root>

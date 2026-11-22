@@ -230,6 +230,7 @@ public partial class DocumentTab
             RaiseState();
         };
         second.StatusMessage += (_, m) => Notify(m);
+        WatchSnapshots(second);
         second.PreviewMouseDown += (_, _) => ActivatePane(second: true);
         second.IsKeyboardFocusWithinChanged += (_, e) =>
         {

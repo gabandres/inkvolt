@@ -1875,6 +1875,8 @@ public partial class MainWindow : Window
         Bind(Cmd.ToolHand, t => t.ActiveView.Tool = ViewerTool.Hand, t => !t.IsOrganizing);
         Bind(Cmd.ToolSelect, t => t.ActiveView.Tool = ViewerTool.SelectText, t => !t.IsOrganizing);
         Bind(Cmd.ToolSnapshot, t => t.ActiveView.Tool = ViewerTool.Snapshot, t => !t.IsOrganizing);
+        Bind(Cmd.CopyAreaText, t => _ = t.CopyAreaAsync(AreaCopyKind.Text), t => !t.IsOrganizing);
+        Bind(Cmd.CopyAreaTable, t => _ = t.CopyAreaAsync(AreaCopyKind.Table), t => !t.IsOrganizing);
         Bind(Cmd.ToolAddText, t => ToggleTool(t, ViewerTool.AddText), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCheck, t => ToggleTool(t, ViewerTool.AddCheck), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCross, t => ToggleTool(t, ViewerTool.AddCross), t => !t.IsOrganizing && t.Session.IsPdf);
@@ -1965,6 +1967,10 @@ public partial class MainWindow : Window
         Bind(Cmd.EditContent, t => t.SetEditContent(!t.IsEditingContent), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.DetectFields, t => _ = t.DetectFieldsCommand(), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsBusy);
         Bind(Cmd.LinkSelection, t => _ = t.LinkSelection(), t => t.CanMarkup);
+        Bind(Cmd.LinkAddresses, t => _ = t.LinkAddresses(), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.HighlightAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.Highlight), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.UnderlineAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.Underline), t => !t.IsOrganizing && t.Session.IsPdf);
+        Bind(Cmd.StrikeOutAllMatches, t => _ = t.MarkAllMatches(TextMarkupKind.StrikeOut), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.AddStamp, ShowStampMenu, t => t.Session.IsPdf && t.PageView.PageCount > 0);
         // From Protect's flyout: the selected text is marked at once; with nothing selected, the marking tool (drag a box).
         BindAtOnce(Cmd.Redact, (t, now) =>

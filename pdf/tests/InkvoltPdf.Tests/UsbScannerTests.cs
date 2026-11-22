@@ -68,7 +68,7 @@ public class UsbScannerTests
     }
 
     private static byte[] Pdf(IEnumerable<ScanRunPage> pages, int dpi) =>
-        ScanRun.ToPdf([.. pages.Where(p => p.Fate == ScanPageFate.Kept).Select(p => (p.Jpeg, dpi))], "Scan");
+        ScanRun.ToPdf([.. pages.Where(p => p.Fate == ScanPageFate.Kept).Select(p => (p.Jpeg, dpi, false))], "Scan");
 
     /// <summary>The PDF with an OCR text layer naming each page's number, as the dialog adds Windows' recognized words.</summary>
     private static byte[] WithText(byte[] pdf, IReadOnlyList<int> numbers) =>

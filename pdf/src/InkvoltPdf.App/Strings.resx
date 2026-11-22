@@ -12064,6 +12064,159 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>{0}  (TWAIN, 32-bit only)</value>
     <comment>{0} = scanner name; a scanner whose only driver is a 32-bit TWAIN one (listed, can't be used)</comment>
   </data>
+  <data name="File_BlackAndWhiteScans" xml:space="preserve">
+    <value>Make scanned pages of text black and white (much smaller; their shades of grey go)</value>
+  </data>
+  <data name="Batch_DescBlackAndWhite" xml:space="preserve">
+    <value>{0}, scans in black and white</value>
+    <comment>{0} = the image quality chosen (High, Medium…)</comment>
+  </data>
+  <data name="Cmd_CopyAreaText" xml:space="preserve">
+    <value>Copy Te_xt from Area</value>
+  </data>
+  <data name="Cmd_CopyAreaTable" xml:space="preserve">
+    <value>Copy Area as Ta_ble</value>
+  </data>
+  <data name="Area_CopyTextAction" xml:space="preserve">
+    <value>Copy text</value>
+    <comment>The toast's button after a snapshot: copy the words in the box instead</comment>
+  </data>
+  <data name="Area_BoxText" xml:space="preserve">
+    <value>Drag a box around the text to copy.</value>
+  </data>
+  <data name="Area_BoxTable" xml:space="preserve">
+    <value>Drag a box around the table to copy.</value>
+  </data>
+  <data name="Area_Reading" xml:space="preserve">
+    <value>Reading the text in the box…</value>
+  </data>
+  <data name="Area_TextCopied_One" xml:space="preserve">
+    <value>Text copied (1 word)</value>
+  </data>
+  <data name="Area_TextCopied_Many" xml:space="preserve">
+    <value>Text copied ({0} words)</value>
+  </data>
+  <data name="Area_TextRead_One" xml:space="preserve">
+    <value>Text read from the scan and copied (1 word)</value>
+  </data>
+  <data name="Area_TextRead_Many" xml:space="preserve">
+    <value>Text read from the scan and copied ({0} words)</value>
+  </data>
+  <data name="Area_TableCopied" xml:space="preserve">
+    <value>Table copied ({0} × {1}): paste it into Excel or Word</value>
+    <comment>{0} = rows, {1} = columns</comment>
+  </data>
+  <data name="Area_NoText" xml:space="preserve">
+    <value>No text found in that box.</value>
+  </data>
+  <data name="Area_CouldntRead" xml:space="preserve">
+    <value>Couldn't read that part of the page.</value>
+  </data>
+  <data name="Cmd_LinkAddresses" xml:space="preserve">
+    <value>Links from _Addresses…</value>
+  </data>
+  <data name="Links_Finding" xml:space="preserve">
+    <value>Looking for web and email addresses</value>
+  </data>
+  <data name="Links_NoneTitle" xml:space="preserve">
+    <value>No addresses to link</value>
+  </data>
+  <data name="Links_NoneBody" xml:space="preserve">
+    <value>No web or email address in the text needs a link: each one found is a link already. A scanned page needs Recognize Text first.</value>
+  </data>
+  <data name="Links_Title" xml:space="preserve">
+    <value>Links from Addresses</value>
+  </data>
+  <data name="Links_Add" xml:space="preserve">
+    <value>Add Links</value>
+  </data>
+  <data name="Links_Found_One" xml:space="preserve">
+    <value>1 address in the text isn't a link yet. Untick it to leave it as it is.</value>
+  </data>
+  <data name="Links_Found_Many" xml:space="preserve">
+    <value>{0} addresses in the text aren't links yet. Untick any you want left as they are.</value>
+  </data>
+  <data name="Links_FoundMax" xml:space="preserve">
+    <value>Only the first {0} are listed: run it again for the rest.</value>
+  </data>
+  <data name="Links_Item" xml:space="preserve">
+    <value>Page {0}: {1}</value>
+    <comment>{0} = page label, {1} = the address as printed</comment>
+  </data>
+  <data name="Links_LeadsTo" xml:space="preserve">
+    <value>Opens {0}</value>
+    <comment>{0} = the address the link opens (https://…, mailto:…)</comment>
+  </data>
+  <data name="Links_NoneTicked" xml:space="preserve">
+    <value>Tick at least one address.</value>
+  </data>
+  <data name="Links_Edit_One" xml:space="preserve">
+    <value>Add 1 link</value>
+  </data>
+  <data name="Links_Edit_Many" xml:space="preserve">
+    <value>Add {0} links</value>
+  </data>
+  <data name="Main_MenuMarkAllMatches" xml:space="preserve">
+    <value>Mark _All Matches</value>
+  </data>
+  <data name="Cmd_HighlightAllMatches" xml:space="preserve">
+    <value>_Highlight All Matches</value>
+  </data>
+  <data name="Cmd_UnderlineAllMatches" xml:space="preserve">
+    <value>_Underline All Matches</value>
+  </data>
+  <data name="Cmd_StrikeOutAllMatches" xml:space="preserve">
+    <value>_Strike Out All Matches</value>
+  </data>
+  <data name="Tab_HighlightAllMatches" xml:space="preserve">
+    <value>Highlight all matches</value>
+  </data>
+  <data name="Tab_HighlightAllMatchesTip" xml:space="preserve">
+    <value>Each match becomes a highlight comment, one undo step. Review › Mark All Matches also underlines or strikes them out.</value>
+  </data>
+  <data name="Marks_SearchFirst" xml:space="preserve">
+    <value>Search for the words to mark, then choose it again.</value>
+  </data>
+  <data name="Marks_StillSearching" xml:space="preserve">
+    <value>Still searching: choose it again when the search is done.</value>
+  </data>
+  <data name="Marks_NoMatches" xml:space="preserve">
+    <value>The search found nothing to mark.</value>
+  </data>
+  <data name="Marks_AllMarkedAlready" xml:space="preserve">
+    <value>Every match is marked already.</value>
+  </data>
+  <data name="Marks_Limit" xml:space="preserve">
+    <value>Marked the first {0} of {1} matches; choose it again for the rest.</value>
+    <comment>{0} = matches marked, {1} = matches found</comment>
+  </data>
+  <data name="Marks_Highlight_One" xml:space="preserve">
+    <value>Highlight 1 match</value>
+  </data>
+  <data name="Marks_Highlight_Many" xml:space="preserve">
+    <value>Highlight {0} matches</value>
+  </data>
+  <data name="Marks_Underline_One" xml:space="preserve">
+    <value>Underline 1 match</value>
+  </data>
+  <data name="Marks_Underline_Many" xml:space="preserve">
+    <value>Underline {0} matches</value>
+  </data>
+  <data name="Marks_StrikeOut_One" xml:space="preserve">
+    <value>Strike out 1 match</value>
+  </data>
+  <data name="Marks_StrikeOut_Many" xml:space="preserve">
+    <value>Strike out {0} matches</value>
+  </data>
+  <data name="Links_NoneMade" xml:space="preserve">
+    <value>No link was added: none of the ticked addresses could be made a link.</value>
+  </data>
+  <data name="Marks_SearchStopped" xml:space="preserve">
+    <value>The search stopped before the end: search again, then choose it again.</value>
+  </data>
+  <data name="Marks_CouldntMark" xml:space="preserve">
+    <value>Couldn't mark the matches: the document couldn't be read.</value>
+  </data>
   <data name="Cmd_InsertText" xml:space="preserve">
     <value>Insert Te_xt…</value>
   </data>

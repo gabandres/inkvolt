@@ -10,9 +10,10 @@
   connections need no capability in a full-trust app. No allowElevation: Inkvolt Print itself never runs elevated; its two admin
   actions start Windows PowerShell (outside the package) with the "runas" verb, a normal UAC prompt (packaging/README.md, "Elevation").
   Firewall: a full-trust app's capability opens no port by itself, so the package declares its inbound rules (desktop2
-  windows.firewallRules): TCP 9780 and 9782, and UDP 5353 (the shared printers' own answers for AirPrint's subtype, beside Windows'
-  responder), private networks only, added when the package is installed and removed with it, no prompt. Nothing listens on any of
-  them until the person turns sharing on (off by default).
+  windows.firewallRules), private networks only, added when the package is installed and removed with it, no prompt: TCP 9780
+  (the shared scanner), TCP 9781 (the phone's page, roadmap 4.6, listened on only while a phone scan is open), TCP 9782 (the
+  shared printers, 4.10) and UDP 5353 (the shared printers' own answers for AirPrint's subtype, beside Windows' responder).
+  Nothing listens on any of them until the person turns its sharing or scan on (off by default).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -121,6 +122,8 @@
     <desktop2:Extension Category="windows.firewallRules">
       <desktop2:FirewallRules Executable="InkvoltPrint.exe">
         <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9780" LocalPortMax="9780" Profile="private" />
+        <!-- Phone as a scanner (roadmap 4.6): the phone's page, open only while a phone scan is. Port: Core.Capture.PhoneScan.DefaultPort -->
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9781" LocalPortMax="9781" Profile="private" />
         <!-- Printer sharing (roadmap 4.10): the shared printers' IPP port. Port: Core.Sharing.PrinterShare.DefaultPort -->
         <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9782" LocalPortMax="9782" Profile="private" />
         <!-- Printer sharing's own mDNS answers for AirPrint's _universal subtype (Core.Sharing.MdnsSubtype.Port), beside Windows' responder -->
@@ -132,5 +135,7 @@
   <Capabilities>
     <Capability Name="privateNetworkClientServer" />
     <rescap:Capability Name="runFullTrust" />
+    <!-- Scan with a camera (roadmap 4.12): Windows asks once whether Inkvolt Print may use the camera (Settings › Privacy › Camera) -->
+    <DeviceCapability Name="webcam" />
   </Capabilities>
 </Package>

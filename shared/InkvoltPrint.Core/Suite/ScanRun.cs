@@ -113,12 +113,40 @@ public static class ScanRun
         }
     }
 
-    /// <summary>The pages as one PDF, each JPEG as it is, at its scan resolution.</summary>
-    public static byte[] ToPdf(IReadOnlyList<(byte[] Jpeg, int Dpi)> pages, string title)
+    /// <summary>
+    /// The pages as one PDF at their scan resolution: each JPEG as it is; or, for a page scanned in black and white
+    /// (<c>OneBit</c>), the page at 1 bit (<see cref="Bilevel"/>) as lossless JBIG2, CCITT G4 or Flate, whichever is smallest
+    /// (<see cref="PdfWriter.OneBit"/>): a twentieth to a fiftieth of its JPEG. A page that can't be decoded stays its JPEG.
+    /// </summary>
+    /// <param name="decodeGray">A JPEG as grey pixels (rows of Width bytes, 0 black); the app decodes with WIC. Null: every page as its JPEG.</param>
+    public static byte[] ToPdf(IReadOnlyList<(byte[] Jpeg, int Dpi, bool OneBit)> pages, string title,
+        Func<byte[], (byte[] Gray, int Width, int Height)>? decodeGray = null, CancellationToken cancel = default)
     {
+        var written = new PdfPage[pages.Count];
+        Parallel.For(0, pages.Count, new ParallelOptions { CancellationToken = cancel, MaxDegreeOfParallelism = Math.Clamp(Environment.ProcessorCount / 2, 1, 4) }, i =>
+        {
+            var (jpeg, dpi, oneBit) = pages[i];
+            written[i] = oneBit && decodeGray is not null && OneBit(jpeg, dpi, decodeGray, cancel) is { } bits
+                ? PdfPage.BlackAndWhite(bits, dpi) with { Jbig2 = true }
+                : new PdfPage(jpeg, dpi);
+        });
         using var ms = new MemoryStream();
-        PdfWriter.Write(ms, [.. pages.Select(p => new PdfPage(p.Jpeg, p.Dpi))], title);
+        PdfWriter.Write(ms, written, title);
         return ms.ToArray();
+    }
+
+    private static BitImage? OneBit(byte[] jpeg, int dpi, Func<byte[], (byte[] Gray, int Width, int Height)> decode, CancellationToken cancel)
+    {
+        try
+        {
+            var (gray, width, height) = decode(jpeg);
+            if (width < 1 || height < 1 || (long)width * height > BitImage.MaxPixels || gray.Length < (long)width * height) return null;
+            return Bilevel.FromScan(gray, width, height, dpi, cancel);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return null; // kept as scanned: never lose a page to the conversion
+        }
     }
 
     /// <summary>The dialog's line once a job ends: pages added, blank pages left out, what to do next.</summary>

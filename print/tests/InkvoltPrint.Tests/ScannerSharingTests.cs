@@ -1104,7 +1104,7 @@ public class ScannerSharingTests
     // ---------------------------------------------------------------- the Store package
 
     [Fact]
-    public void The_package_may_serve_private_networks_on_the_shares_port_and_nothing_more()
+    public void The_package_may_serve_private_networks_on_the_shares_and_the_phone_scans_ports_and_nothing_more()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Inkvolt.slnx"))) dir = dir.Parent;
@@ -1114,8 +1114,8 @@ public class ScannerSharingTests
         Assert.DoesNotContain("internetClientServer", capabilities);
         XNamespace desktop2 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/2";
         var rules = manifest.Descendants(desktop2 + "Rule").ToList();
-        // The shared scanner's port, the shared printers' and their own mDNS answers (roadmap 4.10), nothing else.
-        Assert.Equal([$"TCP {ScannerShare.DefaultPort}", $"TCP {PrinterShare.DefaultPort}", $"UDP {MdnsSubtype.Port}"],
+        // The shared scanner's port, the phone scan's (4.6), the shared printers' and their own mDNS answers (4.10), nothing else.
+        Assert.Equal([$"TCP {ScannerShare.DefaultPort}", $"TCP {Core.Capture.PhoneScan.DefaultPort}", $"TCP {PrinterShare.DefaultPort}", $"UDP {MdnsSubtype.Port}"],
             rules.Select(r => $"{r.Attribute("IPProtocol")!.Value} {r.Attribute("LocalPortMin")!.Value}"));
         foreach (var rule in rules)
         {
