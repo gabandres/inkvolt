@@ -846,7 +846,7 @@ public static class FormDesign
         {
             case DesignFieldKind.Text:
                 SetFormat(doc, field, w, spec);
-                SetCalculation(doc, acro, field, spec);
+                SetCalculation(doc, acro, field, w, spec);
                 SetDefault(field, spec.DefaultValue.Length > 0 ? PdfObj.MakeString(spec.DefaultValue) : null, isNew);
                 break;
             case DesignFieldKind.ComboBox or DesignFieldKind.ListBox:
@@ -871,7 +871,7 @@ public static class FormDesign
                     if (dv.Count > 0) field.Elements["/I"] = new PdfArray(doc, [.. dv.Select(o => spec.Options.ToList().IndexOf(o)).Order().Select(i => (PdfItem)new PdfInteger(i))]);
                     else field.Elements.Remove("/I");
                 }
-                if (spec.Kind == DesignFieldKind.ComboBox) SetCalculation(doc, acro, field, spec);
+                if (spec.Kind == DesignFieldKind.ComboBox) SetCalculation(doc, acro, field, w, spec);
                 break;
             }
             case DesignFieldKind.Button:
@@ -1010,17 +1010,19 @@ public static class FormDesign
     /// <summary>
     /// Writes <paramref name="spec"/>'s calculation as the field's /AA /C, and keeps the field in the form's calculation
     /// order (/CO: added at its end when it starts calculating, removed when it stops). A custom script stays as it is.
+    /// The script is read and written where it is: a widget's own /AA /C (as some forms keep it), else the field's.
     /// </summary>
-    private static void SetCalculation(PdfDocument doc, PdfDictionary acro, PdfDictionary field, DesignField spec)
+    private static void SetCalculation(PdfDocument doc, PdfDictionary acro, PdfDictionary field, PdfDictionary w, DesignField spec)
     {
-        var aa = PdfObj.Dict(field.Elements["/AA"]);
+        var holder = !ReferenceEquals(field, w) && PdfObj.Dict(PdfObj.Dict(w.Elements["/AA"])?.Elements["/C"]) is not null ? w : field;
+        var aa = PdfObj.Dict(holder.Elements["/AA"]);
         var current = FormCalculations.Read(aa is null ? null : PdfObj.Text(PdfObj.Dict(aa.Elements["/C"])?.Elements["/JS"]));
         var wanted = spec.Calculation is { Kind: CalcKind.None } ? null : spec.Calculation;
         if (current == wanted || wanted is { Kind: CalcKind.Custom }) return; // unchanged, or a script that can't be written here
         if (wanted is null)
         {
             aa?.Elements.Remove("/C");
-            if (aa is { Elements.Count: 0 }) field.Elements.Remove("/AA");
+            if (aa is { Elements.Count: 0 }) holder.Elements.Remove("/AA");
             RemoveFromCalculationOrder(acro, field);
             return;
         }
@@ -1036,7 +1038,7 @@ public static class FormDesign
         if (aa is null)
         {
             aa = new PdfDictionary(doc);
-            field.Elements["/AA"] = aa;
+            holder.Elements["/AA"] = aa;
         }
         aa.Elements["/C"] = JavaScript(doc, script);
         if (field.Reference is null) return; // a direct object can't be named in /CO
@@ -1069,7 +1071,7 @@ public static class FormDesign
             foreach (var item in co.Elements)
                 if (PdfObj.Dict(item) is { } d && byDict.TryGetValue(d, out var f) && !order.Contains(f)) order.Add(f);
         foreach (var f in fields)
-            if (!order.Contains(f) && f.Type is "/Tx" or "/Ch" && CalculateScript(f.Dict) is not null) order.Add(f);
+            if (!order.Contains(f) && f.Type is "/Tx" or "/Ch" && (CalculateScript(f.Dict) ?? f.Widgets.Select(CalculateScript).FirstOrDefault(x => x is not null)) is not null) order.Add(f);
         return order;
     }
 

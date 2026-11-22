@@ -191,7 +191,11 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         }
         // A move or resize under way goes on from the field as now read (the document caught up with an earlier move);
         // when the field is gone (deleted, or its positional id changed), the press ends.
-        if (_drag is { } d) _drag = list.FirstOrDefault(f => f.Id == d.Field.Id) is { } now ? d with { Field = now } : null;
+        // The fields moved along with it too (any that are gone stay behind).
+        if (_drag is { } d)
+            _drag = list.FirstOrDefault(f => f.Id == d.Field.Id) is { } now
+                ? d with { Field = now, Group = [.. d.Group.Select(g => list.FirstOrDefault(f => f.Id == g.Id)).OfType<DesignField>()] }
+                : null;
     }
 
     public void SetSuggestions(IReadOnlyList<FieldSuggestion> list)
@@ -268,7 +272,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         var r = StartRect(f);
         if (_drag is { } d && d.Field.Id == f.Id) r = d.Rect;
         else if (_drag is { } g && g.Group.Any(x => x.Id == f.Id)) r = r with { X = r.X + g.Shift.X, Y = r.Y + g.Shift.Y };
-        if (IsSelected(f.Id) && HasNudge) r = r with { X = r.X + _nudged.X, Y = r.Y + _nudged.Y };
+        if (!f.Signed && IsSelected(f.Id) && HasNudge) r = r with { X = r.X + _nudged.X, Y = r.Y + _nudged.Y };
         return r;
     }
 
@@ -531,13 +535,13 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
                 var written = FlushNudgeAll();
                 return new DesignKeyResult(written.FirstOrDefault(), Reveal: Step((mods & DesignModifiers.Shift) != 0 ? -1 : 1)) { WrittenAll = written };
             }
-            case DesignKey.Delete or DesignKey.Backspace when mods == DesignModifiers.None && (field is { Signed: false } || suggestion is not null):
+            case DesignKey.Delete or DesignKey.Backspace when mods == DesignModifiers.None && (field is { Signed: false } || HasSeveral && MovableSelection().Count > 0 || suggestion is not null):
                 return Flushed(field is not null ? DesignAction.Delete : DesignAction.Reject);
             case DesignKey.Enter when mods == DesignModifiers.None && (field is not null || suggestion is not null):
                 return Flushed(field is not null ? DesignAction.Properties : DesignAction.Accept);
             case DesignKey.D when mods == DesignModifiers.Control && field is { Signed: false }:
                 return Flushed(DesignAction.Duplicate);
-            case DesignKey.Left or DesignKey.Right or DesignKey.Up or DesignKey.Down when mods is DesignModifiers.None or DesignModifiers.Shift && field is { Signed: false }:
+            case DesignKey.Left or DesignKey.Right or DesignKey.Up or DesignKey.Down when mods is DesignModifiers.None or DesignModifiers.Shift && (field is { Signed: false } || HasSeveral && MovableSelection().Count > 0):
             {
                 var step = mods == DesignModifiers.Shift ? 10 : 1;
                 var (dx, dy) = key switch { DesignKey.Left => (-step, 0), DesignKey.Right => (step, 0), DesignKey.Up => (0, -step), _ => (0, step) };
@@ -590,7 +594,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// </summary>
     public void Nudge(double dx, double dy)
     {
-        if (SelectedField is not { Signed: false } f) return;
+        if (MovableSelection() is not [var f, ..]) return; // (a signed anchor stays; the others move)
         var g = page(f.PageIndex);
         var (x0, y0) = RotatedView.FromView(0, 0, g.Width, g.Height, g.Rotation);
         var (x1, y1) = RotatedView.FromView(dx, dy, g.Width, g.Height, g.Rotation);

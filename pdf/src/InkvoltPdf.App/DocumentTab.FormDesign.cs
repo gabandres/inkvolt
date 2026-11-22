@@ -352,10 +352,14 @@ public partial class DocumentTab
                 FieldNameBox.Focus();
                 FieldNameBox.SelectAll();
                 break;
-            case DesignAction.Delete when Viewer.SelectedDesignFields.Count(x => !x.Signed) > 1 && DesignIsCurrent():
+            // Several selected: every unsigned one goes (a signed one stays), even when the anchor is the signed one.
+            case DesignAction.Delete when Viewer.SelectedDesignFields.Count > 1 && Viewer.SelectedDesignFields.Any(x => !x.Signed) && DesignIsCurrent():
             {
                 var gone = Viewer.SelectedDesignFields.Where(x => !x.Signed).Select(x => x.Id).ToList();
-                await RunEdit(Loc.Format(Strings.FormDesign_UndoDeleteMany, gone.Count), (d, pw) => FormDesign.Delete(d, pw, gone), contentOnly: true);
+                var label = gone.Count == 1
+                    ? Loc.Format(Strings.FormDesign_UndoDelete, DesignField.KindName(Viewer.SelectedDesignFields.First(x => !x.Signed).Kind).ToLowerInvariant())
+                    : Loc.Format(Strings.FormDesign_UndoDeleteMany, gone.Count);
+                await RunEdit(label, (d, pw) => FormDesign.Delete(d, pw, gone), contentOnly: true);
                 break;
             }
             case DesignAction.Delete when f is { Signed: false } && DesignIsCurrent():

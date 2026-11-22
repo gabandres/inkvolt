@@ -78,10 +78,11 @@ public sealed partial class PageViewer
 
     /// <summary>
     /// What a page snaps to now: its guides, the grid (shown and on) and other objects' edges and middles (Prepare Form's
-    /// fields, else the form fields, comments, stamps and signatures), without <paramref name="without"/> (fields by id)
-    /// and <paramref name="self"/> (the box being moved). Null: snapping is off, or Alt is held.
+    /// fields, else the form fields, comments, stamps and signatures), without <paramref name="without"/> (fields by id),
+    /// <paramref name="objectId"/> (the comment or stamp being moved or reshaped, whatever its box) and
+    /// <paramref name="self"/> (the box being moved). Null: snapping is off, or Alt is held.
     /// </summary>
-    internal Snapper? SnapperFor(int page, IReadOnlySet<string>? without = null, RectD? self = null)
+    internal Snapper? SnapperFor(int page, IReadOnlySet<string>? without = null, RectD? self = null, string? objectId = null)
     {
         if (_engine is null || page < 0 || page >= PageCount || (Keyboard.Modifiers & ModifierKeys.Alt) != 0) return null;
         var guides = SnapToGuides && _guides is not null ? _guides.On(page) : null;
@@ -94,8 +95,8 @@ public sealed partial class PageViewer
             else
             {
                 objects.AddRange(_widgetsByPage.GetValueOrDefault(page)?.Select(w => w.Rect) ?? []);
-                objects.AddRange(_annotsByPage.GetValueOrDefault(page)?.Where(a => !a.Hidden).Select(a => a.Rect) ?? []);
-                objects.AddRange(_sigStamps.GetValueOrDefault(page)?.Select(s => s.Rect) ?? []);
+                objects.AddRange(_annotsByPage.GetValueOrDefault(page)?.Where(a => !a.Hidden && a.Id != objectId).Select(a => a.Rect) ?? []);
+                objects.AddRange(_sigStamps.GetValueOrDefault(page)?.Where(s => s.Id != objectId).Select(s => s.Rect) ?? []);
             }
             if (self is { } me) objects.RemoveAll(r => Math.Abs(r.X - me.X) < 0.01 && Math.Abs(r.Y - me.Y) < 0.01 && Math.Abs(r.Width - me.Width) < 0.01 && Math.Abs(r.Height - me.Height) < 0.01);
         }
@@ -103,9 +104,9 @@ public sealed partial class PageViewer
     }
 
     /// <summary>A page point snapped (what it snapped to is shown until the press ends).</summary>
-    private Point SnapPoint(int page, Point pt, RectD? self = null)
+    private Point SnapPoint(int page, Point pt, RectD? self = null, string? objectId = null)
     {
-        if (SnapperFor(page, self: self) is not { } snap)
+        if (SnapperFor(page, self: self, objectId: objectId) is not { } snap)
         {
             ShowSnapLines(page, []);
             return pt;
@@ -116,9 +117,9 @@ public sealed partial class PageViewer
     }
 
     /// <summary>A box being moved, snapped by its edges or middle (<paramref name="self"/>: where it was, not a target).</summary>
-    private RectD SnapMove(int page, RectD r, RectD self)
+    private RectD SnapMove(int page, RectD r, RectD self, string? objectId = null)
     {
-        if (SnapperFor(page, self: self) is not { } snap)
+        if (SnapperFor(page, self: self, objectId: objectId) is not { } snap)
         {
             ShowSnapLines(page, []);
             return r;

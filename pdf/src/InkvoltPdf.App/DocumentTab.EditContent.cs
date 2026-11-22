@@ -16,6 +16,7 @@ public partial class DocumentTab
     private byte[]? _contentData;                 // the bytes the shown text and pictures were read from
     private readonly HashSet<int> _contentWanted = [];
     private bool _contentLoading;
+    private bool _angleSettled; // the angle box's Enter or Esc already dealt with what was typed
 
     private void InitEditContent()
     {
@@ -41,20 +42,28 @@ public partial class DocumentTab
         Viewer.ContentTurned += (_, t) => _ = TurnContent(t);
         EditContentAngle.PreviewKeyDown += (_, e) =>
         {
+            // Enter applies once (not again as focus leaves); Esc puts the angle back and applies nothing.
             if (e.Key == System.Windows.Input.Key.Enter)
             {
                 ApplyAngle();
+                _angleSettled = true;
                 Viewer.Focus();
                 e.Handled = true;
             }
             else if (e.Key == System.Windows.Input.Key.Escape)
             {
-                UpdateContentButtons();
+                _angleSettled = true;
+                EditContentAngle.Text = Viewer.TurnSubject is { } t ? ContentTurn.Format(t.Angle) : "";
                 Viewer.Focus();
                 e.Handled = true;
             }
         };
-        EditContentAngle.LostKeyboardFocus += (_, _) => ApplyAngle();
+        EditContentAngle.GotKeyboardFocus += (_, _) => _angleSettled = false;
+        EditContentAngle.LostKeyboardFocus += (_, _) =>
+        {
+            if (!_angleSettled) ApplyAngle();
+            _angleSettled = false;
+        };
         Viewer.DocumentLanguage = DocumentLanguage;
         // The document's language is read as it opens, and again when its bytes change (an edit, undo, a reload: a
         // document made accessible says its language); form values and comments don't change it.

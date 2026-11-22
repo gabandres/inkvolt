@@ -1,4 +1,7 @@
 using System.Globalization;
+using System.Security.Cryptography;
+using PdfSharp.Pdf;
+using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
 
@@ -191,7 +194,62 @@ public sealed class PageGuides
         _guides.Where(g => g.Page == page && Math.Abs((g.Axis == GuideAxis.X ? p.X : p.Y) - g.At) <= reach)
             .MinBy(g => Math.Abs((g.Axis == GuideAxis.X ? p.X : p.Y) - g.At));
 
-    /// <summary>Pages moved, added or deleted: the guides go (they were for pages that may not be there).</summary>
+    /// <summary>
+    /// Each page's identity for its guides (roadmap 4.19): its boxes, its turn and its own content as stored. Annotations,
+    /// form fields and the document's other pages don't change it; moving the page keeps it, turning, resizing, cropping
+    /// or replacing the page (or editing its text) changes it.
+    /// </summary>
+    public static IReadOnlyList<string> Keys(byte[] data, string? password)
+    {
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_PagesCantBeRead);
+        var keys = new List<string>(doc.PageCount);
+        for (var i = 0; i < doc.PageCount; i++)
+        {
+            var page = doc.Pages[i];
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+            void Add(PdfItem? item)
+            {
+                if (PdfObj.Dict(item) is { Stream: { } st }) hash.AppendData(st.Value ?? []);
+            }
+            var contents = page.Elements["/Contents"];
+            if (PdfObj.Array(contents) is { } parts) foreach (var part in parts.Elements) Add(part);
+            else Add(contents);
+            var crop = PdfObj.Array(page.Elements["/CropBox"]);
+            keys.Add(string.Create(CultureInfo.InvariantCulture,
+                $"{page.Rotate}|{page.Width.Point},{page.Height.Point}|{string.Join(',', crop?.Elements.Select(e => PdfObj.Num(e)) ?? [])}|{Convert.ToHexString(hash.GetHashAndReset())}"));
+        }
+        return keys;
+    }
+
+    /// <summary>
+    /// The pages changed (<paramref name="before"/> and <paramref name="after"/>: <see cref="Keys"/> of the document
+    /// before and after): each page's guides follow the page to where it is now (of several alike, the nearest); a page
+    /// that isn't there any more takes its guides with it. Returns how many guides went.
+    /// </summary>
+    public int Remap(IReadOnlyList<string> before, IReadOnlyList<string> after)
+    {
+        var moved = new List<Guide>();
+        var gone = 0;
+        foreach (var g in _guides)
+        {
+            if (g.Page < 0 || g.Page >= before.Count)
+            {
+                gone++;
+                continue;
+            }
+            var key = before[g.Page];
+            var to = Enumerable.Range(0, after.Count).Where(j => after[j] == key).DefaultIfEmpty(-1).MinBy(j => j < 0 ? int.MaxValue : Math.Abs(j - g.Page));
+            if (to < 0) gone++;
+            else moved.Add(g with { Page = to });
+        }
+        if (gone == 0 && moved.SequenceEqual(_guides)) return 0;
+        _guides.Clear();
+        _guides.AddRange(moved);
+        Version++;
+        return gone;
+    }
+
+    /// <summary>Pages moved, added or deleted with no way to tell which (their keys couldn't be read): the guides go.</summary>
     public void PagesChanged() => Clear();
 }
 
@@ -281,16 +339,12 @@ public sealed class Snapper(IReadOnlyList<double> xs, IReadOnlyList<double> ys, 
     {
         var lines = new List<SnapLine>();
         double l = r.X, t = r.Y, right = r.Right, b = r.Bottom;
-        double? Edge(double v, double was, GuideAxis axis)
-        {
-            if (Math.Abs(v - was) < 1e-9 || Nearest(v, axis) is not { } s) return null;
-            lines.Add(new SnapLine(axis, s));
-            return s;
-        }
-        if (Edge(l, before.X, GuideAxis.X) is { } nl && right - nl >= min) l = nl;
-        if (Edge(right, before.Right, GuideAxis.X) is { } nr && nr - l >= min) right = nr;
-        if (Edge(t, before.Y, GuideAxis.Y) is { } nt && b - nt >= min) t = nt;
-        if (Edge(b, before.Bottom, GuideAxis.Y) is { } nb && nb - t >= min) b = nb;
+        double? Edge(double v, double was, GuideAxis axis) => Math.Abs(v - was) < 1e-9 ? null : Nearest(v, axis);
+        // Each edge's line is shown only when the snap is taken (not when it would leave the box too small).
+        if (Edge(l, before.X, GuideAxis.X) is { } nl && right - nl >= min) lines.Add(new SnapLine(GuideAxis.X, l = nl));
+        if (Edge(right, before.Right, GuideAxis.X) is { } nr && nr - l >= min) lines.Add(new SnapLine(GuideAxis.X, right = nr));
+        if (Edge(t, before.Y, GuideAxis.Y) is { } nt && b - nt >= min) lines.Add(new SnapLine(GuideAxis.Y, t = nt));
+        if (Edge(b, before.Bottom, GuideAxis.Y) is { } nb && nb - t >= min) lines.Add(new SnapLine(GuideAxis.Y, b = nb));
         Lines = lines;
         return RectD.FromEdges(l, t, right, b);
     }

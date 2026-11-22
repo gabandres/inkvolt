@@ -161,7 +161,7 @@ public sealed partial class PageViewer
         else
         {
             // Snapped by an edge or its middle, then kept on the page.
-            var moved = SnapMove(page, d.Rect with { X = d.Rect.X + p.X - d.Start.X, Y = d.Rect.Y + p.Y - d.Start.Y }, d.Rect);
+            var moved = SnapMove(page, d.Rect with { X = d.Rect.X + p.X - d.Start.X, Y = d.Rect.Y + p.Y - d.Start.Y }, d.Rect, d.Stamp.Id);
             var x = Math.Clamp(moved.X, 0, Math.Max(0, gp.Width - d.Rect.Width));
             var y = Math.Clamp(moved.Y, 0, Math.Max(0, gp.Height - d.Rect.Height));
             r = d.Rect with { X = x, Y = y };

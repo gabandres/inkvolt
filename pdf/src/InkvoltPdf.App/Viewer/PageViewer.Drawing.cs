@@ -375,7 +375,7 @@ public sealed partial class PageViewer
                 }
                 // Its box snaps by an edge or its middle.
                 var moved = g0.Bounds with { X = g0.Bounds.X + dx, Y = g0.Bounds.Y + dy };
-                var snapped = shift ? moved : SnapMove(page, moved, g0.Bounds);
+                var snapped = shift ? moved : SnapMove(page, moved, g0.Bounds, a.Id); // never to its own box
                 (dx, dy) = (dx + snapped.X - moved.X, dy + snapped.Y - moved.Y);
                 (dx, dy) = DrawingGeometry.ClampMove(g0.Bounds, dx, dy, pg.Width, pg.Height);
                 g = DrawingGeometry.Translate(g0, dx, dy);
@@ -392,7 +392,7 @@ public sealed partial class PageViewer
             case DragKind.Endpoint:
             {
                 var pt = ClampToPage(page, ToPagePoint(page, sp));
-                if (!shift) pt = SnapPoint(page, pt);
+                if (!shift) pt = SnapPoint(page, pt, objectId: a.Id);
                 var p = new PointD(pt.X, pt.Y);
                 var other = g0.Paths[0][1 - d.Handle];
                 if (shift) p = DrawingGeometry.SnapAngle(other, p);

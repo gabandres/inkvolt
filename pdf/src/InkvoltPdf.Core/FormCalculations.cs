@@ -168,17 +168,16 @@ public static class FormCalculations
         }
         if (expectOperand) return Bad(PdfStrings.Form_CalcSyntax, out problem);
         if (depth != 0) return Bad(PdfStrings.Form_CalcBrackets, out problem);
-        var sb = new StringBuilder("event.value = ");
+        // Tokens a space apart, none after "(" or before ")" (built so: a field name in quotes is never touched).
+        var sb = new StringBuilder("event.value =");
+        Token? prev = null;
         foreach (var t in tokens)
         {
-            sb.Append(t.Kind switch
-            {
-                TokenKind.Name => $"AFMakeNumber(getField({Quote(t.Text)}).value)",
-                _ => t.Text,
-            });
-            if (t.Text != "(") sb.Append(' ');
+            if (!(prev is { Kind: TokenKind.Op, Text: "(" } || t is { Kind: TokenKind.Op, Text: ")" })) sb.Append(' ');
+            sb.Append(t.Kind == TokenKind.Name ? $"AFMakeNumber(getField({Quote(t.Text)}).value)" : t.Text);
+            prev = t;
         }
-        js = sb.ToString().Replace(" )", ")").TrimEnd() + ";";
+        js = sb.Append(';').ToString();
         return true;
     }
 
