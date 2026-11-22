@@ -6,12 +6,13 @@
   File types: .pdf only, matching the unpackaged app's "Open with" entry (ShellIntegration.cs): Inkvolt Print opens a PDF
   straight into Print. No protocol: Inkvolt Print handles none.
   Capabilities: runFullTrust, and privateNetworkClientServer for scanner and printer sharing (print/ROADMAP.md 3.1, 4.10: the shared scanner listens
-  on TCP 9780, HTTPS, and the shared printers on TCP 9781, IPP, for devices on private networks). No internetClientServer: nothing listens for the internet, and outgoing
+  on TCP 9780, HTTPS, and the shared printers on TCP 9782, IPP, for devices on private networks). No internetClientServer: nothing listens for the internet, and outgoing
   connections need no capability in a full-trust app. No allowElevation: Inkvolt Print itself never runs elevated; its two admin
   actions start Windows PowerShell (outside the package) with the "runas" verb, a normal UAC prompt (packaging/README.md, "Elevation").
-  Firewall: a full-trust app's capability opens no port by itself, so the package declares its two inbound rules (desktop2
-  windows.firewallRules): TCP 9780 and 9781, private networks only, added when the package is installed and removed with it, no
-  prompt. Nothing listens on either until the person turns sharing on (off by default).
+  Firewall: a full-trust app's capability opens no port by itself, so the package declares its inbound rules (desktop2
+  windows.firewallRules): TCP 9780 and 9782, and UDP 5353 (the shared printers' own answers for AirPrint's subtype, beside Windows'
+  responder), private networks only, added when the package is installed and removed with it, no prompt. Nothing listens on any of
+  them until the person turns sharing on (off by default).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -121,7 +122,9 @@
       <desktop2:FirewallRules Executable="InkvoltPrint.exe">
         <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9780" LocalPortMax="9780" Profile="private" />
         <!-- Printer sharing (roadmap 4.10): the shared printers' IPP port. Port: Core.Sharing.PrinterShare.DefaultPort -->
-        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9781" LocalPortMax="9781" Profile="private" />
+        <desktop2:Rule Direction="in" IPProtocol="TCP" LocalPortMin="9782" LocalPortMax="9782" Profile="private" />
+        <!-- Printer sharing's own mDNS answers for AirPrint's _universal subtype (Core.Sharing.MdnsSubtype.Port), beside Windows' responder -->
+        <desktop2:Rule Direction="in" IPProtocol="UDP" LocalPortMin="5353" LocalPortMax="5353" Profile="private" />
       </desktop2:FirewallRules>
     </desktop2:Extension>
   </Extensions>

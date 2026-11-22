@@ -15,6 +15,9 @@ public sealed class DnssdAdvertiser : IShareAdvertiser
 {
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(5);
 
+    /// <summary>Answers the subtypes Windows' API can't register (AirPrint's <c>_universal</c>), on the same networks, while the advert lasts.</summary>
+    private readonly MdnsSubtypeResponder _subtypes = new();
+
     public async Task<IAsyncDisposable> AdvertiseAsync(ShareAdvert advert, IReadOnlyList<LocalNetwork> on, CancellationToken ct)
     {
         // Every interface at once: one that's slow to confirm doesn't hold up the others, or the app's exit (which cancels ct).
@@ -31,19 +34,24 @@ public sealed class DnssdAdvertiser : IShareAdvertiser
         var done = starts.Where(t => t.IsCompletedSuccessfully).Select(t => t.Result).ToList();
         if (ct.IsCancellationRequested)
         {
-            await new Registrations(done).DisposeAsync().ConfigureAwait(false);
+            await new Registrations(done, null).DisposeAsync().ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
         }
         if (done.Count == 0)
             throw starts.FirstOrDefault(t => t.IsFaulted)?.Exception?.InnerException
                 ?? new InvalidOperationException("No private network with an IPv4 address to announce on.");
-        return new Registrations(done);
+        var subtypes = advert.Subtypes.Count > 0 ? _subtypes.Add(advert, on) : null;
+        return new Registrations(done, subtypes);
     }
 
     /// <summary>Taken back together, so the whole takes at most one registration's wait (two seconds).</summary>
-    private sealed class Registrations(List<Registration> all) : IAsyncDisposable
+    private sealed class Registrations(List<Registration> all, IDisposable? subtypes) : IAsyncDisposable
     {
-        public async ValueTask DisposeAsync() => await Task.WhenAll(all.Select(r => r.StopAsync())).ConfigureAwait(false);
+        public async ValueTask DisposeAsync()
+        {
+            subtypes?.Dispose(); // the subtype's goodbye first, then Windows' own
+            await Task.WhenAll(all.Select(r => r.StopAsync())).ConfigureAwait(false);
+        }
     }
 
     /// <summary>One service registered on one interface; its native request and instance live until Windows confirms it's taken back.</summary>

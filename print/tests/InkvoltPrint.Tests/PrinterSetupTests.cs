@@ -36,6 +36,8 @@ public class PrinterSetupTests
     [Theory]
     [InlineData("DIRECT-ab-Galaxy S24")] // a phone
     [InlineData("DIRECT-Roku-123")] // a TV
+    [InlineData("DIRECT-3f-[TV] Samsung 7 Series")] // a TV naming a printer maker further on
+    [InlineData("DIRECT-a1-Android_HP")] // a phone
     [InlineData("Home Wi-Fi")]
     [InlineData("HPS-Office")]
     [InlineData("")]

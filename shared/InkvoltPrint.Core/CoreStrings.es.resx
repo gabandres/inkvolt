@@ -3688,4 +3688,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Palette_SetUpPrinter" xml:space="preserve">
     <value>Configurar el Wi-Fi de una impresora nueva…</value>
   </data>
+  <data name="PrinterShare_Unreadable" xml:space="preserve">
+    <value>Activado, pero Windows no pudo decir qué puede hacer esta impresora, así que todavía no se comparte. Se vuelve a intentar cada medio minuto; comprueba que la impresora esté encendida y que su cola funcione.</value>
+  </data>
 </root>

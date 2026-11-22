@@ -88,26 +88,42 @@ public sealed partial class PrintLogViewModel : ObservableObject, IDisposable
     /// <summary>Reads the log (off the UI thread: the file may hold thousands of jobs) and shows the month picked, or the newest.</summary>
     public async Task LoadAsync()
     {
-        if (_loading) return;
+        if (_loading)
+        {
+            _reload = true; // a job logged while reading: read again once this read is shown
+            return;
+        }
         _loading = true;
         try
         {
-            var file = _keeper.File;
-            _log = await Task.Run(() => file.Read(DateTimeOffset.Now));
-            var wanted = SelectedMonth?.Month;
-            Months.Clear();
-            foreach (var month in PrintLog.Months(_log)) Months.Add(new PrintLogMonth(month, PrintLog.MonthName(month, CultureInfo.CurrentCulture)));
-            IsLoaded = true;
-            OnPropertyChanged(nameof(IsEmpty));
-            OnPropertyChanged(nameof(HasJobs));
-            var pick = Months.FirstOrDefault(m => m.Month == wanted) ?? Months.FirstOrDefault();
-            if (pick == SelectedMonth) ShowMonth();
-            else SelectedMonth = pick;
+            do
+            {
+                _reload = false;
+                await ShowLogAsync();
+            }
+            while (_reload);
         }
         finally
         {
             _loading = false;
         }
+    }
+
+    private bool _reload;
+
+    private async Task ShowLogAsync()
+    {
+        var file = _keeper.File;
+        _log = await Task.Run(() => file.Read(DateTimeOffset.Now));
+        var wanted = SelectedMonth?.Month;
+        Months.Clear();
+        foreach (var month in PrintLog.Months(_log)) Months.Add(new PrintLogMonth(month, PrintLog.MonthName(month, CultureInfo.CurrentCulture)));
+        IsLoaded = true;
+        OnPropertyChanged(nameof(IsEmpty));
+        OnPropertyChanged(nameof(HasJobs));
+        var pick = Months.FirstOrDefault(m => m.Month == wanted) ?? Months.FirstOrDefault();
+        if (pick == SelectedMonth) ShowMonth();
+        else SelectedMonth = pick;
     }
 
     private void ShowMonth()

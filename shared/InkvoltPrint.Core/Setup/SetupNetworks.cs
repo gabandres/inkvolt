@@ -41,7 +41,7 @@ public static class SetupNetworks
 {
     private static readonly (string Word, string Maker)[] DirectMakers =
     [
-        ("HP", "HP"), ("EPSON", "Epson"), ("Brother", "Brother"), ("_BR", "Brother"), ("Canon", "Canon"), ("Xerox", "Xerox"), ("Lexmark", "Lexmark"),
+        ("HP", "HP"), ("EPSON", "Epson"), ("Brother", "Brother"), ("Canon", "Canon"), ("Xerox", "Xerox"), ("Lexmark", "Lexmark"),
         ("Samsung", "Samsung"), ("KYOCERA", "Kyocera"), ("Ricoh", "Ricoh"), ("Pantum", "Pantum"), ("OKI", "OKI"),
     ];
 
@@ -56,9 +56,17 @@ public static class SetupNetworks
         if (StartsWith(name, "EPSON")) return new(network, "Epson", SetupNetworkKind.Setup);
         if (StartsWith(name, "DIRECT-") && name.Length > 10)
         {
-            var rest = name[7..];
-            foreach (var (word, maker) in DirectMakers)
-                if (Contains(rest, word)) return new(network, maker, SetupNetworkKind.Direct);
+            // Brother's: DIRECT-xxHL-L2350DW_BRa1b2 (the model, then _BR and four hex digits).
+            if (System.Text.RegularExpressions.Regex.IsMatch(name, "_BR[0-9A-Fa-f]{4}$")) return new(network, "Brother", SetupNetworkKind.Direct);
+            // The others: DIRECT-xx- and the maker's name right after it ("DIRECT-7A-EPSON-ET-2850", "DIRECT-4F-HP M234 LaserJet"). A
+            // maker's name further on isn't one: "DIRECT-3f-[TV] Samsung 7 Series" is a television.
+            if (name.Length > 10 && name[9] == '-')
+            {
+                var rest = name[10..].TrimStart();
+                foreach (var (word, maker) in DirectMakers)
+                    if (rest.StartsWith(word, StringComparison.OrdinalIgnoreCase) && (rest.Length == word.Length || !char.IsLetter(rest[word.Length])))
+                        return new(network, maker, SetupNetworkKind.Direct);
+            }
         }
         return null;
     }
@@ -78,7 +86,6 @@ public static class SetupNetworks
 
     private static bool StartsWith(string name, string prefix) => name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
 
-    private static bool Contains(string name, string word) => name.Contains(word, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Windows' temporary profile for an open network (WLAN_profile schema): the network by its bytes in hex, open, no encryption,

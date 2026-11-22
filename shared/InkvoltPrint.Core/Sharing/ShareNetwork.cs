@@ -138,6 +138,9 @@ public sealed record ShareAdvert(string Instance, string Host, int Port, IReadOn
 
     /// <summary>A shared printer's service type (IPP).</summary>
     public const string PrinterService = "_ipp._tcp";
+
+    /// <summary>Subtypes the instance is also found under (<c>_universal</c>: AirPrint's), which our own responder answers (<see cref="MdnsSubtype"/>).</summary>
+    public IReadOnlyList<string> Subtypes { get; init; } = [];
 }
 
 /// <summary>The DNS-SD record for a shared scanner, as Mopria's eSCL and Apple's AirScan clients read it.</summary>

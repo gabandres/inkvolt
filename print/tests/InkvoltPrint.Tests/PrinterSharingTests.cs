@@ -39,10 +39,10 @@ public class PrinterSharingTests
 
     private static SharedPrinter Printer(Sink sink, PrinterShareLimits? limits = null) => new(Laser, Id, "Office laser on DESK", "DESK", sink, limits);
 
-    private static string Uri => "ipp://192.0.2.10:9781" + SharedPrinter.PathOf(Id);
+    private static string Uri => "ipp://192.0.2.10:9782" + SharedPrinter.PathOf(Id);
 
     private static Task<ShareReply> Send(SharedPrinter p, byte[] body, IPAddress? peer = null) =>
-        p.HandleAsync(new ShareRequest("POST", p.Path, body, peer ?? Phone, "192.0.2.10:9781"), CancellationToken.None);
+        p.HandleAsync(new ShareRequest("POST", p.Path, body, peer ?? Phone, "192.0.2.10:9782"), CancellationToken.None);
 
     private static (ushort Status, IReadOnlyList<(byte Tag, Dictionary<string, List<object>> Attributes)> Groups) Read(ShareReply reply)
     {
@@ -101,7 +101,7 @@ public class PrinterSharingTests
         var a = groups.Single(g => g.Tag == 0x04).Attributes;
         Assert.Equal(["application/pdf", "image/jpeg", "image/pwg-raster", "image/urf", "application/octet-stream"], a["document-format-supported"].Cast<string>());
         Assert.Equal($"urn:uuid:{Id:D}", a["printer-uuid"][0]);
-        Assert.Equal("ipp://192.0.2.10:9781" + p.Path, a["printer-uri-supported"][0]);
+        Assert.Equal("ipp://192.0.2.10:9782" + p.Path, a["printer-uri-supported"][0]);
         Assert.Contains("DM1", a["urf-supported"].Cast<string>());
         Assert.DoesNotContain("SRGB24", a["urf-supported"].Cast<string>()); // a black-and-white queue
         Assert.Equal(["sgray_8"], a["pwg-raster-document-type-supported"].Cast<string>());
@@ -161,7 +161,7 @@ public class PrinterSharingTests
         Assert.Equal(SharedPrinter.Ok, status);
         var job = groups.Single(g => g.Tag == 0x02).Attributes;
         Assert.Equal(1, job["job-id"][0]);
-        Assert.Equal(Uri.Replace("ipp://192.0.2.10:9781", "ipp://192.0.2.10:9781") + "/1", job["job-uri"][0]);
+        Assert.Equal(Uri + "/1", job["job-uri"][0]);
         await WaitFor(() => sink.Jobs.Count == 1 && p.ActiveJobs == 0);
         var printed = sink.Jobs[0];
         Assert.Equal(("Office laser", "image/pwg-raster", 2, true, true, "Boarding pass"),
@@ -243,6 +243,35 @@ public class PrinterSharingTests
         sink.Fail = null;
         Read(await Send(p, PrintJob(PwgDocument())));
         await WaitFor(() => sink.Jobs.Count == 1);
+    }
+
+    [Fact]
+    public async Task A_busy_printer_or_a_document_too_large_is_refused_from_the_head_alone()
+    {
+        var sink = new Sink { Hold = new TaskCompletionSource() };
+        using var p = Printer(sink);
+        var head = PrintJob([]); // the attributes only: the document isn't read yet
+        Assert.Null(p.Precheck(new ShareRequest("POST", p.Path, head, Phone), 1000));
+        Assert.Equal(SharedPrinter.TooLarge, Read(p.Precheck(new ShareRequest("POST", p.Path, head, Phone), 200L * 1024 * 1024)!).Status);
+        Read(await Send(p, PrintJob(PwgDocument()))); // printing (held)
+        await WaitFor(() => Read(Send(p, DirectJob.GetJobAttributesRequest(Uri, "phone", 1)).Result).Groups.Single(g => g.Tag == 2).Attributes["job-state"][0] is 5);
+        foreach (var _ in Enumerable.Range(0, 2)) Read(await Send(p, PrintJob(PwgDocument()))); // two waiting
+        Assert.Equal(3, p.ActiveJobs);
+        Assert.Equal(SharedPrinter.Busy, Read(p.Precheck(new ShareRequest("POST", p.Path, head, OtherPhone), 1000)!).Status);
+        Assert.Null(p.Precheck(new ShareRequest("POST", p.Path, IppCodec.EncodeGetPrinterAttributes(Uri, ["all"]), Phone), 100)); // only Print-Job
+        sink.Hold.SetResult();
+        await WaitFor(() => p.ActiveJobs == 0);
+    }
+
+    [Fact]
+    public async Task Auto_monochrome_prints_grey_on_a_color_queue()
+    {
+        var sink = new Sink();
+        using var p = new SharedPrinter(Laser with { Color = true }, Id, "Color laser", "DESK", sink);
+        Read(await Send(p, PrintJob(PwgDocument(), job: r => r.Keyword("print-color-mode", "auto-monochrome"))));
+        Read(await Send(p, PrintJob(PwgDocument(), job: r => r.Keyword("print-color-mode", "auto"))));
+        await WaitFor(() => sink.Jobs.Count == 2);
+        Assert.Equal([true, false], sink.Jobs.OrderBy(j => j.Monochrome ? 0 : 1).Select(j => j.Monochrome));
     }
 
     [Fact]
@@ -424,7 +453,7 @@ public class PrinterSharingTests
         Assert.StartsWith("V1.4,CP1,W8,RS300,DM1", txt["URF"]);
         Assert.Equal(share.Served[0].Uuid.ToString("D"), txt["UUID"]);
         Assert.Single(saved[^1]);
-        Assert.Contains("9781", share.Text("Office laser"));
+        Assert.Contains("9782", share.Text("Office laser"));
 
         // A second printer: the same server, both announced; the path picks the printer.
         Assert.True(await share.TurnOnAsync(Queue("Inkjet")));
@@ -466,6 +495,112 @@ public class PrinterSharingTests
         Assert.Equal(SharedPrinter.PathOf(Id), share.Served.Single().Path); // the UUID kept: phones find it again
         await share.DisposeAsync();
         Assert.Equal((0, 0), (host.Open, adverts.Live.Count));
+    }
+
+    [Fact]
+    public async Task A_queue_that_cant_be_read_says_so_and_is_read_again_with_the_next_list()
+    {
+        var (host, adverts) = (new Host(), new Adverts());
+        var readable = false;
+        var env = new PrinterShareEnvironment(host, new Networks(), adverts,
+            (name, _) => Task.FromResult(readable ? Laser with { Name = name } : (SharedQueue?)null), new Sink());
+        await using var share = new PrinterShare(env, "DESK", null, _ => { });
+        Assert.True(await share.TurnOnAsync(Queue("Office laser")));
+        Assert.Equal(CoreStrings.PrinterShare_Unreadable, share.Text("Office laser"));
+        Assert.Empty(share.Served);
+        await share.OfferAsync(["Office laser"]); // the same list: still unreadable, read again
+        Assert.Empty(share.Served);
+        readable = true;
+        await share.OfferAsync(["Office laser"]);
+        Assert.Equal(PrinterShareState.On, share.State);
+        Assert.Single(share.Served);
+        Assert.Contains(PrinterShare.DefaultPort.ToString(), share.Text("Office laser"));
+    }
+
+    [Fact]
+    public async Task This_pc_only_never_announces_even_when_printers_change()
+    {
+        var env = new PrinterShareEnvironment(new Host(), new Networks(), new ThrowingAdverts(),
+            (name, _) => Task.FromResult<SharedQueue?>(Laser with { Name = name }), new Sink(), Port: 0, LoopbackOnly: true);
+        await using var share = new PrinterShare(env, "DESK", null, _ => { });
+        await share.TurnOnAsync(Queue("Office laser"));
+        await share.TurnOnAsync(Queue("Inkjet")); // the running server's branch
+        Assert.Equal(2, share.Served.Count);
+        Assert.DoesNotContain(CoreStrings.PrinterShare_NotAnnounced, share.Text("Inkjet"));
+    }
+
+    private sealed class ThrowingAdverts : IShareAdvertiser
+    {
+        public Task<IAsyncDisposable> AdvertiseAsync(ShareAdvert advert, IReadOnlyList<LocalNetwork> on, CancellationToken ct) =>
+            throw new InvalidOperationException("nothing is announced for this PC only");
+    }
+
+    // ---------------------------------------------------------------- AirPrint's subtype, answered by our own responder
+
+    private static MdnsInstance Instance(string address = "192.0.2.10") =>
+        new("_universal", new ShareAdvert("Office laser on DESK", "DESK.local", 9782, [new("rp", "ipp/print/x"), new("URF", "V1.4,W8")], ShareAdvert.PrinterService),
+            IPAddress.Parse(address));
+
+    private static byte[] Query(string name, ushort type = 12, bool unicast = false, ushort flags = 0)
+    {
+        var q = new List<byte> { 0, 0, (byte)(flags >> 8), (byte)flags, 0, 1, 0, 0, 0, 0, 0, 0 };
+        q.AddRange(MdnsSubtype.Name(name));
+        q.AddRange([(byte)(type >> 8), (byte)type, unicast ? (byte)0x80 : (byte)0, 1]);
+        return [.. q];
+    }
+
+    [Fact]
+    public void A_query_for_the_subtype_gets_the_instance_with_its_srv_txt_and_address()
+    {
+        var questions = MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local"));
+        Assert.NotNull(questions);
+        var answer = MdnsSubtype.Answer(questions, [Instance()]);
+        Assert.NotNull(answer);
+        Assert.Equal(0x8400, BinaryPrimitives.ReadUInt16BigEndian(answer.AsSpan(2))); // a response, authoritative
+        Assert.Equal(1, BinaryPrimitives.ReadUInt16BigEndian(answer.AsSpan(6)));
+        Assert.Equal(3, BinaryPrimitives.ReadUInt16BigEndian(answer.AsSpan(10)));
+        var at = 12;
+        Assert.Equal("_universal._sub._ipp._tcp.local", MdnsSubtype.ReadName(answer, ref at));
+        at += 10; // type, class, TTL, length
+        Assert.Equal("office laser on desk._ipp._tcp.local", MdnsSubtype.ReadName(answer, ref at));
+        // Anything else isn't ours to answer: Windows answers the plain service, the instance and the host.
+        Assert.Null(MdnsSubtype.Answer(MdnsSubtype.Questions(Query("_ipp._tcp.local")), [Instance()]));
+        Assert.Null(MdnsSubtype.Answer(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local", type: 16)), [Instance()]));
+        Assert.True(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local", unicast: true))![0].Unicast);
+    }
+
+    [Fact]
+    public void Hostile_mdns_packets_are_dropped()
+    {
+        Assert.Null(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local", flags: 0x8400))); // a response
+        Assert.Null(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local", flags: 0x2800))); // another opcode
+        Assert.Null(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local")[..20])); // cut short
+        Assert.Null(MdnsSubtype.Questions(new byte[MdnsSubtype.MaxPacket + 1]));
+        var many = Query("a.local");
+        many[5] = 200; // says 200 questions
+        Assert.Null(MdnsSubtype.Questions(many));
+        byte[] loop = [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0xC0, 12, 0, 12, 0, 1]; // a name pointing at itself
+        Assert.Null(MdnsSubtype.Questions(loop));
+        byte[] forward = [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0xC0, 16, 0, 12, 1, (byte)'a', 0, 0, 1];
+        Assert.Null(MdnsSubtype.Questions(forward)); // pointers only go back
+        var longName = string.Join('.', Enumerable.Repeat(new string('a', 63), 5));
+        Assert.Null(MdnsSubtype.Questions(Query(longName))); // past 255 bytes
+    }
+
+    [Fact]
+    public void Only_a_device_on_the_served_subnet_and_interface_is_answered()
+    {
+        var net = new LocalNetwork(4, IPAddress.Parse("192.0.2.10"), 24, NetworkKind.Private);
+        (MdnsInstance, LocalNetwork)[] registered = [(Instance(), net)];
+        Assert.Single(MdnsSubtype.For(registered, IPAddress.Parse("192.0.2.50"), 4));
+        Assert.Empty(MdnsSubtype.For(registered, IPAddress.Parse("192.0.2.50"), 7)); // came in on another interface
+        Assert.Empty(MdnsSubtype.For(registered, IPAddress.Parse("198.51.100.5"), 4)); // not on the subnet
+        var advert = PrinterDnssd.For(new SharedPrinter(Laser, Id, "Office laser on DESK", "DESK", new Sink()), "DESK", PrinterShare.DefaultPort);
+        Assert.Equal(["_universal"], advert.Subtypes);
+        var goodbye = MdnsSubtype.Answer(null, [Instance()], goodbye: true)!;
+        var at = 12;
+        MdnsSubtype.ReadName(goodbye, ref at);
+        Assert.Equal(0u, BinaryPrimitives.ReadUInt32BigEndian(goodbye.AsSpan(at + 4))); // TTL 0
     }
 
     [Fact]

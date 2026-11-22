@@ -4412,4 +4412,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Palette_SetUpPrinter" xml:space="preserve">
     <value>Set up a new printer's Wi-Fi…</value>
   </data>
+  <data name="PrinterShare_Unreadable" xml:space="preserve">
+    <value>On, but Windows couldn't say what this printer can do, so it isn't shared yet. It's tried again every half minute; check that the printer is on and its queue works.</value>
+  </data>
 </root>

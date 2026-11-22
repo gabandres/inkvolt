@@ -64,7 +64,8 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
                 return await StaThread.RunAsync(() =>
                 {
                     var data = job.Document.AsMemory();
-                    var read = job.Format == "image/urf" ? RasterReader.ReadUrf(data) : RasterReader.ReadPwg(data);
+                    var limits = new RasterLimits { MaxPages = MaxPages, MaxPixels = MaxPixels }; // the PDF's limits: no more pages through raster
+                    var read = job.Format == "image/urf" ? RasterReader.ReadUrf(data, limits) : RasterReader.ReadPwg(data, limits);
                     var pages = new List<RenderedPage>();
                     foreach (var page in read)
                     {
@@ -81,22 +82,23 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
     /// <summary>A picture decoded (its size checked first) and encoded again; its size from its resolution, 96 dpi when it names none.</summary>
     private static RenderedPage Picture(byte[] jpeg, bool grey)
     {
-        BitmapFrame frame;
+        // Its size is read from the header first (nothing decoded yet), then the pixels are decoded and encoded again, all inside the
+        // try: a damaged picture is the document's fault (document-format-error), not this PC's.
         try
         {
-            var decoder = new JpegBitmapDecoder(new MemoryStream(jpeg), BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile,
-                BitmapCacheOption.None);
-            frame = decoder.Frames[0];
+            var frame = new JpegBitmapDecoder(new MemoryStream(jpeg), BitmapCreateOptions.PreservePixelFormat | BitmapCreateOptions.IgnoreColorProfile,
+                BitmapCacheOption.None).Frames[0];
             if (frame.PixelWidth <= 0 || frame.PixelHeight <= 0 || (long)frame.PixelWidth * frame.PixelHeight > MaxPixels) throw new FormatException("picture too large");
+            var dpiX = frame.DpiX is > 1 and < 5000 ? frame.DpiX : 96;
+            var dpiY = frame.DpiY is > 1 and < 5000 ? frame.DpiY : 96;
+            BitmapSource source = grey ? new FormatConvertedBitmap(frame, PixelFormats.Gray8, null, 0) : frame;
+            return new RenderedPage(Encode(source), frame.PixelWidth / dpiX, frame.PixelHeight / dpiY);
         }
-        catch (Exception ex) when (ex is NotSupportedException or FileFormatException or ArgumentException or InvalidOperationException or System.Runtime.InteropServices.COMException)
+        catch (Exception ex) when (ex is NotSupportedException or FileFormatException or ArgumentException or InvalidOperationException
+                                       or System.Runtime.InteropServices.COMException or OverflowException or IOException)
         {
             throw new FormatException("not a JPEG picture", ex);
         }
-        var dpiX = frame.DpiX is > 1 and < 5000 ? frame.DpiX : 96;
-        var dpiY = frame.DpiY is > 1 and < 5000 ? frame.DpiY : 96;
-        BitmapSource source = grey ? new FormatConvertedBitmap(frame, PixelFormats.Gray8, null, 0) : frame;
-        return new RenderedPage(Encode(source), frame.PixelWidth / dpiX, frame.PixelHeight / dpiY);
     }
 
     private static RenderedPage Raster(RasterDocumentPage page, bool grey)

@@ -201,11 +201,11 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared printer) against the printers' own counts;
     the Mac half waits (CUPS keeps a page log of its own).
   - **4.10 Share a USB printer with phones.** Done on Windows, free (the owner, 2026-11-22): a switch per queue printer, off by
-    default, private networks only; announced as `_ipp._tcp` with Mopria's and AirPrint's keys, IPP on TCP 9781 (Get-Printer-Attributes,
+    default, private networks only; announced as `_ipp._tcp` with Mopria's and AirPrint's keys, IPP on TCP 9782 (Get-Printer-Attributes,
     Validate-Job, Print-Job with PDF, JPEG, PWG Raster, Apple Raster), printed on the Windows queue (README, "Share a printer with
     phones"; `PrinterShare`, `SharedPrinter`, `RasterReader`). Checked with our own IPP client over the real server on loopback and in
-    demo mode. **Next:** an Android phone's default print service and Mopria, a Mac, and an iPhone (Windows' DNS-SD API can't
-    register AirPrint's `_universal` subtype: an iPhone may need our own responder, the owner's call); IPPS; the Mac half waits
+    demo mode. **Next:** an Android phone's default print service and Mopria, a Mac, and an iPhone (AirPrint's `_universal` subtype is
+    answered by our own mDNS responder beside Windows', `MdnsSubtype`); IPPS; the Mac half waits
     (macOS shares printers itself).
 - **4.17 Setting up a new printer's Wi-Fi out of the box** (the owner's "middle option", 2026-11-22: Windows' Wi-Fi and the
   printer's own page, not each maker's protocol). Done on Windows: the printers' setup and Wi-Fi Direct networks nearby, joined on

@@ -29,9 +29,14 @@ public enum PrinterShareState
     Failed,
 }
 
-/// <summary>What the IPP server listens with: address and port, who may connect, how a request is answered, the largest body.</summary>
+/// <summary>
+/// What the IPP server listens with: address and port, who may connect, how a request is answered, the largest body. A POST's first
+/// <paramref name="HeadBytes"/> (its attributes) go to <paramref name="Precheck"/> with the body's declared length before the rest is
+/// read: an answer there (busy, too large) is sent and the rest never read.
+/// </summary>
 public sealed record PrinterListen(IPAddress Address, int Port, Func<IPAddress, IPAddress, bool> AllowPeer,
-    Func<ShareRequest, CancellationToken, Task<ShareReply>> Handle, long MaxBodyBytes);
+    Func<ShareRequest, CancellationToken, Task<ShareReply>> Handle, long MaxBodyBytes, int HeadBytes = 64 * 1024,
+    Func<ShareRequest, long?, ShareReply?>? Precheck = null);
 
 /// <summary>Starts the shared printers' IPP server (Kestrel in the app, plain HTTP as IPP printers use). Fails with <see cref="SocketException"/> when the port is taken.</summary>
 public interface IPrinterShareHost
@@ -61,7 +66,7 @@ public sealed record PrinterShareCard(bool IsShown, bool IsOn, string Text);
 public sealed class PrinterShare : IAsyncDisposable
 {
     /// <summary>The port (TCP, IPP over plain HTTP); the packaged app's firewall rule opens it for private networks.</summary>
-    public const int DefaultPort = 9781;
+    public const int DefaultPort = 9782;
 
     private readonly PrinterShareEnvironment _env;
     private readonly string _computerName;
@@ -75,6 +80,7 @@ public sealed class PrinterShare : IAsyncDisposable
 
     private List<PrinterShareChoice> _choices;
     private HashSet<string> _present = new(StringComparer.OrdinalIgnoreCase);
+    private HashSet<string> _unreadable = new(StringComparer.OrdinalIgnoreCase);
     private PrinterShareState _state = PrinterShareState.Off;
     private string? _problem, _note;
     private int? _port;
@@ -155,10 +161,11 @@ public sealed class PrinterShare : IAsyncDisposable
         PrinterShareState state;
         string? problem, note;
         int? port;
-        bool present;
-        lock (_gate) (state, problem, note, port, present) = (_state, _problem, _note, _port, _present.Contains(queue));
+        bool present, unreadable;
+        lock (_gate) (state, problem, note, port, present, unreadable) = (_state, _problem, _note, _port, _present.Contains(queue), _unreadable.Contains(queue));
         if (!IsShared(queue)) return CoreStrings.PrinterShare_Off;
         if (!present && state != PrinterShareState.NoPrivateNetwork) return CoreStrings.PrinterShare_WaitingForPrinter;
+        if (unreadable && state is PrinterShareState.On or PrinterShareState.WaitingForPrinter) return CoreStrings.PrinterShare_Unreadable;
         return state switch
         {
             PrinterShareState.WaitingForPrinter => CoreStrings.PrinterShare_WaitingForPrinter,
@@ -229,7 +236,8 @@ public sealed class PrinterShare : IAsyncDisposable
         var present = queues.ToHashSet(StringComparer.OrdinalIgnoreCase);
         lock (_gate)
         {
-            if (present.SetEquals(_present) && (_choices.Count == 0 || _state != PrinterShareState.Off)) return;
+            // Nothing new, unless a shared queue couldn't be read last time: it's read again with each list.
+            if (present.SetEquals(_present) && _unreadable.Count == 0 && (_choices.Count == 0 || _state != PrinterShareState.Off)) return;
         }
         await _calls.WaitAsync().ConfigureAwait(false);
         try
@@ -296,6 +304,7 @@ public sealed class PrinterShare : IAsyncDisposable
         bool any;
         lock (_gate) any = _choices.Count > 0;
         WatchNetworks(any);
+        if (!any) lock (_gate) _unreadable = new(StringComparer.OrdinalIgnoreCase);
         if (!any || wanted.Count == 0)
         {
             await StopRunningAsync().ConfigureAwait(false);
@@ -325,6 +334,7 @@ public sealed class PrinterShare : IAsyncDisposable
         // What each queue offers now (read off the queue: color, two-sided, paper); one that can't be read isn't served this time.
         var printers = new Dictionary<string, SharedPrinter>(StringComparer.Ordinal);
         var old = _printers;
+        var unreadable = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var choice in wanted)
         {
             SharedQueue? queue;
@@ -337,7 +347,11 @@ public sealed class PrinterShare : IAsyncDisposable
                 _log($"Printer sharing: a queue couldn't be read: {ex.GetType().Name}");
                 queue = null;
             }
-            if (queue is null) continue;
+            if (queue is null)
+            {
+                unreadable.Add(choice.Queue); // said on its card; read again with the next list of queues
+                continue;
+            }
             var path = SharedPrinter.PathOf(choice.Uuid);
             printers[path] = old.TryGetValue(path, out var kept) && kept.Queue == queue
                 ? kept
@@ -346,6 +360,7 @@ public sealed class PrinterShare : IAsyncDisposable
         foreach (var (path, printer) in old)
             if (!printers.TryGetValue(path, out var same) || !ReferenceEquals(same, printer)) printer.Dispose();
         _printers = printers;
+        lock (_gate) _unreadable = unreadable;
         if (printers.Count == 0)
         {
             await StopRunningAsync().ConfigureAwait(false);
@@ -358,7 +373,7 @@ public sealed class PrinterShare : IAsyncDisposable
         {
             if (running.Key == key) return;
             await Task.WhenAll(running.Adverts.Select(DisposeQuietlyAsync)).ConfigureAwait(false);
-            var adverts = await AdvertiseAsync(printers.Values, running.Listener.Port, served).ConfigureAwait(false);
+            var adverts = _env.LoopbackOnly ? [] : await AdvertiseAsync(printers.Values, running.Listener.Port, served).ConfigureAwait(false);
             _running = (running.Listener, adverts, key);
             SetState(PrinterShareState.On);
             return;
@@ -376,7 +391,7 @@ public sealed class PrinterShare : IAsyncDisposable
             var loopbackOnly = _env.LoopbackOnly;
             var listener = await _env.Host.StartAsync(new PrinterListen(address, _env.Port,
                 (peer, local) => loopbackOnly ? IPAddress.IsLoopback(SharePeers.Normal(peer)) : SharePeers.Allows(peer, local, _served),
-                HandleAsync, _limits.MaxDocumentBytes + _limits.MaxAttributeBytes), _closing.Token).ConfigureAwait(false);
+                HandleAsync, _limits.MaxDocumentBytes + _limits.MaxAttributeBytes, _limits.MaxAttributeBytes, Precheck), _closing.Token).ConfigureAwait(false);
             if (_closing.IsCancellationRequested)
             {
                 await DisposeQuietlyAsync(listener).ConfigureAwait(false);
@@ -402,6 +417,10 @@ public sealed class PrinterShare : IAsyncDisposable
             _log($"Printer sharing didn't start: {ex.GetType().Name}: {ex.Message}");
         }
     }
+
+    /// <summary>A request's head, before its document is read: the printer it names may refuse it now (<see cref="SharedPrinter.Precheck"/>).</summary>
+    public ShareReply? Precheck(ShareRequest head, long? declaredLength) =>
+        _printers.TryGetValue(head.Path.TrimEnd('/'), out var printer) ? printer.Precheck(head, declaredLength) : null;
 
     /// <summary>A request to the server: to the printer whose path it names; anything else isn't found.</summary>
     public Task<ShareReply> HandleAsync(ShareRequest request, CancellationToken ct)
@@ -505,8 +524,8 @@ public sealed class PrinterShare : IAsyncDisposable
 
 /// <summary>
 /// The DNS-SD record for a shared printer (<c>_ipp._tcp</c>): IPP Everywhere's and Mopria's keys (txtvers, qtotal, rp, ty, pdl, UUID,
-/// Color, Duplex, note, kind, PaperMax) and AirPrint's (URF). Windows' DNS-SD API registers no subtype, so AirPrint's
-/// <c>_universal</c> subtype isn't announced (README, "Share a printer with phones").
+/// Color, Duplex, note, kind, PaperMax) and AirPrint's (URF). Windows' DNS-SD API registers no subtype: AirPrint's <c>_universal</c>
+/// is answered by Inkvolt Print's own responder (<see cref="MdnsSubtype"/>; README, "Share a printer with phones").
 /// </summary>
 public static class PrinterDnssd
 {
@@ -529,7 +548,8 @@ public static class PrinterDnssd
             new("kind", "document,photo"),
             new("PaperMax", "legal-A4"),
         };
-        return new ShareAdvert(printer.Name, ShareDnssd.HostName(computerName), port, txt, ShareAdvert.PrinterService);
+        // AirPrint's subtype: Windows' API can't register one; Inkvolt Print's own responder answers it (MdnsSubtype).
+        return new ShareAdvert(printer.Name, ShareDnssd.HostName(computerName), port, txt, ShareAdvert.PrinterService) { Subtypes = ["_universal"] };
     }
 
     private static string Cut(string text, int max)

@@ -290,6 +290,55 @@ public class PrintLogTests
     }
 
     [Fact]
+    public void At_its_limit_the_file_is_appended_to_not_written_again_each_job()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "inkvolt-printlog-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(folder, "print-log.jsonl");
+            Directory.CreateDirectory(folder);
+            File.WriteAllLines(path, Enumerable.Range(0, PrintLog.MaxEntries).Select(i => PrintLogFile.Line(Entry(Now.AddMinutes(-PrintLog.MaxEntries + i)))));
+            var file = new PrintLogFile(path);
+            Assert.Equal(PrintLog.MaxEntries, file.Read(Now).Count);
+            for (var i = 0; i < 5; i++) file.Add([Entry(Now.AddSeconds(i), printer: "New")], Now);
+            Assert.Equal(PrintLog.MaxEntries, file.Read(Now).Count); // trimmed in memory
+            Assert.Equal(PrintLog.MaxEntries + 5, File.ReadAllLines(path).Length); // appended, not written again
+            for (var i = 0; i < PrintLog.MaxEntries / 5; i++) file.Add([Entry(Now.AddSeconds(10 + i))], Now);
+            Assert.True(File.ReadAllLines(path).Length <= PrintLog.MaxEntries * 6 / 5); // compacted once past a fifth more
+            Assert.Equal(PrintLog.MaxEntries, new PrintLogFile(path).Read(Now).Count);
+        }
+        finally
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void A_file_that_couldnt_be_read_is_never_written_over()
+    {
+        var folder = Path.Combine(Path.GetTempPath(), "inkvolt-printlog-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var path = Path.Combine(folder, "print-log.jsonl");
+            Directory.CreateDirectory(folder);
+            File.WriteAllLines(path, [PrintLogFile.Line(Entry(Now.AddDays(-1))), PrintLogFile.Line(Entry(Now.AddDays(-2)))]);
+            var file = new PrintLogFile(path);
+            using (new FileStream(path, FileMode.Open, FileAccess.Write, FileShare.Write | FileShare.Delete)) // can't be read now; could be replaced
+            {
+                Assert.Empty(file.Read(Now));
+                file.Add([Entry(Now.AddMonths(-20)), Entry(Now)], Now); // an aged-out job would have the file written again
+            }
+            var read = file.Read(Now); // read again now that it can be
+            Assert.Equal(2, read.Count);
+            Assert.Equal(2, new PrintLogFile(path).Read(Now).Count);
+        }
+        finally
+        {
+            if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void The_palette_opens_the_log_and_its_csv_is_a_pro_feature_of_its_own()
     {
         Assert.Contains(PrintPalette.Build(null, -1, [], []), e => e.Id == "app:printlog");

@@ -19,11 +19,12 @@ public sealed class PrintLogFile(string? path, Action<string>? log = null)
     private readonly Lock _gate = new();
     private List<PrintLogEntry>? _entries;
     private int _lines;
+    private DateTimeOffset _rewritten = DateTimeOffset.MinValue;
 
     /// <summary>The log, oldest first.</summary>
     public IReadOnlyList<PrintLogEntry> Read(DateTimeOffset now)
     {
-        lock (_gate) return [.. Load(now)];
+        lock (_gate) return [.. Load(now).List];
     }
 
     /// <summary>Adds the jobs and saves.</summary>
@@ -32,14 +33,20 @@ public sealed class PrintLogFile(string? path, Action<string>? log = null)
         if (entries.Count == 0) return;
         lock (_gate)
         {
-            var list = Load(now);
+            var (list, loaded) = Load(now);
             var added = entries.Select(PrintLog.Clean).OfType<PrintLogEntry>().ToList();
             list.AddRange(added);
-            var before = list.Count;
-            PrintLog.Trim(list, now);
+            // Trimmed in memory; the file only gets the new lines, and is written again (trimmed) once it holds a fifth more than the log
+            // keeps, or at most once a day when jobs have aged out. A file that couldn't be read is never written over: only appended to.
+            var aged = list.RemoveAll(e => e.At < now.AddMonths(-PrintLog.KeepMonths));
+            if (list.Count > PrintLog.MaxEntries) list.RemoveRange(0, list.Count - PrintLog.MaxEntries);
             _lines += added.Count;
             if (path is null) return;
-            if (before != list.Count || _lines > PrintLog.MaxEntries * 6 / 5) Rewrite(list);
+            if (loaded && (_lines > PrintLog.MaxEntries * 6 / 5 || (aged > 0 && now - _rewritten > TimeSpan.FromDays(1))))
+            {
+                Rewrite(list);
+                _rewritten = now;
+            }
             else Append(added);
         }
     }
@@ -87,29 +94,33 @@ public sealed class PrintLogFile(string? path, Action<string>? log = null)
     /// <summary>One entry as its line.</summary>
     public static string Line(PrintLogEntry entry) => JsonSerializer.Serialize(entry, Json);
 
-    private List<PrintLogEntry> Load(DateTimeOffset now)
+    /// <summary>
+    /// The log as kept, read from the file the first time. A read that fails (the file locked, a disk away) isn't kept: an empty list for
+    /// now (<c>Loaded</c> false, so nothing writes over the file), and the next call reads again.
+    /// </summary>
+    private (List<PrintLogEntry> List, bool Loaded) Load(DateTimeOffset now)
     {
-        if (_entries is not null) return _entries;
-        _entries = [];
-        if (path is null) return _entries;
+        if (_entries is not null) return (_entries, true);
+        if (path is null) return (_entries = [], true);
         try
         {
-            if (!File.Exists(path)) return _entries;
+            if (!File.Exists(path)) return (_entries = [], true);
             if (new FileInfo(path).Length > MaxFileBytes)
             {
                 log?.Invoke("Print log file too large, starting it again");
                 File.Delete(path);
-                return _entries;
+                _lines = 0;
+                return (_entries = [], true);
             }
             var lines = File.ReadLines(path, Encoding.UTF8).ToList();
             _lines = lines.Count;
-            _entries = Parse(lines, now);
+            return (_entries = Parse(lines, now), true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             log?.Invoke($"Print log not read: {ex.Message}");
+            return ([], false);
         }
-        return _entries;
     }
 
     private void Append(List<PrintLogEntry> added)

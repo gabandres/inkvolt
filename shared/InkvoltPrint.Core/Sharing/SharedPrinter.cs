@@ -200,6 +200,29 @@ public sealed class SharedPrinter : IDisposable
         }
     }
 
+    /// <summary>
+    /// A request's head (its first bytes, the attributes), before its document is read: a Print-Job this printer would turn away anyway
+    /// (busy, or a body past <see cref="PrinterShareLimits.MaxDocumentBytes"/>) is answered now, so a busy printer never holds a document
+    /// in memory. Null: read the rest.
+    /// </summary>
+    public ShareReply? Precheck(ShareRequest head, long? declaredLength)
+    {
+        var b = head.Body;
+        if (head.Method != "POST" || b.Length < 8 || b[0] is not (1 or 2)) return null;
+        var operation = BinaryPrimitives.ReadUInt16BigEndian(b.AsSpan(2));
+        var requestId = BinaryPrimitives.ReadInt32BigEndian(b.AsSpan(4));
+        if (operation != IppCodec.PrintJob) return null;
+        if (declaredLength > _limits.MaxDocumentBytes + _limits.MaxAttributeBytes) return Reply(b[0], b[1], TooLarge, requestId, "document too large");
+        var peer = SharePeers.Normal(head.Peer);
+        lock (_gate)
+        {
+            if (_disposed) return Reply(b[0], b[1], Busy, requestId, "not sharing");
+            if (_jobs.Count(j => j.State == Pending) >= _limits.MaxWaiting || _jobs.Count(j => j.State == Pending && j.Peer.Equals(peer)) >= _limits.MaxWaiting)
+                return Reply(b[0], b[1], Busy, requestId, "busy: try again soon");
+        }
+        return null;
+    }
+
     private ShareReply PrintJob(byte major, byte minor, int requestId, Dictionary<string, List<object>> op, Dictionary<string, List<object>> template,
         ReadOnlyMemory<byte> document, IPAddress peer, string? authority)
     {
@@ -360,7 +383,7 @@ public sealed class SharedPrinter : IDisposable
                 case "print-color-mode" when value is "auto" or "color" && _queue.Color:
                     break;
                 case "print-color-mode" when value is "monochrome" or "auto-monochrome" or "auto":
-                    monochrome = value is "monochrome" || !_queue.Color;
+                    monochrome = value is "monochrome" or "auto-monochrome" || !_queue.Color; // auto-monochrome: grey wherever it can be
                     break;
                 case "media" when value is string media && SharedPrinterMedia.Offered(_queue.Media).Contains(media):
                 case "media-col":
@@ -463,7 +486,7 @@ public sealed class SharedPrinter : IDisposable
         K("sides-supported", _queue.TwoSided ? ["one-sided", "two-sided-long-edge"] : ["one-sided"]);
         B("color-supported", color);
         K("print-color-mode-default", color ? "auto" : "monochrome");
-        K("print-color-mode-supported", color ? ["auto", "color", "monochrome"] : ["auto", "monochrome"]);
+        K("print-color-mode-supported", color ? ["auto", "auto-monochrome", "color", "monochrome"] : ["auto", "auto-monochrome", "monochrome"]);
         K("print-scaling-default", "fit");
         K("print-scaling-supported", "auto", "fit");
         E("orientation-requested-default", 3);

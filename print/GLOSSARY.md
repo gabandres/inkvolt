@@ -52,7 +52,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Printer sharing** (roadmap 4.10, free): Windows queues offered to phones and other computers as IPP printers, each a **shared
   printer** (`PrinterShare`: the switches, one server for all, when it may listen, the announcements; `SharedPrinter`: one queue's IPP
   attributes and the **jobs** a device sends, one printing at a time, each its device's alone). Served and announced (`_ipp._tcp`,
-  `PrinterDnssd`) as the shared scanner is; a queue that saves a file or hands the job to an app **can't be shared** (`CanShare`).
+  `PrinterDnssd`) as the shared scanner is, AirPrint's `_universal` **subtype** answered by our own responder beside Windows'
+  (`MdnsSubtype`); a queue that saves a file or hands the job to an app **can't be shared** (`CanShare`); one whose capabilities
+  can't be read is **unreadable** (said, read again with each list of queues).
   A job's document is taken as what its **sniffed** first bytes show, never only what the device says; its pages are fitted to the
   queue's paper.
 - **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
