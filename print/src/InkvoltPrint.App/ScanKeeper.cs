@@ -85,7 +85,8 @@ internal sealed class ScanKeeper : IDisposable
         {
             var name = _files.GetValue(p, _ => ScanRecoveryStore.NewPageName());
             jpegs[name] = p.Original;
-            return new KeptPage(name, p.Dpi, p.Ocr, p.Edits.QuarterTurns, p.Edits.Deskew, p.Edits.Crop, p.IsSkipped, p.StartsFile, p.Edits.Filters, p.OcrLanguage, p.OneBit);
+            return new KeptPage(name, p.Dpi, p.Ocr, p.Edits.QuarterTurns, p.Edits.Deskew, p.Edits.Crop, p.IsSkipped, p.StartsFile, p.Edits.Filters, p.OcrLanguage, p.OneBit,
+                p.Edits.Drop?.Hex);
         }).ToList();
         var says = string.Join("|", pages);
         if (_kept.TryGetValue(printer.Uuid, out var before) && before == says) return null;

@@ -19,6 +19,12 @@ public static class AreaCopy
     private const long MaxRecognizePixels = 25_000_000;
 
     /// <summary>
+    /// The most cells (rows × columns) a copied table holds: more is no table a person boxed but a hostile page (one
+    /// character a line, each its own row and column, makes hundreds of millions), copied as text instead.
+    /// </summary>
+    public const int MaxCells = 100_000;
+
+    /// <summary>
     /// The page's lines and rules cut to <paramref name="area"/> (page space): a character is kept when its middle is
     /// inside (characters are taken as evenly spread over their run), a line keeps what is left of it, pictures go.
     /// </summary>
@@ -55,30 +61,41 @@ public static class AreaCopy
     /// <summary>
     /// The clipped page as rows of cells: the tables <see cref="DocLayout"/> finds (as Export to Excel puts them in a sheet),
     /// with any paragraph between them a row of one cell; where it finds no table, each row of lines split into the columns
-    /// their left and right edges line up in.
+    /// their left and right edges line up in. More than <see cref="MaxCells"/> cells: no rows, and
+    /// <see cref="AreaTable.TooLarge"/> (the caller copies the text instead, and says so).
     /// </summary>
-    public static AreaTable Table(ExportPage clipped)
+    public static AreaTable Table(ExportPage clipped, CancellationToken cancel = default)
     {
         if (!clipped.HasText) return new AreaTable([]);
         var laid = DocLayout.Analyze([clipped]);
+        cancel.ThrowIfCancellationRequested();
         var blocks = laid.SelectMany(p => p.Blocks).ToList();
         if (blocks.OfType<DocTable>().Any())
         {
             var rows = new List<IReadOnlyList<AreaCell>>();
+            long cells = 0; // as the text pastes: a spanning cell followed by empty ones
             foreach (var block in blocks)
+            {
                 switch (block)
                 {
                     case DocTable t:
                         foreach (var row in t.Rows)
+                        {
+                            cells += row.Sum(c => (long)Math.Max(1, c.ColSpan));
+                            if (cells > MaxCells) break;
                             rows.Add([.. row.Select(c => new AreaCell(c.Covered ? "" : OneLine(c.Text), c.ColSpan))]); // a spanned cell left empty
+                        }
                         break;
                     case DocParagraph p when !string.IsNullOrWhiteSpace(p.Text):
+                        cells++;
                         rows.Add([new AreaCell(OneLine(p.Text))]);
                         break;
                 }
-            return new AreaTable(rows);
+                if (cells > MaxCells) break;
+            }
+            return cells > MaxCells ? new AreaTable([]) { TooLarge = true } : new AreaTable(rows);
         }
-        return new AreaTable(Columns(clipped.Lines.Where(l => !l.Sideways).ToList()));
+        return Columns(clipped.Lines.Where(l => !l.Sideways).ToList(), cancel);
     }
 
     /// <summary>
@@ -138,37 +155,67 @@ public static class AreaCopy
 
     /// <summary>
     /// Lines in rows (those whose heights overlap by half), each row's lines in the columns their spans across all rows
-    /// make (edges that overlap are one column).
+    /// make (edges that overlap are one column); none, with <see cref="AreaTable.TooLarge"/>, past <see cref="MaxCells"/>.
     /// </summary>
-    private static List<IReadOnlyList<AreaCell>> Columns(List<ExportLine> lines)
+    private static AreaTable Columns(List<ExportLine> lines, CancellationToken cancel)
     {
-        var rows = new List<List<ExportLine>>();
-        foreach (var line in lines.OrderBy(l => l.Box.Y))
-        {
-            var row = rows.FirstOrDefault(r => r.Any(o => Math.Min(o.Box.Bottom, line.Box.Bottom) - Math.Max(o.Box.Y, line.Box.Y)
-                                                          > 0.5 * Math.Min(o.Box.Height, line.Box.Height)));
-            if (row is null) rows.Add([line]);
-            else row.Add(line);
-        }
-        // Columns: the lines' left-to-right extents merged where they overlap.
+        // Columns first (the lines' left-to-right extents merged where they overlap): how wide the grid is.
         var columns = new List<(double From, double To)>();
         foreach (var (from, to) in lines.Select(l => (l.Box.X, l.Box.Right)).OrderBy(e => e.X))
             if (columns.Count > 0 && from <= columns[^1].To) columns[^1] = (columns[^1].From, Math.Max(columns[^1].To, to));
             else columns.Add((from, to));
+        // Rows, top down. A row whose lowest line ends above this line's top overlaps no line after it either (they are
+        // in order of their tops): it is closed, so a page of thousands of rows isn't searched line by line again.
+        var rows = new List<List<ExportLine>>();
+        var open = new List<(List<ExportLine> Row, double Bottom)>();
+        foreach (var line in lines.OrderBy(l => l.Box.Y))
+        {
+            cancel.ThrowIfCancellationRequested();
+            open.RemoveAll(o => o.Bottom <= line.Box.Y);
+            var at = open.FindIndex(o => o.Row.Any(x => Math.Min(x.Box.Bottom, line.Box.Bottom) - Math.Max(x.Box.Y, line.Box.Y)
+                                                        > 0.5 * Math.Min(x.Box.Height, line.Box.Height)));
+            if (at < 0)
+            {
+                List<ExportLine> row = [line];
+                rows.Add(row);
+                open.Add((row, line.Box.Bottom));
+                if ((long)rows.Count * columns.Count > MaxCells) return new AreaTable([]) { TooLarge = true };
+            }
+            else
+            {
+                open[at].Row.Add(line);
+                open[at] = (open[at].Row, Math.Max(open[at].Bottom, line.Box.Bottom));
+            }
+        }
         var result = new List<IReadOnlyList<AreaCell>>();
         foreach (var row in rows.OrderBy(r => r.Min(l => l.Box.Y)))
         {
+            cancel.ThrowIfCancellationRequested();
             var cells = new string[columns.Count];
             foreach (var line in row.OrderBy(l => l.Box.X))
             {
-                var c = columns.FindIndex(col => line.Box.X <= col.To && line.Box.Right >= col.From);
+                var c = ColumnOf(columns, line.Box);
                 if (c < 0) continue;
                 var text = OneLine(line.Text);
                 cells[c] = cells[c] is { Length: > 0 } was ? $"{was} {text}" : text;
             }
             result.Add([.. cells.Select(c => new AreaCell(c ?? ""))]);
         }
-        return result;
+        return new AreaTable(result);
+    }
+
+    /// <summary>The first column <paramref name="box"/> reaches into, or -1. The columns are apart and in order, so their
+    /// right edges rise: the first that ends at or after the box's left edge is the one, if it starts before its right.</summary>
+    private static int ColumnOf(List<(double From, double To)> columns, RectD box)
+    {
+        int lo = 0, hi = columns.Count;
+        while (lo < hi)
+        {
+            var mid = (lo + hi) / 2;
+            if (columns[mid].To < box.X) lo = mid + 1;
+            else hi = mid;
+        }
+        return lo < columns.Count && box.Right >= columns[lo].From ? lo : -1;
     }
 
     private static string OneLine(string text) => string.Join(' ', text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
@@ -185,6 +232,9 @@ public sealed record AreaCell(string Text, int ColSpan = 1);
 /// <summary>An area copied as a table (<see cref="AreaCopy.Table"/>): rows of cells, for the clipboard.</summary>
 public sealed record AreaTable(IReadOnlyList<IReadOnlyList<AreaCell>> Rows)
 {
+    /// <summary>More than <see cref="AreaCopy.MaxCells"/> cells: none kept, the area is copied as text.</summary>
+    public bool TooLarge { get; init; }
+
     public bool IsEmpty => Rows.All(r => r.All(c => c.Text.Length == 0));
 
     /// <summary>Most columns in a row (a cell counted by its span).</summary>

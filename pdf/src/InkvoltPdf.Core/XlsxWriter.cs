@@ -2,6 +2,7 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text.RegularExpressions;
 using System.Xml;
+using InkvoltPrint.Core.Office;
 
 namespace InkvoltPdf.Core;
 
@@ -62,7 +63,7 @@ internal static partial class XlsxWriter
             w.WriteEndElement();
         });
         OpenXmlParts.Entry(zip, "docProps/core.xml", w => OpenXmlParts.CoreProperties(w, title));
-        OpenXmlParts.Entry(zip, "docProps/app.xml", OpenXmlParts.AppProperties);
+        OpenXmlParts.Entry(zip, "docProps/app.xml", w => OpenXmlParts.AppProperties(w, "Inkvolt PDF"));
         OpenXmlParts.Entry(zip, "[Content_Types].xml", w => OpenXmlParts.ContentTypes(w,
         [
             ("/xl/workbook.xml", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"),

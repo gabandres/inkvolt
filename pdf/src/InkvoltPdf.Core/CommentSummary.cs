@@ -29,9 +29,9 @@ public static class CommentSummary
     public static IReadOnlyList<(int Page, IReadOnlyList<Entry> Entries)> Plan(IReadOnlyList<AnnotationInfo> comments)
     {
         var all = comments.Where(c => !c.IsInkvoltPdfStamp && c.Kind != AnnotationKind.Redact).ToList();
-        var allIds = all.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
-        // A group (Replace Text's strike-out with its caret) is one comment: its head is listed, its members aren't.
-        var listed = all.Where(c => !Annotations.IsGroupMember(c, allIds)).ToList();
+        // A group (Replace Text's strike-out with its caret) is one comment: its head is listed, its members aren't; a loop
+        // of groups or replies is listed as comments of their own.
+        var listed = Annotations.AsListed(all);
         var ids = listed.Select(c => c.Id).ToHashSet(StringComparer.Ordinal);
         var replaced = Annotations.ReplacedCarets(all);
         var replies = listed.Where(c => c.ReplyTo is { } to && ids.Contains(to) && to != c.Id).GroupBy(c => c.ReplyTo!).ToDictionary(g => g.Key, g => g.OrderBy(c => c.Modified).ToList());

@@ -215,19 +215,35 @@ public static class TextReplace
 
     /// <summary>
     /// Replaces <paramref name="matches"/> (from <see cref="Find"/> on these bytes) with <paramref name="with"/>, paragraph by
-    /// paragraph, in one pass over the document; see the class summary. Nothing replaced: the same bytes back.
+    /// paragraph, in one pass over the document; see the class summary. Nothing replaced: the same bytes back. A page's
+    /// paragraphs are read once, and again only after one of them was rewritten. <paramref name="cancel"/> stops it between
+    /// paragraphs (nothing is changed then); <paramref name="progress"/> hears each page with matches begun (how many
+    /// such pages are done, of how many).
     /// </summary>
-    public static ReplaceResult Replace(byte[] data, string? password, IReadOnlyList<ReplaceMatch> matches, string with, CancellationToken cancel = default)
+    public static ReplaceResult Replace(byte[] data, string? password, IReadOnlyList<ReplaceMatch> matches, string with, CancellationToken cancel = default,
+        IProgress<(int Done, int Total)>? progress = null)
     {
         var notes = new List<ReplaceNote>();
         if (matches.Count == 0) return new ReplaceResult(data, 0, notes);
         with = with.Replace("\r\n", "\n").Replace('\r', '\n').Replace('\t', ' ');
         var replaced = 0;
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
-        foreach (var group in matches.GroupBy(m => (m.PageIndex, m.Paragraph)).OrderBy(g => g.Key.PageIndex).ThenBy(g => g.Key.Paragraph))
+        var groups = matches.GroupBy(m => (m.PageIndex, m.Paragraph)).OrderBy(g => g.Key.PageIndex).ThenBy(g => g.Key.Paragraph).ToList();
+        var pageCount = groups.Select(g => g.Key.PageIndex).Distinct().Count();
+        // The page whose paragraphs were last read, and them; null once one of them was rewritten (read again when needed).
+        var readPage = -1;
+        var pagesBegun = 0;
+        IReadOnlyList<TextParagraph>? now = null;
+        ContentEditException? unreadable = null;
+        foreach (var group in groups)
         {
             cancel.ThrowIfCancellationRequested();
             var first = group.First();
+            if (first.PageIndex != readPage)
+            {
+                progress?.Report((pagesBegun++, pageCount));
+                (readPage, now, unreadable) = (first.PageIndex, null, null);
+            }
             var count = group.Count();
             ReplaceNote NoteOf(ReplaceNoteKind kind, int n, string? why = null) => new(first, kind, n) { Why = why };
             if (first.Blocked is { } blocked)
@@ -235,16 +251,22 @@ public static class TextReplace
                 notes.Add(NoteOf(ReplaceNoteKind.CantEdit, count, Loc.Format(PdfStrings.Edit_ParagraphCantBeEdited, blocked)));
                 continue;
             }
-            // The page as it is now (an earlier paragraph on it may have been rewritten), and the paragraph on it that still
-            // reads as it did, where it was.
-            IReadOnlyList<TextParagraph> now;
-            try
+            // The page as it is now (read again only after an earlier paragraph on it was rewritten), and the paragraph on it
+            // that still reads as it did, where it was.
+            if (now is null && unreadable is null)
             {
-                now = ContentEditor.ParagraphsOf(doc, first.PageIndex, cancel);
+                try
+                {
+                    now = ContentEditor.ParagraphsOf(doc, first.PageIndex, cancel);
+                }
+                catch (ContentEditException ex)
+                {
+                    unreadable = ex; // the page reads no better for the next paragraph on it
+                }
             }
-            catch (ContentEditException ex)
+            if (now is null)
             {
-                notes.Add(NoteOf(ReplaceNoteKind.CantEdit, count, ex.Message));
+                notes.Add(NoteOf(ReplaceNoteKind.CantEdit, count, unreadable!.Message));
                 continue;
             }
             var p = now.Where(q => q.Text == first.ParagraphText).MinBy(q => Math.Abs(q.Box.X - first.Box.X) + Math.Abs(q.Box.Y - first.Box.Y));
@@ -297,6 +319,7 @@ public static class TextReplace
             }
             try
             {
+                now = null; // the page changes (or may have, if this fails part-way): read it again for its next paragraph
                 ContentEditor.ReplaceParagraphIn(doc, p, text, allowOverlap: false, spans, []);
             }
             catch (ContentEditException ex)

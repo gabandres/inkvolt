@@ -56,21 +56,42 @@ public static class ScanImaging
             var h = Math.Clamp((int)Math.Round(crop.Height * bmp.PixelHeight), 1, bmp.PixelHeight - y);
             bmp = new CroppedBitmap(bmp, new Int32Rect(x, y, w, h));
         }
-        bmp = Cleaned(bmp, edits.Filters, copyDpi, cancel);
+        bmp = Cleaned(bmp, edits.Filters, copyDpi, cancel, edits.Drop);
         if (edits.QuarterTurns % 4 != 0) bmp = new TransformedBitmap(bmp, new RotateTransform(90 * edits.QuarterTurns));
         bmp.Freeze();
         return bmp;
     }
 
+    /// <summary>
+    /// The page's color at (<paramref name="x"/>, <paramref name="y"/>), fractions of the page with <paramref name="edits"/> (no
+    /// filters) as drawn <paramref name="decodeWidth"/> wide: the average of a square a twentieth of an inch across. Null for a grey scan.
+    /// </summary>
+    public static DropColor? ColorAt(byte[] jpeg, PageEdits edits, int decodeWidth, int dpi, double x, double y)
+    {
+        var bmp = Render(jpeg, edits, decodeWidth, dpi);
+        if (bmp.Format == PixelFormats.Gray8) return null;
+        BitmapSource bgr = bmp.Format == PixelFormats.Bgr24 ? bmp : new FormatConvertedBitmap(bmp, PixelFormats.Bgr24, null, 0);
+        var copyDpi = dpi * (double)bgr.PixelWidth / Math.Max(1, PdfWriter.JpegInfo(jpeg).Width);
+        var half = Math.Max(1, (int)Math.Round(copyDpi / 40));
+        var (cx, cy) = ((int)Math.Round(x * (bgr.PixelWidth - 1)), (int)Math.Round(y * (bgr.PixelHeight - 1)));
+        var (x0, y0) = (Math.Clamp(cx - half, 0, bgr.PixelWidth - 1), Math.Clamp(cy - half, 0, bgr.PixelHeight - 1));
+        var (w, h) = (Math.Min(2 * half + 1, bgr.PixelWidth - x0), Math.Min(2 * half + 1, bgr.PixelHeight - y0));
+        var pixels = new byte[w * h * 3];
+        bgr.CopyPixels(new Int32Rect(x0, y0, w, h), pixels, w * 3, 0);
+        long b = 0, g = 0, r = 0;
+        for (var i = 0; i < w * h; i++) (b, g, r) = (b + pixels[i * 3], g + pixels[i * 3 + 1], r + pixels[i * 3 + 2]);
+        return new DropColor((byte)(r / (w * h)), (byte)(g / (w * h)), (byte)(b / (w * h)));
+    }
+
     /// <summary>The picture through <see cref="PageCleanup"/>; the same picture when no filter changes pixels or it is too large to clean.</summary>
-    private static BitmapSource Cleaned(BitmapSource bmp, PageFilters filters, int dpi, CancellationToken cancel)
+    private static BitmapSource Cleaned(BitmapSource bmp, PageFilters filters, int dpi, CancellationToken cancel, DropColor? drop = null)
     {
         if ((filters & PageFilters.PixelFilters) == 0 || PageCleanup.TooLarge(bmp.PixelWidth, bmp.PixelHeight)) return bmp;
         var channels = bmp.Format == PixelFormats.Gray8 ? 1 : 3;
         var stride = bmp.PixelWidth * channels;
         var pixels = new byte[stride * bmp.PixelHeight];
         bmp.CopyPixels(pixels, stride, 0);
-        var cleaned = PageCleanup.Apply(pixels, bmp.PixelWidth, bmp.PixelHeight, channels, dpi, filters, cancel);
+        var cleaned = PageCleanup.Apply(pixels, bmp.PixelWidth, bmp.PixelHeight, channels, dpi, filters, cancel, drop);
         return BitmapSource.Create(bmp.PixelWidth, bmp.PixelHeight, bmp.DpiX, bmp.DpiY, bmp.Format, null, cleaned.Pixels, stride);
     }
 
@@ -147,6 +168,29 @@ public static class ScanImaging
         }
         var bmp = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
         bmp.Render(visual);
+        bmp.Freeze();
+        return bmp;
+    }
+
+    /// <summary>
+    /// The page with its edits at full size, as packed pixels: grey (1 channel) for a grey scan, else BGR (3), or BGR either way
+    /// when <paramref name="color"/> (to join it with a color page).
+    /// </summary>
+    public static (byte[] Pixels, int Width, int Height, int Channels) Pixels(byte[] jpeg, PageEdits edits, int dpi, bool color, CancellationToken cancel = default)
+    {
+        BitmapSource bmp = Render(jpeg, edits, 0, dpi, cancel);
+        var channels = bmp.Format == PixelFormats.Gray8 && !color ? 1 : 3;
+        var format = channels == 1 ? PixelFormats.Gray8 : PixelFormats.Bgr24;
+        if (bmp.Format != format) bmp = new FormatConvertedBitmap(bmp, format, null, 0);
+        var pixels = new byte[(long)bmp.PixelWidth * bmp.PixelHeight * channels];
+        bmp.CopyPixels(pixels, bmp.PixelWidth * channels, 0);
+        return (pixels, bmp.PixelWidth, bmp.PixelHeight, channels);
+    }
+
+    /// <summary>Packed grey (1 channel) or BGR (3) pixels as a picture at <paramref name="dpi"/>. Frozen.</summary>
+    public static BitmapSource Bitmap(byte[] pixels, int width, int height, int channels, int dpi = 96)
+    {
+        var bmp = BitmapSource.Create(width, height, dpi, dpi, channels == 1 ? PixelFormats.Gray8 : PixelFormats.Bgr24, null, pixels, width * channels);
         bmp.Freeze();
         return bmp;
     }

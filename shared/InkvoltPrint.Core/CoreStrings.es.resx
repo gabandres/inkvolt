@@ -3691,6 +3691,39 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="PrinterShare_Unreadable" xml:space="preserve">
     <value>Activado, pero Windows no pudo decir qué puede hacer esta impresora, así que todavía no se comparte. Se vuelve a intentar cada medio minuto; comprueba que la impresora esté encendida y que su cola funcione.</value>
   </data>
+  <data name="Imaging_ColorDropped" xml:space="preserve">
+    <value>{0} quitado</value>
+  </data>
+  <data name="Imaging_DropRed" xml:space="preserve">
+    <value>rojo</value>
+  </data>
+  <data name="Imaging_DropGreen" xml:space="preserve">
+    <value>verde</value>
+  </data>
+  <data name="Imaging_DropBlue" xml:space="preserve">
+    <value>azul</value>
+  </data>
+  <data name="Imaging_DropPicked" xml:space="preserve">
+    <value>color elegido</value>
+  </data>
+  <data name="Imaging_HolesRemoved" xml:space="preserve">
+    <value>perforaciones quitadas</value>
+  </data>
+  <data name="Preset_NoOcrForName" xml:space="preserve">
+    <value>Este PC no puede leer texto, así que las partes del nombre del archivo que se toman de la página quedan vacías.</value>
+  </data>
+  <data name="Preset_WordDocument" xml:space="preserve">
+    <value>Documento de Word</value>
+  </data>
+  <data name="Preset_TextFile" xml:space="preserve">
+    <value>Texto</value>
+  </data>
+  <data name="Preset_NoOcrWord" xml:space="preserve">
+    <value>Este PC no puede leer texto, así que el documento de Word tiene las páginas como imágenes.</value>
+  </data>
+  <data name="Preset_NoOcrText" xml:space="preserve">
+    <value>Este PC no puede leer texto, así que el archivo de texto queda vacío.</value>
+  </data>
   <data name="Capture_NotAPhoto" xml:space="preserve">
     <value>Se omitió una foto: no es una foto JPEG o PNG del tamaño de una página, o no se pudo abrir.</value>
   </data>

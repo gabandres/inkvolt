@@ -172,7 +172,22 @@ locality) are used in their usual sense: the interface is everything a caller mu
   PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does.
   `PageViewer.FormDesign` and `DocumentTab.FormDesign` (the Mac's view and window) are adapters: they pass on the mouse,
   keys and typed values and draw what it says (ADR 1). On Windows its handles, resizes and arrow keys follow the view's
-  turn. It hands over the edits; `FormDesign` makes them.
+  turn. It hands over the edits; `FormDesign` makes them. Several fields can be selected (Ctrl+click): the first one
+  picked is the **anchor**, which Arrange Fields (align, same size, space evenly: `FormDesignRules.Aligned`,
+  `SizedAlike`, `Spread`) leaves where it is and lines the others up with.
+- **Guide** (`PageGuides`, `Guide`; rulers and snapping `LayoutAids`, `Snapper`): a line on a page dragged from a ruler,
+  at a page x or y (`GuideAxis`), kept on the document's session (`DocumentSession.Guides`) and never written into the
+  PDF. **Snapping** moves a point or box being placed onto the nearest guide, grid line or other object's edge or middle
+  within a few pixels; the **snap line** is shown while it holds. Not the Snapshot tool.
+- **Turn** (Edit Text &amp; Images; `ContentEditor.RotateImage`, `RotateParagraph`, the handle's and angle box's rules
+  `ContentTurn`): a picture or a paragraph turned to any angle about the middle of its box, degrees clockwise as the page
+  shows (`PageImage.Angle`, `TextParagraph.Angle`). A paragraph's show operators are drawn again from a turned text
+  matrix, so its text isn't rewritten. Not the page's rotation (Rotate Pages) nor the view's (Rotate View).
+- **Calculated field** (`FormCalculations`, `FieldCalc`, `CalcKind`): a field whose value is worked out from others
+  when the form is filled (its /AA /C script, run by `FormEditor` in the **calculation order**, the form's /CO). Prepare
+  Form writes a **simple calculation** (sum, product, average, minimum, maximum of named fields:
+  `AFSimple_Calculate`) or **simplified field notation** (Acrobat's "Price * Qty", kept in a `BVCALC … EVCALC` comment
+  before the JavaScript it stands for); any other calculate script is **custom** and kept as it is.
 - **Document command table** (`DocumentCommands`; Mac, in PdfCore `Ux/DocumentCommands.swift`): every menu bar command
   once, each a **document command** (title, key, the action it sends, its place in the menus, its plain-words note and
   what it **needs**, a `Requirement`), from which the app builds the menu bar (`MainMenu`) and decides what can run over a
@@ -205,8 +220,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   point**, the place before a character of the page's text, `Annotations.CaretAt`; the words to insert are its comment) or
   Replace Text (a /Caret after struck-out words, holding the new text, with the /StrikeOut bound to it as a **comment
   group**: /IRT the caret, /RT /Group, `AnnotationInfo.Grouped`). A group is one comment: its **head** (the caret) is
-  listed, its members aren't (`Annotations.IsGroupMember`), and deleting or moving the head takes them along. A reply
-  (/RT /R) is not a group.
+  listed, its members aren't (`Annotations.IsGroupMember`, `Annotations.AsListed`; a loop of groups or replies is listed
+  as comments of their own), and deleting or moving the head takes them along. A reply (/RT /R) is not a group.
 - **Redaction suggestion** (`Core/RedactionSuggestions.cs`, `RedactionProposal`; Windows `App/DocumentTab.RedactSuggest.cs`):
   a **proposal** of something to redact, the exact words and what kind of thing they are (name, organization, address,
   account, other), from the user's own model (Pro, never on by default; its answer is data, read as a list of quotes) or

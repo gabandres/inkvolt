@@ -5041,6 +5041,10 @@
   <data name="Page_ResizeSize" xml:space="preserve">
     <value>A side of the paper must be between {0} and {1} inches.</value>
   </data>
+  <data name="Page_ResizeBadBox" xml:space="preserve">
+    <value>Page {0} has a size in the file that can't be right, so no page was resized.</value>
+    <comment>{0} = page number</comment>
+  </data>
   <data name="Page_ReplaceCount" xml:space="preserve">
     <value>Choose as many pages to put in as pages to replace.</value>
   </data>
@@ -7322,5 +7326,45 @@
   </data>
   <data name="Redact_TermsTooMany" xml:space="preserve">
     <value>The list has {0:N0} names and terms; it can hold {1:N0}. Remove some, then save again.</value>
+  </data>
+  <data name="Form_CalcEmpty" xml:space="preserve">
+    <value>Type the calculation, as Price * Quantity.</value>
+    <comment>Prepare Form, Calculate: simplified field notation left empty</comment>
+  </data>
+  <data name="Form_CalcSyntax" xml:space="preserve">
+    <value>The calculation can't be read: use field names, numbers, + - * / and brackets, as Price * Quantity.</value>
+    <comment>Prepare Form, Calculate: simplified field notation that isn't an expression</comment>
+  </data>
+  <data name="Form_CalcBrackets" xml:space="preserve">
+    <value>The brackets don't match: each ( needs a ).</value>
+    <comment>Prepare Form, Calculate: simplified field notation</comment>
+  </data>
+  <data name="Form_CalcTooLong" xml:space="preserve">
+    <value>The calculation is too long.</value>
+    <comment>Prepare Form, Calculate: simplified field notation over the limit</comment>
+  </data>
+  <data name="Form_CalcCharacter" xml:space="preserve">
+    <value>The calculation can't use "{0}". Put a backslash before it in a field's name (Unit\ price).</value>
+    <comment>Prepare Form, Calculate: {0} is the character</comment>
+  </data>
+  <data name="Form_CalcCustomKept" xml:space="preserve">
+    <value>This field's calculation is a script of the form's own: it stays as it is.</value>
+    <comment>Prepare Form, Calculate: a custom calculate script</comment>
+  </data>
+  <data name="Form_CalcItself" xml:space="preserve">
+    <value>A field can't use its own value in its calculation.</value>
+    <comment>Prepare Form, Calculate</comment>
+  </data>
+  <data name="Form_CalcNoField" xml:space="preserve">
+    <value>The form has no field named "{0}".</value>
+    <comment>Prepare Form, Calculate: {0} is a name typed in the notation</comment>
+  </data>
+  <data name="Form_SpreadNeedsThree" xml:space="preserve">
+    <value>Select three fields or more to space them evenly (Ctrl+click adds one).</value>
+    <comment>Prepare Form: Space Evenly with fewer than three selected</comment>
+  </data>
+  <data name="Form_ArrangeNeedsTwo" xml:space="preserve">
+    <value>Select two fields or more (Ctrl+click adds one); the first one picked stays put.</value>
+    <comment>Prepare Form: Align or Same Size with one selected</comment>
   </data>
 </root>

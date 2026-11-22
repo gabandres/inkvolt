@@ -74,6 +74,8 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
         new(PresetFileType.SearchablePdf, Strings.Presets_FileSearchablePdf),
         new(PresetFileType.Pdf, "PDF"),
         new(PresetFileType.Jpeg, Strings.Presets_FileJpeg),
+        new(PresetFileType.Word, Strings.Presets_FileWord),
+        new(PresetFileType.Text, Strings.Presets_FileText),
     ];
 
     public static IReadOnlyList<Option<int>> Resolutions =>
@@ -95,7 +97,7 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
     ];
 
     public static string TokenHelp =>
-        "{date}  {date:yyyy-MM}  {time}  {time:HH.mm}  {preset}  {printer}  {n}  {n:000}  {pages}";
+        "{date}  {date:yyyy-MM}  {time}  {time:HH.mm}  {preset}  {printer}  {n}  {n:000}  {pages}  {text-date}  {text-title}  {text-number}";
 
     /// <summary>The choice for a stored folder; a custom folder not in the list is added (above "Other folder…").</summary>
     public FolderChoice ChoiceFor(PresetFolder kind, string? path)
@@ -215,6 +217,11 @@ public sealed partial class PresetItem : ObservableObject
         WhitenPages = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.Whiten);
         DescreenPages = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.Descreen);
         RestoreColors = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.RestoreColors);
+        DropPageColor = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.DropColor);
+        RemoveHoles = preset.Cleanup.HasFlag(Core.Imaging.PageFilters.PunchHoles);
+        var drop = DropColor.Parse(preset.DropColor) ?? DropColor.Red;
+        DropColors = DropColorChoices.List(drop);
+        DropColorChoice = DropColors.First(o => o.Value == drop);
         OcrLanguage = OcrLanguages.FirstOrDefault(o => o.Value == preset.OcrLanguage) ?? OcrLanguages[0];
         SplitAt = ScanPresetsViewModel.Splits.First(o => o.Value == preset.SplitAt);
         KeepSeparators = preset.KeepSeparators;
@@ -264,6 +271,14 @@ public sealed partial class PresetItem : ObservableObject
     [ObservableProperty] public partial bool DescreenPages { get; set; }
     [ObservableProperty] public partial bool RestoreColors { get; set; }
 
+    /// <summary>Drop a pen or form color (<see cref="DropColorChoice"/>) to white.</summary>
+    [ObservableProperty] public partial bool DropPageColor { get; set; }
+    [ObservableProperty] public partial bool RemoveHoles { get; set; }
+
+    /// <summary>Red, green, blue, and the preset's picked color when it has one.</summary>
+    public IReadOnlyList<Option<DropColor>> DropColors { get; }
+    [ObservableProperty] public partial Option<DropColor> DropColorChoice { get; set; }
+
     /// <summary>The OCR languages to choose from; more than Windows' own only when more are installed.</summary>
     public IReadOnlyList<Option<string?>> OcrLanguages { get; } = OcrLanguageChoices.List();
     public bool HasOcrLanguageChoice => OcrLanguages.Count > 2;
@@ -296,7 +311,7 @@ public sealed partial class PresetItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(Note))]
     public partial Option<PresetAfter> After { get; set; }
 
-    public bool IsPdf => FileType.Value != PresetFileType.Jpeg;
+    public bool IsPdf => ScanPresets.IsPdf(FileType.Value);
 
     partial void OnFolderChanged(FolderChoice oldValue, FolderChoice newValue)
     {
@@ -321,12 +336,13 @@ public sealed partial class PresetItem : ObservableObject
     {
         get
         {
+            // What a page might say, for {text-…}: today's date, a heading, an invoice number.
             var ctx = new NameContext(DateTime.Now, string.IsNullOrWhiteSpace(Name) ? Strings.Presets_ExampleName : Name.Trim(), _owner.PrinterName, _original.NextNumber, 2,
-                CultureInfo.CurrentCulture);
+                CultureInfo.CurrentCulture, new FoundInText(DateTime.Today, Strings.Presets_ExampleTitle, "INV-1042"));
             var folder = Folder.IsBrowse ? "…" : Folder.Kind == PresetFolder.Custom ? Folder.Path ?? "" : Folder.Label;
             var sub = FileNameTemplate.Subfolder(Subfolder, ctx);
             var name = FileNameTemplate.FileName(FileName, ctx);
-            var file = FileType.Value == PresetFileType.Jpeg ? $"{name} (1).jpg" : $"{name}.pdf";
+            var file = FileType.Value == PresetFileType.Jpeg ? $"{name} (1).jpg" : name + ScanPresets.Extension(FileType.Value);
             return Path.Combine(folder, sub, file) + (Splits ? "  " + Strings.Presets_ExampleSplit : "");
         }
     }
@@ -334,8 +350,10 @@ public sealed partial class PresetItem : ObservableObject
     /// <summary>Things worth knowing about the choices (not errors).</summary>
     public string? Note =>
         After.Value == PresetAfter.OpenInInkvoltPdf && FileType.Value == PresetFileType.Jpeg ? Strings.Presets_NoteJpegNoPdf
+        : After.Value == PresetAfter.OpenInInkvoltPdf && !IsPdf ? Strings.Presets_NoteDocumentNoPdf
         : After.Value == PresetAfter.Email ? Strings.Presets_NoteEmail
         : FileType.Value == PresetFileType.SearchablePdf && !InkvoltPrint.Windows.Ocr.WindowsOcr.IsAvailable ? Strings.Presets_NoteNoOcr
+        : FileType.Value is PresetFileType.Word or PresetFileType.Text && !InkvoltPrint.Windows.Ocr.WindowsOcr.IsAvailable ? Strings.Presets_NoteNoOcrDocument
         : null;
 
     /// <summary>The first thing that stops this preset being saved, or null.</summary>
@@ -361,7 +379,9 @@ public sealed partial class PresetItem : ObservableObject
         SkipBlank = SkipBlank,
         Straighten = Straighten,
         Cleanup = (CropToPaper ? Core.Imaging.PageFilters.CropToPaper : 0) | (WhitenPages ? Core.Imaging.PageFilters.Whiten : 0)
-            | (DescreenPages ? Core.Imaging.PageFilters.Descreen : 0) | (RestoreColors ? Core.Imaging.PageFilters.RestoreColors : 0),
+            | (DescreenPages ? Core.Imaging.PageFilters.Descreen : 0) | (RestoreColors ? Core.Imaging.PageFilters.RestoreColors : 0)
+            | (DropPageColor ? Core.Imaging.PageFilters.DropColor : 0) | (RemoveHoles ? Core.Imaging.PageFilters.PunchHoles : 0),
+        DropColor = DropColorChoice.Value.Hex,
         OcrLanguage = OcrLanguage.Value,
         SplitAt = SplitAt.Value,
         KeepSeparators = KeepSeparators,

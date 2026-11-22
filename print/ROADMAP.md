@@ -189,10 +189,21 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     scanner (README, "Ready for Windows' new driver"; `DriverReadiness`). The M234dw here: IPP class driver, IPP and eSCL,
     ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
     queues are driverless already).
-- **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
-  original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.16 Cards,
-  calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A, a password, booklet,
-  poster, pages per sheet.
+- **Batch C:**
+  - **4.7 Drop a color, remove punch holes.** Done on Windows: Clean up's Drop a color (red, green, blue or picked off the page)
+    and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
+    `ColorDropout`, `PunchHoles`). **Next:** real punched sheets from a feeder and a flatbed; the Mac half waits.
+  - **4.8 Join two halves.** Done on Windows: a page's Join with the next page… finds the overlap of two scans of an original
+    too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
+    one Undo step (README, "Join two halves"; `HalvesJoin`). **Next:** a real A3 drawing on a letter or A4 glass; the Mac half waits.
+  - **4.11 Name the file from its contents.** Done on Windows: a preset's file name can hold `{text-date}`, `{text-title}` and
+    `{text-number}`, read from the first page (a date in the usual ways of writing it, in English and Spanish; the heading; an
+    invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`).
+    **Next:** real invoices and receipts; the Mac half waits.
+  - **4.14 Scan straight to Word or text.** Done on Windows: preset file types Word document (.docx) and Text (.txt), the
+    recognized text as paragraphs (headings in Heading 1), photos as pictures; written in the shared core with the Office parts
+    moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`). Word opens them (checked here). **Next:** the
+    Mac half waits.
   - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone; the Mac half waits.
   - **4.12 A camera as a scan source.** Done on Windows: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window; the Mac half waits (AVFoundation).
   - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
@@ -208,6 +219,8 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     demo mode. **Next:** an Android phone's default print service and Mopria, a Mac, and an iPhone (AirPrint's `_universal` subtype is
     answered by our own mDNS responder beside Windows', `MdnsSubtype`); IPPS; the Mac half waits
     (macOS shares printers itself).
+  - Still to come: 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF:
+    PDF/A, a password, booklet, poster, pages per sheet.
 - **4.17 Setting up a new printer's Wi-Fi out of the box** (the owner's "middle option", 2026-11-22: Windows' Wi-Fi and the
   printer's own page, not each maker's protocol). Done on Windows: the printers' setup and Wi-Fi Direct networks nearby, joined on
   a click (an open one with a temporary profile, a secured one in Windows' own list), the printer's setup page opened, back to the

@@ -512,6 +512,14 @@ public sealed class AppSettings
     public bool KeepRecoveryCopies { get; set; } = true;
     /// <summary>Underline misspelled words where people type (edited text, notes, text boxes, callouts, form fields; <see cref="Spelling"/>).</summary>
     public bool SpellCheck { get; set; } = true;
+    /// <summary>Rulers, guides, a grid and snapping (roadmap 4.19; DocumentTab.Layout.cs): shown and on, the grid's step in points, the rulers' unit.</summary>
+    public bool ShowRulers { get; set; }
+    public bool ShowGrid { get; set; }
+    public bool SnapToGuides { get; set; } = true;
+    public bool SnapToGrid { get; set; } = true;
+    public bool SnapToObjects { get; set; } = true;
+    public double GridStep { get; set; } = 18;
+    public string RulerUnit { get; set; } = "auto";
     /// <summary>Packaged installs: ask the Microsoft Store for updates a while after startup (MainWindow.Updates.cs).</summary>
     public bool CheckForUpdates { get; set; } = true;
     /// <summary>Packaged installs: saved documents counted toward the one Store rating request (MainWindow.Rating.cs).</summary>

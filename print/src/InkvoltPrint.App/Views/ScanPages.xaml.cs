@@ -53,6 +53,11 @@ public partial class ScanPages : UserControl
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => FirstCleanChoice.Focus());
         };
+        // The join view takes the keyboard, so the arrows move the second half straight away.
+        FirstJoinChoice.IsVisibleChanged += (_, e) =>
+        {
+            if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => FirstJoinChoice.Focus());
+        };
         PhotoBoxes.IsVisibleChanged += (_, e) =>
         {
             if (e.NewValue is true) Dispatcher.BeginInvoke(DispatcherPriority.Input, () => PhotoBoxes.Focus());
@@ -176,6 +181,15 @@ public partial class ScanPages : UserControl
         {
             if (PagesList.ItemContainerGenerator.ContainerFromItem(page) is ListBoxItem item) item.Focus();
         });
+    }
+
+    /// <summary>"Pick from the page" is on: the click's place on the page, as fractions of it, picks the color to drop.</summary>
+    private async void CleanPicture_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (Vm is not { IsPickingColor: true } vm || CleanPicture.ActualWidth <= 0 || CleanPicture.ActualHeight <= 0) return;
+        var at = e.GetPosition(CleanPicture);
+        e.Handled = true;
+        await vm.PickColorAtAsync(at.X / CleanPicture.ActualWidth, at.Y / CleanPicture.ActualHeight);
     }
 
     private void Announce(string text) =>

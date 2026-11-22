@@ -92,6 +92,42 @@ public static partial class Annotations
     public static bool IsGroupMember(AnnotationInfo a, IReadOnlySet<string> ids) =>
         a.Grouped && a.ReplyTo is { } head && head != a.Id && ids.Contains(head);
 
+    /// <summary>
+    /// The comments as the Comments pane and the comment summary list them: a group's members left out
+    /// (<see cref="IsGroupMember"/>: their head stands for them), and a comment whose own chain of groups or replies leads
+    /// back to it (a hostile file's A in B's group and B in A's, or a reply to itself) listed as a comment of its own, its
+    /// /IRT link dropped, so a loop never hides what it holds.
+    /// </summary>
+    public static List<AnnotationInfo> AsListed(IReadOnlyCollection<AnnotationInfo> all)
+    {
+        var byId = new Dictionary<string, AnnotationInfo>(StringComparer.Ordinal);
+        foreach (var a in all) byId.TryAdd(a.Id, a);
+        // Each comment points to at most one other (/IRT): the ones on a loop, found in one walk each from where it starts.
+        var looped = new HashSet<string>(StringComparer.Ordinal);
+        var state = new Dictionary<string, bool>(StringComparer.Ordinal); // false: on the walk now; true: done
+        foreach (var start in byId.Keys)
+        {
+            if (state.ContainsKey(start)) continue;
+            var path = new List<string>();
+            string? at = start;
+            while (at is not null && byId.TryGetValue(at, out var x) && !state.ContainsKey(at))
+            {
+                state[at] = false;
+                path.Add(at);
+                at = x.ReplyTo;
+            }
+            if (at is not null && state.TryGetValue(at, out var done) && !done)
+                for (var i = path.IndexOf(at); i < path.Count; i++) looped.Add(path[i]);
+            foreach (var p in path) state[p] = true;
+        }
+        var ids = byId.Keys.ToHashSet(StringComparer.Ordinal);
+        var listed = new List<AnnotationInfo>();
+        foreach (var a in all)
+            if (looped.Contains(a.Id)) listed.Add(a with { ReplyTo = null, Grouped = false });
+            else if (!IsGroupMember(a, ids)) listed.Add(a);
+        return listed;
+    }
+
     /// <summary>The comment <paramref name="a"/> is part of: its group's head when it is a member (/RT /Group), else itself.
     /// A chain of groups is climbed a few steps at most; one that loops stops.</summary>
     public static AnnotationInfo GroupHead(AnnotationInfo a, IEnumerable<AnnotationInfo> all)

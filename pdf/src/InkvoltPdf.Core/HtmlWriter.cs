@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using InkvoltPrint.Core.Office;
 
 namespace InkvoltPdf.Core;
 

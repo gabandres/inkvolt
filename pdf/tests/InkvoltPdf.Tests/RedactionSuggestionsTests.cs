@@ -107,6 +107,38 @@ public sealed class RedactionSuggestionsTests : IDisposable
     }
 
     [Fact]
+    public async Task AHostileListAnswer_IsReadInAMoment_AndStopsWhenAsked()
+    {
+        // A bullet, then tens of thousands of spaces before a word: the old pattern backtracked over them (37 s at 40,000).
+        var spaces = new string(' ', 40_000);
+        var answer = $"- a{spaces}b\n- {spaces}\n1.{spaces}\n" + string.Concat(Enumerable.Repeat($"* x{new string(' ', 2_000)}y \n", 1_000));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var found = RedactionSuggestions.Parse(answer, out var readable);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+        Assert.True(readable);
+        Assert.Equal(1_001, found.Count); // a bullet with nothing after it is no item
+        Assert.Equal($"a{spaces}b", found[0].Text);
+        Assert.Equal($"x{new string(' ', 2_000)}y", found[1].Text); // the spaces after it trimmed
+
+        // Answers megabytes long too.
+        clock.Restart();
+        Assert.Single(RedactionSuggestions.Parse("- a" + new string(' ', 1_000_000) + "b", out _));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+
+        // Stop, pressed while the answer arrives, stops before it is read; checking proposals stops between them.
+        using var stop = new CancellationTokenSource();
+        var requests = RedactionSuggestions.Requests(Texts(Contract()), SuggestKinds.Names, null, 4000);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => RedactionSuggestions.SuggestAsync(requests, (_, _, _) =>
+        {
+            stop.Cancel();
+            return Task.FromResult(answer);
+        }, stop.Token));
+        using var stopped = new CancellationTokenSource();
+        stopped.Cancel();
+        Assert.Throws<OperationCanceledException>(() => RedactionSuggestions.Verify([new("Jane Doe", "name")], ["Jane Doe"], stopped.Token));
+    }
+
+    [Fact]
     public void Verify_KeepsOnlyWhatTheTextHolds_TidiedAndOnce()
     {
         List<AiPageText> pages = [new(0, "Agreement between Jane Doe and\nAcme Corp. O’Brien signs."), new(1, "Jane doe again.")];

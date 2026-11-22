@@ -4242,6 +4242,156 @@ Los archivos se quedan donde están.</value>
   <data name="PrintLog_NotCleared" xml:space="preserve">
     <value>No se pudo borrar el registro de impresión (su archivo está en uso). No se quitó nada; vuelve a intentarlo en un momento.</value>
   </data>
+  <data name="Scan_DropColor" xml:space="preserve">
+    <value>Quitar un color</value>
+  </data>
+  <data name="Scan_DropColorTip" xml:space="preserve">
+    <value>El color de un bolígrafo o de un formulario se vuelve blanco; lo impreso en negro se queda</value>
+  </data>
+  <data name="Scan_DropColorWhich" xml:space="preserve">
+    <value>Color que quitar</value>
+  </data>
+  <data name="Scan_PickColor" xml:space="preserve">
+    <value>Elegir en la página</value>
+  </data>
+  <data name="Scan_PickColorTip" xml:space="preserve">
+    <value>Luego haz clic en una marca de la página del color que quieres quitar</value>
+  </data>
+  <data name="Scan_PickColorHint" xml:space="preserve">
+    <value>Haz clic en una marca de la página del color que quieres quitar.</value>
+  </data>
+  <data name="Scan_PickNoColor" xml:space="preserve">
+    <value>Ese punto no tiene un color que quitar (es gris, negro o el papel): haz clic en una marca de color.</value>
+  </data>
+  <data name="Scan_PickGreyPage" xml:space="preserve">
+    <value>Esta página se escaneó en gris: no tiene colores que quitar.</value>
+  </data>
+  <data name="Scan_GreyNoColorToDrop" xml:space="preserve">
+    <value>Esta página se escaneó en gris: no tiene colores que quitar.</value>
+  </data>
+  <data name="Scan_RemoveHoles" xml:space="preserve">
+    <value>Quitar perforaciones</value>
+  </data>
+  <data name="Scan_RemoveHolesTip" xml:space="preserve">
+    <value>Las marcas redondas de las perforaciones cerca de los bordes se rellenan con el color del papel</value>
+  </data>
+  <data name="ScanTab_DropColor" xml:space="preserve">
+    <value>Quitar un color</value>
+  </data>
+  <data name="ScanTab_DropColorCaption" xml:space="preserve">
+    <value>El color de un bolígrafo o de un formulario se vuelve blanco</value>
+  </data>
+  <data name="ScanTab_DropColorHelp" xml:space="preserve">
+    <value>El color de un bolígrafo o de un formulario se vuelve blanco; lo impreso en negro se queda</value>
+  </data>
+  <data name="ScanTab_RemoveHoles" xml:space="preserve">
+    <value>Quitar perforaciones</value>
+  </data>
+  <data name="ScanTab_RemoveHolesCaption" xml:space="preserve">
+    <value>Las marcas de perforaciones cerca de los bordes toman el color del papel</value>
+  </data>
+  <data name="ScanTab_RemoveHolesHelp" xml:space="preserve">
+    <value>Las marcas redondas de las perforaciones cerca de los bordes se rellenan con el color del papel</value>
+  </data>
+  <data name="Scan_JoinMenu" xml:space="preserve">
+    <value>Unir con la página siguiente…</value>
+  </data>
+  <data name="Scan_JoinTitle" xml:space="preserve">
+    <value>Unir la página {0} y la página {1}</value>
+  </data>
+  <data name="Scan_JoinHelp" xml:space="preserve">
+    <value>Para un original demasiado grande para el cristal: escanea una mitad y luego la otra con unos 2 o 3 cm de superposición (puedes girar el original).</value>
+  </data>
+  <data name="Scan_JoinFinding" xml:space="preserve">
+    <value>Buscando dónde se superponen las mitades…</value>
+  </data>
+  <data name="Scan_JoinFound" xml:space="preserve">
+    <value>Se encontró dónde se superponen las mitades. Mueve la segunda mitad si no queda bien del todo.</value>
+  </data>
+  <data name="Scan_JoinNotFound" xml:space="preserve">
+    <value>No se encontró dónde se superponen las mitades: mueve la segunda mitad con las flechas (con Mayús se mueve más), gírala o ponla en otro lado.</value>
+  </data>
+  <data name="Scan_JoinLeft" xml:space="preserve">
+    <value>Mover la segunda mitad a la izquierda</value>
+  </data>
+  <data name="Scan_JoinRight" xml:space="preserve">
+    <value>Mover la segunda mitad a la derecha</value>
+  </data>
+  <data name="Scan_JoinUp" xml:space="preserve">
+    <value>Mover la segunda mitad hacia arriba</value>
+  </data>
+  <data name="Scan_JoinDown" xml:space="preserve">
+    <value>Mover la segunda mitad hacia abajo</value>
+  </data>
+  <data name="Scan_JoinTurn" xml:space="preserve">
+    <value>Girar la segunda mitad</value>
+  </data>
+  <data name="Scan_JoinTurnTip" xml:space="preserve">
+    <value>La gira media vuelta, para un original que giraste en el cristal</value>
+  </data>
+  <data name="Scan_JoinSide" xml:space="preserve">
+    <value>Otro lado</value>
+  </data>
+  <data name="Scan_JoinSideTip" xml:space="preserve">
+    <value>Pone la segunda mitad debajo, a la izquierda, encima o a la derecha de la primera</value>
+  </data>
+  <data name="Scan_Join" xml:space="preserve">
+    <value>Unir</value>
+  </data>
+  <data name="Scan_JoinedPreview" xml:space="preserve">
+    <value>La página unida</value>
+  </data>
+  <data name="Scan_JoinNoNext" xml:space="preserve">
+    <value>La página {0} es la última: une una página con la siguiente.</value>
+  </data>
+  <data name="Scan_JoinCant" xml:space="preserve">
+    <value>La página {0} o la siguiente no se pueden unir: las hojas separadoras y los escaneos de fotos se quedan como están.</value>
+  </data>
+  <data name="Scan_JoinDpi" xml:space="preserve">
+    <value>Las dos páginas se escanearon con resoluciones distintas: escanea las dos mitades con la misma para unirlas.</value>
+  </data>
+  <data name="Scan_JoinTooLarge" xml:space="preserve">
+    <value>La página unida sería demasiado grande: acerca la segunda mitad.</value>
+  </data>
+  <data name="Scan_JoinFailed" xml:space="preserve">
+    <value>No se pudieron unir las páginas. Prueba a escanear las mitades de nuevo.</value>
+  </data>
+  <data name="Scan_Joined" xml:space="preserve">
+    <value>Las páginas {0} y {1} se unieron en una.</value>
+  </data>
+  <data name="Scan_UndoJoin" xml:space="preserve">
+    <value>Unir las páginas {0} y {1}</value>
+  </data>
+  <data name="ScanTab_FileName" xml:space="preserve">
+    <value>Nombre del archivo</value>
+  </data>
+  <data name="ScanTab_FileNameHelp" xml:space="preserve">
+    <value>Tomado de la primera página, como lo nombra el ajuste; cámbialo si quieres.</value>
+  </data>
+  <data name="Presets_TextTokensHelp" xml:space="preserve">
+    <value>{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página.</value>
+  </data>
+  <data name="Presets_ExampleTitle" xml:space="preserve">
+    <value>Factura</value>
+  </data>
+  <data name="Presets_FileWord" xml:space="preserve">
+    <value>Documento de Word (.docx): el texto, editable</value>
+  </data>
+  <data name="Presets_FileText" xml:space="preserve">
+    <value>Texto (.txt): solo el texto</value>
+  </data>
+  <data name="Presets_NoteDocumentNoPdf" xml:space="preserve">
+    <value>Inkvolt PDF abre archivos PDF: los escaneos de Word y de texto solo se guardan.</value>
+  </data>
+  <data name="Presets_NoteNoOcrDocument" xml:space="preserve">
+    <value>El reconocimiento de texto no está disponible en este PC: un documento de Word tiene las páginas como imágenes y un archivo de texto queda vacío.</value>
+  </data>
+  <data name="Scan_JoinWait" xml:space="preserve">
+    <value>La página {0} o la siguiente todavía se está revisando: únelas en un momento.</value>
+  </data>
+  <data name="Scan_JoinChanged" xml:space="preserve">
+    <value>Las páginas cambiaron mientras la unión estaba abierta: elige de nuevo Unir con la página siguiente….</value>
+  </data>
   <data name="ScanTab_Capture" xml:space="preserve">
     <value>Escanear con tu teléfono o una cámara</value>
   </data>

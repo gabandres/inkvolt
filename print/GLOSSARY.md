@@ -140,6 +140,16 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   **Output face**: which way up sheets land in the output tray (`OutputFace`); it decides how the stack goes back (**as it came out**,
   face down, backs last sheet first; **turned over like a page**, face up, backs in order). **Set aside**: an odd last sheet with no
   back, taken off before the stack goes back and put last.
+- **Drop a color**: Clean up turning one hue white, a pen's or a form's (`ColorDropout`, `DropColor`): red, green, blue or a
+  **picked color** (clicked on the page; it must be colorful, not a grey). **Punch hole**: a round dark mark near an edge where a
+  sheet was punched, filled with the paper's color (`PunchHoles`).
+- **Join two halves**: one page from two scans of an original too big for the glass (`HalvesJoin`). **Overlap**: what both
+  halves show; found by matching, else the second half is **nudged** by hand. **Seam**: where the joined page passes from the first
+  half to the second, the middle of the overlap.
+- **Name from the text**: a scan's file named from what its first page says (`TextFinds`, `FoundInText`): a **found date**, its
+  **heading** (the tallest line near the top) and an **invoice-like number**, through `{text-date}`, `{text-title}`, `{text-number}`.
+- **Scan to Word or text**: a preset saving the text read from its pages instead of their pictures (`ScanDocx`, `ScanText`):
+  **paragraphs** from the recognized **lines** (`PageText`), a **heading** where the lines stand taller than most.
 - **Print the clipboard**: printing what another app put on the clipboard by sending it to the tab that prints its kind (`ClipboardPrint`):
   text laid out on pages as a PDF to Print a PDF, a picture to Print photos, copied files as they are. **Laid out**: wrapped to the
   columns and lines a page holds at 10 pt (`ClipboardTextLayout`).
