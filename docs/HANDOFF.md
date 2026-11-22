@@ -6,9 +6,8 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 ## Current state
 
 - **Released:** Wave 4 (a market check of 2026-11-21; the owner: "do all of them", release them) is built, reviewed and
-  in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0 (1.18 submitted 2026-11-22; check it
-  reached Published, then `store-release.ps1 -App Pdf -GitHub -Version 1.18.0.0 -Published <date>` and the website's
-  `softwareVersion` 1.18.0 in `Z:\portfolio`). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
+  in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0, all Published 2026-11-22 (the
+  website's `softwareVersion` 1.9.0 and 1.18.0). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
   `pdf-v1.18.0.0`. The next submission of each must be higher. Every Wave 4 item is Done on Windows in both roadmaps; the
   Mac halves wait (`mac/docs/PLAN.md`, "Open").
 - **Release gotchas:** a branch merged after `## Next` became `## x.y.z` can put its What's New lines under the released
