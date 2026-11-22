@@ -785,6 +785,12 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>Printers holding scanned pages that haven't been saved (checked before the window closes).</summary>
     public IReadOnlyList<PrinterViewModel> PrintersWithUnsavedScans => Printers.Where(p => p.Scan?.HasUnsavedPages == true).ToList();
 
+    /// <summary>The window closes (or goes to the notification area): phone and camera scans end there, keeping their pages (roadmap 4.6, 4.12).</summary>
+    public void EndCaptures()
+    {
+        foreach (var printer in Printers) printer.Scan?.EndCapture();
+    }
+
     /// <summary>A PDF handed to Inkvolt Print from outside (Open with, a second launch, drag-and-drop).</summary>
     /// <summary>The printer something handed in goes to: the selected one, or the first printer when a scanner on its own is selected.</summary>
     private PrinterViewModel? Printer()

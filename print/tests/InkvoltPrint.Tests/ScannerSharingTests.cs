@@ -1104,7 +1104,7 @@ public class ScannerSharingTests
     // ---------------------------------------------------------------- the Store package
 
     [Fact]
-    public void The_package_may_serve_private_networks_on_the_shares_port_and_nothing_more()
+    public void The_package_may_serve_private_networks_on_the_shares_and_the_phone_scans_ports_and_nothing_more()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Inkvolt.slnx"))) dir = dir.Parent;
@@ -1114,13 +1114,16 @@ public class ScannerSharingTests
         Assert.DoesNotContain("internetClientServer", capabilities);
         XNamespace desktop2 = "http://schemas.microsoft.com/appx/manifest/desktop/windows10/2";
         var rules = manifest.Descendants(desktop2 + "Rule").ToList();
-        var rule = Assert.Single(rules);
-        Assert.Equal("in", rule.Attribute("Direction")!.Value);
-        Assert.Equal("TCP", rule.Attribute("IPProtocol")!.Value);
-        Assert.Equal("private", rule.Attribute("Profile")!.Value);
-        Assert.Equal(ScannerShare.DefaultPort.ToString(), rule.Attribute("LocalPortMin")!.Value);
-        Assert.Equal(ScannerShare.DefaultPort.ToString(), rule.Attribute("LocalPortMax")!.Value);
-        Assert.Equal("InkvoltPrint.exe", rule.Parent!.Attribute("Executable")!.Value);
+        // The share's port, and the phone scan's (roadmap 4.6): each alone, inbound TCP on private networks.
+        Assert.Equal([ScannerShare.DefaultPort, Core.Capture.PhoneScan.DefaultPort], rules.Select(r => int.Parse(r.Attribute("LocalPortMin")!.Value)));
+        foreach (var rule in rules)
+        {
+            Assert.Equal("in", rule.Attribute("Direction")!.Value);
+            Assert.Equal("TCP", rule.Attribute("IPProtocol")!.Value);
+            Assert.Equal("private", rule.Attribute("Profile")!.Value);
+            Assert.Equal(rule.Attribute("LocalPortMin")!.Value, rule.Attribute("LocalPortMax")!.Value);
+            Assert.Equal("InkvoltPrint.exe", rule.Parent!.Attribute("Executable")!.Value);
+        }
     }
 
     // ---------------------------------------------------------------- helpers

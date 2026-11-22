@@ -125,6 +125,10 @@ internal static class DevSnapshot
         }
         // --share (demo only): shares the shown entry's Windows scanner (the USB laser's, the photo flatbed), to this PC only.
         if (args.Contains("--share") && window.DataContext is ViewModels.MainViewModel main0) await ShareAsync(main0, wait: false);
+        // --phone [send|done|hold] (demo only): Use your phone on the shown Scan tab; send then plays the phone over HTTPS on this PC (pairs,
+        // sends a made-up photo of a page at an angle), done then taps Done on it. hold logs the page's address for a browser here and waits for its Done.
+        if (args.Contains("--phone") && window.DataContext is ViewModels.MainViewModel { Selected: { Pc.IsDemo: true, Scan: { } phoneTab } })
+            await PhoneAsync(phoneTab, Value(args, "--phone"));
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
             // --source glass|feeder|duplex, --split none|patch|blank|either and --keep-separators set the tab first.
@@ -518,6 +522,40 @@ internal static class DevSnapshot
 
     private static string? Value(string[] args, string name) =>
         Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
+
+    /// <summary>
+    /// <c>--phone [send|done|hold]</c>: presses Use your phone, waits for its code, and with <c>send</c> does what the phone's page does, over
+    /// HTTPS to 127.0.0.1 (demo mode serves no one else): opens the page, pairs, sends <see cref="Demo.PhonePhoto"/>; <c>done</c> then taps Done.
+    /// </summary>
+    private static async Task PhoneAsync(ViewModels.ScanViewModel scan, string? mode)
+    {
+        _ = scan.ScanWithPhoneCommand.ExecuteAsync(null);
+        for (var tries = 0; tries < 50 && scan.Phone is null; tries++) await Task.Delay(100);
+        await Task.Delay(TimeSpan.FromSeconds(1));
+        if (scan.Phone is { } held && mode == "hold")
+        {
+            // A browser on this PC plays the phone (demo mode serves 127.0.0.1 only): its address in the log, until Done or 2 minutes.
+            Log.Write($"Demo phone: open {held.Url}");
+            for (var tries = 0; tries < 1200 && scan.Phone is not null; tries++) await Task.Delay(100);
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            return;
+        }
+        if (scan.Phone is not { } phone || mode is not ("send" or "done")) return;
+        var cookies = new System.Net.CookieContainer();
+        using var http = new HttpClient(new SocketsHttpHandler { CookieContainer = cookies, SslOptions = { RemoteCertificateValidationCallback = (_, _, _, _) => true } });
+        async Task<int> Post(string action, byte[]? body = null)
+        {
+            using var m = new HttpRequestMessage(HttpMethod.Post, phone.Url + action) { Content = new ByteArrayContent(body ?? []) };
+            m.Headers.Add(Core.Capture.PhoneSession.PageHeader, "1");
+            using var r = await http.SendAsync(m);
+            return (int)r.StatusCode;
+        }
+        using (var page = await http.GetAsync(phone.Url)) Log.Write($"Demo phone: page {(int)page.StatusCode}");
+        Log.Write($"Demo phone: pair {await Post("/pair")}, photo {await Post("/photo", Demo.PhonePhoto())}");
+        await Task.Delay(TimeSpan.FromSeconds(3));
+        if (mode == "done") Log.Write($"Demo phone: done {await Post("/done")}");
+        await Task.Delay(TimeSpan.FromSeconds(4));
+    }
 
     /// <summary>SNMP access… showing <paramref name="typed"/> (public kept now), its Save answered with <paramref name="answer"/>; nothing reaches the network.</summary>
     private static SnmpAccessDialog SnmpCheckPreview(ViewModels.MainViewModel main, Core.Snmp.SnmpLogin typed, Core.Snmp.SnmpLoginCheck answer) =>

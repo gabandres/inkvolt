@@ -4053,4 +4053,58 @@ Los archivos se quedan donde están.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Mientras tanto se abrió o se quitó otro PDF, así que el texto copiado no se abrió. Vuelve a usar Imprimir el portapapeles para usarlo.</value>
   </data>
+  <data name="ScanTab_Capture" xml:space="preserve">
+    <value>Escanear con tu teléfono</value>
+  </data>
+  <data name="ScanTab_CaptureHelp" xml:space="preserve">
+    <value>Sin app en el teléfono: su navegador toma las fotos y las envía a este PC por tu Wi-Fi, nunca por Internet. Cada página se detecta, se endereza y se limpia, y luego se revisa y se guarda como un escaneo.</value>
+  </data>
+  <data name="ScanTab_UsePhone" xml:space="preserve">
+    <value>Usar tu teléfono</value>
+  </data>
+  <data name="ScanTab_CaptureWith" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="ScanTab_CaptureTabSettings" xml:space="preserve">
+    <value>La configuración de escaneo de abajo</value>
+  </data>
+  <data name="Phone_QrName" xml:space="preserve">
+    <value>Código QR de la página que abre tu teléfono</value>
+  </data>
+  <data name="Phone_OrOpen" xml:space="preserve">
+    <value>O abre esta dirección en el navegador del teléfono:</value>
+  </data>
+  <data name="Phone_CertificateNote" xml:space="preserve">
+    <value>El navegador del teléfono avisa de que la conexión no es privada: este PC creó su propio certificado, como al compartir un escáner. Continúa a la página (Configuración avanzada y luego Acceder). La huella digital del certificado empieza por:</value>
+  </data>
+  <data name="Phone_Fingerprint" xml:space="preserve">
+    <value>SHA-256 {0}…</value>
+  </data>
+  <data name="Phone_Finish" xml:space="preserve">
+    <value>Terminar</value>
+  </data>
+  <data name="Phone_FinishTip" xml:space="preserve">
+    <value>Termina el escaneo con el teléfono: las páginas ya enviadas se quedan y el teléfono no puede enviar más.</value>
+  </data>
+  <data name="Capture_Waiting" xml:space="preserve">
+    <value>Esperando fotos…</value>
+  </data>
+  <data name="Capture_NoPhotos" xml:space="preserve">
+    <value>No llegó ninguna foto.</value>
+  </data>
+  <data name="Capture_Done_One" xml:space="preserve">
+    <value>Listo: 1 página de una foto.</value>
+  </data>
+  <data name="Capture_Done_Many" xml:space="preserve">
+    <value>Listo: {0} páginas de fotos.</value>
+  </data>
+  <data name="Capture_LeftOut_One" xml:space="preserve">
+    <value>Se omitió 1 foto: no era una foto JPEG o PNG de una página.</value>
+  </data>
+  <data name="Capture_LeftOut_Many" xml:space="preserve">
+    <value>Se omitieron {0} fotos: no eran fotos JPEG o PNG de una página.</value>
+  </data>
+  <data name="Phone_EmptyHint" xml:space="preserve">
+    <value>Las páginas de tu teléfono aparecen aquí a medida que llegan.</value>
+  </data>
 </root>

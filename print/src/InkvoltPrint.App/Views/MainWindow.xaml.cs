@@ -325,6 +325,8 @@ public partial class MainWindow : Window
     /// </summary>
     protected override void OnClosing(CancelEventArgs e)
     {
+        // A phone's page is served, and a camera open, only while this window is: they end here, their pages kept.
+        Vm?.EndCaptures();
         if (RemembersPlacement && Vm?.State is { } state && WindowFrame.Placement(this) is { } placement && placement != state.Window)
         {
             state.Window = placement;

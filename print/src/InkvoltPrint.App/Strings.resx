@@ -4912,4 +4912,58 @@ The files stay where they are.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
+  <data name="ScanTab_Capture" xml:space="preserve">
+    <value>Scan with your phone</value>
+  </data>
+  <data name="ScanTab_CaptureHelp" xml:space="preserve">
+    <value>No app on the phone: its browser takes the photos and sends them to this PC over your Wi-Fi, never through the internet. Each page is found, straightened and cleaned up, then reviewed and saved like a scan.</value>
+  </data>
+  <data name="ScanTab_UsePhone" xml:space="preserve">
+    <value>Use your phone</value>
+  </data>
+  <data name="ScanTab_CaptureWith" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="ScanTab_CaptureTabSettings" xml:space="preserve">
+    <value>The scan settings below</value>
+  </data>
+  <data name="Phone_QrName" xml:space="preserve">
+    <value>QR code of the page your phone opens</value>
+  </data>
+  <data name="Phone_OrOpen" xml:space="preserve">
+    <value>Or open this address in the phone's browser:</value>
+  </data>
+  <data name="Phone_CertificateNote" xml:space="preserve">
+    <value>The phone's browser warns that the connection isn't private: this PC made its own certificate, as for scanner sharing. Continue to the page (Advanced, then Proceed). The certificate's fingerprint begins:</value>
+  </data>
+  <data name="Phone_Fingerprint" xml:space="preserve">
+    <value>SHA-256 {0}…</value>
+  </data>
+  <data name="Phone_Finish" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="Phone_FinishTip" xml:space="preserve">
+    <value>Ends the phone scan: the pages already sent stay, and the phone can't send more.</value>
+  </data>
+  <data name="Capture_Waiting" xml:space="preserve">
+    <value>Waiting for photos…</value>
+  </data>
+  <data name="Capture_NoPhotos" xml:space="preserve">
+    <value>No photos came in.</value>
+  </data>
+  <data name="Capture_Done_One" xml:space="preserve">
+    <value>Done: 1 page from a photo.</value>
+  </data>
+  <data name="Capture_Done_Many" xml:space="preserve">
+    <value>Done: {0} pages from photos.</value>
+  </data>
+  <data name="Capture_LeftOut_One" xml:space="preserve">
+    <value>1 photo was left out: it wasn't a JPEG or PNG photo of a page.</value>
+  </data>
+  <data name="Capture_LeftOut_Many" xml:space="preserve">
+    <value>{0} photos were left out: they weren't JPEG or PNG photos of a page.</value>
+  </data>
+  <data name="Phone_EmptyHint" xml:space="preserve">
+    <value>Pages from your phone show up here as they come in.</value>
+  </data>
 </root>

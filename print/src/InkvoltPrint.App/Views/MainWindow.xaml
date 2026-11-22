@@ -687,6 +687,47 @@
                     </StackPanel>
                 </DockPanel>
             </Border>
+            <!-- Scan with your phone or a camera (roadmap 4.6, 4.12): photos made pages, into this review, at the settings below or a preset -->
+            <Border DockPanel.Dock="Top" Style="{StaticResource Card}" Padding="16,10" Margin="0,0,16,12">
+                <DockPanel>
+                    <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xE8EA;" FontSize="16" Margin="0,2,12,0" VerticalAlignment="Top" />
+                    <StackPanel>
+                        <TextBlock Text="{x:Static loc:Strings.ScanTab_Capture}" FontWeight="SemiBold" />
+                        <TextBlock Text="{x:Static loc:Strings.ScanTab_CaptureHelp}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,2,0,0" MaxWidth="640" HorizontalAlignment="Left" />
+                        <WrapPanel Margin="0,8,0,0" Visibility="{Binding IsPhoneOpen, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <Button Command="{Binding ScanWithPhoneCommand}" Padding="12,6" Margin="0,0,8,4" AutomationProperties.Name="{x:Static loc:Strings.ScanTab_UsePhone}"
+                                    AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_CaptureHelp}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Style="{StaticResource Icon}" Text="&#xE8EA;" Margin="0,0,8,0" />
+                                    <TextBlock Text="{x:Static loc:Strings.ScanTab_UsePhone}" />
+                                </StackPanel>
+                            </Button>
+                            <StackPanel Orientation="Horizontal" Margin="8,0,0,4">
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_CaptureWith}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <ComboBox ItemsSource="{Binding CaptureChoices}" SelectedIndex="{Binding CaptureChoice}" MinWidth="200" VerticalAlignment="Center"
+                                          AutomationProperties.Name="{x:Static loc:Strings.ScanTab_CaptureWith}" />
+                            </StackPanel>
+                        </WrapPanel>
+                        <!-- The phone's code while a phone scan is open: the port is open only then -->
+                        <DockPanel Margin="0,10,0,0" DataContext="{Binding Phone}" Visibility="{Binding Converter={StaticResource VisibleWhen}, FallbackValue=Collapsed}">
+                            <Border DockPanel.Dock="Left" Background="White" Padding="8" CornerRadius="6" Margin="0,0,16,0" VerticalAlignment="Top">
+                                <Image Source="{Binding Qr}" Width="168" Height="168" RenderOptions.BitmapScalingMode="NearestNeighbor" Stretch="Uniform"
+                                       AutomationProperties.Name="{x:Static loc:Strings.Phone_QrName}" />
+                            </Border>
+                            <StackPanel MaxWidth="460" HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding Status}" TextWrapping="Wrap" FontWeight="SemiBold" AutomationProperties.LiveSetting="Polite" />
+                                <TextBlock Text="{x:Static loc:Strings.Phone_OrOpen}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                                <TextBox Text="{Binding Url, Mode=OneWay}" IsReadOnly="True" BorderThickness="0" Background="Transparent" Padding="0" TextWrapping="Wrap"
+                                         FontFamily="Cascadia Mono, Consolas" AutomationProperties.Name="{x:Static loc:Strings.Phone_OrOpen}" />
+                                <TextBlock Text="{x:Static loc:Strings.Phone_CertificateNote}" TextWrapping="Wrap" Style="{StaticResource Caption}" Margin="0,8,0,0" />
+                                <TextBlock Text="{Binding Fingerprint}" TextWrapping="Wrap" Style="{StaticResource Caption}" FontFamily="Cascadia Mono, Consolas" />
+                                <Button Content="{x:Static loc:Strings.Phone_Finish}" Command="{Binding FinishCommand}" HorizontalAlignment="Left" Padding="16,6" Margin="0,10,0,0"
+                                        ToolTip="{x:Static loc:Strings.Phone_FinishTip}" AutomationProperties.HelpText="{x:Static loc:Strings.Phone_FinishTip}" />
+                            </StackPanel>
+                        </DockPanel>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
             <Grid Margin="0,0,16,16">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />
