@@ -8,8 +8,9 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 - **Released:** Inkvolt PDF 1.16.0.0 and Inkvolt Print 1.7.0.0, Published in the Microsoft Store 2026-11-21 (tags and
   GitHub releases `pdf-v1.16.0.0`, `print-v1.7.0.0`; the website's `softwareVersion` 1.16.0 and 1.7.0). The next
   submission of each must be higher.
-- **Windows roadmaps:** every item of `pdf/ROADMAP.md` and `print/ROADMAP.md` is built on Windows and merged. Nothing is
-  left on Windows but the owner's checks below.
+- **Windows roadmaps:** Waves 1-3 of `pdf/ROADMAP.md` and `print/ROADMAP.md` are built and merged. **Wave 4** (a market
+  check, 2026-11-21; the owner: do all of it and release it) is under way in its batches, each released to the Store as
+  it is merged and reviewed: PDF 1.17.0.0 and Print 1.8.0.0 carry Batch A (and B if it is ready).
 - **The Mac waits** (owner, 2026-11-17: no Mac any more; all work is Windows). Every Mac half in both roadmaps waits for
   a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. PrintCore has none of Inkvolt Print's printer-data work
   of 2026-11-20 (pages left and yield from CDM, IPP and the Printer MIB; recordings keeping IPP collections and SNMP

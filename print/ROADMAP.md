@@ -155,6 +155,32 @@ What each is: the README's feature table. What waits for real hardware: the READ
   refuse programs: a source a program may read), ScanSnap (no driver page); a person to try each maker's installer
   through the app, and the Store copy's link and *Found it*; Windows 10 x64.
 
+### Wave 4 (market check, 2026-11-21)
+
+From a fresh comparison with the HP app, Epson, Canon and Brother's apps, NAPS2, VueScan, PaperCut's free tools and
+Windows' own printing and scanning (the owner: "do all of them", 2026-11-21). Windows Ready Print (July 2026) puts new
+printers on Windows' IPP class driver, which lacks the makers' extras: 4.2 and 4.5 answer that. Each line says Done when
+merged; the Mac halves wait for the new Mac. Free unless it says Pro.
+
+- **Batch A (a pile of paper):** 4.1 Two-sided scanning on a one-sided feeder (fronts, turn the stack, backs; pages put
+  in order; a preset option). 4.3 Pages turned upright on their own (sideways and upside down; `Upright` in shared core;
+  undoable in the review). 4.4 Small black-and-white PDFs (a 1-bit page as CCITT G4, an encoder in shared core that
+  Inkvolt PDF's 4.8 reuses; a "smaller file" choice per preset).
+- **Batch B:** 4.2 Two-sided printing by hand for printers without a duplexer (odd sides, how to reload, even sides;
+  Print a PDF, Batch, Copy, Photos; needs a one-sided printer to confirm). 4.5 Ready for Windows' new driver: per
+  printer, which driver its queue uses, whether the printer answers IPP and eSCL, *Set up with Windows' driver* beside
+  the old queue, and a warning for a WIA- or TWAIN-only scanner under protected print mode. 4.13 Print what's on the
+  clipboard. 4.15 Recent scans.
+- **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
+  original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
+  Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or
+  document camera as a scan source. 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
+  CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;
+  Pro). 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A,
+  a password, booklet, poster, pages per sheet.
+- **The owner's call first:** 4.17 setting up a new printer's Wi-Fi out of the box (each maker's own way, risky without
+  each maker's hardware).
+
 ## Where we already win
 
 Kept up with the same rule: a claim here has a test or a source.
