@@ -49,6 +49,14 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   certificate and the announcement; `SharedScanner`: the eSCL documents and **jobs** a device starts, one scanning at a time,
   each its device's alone). It listens only on networks Windows calls Private, to **served** devices on their subnets
   (`SharePeers`), and is **announced** over DNS-SD as `_uscans._tcp` (`ShareDnssd`).
+- **Printer sharing** (roadmap 4.10, free): Windows queues offered to phones and other computers as IPP printers, each a **shared
+  printer** (`PrinterShare`: the switches, one server for all, when it may listen, the announcements; `SharedPrinter`: one queue's IPP
+  attributes and the **jobs** a device sends, one printing at a time, each its device's alone). Served and announced (`_ipp._tcp`,
+  `PrinterDnssd`) as the shared scanner is, AirPrint's `_universal` **subtype** answered by our own responder beside Windows'
+  (`MdnsSubtype`); a queue that saves a file or hands the job to an app **can't be shared** (`CanShare`); one whose capabilities
+  can't be read is **unreadable** (said, read again with each list of queues).
+  A job's document is taken as what its **sniffed** first bytes show, never only what the device says; its pages are fitted to the
+  queue's paper.
 - **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
   queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight
@@ -149,6 +157,15 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
   goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never
   touches its files.
+- **Printer setup guide** (roadmap 4.17): putting a new printer on the home Wi-Fi through its own **setup network** (open, while it
+  waits to be told the Wi-Fi) or its **Wi-Fi Direct** network (`SetupNetworks`), its **setup page** (its web server, at the gateway
+  that network gives) and **going back** to the network the PC was on, by Windows' saved profile (`PrinterSetupGuide`). **Away**: on
+  the printer's network, not back yet. A **secured** network is joined in **Windows' own Wi-Fi list**, never by the app.
+- **Print log**: the jobs this PC's spooler saw while the app ran, one entry each, kept on this PC only (`PrintLog`, `PrintLogFile`): when,
+  the queue, the document's name, the user and PC, pages and copies, color and two-sided when known, and how it **ended**: **printed**
+  (the spooler said so, or it had started printing), **cancelled** (deleted before printing; counts no pages) or **left** (went with
+  neither). **Followed**: a job the recorder is taking notices about until it ends (`PrintLogRecorder`). **Month totals**: a month's jobs
+  and pages per printer and per person. Not accounting: nothing is charged, held or limited.
 - **Local Network access** (Mac): macOS's permission to reach devices on this network. No API reads it; the app tells it
   from what the network does (`LocalNetworkSignal`): denied (or not answered yet) shows as such, never as "no printers".
 - **Capture source**: a phone or a camera standing in for a scanner (roadmap 4.6, 4.12): each photo is made a page (`PhotoPage`: turned upright, the page found on a darker table and warped flat, sized as its paper, at the scan's resolution) and handed to the scan review as a scanner's page (`CaptureScanner`). **Phone scan**: one session of the phone's page, its one-time code in the QR code, the first phone to pair the only one that may send (`PhoneSession`, `PhoneScan` in `shared/InkvoltPrint.Core/Capture`). **Camera scan**: a webcam's or document camera's live picture, each Capture its latest frame in full (`CameraSession`, `CameraFormats`).

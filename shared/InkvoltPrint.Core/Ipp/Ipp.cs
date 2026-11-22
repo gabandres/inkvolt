@@ -14,7 +14,7 @@ public static class IppCodec
     /// <summary>RFC 8011 operation ids: Print-Job, Cancel-Job, Get-Job-Attributes, Get-Jobs.</summary>
     public const ushort PrintJob = 0x0002, CancelJob = 0x0008, GetJobAttributes = 0x0009, GetJobs = 0x000A;
 
-    internal const byte OperationTag = 0x01, JobTag = 0x02, EndTag = 0x03, PrinterTag = 0x04;
+    internal const byte OperationTag = 0x01, JobTag = 0x02, EndTag = 0x03, PrinterTag = 0x04, UnsupportedTag = 0x05;
     internal const byte Integer = 0x21, Boolean = 0x22, Enum = 0x23, OctetString = 0x30;
     internal const byte Charset = 0x47, NaturalLanguage = 0x48, Uri = 0x45, Keyword = 0x44, Name = 0x42;
     internal const byte DateTime = 0x31, Resolution = 0x32, RangeOfInteger = 0x33, BegCollection = 0x34, EndCollection = 0x37;
@@ -95,7 +95,22 @@ public static class IppCodec
     /// begCollection, memberAttrName and its value, endCollection). A truncated reply, a collection nested deeper than
     /// <see cref="MaxCollectionDepth"/> or one left open is a <see cref="FormatException"/>, never an index out of range.
     /// </summary>
-    public static (ushort Status, IReadOnlyList<(byte Tag, Dictionary<string, List<object>> Attributes)> Groups) DecodeGroups(ReadOnlySpan<byte> b)
+    public static (ushort Status, IReadOnlyList<(byte Tag, Dictionary<string, List<object>> Attributes)> Groups) DecodeGroups(ReadOnlySpan<byte> b) =>
+        DecodeGroups(b, out _);
+
+    /// <summary>
+    /// The same for a request too (its operation id where a response has its status), and where its attributes end: the
+    /// end-of-attributes tag's next byte, where a Print-Job's document starts. A request with no end-of-attributes tag is a
+    /// <see cref="FormatException"/>.
+    /// </summary>
+    public static (ushort Status, IReadOnlyList<(byte Tag, Dictionary<string, List<object>> Attributes)> Groups) DecodeGroups(ReadOnlySpan<byte> b, out int end)
+    {
+        end = -1;
+        var result = Decode(b, ref end);
+        return result;
+    }
+
+    private static (ushort Status, IReadOnlyList<(byte Tag, Dictionary<string, List<object>> Attributes)> Groups) Decode(ReadOnlySpan<byte> b, ref int end)
     {
         if (b.Length < 9) throw new FormatException("IPP response too short");
         var status = BinaryPrimitives.ReadUInt16BigEndian(b[2..]);
@@ -107,7 +122,11 @@ public static class IppCodec
         while (i < b.Length)
         {
             var tag = b[i++];
-            if (tag == EndTag) break;
+            if (tag == EndTag)
+            {
+                end = i;
+                break;
+            }
             if (tag < 0x10)
             {
                 if (open.Count > 0) throw new FormatException("IPP collection not closed");
@@ -220,6 +239,38 @@ public static class IppCodec
         {
             WriteValue(ms, a.Name == previous ? "" : a.Name, a);
             previous = a.Name;
+        }
+        ms.WriteByte(EndTag);
+        return ms.ToArray();
+    }
+
+    /// <summary>
+    /// A server's answer (roadmap 4.10's shared printer): the version the request came in (1.1 or 2.x), the status, the request's
+    /// id, the operation group (charset, language and a <c>status-message</c> when given), then each group in order (unsupported
+    /// attributes, a printer's, each job's).
+    /// </summary>
+    public static byte[] EncodeReply(byte major, byte minor, ushort status, int requestId, string? statusMessage,
+        IEnumerable<(byte Group, IReadOnlyList<IppValue> Attributes)> groups)
+    {
+        using var ms = new MemoryStream();
+        Span<byte> head = stackalloc byte[8];
+        head[0] = major; head[1] = minor;
+        BinaryPrimitives.WriteUInt16BigEndian(head[2..], status);
+        BinaryPrimitives.WriteInt32BigEndian(head[4..], requestId);
+        ms.Write(head);
+        ms.WriteByte(OperationTag);
+        WriteAttr(ms, Charset, "attributes-charset", "utf-8");
+        WriteAttr(ms, NaturalLanguage, "attributes-natural-language", "en");
+        if (!string.IsNullOrEmpty(statusMessage)) WriteAttr(ms, Text, "status-message", statusMessage);
+        foreach (var (group, attributes) in groups)
+        {
+            ms.WriteByte(group);
+            string? previous = null;
+            foreach (var a in attributes)
+            {
+                WriteValue(ms, a.Name == previous ? "" : a.Name, a);
+                previous = a.Name;
+            }
         }
         ms.WriteByte(EndTag);
         return ms.ToArray();

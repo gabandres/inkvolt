@@ -4319,6 +4319,102 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Batch_BacksFailed" xml:space="preserve">
     <value>Fronts printed; the backs weren't: {0}</value>
   </data>
+  <data name="PrintLog_Unknown" xml:space="preserve">
+    <value>(not known)</value>
+  </data>
+  <data name="PrintLog_CsvFileName" xml:space="preserve">
+    <value>Print log {0}.csv</value>
+  </data>
+  <data name="PrintLog_Color" xml:space="preserve">
+    <value>color</value>
+  </data>
+  <data name="PrintLog_BlackAndWhite" xml:space="preserve">
+    <value>black and white</value>
+  </data>
+  <data name="PrintLog_TwoSided" xml:space="preserve">
+    <value>two-sided</value>
+  </data>
+  <data name="PrintLog_OneSided" xml:space="preserve">
+    <value>one-sided</value>
+  </data>
+  <data name="PrintLog_Cancelled" xml:space="preserve">
+    <value>cancelled</value>
+  </data>
+  <data name="Pro_PrintLogExport" xml:space="preserve">
+    <value>Print log as CSV</value>
+  </data>
+  <data name="Pro_PrintLogExport_Describe" xml:space="preserve">
+    <value>Save the print log, every job with its time, printer, person, pages, color and two-sided, as a CSV file for a spreadsheet.</value>
+  </data>
+  <data name="Pro_PrintLogExport_Locked" xml:space="preserve">
+    <value>Saving the print log as CSV is part of Inkvolt Pro. The log and its month totals stay free.</value>
+  </data>
+  <data name="Palette_PrintLog" xml:space="preserve">
+    <value>Print log…</value>
+  </data>
+  <data name="PrinterShare_Off" xml:space="preserve">
+    <value>Off. Turn it on to print to this printer from phones, tablets and other computers on this network.</value>
+  </data>
+  <data name="PrinterShare_WaitingForPrinter" xml:space="preserve">
+    <value>On, waiting for this printer's queue in Windows.</value>
+  </data>
+  <data name="PrinterShare_NoPrivateNetwork" xml:space="preserve">
+    <value>On, waiting for a private network: printers are shared only on networks Windows calls Private (Settings › Network &amp; internet).</value>
+  </data>
+  <data name="PrinterShare_Starting" xml:space="preserve">
+    <value>Starting…</value>
+  </data>
+  <data name="PrinterShare_On" xml:space="preserve">
+    <value>Shared as "{0}" on port {1}. Android phones (Print, Mopria), Macs and other computers on this private network can print to it while Inkvolt Print is open here.</value>
+  </data>
+  <data name="PrinterShare_OnThisPc" xml:space="preserve">
+    <value>Demo: shared as "{0}" to this PC only, on port {1}.</value>
+  </data>
+  <data name="PrinterShare_Failed" xml:space="preserve">
+    <value>Sharing couldn't start. The log says why.</value>
+  </data>
+  <data name="PrinterShare_PortInUse" xml:space="preserve">
+    <value>Sharing couldn't start: port {0} is in use by another program.</value>
+  </data>
+  <data name="PrinterShare_NotAnnounced" xml:space="preserve">
+    <value>It couldn't be announced on the network, so phones may not find it on their own.</value>
+  </data>
+  <data name="PrinterShare_InstanceName" xml:space="preserve">
+    <value>{0} on {1}</value>
+  </data>
+  <data name="PrinterShare_JobName" xml:space="preserve">
+    <value>Printed from a phone</value>
+  </data>
+  <data name="Setup_NoWifi" xml:space="preserve">
+    <value>This PC has no Wi-Fi, so it can't join the printer's setup network. Set the printer up from its control panel or the maker's phone app instead.</value>
+  </data>
+  <data name="Setup_LocationOff" xml:space="preserve">
+    <value>Windows shows Wi-Fi names to apps only with location access on. Turn on Settings › Privacy &amp; security › Location › Let desktop apps access your location, then look again.</value>
+  </data>
+  <data name="Setup_NotListed" xml:space="preserve">
+    <value>Windows didn't list the Wi-Fi networks nearby. Look again in a moment.</value>
+  </data>
+  <data name="Setup_NoneFound" xml:space="preserve">
+    <value>No printer's setup network is in range. Turn the printer on, put it in Wi-Fi setup mode (its manual says how; many start it on their own when new or after a network reset), wait a minute and look again.</value>
+  </data>
+  <data name="Setup_InWindows" xml:space="preserve">
+    <value>"{0}" asks for a password. Choose it in Windows' Wi-Fi list that just opened and type the password shown on the printer's panel or its network page; Inkvolt Print never sees it. This window goes on once the PC is on it.</value>
+  </data>
+  <data name="Setup_NotJoined" xml:space="preserve">
+    <value>The PC didn't join the printer's network, so it went back. Check that the printer is still in Wi-Fi setup mode and try again.</value>
+  </data>
+  <data name="Setup_NoPage" xml:space="preserve">
+    <value>The PC is on the printer's network, but the printer gave no address for its setup page. Its manual names the address to type in a browser.</value>
+  </data>
+  <data name="Setup_CouldNotReturn" xml:space="preserve">
+    <value>The PC couldn't go back to "{0}" by itself. Open Windows' Wi-Fi list (the button below, or the network icon on the taskbar) and choose "{0}".</value>
+  </data>
+  <data name="Palette_SetUpPrinter" xml:space="preserve">
+    <value>Set up a new printer's Wi-Fi…</value>
+  </data>
+  <data name="PrinterShare_Unreadable" xml:space="preserve">
+    <value>On, but Windows couldn't say what this printer can do, so it isn't shared yet. It's tried again every half minute; check that the printer is on and its queue works.</value>
+  </data>
   <data name="Imaging_ColorDropped" xml:space="preserve">
     <value>{0} dropped</value>
     <comment>page cleanup done; {0} = red, green, blue or picked color</comment>

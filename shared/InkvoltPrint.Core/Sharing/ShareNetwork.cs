@@ -124,12 +124,23 @@ public static class ShareCertificate
     }
 }
 
-/// <summary>What the shared scanner announces over DNS-SD (Bonjour): <c>_uscans._tcp</c>, its name, port and TXT keys.</summary>
+/// <summary>
+/// What a share announces over DNS-SD (Bonjour): its service (<c>_uscans._tcp</c> for a shared scanner, <c>_ipp._tcp</c> for a shared
+/// printer), name, port and TXT keys.
+/// </summary>
 /// <param name="Instance">The name clients list (at most 63 bytes, no dots).</param>
 /// <param name="Host">This PC's <c>.local</c> name.</param>
-public sealed record ShareAdvert(string Instance, string Host, int Port, IReadOnlyList<KeyValuePair<string, string>> Txt)
+/// <param name="Kind">The service type; a scanner's by default.</param>
+public sealed record ShareAdvert(string Instance, string Host, int Port, IReadOnlyList<KeyValuePair<string, string>> Txt, string Kind = ShareAdvert.Service)
 {
+    /// <summary>A shared scanner's service type (eSCL over TLS).</summary>
     public const string Service = "_uscans._tcp";
+
+    /// <summary>A shared printer's service type (IPP).</summary>
+    public const string PrinterService = "_ipp._tcp";
+
+    /// <summary>Subtypes the instance is also found under (<c>_universal</c>: AirPrint's), which our own responder answers (<see cref="MdnsSubtype"/>).</summary>
+    public IReadOnlyList<string> Subtypes { get; init; } = [];
 }
 
 /// <summary>The DNS-SD record for a shared scanner, as Mopria's eSCL and Apple's AirScan clients read it.</summary>

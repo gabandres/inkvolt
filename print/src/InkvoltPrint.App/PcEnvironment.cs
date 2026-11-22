@@ -80,6 +80,13 @@ public abstract class PcEnvironment
     public abstract Core.Sharing.ShareEnvironment ScannerSharing { get; }
 
     /// <summary>
+    /// Where shared printers (roadmap 4.10) listen, announce themselves and print: Kestrel (plain IPP) on the network's private side, Windows'
+    /// DNS-SD responder, Windows' network categories, the queues read and printed through System.Printing; on the made-up PC, Kestrel on
+    /// 127.0.0.1 only, nothing announced, its made-up queues, and jobs that "print" on its made-up queue.
+    /// </summary>
+    public abstract Core.Sharing.PrinterShareEnvironment PrinterSharing { get; }
+
+    /// <summary>
     /// Where a phone scan's page (roadmap 4.6) is served: Kestrel on its own port with scanner sharing's networks and certificate (private
     /// networks only); on the made-up PC, on 127.0.0.1 only, any free port, a certificate made for the run.
     /// </summary>
@@ -106,6 +113,15 @@ public abstract class PcEnvironment
     /// printer list follows without waiting for its next read; null where nothing changes (the made-up PC). Dispose to stop.
     /// </summary>
     public virtual IDisposable? WatchQueueChanges(Action changed) => null;
+
+    /// <summary>
+    /// The print log's file (roadmap 4.9): beside the settings on this PC; the made-up PC's in memory, with a few made-up months of
+    /// jobs (<see cref="Core.History.PrintLog.Demo"/>).
+    /// </summary>
+    public abstract Core.History.PrintLogFile PrintLog { get; }
+
+    /// <summary>Hands every job the spooler sees to <paramref name="notice"/> (the print log) until disposed; null on the made-up PC, whose spooler is made up.</summary>
+    public virtual IDisposable? WatchPrintJobs(Action<IReadOnlyList<Core.History.JobChange>, Core.History.JobNoticeKind> notice) => null;
 
     /// <summary>
     /// A queue's driver: name, type and provider (roadmap 4.5). This PC asks the spooler; the made-up PC says the listed queue's
@@ -165,6 +181,18 @@ public abstract class PcEnvironment
     /// <summary>Printers' SNMP logins (a community): Windows Credential Manager, or (demo) memory. Never in state.json.</summary>
     public abstract Core.Snmp.ISnmpLogins SnmpLogins { get; }
 
+    /// <summary>This PC's Wi-Fi for the printer setup guide (roadmap 4.17): Windows' WLAN API, or the made-up PC's made-up Wi-Fi.</summary>
+    public abstract Core.Setup.IWifi Wifi { get; }
+
+    /// <summary>Opens Windows' own Wi-Fi list (where the person joins a secured network); the made-up PC's person joins at once.</summary>
+    public abstract void OpenWifiList();
+
+    /// <summary>Opens a page of Windows Settings (<c>ms-settings:…</c>); nothing on the made-up PC.</summary>
+    public virtual void OpenSettings(string uri)
+    {
+        if (!IsDemo) Shell.Open(uri);
+    }
+
     /// <summary>Opens a page in the browser; null where nothing is opened (the demo printers' pages don't exist).</summary>
     public abstract Action<string>? Browser { get; }
 
@@ -223,10 +251,18 @@ public abstract class PcEnvironment
 
         public override IDisposable? WatchQueueChanges(Action changed) => new Windows.Printing.SpoolerChanges(changed, Log.Write);
 
+        public override Core.History.PrintLogFile PrintLog { get; } = new(Path.Combine(AppState.DataDirectory, "print-log.jsonl"), Log.Write);
+
+        public override IDisposable? WatchPrintJobs(Action<IReadOnlyList<Core.History.JobChange>, Core.History.JobNoticeKind> notice) =>
+            new Windows.Printing.SpoolerJobs(notice, Log.Write);
+
         public override Core.Sharing.ShareEnvironment ScannerSharing => _sharing ??= new(new InkvoltPrint.Sharing.KestrelShareHost(),
             new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));
         private Core.Sharing.ShareEnvironment? _sharing;
 
+        public override Core.Sharing.PrinterShareEnvironment PrinterSharing => _printerSharing ??= new(new InkvoltPrint.Sharing.KestrelPrinterHost(),
+            new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), SharedQueuePrinting.DescribeAsync, new SharedQueuePrinting());
+        private Core.Sharing.PrinterShareEnvironment? _printerSharing;
         public override Core.Capture.PhoneEnvironment PhoneScanning => _phone ??= new(new InkvoltPrint.Sharing.KestrelPhoneHost(), ScannerSharing.Networks, ScannerSharing.Certificates);
         private Core.Capture.PhoneEnvironment? _phone;
 
@@ -258,6 +294,8 @@ public abstract class PcEnvironment
         public override IPrinterPasswords Passwords { get; } = new CredentialManager();
         public override Core.Snmp.ISnmpLogins SnmpLogins => InkvoltPrint.Windows.Security.SnmpLoginStore.Instance;
         public override Action<string>? Browser => Shell.Open;
+        public override Core.Setup.IWifi Wifi { get; } = new Windows.Setup.WlanWifi();
+        public override void OpenWifiList() => Shell.Open("ms-availablenetworks:");
         public override bool OpensOtherApps => true;
         public override string RecordingsFolder =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents ? documents : AppState.DataDirectory, "Inkvolt Print recordings");

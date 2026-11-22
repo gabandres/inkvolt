@@ -206,12 +206,28 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     Mac half waits.
   - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone; the Mac half waits.
   - **4.12 A camera as a scan source.** Done on Windows: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window; the Mac half waits (AVFoundation).
-  - Still to come: 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
-    CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;
-    Pro). 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF: PDF/A,
-    a password, booklet, poster, pages per sheet.
-- **The owner's call first:** 4.17 setting up a new printer's Wi-Fi out of the box (each maker's own way, risky without
-  each maker's hardware).
+  - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
+    document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
+    and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the
+    CSV Pro (README, "Print log"; `PrintLog`, `PrintLogRecorder`). Checked on this PC with a job to Microsoft Print to PDF.
+    **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared printer) against the printers' own counts;
+    the Mac half waits (CUPS keeps a page log of its own).
+  - **4.10 Share a USB printer with phones.** Done on Windows, free (the owner, 2026-11-22): a switch per queue printer, off by
+    default, private networks only; announced as `_ipp._tcp` with Mopria's and AirPrint's keys, IPP on TCP 9782 (Get-Printer-Attributes,
+    Validate-Job, Print-Job with PDF, JPEG, PWG Raster, Apple Raster), printed on the Windows queue (README, "Share a printer with
+    phones"; `PrinterShare`, `SharedPrinter`, `RasterReader`). Checked with our own IPP client over the real server on loopback and in
+    demo mode. **Next:** an Android phone's default print service and Mopria, a Mac, and an iPhone (AirPrint's `_universal` subtype is
+    answered by our own mDNS responder beside Windows', `MdnsSubtype`); IPPS; the Mac half waits
+    (macOS shares printers itself).
+  - Still to come: 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF:
+    PDF/A, a password, booklet, poster, pages per sheet.
+- **4.17 Setting up a new printer's Wi-Fi out of the box** (the owner's "middle option", 2026-11-22: Windows' Wi-Fi and the
+  printer's own page, not each maker's protocol). Done on Windows: the printers' setup and Wi-Fi Direct networks nearby, joined on
+  a click (an open one with a temporary profile, a secured one in Windows' own list), the printer's setup page opened, back to the
+  network the PC was on (or how, when it can't), and the new printer found there; no Wi-Fi password ever passes through the app
+  (README, "Set up a new printer's Wi-Fi"; `PrinterSetupGuide`, `SetupNetworks`). Checked: the list read on this PC; joining only
+  on a made-up Wi-Fi. **Next:** a person with a new (or reset) HP, Epson, Canon and Brother printer to go through it, and a PC
+  that loses its Wi-Fi profile; the Mac half waits (CoreWLAN needs location access there too).
 
 ## Where we already win
 
@@ -262,7 +278,8 @@ Kept up with the same rule: a claim here has a test or a source.
 - **Email or SMS alerts through a server of ours** (PRTG, PrinterLogic): notifications stay on the PC; 2.6's JSON lets
   a script send what it likes.
 - **Print release, quotas, accounting, driver deployment** (PaperCut, Printix, PrinterLogic): server products for IT
-  departments, not a lean app.
+  departments, not a lean app. 4.9's print log isn't this (the owner's decision, 2026-11-22): a log of one PC's own
+  spooler, kept on that PC, that charges, holds and limits nothing.
 - **Film scanning with infrared dust removal, IT8 calibration** (VueScan Professional): a niche that needs the
   scanner's infrared channel through a maker driver.
 - **Vendor driver bidi and printer extensions** (Canon, Epson and Brother cleaning through their drivers): not a
