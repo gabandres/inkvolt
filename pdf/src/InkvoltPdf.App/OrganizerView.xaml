@@ -186,10 +186,15 @@
                         <MenuItem Command="app:Cmd.DuplicatePages" />
                         <MenuItem Command="app:Cmd.ExtractPages" />
                         <MenuItem Command="app:Cmd.MovePages" />
+                        <MenuItem Command="app:Cmd.InterleavePages" />
+                        <MenuItem Command="app:Cmd.RemoveBlankPages" />
+                        <MenuItem Command="app:Cmd.EditPageLabels" />
                         <Separator />
                         <MenuItem Command="app:Cmd.InsertPages" />
                         <MenuItem Command="app:Cmd.InsertBlank" />
+                        <MenuItem Command="app:Cmd.ReplacePages" />
                         <MenuItem Command="app:Cmd.CropPages" />
+                        <MenuItem Command="app:Cmd.ResizePages" />
                         <Separator />
                         <MenuItem Command="app:Cmd.Print" Header="{x:Static loc:Strings.Organize_PrintPagesMenu}" />
                         <MenuItem Command="app:Cmd.ExportImages" />

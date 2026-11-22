@@ -5271,6 +5271,347 @@ Modificado {1:g}</value>
     <value>Invertir el orden de las páginas</value>
     <comment>Edit name</comment>
   </data>
+  <data name="Cmd_InterleavePages" xml:space="preserve">
+    <value>Inter_calar páginas…</value>
+  </data>
+  <data name="Cmd_ScanBacks" xml:space="preserve">
+    <value>Escanear los _reversos…</value>
+  </data>
+  <data name="Organize_InterleaveTitle" xml:space="preserve">
+    <value>Intercalar páginas</value>
+  </data>
+  <data name="Organize_InterleaveButton" xml:space="preserve">
+    <value>Intercalar</value>
+  </data>
+  <data name="Organize_InterleaveNote" xml:space="preserve">
+    <value>Para hojas a doble cara escaneadas primero por un lado y luego por el otro: los anversos y después los reversos. Las páginas quedan anverso 1, reverso 1, anverso 2, reverso 2, y así sucesivamente.</value>
+  </data>
+  <data name="Organize_InterleaveBacksFrom" xml:space="preserve">
+    <value>Los reversos están</value>
+  </data>
+  <data name="Organize_InterleaveThisDoc" xml:space="preserve">
+    <value>En páginas de este documento</value>
+  </data>
+  <data name="Organize_InterleaveOtherFile" xml:space="preserve">
+    <value>En otro PDF (este documento tiene los anversos)</value>
+  </data>
+  <data name="Organize_InterleaveFronts" xml:space="preserve">
+    <value>Anversos (páginas)</value>
+  </data>
+  <data name="Organize_InterleaveBacks" xml:space="preserve">
+    <value>Reversos (páginas)</value>
+  </data>
+  <data name="Organize_InterleaveReversed" xml:space="preserve">
+    <value>Los reversos están en orden inverso (se le dio la vuelta a la pila para escanearlos)</value>
+  </data>
+  <data name="Organize_InterleavePick" xml:space="preserve">
+    <value>Elige el PDF con los reversos</value>
+  </data>
+  <data name="Organize_InterleaveUnevenTitle" xml:space="preserve">
+    <value>Las dos caras no coinciden</value>
+  </data>
+  <data name="Organize_InterleaveUnevenBody" xml:space="preserve">
+    <value>Hay {0} anversos y {1} reversos. Las páginas que sobran van después de las demás.</value>
+  </data>
+  <data name="Organize_InterleaveAnyway" xml:space="preserve">
+    <value>Intercalar de todos modos</value>
+  </data>
+  <data name="Organize_EditInterleave" xml:space="preserve">
+    <value>Intercalar páginas</value>
+    <comment>Edit name</comment>
+  </data>
+  <data name="Scan_BacksTitle" xml:space="preserve">
+    <value>Escanear los reversos</value>
+  </data>
+  <data name="Scan_BacksNote" xml:space="preserve">
+    <value>Vuelve a poner la pila para escanear los reversos de las páginas de este documento. Cada reverso va después de su anverso. Los reversos en blanco se conservan para que cada uno quede junto a su anverso.</value>
+  </data>
+  <data name="Scan_BacksFinish" xml:space="preserve">
+    <value>Intercalar páginas</value>
+  </data>
+  <data name="Scan_BacksLabel_One" xml:space="preserve">
+    <value>Intercalar {0} reverso escaneado</value>
+    <comment>An edit's name</comment>
+  </data>
+  <data name="Scan_BacksLabel_Many" xml:space="preserve">
+    <value>Intercalar {0} reversos escaneados</value>
+    <comment>An edit's name</comment>
+  </data>
+  <data name="Cmd_RemoveBlankPages" xml:space="preserve">
+    <value>Quitar páginas en _blanco…</value>
+  </data>
+  <data name="Cmd_SplitAtBlankPages" xml:space="preserve">
+    <value>Dividir en las páginas en blanc_o…</value>
+  </data>
+  <data name="Organize_FindingBlank" xml:space="preserve">
+    <value>Buscando páginas en blanco</value>
+  </data>
+  <data name="Organize_NoBlankTitle" xml:space="preserve">
+    <value>No hay páginas en blanco</value>
+  </data>
+  <data name="Organize_NoBlankBody" xml:space="preserve">
+    <value>Ninguna página de este documento parece estar en blanco. Una página con aunque sea una palabra corta se conserva.</value>
+  </data>
+  <data name="Organize_RemoveBlankTitle" xml:space="preserve">
+    <value>Quitar páginas en blanco</value>
+  </data>
+  <data name="Organize_SplitBlankTitle" xml:space="preserve">
+    <value>Dividir en las páginas en blanco</value>
+  </data>
+  <data name="Organize_BlankFound_One" xml:space="preserve">
+    <value>1 página parece estar en blanco. Desmárcala para conservarla.</value>
+  </data>
+  <data name="Organize_BlankFound_Many" xml:space="preserve">
+    <value>{0} páginas parecen estar en blanco. Desmarca las que quieras conservar.</value>
+  </data>
+  <data name="Organize_BlankThen" xml:space="preserve">
+    <value>Qué hacer con ellas</value>
+  </data>
+  <data name="Organize_BlankDelete" xml:space="preserve">
+    <value>Eliminarlas</value>
+  </data>
+  <data name="Organize_BlankSplit" xml:space="preserve">
+    <value>Dividir el documento por ellas en varios PDF (no se incluyen)</value>
+  </data>
+  <data name="Organize_BlankPageName" xml:space="preserve">
+    <value>Página {0}</value>
+  </data>
+  <data name="Organize_BlankNoneTicked" xml:space="preserve">
+    <value>Marca al menos una página.</value>
+  </data>
+  <data name="Organize_BlankAllPages" xml:space="preserve">
+    <value>Están marcadas todas las páginas y un documento conserva al menos una. Desmarca una para conservarla.</value>
+  </data>
+  <data name="Organize_BlankSplitNothing" xml:space="preserve">
+    <value>No queda nada entre las páginas en blanco para guardar.</value>
+  </data>
+  <data name="Organize_EditRemoveBlank_One" xml:space="preserve">
+    <value>Quitar 1 página en blanco</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_EditRemoveBlank_Many" xml:space="preserve">
+    <value>Quitar {0} páginas en blanco</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_SaveSplitBlankTo" xml:space="preserve">
+    <value>Elige dónde guardar las partes</value>
+  </data>
+  <data name="Organize_BlankPartName" xml:space="preserve">
+    <value>{0} - parte {1}</value>
+    <comment>File name of a part; {0} is the document's name, {1} the part's number</comment>
+  </data>
+  <data name="Batch_ItemRemoveBlank" xml:space="preserve">
+    <value>Quitar páginas en blanco</value>
+  </data>
+  <data name="Batch_ItemSplitBlank" xml:space="preserve">
+    <value>Dividir en las páginas en blanco</value>
+  </data>
+  <data name="Batch_DescRemoveBlank" xml:space="preserve">
+    <value>Se quitan las páginas que son casi solo papel; un archivo solo de páginas en blanco se conserva</value>
+  </data>
+  <data name="Batch_DescSplitBlank" xml:space="preserve">
+    <value>Un PDF por cada parte entre páginas separadoras en blanco</value>
+  </data>
+  <data name="Cmd_BookmarksFromHeadings" xml:space="preserve">
+    <value>Marcadores a partir de los _títulos…</value>
+  </data>
+  <data name="Bookmarks_FromHeadingsTitle" xml:space="preserve">
+    <value>Marcadores a partir de los títulos</value>
+  </data>
+  <data name="Bookmarks_FindingHeadings" xml:space="preserve">
+    <value>Buscando títulos</value>
+  </data>
+  <data name="Bookmarks_NoHeadingsTitle" xml:space="preserve">
+    <value>No se encontraron títulos</value>
+  </data>
+  <data name="Bookmarks_NoHeadingsBody" xml:space="preserve">
+    <value>Los títulos se reconocen por el texto más grande que el del cuerpo. Este documento no tiene ninguno, o sus páginas son escaneos sin texto: reconoce el texto primero.</value>
+  </data>
+  <data name="Bookmarks_HeadingsFound_One" xml:space="preserve">
+    <value>Se encontró 1 título. Los marcadores serán:</value>
+  </data>
+  <data name="Bookmarks_HeadingsFound_Many" xml:space="preserve">
+    <value>Se encontraron {0} títulos. Los marcadores serán:</value>
+  </data>
+  <data name="Bookmarks_HeadingLevels" xml:space="preserve">
+    <value>Títulos</value>
+  </data>
+  <data name="Bookmarks_AllLevels" xml:space="preserve">
+    <value>Todos los niveles</value>
+  </data>
+  <data name="Bookmarks_Level1" xml:space="preserve">
+    <value>Solo el nivel 1</value>
+  </data>
+  <data name="Bookmarks_Levels2" xml:space="preserve">
+    <value>Niveles 1 y 2</value>
+  </data>
+  <data name="Bookmarks_Levels3" xml:space="preserve">
+    <value>Niveles 1 a 3</value>
+  </data>
+  <data name="Bookmarks_ExistingCount_One" xml:space="preserve">
+    <value>El documento tiene 1 marcador</value>
+  </data>
+  <data name="Bookmarks_ExistingCount_Many" xml:space="preserve">
+    <value>El documento tiene {0} marcadores</value>
+  </data>
+  <data name="Bookmarks_ReplaceThem" xml:space="preserve">
+    <value>Reemplazarlos</value>
+  </data>
+  <data name="Bookmarks_AddAfterThem" xml:space="preserve">
+    <value>Conservarlos y agregar estos después</value>
+  </data>
+  <data name="Bookmarks_MakeButton" xml:space="preserve">
+    <value>Crear marcadores</value>
+  </data>
+  <data name="Bookmarks_PreviewName" xml:space="preserve">
+    <value>Marcadores que se crearán</value>
+  </data>
+  <data name="Bookmarks_PreviewLine" xml:space="preserve">
+    <value>{0}  (página {1})</value>
+    <comment>A bookmark in the preview: {0} its title, {1} its page's label</comment>
+  </data>
+  <data name="Bookmarks_PreviewNone" xml:space="preserve">
+    <value>Ningún título en estos niveles.</value>
+  </data>
+  <data name="Bookmarks_EditFromHeadings_One" xml:space="preserve">
+    <value>Crear 1 marcador a partir de un título</value>
+    <comment>Edit name; {0} is the count</comment>
+  </data>
+  <data name="Bookmarks_EditFromHeadings_Many" xml:space="preserve">
+    <value>Crear {0} marcadores a partir de títulos</value>
+    <comment>Edit name; {0} is the count</comment>
+  </data>
+  <data name="Tab_BookmarksFromHeadingsTip" xml:space="preserve">
+    <value>Crea marcadores a partir de los títulos del documento</value>
+  </data>
+  <data name="Cmd_ResizePages" xml:space="preserve">
+    <value>Cambiar el tama_ño de las páginas…</value>
+  </data>
+  <data name="Organize_ResizeTitle" xml:space="preserve">
+    <value>Cambiar el tamaño de las páginas</value>
+  </data>
+  <data name="Organize_ResizeButton" xml:space="preserve">
+    <value>Cambiar tamaño</value>
+  </data>
+  <data name="Organize_ResizeCustom" xml:space="preserve">
+    <value>Tamaño personalizado</value>
+  </data>
+  <data name="Organize_ResizeWidth" xml:space="preserve">
+    <value>Ancho</value>
+  </data>
+  <data name="Organize_ResizeHeight" xml:space="preserve">
+    <value>Alto</value>
+  </data>
+  <data name="Organize_ResizeContent" xml:space="preserve">
+    <value>El contenido</value>
+  </data>
+  <data name="Organize_ResizeScale" xml:space="preserve">
+    <value>Ajustarlo al papel</value>
+  </data>
+  <data name="Organize_ResizeMargins" xml:space="preserve">
+    <value>Mantener su tamaño y agregar márgenes (se reduce solo si no cabe)</value>
+  </data>
+  <data name="Organize_ResizeNote" xml:space="preserve">
+    <value>Una página horizontal recibe el papel de lado. Los comentarios y los campos de formulario se mueven con el contenido.</value>
+  </data>
+  <data name="Organize_ResizeEnterSize" xml:space="preserve">
+    <value>Escribe un ancho y un alto entre 1 y 200 pulgadas (25 y 5080 mm).</value>
+  </data>
+  <data name="Organize_EditResize_One" xml:space="preserve">
+    <value>Cambiar el tamaño de 1 página</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_EditResize_Many" xml:space="preserve">
+    <value>Cambiar el tamaño de {0} páginas</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Cmd_ReplacePages" xml:space="preserve">
+    <value>Reemplazar pá_ginas…</value>
+  </data>
+  <data name="Organize_ReplacePick" xml:space="preserve">
+    <value>Elige el PDF con las páginas nuevas</value>
+  </data>
+  <data name="Organize_ReplaceTitle" xml:space="preserve">
+    <value>Reemplazar páginas</value>
+  </data>
+  <data name="Organize_ReplaceButton" xml:space="preserve">
+    <value>Reemplazar</value>
+  </data>
+  <data name="Organize_ReplaceFrom_One" xml:space="preserve">
+    <value>{1} tiene 1 página.</value>
+    <comment>{1} is the other PDF's name</comment>
+  </data>
+  <data name="Organize_ReplaceFrom_Many" xml:space="preserve">
+    <value>{1} tiene {0} páginas.</value>
+    <comment>{0} is its page count, {1} the other PDF's name</comment>
+  </data>
+  <data name="Organize_ReplaceThese" xml:space="preserve">
+    <value>Reemplazar estas páginas</value>
+  </data>
+  <data name="Organize_ReplaceWith" xml:space="preserve">
+    <value>Por estas páginas del otro PDF</value>
+  </data>
+  <data name="Organize_ReplaceNote" xml:space="preserve">
+    <value>Los marcadores y los vínculos que llevaban a una página reemplazada llevan a la página que ocupa su lugar.</value>
+  </data>
+  <data name="Organize_ReplaceCountsDiffer" xml:space="preserve">
+    <value>{0} páginas para reemplazar pero {1} para poner: elige la misma cantidad de cada una.</value>
+  </data>
+  <data name="Organize_EditReplace_One" xml:space="preserve">
+    <value>Reemplazar 1 página por {1}</value>
+    <comment>Edit name; {1} is the other PDF's name</comment>
+  </data>
+  <data name="Organize_EditReplace_Many" xml:space="preserve">
+    <value>Reemplazar {0} páginas por {1}</value>
+    <comment>Edit name; {0} is the page count, {1} the other PDF's name</comment>
+  </data>
+  <data name="Cmd_EditPageLabels" xml:space="preserve">
+    <value>Etiquetas de _página…</value>
+  </data>
+  <data name="Organize_LabelsTitle" xml:space="preserve">
+    <value>Etiquetas de página</value>
+  </data>
+  <data name="Organize_LabelsNote" xml:space="preserve">
+    <value>La etiqueta de una página es lo que muestran para ella el cuadro de página, las miniaturas e Ir a la página, como i, ii para un prólogo y luego 1, 2.</value>
+  </data>
+  <data name="Organize_LabelsNumbering" xml:space="preserve">
+    <value>Numeración</value>
+  </data>
+  <data name="Organize_LabelsNone" xml:space="preserve">
+    <value>Sin número (solo el prefijo)</value>
+  </data>
+  <data name="Organize_LabelsPrefix" xml:space="preserve">
+    <value>Prefijo</value>
+  </data>
+  <data name="Organize_LabelsStart" xml:space="preserve">
+    <value>Empezar en</value>
+  </data>
+  <data name="Organize_LabelsRestart" xml:space="preserve">
+    <value>Numerar las páginas siguientes 1, 2, 3…</value>
+  </data>
+  <data name="Organize_LabelsPreview" xml:space="preserve">
+    <value>Estas páginas mostrarán: {0}</value>
+  </data>
+  <data name="Organize_LabelsPlain" xml:space="preserve">
+    <value>Usar números simples</value>
+  </data>
+  <data name="Organize_LabelsEnterStart" xml:space="preserve">
+    <value>Escribe el primer número, de 1 a {0}.</value>
+  </data>
+  <data name="Organize_EditLabels" xml:space="preserve">
+    <value>Establecer etiquetas de página</value>
+    <comment>Edit name</comment>
+  </data>
+  <data name="Organize_EditLabelsRemove" xml:space="preserve">
+    <value>Quitar etiquetas de página</value>
+    <comment>Edit name</comment>
+  </data>
+  <data name="Organize_PagesUnreadableTitle" xml:space="preserve">
+    <value>No se pudieron leer las páginas</value>
+  </data>
+  <data name="Organize_PagesUnreadableBody" xml:space="preserve">
+    <value>Algo en este documento impidió que Inkvolt PDF leyera sus páginas. No se cambió nada.</value>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>
     <comment>Dialog title</comment>

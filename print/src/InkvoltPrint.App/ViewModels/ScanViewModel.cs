@@ -98,6 +98,8 @@ public sealed partial class ScanViewModel : ObservableObject
         SplitMode = SplitChoices.FirstOrDefault(o => (int)o.Value == state.ScanSplitAt) ?? SplitChoices[0];
         KeepSeparators = _batchKeep = state.ScanKeepSeparators;
         FindPhotos = state.ScanFindPhotos;
+        TurnUpright = state.ScanUpright;
+        TurnStack = state.ScanTurnStack;
         EditedPhotos.CollectionChanged += (_, _) =>
         {
             OnPropertyChanged(nameof(PhotoStatus));
@@ -161,7 +163,29 @@ public sealed partial class ScanViewModel : ObservableObject
     {
         RefreshPageSizes(_state.ScanPageSize ?? PageSize?.Value.Key ?? (RegionInfo.CurrentRegion.IsMetric ? "a4" : "letter"));
         RefreshColors();
+        OnPropertyChanged(nameof(OffersTurnStack));
     }
+
+    /// <summary>Pages lying sideways or upside down are turned upright (<see cref="PageUpright"/>); Undo turns them back.</summary>
+    [ObservableProperty] public partial bool TurnUpright { get; set; }
+
+    partial void OnTurnUprightChanged(bool value)
+    {
+        _state.ScanUpright = value;
+        _state.Save();
+    }
+
+    /// <summary>The feeder scans one side: both sides by turning the stack over for the backs (<see cref="TurnedStack"/>).</summary>
+    [ObservableProperty] public partial bool TurnStack { get; set; }
+
+    partial void OnTurnStackChanged(bool value)
+    {
+        _state.ScanTurnStack = value;
+        _state.Save();
+    }
+
+    /// <summary>The feeder is chosen and scans one side only: the tab offers <see cref="TurnStack"/>.</summary>
+    public bool OffersTurnStack => ScanChoices.OffersTurnStack(_caps, Source?.Value ?? ScanSource.Platen);
 
     /// <summary>The color modes the current source offers (black and white where it does), the remembered one chosen as it allows.</summary>
     [ObservableProperty] public partial IReadOnlyList<Option<ScanColor>> ColorModes { get; set; } = [];
@@ -254,7 +278,8 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand))]
+    [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand), nameof(SwapBacksCommand))]
+    [NotifyPropertyChangedFor(nameof(CanSwapBacks))]
     public partial bool IsBusy { get; set; }
 
     /// <summary>The review's changes, newest first, so Undo (Ctrl+Z) puts each one back: a deleted page is a scan to redo otherwise.</summary>
@@ -683,15 +708,20 @@ public sealed partial class ScanViewModel : ObservableObject
     private bool CanSave(string? format) => !IsBusy && Pages.Any(p => !p.IsSkipped && !p.IsSeparator);
 
     /// <summary>What one scan uses: the tab's settings, or a preset's matched to this scanner.</summary>
+    /// <param name="Upright">Turn pages lying sideways or upside down upright.</param>
+    /// <param name="TurnStack">A one-sided feeder's fronts, then the stack turned over for the backs.</param>
+    /// <param name="OneBit">Save the pages in a PDF in black and white (1 bit).</param>
     private sealed record ScanJob(ScanRequest Request, bool Ocr, bool SkipBlank, bool Straighten, IReadOnlyList<string> Notes,
-        SplitAt Split = SplitAt.None, bool KeepSeparators = false, bool FindPhotos = false, PageFilters Cleanup = PageFilters.None, string? OcrLanguage = null);
+        SplitAt Split = SplitAt.None, bool KeepSeparators = false, bool FindPhotos = false, PageFilters Cleanup = PageFilters.None, string? OcrLanguage = null,
+        bool Upright = false, bool TurnStack = false, bool OneBit = false);
 
     private ScanJob TabJob()
     {
         var area = PageSize?.Value;
         var request = new ScanRequest(Source?.Value ?? ScanSource.Platen, ColorMode?.Value ?? ScanColor.Color, Resolution?.Value ?? 300,
             Width: area?.Width, Height: area?.Height);
-        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos, TabCleanup, OcrLanguage?.Value);
+        return new(request, UseOcr, SkipBlank, Straighten, [], SplitMode?.Value ?? SplitAt.None, KeepSeparators, FindPhotos, TabCleanup, OcrLanguage?.Value,
+            TurnUpright, OffersTurnStack && TurnStack, ScanChoices.SavesOneBit(request.Color));
     }
 
     /// <summary>
@@ -718,6 +748,7 @@ public sealed partial class ScanViewModel : ObservableObject
         IsBusy = true;
         IsScanning = true;
         LastSavedPath = null;
+        Stack = null; // "Backs in the other order" is for the last turned stack only
         _scanCts = new CancellationTokenSource();
         var added = new List<ScanPageViewModel>();
         var checks = new List<Task>();
@@ -729,7 +760,11 @@ public sealed partial class ScanViewModel : ObservableObject
             var dpi = request.Resolution;
             _batchKeep = job.KeepSeparators;
             var findPhotos = job.FindPhotos && request.Source == ScanSource.Platen; // photos lie on the glass, not in the feeder
-            _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: findPhotos); // what made-up scanners then hold
+            var turnStack = job.TurnStack && ScanChoices.OffersTurnStack(_caps, request.Source);
+            // Which way up is told by Latin-like letters only: a page in Hebrew, Arabic or Chinese isn't turned.
+            var upright = job.Upright && PageUpright.SuitsLanguage(job.OcrLanguage ?? WindowsOcr.DefaultLanguage);
+            // What made-up scanners then hold.
+            _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: findPhotos, turnedStack: turnStack ? PcEnvironment.StackSide.Fronts : null);
             if (_client is Core.Wia.WiaScanner { Info.CancelsPage: true } wia2)
             {
                 // A WIA 2.0 driver says how far each page is (on the scanner's thread: shown on this one).
@@ -739,18 +774,65 @@ public sealed partial class ScanViewModel : ObservableObject
                     if (IsScanning) Message = string.Format(Strings.Scan_PageProgress, Pages.Count + 1, percent);
                 }, null);
             }
-            await foreach (var jpeg in _client.ScanAsync(request, _scanCts.Token))
+            async Task Pass(List<ScanPageViewModel> into)
             {
-                var page = new ScanPageViewModel(jpeg, dpi, job.Ocr, job.OcrLanguage);
-                page.PropertyChanged += PageChanged;
-                Pages.Add(page);
-                added.Add(page);
-                checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup)); // while the next page scans
-                Message = string.Format(Strings.Scan_ScannedPage, Pages.Count);
+                await foreach (var jpeg in _client.ScanAsync(request, _scanCts!.Token))
+                {
+                    var page = new ScanPageViewModel(jpeg, dpi, job.Ocr, job.OcrLanguage) { OneBit = job.OneBit };
+                    page.PropertyChanged += PageChanged;
+                    Pages.Add(page);
+                    added.Add(page);
+                    into.Add(page);
+                    checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup, upright)); // while the next page scans
+                    Message = string.Format(Strings.Scan_ScannedPage, Pages.Count);
+                }
+            }
+            var fronts = new List<ScanPageViewModel>();
+            await Pass(fronts);
+
+            // Both sides on a one-sided feeder: the backs once the stack is turned over, then every page in its place.
+            string stackNote = "";
+            if (turnStack && fronts.Count > 0)
+            {
+                Message = Plural.Of(fronts.Count, Strings.Scan_FrontsDone_One, Strings.Scan_FrontsDone_Many);
+                Prompt.Announce(Message);
+                var backs = new List<ScanPageViewModel>();
+                if (!Prompt.Ask(Plural.Of(fronts.Count, Strings.Scan_TurnStackQuestion_One, Strings.Scan_TurnStackQuestion_Many), Strings.Scan_ScanTheBacks))
+                    stackNote = Strings.Scan_FrontsOnly;
+                else
+                {
+                    _pc.PrepareScan(feederBatch: job.Split != SplitAt.None, photosOnGlass: false, turnedStack: PcEnvironment.StackSide.Backs);
+                    Message = Strings.Scan_ScanningBacks;
+                    try
+                    {
+                        await Pass(backs);
+                    }
+                    catch (ScanException ex)
+                    {
+                        // The fronts are kept: what went wrong with the backs is said, and they can be scanned again by hand.
+                        stackNote = string.Format(Strings.Scan_BacksFailed, ex.Message);
+                    }
+                    catch (OperationCanceledException) when (_scanCts!.IsCancellationRequested)
+                    {
+                        // Stopped part-way: the backs scanned so far are put in order like any others, and that is said.
+                        stackNote = Strings.Scan_BacksStopped;
+                    }
+                    await Task.WhenAll(checks);
+                    if (backs.Count > 0)
+                    {
+                        PutStackInOrder(fronts, backs); // with each separator sheet's other side
+                        added = [.. Pages.Where(added.Contains)];
+                    }
+                    var counts = fronts.Count == backs.Count ? Strings.Scan_StackInOrder
+                        : backs.Count == 0 ? Plural.Of(fronts.Count, Strings.Scan_NoBacks_One, Strings.Scan_NoBacks_Many)
+                        : string.Format(Strings.Scan_StackCountsDiffer, fronts.Count, backs.Count);
+                    stackNote = stackNote.Length == 0 ? counts : backs.Count > 0 && fronts.Count != backs.Count ? stackNote + " " + counts : stackNote;
+                }
             }
             await Task.WhenAll(checks);
             if (request.Source == ScanSource.AdfDuplex) SeparatorBacks(added);
             RefreshFiles();
+            var turned = RecordUpright(added);
             var blank = added.Count(p => p.IsSkipped);
             var straightened = added.Count(p => p.Edits.Deskew != 0);
             var separators = added.Count(p => p.IsSeparator);
@@ -759,14 +841,16 @@ public sealed partial class ScanViewModel : ObservableObject
             var cleaned = RecordCleanup(added, job.Cleanup);
             var notes = string.Join(" ", new List<string>
             {
+                stackNote,
                 !findPhotos ? "" : photos == 0 ? Strings.Scan_NoPhotosFound
                     : Plural.Of(photos, Strings.Scan_PhotosFoundSaved_One, Strings.Scan_PhotosFoundSaved_Many),
                 separators == 0 ? job.Split == SplitAt.None ? "" : Strings.Scan_NoSeparatorsFound
                     : Plural.Of(separators, Strings.Scan_SeparatorsFound_One, Strings.Scan_SeparatorsFound_Many, Plural.Of(files, Strings.Scan_Files_One, Strings.Scan_Files_Many)),
                 blank == 0 ? "" : Plural.Of(blank, Strings.Scan_BlankLeftOutNote_One, Strings.Scan_BlankLeftOutNote_Many),
+                turned == 0 ? "" : Plural.Of(turned, Strings.Scan_TurnedUpright_One, Strings.Scan_TurnedUpright_Many),
                 straightened == 0 ? "" : Plural.Of(straightened, Strings.Scan_Straightened_One, Strings.Scan_Straightened_Many),
                 cleaned,
-                request.Source == ScanSource.AdfDuplex && job.Split is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage
+                (request.Source == ScanSource.AdfDuplex || Stack is not null) && job.Split is SplitAt.BlankPage or SplitAt.PatchCodeOrBlankPage
                     ? Strings.Scan_DuplexBlankNote : "",
                 PdfNote(added, request),
             }.Concat(job.Notes).Where(n => n.Length > 0));
@@ -824,18 +908,153 @@ public sealed partial class ScanViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Pages the scan turned upright (<see cref="PageUpright"/>) are one step back with Undo, however many: each turned back as
+    /// the scanner sent it. Returns how many were turned.
+    /// </summary>
+    private int RecordUpright(List<ScanPageViewModel> added)
+    {
+        var turned = added.Where(p => p.TurnedUpright).ToList();
+        if (turned.Count > 0)
+            History.Record(turned.Count == 1 ? string.Format(Strings.Scan_UndoUpright_One, turned[0].Number) : string.Format(Strings.Scan_UndoUpright_Many, turned.Count), () =>
+            {
+                foreach (var page in turned) page.Edits = page.Edits with { QuarterTurns = 0 };
+            });
+        return turned.Count;
+    }
+
+    /// <summary>
+    /// The last turned stack's fronts and backs as scanned, whether its backs are now in last-sheet-first order, and the pages
+    /// that order made the other side of a separator sheet (<see cref="MarkSheetBacks"/>).
+    /// </summary>
+    private sealed class StackScan(List<ScanPageViewModel> fronts, List<ScanPageViewModel> backs)
+    {
+        public List<ScanPageViewModel> Fronts { get; } = fronts;
+        public List<ScanPageViewModel> Backs { get; } = backs;
+        public bool Reversed { get; set; } = TurnedStack.BacksReversed;
+        public List<SheetBackMark> Marks { get; set; } = [];
+
+        /// <summary>The pages in the order <paramref name="reversed"/> says, in the places they hold in <paramref name="pages"/>, each separator sheet's other side marked again.</summary>
+        public void Pair(IReadOnlyList<ScanPageViewModel> pages, bool reversed, Action<IReadOnlyList<ScanPageViewModel>> reorder)
+        {
+            Unmark(Marks);
+            reorder(TurnedStack.Rearrange(pages, Fronts, Backs, reversed));
+            Reversed = reversed;
+            Marks = MarkSheetBacks(Fronts, Backs, reversed);
+        }
+    }
+
+    /// <summary>A page made the other side of a separator sheet, with what it was before, to put back when the pairing changes.</summary>
+    private sealed record SheetBackMark(ScanPageViewModel Page, SeparatorFound Separator, PageEdits Edits, bool Skipped);
+
+    /// <summary>The last scan's turned stack, while its backs can be put the other way (until the next scan or Clear).</summary>
+    private StackScan? Stack
+    {
+        get => _stack;
+        set
+        {
+            _stack = value;
+            OnPropertyChanged(nameof(CanSwapBacks));
+            SwapBacksCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private StackScan? _stack;
+
+    /// <summary>The review offers "Backs in the other order" (a scanner whose output tray reverses the stack).</summary>
+    public bool CanSwapBacks => _stack is not null && !IsBusy;
+
+    /// <summary>A turned stack's fronts and backs put in page order (backs last sheet first); Undo puts them back as scanned.</summary>
+    private void PutStackInOrder(List<ScanPageViewModel> fronts, List<ScanPageViewModel> backs)
+    {
+        var stack = new StackScan(fronts, backs);
+        stack.Pair(Pages.ToList(), TurnedStack.BacksReversed, Reorder);
+        Stack = stack;
+        History.Record(Strings.Scan_UndoStackOrder, () =>
+        {
+            Unmark(stack.Marks);
+            stack.Marks = [];
+            Reorder(TurnedStack.InPlaces(Pages.ToList(), fronts.Concat(backs)));
+            if (_stack == stack) Stack = null;
+        });
+    }
+
+    /// <summary>The backs matched the other way round: first sheet first, or back to last sheet first.</summary>
+    [RelayCommand(CanExecute = nameof(CanSwapBacks))]
+    private void SwapBacks()
+    {
+        if (_stack is not { } stack || IsBusy) return;
+        CancelCrop();
+        CancelPhotos();
+        CancelClean();
+        var before = Pages.ToList();
+        var was = stack.Reversed;
+        // The sheets pair differently now: each separator sheet's other side is found again on the new pairing (the old marks put back).
+        stack.Pair(Pages.ToList(), !was, Reorder);
+        History.Record(Strings.Scan_UndoSwapBacks, () =>
+        {
+            stack.Pair(Pages.ToList(), was, Reorder);
+            Reorder(TurnedStack.InPlaces(Pages.ToList(), before));
+            Stack = stack;
+        });
+        Message = was ? Strings.Scan_BacksFirstSheetFirst : Strings.Scan_BacksLastSheetFirst;
+        Prompt.Announce(Message);
+    }
+
+    /// <summary>
+    /// A turned stack's separator sheets: the other side of each, on the sheets as <paramref name="reversed"/> pairs them
+    /// (<see cref="TurnedStack.SeparatorBacks"/>), is part of the sheet, as in a two-sided scan. Returns what was changed, to put back.
+    /// </summary>
+    private static List<SheetBackMark> MarkSheetBacks(List<ScanPageViewModel> fronts, List<ScanPageViewModel> backs, bool reversed)
+    {
+        var all = fronts.Concat(backs).ToList();
+        var marks = new List<SheetBackMark>();
+        foreach (var page in TurnedStack.SeparatorBacks(fronts.Count, backs.Count, reversed, [.. all.Select(p => p.Separator.IsSheet)], [.. all.Select(p => p.LooksBlank)])
+                     .Select(i => all[i]).Where(p => !p.IsSeparator))
+        {
+            marks.Add(new(page, page.Separator, page.Edits, page.IsSkipped));
+            MarkSheetBack(page);
+        }
+        return marks;
+    }
+
+    /// <summary>Pages marked by <see cref="MarkSheetBacks"/> as they were before (the marks of a pairing given up).</summary>
+    private static void Unmark(IEnumerable<SheetBackMark> marks)
+    {
+        foreach (var m in marks)
+        {
+            m.Page.Separator = m.Separator;
+            m.Page.Edits = m.Edits;
+            m.Page.IsSkipped = m.Skipped;
+        }
+    }
+
+    private static void MarkSheetBack(ScanPageViewModel back)
+    {
+        back.IsSkipped = false;
+        back.Separator = new SeparatorFound(SeparatorKind.SheetBack);
+        back.Edits = PageEdits.None; // not straightened: it isn't saved (unless separators are kept)
+    }
+
+    /// <summary>The pages moved into <paramref name="order"/> (the same pages), one move each that's out of place.</summary>
+    private void Reorder(IReadOnlyList<ScanPageViewModel> order)
+    {
+        for (var i = 0; i < order.Count && i < Pages.Count; i++)
+        {
+            var from = Pages.IndexOf(order[i]);
+            if (from > i) Pages.Move(from, i);
+        }
+        _dirty = Pages.Count > 0;
+        OnPropertyChanged(nameof(HasUnsavedPages));
+    }
+
+    /// <summary>
     /// Two-sided scans: the other side of a patch code (or PATCHT code) sheet is part of the sheet (<see cref="BatchSplit.DuplexSeparatorBacks"/>),
     /// so it neither starts the next file nor ends up in it.
     /// </summary>
     private static void SeparatorBacks(List<ScanPageViewModel> added)
     {
         var backs = BatchSplit.DuplexSeparatorBacks([.. added.Select(p => p.Separator.IsSheet)], [.. added.Select(p => p.LooksBlank)]);
-        foreach (var back in backs.Select(i => added[i]).Where(p => !p.IsSeparator))
-        {
-            back.IsSkipped = false;
-            back.Separator = new SeparatorFound(SeparatorKind.SheetBack);
-            back.Edits = PageEdits.None; // not straightened: it isn't saved (unless separators are kept)
-        }
+        foreach (var back in backs.Select(i => added[i]).Where(p => !p.IsSeparator)) MarkSheetBack(back);
     }
 
     [RelayCommand]
@@ -1153,7 +1372,8 @@ public sealed partial class ScanViewModel : ObservableObject
         CancelClean();
         foreach (var (jpeg, kept) in pages)
         {
-            var page = new ScanPageViewModel(jpeg, kept.Dpi, kept.Ocr, kept.OcrLanguage) { Edits = kept.Edits, IsSkipped = kept.Skipped, StartsFile = kept.StartsFile, IsAnalysed = true };
+            var page = new ScanPageViewModel(jpeg, kept.Dpi, kept.Ocr, kept.OcrLanguage)
+                { OneBit = kept.OneBit, Edits = kept.Edits, IsSkipped = kept.Skipped, StartsFile = kept.StartsFile, IsAnalysed = true };
             page.PropertyChanged += PageChanged;
             Pages.Add(page);
         }
@@ -1170,6 +1390,7 @@ public sealed partial class ScanViewModel : ObservableObject
         foreach (var page in Pages) page.PropertyChanged -= PageChanged;
         Pages.Clear();
         History.Clear(); // the question before it was the safeguard
+        Stack = null;
         Message = null;
         LastSavedPath = null;
         ActivePreset = null;
@@ -1283,7 +1504,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>What <see cref="ScannerPdf.KeepAsSent"/> needs to know of a file's pages: where each came from, and whether it changed.</summary>
     private static List<PageToSave> ToSave(List<ScanPageViewModel> file) =>
-        [.. file.Select(p => new PageToSave(p.FromPdf, p.IsEdited || p.HasPhotos || p.Ocr))];
+        [.. file.Select(p => new PageToSave(p.FromPdf, p.IsEdited || p.HasPhotos || p.Ocr || p.OneBit))];
 
     /// <summary>After a PDF save from a scanner that sends PDF: whether the files are its own PDF, and if not, why.</summary>
     private static string AsSentNote(List<List<ScanPageViewModel>> files)
@@ -1305,7 +1526,10 @@ public sealed partial class ScanViewModel : ObservableObject
             : glass ? Strings.Scan_PdfNoteExtractedGlass : Strings.Scan_PdfNoteExtractedFeeder;
     }
 
-    /// <summary>The PDF's pages: each page with its text layer, or for a scan of photos on the glass, each photo (no text).</summary>
+    /// <summary>
+    /// The PDF's pages: each page with its text layer, in black and white when it was scanned for a smaller file (or in black and
+    /// white), or for a scan of photos on the glass, each photo (no text, in color).
+    /// </summary>
     private async Task<List<PdfPage>> PdfPagesAsync(List<ScanPageViewModel> kept)
     {
         if (kept.Any(p => !p.HasPhotos && !p.OcrAsync().IsCompleted)) Message = Strings.Scan_FinishingOcr;
@@ -1313,6 +1537,7 @@ public sealed partial class ScanViewModel : ObservableObject
         foreach (var p in kept)
         {
             if (p.HasPhotos) pages.AddRange((await p.ImagesAsync()).Select(jpeg => new PdfPage(jpeg, p.Dpi)));
+            else if (p.OneBit) pages.Add(PdfPage.BlackAndWhite(await p.BitsAsync(), p.Dpi, await p.OcrAsync()));
             else pages.Add(new PdfPage(await p.JpegAsync(), p.Dpi, await p.OcrAsync()));
         }
         return pages;
@@ -1409,11 +1634,13 @@ public sealed partial class ScanViewModel : ObservableObject
                 Log.Write($"Feeder check before a preset scan failed (scanning from the glass): {ex.Message}");
             }
         }
-        var plan = PresetPlan.For(preset, _caps, loaded, OcrAvailable, RegionInfo.CurrentRegion.IsMetric);
+        var plan = PresetPlan.For(preset, _caps, loaded, OcrAvailable, RegionInfo.CurrentRegion.IsMetric, turnsStacks: true);
         var r = plan.Request;
-        Log.Write($"Preset scan: {r.Source}, {r.Color}, {r.Resolution} dpi, area {(r.Width is null ? "whole" : $"{r.Width}x{r.Height}")}, feeder loaded {loaded?.ToString() ?? "unknown"}");
+        Log.Write($"Preset scan: {r.Source}, {r.Color}, {r.Resolution} dpi, area {(r.Width is null ? "whole" : $"{r.Width}x{r.Height}")}, feeder loaded {loaded?.ToString() ?? "unknown"}" +
+                  $"{(plan.TurnStack ? ", turned stack" : "")}{(plan.OneBit ? ", 1-bit PDF" : "")}");
         _presetNotes = plan.Notes;
-        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators, preset.FindPhotos, preset.Cleanup, preset.OcrLanguage);
+        return new(plan.Request, plan.Ocr, preset.SkipBlank, preset.Straighten, plan.Notes, preset.SplitAt, preset.KeepSeparators, preset.FindPhotos, preset.Cleanup, preset.OcrLanguage,
+            preset.TurnUpright, plan.TurnStack, plan.OneBit);
     }
 
     /// <summary>One click: scan with the preset, then save it to its folder (unless it stops on the review first).</summary>
@@ -1734,6 +1961,15 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// <summary>What the page's look was before the scan's settings cleaned it up; null when they didn't.</summary>
     public PageEdits? BeforeCleanup { get; private set; }
 
+    /// <summary>Saved in a PDF in black and white (1 bit, <see cref="Bilevel"/>): scanned for a smaller file, or in black and white.</summary>
+    public bool OneBit { get; init; }
+
+    /// <summary>The quarter turns the scan's check gave the page to stand it upright (<see cref="PageUpright"/>); 0 when none.</summary>
+    public int UprightTurns { get; private set; }
+
+    /// <summary>Still turned as the check turned it (not turned back by hand or by Undo).</summary>
+    public bool TurnedUpright => Edits.TurnedUprightBy(UprightTurns);
+
     /// <summary>A save was cancelled: what's being encoded stops, and the next save starts it again.</summary>
     public void CancelWork()
     {
@@ -1896,6 +2132,7 @@ public sealed partial class ScanPageViewModel : ObservableObject
             : Plural.Of(Photos!.Count, Strings.Scan_Photos_One, Strings.Scan_Photos_Many)
         : FindsPhotos ? Strings.Scan_NoteNoPhotos
         : Edits.Filters != PageFilters.None ? Capitalized(PageCleanup.Describe(Edits.Filters))
+        : TurnedUpright && Edits.Crop is null ? Strings.Scan_NoteTurnedUpright
         : Edits.Deskew != 0 && Edits.Crop is null && Edits.QuarterTurns % 4 == 0 ? Strings.Scan_NoteStraightened : IsEdited ? Strings.Scan_NoteEdited : "";
 
     private static string Capitalized(string text) => text.Length == 0 ? text : char.ToUpperInvariant(text[0]) + text[1..];
@@ -1911,6 +2148,23 @@ public sealed partial class ScanPageViewModel : ObservableObject
         var (original, dpi, cancel) = (Original, Dpi, _work.Token);
         var task = Task.Run(() => ScanImaging.Jpeg(ScanImaging.Render(original, edits, 0, dpi, cancel)), cancel);
         _jpeg = (edits, task);
+        return task;
+    }
+
+    private (PageEdits Edits, Task<BitImage> Bits)? _bits;
+
+    /// <summary>The page as saved in black and white: the scanner's page with its edits, decoded once per set of edits, at 1 bit.</summary>
+    public Task<BitImage> BitsAsync()
+    {
+        var edits = Edits.For(_size.Width, _size.Height);
+        if (_bits is { } cached && cached.Edits == edits && !cached.Bits.IsFaulted && !cached.Bits.IsCanceled) return cached.Bits;
+        var (original, dpi, cancel) = (Original, Dpi, _work.Token);
+        var task = Task.Run(() =>
+        {
+            var (gray, width, height) = ScanImaging.Gray(ScanImaging.Render(original, edits, 0, dpi, cancel));
+            return Bilevel.FromScan(gray, width, height, dpi, cancel);
+        }, cancel);
+        _bits = (edits, task);
         return task;
     }
 
@@ -1931,13 +2185,15 @@ public sealed partial class ScanPageViewModel : ObservableObject
     /// </summary>
     /// <param name="findPhotos">A scan of photos on the glass: find them (each is saved by itself), don't straighten the page.</param>
     /// <param name="cleanup">What the scan's settings clean each page up with (a blank page or separator stays as it came, a scan of photos gets what suits a print).</param>
-    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None, bool findPhotos = false, PageFilters cleanup = PageFilters.None)
+    /// <param name="upright">Turn the page upright when it lies sideways or upside down and its text says so clearly (<see cref="PageUpright"/>).</param>
+    public async Task AnalyseAsync(bool skipBlank, bool straighten, SplitAt split = SplitAt.None, bool findPhotos = false, PageFilters cleanup = PageFilters.None,
+        bool upright = false)
     {
         try
         {
-            if (skipBlank || straighten || split != SplitAt.None || findPhotos || cleanup != PageFilters.None)
+            if (skipBlank || straighten || split != SplitAt.None || findPhotos || cleanup != PageFilters.None || upright)
             {
-                var (blank, angle, separator, looksBlank, photos, searched, crop) = await Task.Run(() =>
+                var (blank, angle, turns, separator, looksBlank, photos, searched, crop) = await Task.Run(() =>
                 {
                     var image = ScanImaging.Analysis(Original);
                     var ppi = image.Width * (double)Dpi / _size.Width;
@@ -1945,16 +2201,22 @@ public sealed partial class ScanPageViewModel : ObservableObject
                     var looksBlank = separator.Kind == SeparatorKind.BlankPage || BlankPage.IsBlank(image);
                     var isBlank = skipBlank && looksBlank && !separator.IsSeparator;
                     var photos = findPhotos && !isBlank && !separator.IsSeparator ? PhotoFinder.Find(image, ppi) : null;
-                    var angle = straighten && !isBlank && !separator.IsSeparator && photos is null ? Deskew.Angle(image) : 0;
-                    var searched = cleanup.HasFlag(PageFilters.CropToPaper) && !isBlank && !looksBlank && !separator.IsSeparator && photos is null;
+                    var mayStraighten = !isBlank && !separator.IsSeparator && photos is null;
+                    var page = mayStraighten && !looksBlank;
+                    var (angle, turns) = PageUpright.Orient(image, ppi, straighten, upright, mayStraighten, hasText: page);
+                    var searched = cleanup.HasFlag(PageFilters.CropToPaper) && page;
                     var crop = searched ? PaperEdge.Find(image, ppi, angle) : null;
-                    return (isBlank, angle, separator, looksBlank, photos, searched, crop);
+                    return (isBlank, angle, turns, separator, looksBlank, photos, searched, crop);
                 });
                 LooksBlank = looksBlank;
                 Separator = separator;
                 IsSkipped = blank;
                 if (photos is not null) Photos = photos;
-                if (angle != 0 && Edits.IsEmpty) Edits = PageEdits.None with { Deskew = angle };
+                if (Edits.Checked(angle, turns) is { } checkedEdits)
+                {
+                    UprightTurns = turns;
+                    Edits = checkedEdits;
+                }
                 NoPaperEdge = Edits.NoPaperEdge(cleanup, searched, crop);
                 // The edge was found on the page straightened by angle: a page edited meanwhile keeps its whole page.
                 if (!looksBlank && !separator.IsSeparator && Edits.CleanedUp(cleanup, photos is { Count: > 0 }, crop, angle) is { } cleaned)

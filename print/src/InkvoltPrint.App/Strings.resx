@@ -2095,7 +2095,7 @@ Details were saved to {1}</value>
     <comment>Where the pages are scanned from: glass or feeder</comment>
   </data>
   <data name="Presets_BothSides" xml:space="preserve">
-    <value>Both sides (two-sided feeder)</value>
+    <value>Both sides</value>
   </data>
   <data name="Presets_PageSize" xml:space="preserve">
     <value>Page size</value>
@@ -4522,5 +4522,125 @@ Start over</value>
   <data name="Scan_PageProgress" xml:space="preserve">
     <value>Scanning page {0}… {1}%</value>
     <comment>{0} = page number, {1} = percent of that page done (from the scanner's driver)</comment>
+  </data>
+  <data name="ScanTab_TurnStack" xml:space="preserve">
+    <value>Both sides: turn the stack over</value>
+    <comment>check box, under the source when the feeder scans one side</comment>
+  </data>
+  <data name="ScanTab_TurnStackHelp" xml:space="preserve">
+    <value>This feeder scans one side: the fronts, then the backs</value>
+  </data>
+  <data name="ScanTab_Upright" xml:space="preserve">
+    <value>Turn pages upright</value>
+    <comment>check box</comment>
+  </data>
+  <data name="ScanTab_UprightHelp" xml:space="preserve">
+    <value>Pages lying sideways or upside down, when their text shows which way is up</value>
+  </data>
+  <data name="ScanTab_SwapBacks" xml:space="preserve">
+    <value>Backs in the other order</value>
+    <comment>link after a two-sided scan on a one-sided feeder</comment>
+  </data>
+  <data name="ScanTab_SwapBacksTip" xml:space="preserve">
+    <value>For a scanner whose output tray reverses the stack: matches the backs to the fronts the other way round. Ctrl+Z puts them back.</value>
+  </data>
+  <data name="Scan_FrontsDone_One" xml:space="preserve">
+    <value>Fronts scanned: {0} page.</value>
+  </data>
+  <data name="Scan_FrontsDone_Many" xml:space="preserve">
+    <value>Fronts scanned: {0} pages.</value>
+  </data>
+  <data name="Scan_TurnStackQuestion_One" xml:space="preserve">
+    <value>The front of {0} sheet is scanned. Take it out of the output tray, turn it over like a page of a book, put it back in the feeder and press Scan the backs.</value>
+    <comment>{0} = sheets scanned (1)</comment>
+  </data>
+  <data name="Scan_TurnStackQuestion_Many" xml:space="preserve">
+    <value>The fronts of {0} sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and press Scan the backs.</value>
+    <comment>{0} = sheets scanned</comment>
+  </data>
+  <data name="Scan_ScanTheBacks" xml:space="preserve">
+    <value>Scan the backs</value>
+    <comment>button</comment>
+  </data>
+  <data name="Scan_ScanningBacks" xml:space="preserve">
+    <value>Scanning the backs…</value>
+  </data>
+  <data name="Scan_FrontsOnly" xml:space="preserve">
+    <value>Only the fronts were scanned.</value>
+  </data>
+  <data name="Scan_BacksFailed" xml:space="preserve">
+    <value>The backs couldn't be scanned: {0} The fronts are kept.</value>
+    <comment>{0} = what the scanner said, a sentence</comment>
+  </data>
+  <data name="Scan_StackCountsDiffer" xml:space="preserve">
+    <value>{0} fronts but {1} backs: a sheet may have gone through twice or been left behind. The backs were matched from the last sheet: check the order and drag any page that's out of place, or press Undo to put the backs after the fronts.</value>
+    <comment>{0} = fronts, {1} = backs</comment>
+  </data>
+  <data name="Scan_StackInOrder" xml:space="preserve">
+    <value>Fronts and backs are in page order.</value>
+  </data>
+  <data name="Scan_TurnedUpright_One" xml:space="preserve">
+    <value>{0} page was turned upright.</value>
+  </data>
+  <data name="Scan_TurnedUpright_Many" xml:space="preserve">
+    <value>{0} pages were turned upright.</value>
+  </data>
+  <data name="Scan_UndoUpright_One" xml:space="preserve">
+    <value>Turn page {0} upright</value>
+    <comment>Undo history entry</comment>
+  </data>
+  <data name="Scan_UndoUpright_Many" xml:space="preserve">
+    <value>Turn {0} pages upright</value>
+    <comment>Undo history entry</comment>
+  </data>
+  <data name="Scan_UndoStackOrder" xml:space="preserve">
+    <value>Put the fronts and backs in order</value>
+    <comment>Undo history entry</comment>
+  </data>
+  <data name="Scan_UndoSwapBacks" xml:space="preserve">
+    <value>Put the backs in the other order</value>
+    <comment>Undo history entry</comment>
+  </data>
+  <data name="Scan_BacksFirstSheetFirst" xml:space="preserve">
+    <value>The backs are now matched from the first sheet. Ctrl+Z puts them back.</value>
+  </data>
+  <data name="Scan_BacksLastSheetFirst" xml:space="preserve">
+    <value>The backs are matched from the last sheet again.</value>
+  </data>
+  <data name="Scan_NoteTurnedUpright" xml:space="preserve">
+    <value>Turned upright</value>
+    <comment>Under a page's thumbnail (the page)</comment>
+  </data>
+  <data name="Presets_TurnStack" xml:space="preserve">
+    <value>On a one-sided feeder, turn the stack over for the backs</value>
+    <comment>check box under Both sides</comment>
+  </data>
+  <data name="Presets_TurnStackHelp" xml:space="preserve">
+    <value>Asks you to turn the stack over after the fronts, then puts the pages in order</value>
+  </data>
+  <data name="Presets_SmallerFile" xml:space="preserve">
+    <value>Smaller file (black and white)</value>
+    <comment>check box</comment>
+  </data>
+  <data name="Presets_SmallerFileHelp" xml:space="preserve">
+    <value>PDF pages in black and white: a page of text takes a tenth of the space or less</value>
+  </data>
+  <data name="Presets_Upright" xml:space="preserve">
+    <value>Turn pages upright</value>
+    <comment>check box</comment>
+  </data>
+  <data name="Presets_UprightHelp" xml:space="preserve">
+    <value>Pages lying sideways or upside down</value>
+  </data>
+  <data name="Scan_NoBacks_One" xml:space="preserve">
+    <value>The feeder sent no backs, so only {0} front is here.</value>
+    <comment>{0} = fronts scanned (1)</comment>
+  </data>
+  <data name="Scan_NoBacks_Many" xml:space="preserve">
+    <value>The feeder sent no backs, so only the {0} fronts are here.</value>
+    <comment>{0} = fronts scanned</comment>
+  </data>
+  <data name="Scan_BacksStopped" xml:space="preserve">
+    <value>Scanning the backs was stopped: the pages scanned are in order.</value>
   </data>
 </root>

@@ -440,6 +440,8 @@ internal sealed class BatchWindow : Window
         Item(Strings.Batch_ItemWatermark, () => PageMarkActions.AskWatermark(this, null) is { } w ? new WatermarkStep(w.Options) : null);
         Item(Strings.Batch_ItemHeaderFooter, () => PageMarkActions.AskHeaderFooter(this, null) is { } h ? new HeaderFooterStep(h.Options, h.ContinueBates) : null);
         Item(Strings.Batch_ItemRotate, () => AskRotate(null));
+        Item(Strings.Batch_ItemRemoveBlank, () => new RemoveBlankPagesStep());
+        Item(Strings.Batch_ItemSplitBlank, () => new SplitAtBlankPagesStep());
         Item(Strings.Batch_ItemFlatten, () => AskFlatten(null));
         var ocr = PageOcr.CanRead;
         Item(Strings.Batch_ItemOcr, () => new OcrStep(), ocr, ocr ? null : PageOcr.Unavailable);
@@ -703,6 +705,10 @@ internal sealed class BatchWindow : Window
                 return Loc.Format(Strings.Batch_LongTermDescribeStamp, stampUrl);
             case AddLongTermStep:
                 return Strings.Batch_LongTermDescribe;
+            case RemoveBlankPagesStep:
+                return Strings.Batch_DescRemoveBlank;
+            case SplitAtBlankPagesStep:
+                return Strings.Batch_DescSplitBlank;
             case OcrStep:
                 return PageOcr.ChosenName is { } name ? Loc.Format(Strings.Batch_DescOcr, name) : PageOcr.Unavailable;
             case ExportStep x:
@@ -1156,6 +1162,8 @@ internal sealed class BatchWindow : Window
             "footer" => new HeaderFooterStep(new HeaderFooterOptions { FooterCenter = rest.Length > 0 ? rest : "Page <<page>> of <<pages>>" }),
             "bates" => new HeaderFooterStep(new HeaderFooterOptions { FooterRight = "<<bates>>", Bates = new BatesFormat(rest.Split(' ')[0], 1, 6) }, rest.Contains("continue")),
             "rotate" => new RotateStep(int.TryParse(rest, out var d) ? d : 90),
+            "removeblank" => new RemoveBlankPagesStep(),
+            "splitblank" => new SplitAtBlankPagesStep(),
             "flatten" => new FlattenStep(new FlattenOptions()),
             "ocr" => new OcrStep(),
             "pdfa" => new SaveAsPdfAStep(),

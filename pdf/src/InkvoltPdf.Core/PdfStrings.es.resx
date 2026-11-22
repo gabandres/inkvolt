@@ -962,6 +962,48 @@
     <value>Girar páginas</value>
     <comment>Batch action name</comment>
   </data>
+  <data name="Batch_StepRemoveBlank" xml:space="preserve">
+    <value>Quitar páginas en blanco</value>
+    <comment>Batch action name</comment>
+  </data>
+  <data name="Batch_StepSplitBlank" xml:space="preserve">
+    <value>Dividir en las páginas en blanco</value>
+    <comment>Batch action name</comment>
+  </data>
+  <data name="Batch_AllBlank" xml:space="preserve">
+    <value>Todas las páginas parecen estar en blanco: se conservaron.</value>
+  </data>
+  <data name="Batch_NoBlank" xml:space="preserve">
+    <value>No se encontró ninguna página en blanco: no se dividió nada.</value>
+  </data>
+  <data name="Batch_BlankRemoved_One" xml:space="preserve">
+    <value>Se quitó 1 página en blanco.</value>
+  </data>
+  <data name="Batch_BlankRemoved_Many" xml:space="preserve">
+    <value>Se quitaron {0} páginas en blanco.</value>
+  </data>
+  <data name="Batch_SplitParts_One" xml:space="preserve">
+    <value>Se guardó 1 parte.</value>
+  </data>
+  <data name="Batch_SplitParts_Many" xml:space="preserve">
+    <value>Se guardaron {0} partes.</value>
+  </data>
+  <data name="Batch_PartName" xml:space="preserve">
+    <value>{0} - parte {1}</value>
+    <comment>File name of a part; {0} is the result's name, {1} the part's number</comment>
+  </data>
+  <data name="Batch_LookingForBlank" xml:space="preserve">
+    <value>Buscando páginas en blanco ({0} de {1})…</value>
+  </data>
+  <data name="Bar_RemoveBlankDesc" xml:space="preserve">
+    <value>Busca las páginas en blanco y elimínalas</value>
+  </data>
+  <data name="Bar_ResizeDesc" xml:space="preserve">
+    <value>Pon las páginas en Carta, A4 u otro tamaño</value>
+  </data>
+  <data name="Bar_ReplaceDesc" xml:space="preserve">
+    <value>Cambia páginas por las de otro PDF</value>
+  </data>
   <data name="Batch_StepFlatten" xml:space="preserve">
     <value>Acoplar</value>
     <comment>Batch action name</comment>
@@ -4990,6 +5032,33 @@
   <data name="Page_NoneSelected" xml:space="preserve">
     <value>No hay páginas seleccionadas.</value>
   </data>
+  <data name="Page_InterleaveEmpty" xml:space="preserve">
+    <value>Elige páginas para los anversos y para los reversos.</value>
+  </data>
+  <data name="Page_InterleaveOverlap" xml:space="preserve">
+    <value>Una página no puede ser anverso y reverso a la vez.</value>
+  </data>
+  <data name="Page_ResizeSize" xml:space="preserve">
+    <value>Un lado del papel debe medir entre {0} y {1} pulgadas.</value>
+  </data>
+  <data name="Page_ReplaceCount" xml:space="preserve">
+    <value>Elige tantas páginas para poner como páginas para reemplazar.</value>
+  </data>
+  <data name="Page_ReplaceTwice" xml:space="preserve">
+    <value>Se indicó dos veces una página para reemplazar: cada una se puede reemplazar una sola vez.</value>
+  </data>
+  <data name="Page_ReplaceSourceTwice" xml:space="preserve">
+    <value>Se indicó dos veces una página del otro PDF: cada una puede ocupar el lugar de una sola página.</value>
+  </data>
+  <data name="Page_LabelPrefix" xml:space="preserve">
+    <value>Un prefijo puede tener hasta {0} caracteres, sin saltos de línea ni tabulaciones.</value>
+  </data>
+  <data name="Page_LabelStart" xml:space="preserve">
+    <value>El primer número debe estar entre 1 y {0}.</value>
+  </data>
+  <data name="Page_LabelEmpty" xml:space="preserve">
+    <value>Elige una numeración o escribe un prefijo.</value>
+  </data>
   <data name="Page_NothingToCombine" xml:space="preserve">
     <value>No hay nada que combinar.</value>
   </data>
@@ -7008,7 +7077,7 @@
     <value>Cambia el texto y las imágenes de la página</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
-  <data name="Bar_ReplaceDesc" xml:space="preserve">
+  <data name="Bar_FindReplaceDesc" xml:space="preserve">
     <value>Cambia una palabra o frase en todas las páginas</value>
   </data>
   <data name="Bar_HeaderFooterDesc" xml:space="preserve">
@@ -7118,6 +7187,12 @@
   <data name="Bar_ScanInsertDesc" xml:space="preserve">
     <value>Páginas escaneadas agregadas a este PDF</value>
     <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Bar_ScanBacksDesc" xml:space="preserve">
+    <value>Escanea los reversos y ponlos tras sus anversos</value>
+  </data>
+  <data name="Bar_InterleaveDesc" xml:space="preserve">
+    <value>Anversos y reversos escaneados aparte, en orden</value>
   </data>
   <data name="Bar_SuspectWordsDesc" xml:space="preserve">
     <value>Revisa las palabras dudosas del OCR</value>

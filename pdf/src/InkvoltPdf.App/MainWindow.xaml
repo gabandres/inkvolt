@@ -131,6 +131,7 @@
                                     <MenuItem Command="app:Cmd.Print" />
                                     <MenuItem Command="app:Cmd.PrintWithOptions" Header="{x:Static loc:Strings.Main_MenuPrintWithOptions}" />
                                     <MenuItem Command="app:Cmd.Scan" />
+                                    <MenuItem Command="app:Cmd.ScanBacks" />
                                     <MenuItem x:Name="InkvoltPrintMenu" Header="{x:Static loc:Strings.Main_MenuPrinterSettings}" Click="OnOpenInkvoltPrint" Visibility="Collapsed" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuExport}">
                                         <MenuItem Command="app:Cmd.ExportWord" Header="{x:Static loc:Strings.Main_MenuExportWord}" />
@@ -222,6 +223,7 @@
                                     <MenuItem x:Name="NavPaneMenu" Command="app:Cmd.NavPane" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuBookmarks}" Click="OnShowBookmarks" />
                                     <MenuItem Command="app:Cmd.AddBookmark" />
+                                    <MenuItem Command="app:Cmd.BookmarksFromHeadings" />
                                     <MenuItem x:Name="ReadAloudMenu" Command="app:Cmd.ReadAloud" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuTheme}">
                                         <MenuItem x:Name="ThemeSystemMenu" Header="{x:Static loc:Strings.Main_MenuThemeWindows}" Click="OnThemeMenu" Tag="System" />
@@ -242,18 +244,25 @@
                                     <Separator />
                                     <MenuItem Command="app:Cmd.InsertPages" />
                                     <MenuItem Command="app:Cmd.InsertBlank" />
+                                    <MenuItem Command="app:Cmd.ReplacePages" />
                                     <MenuItem Command="app:Cmd.InsertFromScanner" />
+                                    <MenuItem Command="app:Cmd.ScanBacks" />
+                                    <MenuItem Command="app:Cmd.InterleavePages" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.DeletePages" />
                                     <MenuItem Command="app:Cmd.DeleteSelected" />
+                                    <MenuItem Command="app:Cmd.RemoveBlankPages" />
                                     <MenuItem Command="app:Cmd.ExtractPages" />
                                     <MenuItem Command="app:Cmd.SplitDocument" />
+                                    <MenuItem Command="app:Cmd.SplitAtBlankPages" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.MovePages" />
                                     <MenuItem Command="app:Cmd.DuplicatePages" />
                                     <MenuItem Command="app:Cmd.ReversePages" />
+                                    <MenuItem Command="app:Cmd.EditPageLabels" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CropPages" />
+                                    <MenuItem Command="app:Cmd.ResizePages" />
                                     <MenuItem Command="app:Cmd.Flatten" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.AddHeaderFooter" />

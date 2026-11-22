@@ -69,6 +69,8 @@ public sealed class BatchAutomationTests : IDisposable
                 Bates = new BatesFormat("CASE-", 100, 7, "-X"),
             }, ContinueBates: true),
             new RotateStep(-90),
+            new RemoveBlankPagesStep(),
+            new SplitAtBlankPagesStep(),
             new FlattenStep(new FlattenOptions { Links = true, PrintableOnly = true }),
             new UnprotectStep(),
             new ExportStep(BatchExportFormat.Jpeg, 300),

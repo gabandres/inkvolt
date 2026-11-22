@@ -719,6 +719,14 @@
                         <TextBlock Text="{x:Static loc:Strings.ScanTab_Source}" Margin="0,0,0,4" Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
                         <ComboBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Source}" ItemsSource="{Binding Sources}" SelectedItem="{Binding Source}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                                   Visibility="{Binding HasSourceChoice, Converter={StaticResource VisibleWhen}}" />
+                        <!-- A feeder that scans one side: both sides by turning the stack over for the backs -->
+                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_TurnStack}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_TurnStackHelp}" IsChecked="{Binding TurnStack}" Margin="0,-4,0,12"
+                                  Visibility="{Binding OffersTurnStack, Converter={StaticResource VisibleWhen}}">
+                            <StackPanel>
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_TurnStack}" TextWrapping="Wrap" />
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_TurnStackHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </CheckBox>
                         <TextBlock Text="{x:Static loc:Strings.ScanTab_PageSize}" Margin="0,0,0,4" />
                         <ComboBox ItemsSource="{Binding PageSizes}" SelectedItem="{Binding PageSize}" Margin="0,0,0,12" HorizontalAlignment="Stretch"
                                   AutomationProperties.Name="{x:Static loc:Strings.ScanTab_PageSize}" />
@@ -747,6 +755,12 @@
                             <StackPanel>
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_Straighten}" />
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_StraightenHelp}" Style="{StaticResource Caption}" FontSize="12" />
+                            </StackPanel>
+                        </CheckBox>
+                        <CheckBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_Upright}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_UprightHelp}" IsChecked="{Binding TurnUpright}" Margin="0,4,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_Upright}" TextWrapping="Wrap" />
+                                <TextBlock Text="{x:Static loc:Strings.ScanTab_UprightHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
                             </StackPanel>
                         </CheckBox>
                         <CheckBox AutomationProperties.Name="{x:Static loc:Strings.ScanTab_SeveralPhotos}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_SeveralPhotosHelp}" IsChecked="{Binding FindPhotos}" Margin="0,4,0,0">
@@ -844,12 +858,19 @@
                             <!-- The links go under a message too long to sit beside them -->
                             <views:HeaderPanel Gap="12">
                                 <TextBlock Text="{Binding Message, NotifyOnTargetUpdated=True}" local:Motion.OnChange="True" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center">
+                                <!-- A turned stack's backs matched the other way round (a scanner whose tray reverses the stack) -->
+                                <Button Content="{x:Static loc:Strings.ScanTab_SwapBacks}" Command="{Binding SwapBacksCommand}" Style="{StaticResource LinkButton}"
+                                        VerticalAlignment="Center" Margin="0,0,16,0" ToolTip="{x:Static loc:Strings.ScanTab_SwapBacksTip}"
+                                        AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_SwapBacksTip}"
+                                        Visibility="{Binding CanSwapBacks, Converter={StaticResource VisibleWhen}}" />
                                 <WrapPanel HorizontalAlignment="Left" VerticalAlignment="Center"
                                            Visibility="{Binding LastSavedPath, Converter={StaticResource VisibleWhen}}">
                                     <Button Content="{x:Static loc:Strings.Common_Open}" Command="{Binding OpenSavedCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
                                     <Button Content="{x:Static loc:Strings.ScanTab_OpenInPdf}" Command="{Binding OpenSavedInInkvoltPdfCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0"
                                             Visibility="{Binding CanOpenSavedInInkvoltPdf, Converter={StaticResource VisibleWhen}}" />
                                     <Button Content="{x:Static loc:Strings.ScanTab_ShowInFolder}" Command="{Binding ShowSavedInFolderCommand}" Style="{StaticResource LinkButton}" />
+                                </WrapPanel>
                                 </WrapPanel>
                             </views:HeaderPanel>
                         </Border>

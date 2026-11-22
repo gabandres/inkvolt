@@ -108,6 +108,8 @@
                                     ToolTip="{x:Static loc:Strings.Tab_ExpandAll}" AutomationProperties.Name="{x:Static loc:Strings.Tab_ExpandAllBookmarks}" />
                             <Button x:Name="BookmarkCollapseButton" Style="{StaticResource IconButton}" Content="&#xE70E;" FontSize="14"
                                     ToolTip="{x:Static loc:Strings.Tab_CollapseAll}" AutomationProperties.Name="{x:Static loc:Strings.Tab_CollapseAllBookmarks}" />
+                            <Button Style="{StaticResource IconButton}" Command="app:Cmd.BookmarksFromHeadings" Content="&#xE8FD;" FontSize="14"
+                                    ToolTip="{x:Static loc:Strings.Tab_BookmarksFromHeadingsTip}" AutomationProperties.Name="{x:Static loc:Strings.Bookmarks_FromHeadingsTitle}" />
                         </StackPanel>
                         <Grid>
                             <TreeView x:Name="Outline" BorderThickness="0" Background="Transparent" VirtualizingPanel.IsVirtualizing="True"

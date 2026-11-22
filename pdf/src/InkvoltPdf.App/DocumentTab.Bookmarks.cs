@@ -221,6 +221,7 @@ public partial class DocumentTab
         var rename = Item(Strings.Bookmarks_MenuRename, n => { if (n is not null) BeginRename(n); }, "F2");
         var delete = Item(Strings.Bookmarks_MenuDelete, n => { if (n is not null) _ = DeleteBookmark(n); }, "Del");
         var retarget = Item(Strings.Bookmarks_MenuSetDestination, n => { if (n is not null) _ = SetBookmarkDestination(n); });
+        var fromHeadings = Item(Strings.Cmd_BookmarksFromHeadings.Replace("_", ""), n => _ = BookmarksFromHeadings());
         menu.Items.Add(new Separator());
         Item(Strings.Bookmarks_MenuExpandAll, _ => ExpandAll(true));
         Item(Strings.Bookmarks_MenuCollapseAll, _ => ExpandAll(false));
@@ -228,7 +229,7 @@ public partial class DocumentTab
         {
             var editable = BookmarksEditable && !IsBusy;
             var hasNode = Outline.SelectedItem is BookmarkNode { IsNew: false };
-            add.IsEnabled = editable;
+            add.IsEnabled = fromHeadings.IsEnabled = editable;
             child.IsEnabled = rename.IsEnabled = delete.IsEnabled = retarget.IsEnabled = editable && hasNode;
         };
         return menu;
@@ -337,6 +338,91 @@ public partial class DocumentTab
         if (BookmarksEditable && !IsBusy) return true;
         Notify(!Session.IsPdf ? Strings.Bookmarks_OnlyPdf : IsBusy ? Strings.Bookmarks_WaitForChange : Strings.Bookmarks_StillLoading);
         return false;
+    }
+
+    /// <summary>
+    /// Bookmarks from Headings: finds the headings (<see cref="HeadingBookmarks"/>), shows the bookmarks they make, nested
+    /// by level, then writes them in place of the bookmarks or after them, as one undoable edit.
+    /// </summary>
+    public async Task BookmarksFromHeadings()
+    {
+        if (!Session.IsPdf || Viewer.PageCount == 0 || !await SettleAsync()) return;
+        var owner = Window.GetWindow(this);
+        var engine = Session.Engine;
+        var data = Session.Data;
+        IReadOnlyList<FoundHeading> headings;
+        int existing;
+        // Every page's text is read: on a long file that takes a while, so it shows its progress and can be stopped.
+        using (BeginBusy(null))
+        using (var progress = new ProgressPrompt(owner, Strings.Bookmarks_FindingHeadings, Strings.Review_Starting))
+        {
+            try
+            {
+                var password = Session.Password;
+                (headings, existing) = await Task.Run(() => (HeadingBookmarks.Find(engine, PageProgress(progress, Strings.Bookmarks_FindingHeadings), progress.Token),
+                    Count(Bookmarks.Read(data, password))), progress.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // The document closed under the search, or something in it stopped MuPDF or PDFsharp: said, nothing changed.
+                Log.Write($"Bookmarks from headings: {ex}");
+                if (!_disposed) Prompt.Error(owner, Strings.Organize_PagesUnreadableTitle, Strings.Organize_PagesUnreadableBody);
+                return;
+            }
+        }
+        if (_disposed || !ReferenceEquals(data, Session.Data)) return;
+        if (headings.Count == 0)
+        {
+            Prompt.Info(owner, Strings.Bookmarks_NoHeadingsTitle, Strings.Bookmarks_NoHeadingsBody);
+            return;
+        }
+
+        var dlg = new FormDialog(owner, Strings.Bookmarks_FromHeadingsTitle, Strings.Bookmarks_MakeButton, 520);
+        dlg.AddNote(Loc.Plural(headings.Count, Strings.Bookmarks_HeadingsFound_One, Strings.Bookmarks_HeadingsFound_Many));
+        var preview = dlg.Add(null, new TextBox
+        {
+            IsReadOnly = true, Height = 220, TextWrapping = TextWrapping.NoWrap, AcceptsReturn = true,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+        });
+        System.Windows.Automation.AutomationProperties.SetName(preview, Strings.Bookmarks_PreviewName);
+        var deepest = headings.Max(h => h.Level);
+        var levels = dlg.AddChoice(Strings.Bookmarks_HeadingLevels, [Strings.Bookmarks_AllLevels, Strings.Bookmarks_Level1, Strings.Bookmarks_Levels2, Strings.Bookmarks_Levels3]);
+        levels.IsEnabled = deepest > 1;
+        var replace = existing > 0
+            ? dlg.AddChoice(Loc.Plural(existing, Strings.Bookmarks_ExistingCount_One, Strings.Bookmarks_ExistingCount_Many), [Strings.Bookmarks_ReplaceThem, Strings.Bookmarks_AddAfterThem])
+            : null;
+        int Deepest() => levels.SelectedIndex is > 0 and var i ? i : 6;
+        void Show()
+        {
+            var lines = new List<string>();
+            void Walk(IReadOnlyList<Bookmark> nodes, int depth)
+            {
+                foreach (var b in nodes)
+                {
+                    lines.Add(new string(' ', depth * 4) + Loc.Format(Strings.Bookmarks_PreviewLine, b.Title, PageLabel(b.PageIndex)));
+                    Walk(b.Children, depth + 1);
+                }
+            }
+            Walk(HeadingBookmarks.Tree(headings, Deepest()), 0);
+            preview.Text = lines.Count > 0 ? string.Join("\n", lines) : Strings.Bookmarks_PreviewNone;
+        }
+        levels.SelectionChanged += (_, _) => Show();
+        Show();
+        dlg.Validate(() => headings.Any(h => h.Level <= Deepest()) ? null : Strings.Bookmarks_PreviewNone);
+        if (!dlg.ShowModal() || _disposed || !ReferenceEquals(data, Session.Data)) return;
+        var depthLimit = Deepest();
+        var made = headings.Count(h => h.Level <= depthLimit);
+        var replacing = replace is null || replace.SelectedIndex == 0;
+        _selectAfterLoad = null;
+        await RunEdit(Loc.Plural(made, Strings.Bookmarks_EditFromHeadings_One, Strings.Bookmarks_EditFromHeadings_Many),
+            (d, pw) => HeadingBookmarks.Write(d, pw, headings, replacing, depthLimit), contentOnly: true);
+        ShowPane(NavPaneKind.Bookmarks);
+
+        static int Count(IReadOnlyList<Bookmark> tree) => tree.Sum(b => 1 + Count(b.Children));
     }
 
     /// <summary>One undoable edit of the bookmarks, applied to those read from the bytes being edited.</summary>

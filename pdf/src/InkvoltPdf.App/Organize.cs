@@ -7,7 +7,7 @@ using PageRange = InkvoltPdf.Core.PageRange;
 namespace InkvoltPdf.App;
 
 /// <summary>The Organize menu: each command gathers options in a dialog, then runs one undoable page edit.</summary>
-public static class Organize
+public static partial class Organize
 {
     /// <summary>Paper sizes for blank pages; names are read when the dialog is built (after the language is set).</summary>
     private static readonly (Func<string> Name, double W, double H)[] PaperSizes =

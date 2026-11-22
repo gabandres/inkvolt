@@ -159,6 +159,13 @@ public static class Cmd
     public static readonly RoutedUICommand DuplicatePages = Make(Strings.Cmd_DuplicatePages, nameof(DuplicatePages));
     public static readonly RoutedUICommand CropPages = Make(Strings.Cmd_CropPages, nameof(CropPages));
     public static readonly RoutedUICommand ReversePages = Make(Strings.Cmd_ReversePages, nameof(ReversePages));
+    public static readonly RoutedUICommand InterleavePages = Make(Strings.Cmd_InterleavePages, nameof(InterleavePages));
+    public static readonly RoutedUICommand ScanBacks = Make(Strings.Cmd_ScanBacks, nameof(ScanBacks));
+    public static readonly RoutedUICommand RemoveBlankPages = Make(Strings.Cmd_RemoveBlankPages, nameof(RemoveBlankPages));
+    public static readonly RoutedUICommand SplitAtBlankPages = Make(Strings.Cmd_SplitAtBlankPages, nameof(SplitAtBlankPages));
+    public static readonly RoutedUICommand ResizePages = Make(Strings.Cmd_ResizePages, nameof(ResizePages));
+    public static readonly RoutedUICommand ReplacePages = Make(Strings.Cmd_ReplacePages, nameof(ReplacePages));
+    public static readonly RoutedUICommand EditPageLabels = Make(Strings.Cmd_EditPageLabels, nameof(EditPageLabels));
 
     // Organize: text and images written into the pages (see PageMarkActions)
     public static readonly RoutedUICommand AddHeaderFooter = Make(Strings.Cmd_AddHeaderFooter, nameof(AddHeaderFooter));
@@ -248,6 +255,7 @@ public static class Cmd
 
     // Bookmarks pane (Ctrl+B adds one for the current view, as in Acrobat)
     public static readonly RoutedUICommand AddBookmark = Make(Strings.Cmd_AddBookmark, nameof(AddBookmark), K(Key.B, ModifierKeys.Control));
+    public static readonly RoutedUICommand BookmarksFromHeadings = Make(Strings.Cmd_BookmarksFromHeadings, nameof(BookmarksFromHeadings));
 
     // AI assistant (bring your own, off by default; see DocumentTab.Ai and AiActions)
     public static readonly RoutedUICommand AiSummarize = Make(Strings.Cmd_AiSummarize, nameof(AiSummarize));

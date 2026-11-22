@@ -114,10 +114,11 @@ internal static class Demo
         public override bool ChecksHpSoftware => false;
         public override Core.History.SupplyHistoryStore History { get; } = new(null, Core.History.DemoSupplyHistory.Seed);
 
-        public override void PrepareScan(bool feederBatch, bool photosOnGlass)
+        public override void PrepareScan(bool feederBatch, bool photosOnGlass, StackSide? turnedStack = null)
         {
-            FeederBatch = feederBatch;
+            FeederBatch = feederBatch && turnedStack is null;
             PhotosOnGlass = photosOnGlass;
+            Demo.StackSide = turnedStack;
         }
     }
 
@@ -165,7 +166,7 @@ internal static class Demo
     public static HttpMessageHandler CreateTransport() => new HostRouter(new Dictionary<string, HttpMessageHandler>
     {
         [FixtureHandler.DemoHost] = new Shared(Panel),
-        [InkjetHost] = new FixtureHandler(name => InkjetDocument(InkjetPrefix + name), scanArea: Scan, feederBatch: () => FeederBatch ? Batch.Value : null),
+        [InkjetHost] = new FixtureHandler(name => InkjetDocument(InkjetPrefix + name), scanArea: Scan, feederBatch: () => StackPages() ?? (FeederBatch ? Batch.Value : null)),
         // The office laser answers only at its new address: the HP fixtures under its own name and UUID.
         [OfficeNewHost] = new FixtureHandler(name => OfficeDocument(ResourcePrefix + name), scanArea: Scan),
         // A newer HP model: status, supplies and identity over CDM only (no LEDM, no IPP or eSCL fixtures).
@@ -357,7 +358,7 @@ internal static class Demo
     private static Core.Wia.FakeWiaSystem MadeUpScanners()
     {
         var scanners = Core.Fleet.DemoFleet.Scanners(WiaPage);
-        scanners[0].FeederStack = () => FeederBatch ? Batch.Value.Count : 3;
+        scanners[0].FeederStack = () => StackPages()?.Count ?? (FeederBatch ? Batch.Value.Count : 3);
         scanners[0].HandlingStatus = Core.Wia.WiaIds.FeedReady;
         return new(scanners);
     }
@@ -391,7 +392,8 @@ internal static class Demo
 
     /// <summary>A demo WIA page: the feeder batch's next page when the scan splits into files, else what an eSCL demo scan of that area gives.</summary>
     private static byte[] WiaPage(Core.Wia.WiaScanSettings s, int page) =>
-        s.Feeder && FeederBatch ? Batch.Value[page % Batch.Value.Count]
+        s.Feeder && StackPages() is { } stack ? stack[page % stack.Count]
+        : s.Feeder && FeederBatch ? Batch.Value[page % Batch.Value.Count]
             : Scan((int)((long)s.Width * 300 / s.Resolution), (int)((long)s.Height * 300 / s.Resolution));
 
     /// <summary>A demo queue's status: what <see cref="Core.Queues.SpoolerStatus"/> makes of its made-up bits (no spooler is asked).</summary>
@@ -424,6 +426,61 @@ internal static class Demo
                 var len = i % 7 == 6 ? 520 : 975 - (i * 37 % 90);
                 dc.DrawRoundedRectangle(grey, null, new Rect(150, y, len, 18), 4, 4);
             }
+        }
+        return Jpeg(visual, w * 2, h * 2);
+    }
+
+    /// <summary>The next feeder scan is a turned stack's fronts or backs (set by the Scan tab); null: the feeder holds its usual pages.</summary>
+    public static PcEnvironment.StackSide? StackSide { get; set; }
+
+    /// <summary>
+    /// A stack of three two-sided sheets of text, pages 1 to 6, as a one-sided feeder sends it: the fronts (1, 3, 5), then turned
+    /// over, the backs last sheet first (6, 4, 2). The second sheet went in upside down, so pages 3 and 4 come out upside down.
+    /// </summary>
+    private static readonly Lazy<IReadOnlyList<byte[]>[]> Stack = new(() => Application.Current.Dispatcher.Invoke(() =>
+    {
+        var pages = Enumerable.Range(1, 6).Select(n => TextPage(n, upsideDown: n is 3 or 4)).ToList();
+        return new IReadOnlyList<byte[]>[] { [pages[0], pages[2], pages[4]], [pages[5], pages[3], pages[1]] };
+    }));
+
+    /// <summary>The feeder's pages for a turned stack's pass, or null when the scan isn't one.</summary>
+    private static IReadOnlyList<byte[]>? StackPages() => StackSide is { } side ? Stack.Value[side == PcEnvironment.StackSide.Fronts ? 0 : 1] : null;
+
+    /// <summary>
+    /// A letter page of made-up prose at 300 dpi, page <paramref name="number"/> of a short report, turned over when
+    /// <paramref name="upsideDown"/> (a sheet fed the wrong way up). Real letters, so the review can tell which way is up. Never a real scan.
+    /// </summary>
+    private static byte[] TextPage(int number, bool upsideDown)
+    {
+        const int w = 1275, h = 1650; // drawn at 150 dpi, rendered at 300
+        string[] words =
+        [
+            "the", "quarterly", "report", "shows", "steady", "growth", "in", "every", "region", "with", "higher", "sales", "of", "paper",
+            "toner", "and", "ink", "while", "shipping", "costs", "fell", "slightly", "during", "the", "spring", "months", "before", "rising",
+            "again", "in", "July", "our", "teams", "kept", "delivery", "times", "short", "and", "customers", "told", "us", "they", "liked",
+        ];
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.PushTransform(new ScaleTransform(2, 2));
+            dc.DrawRectangle(new SolidColorBrush(Color.FromRgb(0xF7, 0xF6, 0xF3)), null, new Rect(0, 0, w, h));
+            if (upsideDown) dc.PushTransform(new RotateTransform(180, w / 2.0, h / 2.0));
+            var ink = new SolidColorBrush(Color.FromRgb(0x24, 0x26, 0x2A));
+            var serif = new Typeface("Georgia");
+            void Text(string text, double size, double x, double y, Typeface face) =>
+                dc.DrawText(new FormattedText(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, face, size, ink, 1), new Point(x, y));
+            Text($"Quarterly report, page {number}", 30, 120, 110, new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.SemiBold, FontStretches.Normal));
+            var rng = new Random(number * 7919);
+            var y = 190.0;
+            for (var line = 0; line < 38; line++, y += 32)
+            {
+                if (line % 9 == 8) { y += 18; continue; } // a gap between paragraphs
+                var text = new System.Text.StringBuilder();
+                while (text.Length < (line % 9 == 7 ? 40 : 78)) text.Append(words[rng.Next(words.Length)]).Append(' ');
+                var sentence = text.ToString().Trim();
+                Text(char.ToUpperInvariant(sentence[0]) + sentence[1..] + ".", 17, 120, y, serif);
+            }
+            Text($"{number}", 150, w - 260, 1310, new Typeface(new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal)); // big enough to read on a thumbnail
         }
         return Jpeg(visual, w * 2, h * 2);
     }

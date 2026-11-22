@@ -45,6 +45,7 @@ public partial class MainWindow
         BindEdit(Cmd.AddWatermark, t => PageMarkActions.AddWatermark(this, t));
         BindEdit(Cmd.RemoveWatermark, PageMarkActions.RemoveWatermark);
         Bind(Cmd.AddBookmark, t => t.AddBookmarkForView(), t => t.Session.IsPdf && t.PageView.PageCount > 0);
+        BindEdit(Cmd.BookmarksFromHeadings, t => t.BookmarksFromHeadings());
         BindTab(Cmd.ReadAloud, t => _ = t.ToggleReadAloud(), t => t.PageView.PageCount > 0);
         // AI assistant: while it is off these open its settings (with a word on why) instead.
         Bind(Cmd.AiSummarize, t =>

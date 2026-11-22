@@ -126,6 +126,8 @@ public static class ScanCleanup
     /// search goes a degree past <see cref="MaxSkew"/> so a page at the limit isn't at the edge of it. Turning about the
     /// centre and straightening about the centre commute, so the skew found on the turned copy straightens the page itself.
     /// </summary>
+    internal static (double Skew, bool Sideways, bool Sure) LinesOf(GrayImage small) => Lines(small);
+
     private static (double Skew, bool Sideways, bool Sure) Lines(GrayImage small)
     {
         var across = Deskew.Measure(small, MaxSkew + 1);

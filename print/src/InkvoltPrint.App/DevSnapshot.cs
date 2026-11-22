@@ -140,6 +140,10 @@ internal static class DevSnapshot
                 });
             if (args.Contains("--keep-separators")) scanner.KeepSeparators = true;
             if (args.Contains("--find-photos")) scanner.FindPhotos = true;
+            // --turn-stack: both sides on a one-sided feeder (with --source feeder), answering "Scan the backs" (demo: a stack of
+            // three sheets, the second fed upside down); --upright off leaves pages as they came.
+            if (args.Contains("--turn-stack")) scanner.TurnStack = true;
+            if (Value(args, "--upright") is { } upright) scanner.TurnUpright = upright != "off";
             // --cleanup crop,whiten,descreen,restore: the tab's clean up, before scanning.
             if (Value(args, "--cleanup") is { } cleanup)
             {
@@ -148,7 +152,15 @@ internal static class DevSnapshot
                 scanner.DescreenPages = cleanup.Contains("descreen");
                 scanner.RestoreColors = cleanup.Contains("restore");
             }
-            for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
+            var asked = ViewModels.Prompt.Confirm;
+            if (args.Contains("--turn-stack")) ViewModels.Prompt.Confirm = (_, _) => true; // "turn the stack over… Scan the backs"
+            try
+            {
+                for (var i = 0; i < scans; i++) await scanner.ScanCommand.ExecuteAsync(null);
+            }
+            finally { ViewModels.Prompt.Confirm = asked; }
+            // --swap-backs: the turned stack's backs in the other order, as its link in the status line does.
+            if (args.Contains("--swap-backs")) scanner.SwapBacksCommand.Execute(null);
             if (crop > 0 && crop <= scanner.Pages.Count) await scanner.CropCommand.ExecuteAsync(scanner.Pages[crop - 1]);
             // --delete n: delete page n, as the Delete key does (the review then offers Undo); --undo puts it back.
             if (int.TryParse(Value(args, "--delete"), out var delete) && delete > 0 && delete <= scanner.Pages.Count)
@@ -184,8 +196,14 @@ internal static class DevSnapshot
                     Source = Core.Presets.PresetSource.Feeder, KeepSeparators = args.Contains("--keep-separators"),
                     SplitAt = presetSplit switch { "blank" => Core.Imaging.SplitAt.BlankPage, "either" => Core.Imaging.SplitAt.PatchCodeOrBlankPage, _ => Core.Imaging.SplitAt.PatchCode },
                 });
+            // --smaller-file: the preset saves its PDF in black and white; --turn-stack: it scans both sides of the feeder's stack by
+            // turning it over (demo only).
+            if (args.Contains("--smaller-file") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } small)
+                presetMain.Presets.Update(small with { SmallerFile = true, FileType = small.FileType == Core.Presets.PresetFileType.Jpeg ? Core.Presets.PresetFileType.Pdf : small.FileType });
+            if (args.Contains("--turn-stack") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } stack)
+                presetMain.Presets.Update(stack with { Source = Core.Presets.PresetSource.Feeder, TwoSided = true, TurnStack = true });
             var ask = ViewModels.Prompt.Confirm;
-            ViewModels.Prompt.Confirm = (_, _) => true; // "discard the pages scanned above?"
+            ViewModels.Prompt.Confirm = (_, _) => true; // "discard the pages scanned above?", "turn the stack over"
             try { await presetMain.RunPresetWhenReadyAsync(preset); }
             finally { ViewModels.Prompt.Confirm = ask; }
             await Task.Delay(TimeSpan.FromSeconds(2));

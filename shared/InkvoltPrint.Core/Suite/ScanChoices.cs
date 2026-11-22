@@ -58,6 +58,12 @@ public static class ScanChoices
         : offered.Contains(ScanColor.Grayscale) ? ScanColor.Grayscale
         : offered.Count > 0 ? offered[0] : ScanColor.Color;
 
+    /// <summary>A scan in black and white is saved in a PDF at 1 bit too (a black-and-white page, roadmap 4.4).</summary>
+    public static bool SavesOneBit(ScanColor color) => color == ScanColor.BlackAndWhite;
+
+    /// <summary>The feeder is chosen and scans one side: both sides can be had by turning the stack over (roadmap 4.1).</summary>
+    public static bool OffersTurnStack(ScannerCapabilities caps, ScanSource source) => source == ScanSource.Adf && caps.Adf is not null && !caps.AdfDuplex;
+
     /// <summary>A chosen color mode as it is remembered (<see cref="Pick"/>'s two flags): color, or black and white, or neither (grey).</summary>
     public static (bool Color, bool BlackAndWhite) Remember(ScanColor color) => (color == ScanColor.Color, color == ScanColor.BlackAndWhite);
 
