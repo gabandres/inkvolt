@@ -267,6 +267,15 @@ internal static class DevSnapshot
                     $"message: {batch.Message}", $"estimate: {batch.EstimateText}", $"can print: {batch.PrintCommand.CanExecute(null)}"]);
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
+        // --clipboard text|picture: Print the clipboard with made-up content in its place (the real clipboard is never read or changed).
+        if (Value(args, "--clipboard") is { } clip && window.DataContext is ViewModels.MainViewModel { Selected: { } clipPrinter })
+        {
+            ViewModels.PrintViewModel.ReadClipboard = () => clip == "picture"
+                ? (new Core.Printing.ClipboardContent("https://example.com/chart.png", (640, 400), []), SamplePicture())
+                : (new Core.Printing.ClipboardContent(Demo.SampleClipboardText(), null, []), null);
+            await clipPrinter.PrintClipboardAsync();
+            await Task.Delay(TimeSpan.FromSeconds(3));
+        }
         if (args.Contains("--photos") && window.DataContext is ViewModels.MainViewModel { Selected: { } photoPrinter })
             await PhotosAsync(photoPrinter, args);
         if (args.Contains("--maintenance") && window.DataContext is ViewModels.MainViewModel { Selected: { } maintained })
@@ -465,6 +474,23 @@ internal static class DevSnapshot
         enc.Frames.Add(BitmapFrame.Create(bmp));
         await using (var fs = File.Create(path)) enc.Save(fs);
         Application.Current.Shutdown();
+    }
+
+    /// <summary>A made-up picture for <c>--clipboard picture</c>: bars of a chart on white, 640 × 400.</summary>
+    private static BitmapSource SamplePicture()
+    {
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(Brushes.White, null, new Rect(0, 0, 640, 400));
+            Brush[] colors = [Brushes.SteelBlue, Brushes.SeaGreen, Brushes.DarkOrange, Brushes.MediumPurple];
+            for (var i = 0; i < 8; i++)
+                dc.DrawRectangle(colors[i % colors.Length], null, new Rect(40 + i * 72, 360 - (60 + i * 33 % 250), 48, 60 + i * 33 % 250));
+        }
+        var bitmap = new RenderTargetBitmap(640, 400, 96, 96, PixelFormats.Pbgra32);
+        bitmap.Render(visual);
+        bitmap.Freeze();
+        return bitmap;
     }
 
     private static string? Value(string[] args, string name) =>

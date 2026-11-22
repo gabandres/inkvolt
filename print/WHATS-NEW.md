@@ -9,6 +9,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Pages fed sideways or upside down are turned upright on their own when their text shows which way is up (Turn pages upright, on by default, also per preset). Pages it isn't sure of stay as they came, and Undo turns them back.
 - Smaller PDFs: a preset's new Smaller file (black and white) choice saves each page in black and white, often a tenth of the size or less. Scans in black and white are saved that way too.
 - Sharing a scanner on the network is now free for good, not part of Inkvolt Pro.
+- Print the clipboard: in the Print tab, Print the clipboard prints text you copied (laid out on pages, with the usual options), a copied picture through Photos, or files you copied in File Explorer.
 - Recent scans: the Scan tab's Recent scans… lists your last saved scans from every scanner, to open, show in their folder, email again or print. The list stays on this PC.
 
 ## 1.7.0

@@ -10,6 +10,7 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 - Las páginas que entran de lado o al revés se ponen al derecho solas cuando su texto muestra cuál es la parte de arriba (Poner las páginas al derecho, activado de forma predeterminada, también en cada ajuste). Las páginas de las que no está seguro quedan como llegaron, y Deshacer las vuelve a girar.
 - PDF más pequeños: la nueva opción Archivo más pequeño (blanco y negro) de un ajuste guarda cada página en blanco y negro, a menudo en una décima parte del tamaño o menos. Los escaneos en blanco y negro también se guardan así.
 - Compartir un escáner en la red ahora es gratis para siempre, ya no es parte de Inkvolt Pro.
+- Imprimir el portapapeles: en la pestaña Imprimir, Imprimir el portapapeles imprime el texto que copiaste (colocado en páginas, con las opciones de siempre), una imagen copiada a través de Fotos, o los archivos que copiaste en el Explorador de archivos.
 - Escaneos recientes: Escaneos recientes… en la pestaña Escanear muestra tus últimos escaneos guardados de todos los escáneres, para abrirlos, mostrarlos en su carpeta, enviarlos de nuevo por correo o imprimirlos. La lista se queda en este PC.
 
 ## 1.7.0

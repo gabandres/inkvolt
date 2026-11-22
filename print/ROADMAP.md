@@ -175,11 +175,13 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 - **Batch B:**
   - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
     from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
+  - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
+    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
+    half waits.
   - **Still to do:** 4.2 Two-sided printing by hand for printers without a duplexer (odd sides, how to reload, even sides;
     Print a PDF, Batch, Copy, Photos; needs a one-sided printer to confirm). 4.5 Ready for Windows' new driver: per
     printer, which driver its queue uses, whether the printer answers IPP and eSCL, *Set up with Windows' driver* beside
-    the old queue, and a warning for a WIA- or TWAIN-only scanner under protected print mode. 4.13 Print what's on the
-    clipboard.
+    the old queue, and a warning for a WIA- or TWAIN-only scanner under protected print mode.
 - **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized
   original. 4.11 Name the file from its contents (a date, the first heading). 4.14 Scan straight to Word or text. 4.6
   Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or

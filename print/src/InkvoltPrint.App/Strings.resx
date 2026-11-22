@@ -4711,4 +4711,43 @@ The files stay where they are.</value>
   <data name="ScanTab_RecentScansTip" xml:space="preserve">
     <value>Your last saved scans: open, show in folder, email again or print</value>
   </data>
+  <data name="PrintTab_Clipboard" xml:space="preserve">
+    <value>Print the clipboard</value>
+  </data>
+  <data name="PrintTab_ClipboardShort" xml:space="preserve">
+    <value>From the clipboard</value>
+  </data>
+  <data name="PrintTab_ClipboardTip" xml:space="preserve">
+    <value>Text you copied is laid out on pages here; a picture or pictures go to Photos, a PDF or files copied in File Explorer open as they are</value>
+  </data>
+  <data name="Clip_FileWord" xml:space="preserve">
+    <value>Clipboard</value>
+  </data>
+  <data name="Clip_Busy" xml:space="preserve">
+    <value>Another app is using the clipboard. Try again in a moment.</value>
+  </data>
+  <data name="Clip_Nothing" xml:space="preserve">
+    <value>There's nothing to print on the clipboard. Copy some text, a picture, or a PDF in File Explorer, then try again.</value>
+  </data>
+  <data name="Clip_NotPrintable" xml:space="preserve">
+    <value>The files on the clipboard aren't PDFs or pictures. Open them in their own app to print them.</value>
+  </data>
+  <data name="Clip_TooBig" xml:space="preserve">
+    <value>What's on the clipboard is too big to print from here. Save it as a file and print that.</value>
+  </data>
+  <data name="Clip_LayingOut" xml:space="preserve">
+    <value>Laying out the text on pages…</value>
+  </data>
+  <data name="Clip_Text_One" xml:space="preserve">
+    <value>The copied text fits on {0} page. Choose the options, then Print.</value>
+  </data>
+  <data name="Clip_Text_Many" xml:space="preserve">
+    <value>The copied text fits on {0} pages. Choose the options, then Print.</value>
+  </data>
+  <data name="Clip_TextCut" xml:space="preserve">
+    <value>The copied text is longer than {0} pages: only the first {0} are here.</value>
+  </data>
+  <data name="Clip_Failed" xml:space="preserve">
+    <value>The clipboard couldn't be printed: {0}</value>
+  </data>
 </root>

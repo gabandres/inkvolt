@@ -124,6 +124,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   answering now.
 - **Safe repair**: what Fix all may do, each confirmed: resume a queue, turn off Use Printer Offline (`Repair.IsSafe`). It loses nothing, moves no
   job elsewhere and interrupts no other printer; the rest stays on each printer's own fixer.
+- **Print the clipboard**: printing what another app put on the clipboard by sending it to the tab that prints its kind (`ClipboardPrint`):
+  text laid out on pages as a PDF to Print a PDF, a picture to Print photos, copied files as they are. **Laid out**: wrapped to the
+  columns and lines a page holds at 10 pt (`ClipboardTextLayout`).
 - **Recent scans**: the last saves of scanned pages, newest first, kept with the app's settings on this PC only (`RecentScans`). An
   entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
   goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never

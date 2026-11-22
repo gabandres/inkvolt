@@ -3852,4 +3852,43 @@ Los archivos se quedan donde están.</value>
   <data name="ScanTab_RecentScansTip" xml:space="preserve">
     <value>Tus últimos escaneos guardados: abrir, mostrar en la carpeta, enviar de nuevo por correo o imprimir</value>
   </data>
+  <data name="PrintTab_Clipboard" xml:space="preserve">
+    <value>Imprimir el portapapeles</value>
+  </data>
+  <data name="PrintTab_ClipboardShort" xml:space="preserve">
+    <value>Desde el portapapeles</value>
+  </data>
+  <data name="PrintTab_ClipboardTip" xml:space="preserve">
+    <value>El texto que copiaste se coloca en páginas aquí; una imagen o varias van a Fotos, y un PDF o los archivos copiados en el Explorador de archivos se abren tal cual</value>
+  </data>
+  <data name="Clip_FileWord" xml:space="preserve">
+    <value>Portapapeles</value>
+  </data>
+  <data name="Clip_Busy" xml:space="preserve">
+    <value>Otra aplicación está usando el portapapeles. Vuelve a intentarlo en un momento.</value>
+  </data>
+  <data name="Clip_Nothing" xml:space="preserve">
+    <value>No hay nada que imprimir en el portapapeles. Copia texto, una imagen o un PDF en el Explorador de archivos y vuelve a intentarlo.</value>
+  </data>
+  <data name="Clip_NotPrintable" xml:space="preserve">
+    <value>Los archivos del portapapeles no son PDF ni imágenes. Ábrelos en su propia aplicación para imprimirlos.</value>
+  </data>
+  <data name="Clip_TooBig" xml:space="preserve">
+    <value>Lo que está en el portapapeles es demasiado grande para imprimirlo desde aquí. Guárdalo como archivo e imprime ese archivo.</value>
+  </data>
+  <data name="Clip_LayingOut" xml:space="preserve">
+    <value>Colocando el texto en páginas…</value>
+  </data>
+  <data name="Clip_Text_One" xml:space="preserve">
+    <value>El texto copiado cabe en {0} página. Elige las opciones y luego Imprimir.</value>
+  </data>
+  <data name="Clip_Text_Many" xml:space="preserve">
+    <value>El texto copiado cabe en {0} páginas. Elige las opciones y luego Imprimir.</value>
+  </data>
+  <data name="Clip_TextCut" xml:space="preserve">
+    <value>El texto copiado ocupa más de {0} páginas: aquí solo están las primeras {0}.</value>
+  </data>
+  <data name="Clip_Failed" xml:space="preserve">
+    <value>No se pudo imprimir el portapapeles: {0}</value>
+  </data>
 </root>

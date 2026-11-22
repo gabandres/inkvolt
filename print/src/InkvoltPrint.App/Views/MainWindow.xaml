@@ -921,6 +921,14 @@
                                 <TextBlock Text="{x:Static loc:Strings.PrintTab_ChoosePdf}" />
                             </StackPanel>
                         </Button>
+                        <Button AutomationProperties.Name="{x:Static loc:Strings.PrintTab_Clipboard}" Command="{Binding PrintClipboardCommand}" HorizontalAlignment="Stretch" Padding="0,8" Margin="0,8,0,0"
+                                ToolTip="{x:Static loc:Strings.PrintTab_ClipboardTip}" AutomationProperties.HelpText="{x:Static loc:Strings.PrintTab_ClipboardTip}"
+                                Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" Margin="0,0,8,0" />
+                                <TextBlock Text="{x:Static loc:Strings.PrintTab_Clipboard}" />
+                            </StackPanel>
+                        </Button>
                         <StackPanel Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xEA90;" FontSize="22" Margin="0,0,10,0"
@@ -932,10 +940,12 @@
                                     </TextBlock>
                                 </StackPanel>
                             </DockPanel>
-                            <StackPanel Orientation="Horizontal" Margin="32,6,0,0">
+                            <WrapPanel Margin="32,6,0,0">
                                 <Button Content="{x:Static loc:Strings.PrintTab_ChooseAnother}" Command="{Binding BrowseCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
+                                <Button Content="{x:Static loc:Strings.PrintTab_ClipboardShort}" Command="{Binding PrintClipboardCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0"
+                                        ToolTip="{x:Static loc:Strings.PrintTab_ClipboardTip}" />
                                 <Button Content="{x:Static loc:Strings.Common_Remove}" Command="{Binding ClearCommand}" Style="{StaticResource LinkButton}" />
-                            </StackPanel>
+                            </WrapPanel>
 
                             <TextBlock Text="{x:Static loc:Strings.PrintTab_Pages}" Margin="0,20,0,6" FontWeight="SemiBold" />
                             <RadioButton Content="{Binding AllPagesText}" IsChecked="{Binding AllPages}" GroupName="pages" />

@@ -3577,4 +3577,10 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Preset_TurnStackShort" xml:space="preserve">
     <value>dando la vuelta a la pila para los reversos</value>
   </data>
+  <data name="Palette_PrintClipboard" xml:space="preserve">
+    <value>Imprimir lo que está en el portapapeles</value>
+  </data>
+  <data name="Palette_RecentScans" xml:space="preserve">
+    <value>Escaneos recientes…</value>
+  </data>
 </root>

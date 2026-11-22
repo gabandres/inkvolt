@@ -73,7 +73,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     [ObservableProperty] public partial bool FitToPaper { get; set; }
 
     [ObservableProperty]
-    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand))]
+    [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand), nameof(PrintClipboardCommand))]
     [NotifyPropertyChangedFor(nameof(CanCancel))]
     public partial bool IsBusy { get; set; }
 
@@ -153,8 +153,8 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     /// <summary>Set by the view: asks for a PDF's password. Args: file name, previous attempt was wrong.</summary>
     public static Func<string, bool, string?>? AskPdfPassword { get; set; }
 
-    /// <summary>Loads a PDF: page count immediately, thumbnails stream in after.</summary>
-    public async Task OpenAsync(string path)
+    /// <summary>Loads a PDF: page count immediately, thumbnails stream in after. <paramref name="rememberFolder"/>: Browse starts there next time.</summary>
+    public async Task OpenAsync(string path, bool rememberFolder = true)
     {
         if (IsBusy)
         {
@@ -182,8 +182,11 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             }
             if (generation != _openGeneration) return;
             _pdf = pdf;
-            state.PrintFolder = Path.GetDirectoryName(path);
-            state.Save();
+            if (rememberFolder)
+            {
+                state.PrintFolder = Path.GetDirectoryName(path);
+                state.Save();
+            }
             FileName = Path.GetFileName(path);
             RangeText = "";
             AllPages = true;
@@ -349,6 +352,81 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             _cts = null;
             IsBusy = false;
             IsSpooling = false;
+        }
+    }
+
+    /// <summary>Set by the printer: opens pictures in its Print photos (the clipboard's picture, pictures copied in File Explorer).</summary>
+    public Func<IReadOnlyList<string>, Task>? OpenPictures { get; init; }
+
+    /// <summary>What the clipboard holds and its picture; the developer snapshot puts made-up content here (never the real clipboard).</summary>
+    public static Func<(ClipboardContent Content, BitmapSource? Picture)> ReadClipboard { get; set; } = ClipboardPrinting.Read;
+
+    /// <summary>
+    /// Print the clipboard (roadmap 4.13): what's on it goes where it prints with the usual options (<see cref="ClipboardPrint.Choose"/>):
+    /// text laid out on pages into Print a PDF, a picture or pictures into Print photos, one PDF into Print a PDF, several files into Batch.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    public async Task PrintClipboardAsync()
+    {
+        SetMessage(null);
+        ClipboardContent content;
+        BitmapSource? picture;
+        try
+        {
+            (content, picture) = ReadClipboard();
+        }
+        catch (ClipboardBusyException)
+        {
+            SetMessage(Strings.Clip_Busy, error: true);
+            return;
+        }
+        var plan = ClipboardPrint.Choose(content);
+        var name = ClipboardPrint.Name(DateTime.Now, Strings.Clip_FileWord);
+        try
+        {
+            switch (plan.What)
+            {
+                case ClipboardWhat.Pdf:
+                    ShowBatch = false;
+                    await OpenAsync(plan.Files[0]);
+                    break;
+                case ClipboardWhat.Batch when Batch is not null:
+                    ShowBatch = true;
+                    await Batch.AddAsync(plan.Files);
+                    break;
+                case ClipboardWhat.Pictures when OpenPictures is not null:
+                    await OpenPictures(plan.Files);
+                    break;
+                case ClipboardWhat.Picture when picture is not null && OpenPictures is not null:
+                    await OpenPictures([ClipboardPrinting.SavePicture(picture, name)]);
+                    break;
+                case ClipboardWhat.Text:
+                    ShowBatch = false;
+                    SetMessage(Strings.Clip_LayingOut);
+                    var (path, pages, cut) = await ClipboardPrinting.TextPdfAsync(content.Text!, name, System.Globalization.RegionInfo.CurrentRegion.IsMetric);
+                    if (path is null)
+                    {
+                        SetMessage(Strings.Clip_Nothing, error: true);
+                        break;
+                    }
+                    await OpenAsync(path, rememberFolder: false);
+                    SetMessage(cut ? string.Format(Strings.Clip_TextCut, ClipboardPrint.MaxPages) : Core.Plural.Of(pages, Strings.Clip_Text_One, Strings.Clip_Text_Many));
+                    break;
+                case ClipboardWhat.NotPrintable:
+                    SetMessage(Strings.Clip_NotPrintable, error: true);
+                    break;
+                case ClipboardWhat.TooBig:
+                    SetMessage(Strings.Clip_TooBig, error: true);
+                    break;
+                default:
+                    SetMessage(Strings.Clip_Nothing, error: true);
+                    break;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or InvalidOperationException)
+        {
+            Log.Write($"Print the clipboard failed: {ex}");
+            SetMessage(string.Format(Strings.Clip_Failed, ex.Message), error: true);
         }
     }
 

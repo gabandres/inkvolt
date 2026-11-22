@@ -70,6 +70,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 line => Log.Write($"[{Name}] {line}"));
         Print = new PrintViewModel(PrintTargetAsync, state)
         {
+            OpenPictures = OpenPhotosAsync,
             Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
                 : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), Routing.Router,
                     ipp => Printing.DirectBatchJobs.For(Name, new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp)))),
@@ -1508,6 +1509,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     [RelayCommand]
     private void GoToPhotos() => SelectedSection = PhotosSection;
+
+    /// <summary>Print the clipboard (roadmap 4.13; the palette): to the Print tab, which sends it where it prints.</summary>
+    public async Task PrintClipboardAsync()
+    {
+        SelectedSection = PrintSection;
+        if (Print.PrintClipboardCommand.CanExecute(null)) await Print.PrintClipboardCommand.ExecuteAsync(null);
+    }
 
     /// <summary>
     /// Stops everything. This PC comes off the printer's panel first (<see cref="Closing"/>, within <see cref="CloseLimit"/>), so the

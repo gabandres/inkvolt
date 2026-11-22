@@ -534,6 +534,24 @@ internal static class Demo
         return Jpeg(visual, width, height);
     }
 
+    /// <summary>Made-up copied text for <c>--clipboard text</c>: meeting notes with a table, a long line and enough lines for two pages.</summary>
+    public static string SampleClipboardText()
+    {
+        var lines = new List<string>
+        {
+            "Garden club meeting notes",
+            "",
+            "Item\tWho\tWhen",
+            "Seed swap\tMarta\tSaturday",
+            "Compost bins\tLuis\tNext month",
+            "",
+            "The spring plant sale moves to the community hall this year, because the parking lot is being repaved; tables go up at eight and the doors open at nine, and anyone who can bring a folding table should tell Marta by Thursday.",
+            "",
+        };
+        for (var i = 1; i <= 70; i++) lines.Add($"{i}. Plot {i}: watered, weeded, and checked for snails.");
+        return string.Join("\r\n", lines);
+    }
+
     /// <summary>
     /// Sample files for Print › Batch, written here (none ship with the app) under %TEMP%: PDFs, a picture of each kind, a TIFF of two
     /// pages and a locked PDF, whose password is "demo".
