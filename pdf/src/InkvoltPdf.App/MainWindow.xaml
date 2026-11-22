@@ -373,6 +373,7 @@
                                         <MenuItem Command="app:Cmd.AskFolders" />
                                         <MenuItem Command="app:Cmd.AiExplain" />
                                         <MenuItem Command="app:Cmd.AiTranslate" />
+                                        <MenuItem Command="app:Cmd.AskEdit" />
                                         <Separator />
                                         <MenuItem Command="app:Cmd.AiSaveAnswer" />
                                         <MenuItem Command="app:Cmd.AiSaveConversation" />

@@ -13004,4 +13004,79 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="TabAi_AudioFailed" xml:space="preserve">
     <value>No se pudo crear o guardar la grabación. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo.</value>
   </data>
+  <data name="Cmd_AskEdit" xml:space="preserve">
+    <value>Editar p_idiéndolo…</value>
+  </data>
+  <data name="AskEdit_Title" xml:space="preserve">
+    <value>Editar pidiéndolo</value>
+  </data>
+  <data name="AskEdit_Intro" xml:space="preserve">
+    <value>Di qué hacer con este documento con tus propias palabras, por ejemplo «pon derechas las páginas 3 a 5 y agrega un marcador Apéndice en la página 6». Tu asistente de IA propone los pasos; ves cada uno y eliges antes de que se ejecute nada.</value>
+  </data>
+  <data name="AskEdit_Request" xml:space="preserve">
+    <value>Qué hacer</value>
+  </data>
+  <data name="AskEdit_Placeholder" xml:space="preserve">
+    <value>Gira la última página y resalta cada «plazo»</value>
+  </data>
+  <data name="AskEdit_WhatGoes" xml:space="preserve">
+    <value>Solo se envían tus palabras, el número de páginas y la página en la que estás, con la lista de comandos que puede usar: nada del texto del documento.</value>
+  </data>
+  <data name="AskEdit_TypeRequest" xml:space="preserve">
+    <value>Escribe qué hacer.</value>
+  </data>
+  <data name="AskEdit_Sent" xml:space="preserve">
+    <value>Tu petición, el número de páginas y la página en la que estás, con los comandos que puede proponer</value>
+  </data>
+  <data name="AskEdit_OnlyThis" xml:space="preserve">
+    <value>Solo se envían esto y el nombre del modelo: nada del texto del documento, ni su nombre ni su carpeta. El modelo solo propone pasos; no se ejecuta nada antes de que elijas.</value>
+  </data>
+  <data name="AskEdit_SendTitle" xml:space="preserve">
+    <value>¿Enviar tu petición al asistente de IA?</value>
+  </data>
+  <data name="AskEdit_NoSteps" xml:space="preserve">
+    <value>El asistente de IA no propuso ningún paso que se pueda hacer con los comandos ofrecidos.</value>
+  </data>
+  <data name="AskEdit_ModelSaid" xml:space="preserve">
+    <value>El modelo dijo: «{0}»</value>
+    <comment>{0} is the model's own words, shown as they are</comment>
+  </data>
+  <data name="AskEdit_StepsTitle" xml:space="preserve">
+    <value>Pasos propuestos</value>
+  </data>
+  <data name="AskEdit_Run" xml:space="preserve">
+    <value>Ejecutar</value>
+    <comment>Button</comment>
+  </data>
+  <data name="AskEdit_StepsNote" xml:space="preserve">
+    <value>Tu asistente de IA propone estos pasos, en este orden. Desmarca los que no quieras: no se ejecuta nada hasta que pulses Ejecutar, y Deshacer revierte cada edición.</value>
+  </data>
+  <data name="AskEdit_StepLine" xml:space="preserve">
+    <value>{0}. {1}</value>
+    <comment>{0} is the step's number, {1} what it does</comment>
+  </data>
+  <data name="AskEdit_TickOne" xml:space="preserve">
+    <value>Marca al menos un paso, o Cancelar.</value>
+  </data>
+  <data name="AskEdit_SkippedGone" xml:space="preserve">
+    <value>Se dejó fuera, porque un paso anterior eliminó sus páginas: {0}.</value>
+  </data>
+  <data name="AskEdit_SkippedAll" xml:space="preserve">
+    <value>Se dejó fuera, porque eliminaría todas las páginas: {0}.</value>
+  </data>
+  <data name="AskEdit_StepNotDone" xml:space="preserve">
+    <value>No se hizo: {0}.</value>
+  </data>
+  <data name="AskEdit_BookmarkUndo" xml:space="preserve">
+    <value>Agregar marcador</value>
+  </data>
+  <data name="AskEdit_NotFound" xml:space="preserve">
+    <value>«{0}» no está en el documento.</value>
+  </data>
+  <data name="AskEdit_Done_One" xml:space="preserve">
+    <value>Se ejecutó {0} paso. Deshacer revierte cada edición.</value>
+  </data>
+  <data name="AskEdit_Done_Many" xml:space="preserve">
+    <value>Se ejecutaron {0} pasos. Deshacer revierte cada edición.</value>
+  </data>
 </root>

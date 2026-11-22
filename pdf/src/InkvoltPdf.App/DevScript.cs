@@ -35,7 +35,7 @@ namespace InkvoltPdf.App;
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
 /// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare|suggest] ·
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
-/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · aiconversation · aisave last|all [word|pdf|comment|audio [path]] · aiaudio all|range path.wav|.mp3 · aiaudiostate · translate Language [pages] · translatestate ·
+/// aifake answer text|error401|refused|missing|translate [ms]|tools name {json};name {json}|notools · askedit request · askeditstate · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · aiconversation · aisave last|all [word|pdf|comment|audio [path]] · aiaudio all|range path.wav|.mp3 · aiaudiostate · translate Language [pages] · translatestate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
@@ -1483,6 +1483,9 @@ internal static class DevScript
                 break;
             }
             case "aiaudiostate": log.Add(tab!.DevAudioState()); break;
+            // Edit by Asking: askedit request (answer the send window and the steps with "later"; aifake tools … proposes) · askeditstate
+            case "askedit": await tab!.AskEditAsync(arg); log.Add($"askedit: {tab.LastAskEdit}"); break;
+            case "askeditstate": log.Add($"askedit: {tab!.LastAskEdit}"); break;
             case "aiconversation": log.Add(tab!.DevAiConversation()); break;
             case "aisave":
             {
@@ -2322,6 +2325,25 @@ internal static class DevScript
                     Content = new System.Net.Http.StringContent(mode[0] == "missing" ? """{"error":{"message":"model \"phi4\" not found, try pulling it first"}}""" : """{"error":{"message":"Incorrect API key provided"}}""")
                         { Headers = { ContentType = json } },
                 };
+            if (mode[0] is "tools" or "notools")
+            {
+                // Edit by Asking: "tools name {args};name {args}" answers with those tool calls; "notools" refuses as Ollama does for a model without them.
+                if (mode[0] == "notools")
+                    return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.BadRequest)
+                    {
+                        Content = new System.Net.Http.StringContent("""{"error":"registry.ollama.ai/library/gemma3:4b does not support tools"}""") { Headers = { ContentType = json } },
+                    };
+                var calls = (mode.Length > 1 ? mode[1] : "").Split(';', StringSplitOptions.RemoveEmptyEntries).Select((c, i) =>
+                {
+                    var parts = c.Trim().Split(' ', 2);
+                    return new { id = $"call_{i}", type = "function", function = new { name = parts[0], arguments = parts.Length > 1 ? parts[1] : "{}" } };
+                }).ToList();
+                var completion = System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    choices = new[] { new { index = 0, message = new { role = "assistant", content = calls.Count == 0 ? "I can't do that with these tools." : "", tool_calls = calls }, finish_reason = "tool_calls" } },
+                });
+                return new System.Net.Http.HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new System.Net.Http.StringContent(completion) { Headers = { ContentType = json } } };
+            }
             var text = (mode.Length > 1 ? mode[1] : "An answer.").Replace("\\n", "\n"); // a typed \n is a line break
             if (mode[0] == "translate")
             {

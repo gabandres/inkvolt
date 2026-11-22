@@ -307,6 +307,8 @@ public static class Cmd
     public static readonly RoutedUICommand AiAsk = Make(Strings.Cmd_AiAsk, nameof(AiAsk));
     public static readonly RoutedUICommand AiExplain = Make(Strings.Cmd_AiExplain, nameof(AiExplain));
     public static readonly RoutedUICommand AiTranslate = Make(Strings.Cmd_AiTranslate, nameof(AiTranslate));
+    // Edit by Asking: the user's AI proposes palette commands as steps, each shown and confirmed (DocumentTab.AskEdit)
+    public static readonly RoutedUICommand AskEdit = Make(Strings.Cmd_AskEdit, nameof(AskEdit));
     // A summary read aloud to a WAV or MP3 file with Read Aloud's voice (DocumentTab.AiSave)
     public static readonly RoutedUICommand AiSummaryAudio = Make(Strings.Cmd_AiSummaryAudio, nameof(AiSummaryAudio));
     // Save an AI answer (DocumentTab.AiSave): the last answer or the conversation, to Word, a PDF or a comment
