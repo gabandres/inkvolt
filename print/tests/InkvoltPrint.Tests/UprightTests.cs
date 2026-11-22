@@ -54,6 +54,78 @@ public class UprightTests
     [Fact]
     public void A_page_of_text_reads_which_way_up_it_is() => ReadsUpright(Page(30));
 
+    // ---- PageUpright: the scan review's turn (roadmap 4.3) ----
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void A_page_fed_any_way_round_is_turned_upright(int fedTurns)
+    {
+        var page = Page(30);
+        var fed = new GrayImage(fedTurns % 2 == 0 ? W : H, fedTurns % 2 == 0 ? H : W, ScanCleanup.Turn(page.Pixels, W, H, 1, fedTurns));
+        var found = PageUpright.Find(fed, 100);
+        Assert.True(found.Sure);
+        Assert.Equal((4 - fedTurns) % 4, found.Turns);
+    }
+
+    [Fact]
+    public void A_page_it_isnt_sure_of_isnt_turned()
+    {
+        // Blank paper, a picture alone, lines with as much ink above as below (bars): no turn.
+        Assert.Equal(0, PageUpright.Find(new GrayImage(W, H, Paper()), 100).Turns);
+        var picture = Paper();
+        Picture(picture, 300);
+        Assert.False(PageUpright.Find(new GrayImage(W, H, picture), 100).Sure);
+        var bars = Paper();
+        for (var l = 0; l < 30; l++)
+            for (var y = 80 + l * 26; y < 92 + l * 26; y++)
+                for (var x = 100; x < 750; x++)
+                    bars[y * W + x] = 20;
+        var found = PageUpright.Find(new GrayImage(W, H, bars), 100);
+        Assert.Equal(0, found.Turns);
+        Assert.Equal(UprightFound.Unsure, PageUpright.Find(new GrayImage(10, 10, new byte[100]), 100));
+        Assert.Equal(UprightFound.Unsure, PageUpright.Find(Page(30), double.NaN));
+    }
+
+    [Fact]
+    public void A_copy_finer_than_150_dpi_is_read_at_about_100()
+    {
+        // The same page at 300 dpi (each pixel 3 × 3): read as at 100.
+        var page = UpsideDown(Page(30));
+        var big = new byte[W * 3 * H * 3];
+        for (var y = 0; y < H * 3; y++)
+            for (var x = 0; x < W * 3; x++)
+                big[y * W * 3 + x] = page.Pixels[y / 3 * W + x / 3];
+        Assert.Equal(2, PageUpright.Find(new GrayImage(W * 3, H * 3, big), 300).Turns);
+    }
+
+    [Theory]
+    [InlineData(null, true)]
+    [InlineData("", true)]
+    [InlineData("en-US", true)]
+    [InlineData("es", true)]
+    [InlineData("ru-RU", true)]
+    [InlineData("el", true)]
+    [InlineData("he-IL", false)]
+    [InlineData("ar", false)]
+    [InlineData("fa-IR", false)]
+    [InlineData("zh-Hans-CN", false)]
+    [InlineData("ja", false)]
+    [InlineData("hi-IN", false)]
+    [InlineData("not a tag!", true)]
+    public void Only_scripts_whose_letters_rise_above_the_line_are_turned(string? language, bool suits) =>
+        Assert.Equal(suits, PageUpright.SuitsLanguage(language));
+
+    [Theory]
+    [InlineData(0.2, 0)]
+    [InlineData(-3.5, -3.5)]
+    [InlineData(12, 0)]
+    [InlineData(double.NaN, 0)]
+    public void A_sideways_page_is_straightened_within_the_reviews_limits(double skew, double expected) =>
+        Assert.Equal(expected, PageUpright.StraightenBy(skew));
+
     [Fact]
     public void A_shaded_picture_doesnt_turn_a_page_of_text_over() =>
         // Ten lines of text above a picture whose shading ends in paper at its foot: as a "line", nearly all of it lies
