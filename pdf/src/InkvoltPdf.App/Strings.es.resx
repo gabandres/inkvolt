@@ -12274,4 +12274,31 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
     <value>{0} entradas de tu lista guardada son demasiado largas, o superan lo que cabe en una lista, y no se buscan. Edita la lista para corregirlo.</value>
   </data>
+  <data name="Cmd_NewWindow" xml:space="preserve">
+    <value>_Nueva ventana</value>
+  </data>
+  <data name="Cmd_MoveToNewWindow" xml:space="preserve">
+    <value>_Mover la pestaña a una ventana nueva</value>
+  </data>
+  <data name="Main_TabMoveToNewWindow" xml:space="preserve">
+    <value>Mover a una ventana _nueva</value>
+  </data>
+  <data name="Main_TabMoveToWindow" xml:space="preserve">
+    <value>Mover a otra _ventana</value>
+  </data>
+  <data name="Main_EmptyWindow" xml:space="preserve">
+    <value>Ventana vacía</value>
+  </data>
+  <data name="Main_WindowWithMore" xml:space="preserve">
+    <value>{0} y {1} más</value>
+  </data>
+  <data name="Jump_NewWindow" xml:space="preserve">
+    <value>Nueva ventana</value>
+  </data>
+  <data name="Jump_NewWindowTip" xml:space="preserve">
+    <value>Abre otra ventana de Inkvolt PDF</value>
+  </data>
+  <data name="Start_RecentOpenNewWindow" xml:space="preserve">
+    <value>Abrir en una ventana _nueva</value>
+  </data>
 </root>

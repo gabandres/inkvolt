@@ -48,7 +48,10 @@ namespace InkvoltPdf.App;
 /// Spell check: <c>spellstate · spellmenu offset · spellchoose Header · spelling on|off</c>. Find &amp; Replace: <c>replacedialog ·
 /// replacesearch find|with[|case,whole] · replacestate · replacesel i · replacetoggle i · replaceone · replaceall · replacetype text · replaced</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
-/// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Prompts and file
+/// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Windows (4.9):
+/// <c>mainwindows</c> (each main window, its tabs, the one in use) <c>· newwindow [file] · tearoff</c> (the selected tab
+/// into a new window) <c>· movetab N [index] · droptab x y</c> (the selected tab let go there, in the window's DIPs) <c>·
+/// window N · closewindow</c>; after newwindow, tearoff and window N the steps run in that window. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
@@ -61,6 +64,9 @@ internal static class DevScript
 {
     public static long Started { get; } = Environment.TickCount64;
 
+    // The main window the steps run in, when a step moved the script to another (newwindow, tearoff, window N).
+    private static MainWindow? _target;
+
     public static async Task RunAsync(MainWindow window, string scriptPath)
     {
         var log = new List<string>();
@@ -72,7 +78,10 @@ internal static class DevScript
             {
                 var line = raw.Trim();
                 if (line.Length == 0 || line.StartsWith('#')) continue;
-                await Step(window, line, log);
+                // newwindow, tearoff and window N move the script to another main window, until it closes.
+                var target = _target ?? window;
+                if (App.Current.MainById(target.WindowId) is null) target = App.Current.MainById(window.WindowId) ?? App.Current.ActiveMain ?? window;
+                await Step(target, line, log);
                 log.Add($"ok: {line}");
                 await File.WriteAllLinesAsync(scriptPath + ".log", log.ToArray()); // so far, in case a later step hangs
                 await Task.Delay(150);
@@ -943,10 +952,40 @@ internal static class DevScript
                 break;
             case "windows":
                 // windows: the open secondary windows (prompts, dialogs, menus), with their heading and buttons.
-                foreach (var w in Application.Current.Windows.OfType<Window>().Where(w => w != window))
+                foreach (var w in Application.Current.Windows.OfType<Window>().Where(w => w is not MainWindow))
                     log.Add($"window '{w.Title}' visible={w.IsVisible}: '{Trunc(string.Join(" | ", Descendants<System.Windows.Controls.TextBlock>(w).Where(t => t.Text.Length > 2 && t.TemplatedParent is null).Select(t => t.Text)))}' " +
                             $"[{string.Join(", ", Descendants<System.Windows.Controls.Button>(w).Select(b => b.Content as string).Where(s => s is not null))}]");
                 log.Add($"busy={tab?.IsBusy} pending={tab?.HasPendingEdits}");
+                break;
+            // Two documents side by side (4.9). The steps after newwindow, tearoff and window N run in that window.
+            case "mainwindows":
+                foreach (var w in App.Current.MainsFrontFirst.OrderBy(w => w.WindowId)) log.Add(w.DevWindowState());
+                break;
+            case "newwindow":
+                _target = App.Current.OpenNewWindow(arg.Length > 0 ? [arg] : []);
+                break;
+            case "tearoff":
+                window.DevTearOff();
+                _target = App.Current.ActiveMain;
+                break;
+            case "movetab":
+            {
+                var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                var to = App.Current.MainById(int.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture)) ?? throw new InvalidOperationException($"No window {parts[0]}");
+                window.DevMoveTab(to, parts.Length > 1 ? int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture) : -1);
+                break;
+            }
+            case "droptab":
+            {
+                var parts = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                window.DevDropTab(double.Parse(parts[0], System.Globalization.CultureInfo.InvariantCulture), double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                break;
+            }
+            case "window":
+                _target = App.Current.MainById(int.Parse(arg, System.Globalization.CultureInfo.InvariantCulture)) ?? throw new InvalidOperationException($"No window {arg}");
+                break;
+            case "closewindow":
+                log.Add($"closewindow: closed={await window.CloseAsync()}");
                 break;
             case "answer":
             {

@@ -12293,4 +12293,31 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
     <value>{0} entries in your saved list are too long, or past what a list can hold, and aren't searched. Edit the list to fix it.</value>
   </data>
+  <data name="Cmd_NewWindow" xml:space="preserve">
+    <value>_New Window</value>
+  </data>
+  <data name="Cmd_MoveToNewWindow" xml:space="preserve">
+    <value>_Move Tab to New Window</value>
+  </data>
+  <data name="Main_TabMoveToNewWindow" xml:space="preserve">
+    <value>Move to _New Window</value>
+  </data>
+  <data name="Main_TabMoveToWindow" xml:space="preserve">
+    <value>Move to _Window</value>
+  </data>
+  <data name="Main_EmptyWindow" xml:space="preserve">
+    <value>Empty window</value>
+  </data>
+  <data name="Main_WindowWithMore" xml:space="preserve">
+    <value>{0} and {1} more</value>
+  </data>
+  <data name="Jump_NewWindow" xml:space="preserve">
+    <value>New window</value>
+  </data>
+  <data name="Jump_NewWindowTip" xml:space="preserve">
+    <value>Open another Inkvolt PDF window</value>
+  </data>
+  <data name="Start_RecentOpenNewWindow" xml:space="preserve">
+    <value>Open in New _Window</value>
+  </data>
 </root>

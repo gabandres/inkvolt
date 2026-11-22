@@ -131,6 +131,10 @@ public static class Cmd
         K(Key.Tab, ModifierKeys.Control | ModifierKeys.Shift, "Ctrl+Shift+Tab"), K(Key.PageUp, ModifierKeys.Control, "Ctrl+PgUp"));
     public static readonly RoutedUICommand ReopenClosed = Make(Strings.Cmd_ReopenClosed, nameof(ReopenClosed), K(Key.T, ModifierKeys.Control | ModifierKeys.Shift));
 
+    // Windows (roadmap 4.9: two documents side by side; MainWindow.Windows.cs)
+    public static readonly RoutedUICommand NewWindow = Make(Strings.Cmd_NewWindow, nameof(NewWindow), K(Key.N, ModifierKeys.Control));
+    public static readonly RoutedUICommand MoveToNewWindow = Make(Strings.Cmd_MoveToNewWindow, nameof(MoveToNewWindow));
+
     // App
     public static readonly RoutedUICommand CommandPalette = Make(Strings.Cmd_CommandPalette, nameof(CommandPalette), K(Key.K, ModifierKeys.Control), K(Key.P, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand WhatsNew = Make(Strings.Cmd_WhatsNew, nameof(WhatsNew));

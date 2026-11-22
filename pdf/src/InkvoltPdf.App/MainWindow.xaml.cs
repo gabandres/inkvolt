@@ -19,7 +19,11 @@ namespace InkvoltPdf.App;
 /// <summary>A document tab in the title bar.</summary>
 public sealed class TabModel(DocumentTab tab) : INotifyPropertyChanged
 {
+    private static long _lastId;
+
     public DocumentTab Tab { get; } = tab;
+    /// <summary>The tab's number in <see cref="App.Hub"/>: it keeps it from window to window.</summary>
+    public long Id { get; } = Interlocked.Increment(ref _lastId);
     public override string ToString() => Title;
     /// <summary>The file name, or the document title when the file asks to show it (the tooltip keeps the path).</summary>
     public string Title => Tab.DisplayTitle;
@@ -114,8 +118,16 @@ public partial class MainWindow : Window
         set => SetValue(TabMaxWidthProperty, value);
     }
 
+    /// <summary>This window's number in <see cref="App.Hub"/>.</summary>
+    internal int WindowId { get; }
+
+    /// <summary>When this window was last activated (Environment.TickCount64): the order windows are in, front first.</summary>
+    internal long LastActivated { get; private set; }
+
     public MainWindow()
     {
+        WindowId = App.Hub.Open();
+        LastActivated = Environment.TickCount64;
         InitializeComponent();
         _autosave = new Autosave(() => OpenTabs);
         // Shortcuts shown on buttons come from the commands' gestures, so they always match the bindings.
@@ -140,7 +152,16 @@ public partial class MainWindow : Window
         TextScale.Changed += (_, _) => ScaleTitleBar();
         FolderWatches.Changed += ShowWatchStatus;
         _tabs.CollectionChanged += (_, _) => LayoutTabs();
-        Activated += (_, _) => ActiveTab?.ScheduleDiskCheck();
+        Activated += (_, _) =>
+        {
+            // The window in use takes other launches' files, and owns dialogs that have no window of their own.
+            App.Hub.Activate(WindowId);
+            LastActivated = Environment.TickCount64;
+            if (Application.Current is { } app && !_closed) app.MainWindow = this;
+            ActiveTab?.ScheduleDiskCheck();
+        };
+        BindWindowCommands(); // MainWindow.Windows.cs
+        WatchTabDrags();
         Application.Current.SessionEnding += OnSessionEnding;
         Closed += (_, _) =>
         {
@@ -267,6 +288,9 @@ public partial class MainWindow : Window
                 Item(Strings.Main_TabClose, () => _ = CloseTabAsync(model), gesture: "Ctrl+W"),
                 Item(Strings.Main_TabCloseOthers, () => _ = CloseTabsAsync(_tabs.Where(t => t != model).ToList()), _tabs.Count > 1),
                 Item(Strings.Main_TabCloseRight, () => _ = CloseTabsAsync(_tabs.Skip(index + 1).ToList()), index < _tabs.Count - 1),
+                new Separator(),
+                Item(Strings.Main_TabMoveToNewWindow, () => TearOff(model, null), _tabs.Count > 1),
+                MoveToWindowMenu(model),
                 new Separator(),
                 Item(Strings.Main_TabCopyPath, () => CopyPath(path!), path is not null),
                 Item(Strings.Main_TabShowInFolder, () => Shell.ShowInFolder(path!), path is not null),
@@ -426,8 +450,7 @@ public partial class MainWindow : Window
         _autosave.Copy(wait: true);
         if (!_tabs.Any(t => t.Tab.Session.IsDirty || t.Tab.HasPendingEdits))
         {
-            RememberOpenTabs();
-            SavePlacement();
+            if (RememberOpenTabs(everyWindow: true)) SavePlacement();
             return;
         }
         e.Cancel = true;
@@ -606,6 +629,12 @@ public partial class MainWindow : Window
             open.Tab.ScheduleDiskCheck();
             return;
         }
+        // Open in another window: that window and tab come forward (a document is open once).
+        if (App.Hub.FindFile(full) is { } elsewhere && App.Current.MainById(elsewhere.Window) is { } other && other != this)
+        {
+            other.ShowTab(elsewhere.Tab);
+            return;
+        }
 
         if (!File.Exists(full))
         {
@@ -701,21 +730,53 @@ public partial class MainWindow : Window
             session.Dispose();
             return false;
         }
-        var tab = new DocumentTab(session) { Visibility = Visibility.Collapsed };
-        var model = new TabModel(tab);
-        tab.StateChanged += (_, _) =>
+        Attach(new TabModel(new DocumentTab(session)), _tabs.Count);
+        return true;
+    }
+
+    // What each tab's events are wired to in this window, undone when the tab leaves it (closed, or moved to another).
+    private readonly Dictionary<TabModel, Action> _unwire = [];
+
+    /// <summary>Shows <paramref name="model"/>'s tab here at <paramref name="index"/> and selects it: a new tab, or one moved from another window.</summary>
+    private void Attach(TabModel model, int index)
+    {
+        var tab = model.Tab;
+        tab.Visibility = Visibility.Collapsed;
+        EventHandler state = (_, _) =>
         {
             model.Refresh();
+            App.Hub.SetPath(model.Id, tab.Session.FilePath);
             RelabelTabs();
             if (ActiveTab == tab) UpdateUi();
         };
-        tab.Toast += (_, t) => ShowToast(t, tab);
-        tab.SignRequested += (_, field) => { if (ActiveTab == tab && !tab.IsBusy) _ = SignDigitallyAsync(tab, field); };
+        EventHandler<Toast> toast = (_, t) => ShowToast(t, tab);
+        EventHandler<string?> sign = (_, field) => { if (ActiveTab == tab && !tab.IsBusy) _ = SignDigitallyAsync(tab, field); };
+        tab.StateChanged += state;
+        tab.Toast += toast;
+        tab.SignRequested += sign;
+        _unwire[model] = () =>
+        {
+            tab.StateChanged -= state;
+            tab.Toast -= toast;
+            tab.SignRequested -= sign;
+        };
+        if (App.Hub.WindowOf(model.Id) is null) App.Hub.Add(WindowId, model.Id, tab.Session.FilePath, index);
         DocsHost.Children.Add(tab);
-        _tabs.Add(model);
+        _tabs.Insert(Math.Clamp(index, 0, _tabs.Count), model);
         TabStrip.SelectedItem = model;
         Dispatcher.BeginInvoke(DispatcherPriority.Input, () => tab.ActiveView.Focus());
-        return true;
+    }
+
+    /// <summary>
+    /// Takes <paramref name="model"/>'s tab out of this window without closing its document: closed (it leaves
+    /// <see cref="App.Hub"/> too), or going to another window (<paramref name="moving"/>: the hub has moved it).
+    /// </summary>
+    private void Release(TabModel model, bool moving = false)
+    {
+        if (_unwire.Remove(model, out var unwire)) unwire();
+        if (!moving) App.Hub.Remove(model.Id);
+        _tabs.Remove(model);
+        DocsHost.Children.Remove(model.Tab);
     }
 
     private void ShowActiveTab()
@@ -1145,6 +1206,15 @@ public partial class MainWindow : Window
         Dispatcher.BeginInvoke(DispatcherPriority.Normal, () => _ = CloseWindowAsync());
     }
 
+    /// <summary>Closes this window as its close button does, asking about its unsaved documents; false when it stays open.</summary>
+    internal async Task<bool> CloseAsync()
+    {
+        if (_closed) return true;
+        if (_closeRunning) return false;
+        await CloseWindowAsync();
+        return _closed;
+    }
+
     private async Task CloseWindowAsync()
     {
         _closeRunning = true;
@@ -1298,22 +1368,28 @@ public partial class MainWindow : Window
     {
         if (_finished) return;
         _finished = true;
-        RememberOpenTabs();
+        // The last window, or every window at once, remembers the files and where the window was; one of several doesn't.
+        var remembered = RememberOpenTabs(everyWindow: _sessionEnded || App.ClosingAll);
         var unasked = !_closeApproved && _tabs.Any(t => t.Tab.Session.IsDirty || t.Tab.HasPendingEdits);
         if (unasked) _autosave.Copy(wait: true);
         foreach (var model in _tabs.ToList()) Discard(model);
         if (unasked) _autosave.Keep();
         else _autosave.Dispose(); // every document was saved or let go: no recovery copies to keep
-        SavePlacement();
+        if (remembered) SavePlacement();
     }
 
-    private void RememberOpenTabs() =>
-        AppSettings.Current.OpenTabs = [.. _tabs.Where(t => t.Tab.Session.FilePath is not null).Select(t => t.Tab.Session.FilePath!)];
+    /// <summary>The files to reopen next time, as <see cref="DocumentWindows.Remember"/> decides; false when it left them.</summary>
+    private bool RememberOpenTabs(bool everyWindow)
+    {
+        foreach (var model in _tabs) App.Hub.SetPath(model.Id, model.Tab.Session.FilePath); // after any Save As
+        if (App.Hub.Remember(WindowId, everyWindow) is not { } files) return false;
+        AppSettings.Current.OpenTabs = [.. files];
+        return true;
+    }
 
     private void Discard(TabModel model)
     {
-        _tabs.Remove(model);
-        DocsHost.Children.Remove(model.Tab);
+        Release(model);
         model.Tab.Dispose();
     }
 
@@ -1728,6 +1804,14 @@ public partial class MainWindow : Window
 
     private void OnRecentMenuOpen(object sender, RoutedEventArgs e) => OnRecentClick(sender, e);
 
+    /// <summary>A recent file in a window of its own; one already open comes forward where it is (a document is open once).</summary>
+    private void OnRecentMenuOpenNewWindow(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string path }) return;
+        if (App.Hub.FindFile(path) is { } open && App.Current.MainById(open.Window) is { } window) window.ShowTab(open.Tab);
+        else App.Current.OpenNewWindow([path]);
+    }
+
     private void OnRecentMenuShow(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string path }) Shell.ShowInFolder(path);
@@ -1802,7 +1886,7 @@ public partial class MainWindow : Window
         BindAlways(Cmd.Open, ShowOpenDialog);
         BindToolCommands(); // MainWindow.Tools.cs
         BindAlways(Cmd.Combine, () => _ = Organize.Combine(this, this));
-        BindAlways(Cmd.Exit, Close);
+        BindAlways(Cmd.Exit, () => _ = App.Current.ExitAllAsync());
         BindAlways(Cmd.CommandPalette, OpenPalette);
         BindAlways(Cmd.Settings, ShowSettings);
         BindAlways(Cmd.WhatsNew, () => AppHelp.ShowWhatsNew(this, AppHelp.Notes()));
