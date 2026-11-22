@@ -24,6 +24,9 @@ public static class ConsoleOutput
         // Attaching sets the standard handles to the console's (cmd's "> log" was lost): a redirected one is put back.
         var (outHandle, errorHandle) = (GetStdHandle(StdOutput), GetStdHandle(StdError));
         AttachConsole(AttachParentProcess);
+        // A shell may pass "ignore Ctrl+C" down to what it starts (Git Bash does, as do "start /b" and some CI runners): a
+        // --watch started there never stopped on Ctrl+C (Inkvolt PDF 1.18's smoke test). Each command line here stops on it.
+        SetConsoleCtrlHandler(IntPtr.Zero, false);
         var output = Redirected(outHandle);
         var error = Redirected(errorHandle);
         if (output) SetStdHandle(StdOutput, outHandle);
@@ -83,6 +86,9 @@ public static class ConsoleOutput
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool AttachConsole(int processId);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetConsoleCtrlHandler(IntPtr handler, bool add);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GetStdHandle(int handle);

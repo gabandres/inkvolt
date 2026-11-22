@@ -4,7 +4,7 @@ using InkvoltPdf.Core;
 // A test's command line (CommandOutputTests): two lines written as the app's --batch writes them (CommandLine.RunAsync's
 // wiring), as a windowed app: without a console of its own, and with "no-output" without a standard output either (a
 // windowed app started with only its errors redirected). "own-writer <file>": a writer of its own that saves to the file,
-// as the console writer in a terminal, must stay.
+// as the console writer in a terminal, must stay. "ctrl-c": "ready", then waits for Ctrl+C as --watch does.
 if (args is ["command-output", .. var mode])
 {
     if (mode is ["own-writer", var path])
@@ -20,6 +20,26 @@ if (args is ["command-output", .. var mode])
     BenchConsole.FreeConsole();
     if (mode is ["no-output"]) BenchConsole.SetStdHandle(-11, 0);
     var (output, error) = InkvoltPrint.Windows.Suite.ConsoleOutput.Use();
+    if (mode is ["ctrl-c"])
+    {
+        // Waits as --watch does until Ctrl+C (CommandLine.RunAsync's handler): exit 0 when it came, 1 after a minute without.
+        using var stop = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            stop.Cancel();
+        };
+        Console.WriteLine("ready");
+        try
+        {
+            await Task.Delay(TimeSpan.FromMinutes(1), stop.Token);
+            return 1;
+        }
+        catch (OperationCanceledException)
+        {
+            return 0;
+        }
+    }
     await CommandOutput.QuietMuPdfAsync(output, error);
     if (output) Console.WriteLine("line one"); // else it would go to the console the tests run in
     Console.Error.WriteLine("line two");
