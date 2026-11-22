@@ -199,6 +199,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   cut off is removed from the file, not just hidden; Esc ends), arrow keys nudge it (Shift: 10 pt), Delete removes it, Enter or
   Replace Picture… (or a double-click) puts another picture file in its box, upright and in its own proportions; other
   places that show the same picture don't change. Tab goes through the page's text and pictures (Enter edits the text).
+  **Turn** a picture or the text you clicked (its paragraph) to any angle: drag the round handle out from its top-right
+  corner (Shift: 15° steps; the turned outline and its angle show as you drag), or type the angle in the bar's Angle box
+  (Edit › Turn to Angle…), about the middle of its box. A paragraph keeps its glyphs, spacing and kerning (each piece is
+  drawn again from a turned text matrix, `ContentEditor.RotateParagraph`; a picture gets a turn in front of its placement,
+  `RotateImage`), stays an editable paragraph in its new direction, and what follows it on the page stays where it was.
   Each change is one undo step; a signed file gets it appended (with the usual warning), a protected one keeps its
   protection.
 - **Spell check** where you type: the paragraph and text editors of Edit Text & Images, sticky notes, text boxes, callouts
@@ -876,7 +881,7 @@ check0 clean first, check1 a photographed page straightened, check2 bent lines f
 logs its words), `suspectsel i`, `suspectfix text|keep`, `findcount word` (how often search finds it); scans to try it on:
 `pdf/tools/ocr-corpus` (`make`; `photos` for photographed and bent pages). Make Text Editable: `dialogok MakeTextEditable [combo0=N] [check0=on]` (combo0 the pages, check0 keep the scan showing), then `paragraphs 1` and `editpara`. Export: `savepath out.docx` then `dialogok ExportWord check1=off` (likewise `ExportExcel`, `ExportText`, `ExportPowerPoint`, `ExportHtml`; `check0` is OCR,
 `check1` "open when done"); Edit Text & Images: `editcontent on|off`, `contentstate`, `edittext p i [text]` (then
-`key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
+`key Enter`), `imagesel p i|none`, `moveimage p i x y w h`, `turnangle degrees`, `turndrag dx dy [shift]`, `imageaction delete|replace file` (sample: `edit-sample.pdf`
 from `ContentEditorTests` with `INKVOLTPDF_SAMPLES`); spell check: `spellstate`, `spellmenu offset`, `spellchoose Header`,
 `spelling on|off` (a dev run's Add to dictionary never writes Windows' user dictionary); Find and Replace: `replacedialog`
 (drive it with `later`), `replacesearch find|with[|case,whole]`, `replacestate`, `replacesel i`, `replacetoggle i`, `replaceone`,

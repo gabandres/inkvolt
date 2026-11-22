@@ -175,6 +175,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
   turn. It hands over the edits; `FormDesign` makes them. Several fields can be selected (Ctrl+click): the first one
   picked is the **anchor**, which Arrange Fields (align, same size, space evenly: `FormDesignRules.Aligned`,
   `SizedAlike`, `Spread`) leaves where it is and lines the others up with.
+- **Turn** (Edit Text &amp; Images; `ContentEditor.RotateImage`, `RotateParagraph`, the handle's and angle box's rules
+  `ContentTurn`): a picture or a paragraph turned to any angle about the middle of its box, degrees clockwise as the page
+  shows (`PageImage.Angle`, `TextParagraph.Angle`). A paragraph's show operators are drawn again from a turned text
+  matrix, so its text isn't rewritten. Not the page's rotation (Rotate Pages) nor the view's (Rotate View).
 - **Calculated field** (`FormCalculations`, `FieldCalc`, `CalcKind`): a field whose value is worked out from others
   when the form is filled (its /AA /C script, run by `FormEditor` in the **calculation order**, the form's /CO). Prepare
   Form writes a **simple calculation** (sum, product, average, minimum, maximum of named fields:

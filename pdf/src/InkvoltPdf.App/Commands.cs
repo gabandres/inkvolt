@@ -117,6 +117,7 @@ public static class Cmd
 
     // Edit Text & Images (see DocumentTab.EditContent)
     public static readonly RoutedUICommand EditContent = Make(Strings.Cmd_EditContent, nameof(EditContent));
+    public static readonly RoutedUICommand TurnContent = Make(Strings.Cmd_TurnContent, nameof(TurnContent));
 
     // View
     public static readonly RoutedUICommand ZoomIn = Make(Strings.Cmd_ZoomIn, nameof(ZoomIn), K(Key.OemPlus, ModifierKeys.Control, "Ctrl+="), K(Key.Add, ModifierKeys.Control));

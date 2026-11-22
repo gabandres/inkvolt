@@ -876,6 +876,10 @@
                         <Button x:Name="EditContentCrop" Style="{StaticResource CommandButton}" Content="{x:Static loc:Strings.Tab_CropPicture}" FontSize="12" Padding="8,4" IsEnabled="False"
                                 ToolTip="{x:Static loc:Strings.Tab_CropPictureTip}" />
                         <Border Style="{StaticResource BarSeparator}" />
+                        <TextBlock Text="{x:Static loc:Strings.Tab_TurnAngle}" VerticalAlignment="Center" FontSize="12" Margin="6,0,4,0" />
+                        <TextBox x:Name="EditContentAngle" Width="64" FontSize="12" VerticalAlignment="Center" IsEnabled="False" Margin="0,0,4,0"
+                                 ToolTip="{x:Static loc:Strings.Tab_TurnAngleTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_TurnAngleName}" />
+                        <Border Style="{StaticResource BarSeparator}" />
                         <Button x:Name="EditContentDone" Style="{StaticResource CommandButton}" Content="{x:Static loc:Strings.Common_Done}" FontSize="12" Padding="10,4" FontWeight="SemiBold"
                                 ToolTip="{x:Static loc:Strings.Tab_LeaveEditTextImagesTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_DoneEditingTextImages}" />
                     </StackPanel>

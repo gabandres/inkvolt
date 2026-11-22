@@ -4406,9 +4406,6 @@ Modified {1:g}</value>
   <data name="EditContent_PdfOnly" xml:space="preserve">
     <value>Text and pictures can be edited in PDF files only.</value>
   </data>
-  <data name="EditContent_Hint" xml:space="preserve">
-    <value>Click text to change it, or a picture to move, resize, replace or delete it. Tab goes through them.</value>
-  </data>
   <data name="EditContent_ListSeparator" xml:space="preserve">
     <value>, </value>
     <comment>Between the missing characters in a list; keep the trailing space</comment>
@@ -12524,5 +12521,37 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="FormDesign_TitleSeveral" xml:space="preserve">
     <value>{0} fields · first: {1} {2}</value>
     <comment>Prepare Form panel title with several selected: {0} count, {1} kind, {2} the anchor's name</comment>
+  </data>
+  <data name="EditContent_Hint" xml:space="preserve">
+    <value>Click text to change it, or a picture to move, resize, replace or delete it; drag the round handle to turn either. Tab goes through them.</value>
+    <comment>Edit Text &amp; Images: the toast when it starts</comment>
+  </data>
+  <data name="Tab_TurnAngle" xml:space="preserve">
+    <value>Angle</value>
+    <comment>Edit Text &amp; Images bar: caption of the angle box</comment>
+  </data>
+  <data name="Tab_TurnAngleTip" xml:space="preserve">
+    <value>Turn the selected picture or the text you clicked to this angle (degrees, clockwise). Or drag the round handle; Shift: 15° steps.</value>
+    <comment>Edit Text &amp; Images bar: angle box tooltip</comment>
+  </data>
+  <data name="Tab_TurnAngleName" xml:space="preserve">
+    <value>Angle of the selection, in degrees</value>
+    <comment>Edit Text &amp; Images bar: angle box name for a screen reader</comment>
+  </data>
+  <data name="Cmd_TurnContent" xml:space="preserve">
+    <value>T_urn to Angle…</value>
+    <comment>Edit menu: focuses Edit Text &amp; Images' angle box</comment>
+  </data>
+  <data name="Viewer_TurnAfterEdit" xml:space="preserve">
+    <value>Press Enter to keep your change to the text first, then turn it.</value>
+    <comment>Edit Text &amp; Images: the turn handle pressed while the editor holds changed text</comment>
+  </data>
+  <data name="EditContent_EditTurnPicture" xml:space="preserve">
+    <value>Turn picture</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="EditContent_EditTurnText" xml:space="preserve">
+    <value>Turn text</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
   </data>
 </root>

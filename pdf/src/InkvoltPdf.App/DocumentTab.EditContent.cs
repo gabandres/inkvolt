@@ -38,6 +38,23 @@ public partial class DocumentTab
         };
         Viewer.ContentAnnounce += (_, message) => AnnounceContent(message);
         Viewer.ContentSelectionChanged += (_, _) => UpdateContentButtons();
+        Viewer.ContentTurned += (_, t) => _ = TurnContent(t);
+        EditContentAngle.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Enter)
+            {
+                ApplyAngle();
+                Viewer.Focus();
+                e.Handled = true;
+            }
+            else if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                UpdateContentButtons();
+                Viewer.Focus();
+                e.Handled = true;
+            }
+        };
+        EditContentAngle.LostKeyboardFocus += (_, _) => ApplyAngle();
         Viewer.DocumentLanguage = DocumentLanguage;
         // The document's language is read as it opens, and again when its bytes change (an edit, undo, a reload: a
         // document made accessible says its language); form values and comments don't change it.
@@ -119,6 +136,40 @@ public partial class DocumentTab
         EditContentReplace.IsEnabled = EditContentDelete.IsEnabled = image is { Blocked: null };
         EditContentCrop.IsEnabled = image is { Blocked: null, Turned: false };
         EditContentCrop.FontWeight = Viewer.CroppingImage ? FontWeights.SemiBold : FontWeights.Normal;
+        var turn = Viewer.TurnSubject;
+        EditContentAngle.IsEnabled = turn is not null;
+        if (!EditContentAngle.IsKeyboardFocusWithin) EditContentAngle.Text = turn is { } t ? ContentTurn.Format(t.Angle) : "";
+    }
+
+    /// <summary>The bar's angle box, typed: the picture or paragraph turned to it (a typed angle that isn't one changes nothing).</summary>
+    private void ApplyAngle()
+    {
+        if (!EditContentAngle.IsEnabled || Viewer.TurnSubject is not { } t) return;
+        if (ContentTurn.Parse(EditContentAngle.Text) is { } wanted && ContentTurn.TurnBy(t.Angle, wanted) is not null) Viewer.TurnTo(wanted);
+        else EditContentAngle.Text = ContentTurn.Format(t.Angle);
+    }
+
+    /// <summary>Edit › Turn to Angle: the bar's angle box, ready for typing.</summary>
+    internal void FocusTurnAngle()
+    {
+        UpdateContentButtons();
+        if (!EditContentAngle.IsEnabled) return;
+        EditContentAngle.Focus();
+        EditContentAngle.SelectAll();
+    }
+
+    public bool CanTurnContent => IsEditingContent && Viewer.TurnSubject is not null;
+
+    /// <summary>A picture or paragraph turned (the handle, or the angle box): one edit.</summary>
+    private async Task TurnContent(ContentTurnEdit t)
+    {
+        var label = t.Image is not null ? Strings.EditContent_EditTurnPicture : Strings.EditContent_EditTurnText;
+        var outcome = await TryEdit(label, (d, pw) => t.Image is { } image
+            ? ContentEditor.RotateImage(d, pw, image, t.By)
+            : ContentEditor.RotateParagraph(d, pw, t.Paragraph!, t.By), veil: false);
+        if (outcome == EditOutcome.Busy) Notify(Strings.EditContent_StillApplying, error: true);
+        if (outcome != EditOutcome.Done) ReloadEditContent();
+        UpdateContentButtons();
     }
 
     /// <summary>After any change to the document: what was read is stale, so the pages ask again.</summary>
@@ -331,10 +382,19 @@ public partial class DocumentTab
         var para = Viewer.EditedParagraph;
         return $"editing={IsEditingContent} page={page + 1} runs={c?.Runs.Count.ToString() ?? "-"} images={c?.Images.Count.ToString() ?? "-"} " +
                $"paragraphs={c?.Paragraphs.Count.ToString() ?? "-"} " +
-               $"selected={(sel is null ? "-" : $"{sel.Box.X:0},{sel.Box.Y:0} {sel.Box.Width:0}x{sel.Box.Height:0}")} editor='{Viewer.EditedRun?.Text}'" +
+               $"selected={(sel is null ? "-" : $"{sel.Box.X:0},{sel.Box.Y:0} {sel.Box.Width:0}x{sel.Box.Height:0} angle {sel.Angle:0.##}")} editor='{Viewer.EditedRun?.Text}'" +
+               $" turn={(Viewer.TurnSubject is { } ts ? ContentTurn.Format(ts.Angle, System.Globalization.CultureInfo.InvariantCulture) : "-")} anglebox='{EditContentAngle.Text}'" +
                (para is null ? "" : $" paragraph={para.Lines.Count} lines {para.Align} '{para.Text}'") +
                (Viewer.EditorNote is { } note ? $" note='{note.Replace('\n', ' ')}'" : "") +
                (c is null ? "" : " texts=[" + string.Join(" | ", c.Runs.Take(30).Select(r => r.Blocked is null ? r.Text : $"({r.Text})")) + "]");
+    }
+
+    /// <summary>DevScript's turnangle: typed in the bar's angle box, then Enter.</summary>
+    internal void DevTurnAngle(string text)
+    {
+        UpdateContentButtons();
+        EditContentAngle.Text = text;
+        ApplyAngle();
     }
 
     internal Task DevReplaceImage(string path) =>

@@ -128,6 +128,9 @@ public sealed record PageImage(int PageIndex, int Id, RectD Box, bool Inline, st
     /// <summary>Turned by other than a quarter turn, or skewed: resizing scales its bounding box.</summary>
     public bool Turned { get; init; }
 
+    /// <summary>The direction its own x axis takes on the page: degrees clockwise from left-to-right (0: upright).</summary>
+    public double Angle { get; init; }
+
     /// <summary>
     /// Cropped (a clip rectangle drawn right before it, in its own space, as <see cref="ContentEditor.CropImage"/> writes
     /// one): the whole picture's box, of which <see cref="Box"/> is the part that shows. Null: it shows whole.
@@ -1156,7 +1159,7 @@ public static partial class ContentEditor
         if (box.Width <= 0 && box.Height <= 0) return box;
         var turned = Math.Abs(ctm.B) > 1e-6 && Math.Abs(ctm.A) > 1e-6 || Math.Abs(ctm.C) > 1e-6 && Math.Abs(ctm.D) > 1e-6;
         var shown = crop is { } c ? BoxOf(page, ctm, c.X0, c.Y0, c.X1, c.Y1) : box;
-        w.Images.Add(new PageImage(pageIndex, id, shown, inline, blocked) { Turned = turned, Uncropped = crop is null ? null : box });
+        w.Images.Add(new PageImage(pageIndex, id, shown, inline, blocked) { Turned = turned, Uncropped = crop is null ? null : box, Angle = ImageAngle(page, ctm) });
         if (blocked is null) w.ImageCtm[id] = ctm;
         return shown;
     }

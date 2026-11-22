@@ -180,6 +180,7 @@
                                         <MenuItem Command="app:Cmd.AddSignature" />
                                     </MenuItem>
                                     <MenuItem x:Name="EditContentMenu" Command="app:Cmd.EditContent" />
+                                    <MenuItem Command="app:Cmd.TurnContent" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuForms}">
                                         <MenuItem x:Name="PrepareFormMenu" Command="app:Cmd.PrepareForm" />
                                         <MenuItem Command="app:Cmd.DetectFields" />

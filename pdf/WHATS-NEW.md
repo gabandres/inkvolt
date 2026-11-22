@@ -18,6 +18,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Save an AI answer: the Save button on an answer, or Review › AI Assistant › Save AI Answer and Save AI Conversation, saves it as a Word document or a PDF, with what you asked, its page references and the model's name, or puts it into the document as a note on the page it cites. The conversation stays with the document while it's open.
 - Calculated form fields (Prepare Form): a text field can add up, multiply, average, or take the lowest or highest of the fields you tick, or work out a formula like Price * Quantity. They update as the form is filled, here and in Acrobat, which reads them back as its own. Calculation Order sets which ones work out first. New number formats: negatives in brackets, 1.234,56 and euros.
 - Several fields at once (Prepare Form): Ctrl+click fields to select them together, then move them, delete them, line them up with the first one you picked, give them its width or height, or space them evenly across or down.
+- Turn a picture or a block of text to any angle (Edit Text & Images): drag the round handle by its corner (hold Shift for 15° steps), or type the angle in the bar. Text stays text you can edit and search, and the rest of the page stays put.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

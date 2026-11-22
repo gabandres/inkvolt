@@ -1963,6 +1963,7 @@ public partial class MainWindow : Window
         Bind(Cmd.ToolLink, t => ToggleTool(t, ViewerTool.AddLink), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.PrepareForm, t => _ = t.SetFormDesign(!t.IsDesigningForm), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.EditContent, t => t.SetEditContent(!t.IsEditingContent), t => t.Session.IsPdf && t.PageView.PageCount > 0);
+        Bind(Cmd.TurnContent, t => t.FocusTurnAngle(), t => t.CanTurnContent && !t.IsBusy);
         Bind(Cmd.DetectFields, t => _ = t.DetectFieldsCommand(), t => t.Session.IsPdf && t.PageView.PageCount > 0 && !t.IsBusy);
         foreach (var (command, how) in Cmd.ArrangeCommands)
         {

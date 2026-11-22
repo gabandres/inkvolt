@@ -45,7 +45,7 @@ namespace InkvoltPdf.App;
 /// suggestions · taborder on|off · fieldsadd i,j,… · arrange AlignLeft|AlignCenter|…|SpaceDown · calc kind fields|notation ·
 /// calcorder a,b,… · calcstate</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
 /// the editor on text run i, then <c>key Enter</c> commits) <c>· editpara p i [text]</c> (the editor on paragraph i, a
-/// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · cropimage p i x y w h · imageaction delete|replace file · parapicture file</c> (Insert Picture in the open paragraph editor, at its caret).
+/// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · cropimage p i x y w h · imageaction delete|replace file · parapicture file</c> (Insert Picture in the open paragraph editor, at its caret) <c>· turnangle degrees · turndrag dx dy [shift]</c> (turn the selected picture or the text last clicked).
 /// Spell check: <c>spellstate · spellmenu offset · spellchoose Header · spelling on|off</c>. Find &amp; Replace: <c>replacedialog ·
 /// replacesearch find|with[|case,whole] · replacestate · replacesel i · replacetoggle i · replaceone · replaceall · replacetype text · replaced</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
@@ -839,6 +839,23 @@ internal static class DevScript
                 var a = arg.Split(' ');
                 var page = int.Parse(a[0]) - 1;
                 v!.DevMoveImage(v.DevContent(page)!.Images[int.Parse(a[1])], new Core.RectD(Num(a[2]), Num(a[3]), Num(a[4]), Num(a[5])));
+                await DesignSettle(tab!);
+                await Task.Delay(500);
+                log.Add($"content: {tab!.DevContentState()}");
+                break;
+            }
+            // Turn (roadmap 4.22): turnangle degrees (typed in the bar's angle box, then Enter) · turndrag dx dy [shift] (the
+            // round handle dragged that far, in DIPs) · both act on the selected picture, else the text last clicked
+            case "turnangle":
+                tab!.DevTurnAngle(arg);
+                await DesignSettle(tab);
+                await Task.Delay(500);
+                log.Add($"content: {tab.DevContentState()}");
+                break;
+            case "turndrag":
+            {
+                var a = arg.Split(' ');
+                log.Add($"turndrag: {v!.DevTurnDrag(Num(a[0]), Num(a[1]), a.Length > 2 && a[2] == "shift")}");
                 await DesignSettle(tab!);
                 await Task.Delay(500);
                 log.Add($"content: {tab!.DevContentState()}");

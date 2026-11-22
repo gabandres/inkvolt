@@ -4389,9 +4389,6 @@ Modificado {1:g}</value>
   <data name="EditContent_PdfOnly" xml:space="preserve">
     <value>El texto y las imágenes solo se pueden editar en archivos PDF.</value>
   </data>
-  <data name="EditContent_Hint" xml:space="preserve">
-    <value>Haz clic en un texto para cambiarlo, o en una imagen para moverla, cambiar su tamaño, reemplazarla o eliminarla. Tab las recorre.</value>
-  </data>
   <data name="EditContent_ListSeparator" xml:space="preserve">
     <value>, </value>
     <comment>Between the missing characters in a list; keep the trailing space</comment>
@@ -12505,5 +12502,37 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="FormDesign_TitleSeveral" xml:space="preserve">
     <value>{0} campos · primero: {1} {2}</value>
     <comment>Prepare Form panel title with several selected: {0} count, {1} kind, {2} the anchor's name</comment>
+  </data>
+  <data name="EditContent_Hint" xml:space="preserve">
+    <value>Haz clic en un texto para cambiarlo, o en una imagen para moverla, cambiar su tamaño, reemplazarla o eliminarla; arrastra el controlador redondo para girar cualquiera de los dos. Tab los recorre.</value>
+    <comment>Edit Text &amp; Images: the toast when it starts</comment>
+  </data>
+  <data name="Tab_TurnAngle" xml:space="preserve">
+    <value>Ángulo</value>
+    <comment>Edit Text &amp; Images bar: caption of the angle box</comment>
+  </data>
+  <data name="Tab_TurnAngleTip" xml:space="preserve">
+    <value>Gira la imagen seleccionada o el texto en el que hiciste clic a este ángulo (grados, en el sentido de las agujas del reloj). O arrastra el controlador redondo; Shift: pasos de 15°.</value>
+    <comment>Edit Text &amp; Images bar: angle box tooltip</comment>
+  </data>
+  <data name="Tab_TurnAngleName" xml:space="preserve">
+    <value>Ángulo de la selección, en grados</value>
+    <comment>Edit Text &amp; Images bar: angle box name for a screen reader</comment>
+  </data>
+  <data name="Cmd_TurnContent" xml:space="preserve">
+    <value>_Girar a un ángulo…</value>
+    <comment>Edit menu: focuses Edit Text &amp; Images' angle box</comment>
+  </data>
+  <data name="Viewer_TurnAfterEdit" xml:space="preserve">
+    <value>Pulsa Intro para conservar primero tu cambio en el texto y luego gíralo.</value>
+    <comment>Edit Text &amp; Images: the turn handle pressed while the editor holds changed text</comment>
+  </data>
+  <data name="EditContent_EditTurnPicture" xml:space="preserve">
+    <value>Girar imagen</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
+  </data>
+  <data name="EditContent_EditTurnText" xml:space="preserve">
+    <value>Girar texto</value>
+    <comment>An edit you can undo (shown after Undo/Redo)</comment>
   </data>
 </root>
