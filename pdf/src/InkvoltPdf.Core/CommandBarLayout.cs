@@ -157,7 +157,9 @@ public static class CommandBarLayout
              new("InsertFromScanner", "\uE8B5", Description: PdfStrings.Bar_ScanInsertDesc),
              new("ScanBacks", "\uE8AB", Description: PdfStrings.Bar_ScanBacksDesc),
              new("ReviewSuspectWords", "\uE8FB", Description: PdfStrings.Bar_SuspectWordsDesc, StartsSection: true),
-             new("MakeTextEditable", "\uE8AC", Description: PdfStrings.Bar_MakeEditableDesc)],""),
+             new("MakeTextEditable", "\uE8AC", Description: PdfStrings.Bar_MakeEditableDesc),
+             new("CopyAreaText", "\uE8C8", Description: PdfStrings.Bar_CopyAreaTextDesc, StartsSection: true),
+             new("CopyAreaTable", "\uE80A", Description: PdfStrings.Bar_CopyAreaTableDesc)],""),
     ]);
 
     /// <summary>Always in the overflow, after what didn't fit: page commands and the rest of the old bar.</summary>

@@ -74,6 +74,8 @@ public static class Cmd
     public static readonly RoutedUICommand ToolHand = Make(Strings.Cmd_ToolHand, nameof(ToolHand));
     public static readonly RoutedUICommand ToolSelect = Make(Strings.Cmd_ToolSelect, nameof(ToolSelect));
     public static readonly RoutedUICommand ToolSnapshot = Make(Strings.Cmd_ToolSnapshot, nameof(ToolSnapshot));
+    public static readonly RoutedUICommand CopyAreaText = Make(Strings.Cmd_CopyAreaText, nameof(CopyAreaText));
+    public static readonly RoutedUICommand CopyAreaTable = Make(Strings.Cmd_CopyAreaTable, nameof(CopyAreaTable));
     public static readonly RoutedUICommand ToolAddText = Make(Strings.Cmd_ToolAddText, nameof(ToolAddText));
     public static readonly RoutedUICommand ToolCheck = Make(Strings.Cmd_ToolCheck, nameof(ToolCheck));
     public static readonly RoutedUICommand ToolCross = Make(Strings.Cmd_ToolCross, nameof(ToolCross));

@@ -14,7 +14,7 @@ namespace InkvoltPdf.App;
 /// findnext · tool hand|select|snapshot|addtext|check|note|redact|pen|marker|rect|ellipse|line|arrow|polygon|polyline|textbox|callout · selectall · rotateview cw|ccw|0|90|180|270 · keys text (real key messages, Shift
 /// for capitals and symbols; {tab} {enter} {sp}; sent to the open dialog if there is one) · editor · nav pages|bookmarks|search · select 1,3 · rotate 90 ·
 /// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· findworkers word · log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
-/// <c>focus</c> (log the focused element) and <c>annots</c> (log the comments). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
+/// <c>focus</c> (log the focused element), <c>annots</c> (log the comments) and <c>clipboard</c> (what it holds: a picture's size, text, HTML or not). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
 /// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
 /// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
@@ -223,6 +223,15 @@ internal static class DevScript
             case "copytext": log.Add($"selected text: {v!.GetSelectedText().Length} chars: {Trunc(v.GetSelectedText())}"); break;
             case "state": log.Add($"page={v!.CurrentPage + 1}/{v.PageCount} zoom={v.Zoom:P0} mode={v.ZoomMode} layout={v.Layout} rotation={v.ViewRotation} dirty={tab!.Session.IsDirty} undo={tab.Session.UndoLabel ?? "-"} redo={tab.Session.RedoLabel ?? "-"} selected={string.Join(',', tab.SelectedPages.Select(p => p + 1))} {v.Diagnostics}"); break;
             case "log": log.Add(arg); break;
+            case "clipboard":
+            {
+                // clipboard: what the clipboard holds (a picture's size, the text, whether there is HTML: a copied table).
+                var data = Clipboard.GetDataObject();
+                var html = data?.GetDataPresent(DataFormats.Html) == true;
+                var image = Clipboard.ContainsImage() ? Clipboard.GetImage() : null;
+                log.Add($"clipboard: image={(image is null ? "none" : $"{image.PixelWidth}x{image.PixelHeight}")} html={html} text={(Clipboard.ContainsText() ? Clipboard.GetText().Replace("\t", "\\t").Replace("\r\n", " | ") : "(none)")}");
+                break;
+            }
             case "cmd":
             {
                 var c = (System.Windows.Input.RoutedUICommand)typeof(Cmd).GetField(arg)!.GetValue(null)!;

@@ -159,6 +159,8 @@
                                     <MenuItem x:Name="RedoMenu" Command="app:Cmd.Redo" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Copy" />
+                                    <MenuItem Command="app:Cmd.CopyAreaText" />
+                                    <MenuItem Command="app:Cmd.CopyAreaTable" />
                                     <MenuItem Command="app:Cmd.SelectAll" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Find" />

@@ -491,7 +491,12 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   holds it within 2 s and stays through a restart. Each index is one file in `%LOCALAPPDATA%\InkvoltPdf\FolderIndex`, holding the text of those PDFs, and
   goes with Remove; nothing leaves the PC.
 - **Tools**: hand (H), select text (T, double/triple-click for word/line), snapshot to clipboard (G); links (asks
-  before opening anything but http/https/mailto); Back/Forward (Alt+←/→).
+  before opening anything but http/https/mailto); Back/Forward (Alt+←/→). **Copy Text from Area** and **Copy Area as
+  Table** (Edit menu, right-click, Scan & OCR, and the toast after a snapshot) take the snapshot's box, still outlined
+  on its page (with none, Snapshot is chosen to draw one): its words from the page's text or its OCR layer, or on a scan
+  without one read by Recognize Text's recognizer (only the box, at 300 dpi); as text in reading order, or as a table
+  (the one Export to Excel finds there, else the lines' columns) put on the clipboard as tab-separated text and HTML, so
+  Excel and Word paste cells (`AreaCopy`, `ClipboardHtml`).
 - **Organize pages** (Ctrl+Shift+O): a grid of large pages; click / Ctrl / Shift to select, arrows to move, drag to
   reorder, Alt+Shift+arrows move the selected pages (announced to screen readers); the hovered or focused page shows
   rotate and delete buttons; double-click or Enter to open it, Esc when done. A bar under its header has the page actions

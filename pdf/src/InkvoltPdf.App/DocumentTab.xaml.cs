@@ -244,6 +244,7 @@ public partial class DocumentTab : UserControl, IDisposable
         Viewer.SelectionChanged += (_, _) => RaiseState();
         Viewer.ToolChanged += (_, _) => RaiseState();
         Viewer.StatusMessage += (_, m) => Notify(m);
+        WatchSnapshots(Viewer);
         InitSplit();
         InitAi();
         Session.ContentChanged += OnContentChanged;

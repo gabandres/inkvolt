@@ -11929,4 +11929,45 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>{0}, scans in black and white</value>
     <comment>{0} = the image quality chosen (High, Medium…)</comment>
   </data>
+  <data name="Cmd_CopyAreaText" xml:space="preserve">
+    <value>Copy Te_xt from Area</value>
+  </data>
+  <data name="Cmd_CopyAreaTable" xml:space="preserve">
+    <value>Copy Area as Ta_ble</value>
+  </data>
+  <data name="Area_CopyTextAction" xml:space="preserve">
+    <value>Copy text</value>
+    <comment>The toast's button after a snapshot: copy the words in the box instead</comment>
+  </data>
+  <data name="Area_BoxText" xml:space="preserve">
+    <value>Drag a box around the text to copy.</value>
+  </data>
+  <data name="Area_BoxTable" xml:space="preserve">
+    <value>Drag a box around the table to copy.</value>
+  </data>
+  <data name="Area_Reading" xml:space="preserve">
+    <value>Reading the text in the box…</value>
+  </data>
+  <data name="Area_TextCopied_One" xml:space="preserve">
+    <value>Text copied (1 word)</value>
+  </data>
+  <data name="Area_TextCopied_Many" xml:space="preserve">
+    <value>Text copied ({0} words)</value>
+  </data>
+  <data name="Area_TextRead_One" xml:space="preserve">
+    <value>Text read from the scan and copied (1 word)</value>
+  </data>
+  <data name="Area_TextRead_Many" xml:space="preserve">
+    <value>Text read from the scan and copied ({0} words)</value>
+  </data>
+  <data name="Area_TableCopied" xml:space="preserve">
+    <value>Table copied ({0} × {1}): paste it into Excel or Word</value>
+    <comment>{0} = rows, {1} = columns</comment>
+  </data>
+  <data name="Area_NoText" xml:space="preserve">
+    <value>No text found in that box.</value>
+  </data>
+  <data name="Area_CouldntRead" xml:space="preserve">
+    <value>Couldn't read that part of the page.</value>
+  </data>
 </root>

@@ -11926,4 +11926,45 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>{0}, escaneos en blanco y negro</value>
     <comment>{0} = the image quality chosen (High, Medium…)</comment>
   </data>
+  <data name="Cmd_CopyAreaText" xml:space="preserve">
+    <value>Copiar te_xto de un área</value>
+  </data>
+  <data name="Cmd_CopyAreaTable" xml:space="preserve">
+    <value>Copiar área como ta_bla</value>
+  </data>
+  <data name="Area_CopyTextAction" xml:space="preserve">
+    <value>Copiar texto</value>
+    <comment>The toast's button after a snapshot: copy the words in the box instead</comment>
+  </data>
+  <data name="Area_BoxText" xml:space="preserve">
+    <value>Arrastra un recuadro alrededor del texto que quieras copiar.</value>
+  </data>
+  <data name="Area_BoxTable" xml:space="preserve">
+    <value>Arrastra un recuadro alrededor de la tabla que quieras copiar.</value>
+  </data>
+  <data name="Area_Reading" xml:space="preserve">
+    <value>Leyendo el texto del recuadro…</value>
+  </data>
+  <data name="Area_TextCopied_One" xml:space="preserve">
+    <value>Texto copiado (1 palabra)</value>
+  </data>
+  <data name="Area_TextCopied_Many" xml:space="preserve">
+    <value>Texto copiado ({0} palabras)</value>
+  </data>
+  <data name="Area_TextRead_One" xml:space="preserve">
+    <value>Texto leído del escaneo y copiado (1 palabra)</value>
+  </data>
+  <data name="Area_TextRead_Many" xml:space="preserve">
+    <value>Texto leído del escaneo y copiado ({0} palabras)</value>
+  </data>
+  <data name="Area_TableCopied" xml:space="preserve">
+    <value>Tabla copiada ({0} × {1}): pégala en Excel o Word</value>
+    <comment>{0} = rows, {1} = columns</comment>
+  </data>
+  <data name="Area_NoText" xml:space="preserve">
+    <value>No se encontró texto en ese recuadro.</value>
+  </data>
+  <data name="Area_CouldntRead" xml:space="preserve">
+    <value>No se pudo leer esa parte de la página.</value>
+  </data>
 </root>

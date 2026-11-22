@@ -12,6 +12,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Replace Pages (Organize): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.
 - Page Labels (Organize): number pages i, ii, iii or I, II, A, B, a, b, 1, 2, 3, with a prefix (A-1) and a first number, for any range: a preface in Roman numerals and the body from 1 in one step. The page box, the thumbnails and Go to Page show them.
 - Smaller black-and-white scans: a page scanned in black and white is now saved as a black-and-white picture (JBIG2 or CCITT G4, nothing lost beyond the black and white you chose), about a twentieth of the size it was. Its text is read before it's made black and white, so it's recognized as well as before. Reduce File Size packs black-and-white pictures smaller too, and can make scanned pages of text black and white if you ask.
+- Copy Text from Area and Copy Area as Table (Edit menu, right-click, and Scan & OCR): draw a box with Snapshot and copy the words in it, read from the picture when the page is a scan. As a table, it pastes into Excel or Word as cells. After a snapshot, the Copy text button on its message does the same.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

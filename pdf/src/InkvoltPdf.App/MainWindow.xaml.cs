@@ -1874,6 +1874,8 @@ public partial class MainWindow : Window
         Bind(Cmd.ToolHand, t => t.ActiveView.Tool = ViewerTool.Hand, t => !t.IsOrganizing);
         Bind(Cmd.ToolSelect, t => t.ActiveView.Tool = ViewerTool.SelectText, t => !t.IsOrganizing);
         Bind(Cmd.ToolSnapshot, t => t.ActiveView.Tool = ViewerTool.Snapshot, t => !t.IsOrganizing);
+        Bind(Cmd.CopyAreaText, t => _ = t.CopyAreaAsync(AreaCopyKind.Text), t => !t.IsOrganizing);
+        Bind(Cmd.CopyAreaTable, t => _ = t.CopyAreaAsync(AreaCopyKind.Table), t => !t.IsOrganizing);
         Bind(Cmd.ToolAddText, t => ToggleTool(t, ViewerTool.AddText), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCheck, t => ToggleTool(t, ViewerTool.AddCheck), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.ToolCross, t => ToggleTool(t, ViewerTool.AddCross), t => !t.IsOrganizing && t.Session.IsPdf);
