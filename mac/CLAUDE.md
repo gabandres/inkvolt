@@ -1,14 +1,13 @@
 # Inkvolt for macOS
 
-Native Swift versions of Inkvolt Print (Mac App Store, app ID 6827219248; 1.0 released 2026-11-04;
-1.1 (build 5, tag `print-mac-v1.1.0`) approved and live, seen 2026-11-06; 1.2 (build 6, tag `print-mac-v1.2.0`) approved and live, seen 2026-11-07; 1.3 (build 7, tag `print-mac-v1.3.0`) approved and live; 1.3.1 (build 8, tag `print-mac-v1.3.1`) approved 2026-11-12; P12 under way: 1.6 Pro key, 1.1, 1.2, 1.3, 1.5, 2.3, 2.4, 2.6, 3.2, 3.4, 3.6 and 3.7 (Spanish interface) done on the Mac, the rest next, owner 2026-11-04) and
-Inkvolt PDF (notarized DMG, released; 1.12.1). Decisions, scope,
-layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
+Native Swift versions of Inkvolt Print (Mac App Store, app ID 6827219248; latest 1.3.1, build 8, tag
+`print-mac-v1.3.1`) and Inkvolt PDF (notarized DMG with Sparkle; latest 1.12.1). Decisions, scope, layout, Mac
+differences and what's left (P12's hardware items, PLAN's "Open"): `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
 
 - **Machines.** The Windows PC builds and tests PrintCore (Foundation only):
   `pwsh -NoProfile -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
-  imports an Apple framework (PrintMac, both apps) builds only on the owner's Mac (`ignia-mac`) or in the `mac`
+  imports an Apple framework (PrintMac, both apps) builds only on the owner's Mac (none since `ignia-mac` was sold; `NEW-MAC` below) or in the `mac`
   CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
   what it flags before pushing. Inkvolt PDF's `InkvoltPdfKit` needs MuPDF, so it builds and tests only on the Mac
@@ -19,7 +18,7 @@ layout and steps: `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review fac
   copying, LF as git stores it) into the worktree `~/Repos/inkvolt-pc`; `pdf-test [filter]`, `print-test`, `pdf-app`,
   `run '<cmd>'` sync first; long runs go through `bg <name> '<cmd>'`, then `wait <name>` as a background command (or `log <name>`). Only one session at a time
   uses `inkvolt-pc`. SSH multiplexing doesn't work from Git Bash, and isn't needed: a connection takes 0.3 s.
-- **The app on the Mac.** `ssh -o BatchMode=yes ignia-mac`; the release clone is `~/Repos/inkvolt` (pull it; MuPDF's
+- **The app on the Mac.** `ssh -o BatchMode=yes <mac host>` (`mac.sh`'s `INKVOLT_MAC_HOST`, default `ignia-mac`); the release clone is `~/Repos/inkvolt` (pull it; MuPDF's
   XCFramework lives in its `mac/InkvoltPdfKit/Frameworks`, which `inkvolt-pc` links to).
   `sh mac/InkvoltPrint/build.sh` installs `/Applications/Inkvolt Print.app` (process `Inkvolt Print`); `open -n` it with
   `--report <name> [--wait s] [--stay] [--demo]` and read the report from its container (README). Start automatic work

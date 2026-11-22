@@ -124,6 +124,5 @@ for both. PDF submission 1152921505702431116, Print 1152921505702430623; release
 
 # Older entries
 
-`docs/handoff/ARCHIVE.md`, newest first, from 2026-11-06 back to 2026-10-30: the Mac machines (the M6 mini replacing the
-M1 Air, the keys backed up to OneDrive and what to restore), the Mac backlog (Office as E12's converter on the Mac), the
-plans and owner's briefs of 2026-11-05 to 2026-11-08, earlier releases.
+In git history only. The Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what the Mac still lacks:
+`mac/docs/PLAN.md`, "Open".

@@ -8,7 +8,7 @@ FormEditor, MuPDF and pdf.js. Results go in [RESULTS.md](RESULTS.md). Builds onl
 # On the PC, once: downloads the PDFs into the git-ignored .cache, checks their SHA-256s; then copy them to the Mac,
 # outside the repo. They are never committed.
 pwsh -File pdf/tools/forms-corpus/fetch.ps1
-scp -r pdf/tools/forms-corpus/.cache/pdfs/. ignia-mac:inkvolt-forms-corpus/pdfs/
+scp -r pdf/tools/forms-corpus/.cache/pdfs/. <mac host>:inkvolt-forms-corpus/pdfs/
 # On the Mac (from the PC: `bash mac/tools/mac.sh bg forms "…"`, then `mac.sh wait forms`), once: (cd pdf/tools/pdfjs-check && npm ci)
 swift build -c release -Xswiftc -enable-testing --package-path mac/tools/forms-corpus    # it reads PdfCore's objects
 B=mac/tools/forms-corpus/.build/release/InkvoltFormsCorpus
