@@ -6,6 +6,8 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+
+## 1.8.0
 - Ambas caras en un alimentador que escanea una sola cara: marca Ambas caras: dar la vuelta a la pila (o la opción del ajuste), escanea los anversos, dale la vuelta a la pila cuando se te pida y escanea los reversos. Las páginas salen en orden; si la bandeja de tu escáner invierte la pila, Reversos en el otro orden lo corrige, y la revisión te avisa cuando los anversos y los reversos no coinciden.
 - Las páginas que entran de lado o al revés se ponen al derecho solas cuando su texto muestra cuál es la parte de arriba (Poner las páginas al derecho, activado de forma predeterminada, también en cada ajuste). Las páginas de las que no está seguro quedan como llegaron, y Deshacer las vuelve a girar.
 - PDF más pequeños: la nueva opción Archivo más pequeño (blanco y negro) de un ajuste guarda cada página en blanco y negro, a menudo en una décima parte del tamaño o menos. Los escaneos en blanco y negro también se guardan así.
