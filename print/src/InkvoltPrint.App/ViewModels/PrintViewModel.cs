@@ -415,6 +415,12 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             SetMessage(Strings.Clip_Busy, error: true);
             return;
         }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.Write($"Clipboard unreadable: {ex}"); // a malformed picture or format another app put there
+            SetMessage(Strings.Clip_Failed, error: true);
+            return;
+        }
         var plan = ClipboardPrint.Choose(content);
         var name = ClipboardPrint.Name(DateTime.Now, Strings.Clip_FileWord);
         try
