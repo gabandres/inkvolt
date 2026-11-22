@@ -69,6 +69,8 @@ public static class Cmd
     public static readonly RoutedUICommand Find = Make(Strings.Cmd_Find, nameof(Find), K(Key.F, ModifierKeys.Control));
     public static readonly RoutedUICommand FindNext = Make(Strings.Cmd_FindNext, nameof(FindNext), K(Key.F3));
     public static readonly RoutedUICommand FindPrevious = Make(Strings.Cmd_FindPrevious, nameof(FindPrevious), K(Key.F3, ModifierKeys.Shift));
+    // Find & Replace across the document (DocumentTab.Replace.cs). Ctrl+H as in Word, Acrobat and Foxit; Ctrl+Shift+H is Highlight.
+    public static readonly RoutedUICommand Replace = Make(Strings.Cmd_Replace, nameof(Replace), K(Key.H, ModifierKeys.Control));
     public static readonly RoutedUICommand SearchPane = Make(Strings.Cmd_SearchPane, nameof(SearchPane), K(Key.F, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand SearchFolders = Make(Strings.Cmd_SearchFolders, nameof(SearchFolders), K(Key.F, ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift));
     public static readonly RoutedUICommand ToolHand = Make(Strings.Cmd_ToolHand, nameof(ToolHand));

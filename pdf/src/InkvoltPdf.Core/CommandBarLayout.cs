@@ -104,6 +104,7 @@ public static class CommandBarLayout
         // then Comment and Fill & Sign, the pages, Protect, and Scan & OCR. Each group's first command is its main job.
         new("Edit", PdfStrings.Bar_Edit, 84,
             [new("EditContent", "\uE70F", Description: PdfStrings.Bar_EditContentDesc),
+             new("Replace", "\uE8AB", Description: PdfStrings.Bar_ReplaceDesc),
              new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
              new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
              new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc, StartsSection: true),

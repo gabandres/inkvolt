@@ -277,6 +277,10 @@
   <data name="Cmd_FindPrevious" xml:space="preserve">
     <value>Find Pre_vious</value>
   </data>
+  <data name="Cmd_Replace" xml:space="preserve">
+    <value>R_eplace…</value>
+    <comment>Edit menu: Find &amp; Replace across the document (Ctrl+H)</comment>
+  </data>
   <data name="Cmd_SearchPane" xml:space="preserve">
     <value>_Search Pane</value>
   </data>
@@ -1492,6 +1496,116 @@
   <data name="Spell_AddFailed" xml:space="preserve">
     <value>Windows didn't add “{0}” to your dictionary. Try again later.</value>
     <comment>{0} = the word</comment>
+  </data>
+  <data name="Replace_Title" xml:space="preserve">
+    <value>Find and Replace</value>
+  </data>
+  <data name="Replace_Find" xml:space="preserve">
+    <value>Find:</value>
+  </data>
+  <data name="Replace_With" xml:space="preserve">
+    <value>Replace with:</value>
+  </data>
+  <data name="Replace_Replace" xml:space="preserve">
+    <value>Replace</value>
+    <comment>Button: replaces the selected match; also the undo step's name</comment>
+  </data>
+  <data name="Replace_ReplaceTip" xml:space="preserve">
+    <value>Replaces the selected match now and goes on to the next</value>
+  </data>
+  <data name="Replace_All" xml:space="preserve">
+    <value>Replace All</value>
+    <comment>Button: replaces every ticked match; also the undo step's name</comment>
+  </data>
+  <data name="Replace_AllN" xml:space="preserve">
+    <value>Replace All ({0})</value>
+    <comment>{0} = how many matches are ticked</comment>
+  </data>
+  <data name="Replace_Matches" xml:space="preserve">
+    <value>Matches</value>
+    <comment>The list's name, for a screen reader</comment>
+  </data>
+  <data name="Replace_Spoken" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>{0} = Page N, {1} = the match with the words around it (a screen reader's name for its check box)</comment>
+  </data>
+  <data name="Replace_TypeToFind" xml:space="preserve">
+    <value>Type what to find. Matches are listed here with their page and the words around them.</value>
+  </data>
+  <data name="Replace_Searching" xml:space="preserve">
+    <value>Searching… page {0} of {1}</value>
+  </data>
+  <data name="Replace_None" xml:space="preserve">
+    <value>No matches in the document's text.</value>
+  </data>
+  <data name="Replace_Found_One" xml:space="preserve">
+    <value>1 match. Untick it to keep it as it is.</value>
+  </data>
+  <data name="Replace_Found_Many" xml:space="preserve">
+    <value>{0} matches on {1}. Untick any to keep as they are.</value>
+    <comment>{1} = Replace_Pages_One or _Many</comment>
+  </data>
+  <data name="Replace_Pages_One" xml:space="preserve">
+    <value>1 page</value>
+  </data>
+  <data name="Replace_Pages_Many" xml:space="preserve">
+    <value>{0} pages</value>
+  </data>
+  <data name="Replace_CutShort" xml:space="preserve">
+    <value>Only the first {0} are listed: make the search longer to see the rest.</value>
+  </data>
+  <data name="Replace_SomeBlocked" xml:space="preserve">
+    <value>Some are in text that can't be changed (said under them).</value>
+  </data>
+  <data name="Replace_CantSearch" xml:space="preserve">
+    <value>The document's text couldn't be searched. Try again, or reopen the file.</value>
+  </data>
+  <data name="Replace_NothingTicked" xml:space="preserve">
+    <value>Tick at least one match to replace, or close.</value>
+  </data>
+  <data name="Replace_StillWorking" xml:space="preserve">
+    <value>Still replacing: wait a moment.</value>
+  </data>
+  <data name="Replace_Done_One" xml:space="preserve">
+    <value>Replaced 1 match.</value>
+  </data>
+  <data name="Replace_Done_Many" xml:space="preserve">
+    <value>Replaced {0} matches.</value>
+  </data>
+  <data name="Replace_NotesTitle" xml:space="preserve">
+    <value>Replacements to check</value>
+  </data>
+  <data name="Replace_NotesIntro" xml:space="preserve">
+    <value>Replaced: {0}. Left as they were: {1}. Undo (Ctrl+Z) puts back every replacement made.</value>
+    <comment>{0}, {1} = numbers of matches</comment>
+  </data>
+  <data name="Replace_NoteLine" xml:space="preserve">
+    <value>{0} · {1}: {2}</value>
+    <comment>{0} = Page N, {1} = the match in quotes, {2} = what happened (a Replace_Note… text)</comment>
+  </data>
+  <data name="Replace_NoteStandIn" xml:space="preserve">
+    <value>replaced; {0} drawn in {1}, the closest font on this PC (the paragraph's font lacks them).</value>
+    <comment>{0} = characters, {1} = installed fonts</comment>
+  </data>
+  <data name="Replace_NoteWider" xml:space="preserve">
+    <value>replaced; text on one line doesn't wrap, and this line is {0:0} pt wider: check it doesn't run into what's beside it.</value>
+  </data>
+  <data name="Replace_NoteMissing" xml:space="preserve">
+    <value>left as it was: no font on this PC has {0}.</value>
+    <comment>{0} = characters</comment>
+  </data>
+  <data name="Replace_NoteOverlap" xml:space="preserve">
+    <value>left as it was: the longer paragraph would run into the text or picture below it. Change it in Edit Text &amp; Images to decide.</value>
+  </data>
+  <data name="Replace_NoteCantEdit" xml:space="preserve">
+    <value>left as it was: {0}</value>
+    <comment>{0} = why, a sentence</comment>
+  </data>
+  <data name="Replace_NoteChanged" xml:space="preserve">
+    <value>left as it was: the paragraph changed since it was found. Search again.</value>
+  </data>
+  <data name="Replace_NoteCount" xml:space="preserve">
+    <value> ({0} matches in this paragraph)</value>
   </data>
   <data name="Settings_CheckForUpdates" xml:space="preserve">
     <value>Check for updates when Inkvolt PDF starts</value>

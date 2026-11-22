@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Spell check where you type: edited text, sticky notes, text boxes, callouts and form fields underline misspelled words in red, in the document's language. Right-click a word for suggestions, Ignore or Add to dictionary. Turn it off in Settings.
+- Find and Replace (Edit › Replace…, Ctrl+H): change a word or phrase across the document, one match at a time or all at once (one undo step), with Match case and Whole words only. Each match is listed with its page and the words around it. A replacement that can't be made as asked (a character no font has, a paragraph that would run into the text below) is listed afterwards.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

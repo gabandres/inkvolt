@@ -277,6 +277,9 @@
   <data name="Cmd_FindPrevious" xml:space="preserve">
     <value>Buscar _anterior</value>
   </data>
+  <data name="Cmd_Replace" xml:space="preserve">
+    <value>R_eemplazar…</value>
+  </data>
   <data name="Cmd_SearchPane" xml:space="preserve">
     <value>Panel de _búsqueda</value>
   </data>
@@ -1488,6 +1491,105 @@
   </data>
   <data name="Spell_AddFailed" xml:space="preserve">
     <value>Windows no agregó “{0}” a tu diccionario. Vuelve a intentarlo más tarde.</value>
+  </data>
+  <data name="Replace_Title" xml:space="preserve">
+    <value>Buscar y reemplazar</value>
+  </data>
+  <data name="Replace_Find" xml:space="preserve">
+    <value>Buscar:</value>
+  </data>
+  <data name="Replace_With" xml:space="preserve">
+    <value>Reemplazar por:</value>
+  </data>
+  <data name="Replace_Replace" xml:space="preserve">
+    <value>Reemplazar</value>
+  </data>
+  <data name="Replace_ReplaceTip" xml:space="preserve">
+    <value>Reemplaza ahora la coincidencia seleccionada y pasa a la siguiente</value>
+  </data>
+  <data name="Replace_All" xml:space="preserve">
+    <value>Reemplazar todo</value>
+  </data>
+  <data name="Replace_AllN" xml:space="preserve">
+    <value>Reemplazar todo ({0})</value>
+  </data>
+  <data name="Replace_Matches" xml:space="preserve">
+    <value>Coincidencias</value>
+  </data>
+  <data name="Replace_Spoken" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Replace_TypeToFind" xml:space="preserve">
+    <value>Escribe lo que quieres buscar. Las coincidencias aparecen aquí con su página y las palabras de alrededor.</value>
+  </data>
+  <data name="Replace_Searching" xml:space="preserve">
+    <value>Buscando… página {0} de {1}</value>
+  </data>
+  <data name="Replace_None" xml:space="preserve">
+    <value>No hay coincidencias en el texto del documento.</value>
+  </data>
+  <data name="Replace_Found_One" xml:space="preserve">
+    <value>1 coincidencia. Desmárcala para dejarla como está.</value>
+  </data>
+  <data name="Replace_Found_Many" xml:space="preserve">
+    <value>{0} coincidencias en {1}. Desmarca las que quieras dejar como están.</value>
+  </data>
+  <data name="Replace_Pages_One" xml:space="preserve">
+    <value>1 página</value>
+  </data>
+  <data name="Replace_Pages_Many" xml:space="preserve">
+    <value>{0} páginas</value>
+  </data>
+  <data name="Replace_CutShort" xml:space="preserve">
+    <value>Solo se muestran las primeras {0}: alarga la búsqueda para ver el resto.</value>
+  </data>
+  <data name="Replace_SomeBlocked" xml:space="preserve">
+    <value>Algunas están en texto que no se puede cambiar (se indica debajo).</value>
+  </data>
+  <data name="Replace_CantSearch" xml:space="preserve">
+    <value>No se pudo buscar en el texto del documento. Vuelve a intentarlo o abre de nuevo el archivo.</value>
+  </data>
+  <data name="Replace_NothingTicked" xml:space="preserve">
+    <value>Marca al menos una coincidencia para reemplazar, o cierra.</value>
+  </data>
+  <data name="Replace_StillWorking" xml:space="preserve">
+    <value>Todavía se está reemplazando: espera un momento.</value>
+  </data>
+  <data name="Replace_Done_One" xml:space="preserve">
+    <value>Se reemplazó 1 coincidencia.</value>
+  </data>
+  <data name="Replace_Done_Many" xml:space="preserve">
+    <value>Se reemplazaron {0} coincidencias.</value>
+  </data>
+  <data name="Replace_NotesTitle" xml:space="preserve">
+    <value>Reemplazos que revisar</value>
+  </data>
+  <data name="Replace_NotesIntro" xml:space="preserve">
+    <value>Reemplazadas: {0}. Sin cambios: {1}. Deshacer (Ctrl+Z) revierte todos los reemplazos hechos.</value>
+  </data>
+  <data name="Replace_NoteLine" xml:space="preserve">
+    <value>{0} · {1}: {2}</value>
+  </data>
+  <data name="Replace_NoteStandIn" xml:space="preserve">
+    <value>reemplazada; para {0}, que la fuente del párrafo no tiene, se usa {1}, la fuente más parecida de este PC.</value>
+  </data>
+  <data name="Replace_NoteWider" xml:space="preserve">
+    <value>reemplazada; el texto de una sola línea no se ajusta, y esta línea es {0:0} pt más ancha: comprueba que no choque con lo que tiene al lado.</value>
+  </data>
+  <data name="Replace_NoteMissing" xml:space="preserve">
+    <value>sin cambios: ninguna fuente de este PC tiene {0}.</value>
+  </data>
+  <data name="Replace_NoteOverlap" xml:space="preserve">
+    <value>sin cambios: el párrafo, más largo, chocaría con el texto o la imagen de debajo. Cámbialo en Editar texto e imágenes para decidir.</value>
+  </data>
+  <data name="Replace_NoteCantEdit" xml:space="preserve">
+    <value>sin cambios: {0}</value>
+  </data>
+  <data name="Replace_NoteChanged" xml:space="preserve">
+    <value>sin cambios: el párrafo cambió desde que se encontró. Vuelve a buscar.</value>
+  </data>
+  <data name="Replace_NoteCount" xml:space="preserve">
+    <value> ({0} coincidencias en este párrafo)</value>
   </data>
   <data name="Settings_CheckForUpdates" xml:space="preserve">
     <value>Buscar actualizaciones al iniciar Inkvolt PDF</value>

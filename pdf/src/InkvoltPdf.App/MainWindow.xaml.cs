@@ -1869,6 +1869,7 @@ public partial class MainWindow : Window
         Bind(Cmd.Find, t => { t.SetOrganizing(false); t.ShowFindBar(); });
         Bind(Cmd.FindNext, t => t.FindNext(false));
         Bind(Cmd.FindPrevious, t => t.FindNext(true));
+        Bind(Cmd.Replace, t => _ = t.ShowReplaceAsync(), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.SearchPane, t => t.ShowSearchPane());
         // Reading tools act on the active pane of a split view; the tools that change the document on the main pane.
         Bind(Cmd.ToolHand, t => t.ActiveView.Tool = ViewerTool.Hand, t => !t.IsOrganizing);

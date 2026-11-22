@@ -7,6 +7,7 @@ here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own wor
 
 ## Next
 - Revisión ortográfica mientras escribes: el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario subrayan en rojo las palabras mal escritas, en el idioma del documento. Haz clic con el botón derecho en una palabra para ver sugerencias, Omitir o Agregar al diccionario. Puedes desactivarla en Configuración.
+- Buscar y reemplazar (Edición › Reemplazar…, Ctrl+H): cambia una palabra o frase en todo el documento, una coincidencia cada vez o todas a la vez (un solo paso de deshacer), con Mayúsculas y minúsculas y Solo palabras completas. Cada coincidencia aparece con su página y las palabras de alrededor. Un reemplazo que no se puede hacer como se pidió (un carácter que ninguna fuente tiene, un párrafo que chocaría con el texto de debajo) aparece en una lista al final.
 
 ## 1.16.0
 - Escanear: un ajuste predefinido con limpieza (creado en Inkvolt Print: recortar al papel, blanquear el fondo, quitar la trama de las imágenes impresas, restaurar colores desvaídos) ahora limpia cada página de la misma manera aquí.
