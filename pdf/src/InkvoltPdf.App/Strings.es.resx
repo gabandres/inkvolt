@@ -5439,6 +5439,47 @@ Modificado {1:g}</value>
     <value>Reemplazar {0} páginas por {1}</value>
     <comment>Edit name; {0} is the page count, {1} the other PDF's name</comment>
   </data>
+  <data name="Cmd_EditPageLabels" xml:space="preserve">
+    <value>Etiquetas de _página…</value>
+  </data>
+  <data name="Organize_LabelsTitle" xml:space="preserve">
+    <value>Etiquetas de página</value>
+  </data>
+  <data name="Organize_LabelsNote" xml:space="preserve">
+    <value>La etiqueta de una página es lo que muestran para ella el cuadro de página, las miniaturas e Ir a la página, como i, ii para un prólogo y luego 1, 2.</value>
+  </data>
+  <data name="Organize_LabelsNumbering" xml:space="preserve">
+    <value>Numeración</value>
+  </data>
+  <data name="Organize_LabelsNone" xml:space="preserve">
+    <value>Sin número (solo el prefijo)</value>
+  </data>
+  <data name="Organize_LabelsPrefix" xml:space="preserve">
+    <value>Prefijo</value>
+  </data>
+  <data name="Organize_LabelsStart" xml:space="preserve">
+    <value>Empezar en</value>
+  </data>
+  <data name="Organize_LabelsRestart" xml:space="preserve">
+    <value>Numerar las páginas siguientes 1, 2, 3…</value>
+  </data>
+  <data name="Organize_LabelsPreview" xml:space="preserve">
+    <value>Estas páginas mostrarán: {0}</value>
+  </data>
+  <data name="Organize_LabelsPlain" xml:space="preserve">
+    <value>Usar números simples</value>
+  </data>
+  <data name="Organize_LabelsEnterStart" xml:space="preserve">
+    <value>Escribe el primer número, de 1 a {0}.</value>
+  </data>
+  <data name="Organize_EditLabels" xml:space="preserve">
+    <value>Establecer etiquetas de página</value>
+    <comment>Edit name</comment>
+  </data>
+  <data name="Organize_EditLabelsRemove" xml:space="preserve">
+    <value>Quitar etiquetas de página</value>
+    <comment>Edit name</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>
     <comment>Dialog title</comment>

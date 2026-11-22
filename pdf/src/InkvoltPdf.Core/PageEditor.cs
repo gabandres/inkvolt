@@ -400,13 +400,27 @@ internal static class PdfStructure
         var known = new Dictionary<PdfPage, PageLabel>(ReferenceEqualityComparer.Instance);
         foreach (var (page, label) in before) known.TryAdd(page, label);
 
-        var nums = new PdfArray(doc);
+        var labels = new List<PageLabel>(doc.PageCount);
         PageLabel? previous = null;
         for (var i = 0; i < doc.PageCount; i++)
         {
             var label = known.TryGetValue(doc.Pages[i], out var l) ? l
                 : previous is { } p ? p with { Number = p.Number == int.MaxValue ? p.Number : p.Number + 1 }
                 : new PageLabel("D", "", 1);
+            labels.Add(label);
+            previous = label;
+        }
+        WriteRanges(doc, labels);
+    }
+
+    /// <summary>Writes each page's label (one per page, in order) as the fewest /PageLabels ranges (/S, /P, /St).</summary>
+    internal static void WriteRanges(PdfDocument doc, IReadOnlyList<PageLabel> labels)
+    {
+        var nums = new PdfArray(doc);
+        PageLabel? previous = null;
+        for (var i = 0; i < labels.Count; i++)
+        {
+            var label = labels[i];
             if (previous is not { } prev || prev.Style != label.Style || prev.Prefix != label.Prefix || (label.Style is not null && label.Number != prev.Number + 1))
             {
                 var range = new PdfDictionary(doc);

@@ -5440,6 +5440,47 @@ Modified {1:g}</value>
     <value>Replace {0} pages with {1}</value>
     <comment>Edit name; {0} is the page count, {1} the other PDF's name</comment>
   </data>
+  <data name="Cmd_EditPageLabels" xml:space="preserve">
+    <value>Page La_bels…</value>
+  </data>
+  <data name="Organize_LabelsTitle" xml:space="preserve">
+    <value>Page Labels</value>
+  </data>
+  <data name="Organize_LabelsNote" xml:space="preserve">
+    <value>A page's label is what the page box, the thumbnails and Go To Page show for it, such as i, ii for a preface and then 1, 2.</value>
+  </data>
+  <data name="Organize_LabelsNumbering" xml:space="preserve">
+    <value>Numbering</value>
+  </data>
+  <data name="Organize_LabelsNone" xml:space="preserve">
+    <value>No number (the prefix only)</value>
+  </data>
+  <data name="Organize_LabelsPrefix" xml:space="preserve">
+    <value>Prefix</value>
+  </data>
+  <data name="Organize_LabelsStart" xml:space="preserve">
+    <value>Start at</value>
+  </data>
+  <data name="Organize_LabelsRestart" xml:space="preserve">
+    <value>Number the pages after them 1, 2, 3…</value>
+  </data>
+  <data name="Organize_LabelsPreview" xml:space="preserve">
+    <value>These pages will show: {0}</value>
+  </data>
+  <data name="Organize_LabelsPlain" xml:space="preserve">
+    <value>Use Plain Numbers</value>
+  </data>
+  <data name="Organize_LabelsEnterStart" xml:space="preserve">
+    <value>Enter the first number, from 1 to {0}.</value>
+  </data>
+  <data name="Organize_EditLabels" xml:space="preserve">
+    <value>Set page labels</value>
+    <comment>Edit name</comment>
+  </data>
+  <data name="Organize_EditLabelsRemove" xml:space="preserve">
+    <value>Remove page labels</value>
+    <comment>Edit name</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>
     <comment>Dialog title</comment>

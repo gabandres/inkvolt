@@ -5044,6 +5044,15 @@
   <data name="Page_ReplaceCount" xml:space="preserve">
     <value>Choose as many pages to put in as pages to replace, each page once.</value>
   </data>
+  <data name="Page_LabelPrefix" xml:space="preserve">
+    <value>A prefix can be up to {0} characters, without line breaks or tabs.</value>
+  </data>
+  <data name="Page_LabelStart" xml:space="preserve">
+    <value>The first number must be from 1 to {0}.</value>
+  </data>
+  <data name="Page_LabelEmpty" xml:space="preserve">
+    <value>Choose a numbering or type a prefix.</value>
+  </data>
   <data name="Page_NothingToCombine" xml:space="preserve">
     <value>Nothing to combine.</value>
   </data>

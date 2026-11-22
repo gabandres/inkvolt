@@ -163,6 +163,7 @@ public static class Cmd
     public static readonly RoutedUICommand SplitAtBlankPages = Make(Strings.Cmd_SplitAtBlankPages, nameof(SplitAtBlankPages));
     public static readonly RoutedUICommand ResizePages = Make(Strings.Cmd_ResizePages, nameof(ResizePages));
     public static readonly RoutedUICommand ReplacePages = Make(Strings.Cmd_ReplacePages, nameof(ReplacePages));
+    public static readonly RoutedUICommand EditPageLabels = Make(Strings.Cmd_EditPageLabels, nameof(EditPageLabels));
 
     // Organize: text and images written into the pages (see PageMarkActions)
     public static readonly RoutedUICommand AddHeaderFooter = Make(Strings.Cmd_AddHeaderFooter, nameof(AddHeaderFooter));

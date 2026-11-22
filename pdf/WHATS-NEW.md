@@ -10,6 +10,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Bookmarks from Headings (View menu, and a button in the Bookmarks pane): bookmarks made from the document's headings, nested by level and shown before they're made. They replace the bookmarks or go after them.
 - Resize Pages (Organize): put pages on Letter, A4, Legal or a size you type, the content scaled to fit or kept at its size with margins added. Pages of mixed sizes become one size, and comments and form fields move with the content.
 - Replace Pages (Organize): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.
+- Page Labels (Organize): number pages i, ii, iii or I, II, A, B, a, b, 1, 2, 3, with a prefix (A-1) and a first number, for any range: a preface in Roman numerals and the body from 1 in one step. The page box, the thumbnails and Go to Page show them.
 
 ## 1.16.0
 - Scan: a scan preset with a clean up (made in Inkvolt Print: crop to the paper, whiten the background, descreen printed pictures, restore faded colors) now cleans each page the same way here.

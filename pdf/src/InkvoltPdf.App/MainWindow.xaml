@@ -258,6 +258,7 @@
                                     <MenuItem Command="app:Cmd.MovePages" />
                                     <MenuItem Command="app:Cmd.DuplicatePages" />
                                     <MenuItem Command="app:Cmd.ReversePages" />
+                                    <MenuItem Command="app:Cmd.EditPageLabels" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CropPages" />
                                     <MenuItem Command="app:Cmd.ResizePages" />

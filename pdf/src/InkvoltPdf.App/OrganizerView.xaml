@@ -188,6 +188,7 @@
                         <MenuItem Command="app:Cmd.MovePages" />
                         <MenuItem Command="app:Cmd.InterleavePages" />
                         <MenuItem Command="app:Cmd.RemoveBlankPages" />
+                        <MenuItem Command="app:Cmd.EditPageLabels" />
                         <Separator />
                         <MenuItem Command="app:Cmd.InsertPages" />
                         <MenuItem Command="app:Cmd.InsertBlank" />

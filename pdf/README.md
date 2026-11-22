@@ -521,6 +521,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
 - **Replace Pages** (Organize): pages swapped one for one for pages of another PDF; bookmarks, links, named destinations
   and the opening view that led to a replaced page lead to the page that took its place, which keeps its page label
   (`PageEditor.Replace`).
+- **Page Labels** (Organize): numbering (1, i, I, a, A or none), prefix and first number for a range of pages, with what
+  they will show; the pages after keep their labels or are numbered from 1 again (i, ii, then 1, 2 in one step); Use Plain
+  Numbers removes them all (`PageLabels`).
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
   the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
   by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can
