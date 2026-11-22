@@ -374,6 +374,7 @@ public sealed partial class PageViewer
         box.SelectAll();
         ShowLookBar(p, box);
         ShowRunInfo();
+        AttachParagraphSpelling(box);
     }
 
     private void OpenRunEditor(TextRun run)
@@ -390,6 +391,7 @@ public sealed partial class PageViewer
         box.TextChanged += (_, _) => UpdateRunInfo();
         box.SelectAll();
         ShowRunInfo();
+        AttachSpelling(box);
     }
 
     /// <summary>
@@ -422,6 +424,7 @@ public sealed partial class PageViewer
         {
             var (text, spans, added) = ParagraphContent(rb, p);
             UpdateParagraphInfo(p, text, spans, added);
+            CheckParagraphSpelling();
             return;
         }
         if (_editorRun is not { } run || _editor is not TextBox tb || _runInfoText is null || _runInfo is null) return;

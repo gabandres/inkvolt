@@ -707,9 +707,10 @@ public partial class DocumentTab
         return ok;
     }
 
-    private static TextBox NoteBox(FormDialog dlg, string text)
+    private TextBox NoteBox(FormDialog dlg, string text)
     {
         var box = dlg.AddText(Strings.Review_NoteText, text);
+        Spelling.Attach(box, DocumentLanguage());
         box.AcceptsReturn = true;
         box.TextWrapping = TextWrapping.Wrap;
         box.MinHeight = 110;

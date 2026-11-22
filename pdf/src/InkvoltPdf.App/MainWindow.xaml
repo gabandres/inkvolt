@@ -164,6 +164,7 @@
                                     <MenuItem Command="app:Cmd.Find" />
                                     <MenuItem Command="app:Cmd.FindNext" />
                                     <MenuItem Command="app:Cmd.FindPrevious" />
+                                    <MenuItem Command="app:Cmd.Replace" />
                                     <MenuItem Command="app:Cmd.SearchPane" />
                                     <MenuItem Command="app:Cmd.SearchFolders" />
                                     <Separator />

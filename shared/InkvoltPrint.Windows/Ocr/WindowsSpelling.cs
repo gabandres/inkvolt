@@ -6,7 +6,8 @@ namespace InkvoltPrint.Windows.Ocr;
 
 /// <summary>
 /// Windows' spell checker (the Spell Checking API, spellcheck.h: the dictionaries Windows has for its languages, and the
-/// user's own added words) for one language. Read only: nothing is added to or ignored in the user's dictionary.
+/// user's own added words) for one language. Nothing is added to the user's dictionary unless <see cref="Add"/> is called
+/// (Inkvolt PDF's Add to dictionary, a person's choice).
 /// </summary>
 public sealed class WindowsSpelling : ISpelling
 {
@@ -92,6 +93,27 @@ public sealed class WindowsSpelling : ISpelling
         }
     }
 
+    /// <summary>
+    /// Adds a word to the user's dictionary for this language (Windows keeps it, and every app using Windows' spell checker
+    /// then knows it); false when Windows refused it.
+    /// </summary>
+    public bool Add(string word)
+    {
+        if (string.IsNullOrWhiteSpace(word)) return false;
+        lock (_gate)
+        {
+            try
+            {
+                _checker.Add(word);
+                return true;
+            }
+            catch (COMException)
+            {
+                return false;
+            }
+        }
+    }
+
     [ComImport, Guid("7AB36653-1796-484B-BDFA-E74F1DB7C1DC")]
     private class SpellCheckerFactory;
 
@@ -109,7 +131,8 @@ public sealed class WindowsSpelling : ISpelling
         [return: MarshalAs(UnmanagedType.LPWStr)] string get_LanguageTag();
         IEnumSpellingError Check([MarshalAs(UnmanagedType.LPWStr)] string text);
         IEnumString Suggest([MarshalAs(UnmanagedType.LPWStr)] string word);
-        // Add, Ignore, AutoCorrect and the rest follow; never called.
+        void Add([MarshalAs(UnmanagedType.LPWStr)] string word);
+        // Ignore, AutoCorrect and the rest follow; never called.
     }
 
     [ComImport, Guid("803E3BD4-2828-4410-8290-418D1D73C762"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

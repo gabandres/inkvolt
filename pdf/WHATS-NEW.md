@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Spell check where you type: edited text, sticky notes, text boxes, callouts and form fields underline misspelled words in red, in the document's language. Right-click a word for suggestions, Ignore or Add to dictionary. Turn it off in Settings.
+- Find and Replace (Edit › Replace…, Ctrl+H): change a word or phrase across the document, one match at a time or all at once (one undo step), with Match case and Whole words only. Each match is listed with its page and the words around it. A replacement that can't be made as asked (a character no font has, a paragraph that would run into the text below) is listed afterwards.
 - Interleave Pages (Organize): two-sided sheets scanned one side at a time come back in order, front 1, back 1, front 2… The backs can be pages of the same file or another PDF, in reverse order (a stack turned over) or not. Scan the Backs (File menu, and Scan & OCR on the bar) scans the backs straight into place.
 - Remove Blank Pages (Organize) finds the pages that are almost all paper, shows them for you to untick any you want to keep, and deletes them in one step Undo puts back. Split at Blank Pages saves the pages between blank separator sheets as separate PDFs. Both are Batch actions too.
 - Bookmarks from Headings (View menu, and a button in the Bookmarks pane): bookmarks made from the document's headings, nested by level and shown before they're made. They replace the bookmarks or go after them.

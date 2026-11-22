@@ -38,6 +38,43 @@ public partial class DocumentTab
         };
         Viewer.ContentAnnounce += (_, message) => AnnounceContent(message);
         Viewer.ContentSelectionChanged += (_, _) => UpdateContentButtons();
+        Viewer.DocumentLanguage = DocumentLanguage;
+        // The document's language is read as it opens, and again when its bytes change (an edit, undo, a reload: a
+        // document made accessible says its language); form values and comments don't change it.
+        ReadDocumentLanguage();
+        Session.ContentChanged += (_, e) =>
+        {
+            if (!e.ContentOnly) ReadDocumentLanguage();
+        };
+    }
+
+    /// <summary>Larger than this, the document isn't opened a second time just for its language: the interface's is used.</summary>
+    private const long MaxLanguageRead = 256L << 20;
+
+    private Task<string?>? _documentLanguage;
+    private string? _lastDocumentLanguage;
+
+    /// <summary>Reads the document's language off the UI thread (spell check on, a PDF of reasonable size).</summary>
+    private void ReadDocumentLanguage()
+    {
+        if (!Spelling.On || !Session.IsPdf || _disposed || Session.Data.Length > MaxLanguageRead) return;
+        var (data, pw) = (Session.Data, Session.Password);
+        var read = _documentLanguage = Task.Run(() => SpellChecker.DocumentLanguage(data, pw));
+        _ = read.ContinueWith(t =>
+        {
+            if (ReferenceEquals(read, _documentLanguage) && t.IsCompletedSuccessfully) _lastDocumentLanguage = t.Result;
+        }, TaskScheduler.FromCurrentSynchronizationContext());
+    }
+
+    /// <summary>
+    /// The language the document says its text is in, for spell check (roadmap 4.1); while a new read is under way, what the
+    /// last one said. Null when it says none (or isn't read: spell check off, a huge file).
+    /// </summary>
+    internal string? DocumentLanguage()
+    {
+        if (!Spelling.On || !Session.IsPdf || _disposed) return null;
+        if (_documentLanguage is null) ReadDocumentLanguage(); // spell check was off as the document opened
+        return _documentLanguage is { IsCompletedSuccessfully: true } done ? done.Result : _lastDocumentLanguage;
     }
 
     public bool IsEditingContent => Viewer.IsEditingContent;

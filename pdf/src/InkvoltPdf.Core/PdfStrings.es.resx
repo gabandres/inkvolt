@@ -7077,6 +7077,9 @@
     <value>Cambia el texto y las imágenes de la página</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_FindReplaceDesc" xml:space="preserve">
+    <value>Cambia una palabra o frase en todas las páginas</value>
+  </data>
   <data name="Bar_HeaderFooterDesc" xml:space="preserve">
     <value>Números, fechas o texto en cada página</value>
     <comment>Line under a command in the bar's menu</comment>
