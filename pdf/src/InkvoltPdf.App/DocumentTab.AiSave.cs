@@ -135,6 +135,12 @@ public partial class DocumentTab
             Notify(Strings.TabAi_AudioStopped);
             return false;
         }
+        catch (WavTooLongException ex)
+        {
+            Log.Write($"Reading AI answers aloud to a file stopped: too long ({paragraphs.Count} paragraphs)");
+            Prompt.Error(owner, Strings.TabAi_AudioTitle, ex.Message);
+            return false;
+        }
         catch (Exception ex) when (ex is not OutOfMemoryException) // fire-and-forget: anything that fails is said
         {
             Log.Write($"Reading AI answers aloud to a file failed: {ex.GetType().Name} 0x{ex.HResult:X8}");

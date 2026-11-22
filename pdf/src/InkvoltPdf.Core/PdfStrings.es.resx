@@ -7431,6 +7431,12 @@
   <data name="AskEdit_TooMany" xml:space="preserve">
     <value>Solo se muestran los primeros {0} pasos; el resto se dejó fuera.</value>
   </data>
+  <data name="AskEdit_TooManyCalls" xml:space="preserve">
+    <value>La respuesta tenía más de {0} llamadas; el resto se dejó fuera.</value>
+  </data>
+  <data name="Speech_TooLong" xml:space="preserve">
+    <value>Es demasiado largo para leerlo en voz alta en un solo archivo (un archivo WAV admite como máximo 2 GB). Lee menos respuestas a la vez.</value>
+  </data>
   <data name="AskEdit_NotACall" xml:space="preserve">
     <value>Un paso propuesto no era una llamada a un comando y se dejó fuera.</value>
   </data>

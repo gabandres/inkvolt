@@ -518,12 +518,13 @@ public sealed partial class PdfEngine : IDisposable
     /// Unlocks with <paramref name="password"/>. MuPDFCore passes a password in the ANSI code page, which suits the older
     /// security handlers (their passwords are bytes, Latin-1 in practice) but not AES-256's revision 6, whose passwords are
     /// UTF-8: one with ñ was refused. A non-ASCII password MuPDFCore's call refuses goes to the same native function again
-    /// as UTF-8 (as written, then in compatibility composition, SASLprep's form).
+    /// as UTF-8 (as written, then in compatibility composition, SASLprep's form). One that isn't text (a lone surrogate,
+    /// which has no UTF-8 and no normal form) is a wrong password.
     /// </summary>
     internal static bool TryUnlock(MuPDFDocument doc, string password, out PasswordTypes kind)
     {
         if (doc.TryUnlock(password, out kind)) return true;
-        if (password.All(char.IsAscii) || NativeHandles(doc) is not var (ctx, native) || ctx == IntPtr.Zero || native == IntPtr.Zero) return false;
+        if (password.All(char.IsAscii) || !IsText(password) || NativeHandles(doc) is not var (ctx, native) || ctx == IntPtr.Zero || native == IntPtr.Zero) return false;
         foreach (var form in new[] { password, password.Normalize(System.Text.NormalizationForm.FormKC) }.Distinct())
         {
             // fz_authenticate_password: 0 refused; 2 the user password; 4 the owner's (both may be set).
@@ -535,6 +536,10 @@ public sealed partial class PdfEngine : IDisposable
         }
         return false;
     }
+
+    /// <summary>True when <paramref name="s"/> is well-formed UTF-16: every surrogate in a pair.</summary>
+    internal static bool IsText(string s) =>
+        System.Text.Unicode.Utf8.FromUtf16(s, new byte[s.Length * 3], out _, out _, replaceInvalidSequences: false) == System.Buffers.OperationStatus.Done;
 
     private static readonly System.Reflection.FieldInfo? DocumentHandle = typeof(MuPDFDocument).GetField("NativeDocument", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
     private static readonly System.Reflection.FieldInfo? DocumentOwner = typeof(MuPDFDocument).GetField("OwnerContext", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);

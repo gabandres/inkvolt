@@ -98,6 +98,9 @@ public sealed record WavInfo(int Channels, int SampleRate, int BitsPerSample, in
 /// </summary>
 public static class WavFile
 {
+    /// <summary>Most sample bytes one joined file holds (its sizes are 32-bit, and it is one array).</summary>
+    public const int MaxDataLength = int.MaxValue - 64;
+
     /// <summary>The file's format and samples.</summary>
     /// <exception cref="InvalidDataException">It isn't a WAV file of PCM samples, or its chunks run past its end.</exception>
     public static WavInfo Read(ReadOnlySpan<byte> wav)
@@ -143,6 +146,7 @@ public static class WavFile
 
     /// <summary>One WAV file of <paramref name="parts"/>' samples one after another, with a short silence between them.</summary>
     /// <exception cref="InvalidDataException">A part isn't a WAV file of PCM samples, or its format differs from the first's.</exception>
+    /// <exception cref="WavTooLongException">The joined file would be past <see cref="MaxDataLength"/>.</exception>
     public static byte[] Join(IReadOnlyList<byte[]> parts, TimeSpan pause = default)
     {
         if (parts.Count == 0) throw new ArgumentException("Nothing to join.", nameof(parts));
@@ -151,9 +155,10 @@ public static class WavFile
         if (infos.Any(i => i.Channels != first.Channels || i.SampleRate != first.SampleRate || i.BitsPerSample != first.BitsPerSample))
             throw new InvalidDataException("The parts' formats differ.");
         var frame = first.Channels * first.BitsPerSample / 8;
-        var silence = (int)(pause.TotalSeconds * first.SampleRate) * frame;
-        long total = infos.Sum(i => (long)i.DataLength) + (long)silence * (parts.Count - 1);
-        if (total > int.MaxValue - 64) throw new InvalidDataException("Too long for one WAV file.");
+        var pauseBytes = SilenceLength(first, pause);
+        var total = infos.Sum(i => (long)i.DataLength) + pauseBytes * (parts.Count - 1);
+        if (total > MaxDataLength) throw new WavTooLongException();
+        var silence = parts.Count > 1 ? (int)pauseBytes : 0; // within MaxDataLength once there are two parts
         var output = new byte[44 + total];
         var span = output.AsSpan();
         "RIFF"u8.CopyTo(span);
@@ -182,4 +187,42 @@ public static class WavFile
         }
         return output;
     }
+
+    /// <summary>The bytes of <paramref name="pause"/>'s silence in <paramref name="format"/>'s samples (whole frames, never negative).</summary>
+    internal static long SilenceLength(WavInfo format, TimeSpan pause) =>
+        (long)Math.Clamp(pause.TotalSeconds * format.SampleRate, 0, MaxDataLength) * (format.Channels * format.BitsPerSample / 8);
+}
+
+/// <summary>The recording would be past what one WAV file holds (<see cref="WavFile.MaxDataLength"/>); its message says so plainly.</summary>
+public sealed class WavTooLongException() : Exception(PdfStrings.Speech_TooLong);
+
+/// <summary>
+/// The parts of a recording as they are made, their total kept as each comes: one that would take the joined file past
+/// <see cref="WavFile.MaxDataLength"/> stops it there (<see cref="WavTooLongException"/>), before the rest are made and
+/// kept in memory, rather than at <see cref="WavFile.Join"/> with them all held.
+/// </summary>
+public sealed class WavParts(TimeSpan pause)
+{
+    private readonly List<byte[]> _parts = [];
+
+    /// <summary>The joined file's samples so far, silences between parts included.</summary>
+    public long DataLength { get; private set; }
+
+    public int Count => _parts.Count;
+
+    /// <summary>Adds the next part.</summary>
+    /// <exception cref="InvalidDataException">It isn't a WAV file of PCM samples.</exception>
+    /// <exception cref="WavTooLongException">The joined file would be too long.</exception>
+    public void Add(byte[] part)
+    {
+        var info = WavFile.Read(part);
+        var silence = _parts.Count == 0 ? 0 : WavFile.SilenceLength(info, pause);
+        var total = DataLength + silence + info.DataLength;
+        if (total > WavFile.MaxDataLength) throw new WavTooLongException();
+        _parts.Add(part);
+        DataLength = total;
+    }
+
+    /// <summary>The parts as one WAV file (<see cref="WavFile.Join"/>).</summary>
+    public byte[] Join() => WavFile.Join(_parts, pause);
 }
