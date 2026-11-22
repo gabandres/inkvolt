@@ -69,6 +69,35 @@ public class SearchMarksTests
         Assert.Equal(AnnotationKind.StrikeOut, Assert.Single(Annotations.Read(odd.Data, null)).Kind);
     }
 
+    /// <summary>A page whose /Annots lists <paramref name="marks"/> highlights of 20,000 lines each, each <paramref name="times"/> times.</summary>
+    private static byte[] Overmarked(int marks, int times)
+    {
+        var quads = string.Join(' ', Enumerable.Repeat("10 20 30 20 10 10 30 10", 20_000));
+        var refs = string.Join(' ', Enumerable.Range(0, times).SelectMany(_ => Enumerable.Range(0, marks).Select(m => $"{4 + m} 0 R")));
+        return Core2Pdf.Build(
+        [
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Annots [{refs}] >>",
+            .. Enumerable.Range(0, marks).Select(_ => $"<< /Type /Annot /Subtype /Highlight /Rect [10 10 30 20] /QuadPoints [{quads}] >>"),
+        ]);
+    }
+
+    [Fact]
+    public void AMarkListedThousandsOfTimes_IsReadOnce_AndAPageOfTooManyMarkedLinesIsSaid()
+    {
+        // One highlight of 20,000 lines listed 10,000 times: 200 million boxes before; read once now.
+        HitToMark[] hit = [new(0, [new RectD(300, 300, 40, 10)]), new(0, [new RectD(10, 772, 20, 10)])];
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var once = SearchMarks.Count(Overmarked(1, 10_000), null, hit, TextMarkupKind.Highlight);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(20), $"took {clock.Elapsed}");
+        Assert.Equal(new SearchMarksCount(1, 1, 0, 0), once); // the hit under the mark is still known as marked
+
+        // Three of them, each its own: more lines than are read; the hits are planned, and the page is counted as not all read.
+        var many = SearchMarks.Count(Overmarked(3, 1), null, hit, TextMarkupKind.Highlight);
+        Assert.Equal(new SearchMarksCount(1, 1, 0, 0, PagesNotAllRead: 1), many);
+    }
+
     [Fact]
     public void AtMostTheLimitIsMarked()
     {

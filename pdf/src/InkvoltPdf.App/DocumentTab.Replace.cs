@@ -48,11 +48,21 @@ public partial class DocumentTab
     {
         if (matches.Count == 0) return false;
         ReplaceResult? result = null;
+        var owner = Window.GetWindow(this);
         var outcome = await TryEdit(all ? Strings.Replace_All : Strings.Replace_Replace, (d, pw) =>
         {
-            var r = TextReplace.Replace(d, pw, matches, with);
-            result = r;
-            return r.Data;
+            // Thousands of paragraphs take a while: shown page by page, with Cancel (nothing is changed then).
+            var progress = Dispatcher.Invoke(() => new ProgressPrompt(owner, Strings.Replace_Working, Strings.Review_Starting));
+            try
+            {
+                var r = TextReplace.Replace(d, pw, matches, with, progress.Token, PageProgress(progress, Strings.Replace_Working));
+                result = r;
+                return r.Data;
+            }
+            finally
+            {
+                Dispatcher.Invoke(progress.Dispose);
+            }
         });
         LastReplace = result;
         if (outcome == EditOutcome.Busy) Notify(Strings.EditContent_StillApplying, error: true);
