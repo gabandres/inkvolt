@@ -385,6 +385,10 @@ internal static class DevSnapshot
         }
         if (tray is not null && trayController is not null && await TrayShotAsync(trayController, tray, path)) return;
         Window shot = window;
+        // --camera [capture|done] (demo only): Use a camera on the shown Scan tab, with the made-up document camera; capture takes a
+        // page; the camera window is the snapshot, or with done (Done pressed) the Scan tab with its page.
+        if (args.Contains("--camera") && window.DataContext is ViewModels.MainViewModel { Selected: { Pc.IsDemo: true, Scan: { } cameraTab } })
+            shot = await CameraAsync(cameraTab, Value(args, "--camera")) ?? window;
         if (editPresets > 0 && window.DataContext is ViewModels.MainViewModel editMain)
         {
             var editor = ScanPresetsDialog.Create(editMain.Presets, editMain.Selected?.Name ?? "Demo printer");
@@ -522,6 +526,23 @@ internal static class DevSnapshot
 
     private static string? Value(string[] args, string name) =>
         Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null;
+
+    /// <summary><c>--camera [capture|done]</c>: presses Use a camera, waits for the made-up camera's picture, then captures and presses Done as asked; the camera window, or null once it closed.</summary>
+    private static async Task<Window?> CameraAsync(ViewModels.ScanViewModel scan, string? mode)
+    {
+        _ = scan.ScanWithCameraCommand.ExecuteAsync(null);
+        await Task.Delay(TimeSpan.FromSeconds(2));
+        if (CameraWindow.Last is not { DataContext: ViewModels.CameraScanViewModel camera } shown) return null;
+        if (mode is "capture" or "done")
+        {
+            camera.CaptureCommand.Execute(null);
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+        }
+        if (mode != "done") return shown;
+        camera.DoneCommand.Execute(null);
+        await Task.Delay(TimeSpan.FromSeconds(5));
+        return null;
+    }
 
     /// <summary>
     /// <c>--phone [send|done|hold]</c>: presses Use your phone, waits for its code, and with <c>send</c> does what the phone's page does, over

@@ -4400,4 +4400,31 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Phone_StatusFinished_Many" xml:space="preserve">
     <value>Done: {0} pages came from the phone.</value>
   </data>
+  <data name="Camera_Unnamed" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="Camera_Blocked" xml:space="preserve">
+    <value>Windows doesn't let apps use the camera. Turn it on in Windows Settings › Privacy &amp; security › Camera (for desktop apps too), then try again.</value>
+  </data>
+  <data name="Camera_InUse" xml:space="preserve">
+    <value>The camera didn't start. Another app may be using it: close it, or choose another camera, and try again.</value>
+  </data>
+  <data name="Camera_NoPicture" xml:space="preserve">
+    <value>This camera sends no picture Inkvolt Print can use. Choose another camera.</value>
+  </data>
+  <data name="Camera_NoCamera" xml:space="preserve">
+    <value>No camera found. Plug in a webcam or document camera, then try again.</value>
+  </data>
+  <data name="Camera_StatusNone" xml:space="preserve">
+    <value>Put a page under the camera, then Capture page. Each capture is a page.</value>
+  </data>
+  <data name="Camera_StatusTaken_One" xml:space="preserve">
+    <value>1 page captured. Put the next one under the camera, or Done.</value>
+  </data>
+  <data name="Camera_StatusTaken_Many" xml:space="preserve">
+    <value>{0} pages captured. Put the next one under the camera, or Done.</value>
+  </data>
+  <data name="Camera_StatusFull" xml:space="preserve">
+    <value>That's the most pages one scan takes: press Done, then start another.</value>
+  </data>
 </root>

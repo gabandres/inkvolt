@@ -41,15 +41,17 @@ public static class PhotoPage
     /// <summary>
     /// The paper a page of <paramref name="longSide"/> × <paramref name="shortSide"/> (any unit) is taken for: Letter, A4 or Legal when its
     /// proportions are within 4% of one; longer and narrower, a page 8.5 inches wide, or a till receipt 80 mm wide past 2.2 times as long
-    /// as wide; squarer, a page 11 inches the long way (a photo of the whole frame).
+    /// as wide; squarer, a page 11 inches the long way. <paramref name="foundPage"/> false (the whole frame, no page found in it): the
+    /// frame's proportions are the camera's, so only a paper's own proportions count, and anything else is 11 inches the long way.
     /// </summary>
-    public static PaperGuess Paper(double longSide, double shortSide)
+    public static PaperGuess Paper(double longSide, double shortSide, bool foundPage = true)
     {
         if (!(longSide > 0 && shortSide > 0 && double.IsFinite(longSide) && double.IsFinite(shortSide))) return new("Letter", 11);
         if (shortSide > longSide) (longSide, shortSide) = (shortSide, longSide);
         var ratio = Math.Min(longSide / shortSide, 8);
         var best = Papers.MinBy(p => Math.Abs(Math.Log(ratio / (p.Long / p.Short))));
         if (Math.Abs(Math.Log(ratio / (best.Long / best.Short))) <= Math.Log(1.04)) return new(best.Name, best.Long);
+        if (!foundPage) return new("Photo", 11);
         if (ratio > 2.2) return new("Receipt", 80 / 25.4 * ratio);
         if (ratio > Papers.Max(p => p.Long / p.Short)) return new("Narrow", 8.5 * ratio);
         return new("Photo", 11);
@@ -81,7 +83,7 @@ public static class PhotoPage
             across = (Length(c[0], c[1]) + Length(c[3], c[2])) / 2;
             down = (Length(c[0], c[3]) + Length(c[1], c[2])) / 2;
         }
-        var paper = Paper(Math.Max(across, down), Math.Min(across, down));
+        var paper = Paper(Math.Max(across, down), Math.Min(across, down), foundPage: perspective is not null);
         var scale = paper.LongInches * dpi / Math.Max(across, down); // photo pixels to page pixels
         var outW = Math.Clamp((int)Math.Round(across * scale), 1, PhotoInput.MaxSide * 2);
         var outH = Math.Clamp((int)Math.Round(down * scale), 1, PhotoInput.MaxSide * 2);

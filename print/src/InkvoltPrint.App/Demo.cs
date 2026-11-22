@@ -91,6 +91,8 @@ internal static class Demo
         public override Core.Sharing.ShareEnvironment ScannerSharing { get; } = Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost());
         // The phone's page served for real, to this PC only (a browser here, or --phone send, plays the phone).
         public override Core.Capture.PhoneEnvironment PhoneScanning { get; } = Core.Capture.PhoneEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelPhoneHost());
+        // A made-up document camera looking down at a page on a desk: no real camera is opened.
+        public override Core.Capture.ICameras Cameras { get; } = new DemoCameras();
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
         protected override IReadOnlyList<Core.Queues.IQueueDeviceReader> DeviceReaders(Core.Queues.SpoolerQueue q) => Core.Fleet.DemoFleet.DeviceReaders(q);

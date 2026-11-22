@@ -3676,4 +3676,31 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Phone_StatusFinished_Many" xml:space="preserve">
     <value>Listo: llegaron {0} páginas del teléfono.</value>
   </data>
+  <data name="Camera_Unnamed" xml:space="preserve">
+    <value>Cámara</value>
+  </data>
+  <data name="Camera_Blocked" xml:space="preserve">
+    <value>Windows no deja que las apps usen la cámara. Actívala en Configuración de Windows › Privacidad y seguridad › Cámara (también para las aplicaciones de escritorio) y vuelve a intentarlo.</value>
+  </data>
+  <data name="Camera_InUse" xml:space="preserve">
+    <value>La cámara no se inició. Puede que otra app la esté usando: ciérrala, o elige otra cámara, y vuelve a intentarlo.</value>
+  </data>
+  <data name="Camera_NoPicture" xml:space="preserve">
+    <value>Esta cámara no envía ninguna imagen que Inkvolt Print pueda usar. Elige otra cámara.</value>
+  </data>
+  <data name="Camera_NoCamera" xml:space="preserve">
+    <value>No se encontró ninguna cámara. Conecta una cámara web o una cámara de documentos y vuelve a intentarlo.</value>
+  </data>
+  <data name="Camera_StatusNone" xml:space="preserve">
+    <value>Pon una página bajo la cámara y luego Capturar página. Cada captura es una página.</value>
+  </data>
+  <data name="Camera_StatusTaken_One" xml:space="preserve">
+    <value>1 página capturada. Pon la siguiente bajo la cámara, o Terminar.</value>
+  </data>
+  <data name="Camera_StatusTaken_Many" xml:space="preserve">
+    <value>{0} páginas capturadas. Pon la siguiente bajo la cámara, o Terminar.</value>
+  </data>
+  <data name="Camera_StatusFull" xml:space="preserve">
+    <value>Es el máximo de páginas de un escaneo: pulsa Terminar y luego empieza otro.</value>
+  </data>
 </root>

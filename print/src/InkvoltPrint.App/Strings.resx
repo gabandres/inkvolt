@@ -4913,7 +4913,7 @@ The files stay where they are.</value>
     <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
   <data name="ScanTab_Capture" xml:space="preserve">
-    <value>Scan with your phone</value>
+    <value>Scan with your phone or a camera</value>
   </data>
   <data name="ScanTab_CaptureHelp" xml:space="preserve">
     <value>No app on the phone: its browser takes the photos and sends them to this PC over your Wi-Fi, never through the internet. Each page is found, straightened and cleaned up, then reviewed and saved like a scan.</value>
@@ -4965,5 +4965,26 @@ The files stay where they are.</value>
   </data>
   <data name="Phone_EmptyHint" xml:space="preserve">
     <value>Pages from your phone show up here as they come in.</value>
+  </data>
+  <data name="ScanTab_UseCamera" xml:space="preserve">
+    <value>Use a camera</value>
+  </data>
+  <data name="ScanTab_UseCameraHelp" xml:space="preserve">
+    <value>A webcam or document camera on this PC: its live picture in a window, Capture page for each page. Pages are straightened and cleaned up like scans.</value>
+  </data>
+  <data name="Camera_Title" xml:space="preserve">
+    <value>Scan with a camera</value>
+  </data>
+  <data name="Camera_Capture" xml:space="preserve">
+    <value>Capture page</value>
+  </data>
+  <data name="Camera_CaptureTip" xml:space="preserve">
+    <value>Takes the camera's picture as the next page (Space)</value>
+  </data>
+  <data name="Camera_Which" xml:space="preserve">
+    <value>Camera</value>
+  </data>
+  <data name="Camera_PreviewName" xml:space="preserve">
+    <value>What the camera sees</value>
   </data>
 </root>

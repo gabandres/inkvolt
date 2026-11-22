@@ -39,6 +39,9 @@ public static class Prompt
 
     /// <summary>Opens the recent scans (Views.RecentScansDialog, roadmap 4.15). Unset (tests): no-op.</summary>
     public static Action<RecentScansViewModel>? ShowRecentScans { get; set; }
+
+    /// <summary>Opens a camera scan's window (Views.CameraWindow, roadmap 4.12), returning what closes it. Unset (tests): no camera scan.</summary>
+    public static Func<CameraScanViewModel, Action>? ShowCamera { get; set; }
 }
 
 public sealed partial class MainViewModel : ObservableObject, IDisposable

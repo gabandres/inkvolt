@@ -287,7 +287,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(ScanCommand), nameof(SaveCommand), nameof(ClearCommand), nameof(RunPresetCommand), nameof(SaveWithPresetCommand), nameof(UndoCommand), nameof(SwapBacksCommand),
-        nameof(ScanWithPhoneCommand))]
+        nameof(ScanWithPhoneCommand), nameof(ScanWithCameraCommand))]
     [NotifyPropertyChangedFor(nameof(CanSwapBacks))]
     public partial bool IsBusy { get; set; }
 
@@ -1805,8 +1805,44 @@ public sealed partial class ScanViewModel : ObservableObject
         };
     }
 
-    /// <summary>The window closes: a phone scan under way ends as if Done were pressed (its pages are kept), and its port closes.</summary>
-    public void EndCapture() => Phone?.FinishCommand.Execute(null);
+    /// <summary>
+    /// The window closes: a phone or camera scan under way ends as if Done were pressed (its pages are kept); the phone's port closes and
+    /// the camera stops.
+    /// </summary>
+    public void EndCapture()
+    {
+        Phone?.FinishCommand.Execute(null);
+        _camera?.Finish();
+    }
+
+    /// <summary>The camera scan under way, if any.</summary>
+    private CameraSession? _camera;
+
+    /// <summary>
+    /// Scan with a camera (roadmap 4.12): a webcam or document camera's live picture in a window of its own; each Capture page takes its
+    /// latest frame in full as a page, straightened and cleaned up as a phone's photo is, at the settings below or the chosen preset,
+    /// until Done or the window closes.
+    /// </summary>
+    [RelayCommand(CanExecute = nameof(NotBusy))]
+    private async Task ScanWithCameraAsync()
+    {
+        if (IsBusy || Prompt.ShowCamera is not { } show) return;
+        var preset = CapturePreset;
+        if (!StartCapture(preset)) return;
+        var session = new CameraSession();
+        _camera = session;
+        var close = show(new CameraScanViewModel(_pc.Cameras, session, line => Log.Write(line)));
+        try
+        {
+            await CaptureWithAsync(new CaptureScanner(session.Photos, PhotoCodec.Instance), preset);
+        }
+        finally
+        {
+            _camera = null;
+            session.Finish();
+            close();
+        }
+    }
 
     private bool CanSaveWithPreset() => ActivePreset is not null && !IsBusy;
 

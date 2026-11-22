@@ -130,5 +130,7 @@
   <Capabilities>
     <Capability Name="privateNetworkClientServer" />
     <rescap:Capability Name="runFullTrust" />
+    <!-- Scan with a camera (roadmap 4.12): Windows asks once whether Inkvolt Print may use the camera (Settings › Privacy › Camera) -->
+    <DeviceCapability Name="webcam" />
   </Capabilities>
 </Package>

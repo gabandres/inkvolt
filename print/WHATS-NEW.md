@@ -14,6 +14,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - Print the clipboard: in the Print tab, Print the clipboard prints text you copied (laid out on pages, with the usual options), a copied picture through Photos, or files you copied in File Explorer.
 - Recent scans: the Scan tab's Recent scans… lists your last saved scans from every scanner, to open, show in their folder, email again or print. The list stays on this PC.
 - Scan with your phone: the Scan tab's Use your phone shows a code; point your phone's camera at it and take a photo of each page in its browser. No app and no internet: the photos come straight to this PC over your Wi-Fi, each page straightened and sized like a scan, ready to review and save, with your scan settings or a preset.
+- Scan with a camera: the Scan tab's Use a camera shows your webcam or document camera live; Capture page takes each page, straightened and sized like a scan, ready to review and save.
 
 ## 1.7.0
 - Print to a network printer that isn't set up in Windows: Print a PDF, Copy and Print photos now send the pages straight to the printer over the network, in its own format, with no driver and no administrator. Where Windows has a queue for it, the queue stays the default and Print offers "Print straight to the printer" too. You see each page print, and the print queue card lists the printer's own jobs.
