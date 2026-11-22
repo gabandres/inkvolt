@@ -11919,4 +11919,50 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Scan_Twain32Label" xml:space="preserve">
     <value>{0}  (TWAIN, solo de 32 bits)</value>
   </data>
+  <data name="Cmd_InsertText" xml:space="preserve">
+    <value>Insertar te_xto…</value>
+  </data>
+  <data name="Cmd_ReplaceText" xml:space="preserve">
+    <value>Reem_plazar texto…</value>
+  </data>
+  <data name="Tab_InsertText" xml:space="preserve">
+    <value>Insertar texto</value>
+  </data>
+  <data name="Tab_InsertTextTip" xml:space="preserve">
+    <value>Insertar texto: después de la selección, o donde hiciste clic en el texto</value>
+  </data>
+  <data name="Tab_ReplaceText" xml:space="preserve">
+    <value>Reemplazar texto</value>
+  </data>
+  <data name="Tab_ReplaceTextTip" xml:space="preserve">
+    <value>Reemplazar texto: tacha la selección y escribe lo que va en su lugar</value>
+  </data>
+  <data name="Tab_MenuInsertTextHere" xml:space="preserve">
+    <value>Insertar texto aquí…</value>
+  </data>
+  <data name="Review_KindReplaceText" xml:space="preserve">
+    <value>Reemplazar texto</value>
+    <comment>What a comment is called in the Comments pane</comment>
+  </data>
+  <data name="Review_InsertTextTitle" xml:space="preserve">
+    <value>Insertar texto</value>
+  </data>
+  <data name="Review_InsertTextNote" xml:space="preserve">
+    <value>Un signo de intercalación azul marca el lugar en la página {0}; el texto que escribas es su comentario. Autor: {1}.</value>
+  </data>
+  <data name="Review_ReplaceTextTitle" xml:space="preserve">
+    <value>Reemplazar texto</value>
+  </data>
+  <data name="Review_ReplaceTextNote" xml:space="preserve">
+    <value>«{0}» en la página {1} queda tachado, con un signo de intercalación azul detrás que guarda el texto que escribas. Autor: {2}.</value>
+  </data>
+  <data name="Review_ProofTextEmpty" xml:space="preserve">
+    <value>Escribe el texto.</value>
+  </data>
+  <data name="Review_InsertNoCaret" xml:space="preserve">
+    <value>Haz clic en el texto donde van las palabras (herramienta Seleccionar texto), o selecciona texto, y elige Insertar texto.</value>
+  </data>
+  <data name="Review_ReplaceOnePage" xml:space="preserve">
+    <value>Selecciona texto de una sola página para reemplazarlo.</value>
+  </data>
 </root>

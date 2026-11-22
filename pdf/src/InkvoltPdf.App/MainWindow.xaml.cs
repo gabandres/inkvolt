@@ -1950,6 +1950,8 @@ public partial class MainWindow : Window
             (t, now) => t.CanMarkup || now && Cmd.DrawTool(ViewerTool.Highlighter).CanExecute(null, this));
         Bind(Cmd.Underline, t => _ = t.MarkupSelection(TextMarkupKind.Underline), t => t.CanMarkup);
         Bind(Cmd.StrikeOut, t => _ = t.MarkupSelection(TextMarkupKind.StrikeOut), t => t.CanMarkup);
+        Bind(Cmd.InsertText, t => _ = t.InsertText(), t => t.CanInsertText);
+        Bind(Cmd.ReplaceText, t => _ = t.ReplaceSelection(), t => t.CanReplaceText);
         Bind(Cmd.AddNote, t => ToggleTool(t, ViewerTool.AddNote), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.AddImage, t =>
         {

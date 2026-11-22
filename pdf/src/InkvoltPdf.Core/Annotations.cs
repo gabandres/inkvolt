@@ -31,6 +31,7 @@ public readonly record struct AnnotColor(double R, double G, double B)
 /// they are, for selecting, moving and resizing (see <see cref="Annotations.UpdateGeometry"/>); null for other kinds.</param>
 /// <param name="Style">Drawing annotations: how they look (see <see cref="Annotations.UpdateStyle"/>); null for other kinds.</param>
 /// <param name="PageRotation">Its page's /Rotate (0, 90, 180 or 270): which way a text mark's lines run as the page is shown.</param>
+/// <param name="Grouped">Bound to <paramref name="ReplyTo"/> as part of one comment (/RT /Group: a Replace Text's strike-out), not a reply.</param>
 public sealed record AnnotationInfo(
     string Id,
     AnnotationKind Kind,
@@ -49,7 +50,8 @@ public sealed record AnnotationInfo(
     double Opacity = 1,
     AnnotGeometry? Geometry = null,
     AnnotStyle? Style = null,
-    int PageRotation = 0);
+    int PageRotation = 0,
+    bool Grouped = false);
 
 /// <summary>What <see cref="Annotations.ReadPages"/> reads of every page's annotations.</summary>
 public sealed record PageAnnotations(IReadOnlyList<AnnotationInfo> Comments, IReadOnlyList<AttachmentInfo> Attachments, IReadOnlyList<TextStamp> SignatureStamps,
@@ -149,7 +151,8 @@ public static partial class Annotations
                     PdfObj.Num(a.Elements["/CA"], 1),
                     drawing?.Geometry,
                     drawing?.Style,
-                    ((page.Rotate % 360) + 360) % 360));
+                    ((page.Rotate % 360) + 360) % 360,
+                    PdfObj.Dict(a.Elements["/IRT"]) is not null && PdfObj.Name(a.Elements["/RT"]) == "Group"));
             }
         }
         return list;

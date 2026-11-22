@@ -183,6 +183,9 @@ public static class Cmd
     public static readonly RoutedUICommand Underline = Make(Strings.Cmd_Underline, nameof(Underline), K(Key.U, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand StrikeOut = Make(Strings.Cmd_StrikeOut, nameof(StrikeOut), K(Key.X, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand AddNote = Make(Strings.Cmd_AddNote, nameof(AddNote), K(Key.C, ModifierKeys.Control | ModifierKeys.Shift));
+    // Proofreading marks (DocumentTab.Proofreading): a caret with the text to insert; the selection struck out with its replacement
+    public static readonly RoutedUICommand InsertText = Make(Strings.Cmd_InsertText, nameof(InsertText));
+    public static readonly RoutedUICommand ReplaceText = Make(Strings.Cmd_ReplaceText, nameof(ReplaceText));
     public static readonly RoutedUICommand Redact = Make(Strings.Cmd_Redact, nameof(Redact));
     // Applies the redaction marks (DocumentTab.ApplyRedactions): its icon is the bar's only red (BarColors)
     public static readonly RoutedUICommand ApplyRedactions = Make(Strings.Main_MenuApplyRedactions, nameof(ApplyRedactions));

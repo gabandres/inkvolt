@@ -11,8 +11,9 @@ using InkvoltPdf.Core;
 
 namespace InkvoltPdf.App;
 
-/// <summary>A comment in the Comments pane (replies are indented under the comment they answer).</summary>
-public sealed class CommentItem(AnnotationInfo info, string pageHeader, int depth)
+/// <summary>A comment in the Comments pane (replies are indented under the comment they answer; a group, such as Replace
+/// Text's caret and strike-out, is one item).</summary>
+public sealed class CommentItem(AnnotationInfo info, string pageHeader, int depth, ProofMarkKind? proof = null)
 {
     public AnnotationInfo Info { get; } = info;
     public string PageHeader { get; } = pageHeader;
@@ -20,10 +21,12 @@ public sealed class CommentItem(AnnotationInfo info, string pageHeader, int dept
     public string Contents => Info.Contents.Trim();
     public Visibility ContentsVisibility => Contents.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-    public string Title => TitleOf(Info);
+    public string Title => TitleOf(Info, proof);
 
-    /// <summary>What a comment is called ("Highlight", "Arrow", "Callout"…).</summary>
-    public static string TitleOf(AnnotationInfo info) => info.ReplyTo is not null ? Strings.Review_KindReply : DrawingTitle(info) ?? info.Kind switch
+    /// <summary>What a comment is called ("Highlight", "Arrow", "Callout"…); a caret by its proofreading mark when known.</summary>
+    public static string TitleOf(AnnotationInfo info, ProofMarkKind? proof = null) => info.ReplyTo is not null && !info.Grouped ? Strings.Review_KindReply
+        : proof == ProofMarkKind.ReplaceText ? Strings.Review_KindReplaceText
+        : DrawingTitle(info) ?? info.Kind switch
     {
         AnnotationKind.Stamp => string.IsNullOrWhiteSpace(info.Subject) ? Strings.Review_KindStamp : info.Subject,
         AnnotationKind.Text => Strings.Review_KindNote,
@@ -399,6 +402,7 @@ public partial class DocumentTab
         Viewer.AnnotationActivated += (_, a) => _ = EditComment(a);
 
         CtxRedactText.Click += (_, _) => _ = RedactSelection();
+        InitProofreading();
         Viewer.ContextMenuOpening += (_, _) =>
         {
             var markup = Session.IsPdf && Viewer.HasSelection;
@@ -598,13 +602,17 @@ public partial class DocumentTab
 
     private void RefreshCommentList()
     {
-        var byId = _annotations.Where(a => !a.IsInkvoltPdfStamp).ToDictionary(a => a.Id);
+        var all = _annotations.Where(a => !a.IsInkvoltPdfStamp).ToDictionary(a => a.Id);
+        var allIds = all.Keys.ToHashSet();
+        // A group's members (Replace Text's strike-out) are part of its head: one item.
+        var byId = all.Values.Where(a => !Annotations.IsGroupMember(a, allIds)).ToDictionary(a => a.Id);
+        var replaced = Annotations.ReplacedCarets(all.Values);
         var replies = byId.Values.Where(a => a.ReplyTo is not null && byId.ContainsKey(a.ReplyTo)).ToLookup(a => a.ReplyTo!);
         var items = new List<CommentItem>();
         void Add(AnnotationInfo a, int depth, HashSet<string> seen)
         {
             if (!seen.Add(a.Id)) return;
-            items.Add(new CommentItem(a, Loc.Format(Strings.Review_PageHeader, PageLabel(a.PageIndex)), Math.Min(depth, 4)));
+            items.Add(new CommentItem(a, Loc.Format(Strings.Review_PageHeader, PageLabel(a.PageIndex)), Math.Min(depth, 4), Annotations.ProofKindOf(a, replaced)));
             foreach (var r in replies[a.Id].OrderBy(r => r.Modified ?? DateTimeOffset.MinValue)) Add(r, depth + 1, seen);
         }
         var seen = new HashSet<string>();
@@ -631,7 +639,9 @@ public partial class DocumentTab
     private void FlashComment(AnnotationInfo a)
     {
         if (a.PageIndex < 0 || a.PageIndex >= Viewer.PageCount) return;
-        var rect = a.QuadRects.Count > 0 ? a.QuadRects.Aggregate(default(RectD), (acc, r) => acc.Union(r)) : a.Rect;
+        // A group (Replace Text: the caret and its strike-out) flashes whole.
+        static RectD Box(AnnotationInfo m) => m.QuadRects.Count > 0 ? m.QuadRects.Aggregate(default(RectD), (acc, r) => acc.Union(r)) : m.Rect;
+        var rect = _annotations.Where(m => m.Grouped && m.ReplyTo == a.Id && m.PageIndex == a.PageIndex).Aggregate(Box(a), (acc, m) => acc.Union(Box(m)));
         ActivatePane(second: false); // comments are selected and edited in the main pane
         Viewer.Flash(a.PageIndex, rect);
     }
@@ -740,7 +750,7 @@ public partial class DocumentTab
     public async Task<bool> DeleteComment(AnnotationInfo a)
     {
         if (!ReviewIsCurrent()) return false;
-        var replies = _annotations.Count(x => x.ReplyTo == a.Id);
+        var replies = _annotations.Count(x => x.ReplyTo == a.Id && !x.Grouped); // a group's members go as part of it
         return await RunEdit(replies > 0 ? Loc.Plural(replies, Strings.Review_UndoDeleteReplies_One, Strings.Review_UndoDeleteReplies_Many) : Strings.Review_UndoDeleteComment,
             (d, pw) => Annotations.Delete(d, pw, a.Id), contentOnly: true);
     }

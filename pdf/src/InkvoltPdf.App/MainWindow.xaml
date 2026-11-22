@@ -283,6 +283,8 @@
                                     <MenuItem Command="app:Cmd.Highlight" />
                                     <MenuItem Command="app:Cmd.Underline" />
                                     <MenuItem Command="app:Cmd.StrikeOut" />
+                                    <MenuItem Command="app:Cmd.InsertText" />
+                                    <MenuItem Command="app:Cmd.ReplaceText" />
                                     <MenuItem x:Name="NoteMenu" Command="app:Cmd.AddNote" />
                                     <!-- Pen, highlighter, shapes, lines, text boxes: filled in code (MainWindow.BuildDrawMenu) -->
                                     <MenuItem x:Name="DrawMenu" Header="{x:Static loc:Strings.Main_MenuDraw}" />

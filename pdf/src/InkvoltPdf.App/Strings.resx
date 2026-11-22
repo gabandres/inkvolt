@@ -11922,4 +11922,50 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>{0}  (TWAIN, 32-bit only)</value>
     <comment>{0} = scanner name; a scanner whose only driver is a 32-bit TWAIN one (listed, can't be used)</comment>
   </data>
+  <data name="Cmd_InsertText" xml:space="preserve">
+    <value>Insert Te_xt…</value>
+  </data>
+  <data name="Cmd_ReplaceText" xml:space="preserve">
+    <value>Re_place Text…</value>
+  </data>
+  <data name="Tab_InsertText" xml:space="preserve">
+    <value>Insert text</value>
+  </data>
+  <data name="Tab_InsertTextTip" xml:space="preserve">
+    <value>Insert text: after the selection, or where you clicked in the text</value>
+  </data>
+  <data name="Tab_ReplaceText" xml:space="preserve">
+    <value>Replace text</value>
+  </data>
+  <data name="Tab_ReplaceTextTip" xml:space="preserve">
+    <value>Replace text: cross out the selection and type what goes in its place</value>
+  </data>
+  <data name="Tab_MenuInsertTextHere" xml:space="preserve">
+    <value>Insert Text Here…</value>
+  </data>
+  <data name="Review_KindReplaceText" xml:space="preserve">
+    <value>Replace text</value>
+    <comment>What a comment is called in the Comments pane</comment>
+  </data>
+  <data name="Review_InsertTextTitle" xml:space="preserve">
+    <value>Insert text</value>
+  </data>
+  <data name="Review_InsertTextNote" xml:space="preserve">
+    <value>A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.</value>
+  </data>
+  <data name="Review_ReplaceTextTitle" xml:space="preserve">
+    <value>Replace text</value>
+  </data>
+  <data name="Review_ReplaceTextNote" xml:space="preserve">
+    <value>“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.</value>
+  </data>
+  <data name="Review_ProofTextEmpty" xml:space="preserve">
+    <value>Type the text.</value>
+  </data>
+  <data name="Review_InsertNoCaret" xml:space="preserve">
+    <value>Click in the text where the words go (Select Text tool), or select text, then choose Insert Text.</value>
+  </data>
+  <data name="Review_ReplaceOnePage" xml:space="preserve">
+    <value>Select text on one page to replace it.</value>
+  </data>
 </root>

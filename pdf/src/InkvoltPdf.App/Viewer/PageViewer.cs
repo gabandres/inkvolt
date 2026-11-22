@@ -316,7 +316,7 @@ public sealed partial class PageViewer : ScrollViewer
         {
             _links.Clear();
             _texts.Clear();
-            _selAnchor = _selActive = null;
+            _selAnchor = _selActive = _lastClick = null;
             _back.Clear();
             _forward.Clear();
         }
@@ -1565,6 +1565,7 @@ public sealed partial class PageViewer : ScrollViewer
 
         if (wasSelecting)
         {
+            if (_selAnchor == _selActive) _lastClick = _selActive; // where Insert Text goes without a selection
             if (_selAnchor == _selActive && !_caretBrowsing) _selAnchor = _selActive = null; // caret browsing: the click placed the caret
             _surface.InvalidateVisual();
             SelectionChanged?.Invoke(this, EventArgs.Empty);

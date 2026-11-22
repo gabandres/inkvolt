@@ -359,6 +359,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   in the text. 4.18 Mark every search hit. 4.17 Proofreading marks (Insert Text, Replace Text). 4.10 AI redaction
   suggestions through the user's own endpoint (Pro; never on by default; the review list and Check Redaction as for
   patterns). 4.20 Save an AI answer (Word, PDF, a comment; the conversation kept).
+  - 4.17 Proofreading marks. Done on Windows (`Annotations.AddInsertText`, `AddReplaceText`: a caret, and a strike-out grouped with it as Acrobat groups them; the Comments pane, Summarize Comments, XFDF and FDF); the Mac's waits.
 - **Batch C:** 4.9 Two documents side by side (a second window; a tab dragged out). 4.16 Reflow view (`HtmlWriter`'s one
   column in the tab). 4.12 Calculated form fields, and several fields aligned and sized together. 4.19 Rulers, guides, a
   grid and snapping. 4.22 Turn a picture or text block to any angle. 4.11 Ask across a folder (the folder index picks

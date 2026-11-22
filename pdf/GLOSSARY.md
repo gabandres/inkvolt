@@ -180,3 +180,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   of the page it replaces).
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).
+- **Proofreading mark** (`Core/Annotations.Proofreading.cs`, `ProofMarkKind`): Insert Text (a /Caret at the **insertion
+  point**, the place before a character of the page's text, `Annotations.CaretAt`; the words to insert are its comment) or
+  Replace Text (a /Caret after struck-out words, holding the new text, with the /StrikeOut bound to it as a **comment
+  group**: /IRT the caret, /RT /Group, `AnnotationInfo.Grouped`). A group is one comment: its **head** (the caret) is
+  listed, its members aren't (`Annotations.IsGroupMember`), and deleting or moving the head takes them along. A reply
+  (/RT /R) is not a group.

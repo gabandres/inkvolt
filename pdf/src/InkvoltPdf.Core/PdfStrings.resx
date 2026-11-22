@@ -7223,4 +7223,26 @@
   <data name="Form_AlreadyLast" xml:space="preserve">
     <value>This field is already filled last on its page.</value>
   </data>
+  <data name="Annot_NoProofText" xml:space="preserve">
+    <value>There's no text to insert.</value>
+  </data>
+  <data name="Annot_ProofTextTooLong" xml:space="preserve">
+    <value>The text is too long (more than {0:N0} characters).</value>
+  </data>
+  <data name="Comment_SummaryInsertText" xml:space="preserve">
+    <value>Insert text</value>
+    <comment>A comment's kind in Summarize Comments: a caret with text to insert</comment>
+  </data>
+  <data name="Comment_SummaryReplaceText" xml:space="preserve">
+    <value>Replace text</value>
+    <comment>A comment's kind in Summarize Comments: struck-out text with its replacement</comment>
+  </data>
+  <data name="Bar_InsertTextDesc" xml:space="preserve">
+    <value>Mark where words go in</value>
+    <comment>The command bar's Comment group</comment>
+  </data>
+  <data name="Bar_ReplaceTextDesc" xml:space="preserve">
+    <value>Cross out the selection and say what replaces it</value>
+    <comment>The command bar's Comment group</comment>
+  </data>
 </root>

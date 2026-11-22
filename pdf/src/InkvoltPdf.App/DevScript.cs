@@ -16,7 +16,7 @@ namespace InkvoltPdf.App;
 /// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· findworkers word · log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
 /// <c>focus</c> (log the focused element) and <c>annots</c> (log the comments). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
-/// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
+/// highlight · underline · strikeout · inserttext p x y text|caret text · replacetext text (the selection) · commentlist (the Comments pane's items) · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
 /// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
 /// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) ·
 /// inventory (What's in This PDF's report, logged) ·
@@ -312,6 +312,21 @@ internal static class DevScript
             case "highlight": log.Add($"highlight: {await tab!.MarkupSelection(Core.TextMarkupKind.Highlight)}"); break;
             case "underline": log.Add($"underline: {await tab!.MarkupSelection(Core.TextMarkupKind.Underline)}"); break;
             case "strikeout": log.Add($"strikeout: {await tab!.MarkupSelection(Core.TextMarkupKind.StrikeOut)}"); break;
+            case "inserttext":
+            {
+                // inserttext <page> <x> <y> <text…>: an Insert Text mark at the text under a page point; "inserttext caret text" at the insertion point.
+                var a = arg.Split(' ', 4);
+                if (a[0] == "caret") log.Add($"inserttext: {await tab!.InsertText(arg.Split(' ', 2)[1])}");
+                else
+                {
+                    var page = int.Parse(a[0]) - 1;
+                    var text = tab!.PageView.Engine!.GetText(page);
+                    log.Add($"inserttext: {await tab.InsertTextAt(new TextPos(page, text.HitTest(Num(a[1]), Num(a[2]))), a[3])}");
+                }
+                break;
+            }
+            case "replacetext": log.Add($"replacetext: {await tab!.ReplaceSelection(arg)}"); break;
+            case "commentlist": log.Add($"comment list: {tab!.DevCommentList()}"); break;
             case "note":
             {
                 // note <page> <x> <y> <text…>
@@ -1837,7 +1852,7 @@ internal static class DevScript
     {
         var list = tab.Comments.Where(c => !c.IsInkvoltPdfStamp).ToList();
         return $"annots: {list.Count}" + string.Concat(list.Select(c =>
-            $"\n  {c.Subtype} p{c.PageIndex + 1} {c.Rect.X:0},{c.Rect.Y:0} {c.Rect.Width:0}x{c.Rect.Height:0} quads={c.QuadRects.Count} color={DrawStyles.Hex(c.Color) ?? "-"} by '{c.Author}' replyTo={c.ReplyTo ?? "-"}: '{Trunc(c.Contents)}'"));
+            $"\n  {c.Subtype} p{c.PageIndex + 1} {c.Rect.X:0},{c.Rect.Y:0} {c.Rect.Width:0}x{c.Rect.Height:0} quads={c.QuadRects.Count} color={DrawStyles.Hex(c.Color) ?? "-"} by '{c.Author}' replyTo={c.ReplyTo ?? "-"}{(c.Grouped ? " (group)" : "")}: '{Trunc(c.Contents)}'"));
     }
 
     /// <summary>The drawing annotations (index, kind, where, look), one line each.</summary>
