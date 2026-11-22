@@ -126,21 +126,7 @@ public static partial class TextFinds
         var bottom = lines.Max(l => l.Top + l.Height);
         var top = lines.Min(l => l.Top);
         var heading = worded.Where(l => l.Top <= top + (bottom - top) / 3 && l.Height >= usual * 4 / 3).MaxBy(l => l.Height);
-        return Shorten(WithoutStrays(heading ?? worded[0]));
-    }
-
-    /// <summary>
-    /// The line's text without a lone character at either end standing apart from the rest (a punch hole or a speck read as "O"
-    /// or "."): further from its neighbour than the line is tall.
-    /// </summary>
-    private static string WithoutStrays(TextLine line)
-    {
-        var words = line.Words.ToList();
-        if (words.Count < 2) return line.Text;
-        static bool Lone(OcrWord w) => w.Text.Trim().Length <= 1;
-        if (Lone(words[0]) && words[1].X - (words[0].X + words[0].Width) > line.Height) words.RemoveAt(0);
-        if (words.Count >= 2 && Lone(words[^1]) && words[^1].X - (words[^2].X + words[^2].Width) > line.Height) words.RemoveAt(words.Count - 1);
-        return string.Join(' ', words.Select(w => w.Text.Trim()));
+        return Shorten(PageText.WithoutStrays(heading ?? worded[0]));
     }
 
     private static string? Shorten(string text)

@@ -74,6 +74,8 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
         new(PresetFileType.SearchablePdf, Strings.Presets_FileSearchablePdf),
         new(PresetFileType.Pdf, "PDF"),
         new(PresetFileType.Jpeg, Strings.Presets_FileJpeg),
+        new(PresetFileType.Word, Strings.Presets_FileWord),
+        new(PresetFileType.Text, Strings.Presets_FileText),
     ];
 
     public static IReadOnlyList<Option<int>> Resolutions =>
@@ -309,7 +311,7 @@ public sealed partial class PresetItem : ObservableObject
     [NotifyPropertyChangedFor(nameof(Note))]
     public partial Option<PresetAfter> After { get; set; }
 
-    public bool IsPdf => FileType.Value != PresetFileType.Jpeg;
+    public bool IsPdf => ScanPresets.IsPdf(FileType.Value);
 
     partial void OnFolderChanged(FolderChoice oldValue, FolderChoice newValue)
     {
@@ -340,7 +342,7 @@ public sealed partial class PresetItem : ObservableObject
             var folder = Folder.IsBrowse ? "…" : Folder.Kind == PresetFolder.Custom ? Folder.Path ?? "" : Folder.Label;
             var sub = FileNameTemplate.Subfolder(Subfolder, ctx);
             var name = FileNameTemplate.FileName(FileName, ctx);
-            var file = FileType.Value == PresetFileType.Jpeg ? $"{name} (1).jpg" : $"{name}.pdf";
+            var file = FileType.Value == PresetFileType.Jpeg ? $"{name} (1).jpg" : name + ScanPresets.Extension(FileType.Value);
             return Path.Combine(folder, sub, file) + (Splits ? "  " + Strings.Presets_ExampleSplit : "");
         }
     }
@@ -348,8 +350,10 @@ public sealed partial class PresetItem : ObservableObject
     /// <summary>Things worth knowing about the choices (not errors).</summary>
     public string? Note =>
         After.Value == PresetAfter.OpenInInkvoltPdf && FileType.Value == PresetFileType.Jpeg ? Strings.Presets_NoteJpegNoPdf
+        : After.Value == PresetAfter.OpenInInkvoltPdf && !IsPdf ? Strings.Presets_NoteDocumentNoPdf
         : After.Value == PresetAfter.Email ? Strings.Presets_NoteEmail
         : FileType.Value == PresetFileType.SearchablePdf && !InkvoltPrint.Windows.Ocr.WindowsOcr.IsAvailable ? Strings.Presets_NoteNoOcr
+        : FileType.Value is PresetFileType.Word or PresetFileType.Text && !InkvoltPrint.Windows.Ocr.WindowsOcr.IsAvailable ? Strings.Presets_NoteNoOcrDocument
         : null;
 
     /// <summary>The first thing that stops this preset being saved, or null.</summary>

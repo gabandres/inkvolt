@@ -200,7 +200,11 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     `{text-number}`, read from the first page (a date in the usual ways of writing it, in English and Spanish; the heading; an
     invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`).
     **Next:** real invoices and receipts; the Mac half waits.
-  - Still to come: 4.14 Scan straight to Word or text. 4.6
+  - **4.14 Scan straight to Word or text.** Done on Windows: preset file types Word document (.docx) and Text (.txt), the
+    recognized text as paragraphs (headings in Heading 1), photos as pictures; written in the shared core with the Office parts
+    moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`). Word opens them (checked here). **Next:** the
+    Mac half waits.
+  - Still to come: 4.6
     Phone as a scanner over the home network (a QR code; the app serves the page; no phone app, no cloud). 4.12 A webcam or
     document camera as a scan source. 4.9 A print log on this PC (every job the spooler sees, month totals; the view Free,
     CSV Pro; a log on one PC, not the accounting of "Not doing"). 4.10 Share a USB printer with phones (AirPrint, Mopria;

@@ -5086,4 +5086,20 @@ The files stay where they are.</value>
     <value>Invoice</value>
     <comment>made-up heading for the example file name</comment>
   </data>
+  <data name="Presets_FileWord" xml:space="preserve">
+    <value>Word document (.docx): the text, editable</value>
+    <comment>a preset's file type</comment>
+  </data>
+  <data name="Presets_FileText" xml:space="preserve">
+    <value>Text (.txt): the text only</value>
+    <comment>a preset's file type</comment>
+  </data>
+  <data name="Presets_NoteDocumentNoPdf" xml:space="preserve">
+    <value>Inkvolt PDF opens PDFs: Word and text scans are only saved.</value>
+    <comment>note in the presets editor</comment>
+  </data>
+  <data name="Presets_NoteNoOcrDocument" xml:space="preserve">
+    <value>Text recognition isn't available on this PC: a Word document holds the pages as pictures, a text file stays empty.</value>
+    <comment>note in the presets editor</comment>
+  </data>
 </root>

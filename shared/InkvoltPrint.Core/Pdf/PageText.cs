@@ -42,4 +42,62 @@ public static class PageText
             return new TextLine(string.Join(' ', ordered.Select(w => w.Text.Trim())), ordered[0].X, l.Top, heights[heights.Count / 2]) { Words = ordered };
         })];
     }
+
+    /// <summary>
+    /// The lines as paragraphs (roadmap 4.14, a scan saved as Word or text): a new paragraph after a gap more than
+    /// <see cref="ParagraphGap"/> of a line's height, or where the size changes; a line a third taller than most is a heading. A
+    /// word broken with a hyphen at a line's end is joined again ("ink-" "jet" → "inkjet" only when the next line goes on in lower case).
+    /// </summary>
+    public static List<TextParagraph> Paragraphs(IReadOnlyList<TextLine> lines)
+    {
+        var result = new List<TextParagraph>();
+        if (lines.Count == 0) return result;
+        var heights = lines.Select(l => l.Height).OrderBy(h => h).ToList();
+        var usual = heights[heights.Count / 2];
+        var text = new System.Text.StringBuilder();
+        TextLine? previous = null;
+        var heading = false;
+        foreach (var line in lines)
+        {
+            var isHeading = line.Height >= usual * 4 / 3;
+            var gap = previous is null ? 0 : line.Top - (previous.Top + previous.Height);
+            var breaks = previous is null || isHeading != heading || gap > ParagraphGap * Math.Max(previous.Height, line.Height)
+                || (isHeading && Math.Abs(line.Height - previous.Height) > 0.2 * previous.Height);
+            if (breaks && text.Length > 0)
+            {
+                result.Add(new TextParagraph(text.ToString(), heading));
+                text.Clear();
+            }
+            var words = WithoutStrays(line).Trim();
+            if (words.Length == 0) continue;
+            if (text.Length == 0) text.Append(words);
+            else if (text[^1] == '-' && text.Length > 1 && char.IsLetter(text[^2]) && words.Length > 0 && char.IsLower(words[0]))
+                text.Remove(text.Length - 1, 1).Append(words); // "ink-" + "jet"
+            else text.Append(' ').Append(words);
+            heading = isHeading;
+            previous = line;
+        }
+        if (text.Length > 0) result.Add(new TextParagraph(text.ToString(), heading));
+        return result;
+    }
+
+    /// <summary>
+    /// The line's text without a lone character at either end standing apart from the rest (a punch hole or a speck read as "O"
+    /// or "."): further from its neighbour than the line is tall.
+    /// </summary>
+    public static string WithoutStrays(TextLine line)
+    {
+        var words = line.Words.ToList();
+        if (words.Count < 2) return line.Text;
+        static bool Lone(OcrWord w) => w.Text.Trim().Length <= 1;
+        if (Lone(words[0]) && words[1].X - (words[0].X + words[0].Width) > line.Height) words.RemoveAt(0);
+        if (words.Count >= 2 && Lone(words[^1]) && words[^1].X - (words[^2].X + words[^2].Width) > line.Height) words.RemoveAt(words.Count - 1);
+        return string.Join(' ', words.Select(w => w.Text.Trim()));
+    }
+
+    /// <summary>A gap between lines more than this share of a line's height starts a new paragraph (lines of a paragraph sit about half a line apart).</summary>
+    public const double ParagraphGap = 0.9;
 }
+
+/// <summary>A paragraph of recognized text; <see cref="Heading"/> when its lines stand taller than most.</summary>
+public sealed record TextParagraph(string Text, bool Heading);

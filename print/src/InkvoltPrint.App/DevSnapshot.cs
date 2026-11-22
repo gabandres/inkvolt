@@ -220,6 +220,9 @@ internal static class DevSnapshot
             // --name-from-text [save]: the preset scans the glass, stops on the review (save: saves at once) and names the file from the page's text (demo only).
             if (args.Contains("--name-from-text") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } named)
                 presetMain.Presets.Update(named with { FileName = "{text-date} {text-title} {text-number}", Review = Value(args, "--name-from-text") != "save", Source = Core.Presets.PresetSource.Glass });
+            // --file-type word|text: the preset saves the text read from the pages as a Word document or a text file (demo only).
+            if (Value(args, "--file-type") is { } fileType && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } typed)
+                presetMain.Presets.Update(typed with { FileType = fileType == "text" ? Core.Presets.PresetFileType.Text : Core.Presets.PresetFileType.Word });
             if (args.Contains("--turn-stack") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } stack)
                 presetMain.Presets.Update(stack with { Source = Core.Presets.PresetSource.Feeder, TwoSided = true, TurnStack = true });
             var ask = ViewModels.Prompt.Confirm;

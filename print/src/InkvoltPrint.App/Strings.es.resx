@@ -4185,4 +4185,16 @@ Los archivos se quedan donde están.</value>
   <data name="Presets_ExampleTitle" xml:space="preserve">
     <value>Factura</value>
   </data>
+  <data name="Presets_FileWord" xml:space="preserve">
+    <value>Documento de Word (.docx): el texto, editable</value>
+  </data>
+  <data name="Presets_FileText" xml:space="preserve">
+    <value>Texto (.txt): solo el texto</value>
+  </data>
+  <data name="Presets_NoteDocumentNoPdf" xml:space="preserve">
+    <value>Inkvolt PDF abre archivos PDF: los escaneos de Word y de texto solo se guardan.</value>
+  </data>
+  <data name="Presets_NoteNoOcrDocument" xml:space="preserve">
+    <value>El reconocimiento de texto no está disponible en este PC: un documento de Word tiene las páginas como imágenes y un archivo de texto queda vacío.</value>
+  </data>
 </root>

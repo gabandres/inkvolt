@@ -10,7 +10,8 @@ namespace InkvoltPrint.Core.Presets;
 /// <summary>Where a preset scans from. Auto: the feeder when it holds pages, else the glass.</summary>
 public enum PresetSource { Auto, Glass, Feeder }
 
-public enum PresetFileType { Pdf, SearchablePdf, Jpeg }
+/// <summary>What a preset saves: a PDF, a searchable PDF, JPEG pictures, or the text read from the pages as a Word document or plain text (roadmap 4.14).</summary>
+public enum PresetFileType { Pdf, SearchablePdf, Jpeg, Word, Text }
 
 /// <summary>The folder a preset saves into; sync folders (OneDrive, Dropbox) are <see cref="Custom"/> paths.</summary>
 public enum PresetFolder { Documents, Pictures, Custom }
@@ -276,8 +277,20 @@ public static partial class ScanPresets
     /// as the preset says (glass when it says glass).
     /// </summary>
     public static bool SavesSmallerFile(ScanPreset p, ScanSource? source = null) =>
-        p.SmallerFile && p.FileType != PresetFileType.Jpeg
+        p.SmallerFile && IsPdf(p.FileType)
         && !(p.FindPhotos && (source is { } s ? s == ScanSource.Platen : p.Source == PresetSource.Glass));
+
+    /// <summary>A PDF (searchable or not): what opens in Inkvolt PDF and can be saved in black and white.</summary>
+    public static bool IsPdf(PresetFileType type) => type is PresetFileType.Pdf or PresetFileType.SearchablePdf;
+
+    /// <summary>The saved file's extension: ".pdf", ".jpg", ".docx" or ".txt".</summary>
+    public static string Extension(PresetFileType type) => type switch
+    {
+        PresetFileType.Jpeg => ".jpg",
+        PresetFileType.Word => ".docx",
+        PresetFileType.Text => ".txt",
+        _ => ".pdf",
+    };
 
     private static string Cut(string name) => name.Length > MaxNameLength ? name[..MaxNameLength] : name;
 
@@ -291,6 +304,8 @@ public static class ScanPresetText
     {
         PresetFileType.SearchablePdf => CoreStrings.Preset_SearchablePdf,
         PresetFileType.Jpeg => CoreStrings.Preset_JpegImages,
+        PresetFileType.Word => CoreStrings.Preset_WordDocument,
+        PresetFileType.Text => CoreStrings.Preset_TextFile,
         _ => "PDF",
     };
 

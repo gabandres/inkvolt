@@ -62,9 +62,14 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
 
         // Text is read for a searchable PDF, and for a name taken from the page (its PDF gets the text layer too).
         var readsName = FileNameTemplate.ReadsText(preset.FileName) || FileNameTemplate.ReadsText(preset.Subfolder);
-        var ocr = (preset.FileType == PresetFileType.SearchablePdf || readsName) && ocrAvailable;
+        var readsPages = preset.FileType is PresetFileType.SearchablePdf or PresetFileType.Word or PresetFileType.Text;
+        var ocr = (readsPages || readsName) && ocrAvailable;
         if (preset.FileType == PresetFileType.SearchablePdf && !ocrAvailable)
             notes.Add(CoreStrings.Preset_NoOcr);
+        else if (preset.FileType == PresetFileType.Word && !ocrAvailable)
+            notes.Add(CoreStrings.Preset_NoOcrWord);
+        else if (preset.FileType == PresetFileType.Text && !ocrAvailable)
+            notes.Add(CoreStrings.Preset_NoOcrText);
         else if (readsName && !ocrAvailable)
             notes.Add(CoreStrings.Preset_NoOcrForName);
 

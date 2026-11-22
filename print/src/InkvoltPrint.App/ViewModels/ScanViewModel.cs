@@ -11,6 +11,7 @@ using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Escl;
 using InkvoltPrint.Core.Imaging;
 using InkvoltPrint.Core.Model;
+using InkvoltPrint.Core.Office;
 using InkvoltPrint.Core.Pdf;
 using InkvoltPrint.Core.Presets;
 using InkvoltPrint.Core.Printing;
@@ -1880,6 +1881,7 @@ public sealed partial class ScanViewModel : ObservableObject
         var before = new List<string>(); // written by an earlier save that failed part-way: not written again
         var done = 0;
         var jpg = preset.FileType == PresetFileType.Jpeg;
+        var pdf = ScanPresets.IsPdf(preset.FileType);
         try
         {
             string? folder = null;
@@ -1904,9 +1906,10 @@ public sealed partial class ScanViewModel : ObservableObject
                 // The first file's name as the review shows it, when it was changed there; else the template's.
                 var stem = file == files[0] && _saveNameEdited && !string.IsNullOrWhiteSpace(SaveName)
                     ? FileNameTemplate.Sanitize(SaveName) : FileNameTemplate.FileName(preset.FileName, ctx);
-                var asSent = jpg ? null : ScannerPdf.KeepAsSent(ToSave(file));
+                var asSent = pdf ? ScannerPdf.KeepAsSent(ToSave(file)) : null;
                 List<string> written = jpg ? await WriteImagesAsync(file, into, stem)
-                    : [await WritePdfAsync(asSent is null ? await PdfPagesAsync(file) : null, asSent, into, stem)];
+                    : pdf ? [await WritePdfAsync(asSent is null ? await PdfPagesAsync(file) : null, asSent, into, stem)]
+                    : [await WriteDocumentAsync(await DocPagesAsync(file), preset.FileType, into, stem)];
                 _savedParts.Add(file, written);
                 saved.AddRange(written);
                 done++;
@@ -1916,12 +1919,12 @@ public sealed partial class ScanViewModel : ObservableObject
 
             ActivePreset = _presets.FindById(preset.Id) ?? preset;
             LastSavedPath = saved[0];
-            _savedPdfs = jpg ? [] : saved;
+            _savedPdfs = pdf ? saved : [];
             NoteRecent(saved, kept.Sum(p => p.ImageCount), preset.Name);
             MarkSaved(changes);
             Message = SavedText(Path.GetFileName(saved[0]), saved.Count, files.Count, jpg, folder)
                 + (before.Count == 0 ? "" : " " + string.Format(Strings.Scan_AlreadySaved, string.Join(", ", before.Select(Path.GetFileName))))
-                + (jpg ? "" : AsSentNote(files))
+                + (pdf ? AsSentNote(files) : "")
                 + string.Concat(_presetNotes.Select(n => " " + n));
             Prompt.Announce(Message);
             RatingRequest.NoteSuccess(_state);
@@ -1949,7 +1952,7 @@ public sealed partial class ScanViewModel : ObservableObject
             IsBusy = false;
         }
         // Not busy any more: a mail app's new-message window (classic Outlook's stays open until it's sent) doesn't hold up the tab.
-        await AfterSaveAsync(preset, saved, kept, jpg);
+        await AfterSaveAsync(preset, saved, kept, pdf);
     }
 
     /// <summary>Files of this batch a preset save wrote before failing part-way: Save again writes only the others.</summary>
@@ -2010,13 +2013,47 @@ public sealed partial class ScanViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// A document's pages (roadmap 4.14): each page's recognized words, with the photos found on the glass as pictures, and a page
+    /// whose text couldn't be read (none on it, or reading off or failed) as a picture of itself, so nothing scanned is lost.
+    /// </summary>
+    private async Task<List<ScanDocPage>> DocPagesAsync(List<ScanPageViewModel> kept)
+    {
+        if (kept.Any(p => !p.HasPhotos && !p.OcrAsync().IsCompleted)) Message = Strings.Scan_FinishingOcr;
+        var pages = new List<ScanDocPage>();
+        foreach (var p in kept)
+        {
+            if (p.HasPhotos) pages.Add(new ScanDocPage(null, p.Dpi, await p.ImagesAsync()));
+            else if (await p.OcrAsync() is { Count: > 0 } words) pages.Add(new ScanDocPage(words, p.Dpi, []));
+            else pages.Add(new ScanDocPage(null, p.Dpi, [await p.JpegAsync()]));
+        }
+        return pages;
+    }
+
+    /// <summary>Writes the Word document or text file next to its final name, then moves it there only if that name is still free (else the next one).</summary>
+    private static Task<string> WriteDocumentAsync(List<ScanDocPage> pages, PresetFileType type, string folder, string stem) => Task.Run(() =>
+    {
+        var tmp = TempName(folder);
+        try
+        {
+            using (var fs = File.Create(tmp))
+                if (type == PresetFileType.Word) ScanDocx.Write(fs, pages, stem);
+                else ScanText.Write(fs, pages);
+            return FileNameTemplate.PlaceSet([tmp], folder, stem, ScanPresets.Extension(type), File.Exists, TryMove)[0];
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
+        }
+    });
+
     private static string TempName(string folder) => Path.Combine(folder, $"~inkvolt-{Guid.NewGuid():N}.partial");
 
     /// <summary>The preset's step after saving: open in Inkvolt PDF, print a copy, or hand the file to the mail app.</summary>
-    private async Task AfterSaveAsync(ScanPreset preset, List<string> saved, List<ScanPageViewModel> kept, bool jpg)
+    private async Task AfterSaveAsync(ScanPreset preset, List<string> saved, List<ScanPageViewModel> kept, bool pdf)
     {
         var demo = !_pc.OpensOtherApps; // the made-up PC's scans only say what would happen
-        if (!jpg && (preset.After == PresetAfter.OpenInInkvoltPdf || OpenInInkvoltPdf))
+        if (pdf && (preset.After == PresetAfter.OpenInInkvoltPdf || OpenInInkvoltPdf))
         {
             if (demo) Message += " " + Strings.Scan_DemoNoInkvoltPdf;
             else if (!InkvoltPdfInstalled) Message += " " + Strings.Scan_InkvoltPdfNotInstalled;
