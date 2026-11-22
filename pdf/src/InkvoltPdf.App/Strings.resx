@@ -5400,6 +5400,46 @@ Modified {1:g}</value>
     <value>Resize {0} pages</value>
     <comment>Edit name; {0} is the page count</comment>
   </data>
+  <data name="Cmd_ReplacePages" xml:space="preserve">
+    <value>Replace Pa_ges…</value>
+  </data>
+  <data name="Organize_ReplacePick" xml:space="preserve">
+    <value>Choose the PDF with the new pages</value>
+  </data>
+  <data name="Organize_ReplaceTitle" xml:space="preserve">
+    <value>Replace Pages</value>
+  </data>
+  <data name="Organize_ReplaceButton" xml:space="preserve">
+    <value>Replace</value>
+  </data>
+  <data name="Organize_ReplaceFrom_One" xml:space="preserve">
+    <value>{1} has 1 page.</value>
+    <comment>{1} is the other PDF's name</comment>
+  </data>
+  <data name="Organize_ReplaceFrom_Many" xml:space="preserve">
+    <value>{1} has {0} pages.</value>
+    <comment>{0} is its page count, {1} the other PDF's name</comment>
+  </data>
+  <data name="Organize_ReplaceThese" xml:space="preserve">
+    <value>Replace these pages</value>
+  </data>
+  <data name="Organize_ReplaceWith" xml:space="preserve">
+    <value>With these pages of the other PDF</value>
+  </data>
+  <data name="Organize_ReplaceNote" xml:space="preserve">
+    <value>Bookmarks and links that led to a replaced page lead to the page that takes its place.</value>
+  </data>
+  <data name="Organize_ReplaceCountsDiffer" xml:space="preserve">
+    <value>{0} pages to replace but {1} to put in: choose as many of each.</value>
+  </data>
+  <data name="Organize_EditReplace_One" xml:space="preserve">
+    <value>Replace 1 page with {1}</value>
+    <comment>Edit name; {1} is the other PDF's name</comment>
+  </data>
+  <data name="Organize_EditReplace_Many" xml:space="preserve">
+    <value>Replace {0} pages with {1}</value>
+    <comment>Edit name; {0} is the page count, {1} the other PDF's name</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>
     <comment>Dialog title</comment>

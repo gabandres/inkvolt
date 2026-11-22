@@ -518,6 +518,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   scaled to fit or kept at its size with margins added (shrunk only when it doesn't fit), for all, the selected or a range
   of pages; a page that shows landscape gets the paper sideways, a crop becomes the page, and comments, links and fields
   move and scale with the content (`PageEditor.Resize`).
+- **Replace Pages** (Organize): pages swapped one for one for pages of another PDF; bookmarks, links, named destinations
+  and the opening view that led to a replaced page lead to the page that took its place, which keeps its page label
+  (`PageEditor.Replace`).
 - **Compare Files** (File menu, start page, command palette): pick the original and the changed version (open tabs,
   the saved file behind a tab with unsaved changes, recent files, any PDF, a Word, Excel or PowerPoint file made into a PDF
   by the installed Office, or a picture of a page; Swap). The words on scanned pages are recognized first, on this PC (it can

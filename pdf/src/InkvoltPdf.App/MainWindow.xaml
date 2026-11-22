@@ -243,6 +243,7 @@
                                     <Separator />
                                     <MenuItem Command="app:Cmd.InsertPages" />
                                     <MenuItem Command="app:Cmd.InsertBlank" />
+                                    <MenuItem Command="app:Cmd.ReplacePages" />
                                     <MenuItem Command="app:Cmd.InsertFromScanner" />
                                     <MenuItem Command="app:Cmd.ScanBacks" />
                                     <MenuItem Command="app:Cmd.InterleavePages" />

@@ -191,6 +191,7 @@
                         <Separator />
                         <MenuItem Command="app:Cmd.InsertPages" />
                         <MenuItem Command="app:Cmd.InsertBlank" />
+                        <MenuItem Command="app:Cmd.ReplacePages" />
                         <MenuItem Command="app:Cmd.CropPages" />
                         <MenuItem Command="app:Cmd.ResizePages" />
                         <Separator />

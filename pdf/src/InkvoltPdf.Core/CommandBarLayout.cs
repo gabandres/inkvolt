@@ -139,6 +139,7 @@ public static class CommandBarLayout
              new("InterleavePages", "\uE8AB", Description: PdfStrings.Bar_InterleaveDesc, StartsSection: true),
              new("RemoveBlankPages", "\uE894", Description: PdfStrings.Bar_RemoveBlankDesc),
              new("ResizePages", "\uE740", Description: PdfStrings.Bar_ResizeDesc),
+             new("ReplacePages", "\uE8EE", Description: PdfStrings.Bar_ReplaceDesc),
              new("Combine", "\uE8F1", Description: PdfStrings.Bar_CombineDesc, StartsSection: true),
              new("ReduceSize", "\uE73F", Description: PdfStrings.Bar_ReduceSizeDesc)], ""),
         new("Protect", PdfStrings.Bar_Protect, 60,

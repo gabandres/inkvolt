@@ -5399,6 +5399,46 @@ Modificado {1:g}</value>
     <value>Cambiar el tamaño de {0} páginas</value>
     <comment>Edit name; {0} is the page count</comment>
   </data>
+  <data name="Cmd_ReplacePages" xml:space="preserve">
+    <value>Reemplazar pá_ginas…</value>
+  </data>
+  <data name="Organize_ReplacePick" xml:space="preserve">
+    <value>Elige el PDF con las páginas nuevas</value>
+  </data>
+  <data name="Organize_ReplaceTitle" xml:space="preserve">
+    <value>Reemplazar páginas</value>
+  </data>
+  <data name="Organize_ReplaceButton" xml:space="preserve">
+    <value>Reemplazar</value>
+  </data>
+  <data name="Organize_ReplaceFrom_One" xml:space="preserve">
+    <value>{1} tiene 1 página.</value>
+    <comment>{1} is the other PDF's name</comment>
+  </data>
+  <data name="Organize_ReplaceFrom_Many" xml:space="preserve">
+    <value>{1} tiene {0} páginas.</value>
+    <comment>{0} is its page count, {1} the other PDF's name</comment>
+  </data>
+  <data name="Organize_ReplaceThese" xml:space="preserve">
+    <value>Reemplazar estas páginas</value>
+  </data>
+  <data name="Organize_ReplaceWith" xml:space="preserve">
+    <value>Por estas páginas del otro PDF</value>
+  </data>
+  <data name="Organize_ReplaceNote" xml:space="preserve">
+    <value>Los marcadores y los vínculos que llevaban a una página reemplazada llevan a la página que ocupa su lugar.</value>
+  </data>
+  <data name="Organize_ReplaceCountsDiffer" xml:space="preserve">
+    <value>{0} páginas para reemplazar pero {1} para poner: elige la misma cantidad de cada una.</value>
+  </data>
+  <data name="Organize_EditReplace_One" xml:space="preserve">
+    <value>Reemplazar 1 página por {1}</value>
+    <comment>Edit name; {1} is the other PDF's name</comment>
+  </data>
+  <data name="Organize_EditReplace_Many" xml:space="preserve">
+    <value>Reemplazar {0} páginas por {1}</value>
+    <comment>Edit name; {0} is the page count, {1} the other PDF's name</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>
     <comment>Dialog title</comment>

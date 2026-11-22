@@ -1001,6 +1001,9 @@
   <data name="Bar_ResizeDesc" xml:space="preserve">
     <value>Put pages on Letter, A4 or any size</value>
   </data>
+  <data name="Bar_ReplaceDesc" xml:space="preserve">
+    <value>Swap pages for those of another PDF</value>
+  </data>
   <data name="Batch_StepFlatten" xml:space="preserve">
     <value>Flatten</value>
     <comment>Batch action name</comment>
@@ -5037,6 +5040,9 @@
   </data>
   <data name="Page_ResizeSize" xml:space="preserve">
     <value>A side of the paper must be between {0} and {1} inches.</value>
+  </data>
+  <data name="Page_ReplaceCount" xml:space="preserve">
+    <value>Choose as many pages to put in as pages to replace, each page once.</value>
   </data>
   <data name="Page_NothingToCombine" xml:space="preserve">
     <value>Nothing to combine.</value>

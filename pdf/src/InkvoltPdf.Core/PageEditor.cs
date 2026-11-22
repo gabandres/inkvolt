@@ -288,12 +288,17 @@ public static partial class PageEditor
 
     /// <param name="rewrite">Always write a new file, never an incremental update of a signed one (a new document,
     /// e.g. extracted pages, mustn't carry the whole original along).</param>
-    private static byte[] Edit(byte[] data, string? password, Action<PdfDocument> edit, bool rewrite = false)
+    private static byte[] Edit(byte[] data, string? password, Action<PdfDocument> edit, bool rewrite = false) =>
+        Edit(data, password, (doc, _) => edit(doc), rewrite);
+
+    /// <param name="edit">Also given each page's label before the edit (null: the document has none), for an edit that
+    /// adds a page with a label of its own (an added page otherwise goes on from the page before it).</param>
+    private static byte[] Edit(byte[] data, string? password, Action<PdfDocument, List<(PdfPage Page, PdfStructure.PageLabel Label)>?> edit, bool rewrite = false)
     {
         using var doc = Open(data, password, PdfDocumentOpenMode.Modify);
         var xmp = Xmp.Read(doc);
         var labels = PdfStructure.ReadLabels(doc);
-        edit(doc);
+        edit(doc, labels);
         if (labels is not null) PdfStructure.WriteLabels(doc, labels);
         doc.Info.ModificationDate = DateTime.Now;
         return Save(doc, xmp, rewrite);
