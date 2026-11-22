@@ -123,7 +123,30 @@ public static class Links
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
         if (pageIndex < 0 || pageIndex >= doc.PageCount) throw new ArgumentOutOfRangeException(nameof(pageIndex));
         if (uri is null && (targetPage < 0 || targetPage >= doc.PageCount)) throw new ArgumentException(Loc.Format(PdfStrings.Link_ChoosePage, doc.PageCount));
+        Write(doc, pageIndex, rect, uri, targetPage, replaceId, lines);
+        return PdfObj.Save(doc);
+    }
 
+    /// <summary>
+    /// Makes each text a web or email link, as <see cref="PutOnText"/> makes one, in one change of the document (Links
+    /// from Addresses). Addresses <see cref="Normalize"/> refuses, pages out of range and texts without a box are skipped.
+    /// </summary>
+    public static byte[] PutOnTexts(byte[] data, string? password, IReadOnlyList<(int Page, IReadOnlyList<RectD> Lines, string Uri)> links)
+    {
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
+        foreach (var (pageIndex, lineRects, address) in links)
+        {
+            var lines = lineRects.Where(r => !r.IsEmpty).ToList();
+            if (pageIndex < 0 || pageIndex >= doc.PageCount || lines.Count == 0 || Normalize(address) is not { } uri) continue;
+            var all = RectD.FromEdges(lines.Min(r => r.X), lines.Min(r => r.Y), lines.Max(r => r.Right), lines.Max(r => r.Bottom));
+            if (all.Width < 1 || all.Height < 1) continue;
+            Write(doc, pageIndex, all, uri, -1, null, lines);
+        }
+        return PdfObj.Save(doc);
+    }
+
+    private static void Write(PdfDocument doc, int pageIndex, RectD rect, string? uri, int targetPage, string? replaceId, List<RectD>? lines)
+    {
         PdfDictionary annot;
         var page = doc.Pages[pageIndex];
         if (replaceId is not null)
@@ -180,7 +203,6 @@ public static class Links
             annot.Elements["/Dest"] = new PdfArray(doc, target.Reference!, new PdfName("/XYZ"),
                 sideways ? new PdfReal(Math.Round(ux, 2)) : PdfNull.Value, sideways ? PdfNull.Value : new PdfReal(Math.Round(uy, 2)), PdfNull.Value);
         }
-        return PdfObj.Save(doc);
     }
 
     /// <summary>Moves or resizes a link (onto another page too), keeping where it leads, whatever its action.</summary>

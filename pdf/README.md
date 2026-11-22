@@ -204,6 +204,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   a link without the mouse (one link over its lines). Addresses other than http, https and mailto ask before they are
   added (and, as for any link, before they are opened); script and data addresses are refused. International addresses
   are written the way PDF needs them (domain as punycode, the rest percent-encoded). Each change is one undo step.
+  **Links from Addresses…** (Review menu, Edit on the bar) finds every web address (http, https, www.) and email address
+  printed in the text that isn't under a link yet, lists them by page with where each will lead, and makes the ticked
+  ones links over their text, by the same address rules, as one undo step (`AddressLinks`; a sentence's full stop or a
+  closing bracket it didn't open stays out of the address; an address broken over two lines isn't found).
 - **Stamps** (Review › Stamp…, or the Stamp button; S puts down the last one again): Approved, Rejected, Draft, Final,
   Confidential, For Comment, Received, and "Approved by <you> on <date and time>" (your name from Settings,
   else your Windows user name), or custom stamps made from an image (a white background can turn transparent; up to 20

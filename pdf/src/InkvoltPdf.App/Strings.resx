@@ -11970,4 +11970,48 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="Area_CouldntRead" xml:space="preserve">
     <value>Couldn't read that part of the page.</value>
   </data>
+  <data name="Cmd_LinkAddresses" xml:space="preserve">
+    <value>Links from _Addresses…</value>
+  </data>
+  <data name="Links_Finding" xml:space="preserve">
+    <value>Looking for web and email addresses</value>
+  </data>
+  <data name="Links_NoneTitle" xml:space="preserve">
+    <value>No addresses to link</value>
+  </data>
+  <data name="Links_NoneBody" xml:space="preserve">
+    <value>No web or email address in the text needs a link: each one found is a link already. A scanned page needs Recognize Text first.</value>
+  </data>
+  <data name="Links_Title" xml:space="preserve">
+    <value>Links from Addresses</value>
+  </data>
+  <data name="Links_Add" xml:space="preserve">
+    <value>Add Links</value>
+  </data>
+  <data name="Links_Found_One" xml:space="preserve">
+    <value>1 address in the text isn't a link yet. Untick it to leave it as it is.</value>
+  </data>
+  <data name="Links_Found_Many" xml:space="preserve">
+    <value>{0} addresses in the text aren't links yet. Untick any you want left as they are.</value>
+  </data>
+  <data name="Links_FoundMax" xml:space="preserve">
+    <value>Only the first {0} are listed: run it again for the rest.</value>
+  </data>
+  <data name="Links_Item" xml:space="preserve">
+    <value>Page {0}: {1}</value>
+    <comment>{0} = page label, {1} = the address as printed</comment>
+  </data>
+  <data name="Links_LeadsTo" xml:space="preserve">
+    <value>Opens {0}</value>
+    <comment>{0} = the address the link opens (https://…, mailto:…)</comment>
+  </data>
+  <data name="Links_NoneTicked" xml:space="preserve">
+    <value>Tick at least one address.</value>
+  </data>
+  <data name="Links_Edit_One" xml:space="preserve">
+    <value>Add 1 link</value>
+  </data>
+  <data name="Links_Edit_Many" xml:space="preserve">
+    <value>Add {0} links</value>
+  </data>
 </root>

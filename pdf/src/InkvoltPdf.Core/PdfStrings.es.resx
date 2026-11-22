@@ -7231,4 +7231,8 @@
     <value>Filas y columnas de un recuadro, para Excel</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_LinkAddressesDesc" xml:space="preserve">
+    <value>Convierte en vínculos las direcciones del texto</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>

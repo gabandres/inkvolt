@@ -86,6 +86,7 @@ public static class Cmd
     public static readonly RoutedUICommand AddImageFromClipboard = Make(Strings.Cmd_AddImageFromClipboard, nameof(AddImageFromClipboard));
     public static readonly RoutedUICommand ToolLink = Make(Strings.Cmd_ToolLink, nameof(ToolLink));
     public static readonly RoutedUICommand LinkSelection = Make(Strings.Cmd_LinkSelection, nameof(LinkSelection));
+    public static readonly RoutedUICommand LinkAddresses = Make(Strings.Cmd_LinkAddresses, nameof(LinkAddresses));
     public static readonly RoutedUICommand AddStamp = Make(Strings.Cmd_AddStamp, nameof(AddStamp));
     public static readonly RoutedUICommand HighlightFields = Make(Strings.Cmd_HighlightFields, nameof(HighlightFields));
 

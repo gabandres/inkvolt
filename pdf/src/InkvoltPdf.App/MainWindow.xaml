@@ -292,6 +292,7 @@
                                     <MenuItem Command="app:Cmd.AddImageFromClipboard" />
                                     <MenuItem x:Name="LinkMenu" Command="app:Cmd.ToolLink" InputGestureText="{x:Static loc:Strings.Main_KeyN}" />
                                     <MenuItem Command="app:Cmd.LinkSelection" />
+                                    <MenuItem Command="app:Cmd.LinkAddresses" />
                                     <MenuItem Command="app:Cmd.AddStamp" InputGestureText="{x:Static loc:Strings.Main_KeyS}" />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuMeasure}">
                                         <MenuItem Command="app:Cmd.MeasureDistance" />

@@ -106,6 +106,7 @@ public static class CommandBarLayout
             [new("EditContent", "\uE70F", Description: PdfStrings.Bar_EditContentDesc),
              new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
              new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
+             new("LinkAddresses", "\uE71B", Description: PdfStrings.Bar_LinkAddressesDesc),
              new("AddHeaderFooter", "\uE7C3", Description: PdfStrings.Bar_HeaderFooterDesc, StartsSection: true),
              new("AddWatermark", "\uE8A5", Description: PdfStrings.Bar_WatermarkDesc)], "\uE70F"),
         // The editable formats run at once (name.docx next to the PDF, opened); pictures and PDF/A ask, as in the menus.

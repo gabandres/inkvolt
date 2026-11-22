@@ -7231,4 +7231,8 @@
     <value>Rows and columns in a box, for Excel</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_LinkAddressesDesc" xml:space="preserve">
+    <value>Make printed web and email addresses links</value>
+    <comment>Line under a command in the bar's menu</comment>
+  </data>
 </root>
