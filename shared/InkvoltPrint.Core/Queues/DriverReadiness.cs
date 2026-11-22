@@ -116,6 +116,18 @@ public static class DriverReadiness
         return new Readiness(kind, answersIpp, answersEscl, mopria, mopriaScan, print, scan);
     }
 
-    /// <summary>The name of the queue Set up with Windows' driver adds beside the old one: the printer's, marked as Windows' driver's.</summary>
-    public static string NewQueueName(string printerName, string marker) => $"{printerName.Trim()} ({marker})";
+    /// <summary>Longest queue name the installer keeps (<c>IppQueueInstaller.SafeQueueName</c> cuts past it).</summary>
+    public const int MaxQueueName = 60;
+
+    /// <summary>
+    /// The name of the queue Set up with Windows' driver adds beside the old one: the printer's, marked as Windows' driver's.
+    /// A long name is shortened before the mark, so the mark is never what gets cut (which would name the old queue again).
+    /// </summary>
+    public static string NewQueueName(string printerName, string marker)
+    {
+        var suffix = $" ({marker})";
+        var name = printerName.Trim();
+        var room = Math.Max(1, MaxQueueName - suffix.Length);
+        return (name.Length > room ? name[..room].TrimEnd() : name) + suffix;
+    }
 }

@@ -76,12 +76,18 @@ public sealed partial class PageViewer
     /// <summary>The context menu notes the link under the pointer (from the keyboard: the link selected with the Link tool).</summary>
     protected override void OnContextMenuOpening(ContextMenuEventArgs e)
     {
-        if (e.CursorLeft < 0 && e.CursorTop < 0) ContextLink = SelectedLink;
+        if (e.CursorLeft < 0 && e.CursorTop < 0)
+        {
+            ContextLink = SelectedLink;
+            ContextCaret = InsertionPoint;
+        }
         else
         {
             var sp = Mouse.GetPosition(_surface);
             var page = HitPage(sp);
             ContextLink = page >= 0 ? LinkAnnotAt(page, ToPagePoint(page, sp)) : null;
+            var at = page >= 0 ? ToPagePoint(page, sp) : default;
+            ContextCaret = page >= 0 && TryGetPageText(page) is { } text && text.IsOverText(at.X, at.Y) ? new TextPos(page, text.HitTest(at.X, at.Y)) : null;
             if (ContextLink is { } l && LinkToolActive)
             {
                 _selectedLink = l.Id;

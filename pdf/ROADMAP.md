@@ -63,6 +63,7 @@ business licence (invoices, MSI/Intune packages, a support contact, priority fix
 | 3.4 Long-term validation for signatures | Verifying | Adding LTV data, certifying with field locks |
 | 3.5 Indexed folder search | Searching open documents | Indexing folders and searching them |
 | 3.6 Speed on huge files | All of it | |
+| 4.10 AI redaction suggestions | | Suggestions from the user's own AI endpoint, and the names and terms list |
 
 **Built, gate off.** `Pro.Allows(feature)` in Core (`Pro.cs`; `ProFeature` is the table's rows) sits on the suite's
 `ProCheck` (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProKeyFile`), so one key licenses both apps; the key format and its
@@ -361,6 +362,9 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   in the text. 4.18 Mark every search hit. 4.17 Proofreading marks (Insert Text, Replace Text). 4.10 AI redaction
   suggestions through the user's own endpoint (Pro; never on by default; the review list and Check Redaction as for
   patterns). 4.20 Save an AI answer (Word, PDF, a comment; the conversation kept).
+  - 4.17 Proofreading marks. Done on Windows (`Annotations.AddInsertText`, `AddReplaceText`: a caret, and a strike-out grouped with it as Acrobat groups them; the Comments pane, Summarize Comments, XFDF and FDF); the Mac's waits.
+  - 4.10 AI redaction suggestions (Pro). Done on Windows (`RedactionSuggestions`: the user's endpoint only, the send window always shown, the answer read as quotes and kept only where the text sent holds them; `RedactionTerms`, the no-AI names and terms list; both into Redact by Pattern's review list, read-back, check and report); the Mac's waits.
+  - 4.20 Save an AI answer. Done on Windows (`AiAnswerExport`: an answer or the conversation to Word through `DocxWriter` or to a PDF, or an answer as a note on the page it cites; `AiConversation` kept on the `DocumentSession`); the Mac's waits.
 - **Batch C:** 4.9 Two documents side by side (a second window; a tab dragged out). 4.16 Reflow view (`HtmlWriter`'s one
   column in the tab). 4.12 Calculated form fields, and several fields aligned and sized together. 4.19 Rulers, guides, a
   grid and snapping. 4.22 Turn a picture or text block to any angle. 4.11 Ask across a folder (the folder index picks
@@ -391,8 +395,9 @@ Kept up with the same rule: a claim here has a test or a source.
 - **Cloud review, shared comments and sync:** the same reason. Shared review works by passing the file, or XFDF (1.4),
   through whatever the user already shares files with.
 - **AI of our own, or a default AI service:** against the principles; every AI item uses the user's endpoint.
-- **Name and organization detection in redaction through a cloud model** (Foxit's Smart Redact): only with the user's own
-  endpoint, after 1.1, and never on by default.
+- **Name and organization detection in redaction through a cloud model** (Foxit's Smart Redact): not through a service of
+  ours. Built under these conditions as 4.10 (Suggest Redactions, Pro): only through the user's own endpoint, never on by
+  default, the send window always shown, every suggestion reviewed before anything is removed.
 - **Print production preflight** (PDF/X, separations, ink coverage): a narrow professional market served by Acrobat and
   dedicated tools; not worth the effort for our users now.
 - **XFA form design:** XFA is deprecated in PDF 2.0; XFA files are filled as far as their AcroForm part allows.

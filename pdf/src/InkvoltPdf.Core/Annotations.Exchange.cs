@@ -47,6 +47,8 @@ public static partial class Annotations
             }
             else if (subtype == "Text" || MarkupSubtypes.Contains(subtype))
                 RedrawComment(doc, page, annot, color ?? AnnotColor.Yellow, fitRect: false);
+            else if (subtype == "Caret")
+                CaretFromRect(doc, page, annot, color ?? ProofBlue);
             else if (subtype == "Stamp" && PdfObj.Array(e["/Rect"]) is { Elements.Count: 4 } r)
             {
                 var name = PdfObj.Name(e["/Name"]) ?? "Draft";

@@ -35,7 +35,9 @@ public static class ClipboardPrinting
             {
                 var files = Clipboard.ContainsFileDropList() ? Clipboard.GetFileDropList().Cast<string>().Take(ClipboardPrint.MaxFiles + 1).ToList() : [];
                 var text = files.Count == 0 && Clipboard.ContainsText() ? Clipboard.GetText() : null;
-                var picture = files.Count == 0 && Clipboard.ContainsImage() ? Clipboard.GetImage() : null;
+                // The picture is decoded only when it can be what prints (ClipboardPrint.Choose): no text, or text that's only its name.
+                var wantsPicture = files.Count == 0 && (string.IsNullOrWhiteSpace(text) || ClipboardPrint.PrefersPicture(text));
+                var picture = wantsPicture && Clipboard.ContainsImage() ? Clipboard.GetImage() : null;
                 return (new ClipboardContent(text, picture is null ? null : (picture.PixelWidth, picture.PixelHeight), files), picture);
             }
             catch (COMException ex) when (attempt < 2)

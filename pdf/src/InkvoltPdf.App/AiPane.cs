@@ -50,6 +50,9 @@ public sealed partial class AiPane : Border
     /// <summary>A page citation was clicked (0-based page).</summary>
     public event EventHandler<int>? PageRequested;
 
+    /// <summary>Save was pressed: on an answer's card (that answer), or in the header (null: the whole conversation).</summary>
+    public event EventHandler<AiExchange?>? SaveRequested;
+
     public AiPane()
     {
         SetResourceReference(BackgroundProperty, "LayerFillColorDefaultBrush");
@@ -64,8 +67,10 @@ public sealed partial class AiPane : Border
         clear.Click += (_, _) => ClearRequested?.Invoke(this, EventArgs.Empty);
         var settings = IconButton("\uE713", Strings.Ai_Settings, 13);
         settings.Click += (_, _) => SettingsRequested?.Invoke(this, EventArgs.Empty);
+        var save = IconButton("\uE792", Strings.Ai_SaveConversation, 13);
+        save.Click += (_, _) => SaveRequested?.Invoke(this, null);
         var header = new DockPanel { Margin = new Thickness(12, 8, 6, 6) };
-        foreach (var b in new[] { close, clear, settings })
+        foreach (var b in new[] { close, clear, save, settings })
         {
             DockPanel.SetDock(b, Dock.Right);
             header.Children.Add(b);
@@ -227,7 +232,7 @@ public sealed partial class AiPane : Border
     public AiAnswerCard AddAnswer(string model, int pageCount)
     {
         _list.Children.Remove(_empty);
-        var card = new AiAnswerCard(model, pageCount, p => PageRequested?.Invoke(this, p), ScrollToEnd);
+        var card = new AiAnswerCard(model, pageCount, p => PageRequested?.Invoke(this, p), ScrollToEnd, e => SaveRequested?.Invoke(this, e));
         _list.Children.Add(card);
         ScrollToEnd();
         return card;
@@ -249,6 +254,8 @@ public sealed partial class AiAnswerCard : Border
     private readonly TextBlock _text = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 0), LineHeight = 20 };
     private readonly TextBlock _note = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12, Margin = new Thickness(0, 6, 0, 0), Visibility = Visibility.Collapsed };
     private readonly Button _copy;
+    private readonly Button _save;
+    private AiExchange? _exchange;
     private readonly int _pageCount;
     private readonly Action<int> _goTo;
     private readonly Action _scroll;
@@ -259,7 +266,18 @@ public sealed partial class AiAnswerCard : Border
     private readonly string _model;
     private bool _dirty, _finished;
 
-    internal AiAnswerCard(string model, int pageCount, Action<int> goTo, Action scroll)
+    /// <summary>The answer as kept in the conversation, once it has come (Save saves it); null before, or when none came.</summary>
+    public AiExchange? Exchange
+    {
+        get => _exchange;
+        set
+        {
+            _exchange = value;
+            _save.IsEnabled = value is not null;
+        }
+    }
+
+    internal AiAnswerCard(string model, int pageCount, Action<int> goTo, Action scroll, Action<AiExchange> save)
     {
         _pageCount = pageCount;
         _model = model;
@@ -278,10 +296,19 @@ public sealed partial class AiAnswerCard : Border
         _copy.SetResourceReference(StyleProperty, "IconButton");
         AutomationProperties.SetName(_copy, Strings.Ai_CopyAnswer);
         _copy.Click += (_, _) => Copy();
+        _save = new Button { Content = "", ToolTip = Strings.Ai_SaveAnswer, FontSize = 13, Height = 26, MinWidth = 26, IsEnabled = false };
+        _save.SetResourceReference(StyleProperty, "IconButton");
+        AutomationProperties.SetName(_save, Strings.Ai_SaveAnswer);
+        _save.Click += (_, _) =>
+        {
+            if (_exchange is { } e) save(e);
+        };
         var head = new DockPanel();
         DockPanel.SetDock(_copy, Dock.Right);
+        DockPanel.SetDock(_save, Dock.Right);
         DockPanel.SetDock(warn, Dock.Left);
         head.Children.Add(_copy);
+        head.Children.Add(_save);
         head.Children.Add(warn);
         head.Children.Add(label);
         _note.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");

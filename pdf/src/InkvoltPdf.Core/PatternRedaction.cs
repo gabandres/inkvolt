@@ -136,7 +136,7 @@ public sealed class PatternRedaction(string file, RedactionPatternOptions patter
             // Kept hits on a line laid out again are looked for where their words went.
             var moved = _redacted?.Moved ?? RedactionMoves.None;
             var kept = moved.IsEmpty ? skipped : [.. skipped.Select(m => m with { Rects = [.. m.Rects.Select(r => moved.Now(m.Page, r))] })];
-            still = RedactionSearch.ReadBack(redacted, password, patterns, ocr, reread, kept, readBack, cancel);
+            still = Labelled(RedactionSearch.ReadBack(redacted, password, patterns, ocr, reread, kept, readBack, cancel));
         }
         StillThere = still;
         var options = CheckOptions(before);
@@ -151,6 +151,20 @@ public sealed class PatternRedaction(string file, RedactionPatternOptions patter
             : check.Incomplete ? PatternRedactionVerdict.Incomplete
             : PatternRedactionVerdict.Passed;
         return new PatternRedactionOutcome(verdict, Report(still), still, check, options);
+    }
+
+    /// <summary>
+    /// What the read-back found again, each named as the hit it was chosen as (<see cref="RedactionMatch.Label"/>: a
+    /// suggestion's "Suggested: name"), by its words; the search alone knows only the pattern.
+    /// </summary>
+    private List<RedactionMatch> Labelled(List<RedactionMatch> found)
+    {
+        static string Key(string s) => string.Join(' ', s.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
+        var labels = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var h in accepted.Concat(skipped))
+            if (h.Label is { } label) labels.TryAdd(Key(h.Normalized), label);
+        if (labels.Count == 0) return found;
+        return [.. found.Select(h => h.Label is null && labels.TryGetValue(Key(h.Normalized), out var l) ? h with { Label = l } : h)];
     }
 
     /// <summary>The pages of <paramref name="pages"/> without any text (none recognized, or reading it was skipped).</summary>

@@ -92,6 +92,11 @@ public class DriverReadinessTests
     }
 
     [Fact]
-    public void The_new_queue_is_named_beside_the_old_one() =>
+    public void The_new_queue_is_named_beside_the_old_one()
+    {
         Assert.Equal("HP LaserJet MFP M234dw (Windows driver)", DriverReadiness.NewQueueName(" HP LaserJet MFP M234dw ", "Windows driver"));
+        var longName = DriverReadiness.NewQueueName(new string('x', 80), "Windows driver");
+        Assert.EndsWith(" (Windows driver)", longName); // the mark survives the installer's cut
+        Assert.True(longName.Length <= DriverReadiness.MaxQueueName);
+    }
 }
