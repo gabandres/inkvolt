@@ -12810,4 +12810,97 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
     <value>10 points</value>
     <comment>Grid Spacing list</comment>
   </data>
+  <data name="Cmd_AskFolders" xml:space="preserve">
+    <value>As_k Across Folders…</value>
+  </data>
+  <data name="FolderAsk_Title" xml:space="preserve">
+    <value>Ask Across Folders</value>
+  </data>
+  <data name="FolderAsk_Intro" xml:space="preserve">
+    <value>Ask a question about the PDFs in your indexed folders, or about PDFs you choose. The folder index picks the pages most related to it, and your own AI assistant answers from them, citing the file and page. Nothing is sent before you see exactly what goes.</value>
+  </data>
+  <data name="FolderAsk_InFolders" xml:space="preserve">
+    <value>In the indexed folders</value>
+  </data>
+  <data name="FolderAsk_InFiles" xml:space="preserve">
+    <value>In these PDFs:</value>
+  </data>
+  <data name="FolderAsk_ChooseFiles" xml:space="preserve">
+    <value>Choose PDFs…</value>
+  </data>
+  <data name="FolderAsk_NoFiles" xml:space="preserve">
+    <value>No PDFs chosen yet.</value>
+  </data>
+  <data name="FolderAsk_FilesChosen_One" xml:space="preserve">
+    <value>{0:N0} PDF: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_FilesChosen_Many" xml:space="preserve">
+    <value>{0:N0} PDFs: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_AskIn" xml:space="preserve">
+    <value>Ask in</value>
+  </data>
+  <data name="FolderAsk_Question" xml:space="preserve">
+    <value>Question</value>
+  </data>
+  <data name="FolderAsk_Placeholder" xml:space="preserve">
+    <value>Ask a question about these documents</value>
+  </data>
+  <data name="FolderAsk_Answers" xml:space="preserve">
+    <value>Questions and answers</value>
+  </data>
+  <data name="FolderAsk_ChooseFilesFirst" xml:space="preserve">
+    <value>Choose the PDFs to ask about first.</value>
+  </data>
+  <data name="FolderAsk_ReadingFiles" xml:space="preserve">
+    <value>Reading the PDFs…</value>
+  </data>
+  <data name="FolderAsk_ReadingIndex" xml:space="preserve">
+    <value>Finding the pages most related to the question…</value>
+  </data>
+  <data name="FolderAsk_NoText" xml:space="preserve">
+    <value>None of the pages has text to send. Scans need Recognize Text first.</value>
+  </data>
+  <data name="FolderAsk_NothingRelated" xml:space="preserve">
+    <value>No page shares a word with the question. Try other words.</value>
+  </data>
+  <data name="FolderAsk_CheckingPermissions" xml:space="preserve">
+    <value>Checking the files' permissions…</value>
+  </data>
+  <data name="FolderAsk_RestrictedFiles" xml:space="preserve">
+    <value>These PDFs don't allow copying their text: {0}</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Sent" xml:space="preserve">
+    <value>Your question and the text of {0} from {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_SentTrimmed" xml:space="preserve">
+    <value>Your question and the parts most related to it, from {0} of {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_NeedPassword" xml:space="preserve">
+    <value>Not read (they need a password): {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Unreadable" xml:space="preserve">
+    <value>Couldn't be read: {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_NotAllRead" xml:space="preserve">
+    <value>Only the first {0:N0} pages of the PDFs were read; not all of: {1}.</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_OpenAt" xml:space="preserve">
+    <value>Open {0} at page {1}</value>
+    <comment>{0} is a file name</comment>
+  </data>
+  <data name="Ai_SentListing" xml:space="preserve">
+    <value>Pages sent, by file</value>
+  </data>
+  <data name="FolderAsk_OnlyThis" xml:space="preserve">
+    <value>Only this text, the instructions shown below and the model's name are sent, with each file's name within its folder as listed: not where the files are on this PC, their properties or any other page.</value>
+  </data>
 </root>

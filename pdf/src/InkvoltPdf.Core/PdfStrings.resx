@@ -7367,4 +7367,17 @@
     <value>Select two fields or more (Ctrl+click adds one); the first one picked stays put.</value>
     <comment>Prepare Form: Align or Same Size with one selected</comment>
   </data>
+  <data name="Pro_TitleFolderAsk" xml:space="preserve">
+    <value>Ask across folders</value>
+  </data>
+  <data name="Pro_DescFolderAsk" xml:space="preserve">
+    <value>Ask a question over your indexed folders or a set of PDFs: the folder index picks the pages, your own AI assistant answers, and each answer cites the file and page, which open on a click. The send window lists every page that goes, from which files.</value>
+  </data>
+  <data name="Pro_LockedFolderAsk" xml:space="preserve">
+    <value>Asking across folders is part of Inkvolt Pro.</value>
+  </data>
+  <data name="FolderAsk_SentLine" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>{0} is a file name, {1} a page list such as "pages 1–3, 7"</comment>
+  </data>
 </root>

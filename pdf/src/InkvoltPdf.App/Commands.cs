@@ -73,6 +73,8 @@ public static class Cmd
     public static readonly RoutedUICommand Replace = Make(Strings.Cmd_Replace, nameof(Replace), K(Key.H, ModifierKeys.Control));
     public static readonly RoutedUICommand SearchPane = Make(Strings.Cmd_SearchPane, nameof(SearchPane), K(Key.F, ModifierKeys.Control | ModifierKeys.Shift));
     public static readonly RoutedUICommand SearchFolders = Make(Strings.Cmd_SearchFolders, nameof(SearchFolders), K(Key.F, ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Shift));
+    // A question over the indexed folders or a set of PDFs, answered by the user's AI (FolderAsk; Pro)
+    public static readonly RoutedUICommand AskFolders = Make(Strings.Cmd_AskFolders, nameof(AskFolders));
     public static readonly RoutedUICommand ToolHand = Make(Strings.Cmd_ToolHand, nameof(ToolHand));
     public static readonly RoutedUICommand ToolSelect = Make(Strings.Cmd_ToolSelect, nameof(ToolSelect));
     public static readonly RoutedUICommand ToolSnapshot = Make(Strings.Cmd_ToolSnapshot, nameof(ToolSnapshot));

@@ -24,6 +24,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   the words of its PDFs' pages (**terms**, `Core/IndexTerms.cs`: folded so whatever Find reads alike is one term) leading to
   the pages they are on, each page's text compressed, and each file's size, time and state. Written only at its end, a
   **commit** at a time; **compacting** writes what is live to a new file. A search narrows by terms, then runs Find on the kept text.
+- **Ask across folders** (`Core/FolderAsk.cs`; Windows `App/FolderAsk.cs`): a question over the indexed folders or a set of
+  PDFs, answered by the user's own model (Pro). The index **ranks** pages by how many of the question's words they hold
+  (`FolderIndex.Rank`, any word, not all as a search); their **passages** that fit the model go, each under its **source**
+  (a file, numbered as the model cites it) and page; a **citation** ([2, p. 5]) is a link only when that source's page was
+  sent. The send window's **listing** names every file and its pages.
 - **Index worker** (`Core/IndexWorkers.cs`): the app started again with `--index-worker <pipe name>`, the only thing that
   parses a PDF for the index: told a path, it sends the pages' text back. A file that kills it costs that worker and is **skipped**.
 - **Indexer** (`Core/FolderIndexer.cs`; in the app `IndexedFolder`, `FolderSearches`, `App/FolderSearch.cs`): keeps one folder's index

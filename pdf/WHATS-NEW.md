@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Ask Across Folders (Edit menu; Inkvolt Pro): ask a question about the PDFs in your indexed folders, or about PDFs you choose, and your own AI assistant answers from the pages most related to it. Each answer cites the file and page, and a click opens it there. Before anything goes, you see every page that will be sent and from which file.
 
 ## 1.17.0
 - Spell check where you type: edited text, sticky notes, text boxes, callouts and form fields underline misspelled words in red, in the document's language. Right-click a word for suggestions, Ignore or Add to dictionary. Turn it off in Settings.

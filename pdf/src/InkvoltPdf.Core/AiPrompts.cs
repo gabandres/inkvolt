@@ -247,10 +247,10 @@ public static partial class AiPrompts
 
     private static string Capital(string s) => s.Length == 0 ? s : char.ToUpperInvariant(s[0]) + s[1..];
 
-    private static HashSet<string> Words(string text) =>
+    internal static HashSet<string> Words(string text) =>
         [.. WordPattern().Matches(text.ToLowerInvariant()).Select(m => m.Value).Where(w => w.Length >= 3 && !StopWords.Contains(w))];
 
-    private static double Score(string text, HashSet<string> words)
+    internal static double Score(string text, HashSet<string> words)
     {
         if (words.Count == 0) return 0;
         var counts = new Dictionary<string, int>();

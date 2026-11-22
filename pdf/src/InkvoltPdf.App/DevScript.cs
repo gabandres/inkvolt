@@ -39,6 +39,7 @@ namespace InkvoltPdf.App;
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
+/// Ask Across Folders (aifake answers): <c>folderask question · folderaskfiles a.pdf|b.pdf (ask in these PDFs; "folders" asks in the indexed folders again) · folderaskstate · folderaskopen i</c> (click the last answer's link i: logs the tab's file and page).
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
@@ -1579,6 +1580,18 @@ internal static class DevScript
             case "indexwait": log.Add(await WaitForIndexes(arg.Length > 0 ? int.Parse(arg) : 600)); break;
             case "indexstate": log.Add(FolderSearchWindow.Open(window, offScreen: true).DevState()); break;
             case "indexsearch": log.Add(await FolderSearchWindow.Open(window, offScreen: true).DevSearch(arg)); break;
+            // Ask Across Folders: folderask question · folderaskfiles a.pdf|b.pdf|folders · folderaskstate · folderaskopen i
+            case "folderask": log.Add(await FolderAskWindow.Open(window, offScreen: true).DevAsk(arg)); break;
+            case "folderaskfiles": FolderAskWindow.Open(window, offScreen: true).SetFiles(arg == "folders" ? [] : arg.Split('|')); break;
+            case "folderaskstate": log.Add(FolderAskWindow.Open(window, offScreen: true).DevState()); break;
+            case "folderaskopen":
+            {
+                var clicked = FolderAskWindow.Open(window, offScreen: true).DevOpenLink(int.Parse(arg));
+                await Task.Delay(2000);
+                var t = window.ActiveTab;
+                log.Add($"folderaskopen: clicked={clicked} {Log.Name(t?.Session.FilePath)} page {t?.PageView.CurrentPage + 1} of {t?.PageView.PageCount}");
+                break;
+            }
             case "indexoption":
             {
                 var a = arg.Split(' ');
@@ -1609,7 +1622,7 @@ internal static class DevScript
                 break;
             }
             case "prowindow":
-                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, "suggest" => ProFeature.RedactionSuggestions, _ => null });
+                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, "suggest" => ProFeature.RedactionSuggestions, "folderask" => ProFeature.FolderAsk, _ => null });
                 await Task.Delay(300);
                 break;
             case "pro" when arg == "remove": ProWindow.Open(window, null).DevRemove(); break;

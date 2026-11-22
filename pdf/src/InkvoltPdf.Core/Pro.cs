@@ -36,6 +36,8 @@ public enum ProFeature
     FieldLocking,
     /// <summary>Redaction suggestions: what to redact proposed by the user's own AI endpoint, or found from their names and terms list.</summary>
     RedactionSuggestions,
+    /// <summary>Ask Across Folders: a question over the indexed folders or a set of PDFs, answered by the user's own AI endpoint.</summary>
+    FolderAsk,
 }
 
 /// <summary>
@@ -96,6 +98,7 @@ public static class Pro
         ProFeature.CompareOfficeAndScans => PdfStrings.Pro_TitleCompare,
         ProFeature.FieldLocking => PdfStrings.Pro_TitleFieldLocking,
         ProFeature.RedactionSuggestions => PdfStrings.Pro_TitleRedactionSuggestions,
+        ProFeature.FolderAsk => PdfStrings.Pro_TitleFolderAsk,
         _ => PdfStrings.Pro_TitleCommandLine,
     };
 
@@ -112,6 +115,7 @@ public static class Pro
         ProFeature.CompareOfficeAndScans => PdfStrings.Pro_DescCompare,
         ProFeature.FieldLocking => PdfStrings.Pro_DescFieldLocking,
         ProFeature.RedactionSuggestions => PdfStrings.Pro_DescRedactionSuggestions,
+        ProFeature.FolderAsk => PdfStrings.Pro_DescFolderAsk,
         ProFeature.FolderSearch => PdfStrings.Pro_DescFolderSearch,
         _ => PdfStrings.Pro_DescCommandLine,
     };
@@ -129,6 +133,7 @@ public static class Pro
         ProFeature.FolderSearch => PdfStrings.Pro_LockedFolderSearch,
         ProFeature.FieldLocking => PdfStrings.Pro_LockedFieldLocking,
         ProFeature.RedactionSuggestions => PdfStrings.Pro_LockedRedactionSuggestions,
+        ProFeature.FolderAsk => PdfStrings.Pro_LockedFolderAsk,
         ProFeature.CompareOfficeAndScans => PdfStrings.Pro_LockedCompare,
         _ => PdfStrings.Pro_LockedCommandLine,
     };

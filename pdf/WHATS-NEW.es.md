@@ -6,6 +6,7 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Preguntar en carpetas (menú Edición; Inkvolt Pro): haz una pregunta sobre los archivos PDF de tus carpetas indexadas, o sobre los que elijas, y tu propio asistente de IA responde a partir de las páginas más relacionadas con ella. Cada respuesta cita el archivo y la página, y un clic lo abre ahí. Antes de que se envíe nada, ves cada página que se enviará y de qué archivo.
 
 ## 1.17.0
 - Revisión ortográfica mientras escribes: el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario subrayan en rojo las palabras mal escritas, en el idioma del documento. Haz clic con el botón derecho en una palabra para ver sugerencias, Omitir o Agregar al diccionario. Puedes desactivarla en Configuración.

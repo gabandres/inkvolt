@@ -7367,4 +7367,17 @@
     <value>Selecciona dos campos o más (Ctrl+clic agrega uno); el primero que elijas no se mueve.</value>
     <comment>Prepare Form: Align or Same Size with one selected</comment>
   </data>
+  <data name="Pro_TitleFolderAsk" xml:space="preserve">
+    <value>Preguntar en carpetas</value>
+  </data>
+  <data name="Pro_DescFolderAsk" xml:space="preserve">
+    <value>Haz una pregunta sobre tus carpetas indexadas o un grupo de archivos PDF: el índice elige las páginas, tu propio asistente de IA responde, y cada respuesta cita el archivo y la página, que se abren con un clic. La ventana de envío muestra cada página que se envía y de qué archivo.</value>
+  </data>
+  <data name="Pro_LockedFolderAsk" xml:space="preserve">
+    <value>Preguntar en carpetas forma parte de Inkvolt Pro.</value>
+  </data>
+  <data name="FolderAsk_SentLine" xml:space="preserve">
+    <value>{0}: {1}</value>
+    <comment>{0} is a file name, {1} a page list such as "pages 1–3, 7"</comment>
+  </data>
 </root>

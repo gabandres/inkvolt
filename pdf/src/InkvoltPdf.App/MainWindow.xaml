@@ -169,6 +169,7 @@
                                     <MenuItem Command="app:Cmd.Replace" />
                                     <MenuItem Command="app:Cmd.SearchPane" />
                                     <MenuItem Command="app:Cmd.SearchFolders" />
+                                    <MenuItem Command="app:Cmd.AskFolders" />
                                     <Separator />
                                     <MenuItem x:Name="HandMenu" Command="app:Cmd.ToolHand" InputGestureText="{x:Static loc:Strings.Main_KeyH}" />
                                     <MenuItem x:Name="SelectMenu" Command="app:Cmd.ToolSelect" InputGestureText="{x:Static loc:Strings.Main_KeyT}" />
@@ -368,6 +369,7 @@
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuAiAssistant}">
                                         <MenuItem Command="app:Cmd.AiSummarize" />
                                         <MenuItem Command="app:Cmd.AiAsk" />
+                                        <MenuItem Command="app:Cmd.AskFolders" />
                                         <MenuItem Command="app:Cmd.AiExplain" />
                                         <MenuItem Command="app:Cmd.AiTranslate" />
                                         <Separator />

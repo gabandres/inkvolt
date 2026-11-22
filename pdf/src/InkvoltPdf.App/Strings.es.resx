@@ -12791,4 +12791,97 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <value>10 puntos</value>
     <comment>Grid Spacing list</comment>
   </data>
+  <data name="Cmd_AskFolders" xml:space="preserve">
+    <value>_Preguntar en carpetas…</value>
+  </data>
+  <data name="FolderAsk_Title" xml:space="preserve">
+    <value>Preguntar en carpetas</value>
+  </data>
+  <data name="FolderAsk_Intro" xml:space="preserve">
+    <value>Haz una pregunta sobre los archivos PDF de tus carpetas indexadas, o sobre los que elijas. El índice elige las páginas más relacionadas con ella, y tu propio asistente de IA responde a partir de ellas, citando el archivo y la página. No se envía nada antes de que veas exactamente qué se envía.</value>
+  </data>
+  <data name="FolderAsk_InFolders" xml:space="preserve">
+    <value>En las carpetas indexadas</value>
+  </data>
+  <data name="FolderAsk_InFiles" xml:space="preserve">
+    <value>En estos archivos PDF:</value>
+  </data>
+  <data name="FolderAsk_ChooseFiles" xml:space="preserve">
+    <value>Elegir archivos PDF…</value>
+  </data>
+  <data name="FolderAsk_NoFiles" xml:space="preserve">
+    <value>Aún no has elegido archivos PDF.</value>
+  </data>
+  <data name="FolderAsk_FilesChosen_One" xml:space="preserve">
+    <value>{0:N0} archivo PDF: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_FilesChosen_Many" xml:space="preserve">
+    <value>{0:N0} archivos PDF: {1}</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_AskIn" xml:space="preserve">
+    <value>Preguntar en</value>
+  </data>
+  <data name="FolderAsk_Question" xml:space="preserve">
+    <value>Pregunta</value>
+  </data>
+  <data name="FolderAsk_Placeholder" xml:space="preserve">
+    <value>Haz una pregunta sobre estos documentos</value>
+  </data>
+  <data name="FolderAsk_Answers" xml:space="preserve">
+    <value>Preguntas y respuestas</value>
+  </data>
+  <data name="FolderAsk_ChooseFilesFirst" xml:space="preserve">
+    <value>Primero elige los archivos PDF sobre los que preguntar.</value>
+  </data>
+  <data name="FolderAsk_ReadingFiles" xml:space="preserve">
+    <value>Leyendo los archivos PDF…</value>
+  </data>
+  <data name="FolderAsk_ReadingIndex" xml:space="preserve">
+    <value>Buscando las páginas más relacionadas con la pregunta…</value>
+  </data>
+  <data name="FolderAsk_NoText" xml:space="preserve">
+    <value>Ninguna página tiene texto que enviar. Los escaneos necesitan antes Reconocer texto.</value>
+  </data>
+  <data name="FolderAsk_NothingRelated" xml:space="preserve">
+    <value>Ninguna página comparte una palabra con la pregunta. Prueba con otras palabras.</value>
+  </data>
+  <data name="FolderAsk_CheckingPermissions" xml:space="preserve">
+    <value>Comprobando los permisos de los archivos…</value>
+  </data>
+  <data name="FolderAsk_RestrictedFiles" xml:space="preserve">
+    <value>Estos archivos PDF no permiten copiar su texto: {0}</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Sent" xml:space="preserve">
+    <value>Tu pregunta y el texto de {0} de {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_SentTrimmed" xml:space="preserve">
+    <value>Tu pregunta y las partes más relacionadas con ella, de {0} de {1}</value>
+    <comment>{0} is "3 pages", {1} is "2 files"; the list of files and pages follows</comment>
+  </data>
+  <data name="FolderAsk_NeedPassword" xml:space="preserve">
+    <value>No se leyeron (necesitan una contraseña): {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_Unreadable" xml:space="preserve">
+    <value>No se pudieron leer: {0}.</value>
+    <comment>{0} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_NotAllRead" xml:space="preserve">
+    <value>Solo se leyeron las primeras {0:N0} páginas de los archivos PDF; no todas de: {1}.</value>
+    <comment>{1} lists the files' names</comment>
+  </data>
+  <data name="FolderAsk_OpenAt" xml:space="preserve">
+    <value>Abrir {0} en la página {1}</value>
+    <comment>{0} is a file name</comment>
+  </data>
+  <data name="Ai_SentListing" xml:space="preserve">
+    <value>Páginas enviadas, por archivo</value>
+  </data>
+  <data name="FolderAsk_OnlyThis" xml:space="preserve">
+    <value>Solo se envían este texto, las instrucciones que se muestran abajo y el nombre del modelo, con el nombre de cada archivo dentro de su carpeta tal como aparece en la lista: no dónde están los archivos en este PC, sus propiedades ni ninguna otra página.</value>
+  </data>
 </root>

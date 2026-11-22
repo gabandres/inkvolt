@@ -64,6 +64,7 @@ business licence (invoices, MSI/Intune packages, a support contact, priority fix
 | 3.5 Indexed folder search | Searching open documents | Indexing folders and searching them |
 | 3.6 Speed on huge files | All of it | |
 | 4.10 AI redaction suggestions | | Suggestions from the user's own AI endpoint, and the names and terms list |
+| 4.11 Ask across a folder | | A question over the indexed folders or a set of PDFs, through the user's own AI endpoint |
 
 **Built, gate off.** `Pro.Allows(feature)` in Core (`Pro.cs`; `ProFeature` is the table's rows) sits on the suite's
 `ProCheck` (`InkvoltPrint.Core/Suite`: `ProKeys`, `ProKeyFile`), so one key licenses both apps; the key format and its
@@ -373,6 +374,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   palette's commands as tools, each step shown and undoable; last, a weak fit for small local models).
   - 4.12 Calculated form fields, and several fields aligned and sized together. Done on Windows (`FormCalculations`: sum, product, average, minimum, maximum and simplified field notation written as Acrobat writes them, a custom script kept, the /CO order editable; more AFNumber_Format choices; `FormDesigner`'s several-field selection and `FormDesignRules.Aligned`, `SizedAlike`, `Spread`); the Mac's waits.
   - 4.19 Rulers, guides, a grid and snapping. Done on Windows (`LayoutAids`: the rulers' ticks in the page's measurement scale or the region's unit, a guide from a ruler as the view is turned; `PageGuides` on the `DocumentSession`, never written into the PDF; `Snapper`: guides, the grid and other objects' edges and middles, for Prepare Form's fields, drawn shapes, stamps and signatures, and measuring points; View › Rulers, Grid, Guides and Snapping); the Mac's waits.
+  - 4.11 Ask across a folder (Pro). Done on Windows (`FolderAsk`: `FolderIndex.Rank` proposes the pages holding the most of the question's words, or a set of PDFs is read; the passages that fit the model go under "[Source N: name, page P]"; the send window lists every file and its pages, never where the folder is, and asks about a PDF that forbids copying; a citation is a link only to a page that was sent, and opens that file there; Edit › Ask Across Folders…); the Mac's waits.
   - 4.22 Turn a picture or text block to any angle. Done on Windows (`ContentEditor.RotateImage`, `RotateParagraph`: about the middle of its box, one undo step, the paragraph's glyphs drawn again from a turned text matrix; `ContentTurn`: the round handle, Shift for 15° steps, the bar's Angle box; pdf.js reads turned paragraphs in order, `TurnedParagraphsReadTheSameInPdfJs`); the Mac's waits.
 - **Watch, not built:** filling XFA-only forms (Nitro and PDFelement do; an XFA layout engine, L, likely a package);
   ZUGFeRD/Factur-X e-invoices (no desktop editor has them; PDF/A-3b first).
