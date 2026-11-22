@@ -61,6 +61,9 @@ public sealed record DesignField
     /// <summary>The field has a format script that isn't one of the Acrobat built-ins: <see cref="Format"/> can't change it.</summary>
     public bool CustomFormat { get; init; }
 
+    /// <summary>Text fields and combo boxes: what the value is calculated as (/AA /C), or null when it isn't.</summary>
+    public FieldCalc? Calculation { get; init; }
+
     /// <summary>Combo and list boxes: the choices (export values).</summary>
     public IReadOnlyList<string> Options { get; init; } = [];
 
@@ -224,6 +227,7 @@ public static class FormDesign
             MaxLength = kind == DesignFieldKind.Text ? Math.Max(0, PdfObj.Int(FormEditor.Inherited(f.Dict, "/MaxLen")) ?? 0) : 0,
             Format = format,
             CustomFormat = format is null && !string.IsNullOrWhiteSpace(formatScript),
+            Calculation = kind is DesignFieldKind.Text or DesignFieldKind.ComboBox ? FormCalculations.Read(Script(f, w, "/C")) : null,
             Options = kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox ? exports : [],
             OptionLabels = kind is DesignFieldKind.ComboBox or DesignFieldKind.ListBox && !labels.SequenceEqual(exports) ? labels : [],
             Editable = kind == DesignFieldKind.ComboBox && (f.Flags & FfEdit) != 0,
@@ -842,6 +846,7 @@ public static class FormDesign
         {
             case DesignFieldKind.Text:
                 SetFormat(doc, field, w, spec);
+                SetCalculation(doc, acro, field, spec);
                 SetDefault(field, spec.DefaultValue.Length > 0 ? PdfObj.MakeString(spec.DefaultValue) : null, isNew);
                 break;
             case DesignFieldKind.ComboBox or DesignFieldKind.ListBox:
@@ -866,6 +871,7 @@ public static class FormDesign
                     if (dv.Count > 0) field.Elements["/I"] = new PdfArray(doc, [.. dv.Select(o => spec.Options.ToList().IndexOf(o)).Order().Select(i => (PdfItem)new PdfInteger(i))]);
                     else field.Elements.Remove("/I");
                 }
+                if (spec.Kind == DesignFieldKind.ComboBox) SetCalculation(doc, acro, field, spec);
                 break;
             }
             case DesignFieldKind.Button:
@@ -999,6 +1005,92 @@ public static class FormDesign
         var (format, keystroke) = FormatScripts(fmt);
         aa.Elements["/F"] = JavaScript(doc, format);
         aa.Elements["/K"] = JavaScript(doc, keystroke);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="spec"/>'s calculation as the field's /AA /C, and keeps the field in the form's calculation
+    /// order (/CO: added at its end when it starts calculating, removed when it stops). A custom script stays as it is.
+    /// </summary>
+    private static void SetCalculation(PdfDocument doc, PdfDictionary acro, PdfDictionary field, DesignField spec)
+    {
+        var aa = PdfObj.Dict(field.Elements["/AA"]);
+        var current = FormCalculations.Read(aa is null ? null : PdfObj.Text(PdfObj.Dict(aa.Elements["/C"])?.Elements["/JS"]));
+        var wanted = spec.Calculation is { Kind: CalcKind.None } ? null : spec.Calculation;
+        if (current == wanted || wanted is { Kind: CalcKind.Custom }) return; // unchanged, or a script that can't be written here
+        if (wanted is null)
+        {
+            aa?.Elements.Remove("/C");
+            if (aa is { Elements.Count: 0 }) field.Elements.Remove("/AA");
+            RemoveFromCalculationOrder(acro, field);
+            return;
+        }
+        string script;
+        try
+        {
+            script = FormCalculations.ScriptOf(wanted);
+        }
+        catch (DesignRefusal r)
+        {
+            throw new ArgumentException(r.Message);
+        }
+        if (aa is null)
+        {
+            aa = new PdfDictionary(doc);
+            field.Elements["/AA"] = aa;
+        }
+        aa.Elements["/C"] = JavaScript(doc, script);
+        if (field.Reference is null) return; // a direct object can't be named in /CO
+        if (PdfObj.Array(acro.Elements["/CO"]) is not { } co)
+        {
+            co = new PdfArray(doc);
+            acro.Elements["/CO"] = co;
+        }
+        if (!co.Elements.Any(e => ReferenceEquals(PdfObj.Dict(e), field))) co.Elements.Add(field.Reference);
+    }
+
+    /// <summary>
+    /// The form's calculated fields in the order they calculate: the form's /CO, then any field with a calculation it
+    /// leaves out (which doesn't calculate until it is put in the order).
+    /// </summary>
+    public static IReadOnlyList<string> CalculationOrder(byte[] data, string? password)
+    {
+        using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Form_CantRead);
+        var acro = PdfObj.Dict(doc.Internals.Catalog.Elements["/AcroForm"]);
+        if (acro is null) return [];
+        return [.. OrderedCalculations(Fields(doc, acro), acro).Select(f => f.Name).Distinct()];
+    }
+
+    private static List<FormEditor.Field> OrderedCalculations(List<FormEditor.Field> fields, PdfDictionary acro)
+    {
+        var byDict = new Dictionary<PdfDictionary, FormEditor.Field>(ReferenceEqualityComparer.Instance);
+        foreach (var f in fields) byDict.TryAdd(f.Dict, f);
+        var order = new List<FormEditor.Field>();
+        if (PdfObj.Array(acro.Elements["/CO"]) is { } co)
+            foreach (var item in co.Elements)
+                if (PdfObj.Dict(item) is { } d && byDict.TryGetValue(d, out var f) && !order.Contains(f)) order.Add(f);
+        foreach (var f in fields)
+            if (!order.Contains(f) && f.Type is "/Tx" or "/Ch" && CalculateScript(f.Dict) is not null) order.Add(f);
+        return order;
+    }
+
+    private static string? CalculateScript(PdfDictionary field) =>
+        PdfObj.Dict(PdfObj.Dict(field.Elements["/AA"])?.Elements["/C"]) is { } c && PdfObj.Text(c.Elements["/JS"]) is { } js && !string.IsNullOrWhiteSpace(js) ? js : null;
+
+    /// <summary>
+    /// Sets the form's calculation order (/CO) to the calculated fields named in <paramref name="names"/>, in that
+    /// order; calculated fields it doesn't name follow in their old order.
+    /// </summary>
+    public static byte[] SetCalculationOrder(byte[] data, string? password, IReadOnlyList<string> names)
+    {
+        using var doc = Open(data, password);
+        var acro = PdfObj.Dict(doc.Internals.Catalog.Elements["/AcroForm"]);
+        if (acro is null) return data;
+        var old = OrderedCalculations(Fields(doc, acro), acro).Where(f => f.Dict.Reference is not null).ToList();
+        var ordered = names.Distinct().SelectMany(n => old.Where(f => f.Name == n)).Concat(old).Distinct().ToList();
+        if (PdfObj.Array(acro.Elements["/CO"]) is { } co && co.Elements.Select(e => (object?)PdfObj.Dict(e)).SequenceEqual(ordered.Select(f => (object?)f.Dict), ReferenceEqualityComparer.Instance))
+            return data;
+        acro.Elements["/CO"] = new PdfArray(doc, [.. ordered.Select(f => (PdfItem)f.Dict.Reference!)]);
+        return PdfObj.Save(doc);
     }
 
     private static PdfDictionary JavaScript(PdfDocument doc, string js)

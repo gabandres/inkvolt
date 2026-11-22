@@ -34,6 +34,9 @@ public abstract record DesignRelease
     public sealed record Placed(DesignPlacement Placement) : DesignRelease;
 
     public sealed record Moved(DesignField Field) : DesignRelease;
+
+    /// <summary>Several selected fields dragged together: each with its new rect (the one pressed first).</summary>
+    public sealed record MovedAll(IReadOnlyList<DesignField> Fields) : DesignRelease;
 }
 
 public enum DesignCursorKind { Arrow, Crosshair, Move, PointingHand, Resize }
@@ -66,7 +69,11 @@ public readonly record struct DesignReveal(int Page, RectD Rect);
 /// runs, what Esc did, where Tab went, or that arrows moved the selection (<see cref="Nudged"/>: write it once the keys
 /// rest, <see cref="FormDesigner.NudgeRest"/>).
 /// </summary>
-public sealed record DesignKeyResult(DesignField? Written = null, DesignAction? Action = null, DesignEscape? Escape = null, DesignReveal? Reveal = null, bool Nudged = false);
+public sealed record DesignKeyResult(DesignField? Written = null, DesignAction? Action = null, DesignEscape? Escape = null, DesignReveal? Reveal = null, bool Nudged = false)
+{
+    /// <summary>Every field the arrow-key moves wrote (several when several are selected; <see cref="Written"/> is the first).</summary>
+    public IReadOnlyList<DesignField> WrittenAll { get; init; } = Written is null ? [] : [Written];
+}
 
 /// <summary>A page as the designer sees it: its size in points (unturned) and the view's turn (0, 90, 180, 270).</summary>
 public readonly record struct DesignPage(double Width, double Height, int Rotation = 0);
@@ -79,6 +86,9 @@ public readonly record struct DesignPage(double Width, double Height, int Rotati
 /// 10 pt; written once the keys rest), Tab / Shift+Tab go through the fields and suggestions, Enter opens the properties
 /// (accepts a suggestion), Delete removes it (rejects a suggestion), Ctrl+D duplicates it, Esc lets go. Suggested fields
 /// show dashed until accepted. The window turns each gesture into an edit (<see cref="FormDesign"/>).
+/// <para>Ctrl+click adds a field to the selection (or takes it out): the first one picked is the anchor that Align, Same
+/// Size and Space Evenly (<see cref="FormDesignRules.Aligned"/>) go by; a drag of any of them, or the arrow keys, move them
+/// all. Several fields are selected on one page only, and show no resize handles.</para>
 /// <para>Unlike the Mac, Windows' handles, resizing and arrow keys follow the view's turn (<see cref="DesignPage.Rotation"/>):
 /// the bottom-right handle is the one shown there, and Right moves the field right on screen.</para>
 /// </summary>
@@ -90,7 +100,13 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// <summary>The smallest side a resize leaves, and a drawn box must have to be kept (else the kind's usual size).</summary>
     public const double MinSize = 6;
 
-    private sealed record Drag(DesignField Field, int Handle, PointD Press, PointD Offset, RectD Rect, bool Dragged);
+    private sealed record Drag(DesignField Field, int Handle, PointD Press, PointD Offset, RectD Rect, bool Dragged)
+    {
+        /// <summary>The other selected fields moved along with <see cref="Field"/>, and how far they all went.</summary>
+        public IReadOnlyList<DesignField> Group { get; init; } = [];
+
+        public PointD Shift { get; init; }
+    }
 
     private sealed record NewBox(DesignFieldKind Kind, int Page, PointD Start, PointD End, bool Dragged);
 
@@ -102,6 +118,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     private PointD _nudged;
     private Drag? _drag;
     private NewBox? _box;
+    private readonly List<string> _also = []; // the other selected fields, in the order picked (SelectedId is the anchor)
 
     /// <summary>The fields in fill order, page by page.</summary>
     public IReadOnlyList<DesignField> Fields => _fields;
@@ -116,6 +133,17 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     public bool ShowTabOrder { get; set; }
 
     public DesignField? SelectedField => SelectedId is null ? null : _fields.FirstOrDefault(f => f.Id == SelectedId);
+
+    /// <summary>The selected fields, the anchor first (empty: none).</summary>
+    public IReadOnlyList<string> SelectedIds => SelectedId is null ? [] : [SelectedId, .. _also];
+
+    /// <summary>The selected fields as read, the anchor first.</summary>
+    public IReadOnlyList<DesignField> SelectedFields => [.. SelectedIds.Select(id => _fields.FirstOrDefault(f => f.Id == id)).OfType<DesignField>()];
+
+    /// <summary>More than one field is selected.</summary>
+    public bool HasSeveral => SelectedId is not null && _also.Count > 0;
+
+    public bool IsSelected(string id) => id == SelectedId || _also.Contains(id);
     public FieldSuggestion? SelectedSuggestion => _suggestionIndex >= 0 && _suggestionIndex < _suggestions.Count ? _suggestions[_suggestionIndex] : null;
     public int SelectedSuggestionIndex => SelectedSuggestion is null ? -1 : _suggestionIndex;
     public bool IsDragging => _drag is not null || _box is not null;
@@ -134,7 +162,12 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         _byPage = list.GroupBy(f => f.PageIndex).ToDictionary(g => g.Key, g => g.ToList());
         _fields = [.. list.OrderBy(f => f.PageIndex).ThenBy(f => f.TabIndex)];
         _pending.Clear();
-        if (SelectedId is { } id && !list.Any(f => f.Id == id)) SelectedId = null;
+        _also.RemoveAll(a => !list.Any(f => f.Id == a));
+        if (SelectedId is { } id && !list.Any(f => f.Id == id))
+        {
+            SelectedId = _also.FirstOrDefault();
+            if (_also.Count > 0) _also.RemoveAt(0);
+        }
         // A move or resize under way goes on from the field as now read (the document caught up with an earlier move);
         // when the field is gone (deleted, or its positional id changed), the press ends.
         if (_drag is { } d) _drag = list.FirstOrDefault(f => f.Id == d.Field.Id) is { } now ? d with { Field = now } : null;
@@ -151,13 +184,47 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     public void Select(string? id)
     {
         SelectedId = id;
+        _also.Clear();
+        _suggestionIndex = -1;
+    }
+
+    /// <summary>Selects these fields (the first the anchor; only those on its page); the caller flushes any nudge first.</summary>
+    public void SelectAll(IReadOnlyList<string> ids)
+    {
+        Select(ids.FirstOrDefault(id => _fields.Any(f => f.Id == id)));
+        if (SelectedField is not { } anchor) return;
+        foreach (var id in ids)
+            if (id != anchor.Id && !_also.Contains(id) && _fields.FirstOrDefault(f => f.Id == id) is { } f && f.PageIndex == anchor.PageIndex) _also.Add(id);
+    }
+
+    /// <summary>
+    /// Ctrl+click: adds the field to the selection, or takes it out (the anchor's place goes to the next one picked). A
+    /// field on another page than the selection starts a new one. The caller flushes any nudge first.
+    /// </summary>
+    public void Toggle(string id)
+    {
+        if (_fields.FirstOrDefault(f => f.Id == id) is not { } f) return;
+        if (id == SelectedId)
+        {
+            SelectedId = _also.FirstOrDefault();
+            if (_also.Count > 0) _also.RemoveAt(0);
+        }
+        else if (_also.Remove(id))
+        {
+        }
+        else if (SelectedField is { } anchor && anchor.PageIndex == f.PageIndex) _also.Add(id);
+        else Select(id);
         _suggestionIndex = -1;
     }
 
     public void SelectSuggestion(int index)
     {
         _suggestionIndex = index >= 0 && index < _suggestions.Count ? index : -1;
-        if (_suggestionIndex >= 0) SelectedId = null;
+        if (_suggestionIndex >= 0)
+        {
+            SelectedId = null;
+            _also.Clear();
+        }
     }
 
     /// <summary>Leaving Prepare Form: nothing stays selected, no tool, no suggestions, no numbers. The caller flushes any nudge first.</summary>
@@ -168,6 +235,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         _nudged = default;
         Kind = null;
         SelectedId = null;
+        _also.Clear();
         _suggestionIndex = -1;
         _suggestions = [];
         ShowTabOrder = false;
@@ -176,10 +244,26 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// <summary>Where a field shows: its rect, or the one it was just moved to (until the document catches up).</summary>
     public RectD ShownRect(DesignField f)
     {
-        var r = _pending.TryGetValue(f.Id, out var p) ? p : f.Rect;
+        var r = StartRect(f);
         if (_drag is { } d && d.Field.Id == f.Id) r = d.Rect;
-        if (SelectedId == f.Id && HasNudge) r = r with { X = r.X + _nudged.X, Y = r.Y + _nudged.Y };
+        else if (_drag is { } g && g.Group.Any(x => x.Id == f.Id)) r = r with { X = r.X + g.Shift.X, Y = r.Y + g.Shift.Y };
+        if (IsSelected(f.Id) && HasNudge) r = r with { X = r.X + _nudged.X, Y = r.Y + _nudged.Y };
         return r;
+    }
+
+    /// <summary>A field's rect as last written (or being written).</summary>
+    private RectD StartRect(DesignField f) => _pending.TryGetValue(f.Id, out var p) ? p : f.Rect;
+
+    /// <summary>The selected fields that can move (unsigned), as read.</summary>
+    private List<DesignField> MovableSelection() => [.. SelectedFields.Where(f => !f.Signed)];
+
+    /// <summary>A move of every field in <paramref name="group"/> by (dx, dy), cut short so all of them stay on the page.</summary>
+    private (double Dx, double Dy) ClampGroup(IReadOnlyList<DesignField> group, double dx, double dy)
+    {
+        if (group.Count == 0) return (0, 0);
+        var g = page(group[0].PageIndex);
+        var union = group.Select(StartRect).Aggregate((a, b) => a.Union(b));
+        return DrawingGeometry.ClampMove(union, dx, dy, g.Width, g.Height);
     }
 
     /// <summary>The smallest field under a point of a page.</summary>
@@ -196,7 +280,7 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     /// </summary>
     public int HandleAt(int pageIndex, PointD p, double reach)
     {
-        if (SelectedField is not { } f || f.PageIndex != pageIndex || f.Signed) return -1;
+        if (SelectedField is not { } f || f.PageIndex != pageIndex || f.Signed || HasSeveral) return -1;
         var g = page(pageIndex);
         var frame = RotatedView.ToView(ShownRect(f), g.Width, g.Height, g.Rotation);
         var v = ToView(p, g);
@@ -219,10 +303,11 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
     // ───────────────────────────── Mouse ─────────────────────────────
 
     /// <summary>
-    /// A press at <paramref name="p"/> (page space): selects, starts moving or resizing, or starts a new field. The caller
-    /// flushes any nudge first.
+    /// A press at <paramref name="p"/> (page space): selects, starts moving or resizing, or starts a new field.
+    /// <paramref name="toggle"/> (Ctrl): a field joins the selection or leaves it, and nothing moves. A press on one of
+    /// several selected fields keeps them selected and moves them together. The caller flushes any nudge first.
     /// </summary>
-    public DesignPress Press(int pageIndex, PointD p, int clicks, double reach)
+    public DesignPress Press(int pageIndex, PointD p, int clicks, double reach, bool toggle = false)
     {
         if (HandleAt(pageIndex, p, reach) is var h and >= 0 && SelectedField is { } selected)
         {
@@ -231,6 +316,16 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         }
         if (Kind is null && FieldAt(pageIndex, p) is { } hit)
         {
+            if (toggle)
+            {
+                Toggle(hit.Id);
+                return DesignPress.Selected;
+            }
+            if (HasSeveral && IsSelected(hit.Id) && clicks < 2)
+            {
+                if (!hit.Signed) StartDrag(hit, -1, p);
+                return DesignPress.Selected;
+            }
             Select(hit.Id);
             if (clicks >= 2) return DesignPress.Properties;
             if (!hit.Signed) StartDrag(hit, -1, p);
@@ -262,7 +357,10 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
             var v = ToView(p, g);
             offset = new PointD(h.X - v.X, h.Y - v.Y);
         }
-        _drag = new Drag(f, handle, p, offset, ShownRect(f), false);
+        _drag = new Drag(f, handle, p, offset, ShownRect(f), false)
+        {
+            Group = handle < 0 && HasSeveral && IsSelected(f.Id) ? [.. MovableSelection().Where(x => x.Id != f.Id)] : [],
+        };
     }
 
     /// <summary>
@@ -289,8 +387,11 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         RectD r;
         if (d.Handle < 0)
         {
-            var (dx, dy) = DrawingGeometry.ClampMove(start, p.X - d.Press.X, p.Y - d.Press.Y, g.Width, g.Height);
+            var (dx, dy) = d.Group.Count > 0
+                ? ClampGroup([d.Field, .. d.Group], p.X - d.Press.X, p.Y - d.Press.Y)
+                : DrawingGeometry.ClampMove(start, p.X - d.Press.X, p.Y - d.Press.Y, g.Width, g.Height);
             r = start with { X = start.X + dx, Y = start.Y + dy };
+            d = d with { Shift = new PointD(dx, dy) };
         }
         else
         {
@@ -333,8 +434,19 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         }
         if (_drag is not { } d) return null;
         _drag = null;
-        var before = _pending.TryGetValue(d.Field.Id, out var p) ? p : d.Field.Rect;
+        var before = StartRect(d.Field);
         if (!d.Dragged || d.Rect == before) return null;
+        if (d.Group.Count > 0)
+        {
+            var all = new List<DesignField> { d.Field with { Rect = d.Rect } };
+            foreach (var other in d.Group)
+            {
+                var r = StartRect(other);
+                all.Add(other with { Rect = r with { X = r.X + d.Shift.X, Y = r.Y + d.Shift.Y } });
+            }
+            foreach (var f in all) _pending[f.Id] = f.Rect;
+            return new DesignRelease.MovedAll(all);
+        }
         _pending[d.Field.Id] = d.Rect;
         return new DesignRelease.Moved(d.Field with { Rect = d.Rect });
     }
@@ -374,15 +486,15 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         {
             case DesignKey.Tab when (mods & ~DesignModifiers.Shift) == 0:
             {
-                var written = FlushNudge();
-                return new DesignKeyResult(written, Reveal: Step((mods & DesignModifiers.Shift) != 0 ? -1 : 1));
+                var written = FlushNudgeAll();
+                return new DesignKeyResult(written.FirstOrDefault(), Reveal: Step((mods & DesignModifiers.Shift) != 0 ? -1 : 1)) { WrittenAll = written };
             }
             case DesignKey.Delete or DesignKey.Backspace when mods == DesignModifiers.None && (field is { Signed: false } || suggestion is not null):
-                return new DesignKeyResult(FlushNudge(), field is not null ? DesignAction.Delete : DesignAction.Reject);
+                return Flushed(field is not null ? DesignAction.Delete : DesignAction.Reject);
             case DesignKey.Enter when mods == DesignModifiers.None && (field is not null || suggestion is not null):
-                return new DesignKeyResult(FlushNudge(), field is not null ? DesignAction.Properties : DesignAction.Accept);
+                return Flushed(field is not null ? DesignAction.Properties : DesignAction.Accept);
             case DesignKey.D when mods == DesignModifiers.Control && field is { Signed: false }:
-                return new DesignKeyResult(FlushNudge(), DesignAction.Duplicate);
+                return Flushed(DesignAction.Duplicate);
             case DesignKey.Left or DesignKey.Right or DesignKey.Up or DesignKey.Down when mods is DesignModifiers.None or DesignModifiers.Shift && field is { Signed: false }:
             {
                 var step = mods == DesignModifiers.Shift ? 10 : 1;
@@ -392,11 +504,17 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
             }
             case DesignKey.Escape when mods == DesignModifiers.None:
             {
-                var written = FlushNudge();
-                return new DesignKeyResult(written, Escape: Escape());
+                var written = FlushNudgeAll();
+                return new DesignKeyResult(written.FirstOrDefault(), Escape: Escape()) { WrittenAll = written };
             }
         }
         return null;
+    }
+
+    private DesignKeyResult Flushed(DesignAction action)
+    {
+        var written = FlushNudgeAll();
+        return new DesignKeyResult(written.FirstOrDefault(), action) { WrittenAll = written };
     }
 
     /// <summary>
@@ -434,21 +552,29 @@ public sealed class FormDesigner(Func<int, DesignPage> page)
         var g = page(f.PageIndex);
         var (x0, y0) = RotatedView.FromView(0, 0, g.Width, g.Height, g.Rotation);
         var (x1, y1) = RotatedView.FromView(dx, dy, g.Width, g.Height, g.Rotation);
-        var start = _pending.TryGetValue(f.Id, out var p) ? p : f.Rect;
-        var (mx, my) = DrawingGeometry.ClampMove(start, _nudged.X + x1 - x0, _nudged.Y + y1 - y0, g.Width, g.Height);
+        var (mx, my) = ClampGroup(MovableSelection(), _nudged.X + x1 - x0, _nudged.Y + y1 - y0);
         _nudged = new PointD(mx, my);
     }
 
-    /// <summary>The arrow-key moves made so far, as the field to write (called before anything else acts on the selection).</summary>
-    public DesignField? FlushNudge()
+    /// <summary>The arrow-key moves made so far, as the field to write (called before anything else acts on the
+    /// selection); with several selected, the anchor (<see cref="FlushNudgeAll"/> gives them all).</summary>
+    public DesignField? FlushNudge() => FlushNudgeAll().FirstOrDefault();
+
+    /// <summary>The arrow-key moves made so far, as the fields to write, the anchor first (empty: none).</summary>
+    public IReadOnlyList<DesignField> FlushNudgeAll()
     {
         var moved = _nudged;
         _nudged = default;
-        if (moved == default || SelectedField is not { } f) return null;
-        var start = _pending.TryGetValue(f.Id, out var p) ? p : f.Rect;
-        var r = start with { X = start.X + moved.X, Y = start.Y + moved.Y };
-        _pending[f.Id] = r;
-        return f with { Rect = r };
+        if (moved == default || SelectedField is null) return [];
+        var all = new List<DesignField>();
+        foreach (var f in MovableSelection())
+        {
+            var start = StartRect(f);
+            var r = start with { X = start.X + moved.X, Y = start.Y + moved.Y };
+            _pending[f.Id] = r;
+            all.Add(f with { Rect = r });
+        }
+        return all;
     }
 
     /// <summary>Esc lets go step by step: the field tool, then the selection, then Prepare Form. The caller flushes any nudge first.</summary>

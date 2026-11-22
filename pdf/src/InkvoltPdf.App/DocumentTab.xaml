@@ -918,6 +918,16 @@
                                     <TextBox x:Name="FieldMaxLenBox" AutomationProperties.Name="{x:Static loc:Strings.Tab_FieldMaxLength}" />
                                     <TextBlock Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_FieldFormat}" />
                                     <ComboBox x:Name="FieldFormatBox" AutomationProperties.Name="{x:Static loc:Strings.Tab_FieldFormat}" />
+                                    <!-- Calculate (roadmap 4.12): what the value is worked out from -->
+                                    <TextBlock Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_FieldCalculate}" />
+                                    <ComboBox x:Name="FieldCalcBox" AutomationProperties.Name="{x:Static loc:Strings.Tab_FieldCalculate}" />
+                                    <TextBlock x:Name="FieldCalcFieldsCaption" Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_FieldCalcOf}" />
+                                    <ListBox x:Name="FieldCalcFields" SelectionMode="Multiple" MaxHeight="132" BorderThickness="1"
+                                             BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                             AutomationProperties.Name="{x:Static loc:Strings.Tab_FieldCalcOf}" />
+                                    <TextBlock x:Name="FieldCalcNotationCaption" Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_FieldCalcNotation}" />
+                                    <TextBox x:Name="FieldCalcNotation" AutomationProperties.Name="{x:Static loc:Strings.Tab_FieldCalcNotationName}" />
+                                    <Button x:Name="FieldCalcOrder" Content="{x:Static loc:Strings.Tab_FieldCalcOrder}" Margin="0,8,0,0" ToolTip="{x:Static loc:Strings.Tab_FieldCalcOrderTip}" />
                                 </StackPanel>
 
                                 <StackPanel x:Name="FieldOptionsGroup">
@@ -974,6 +984,34 @@
                                     <Button x:Name="FieldDelete" Content="{x:Static loc:Strings.Common_Delete}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Tab_FieldDeleteTip}" />
                                     <Button x:Name="FieldEarlier" Content="{x:Static loc:Strings.Tab_FieldTabEarlier}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Tab_FieldTabEarlierTip}" />
                                     <Button x:Name="FieldLater" Content="{x:Static loc:Strings.Tab_FieldTabLater}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Tab_FieldTabLaterTip}" />
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <!-- Several fields selected (Ctrl+click): line them up with the first one picked -->
+                            <StackPanel x:Name="FieldSeveral">
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_SeveralHint}" />
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_SeveralAlign}" />
+                                <WrapPanel>
+                                    <Button x:Name="ArrangeLeft" Content="{x:Static loc:Strings.Tab_ArrangeLeft}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_AlignLeft}" />
+                                    <Button x:Name="ArrangeCenter" Content="{x:Static loc:Strings.Tab_ArrangeCenter}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_AlignCenter}" />
+                                    <Button x:Name="ArrangeRight" Content="{x:Static loc:Strings.Tab_ArrangeRight}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_AlignRight}" />
+                                    <Button x:Name="ArrangeTop" Content="{x:Static loc:Strings.Tab_ArrangeTop}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_AlignTop}" />
+                                    <Button x:Name="ArrangeMiddle" Content="{x:Static loc:Strings.Tab_ArrangeMiddle}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_AlignMiddle}" />
+                                    <Button x:Name="ArrangeBottom" Content="{x:Static loc:Strings.Tab_ArrangeBottom}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_AlignBottom}" />
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_SeveralSize}" />
+                                <WrapPanel>
+                                    <Button x:Name="ArrangeWidth" Content="{x:Static loc:Strings.Tab_ArrangeWidth}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_SameWidth}" />
+                                    <Button x:Name="ArrangeHeight" Content="{x:Static loc:Strings.Tab_ArrangeHeight}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_SameHeight}" />
+                                    <Button x:Name="ArrangeBoth" Content="{x:Static loc:Strings.Tab_ArrangeBoth}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_SameSize}" />
+                                </WrapPanel>
+                                <TextBlock Style="{StaticResource PanelCaption}" Text="{x:Static loc:Strings.Tab_SeveralSpace}" />
+                                <WrapPanel>
+                                    <Button x:Name="ArrangeAcross" Content="{x:Static loc:Strings.Tab_ArrangeAcross}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_SpaceAcross}" />
+                                    <Button x:Name="ArrangeDown" Content="{x:Static loc:Strings.Tab_ArrangeDown}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Cmd_SpaceDown}" />
+                                </WrapPanel>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button x:Name="SeveralDelete" Content="{x:Static loc:Strings.Common_Delete}" Margin="0,0,6,6" ToolTip="{x:Static loc:Strings.Tab_SeveralDeleteTip}" />
                                 </WrapPanel>
                             </StackPanel>
 

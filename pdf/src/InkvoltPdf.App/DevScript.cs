@@ -42,7 +42,8 @@ namespace InkvoltPdf.App;
 /// Prepare Form: <c>prepareform on|off · designkind text|check|radio|combo|list|signature|button|select · addfield kind p x y w h ·
 /// fieldsel i|none · fieldprop name|tooltip|default|options|format|required|size|fill value · movefield i x y w h ·
 /// fieldaction delete|duplicate|properties|accept|reject · detect · suggestion i · acceptall · designfields · designstate ·
-/// suggestions · taborder on|off</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
+/// suggestions · taborder on|off · fieldsadd i,j,… · arrange AlignLeft|AlignCenter|…|SpaceDown · calc kind fields|notation ·
+/// calcorder a,b,… · calcstate</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
 /// the editor on text run i, then <c>key Enter</c> commits) <c>· editpara p i [text]</c> (the editor on paragraph i, a
 /// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · cropimage p i x y w h · imageaction delete|replace file · parapicture file</c> (Insert Picture in the open paragraph editor, at its caret).
 /// Spell check: <c>spellstate · spellmenu offset · spellchoose Header · spelling on|off</c>. Find &amp; Replace: <c>replacedialog ·
@@ -706,6 +707,34 @@ internal static class DevScript
             case "designstate": log.Add($"design: {tab!.DevDesignState()}"); break;
             case "suggestions": log.Add($"suggestions: {tab!.DevSuggestions()}"); break;
             case "taborder": v!.ShowTabOrder = arg != "off"; break;
+            // Calculated fields and several fields (roadmap 4.12): fieldsadd i,j,… (select several, the first the anchor) ·
+            // arrange AlignLeft|…|SpaceDown · calc none|sum|product|average|minimum|maximum|notation fields-or-notation ·
+            // calcorder a,b,… (Calculation Order's dialog returns that order) · calcstate
+            case "fieldsadd":
+                v!.SelectDesignFields([.. arg.Split(',').Select(i => v.DesignFields[int.Parse(i)].Id)]);
+                log.Add($"design: {tab!.DevDesignState()}");
+                break;
+            case "arrange":
+                await tab!.ArrangeFields(Enum.Parse<FieldArrange>(arg, true));
+                await DesignSettle(tab);
+                log.Add($"fields: {tab.DevDesignFields()}");
+                log.Add($"design: {tab.DevDesignState()}");
+                break;
+            case "calc":
+            {
+                var a = arg.Split(' ', 2);
+                tab!.DevSetCalculation(a[0], a.Length > 1 ? a[1] : "");
+                await DesignSettle(tab);
+                log.Add($"design: {tab.DevDesignState()} {tab.DevCalcState()}");
+                break;
+            }
+            case "calcorder":
+                tab!.DevCalcOrder = arg.Split(',');
+                await tab.EditCalculationOrder();
+                await DesignSettle(tab);
+                log.Add($"calcorder: {string.Join(",", Core.FormDesign.CalculationOrder(tab.Session.Data, tab.Session.Password))}");
+                break;
+            case "calcstate": log.Add($"design: {tab!.DevDesignState()} {tab.DevCalcState()}"); break;
             case "editcontent": tab!.SetEditContent(arg != "off"); await Task.Delay(800); log.Add($"content: {tab.DevContentState()}"); break;
             case "contentstate": log.Add($"content: {tab!.DevContentState()}"); break;
             case "edittext":

@@ -7307,4 +7307,44 @@
   <data name="Redact_TermsTooMany" xml:space="preserve">
     <value>La lista tiene {0:N0} nombres y términos; caben {1:N0}. Quita algunos y vuelve a guardar.</value>
   </data>
+  <data name="Form_CalcEmpty" xml:space="preserve">
+    <value>Escribe el cálculo, como Precio * Cantidad.</value>
+    <comment>Prepare Form, Calculate: simplified field notation left empty</comment>
+  </data>
+  <data name="Form_CalcSyntax" xml:space="preserve">
+    <value>No se puede leer el cálculo: usa nombres de campos, números, + - * / y paréntesis, como Precio * Cantidad.</value>
+    <comment>Prepare Form, Calculate: simplified field notation that isn't an expression</comment>
+  </data>
+  <data name="Form_CalcBrackets" xml:space="preserve">
+    <value>Los paréntesis no coinciden: cada ( necesita un ).</value>
+    <comment>Prepare Form, Calculate: simplified field notation</comment>
+  </data>
+  <data name="Form_CalcTooLong" xml:space="preserve">
+    <value>El cálculo es demasiado largo.</value>
+    <comment>Prepare Form, Calculate: simplified field notation over the limit</comment>
+  </data>
+  <data name="Form_CalcCharacter" xml:space="preserve">
+    <value>El cálculo no puede usar «{0}». Pon una barra invertida delante en el nombre de un campo (Precio\ unitario).</value>
+    <comment>Prepare Form, Calculate: {0} is the character</comment>
+  </data>
+  <data name="Form_CalcCustomKept" xml:space="preserve">
+    <value>El cálculo de este campo es un script propio del formulario: se queda como está.</value>
+    <comment>Prepare Form, Calculate: a custom calculate script</comment>
+  </data>
+  <data name="Form_CalcItself" xml:space="preserve">
+    <value>Un campo no puede usar su propio valor en su cálculo.</value>
+    <comment>Prepare Form, Calculate</comment>
+  </data>
+  <data name="Form_CalcNoField" xml:space="preserve">
+    <value>El formulario no tiene ningún campo llamado «{0}».</value>
+    <comment>Prepare Form, Calculate: {0} is a name typed in the notation</comment>
+  </data>
+  <data name="Form_SpreadNeedsThree" xml:space="preserve">
+    <value>Selecciona tres campos o más para distribuirlos (Ctrl+clic agrega uno).</value>
+    <comment>Prepare Form: Space Evenly with fewer than three selected</comment>
+  </data>
+  <data name="Form_ArrangeNeedsTwo" xml:space="preserve">
+    <value>Selecciona dos campos o más (Ctrl+clic agrega uno); el primero que elijas no se mueve.</value>
+    <comment>Prepare Form: Align or Same Size with one selected</comment>
+  </data>
 </root>

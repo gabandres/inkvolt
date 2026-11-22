@@ -26,6 +26,7 @@ public partial class DocumentTab
     private static string[] FormatLabels =>
     [
         Strings.Common_None, Strings.FormDesign_FormatNumber, Strings.FormDesign_FormatWholeNumber, Strings.FormDesign_FormatCurrency,
+        Strings.FormDesign_FormatNegativeBrackets, Strings.FormDesign_FormatNumberComma, Strings.FormDesign_FormatEuro,
         Strings.FormDesign_FormatPercent, Strings.FormDesign_FormatDateMdy, Strings.FormDesign_FormatDateDmy, Strings.FormDesign_FormatDateIso,
         Strings.FormDesign_FormatZip, Strings.FormDesign_FormatZip4, Strings.FormDesign_FormatPhone, Strings.FormDesign_FormatSsn,
     ];
@@ -70,7 +71,7 @@ public partial class DocumentTab
         Viewer.ToolChanged += (_, _) => UpdateFormDesignUi();
         Viewer.DesignSelectionChanged += (_, _) => ShowDesignSelection();
         Viewer.DesignFieldDrawn += (_, p) => _ = AddDrawnField(p);
-        Viewer.DesignFieldMoved += (_, f) => _ = MoveDesignField(f);
+        Viewer.DesignFieldMoved += (_, moved) => _ = UpdateDesignFields(Strings.FormDesign_UndoMove, moved);
         Viewer.DesignActionRequested += (_, a) => _ = OnDesignAction(a);
 
         FieldFormatBox.ItemsSource = FormatLabels;
@@ -168,6 +169,7 @@ public partial class DocumentTab
             Viewer.Focus();
             e.Handled = true;
         };
+        InitFormArrange();
     }
 
     public bool IsDesigningForm => Viewer.IsDesigningForm;
@@ -270,7 +272,13 @@ public partial class DocumentTab
         else if (Viewer.Suggestions.Count > 0)
             Viewer.SetSuggestions(FormDesignRules.StillSuggested(Viewer.Suggestions, fields));
         Viewer.SetDesignFields(fields);
-        if (_designSelectAfter is { } id)
+        if (_designSelectAfterMany is { Count: > 1 } many)
+        {
+            _designSelectAfterMany = null;
+            _designSelectAfter = null;
+            Viewer.SelectDesignFields(many);
+        }
+        else if (_designSelectAfter is { } id)
         {
             _designSelectAfter = null;
             if (fields.Any(f => f.Id == id)) Viewer.SelectDesignField(id);
@@ -312,17 +320,21 @@ public partial class DocumentTab
     {
         if (!DesignIsCurrent()) return false;
         var selected = Viewer.SelectedDesignField?.Id;
+        var several = Viewer.SelectedDesignFields.Select(f => f.Id).ToList();
         var newIds = new Dictionary<string, string>();
         _designSelectAfter = selected;
+        _designSelectAfterMany = several.Count > 1 ? several : null;
         var outcome = await TryEdit(label, (d, pw) =>
         {
             newIds.Clear();
             return FormDesign.Update(d, pw, changes, newIds);
         }, contentOnly: true, quiet: true);
         _designSelectAfter = FormDesignRules.FollowedId(selected, newIds);
+        if (several.Count > 1) _designSelectAfterMany = [.. several.Select(id => FormDesignRules.FollowedId(id, newIds)!)];
         if (outcome is EditOutcome.Done or EditOutcome.NoChange) return true;
         // Not made: show the fields as the document has them (a dragged field goes back).
         _designSelectAfter = null;
+        _designSelectAfterMany = null;
         Viewer.SetDesignFields([.. Viewer.DesignFields]);
         ShowDesignSelection();
         return false;
@@ -340,6 +352,12 @@ public partial class DocumentTab
                 FieldNameBox.Focus();
                 FieldNameBox.SelectAll();
                 break;
+            case DesignAction.Delete when Viewer.SelectedDesignFields.Count(x => !x.Signed) > 1 && DesignIsCurrent():
+            {
+                var gone = Viewer.SelectedDesignFields.Where(x => !x.Signed).Select(x => x.Id).ToList();
+                await RunEdit(Loc.Format(Strings.FormDesign_UndoDeleteMany, gone.Count), (d, pw) => FormDesign.Delete(d, pw, gone), contentOnly: true);
+                break;
+            }
             case DesignAction.Delete when f is { Signed: false } && DesignIsCurrent():
             {
                 _designSelectAfter = FormDesignRules.NextField(f, Viewer.DesignFields);
@@ -511,16 +529,20 @@ public partial class DocumentTab
         _populatingDesign = true;
         try
         {
-            var f = Viewer.SelectedDesignField;
-            var s = f is null ? Viewer.SelectedSuggestion : null;
+            var several = Viewer.SelectedDesignFields;
+            var f = several.Count > 1 ? null : Viewer.SelectedDesignField;
+            var s = f is null && several.Count <= 1 ? Viewer.SelectedSuggestion : null;
             var count = Viewer.Suggestions.Count;
             FieldProps.Visibility = f is not null ? Visibility.Visible : Visibility.Collapsed;
+            FieldSeveral.Visibility = several.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+            if (several.Count > 1) ShowSeveral(several);
             SuggestionProps.Visibility = s is not null ? Visibility.Visible : Visibility.Collapsed;
             SuggestionAll.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
-            FieldPanelHint.Visibility = f is null && s is null ? Visibility.Visible : Visibility.Collapsed;
+            FieldPanelHint.Visibility = f is null && s is null && several.Count <= 1 ? Visibility.Visible : Visibility.Collapsed;
             FieldPanelError.Visibility = Visibility.Collapsed;
             SuggestionCount.Text = Loc.Plural(count, Strings.FormDesign_SuggestedCount_One, Strings.FormDesign_SuggestedCount_Many);
-            var title = f is not null ? Loc.Format(f.Signed ? Strings.FormDesign_TitleFieldSigned : Strings.FormDesign_TitleField, DesignField.KindName(f.Kind), f.PageIndex + 1)
+            var title = several.Count > 1 ? Loc.Format(Strings.FormDesign_TitleSeveral, several.Count, DesignField.KindName(several[0].Kind).ToLowerInvariant(), several[0].Name)
+                : f is not null ? Loc.Format(f.Signed ? Strings.FormDesign_TitleFieldSigned : Strings.FormDesign_TitleField, DesignField.KindName(f.Kind), f.PageIndex + 1)
                 : s is not null ? Loc.Format(Strings.FormDesign_TitleSuggested, DesignField.KindName(s.Kind).ToLowerInvariant(), s.PageIndex + 1)
                 : Strings.FormDesign_TitlePrepare;
             var changed = FieldPanelTitle.Text != title;
@@ -539,7 +561,7 @@ public partial class DocumentTab
                     _ => Strings.FormDesign_FoundBoxCharacter,
                 };
             }
-            if (changed || f is not null || s is not null)
+            if (changed || f is not null || s is not null || several.Count > 1)
                 Announce(f is not null ? Loc.Format(Strings.FormDesign_AnnounceField, f.Describe(), f.PageIndex + 1)
                     : s is not null ? Loc.Format(Strings.FormDesign_AnnounceSuggested, DesignField.KindName(s.Kind).ToLowerInvariant(), s.Name, s.PageIndex + 1) : title);
         }
@@ -574,6 +596,7 @@ public partial class DocumentTab
             FieldFormatBox.ItemsSource = formats;
             FieldFormatBox.SelectedIndex = at >= 0 ? at : formats.Count - 1;
             FieldFormatBox.IsEnabled = !f.CustomFormat;
+            ShowCalculation(f);
         }
         FieldOptionsGroup.Visibility = choice ? Visibility.Visible : Visibility.Collapsed;
         if (choice)

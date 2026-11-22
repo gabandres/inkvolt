@@ -92,6 +92,28 @@ public static class Cmd
     // Forms: authoring (see DocumentTab.FormDesign)
     public static readonly RoutedUICommand PrepareForm = Make(Strings.Cmd_PrepareForm, nameof(PrepareForm), K(Key.F, ModifierKeys.Control | ModifierKeys.Alt));
     public static readonly RoutedUICommand DetectFields = Make(Strings.Cmd_DetectFields, nameof(DetectFields));
+    // Prepare Form: several fields lined up with the first one picked, and the calculation order (roadmap 4.12)
+    public static readonly RoutedUICommand AlignLeft = Make(Strings.Cmd_AlignLeft, nameof(AlignLeft));
+    public static readonly RoutedUICommand AlignCenter = Make(Strings.Cmd_AlignCenter, nameof(AlignCenter));
+    public static readonly RoutedUICommand AlignRight = Make(Strings.Cmd_AlignRight, nameof(AlignRight));
+    public static readonly RoutedUICommand AlignTop = Make(Strings.Cmd_AlignTop, nameof(AlignTop));
+    public static readonly RoutedUICommand AlignMiddle = Make(Strings.Cmd_AlignMiddle, nameof(AlignMiddle));
+    public static readonly RoutedUICommand AlignBottom = Make(Strings.Cmd_AlignBottom, nameof(AlignBottom));
+    public static readonly RoutedUICommand SameWidth = Make(Strings.Cmd_SameWidth, nameof(SameWidth));
+    public static readonly RoutedUICommand SameHeight = Make(Strings.Cmd_SameHeight, nameof(SameHeight));
+    public static readonly RoutedUICommand SameSize = Make(Strings.Cmd_SameSize, nameof(SameSize));
+    public static readonly RoutedUICommand SpaceAcross = Make(Strings.Cmd_SpaceAcross, nameof(SpaceAcross));
+    public static readonly RoutedUICommand SpaceDown = Make(Strings.Cmd_SpaceDown, nameof(SpaceDown));
+    public static readonly RoutedUICommand CalculationOrder = Make(Strings.Cmd_CalculationOrder, nameof(CalculationOrder));
+
+    /// <summary>Arrange Fields' commands and what each does.</summary>
+    public static IReadOnlyList<(RoutedUICommand Command, FieldArrange How)> ArrangeCommands =>
+    [
+        (AlignLeft, FieldArrange.AlignLeft), (AlignCenter, FieldArrange.AlignCenter), (AlignRight, FieldArrange.AlignRight),
+        (AlignTop, FieldArrange.AlignTop), (AlignMiddle, FieldArrange.AlignMiddle), (AlignBottom, FieldArrange.AlignBottom),
+        (SameWidth, FieldArrange.SameWidth), (SameHeight, FieldArrange.SameHeight), (SameSize, FieldArrange.SameSize),
+        (SpaceAcross, FieldArrange.SpaceAcross), (SpaceDown, FieldArrange.SpaceDown),
+    ];
 
     // Edit Text & Images (see DocumentTab.EditContent)
     public static readonly RoutedUICommand EditContent = Make(Strings.Cmd_EditContent, nameof(EditContent));

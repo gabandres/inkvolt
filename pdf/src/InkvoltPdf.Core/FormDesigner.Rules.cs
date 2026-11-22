@@ -11,7 +11,7 @@ public sealed class DesignRefusal(string message) : Exception(message);
 /// entry a field's value is, what a typed value does to a field, and which fields an action makes. The lists' labels stay
 /// with the app (its <c>Strings</c>), parallel to the lists here.
 /// </summary>
-public static class FormDesignRules
+public static partial class FormDesignRules
 {
     /// <summary>The format list (the first: none), parallel to the panel's labels.</summary>
     public static IReadOnlyList<FieldFormat?> Formats { get; } =
@@ -20,6 +20,9 @@ public static class FormDesignRules
         new FieldFormat(FieldFormatKind.Number, 2),
         new FieldFormat(FieldFormatKind.Number, 0),
         new FieldFormat(FieldFormatKind.Number, 2, Currency: "$", CurrencyPrepend: true),
+        new FieldFormat(FieldFormatKind.Number, 2, NegativeStyle: 2),
+        new FieldFormat(FieldFormatKind.Number, 2, SeparatorStyle: 2),
+        new FieldFormat(FieldFormatKind.Number, 2, SeparatorStyle: 2, Currency: " €", CurrencyPrepend: false),
         new FieldFormat(FieldFormatKind.Percent, 2),
         new FieldFormat(FieldFormatKind.Date, DatePattern: "mm/dd/yyyy"),
         new FieldFormat(FieldFormatKind.Date, DatePattern: "dd/mm/yyyy"),
@@ -274,6 +277,65 @@ public static class FormDesignRules
         var text = typed.Trim();
         if (text.Length == 0 || text.Equals(autoLabel, StringComparison.OrdinalIgnoreCase) || text.Equals("Auto", StringComparison.OrdinalIgnoreCase)) return 0;
         return double.TryParse(text.TrimEnd('p', 't', ' '), NumberStyles.Float, CultureInfo.CurrentCulture, out var size) && size is >= 0 and <= 200 ? size : null;
+    }
+
+    // ───────────────────────────── Calculations ─────────────────────────────
+
+    /// <summary>The Calculate list (parallel to the panel's labels): not calculated, sum, product, average, minimum,
+    /// maximum, simplified field notation.</summary>
+    public static IReadOnlyList<CalcKind> CalcKinds { get; } =
+        [CalcKind.None, CalcKind.Sum, CalcKind.Product, CalcKind.Average, CalcKind.Minimum, CalcKind.Maximum, CalcKind.Notation];
+
+    /// <summary>The entry of <see cref="CalcKinds"/> a field's calculation is, or -1 for a custom script (the list then
+    /// shows one more entry, "kept").</summary>
+    public static int CalcIndex(DesignField f) => f.Calculation switch
+    {
+        null => 0,
+        { Kind: CalcKind.Custom } => -1,
+        var c => CalcKinds.ToList().IndexOf(c.Kind),
+    };
+
+    /// <summary>The fields a calculation of <paramref name="f"/> can read: every other text field and combo box (a
+    /// name once, radio buttons' and check boxes' values aren't numbers), by name.</summary>
+    public static IReadOnlyList<string> CalcSources(DesignField f, IReadOnlyList<DesignField> fields) =>
+        [.. fields.Where(o => o.Name != f.Name && o.Kind is DesignFieldKind.Text or DesignFieldKind.ComboBox or DesignFieldKind.ListBox).Select(o => o.Name).Distinct().Order(StringComparer.CurrentCultureIgnoreCase)];
+
+    /// <summary>
+    /// The calculation picked in the panel: <paramref name="kind"/> of the fields <paramref name="picked"/> (in the
+    /// form's order), or the notation typed. A field can't use its own value; a notation can only name the form's fields.
+    /// Switching from a list of fields to the notation starts the notation with them (added, "a + b"), and back.
+    /// </summary>
+    public static DesignField WithCalculation(DesignField f, CalcKind kind, IReadOnlyList<string> picked, string notation, IReadOnlyList<DesignField> fields)
+    {
+        if (f.Calculation is { Kind: CalcKind.Custom }) throw new DesignRefusal(PdfStrings.Form_CalcCustomKept);
+        if (kind == CalcKind.None) return f with { Calculation = null };
+        var names = fields.Select(o => o.Name).ToHashSet(StringComparer.Ordinal);
+        if (kind == CalcKind.Notation)
+        {
+            var text = notation.Trim();
+            if (text.Length == 0 && picked.Count > 0) text = string.Join(" + ", picked.Select(FormCalculations.NameInNotation));
+            FormCalculations.Compile(text); // nothing typed is refused too
+            var used = FormCalculations.NotationFields(text);
+            if (used.FirstOrDefault(n => n == f.Name) is not null) throw new DesignRefusal(PdfStrings.Form_CalcItself);
+            if (used.FirstOrDefault(n => !names.Contains(n) && !names.Any(x => x.StartsWith(n + ".", StringComparison.Ordinal))) is { } unknown)
+                throw new DesignRefusal(Loc.Format(PdfStrings.Form_CalcNoField, unknown));
+            return f with { Calculation = new FieldCalc(CalcKind.Notation, used, text) };
+        }
+        var list = picked.Count == 0 && f.Calculation is { Kind: CalcKind.Notation } n0 ? n0.Fields : picked;
+        if (list.Contains(f.Name)) throw new DesignRefusal(PdfStrings.Form_CalcItself);
+        var order = fields.Select(o => o.Name).Distinct().ToList();
+        return f with { Calculation = new FieldCalc(kind, [.. list.Distinct().OrderBy(n => order.IndexOf(n) is var i and >= 0 ? i : int.MaxValue)]) };
+    }
+
+    /// <summary>The calculation order with the field at <paramref name="index"/> moved by <paramref name="step"/>;
+    /// refused when it is already at that end.</summary>
+    public static IReadOnlyList<string> MovedInOrder(IReadOnlyList<string> order, int index, int step)
+    {
+        var j = index + step;
+        if (index < 0 || index >= order.Count || j < 0 || j >= order.Count) throw new DesignRefusal(step < 0 ? PdfStrings.Form_AlreadyFirst : PdfStrings.Form_AlreadyLast);
+        var list = order.ToList();
+        (list[index], list[j]) = (list[j], list[index]);
+        return list;
     }
 
     /// <summary>The change is one worth writing: the fields differ, comparing the choices as they show.</summary>

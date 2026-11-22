@@ -172,7 +172,14 @@ locality) are used in their usual sense: the interface is everything a caller mu
   PdfCore): what Prepare Form has selected and under way on the page, and what a click, drag, key or typed value does.
   `PageViewer.FormDesign` and `DocumentTab.FormDesign` (the Mac's view and window) are adapters: they pass on the mouse,
   keys and typed values and draw what it says (ADR 1). On Windows its handles, resizes and arrow keys follow the view's
-  turn. It hands over the edits; `FormDesign` makes them.
+  turn. It hands over the edits; `FormDesign` makes them. Several fields can be selected (Ctrl+click): the first one
+  picked is the **anchor**, which Arrange Fields (align, same size, space evenly: `FormDesignRules.Aligned`,
+  `SizedAlike`, `Spread`) leaves where it is and lines the others up with.
+- **Calculated field** (`FormCalculations`, `FieldCalc`, `CalcKind`): a field whose value is worked out from others
+  when the form is filled (its /AA /C script, run by `FormEditor` in the **calculation order**, the form's /CO). Prepare
+  Form writes a **simple calculation** (sum, product, average, minimum, maximum of named fields:
+  `AFSimple_Calculate`) or **simplified field notation** (Acrobat's "Price * Qty", kept in a `BVCALC … EVCALC` comment
+  before the JavaScript it stands for); any other calculate script is **custom** and kept as it is.
 - **Document command table** (`DocumentCommands`; Mac, in PdfCore `Ux/DocumentCommands.swift`): every menu bar command
   once, each a **document command** (title, key, the action it sends, its place in the menus, its plain-words note and
   what it **needs**, a `Requirement`), from which the app builds the menu bar (`MainMenu`) and decides what can run over a

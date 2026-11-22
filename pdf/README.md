@@ -153,7 +153,16 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   choices (one per line, "Shown text = value" when they differ), the value a check box or radio button stands for (each
   radio button of a group its own), a push button's label and action (reset the form or
   print), text size (or auto), alignment, border and fill; plus Tab earlier / later (the order Tab fills them, shown as
-  numbers with "Tab order"). **Detect Fields** looks at every page (in the background, with Cancel) for lines to write
+  numbers with "Tab order"). **Calculate** (text fields): the sum, product, average, minimum or maximum of fields you
+  tick, or simplified field notation as Acrobat's ("Price * Qty + Shipping", a backslash before a space in a name),
+  written as Acrobat writes them (`AFSimple_Calculate`, `/** BVCALC … EVCALC **/`) so Acrobat's Calculate tab reads them
+  back; a form's own calculate script is kept as it is. **Calculation Order…** (the panel, or Edit › Forms) sets the
+  order calculated fields work out in (/CO). More number formats: negatives in brackets, 1.234,56 and euros. **Several
+  fields**: Ctrl+click adds a field to the selection (the first one picked, with a solid corner, is the anchor); drag or
+  arrow keys move them together, Del deletes them, and the panel or Edit › Forms › Arrange Fields lines them up with the
+  anchor (left, centers, right, top, middles, bottom), gives them its width, height or both, or spaces three or more
+  evenly across or down, each one undo step (Core: `FormCalculations`, `FormDesignRules` in `FormDesigner.Layout.cs`).
+  **Detect Fields** looks at every page (in the background, with Cancel) for lines to write
   on, empty boxes, small squares, ☐ characters and runs of underscores ("Name: ______"), names each suggestion after
   the text beside it, and shows it dashed: Enter or Add field takes one, Del or Skip leaves it out, or Add all. Fields
   are real AcroForm fields with their own appearances (/DA, /DR fonts), so they show and fill in Acrobat, browsers and
@@ -859,7 +868,8 @@ scanners and choices, with `later`), `scanselect text` and `scanchoose glass|fee
 (choose its scanner and settings; `-` keeps one), `scanpage file.jpg [dpi]` (hand it a page without a scanner), `printercheck queue`. Compare steps: `compare old.pdf new.pdf`,
 `compareshot out.png`, `comparemode text|visual`, `comparenext [n]`, `compareselect i`, `comparezoom percent|fit`,
 `comparegroup wording|moved|formatting|visual on|off`, `comparelist n`, `comparetext old|new page`, `comparestate`, `comparereport` (samples: `compare-old.pdf` / `compare-new.pdf` from `CompareTests` with `INKVOLTPDF_SAMPLES`).
-Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
+Prepare Form steps: `prepareform on|off`, `addfield kind p x y w h`, `fieldsel i`, `fieldsadd i,j,…`, `arrange AlignLeft|…|SpaceDown`,
+`calc sum|product|average|minimum|maximum|notation|none fields-or-notation`, `calcorder a,b,…`, `calcstate`, `fieldprop name|tooltip|default|options|format|required|size|fill value`,
 `movefield i x y w h`, `fieldaction delete|duplicate|properties|accept|reject`, `detect`, `acceptall`, `designfields`, `designstate`, `taborder on|off`.
 Recognize Text: `dialogok RecognizeText combo1=N check4=on` (combo0 the pages, combo1 the language in Windows' order,
 check0 clean first, check1 a photographed page straightened, check2 bent lines flattened, check3 suspect words, check4 replace the scans), then `suspects` (the Suspect words pane: opens it,
@@ -1009,8 +1019,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   (Type 1C) fonts without a readable glyph list are checked against the PDF's widths and ToUnicode table only. A
   replaced or deleted picture stays recoverable from a signed file's earlier revision, as other removals do. Drawing:
   each pen stroke is its own annotation, and pen pressure is ignored.
-- Prepare Form: one field selected at a time (no multi-select, align or distribute); no calculated fields, submit
-  buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
+- Prepare Form: several fields are selected on one page only, and resized one at a time; a calculation's custom
+  script can be kept but not written here (Acrobat's JavaScript editor); no submit buttons, image buttons, comb or password fields to set up (fields that have them keep them, as do their own scripts
   and actions). New fields use Helvetica (other scripts get an embedded font when filled). A field shown in several
   places (same name) can't be made here, except radio buttons. Tab order follows the page's annotation order once
   changed; a page ordered by its structure tree is shown in annotation order. Detect Fields reads drawn lines, boxes and
@@ -1167,8 +1177,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - Split view: edit in either pane; more than two panes; two open tabs side by side; remember the split per file.
 - Sanitize: find text hidden in white, under images or outside the page; remove alternate text and a structure
   tree's hidden content; save a report of what was removed.
-- Prepare Form: select several fields to move, align, size or delete together; calculated fields (sum, product,
-  custom script) and submit buttons; detect comb boxes and table rows as one field each.
+- Prepare Form: write a custom calculate script; submit buttons; detect comb boxes and table rows as one field each.
 - Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
   over pictures, charts and shapes as drawings, pictures cut out of scanned pages, numbered lists as Word numbering;
   links in Word (PowerPoint and HTML carry them).

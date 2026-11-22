@@ -371,6 +371,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   the pages, the user's endpoint answers; Pro). 4.21 Search by meaning (embeddings from the user's endpoint beside the
   folder index; Pro). 4.24 A summary read aloud to a file. 4.23 Edit by asking (the user's endpoint with the command
   palette's commands as tools, each step shown and undoable; last, a weak fit for small local models).
+  - 4.12 Calculated form fields, and several fields aligned and sized together. Done on Windows (`FormCalculations`: sum, product, average, minimum, maximum and simplified field notation written as Acrobat writes them, a custom script kept, the /CO order editable; more AFNumber_Format choices; `FormDesigner`'s several-field selection and `FormDesignRules.Aligned`, `SizedAlike`, `Spread`); the Mac's waits.
 - **Watch, not built:** filling XFA-only forms (Nitro and PDFelement do; an XFA layout engine, L, likely a package);
   ZUGFeRD/Factur-X e-invoices (no desktop editor has them; PDF/A-3b first).
 
