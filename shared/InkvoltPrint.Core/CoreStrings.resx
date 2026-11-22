@@ -2736,10 +2736,6 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>Fleet export and command line</value>
     <comment>Inkvolt Pro feature name</comment>
   </data>
-  <data name="Pro_ScannerSharing" xml:space="preserve">
-    <value>Scanner sharing</value>
-    <comment>Inkvolt Pro feature name</comment>
-  </data>
   <data name="Pro_SupplyHistoryExport_Describe" xml:space="preserve">
     <value>Export one CSV of every printer's ink and toner levels over time, with the pages each cartridge printed.</value>
   </data>
@@ -2749,9 +2745,6 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Pro_FleetExport_Describe" xml:space="preserve">
     <value>Export the fleet page as CSV or JSON, read every printer from a script with inkvoltprint status --all, and fix every queue at once.</value>
     <comment>'inkvoltprint status --all' is a command: keep as is</comment>
-  </data>
-  <data name="Pro_ScannerSharing_Describe" xml:space="preserve">
-    <value>Share a USB or driver-only scanner on the network, so phones, Macs and other PCs scan from it.</value>
   </data>
   <data name="Pro_Snmpv3_Describe" xml:space="preserve">
     <value>Read printers whose SNMP needs a user name and keys (SNMPv3) instead of a community.</value>
@@ -2764,9 +2757,6 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Pro_FleetExport_Locked" xml:space="preserve">
     <value>Fleet export, status --all and Fix all are part of Inkvolt Pro.</value>
-  </data>
-  <data name="Pro_ScannerSharing_Locked" xml:space="preserve">
-    <value>Scanner sharing is part of Inkvolt Pro.</value>
   </data>
   <data name="Pro_Snmpv3_Locked" xml:space="preserve">
     <value>SNMPv3 is part of Inkvolt Pro.</value>
@@ -4310,5 +4300,23 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Preset_TurnStackShort" xml:space="preserve">
     <value>the stack turned over for the backs</value>
     <comment>preset summary part</comment>
+  </data>
+  <data name="Palette_PrintClipboard" xml:space="preserve">
+    <value>Print what's on the clipboard</value>
+  </data>
+  <data name="Palette_RecentScans" xml:space="preserve">
+    <value>Recent scans…</value>
+  </data>
+  <data name="Batch_TurnStack" xml:space="preserve">
+    <value>Fronts sent. Put the stack back as the window says, then print the backs.</value>
+  </data>
+  <data name="Batch_BacksNotPrinted" xml:space="preserve">
+    <value>Fronts printed; the backs weren't, as you stopped.</value>
+  </data>
+  <data name="Batch_SentByHand" xml:space="preserve">
+    <value>Sent on both sides by hand: {0}.</value>
+  </data>
+  <data name="Batch_BacksFailed" xml:space="preserve">
+    <value>Fronts printed; the backs weren't: {0}</value>
   </data>
 </root>

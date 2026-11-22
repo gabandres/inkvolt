@@ -30,6 +30,7 @@ public partial class MainWindow
         BindEdit(Cmd.Sanitize, t => SanitizeActions.Sanitize(this, t));
         BindEdit(Cmd.WhatsInThisPdf, t => InventoryActions.Show(this, t, this));
         BindEdit(Cmd.RedactPatterns, t => RedactPatternActions.Find(this, t), t => !t.IsOrganizing);
+        BindEdit(Cmd.SuggestRedactions, t => RedactSuggestActions.Suggest(this, t), t => !t.IsOrganizing && !t.IsAiBusy);
         BindEdit(Cmd.CheckRedaction, t => RedactionCheckActions.Check(this, t));
         BindEdit(Cmd.CheckAccessibility, t => t.CheckAccessibilityAsync());
         BindEdit(Cmd.MakeAccessible, t => AccessibleActions.MakeAccessible(this, t), t => !t.IsOrganizing);
@@ -58,6 +59,8 @@ public partial class MainWindow
             if (AiReady()) t.ShowAiPane();
         }, t => t.PageView.PageCount > 0);
         Bind(Cmd.AiExplain, t => _ = t.AiExplainSelection(), t => t.PageView.HasSelection && !t.IsAiBusy);
+        Bind(Cmd.AiSaveAnswer, t => { if (t.LastAiAnswer is { } last) _ = t.SaveAiAnswers([last]); }, t => t.HasAiAnswers);
+        Bind(Cmd.AiSaveConversation, t => _ = t.SaveAiAnswers(null), t => t.HasAiAnswers);
         Bind(Cmd.AiTranslate, t =>
         {
             if (!AiReady()) return;

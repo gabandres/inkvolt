@@ -104,6 +104,7 @@ public static class CommandBarLayout
         // then Comment and Fill & Sign, the pages, Protect, and Scan & OCR. Each group's first command is its main job.
         new("Edit", PdfStrings.Bar_Edit, 84,
             [new("EditContent", "\uE70F", Description: PdfStrings.Bar_EditContentDesc),
+             new("Replace", "\uE8AB", Description: PdfStrings.Bar_FindReplaceDesc),
              new("AddImage", "\uE91B", "I", PdfStrings.Bar_ImageDesc),
              new("ToolLink", "\uE71B", "N", PdfStrings.Bar_LinkDesc),
              new("LinkAddresses", "\uE71B", Description: PdfStrings.Bar_LinkAddressesDesc),
@@ -123,6 +124,8 @@ public static class CommandBarLayout
              new("Underline", "\uE8DC", Description: PdfStrings.Bar_UnderlineDesc),
              new("StrikeOut", "\uE738", Description: PdfStrings.Bar_StrikeOutDesc),
              new("HighlightAllMatches", "\uE7E6", Description: PdfStrings.Bar_HighlightAllDesc),
+             new("InsertText", "\uE8D2", Description: PdfStrings.Bar_InsertTextDesc),
+             new("ReplaceText", "\uE8AC", Description: PdfStrings.Bar_ReplaceTextDesc),
              new("AddNote", "\uE90A", Description: PdfStrings.Bar_NoteDesc),
              new("AddStamp", "\uEB95", "S", PdfStrings.Bar_StampDesc)], "\uE7E6"),
         // "Llenar y firmar" is the bar's longest label: in Spanish Fill & Sign goes into "\u2026" before the bar drops its
@@ -149,6 +152,7 @@ public static class CommandBarLayout
              new("Redact", "\uE73B", Description: PdfStrings.Bar_RedactDesc, AtOnce: true, StartsSection: true),
              new("ApplyRedactions", "", Description: PdfStrings.Bar_ApplyRedactionsDesc, IconBrush: "ApplyRedactionsBrush"), // the bar's only red
              new("RedactPatterns", "\uE721", Description: PdfStrings.Bar_RedactPatternsDesc),
+             new("SuggestRedactions", "\uE99A", Description: PdfStrings.Bar_SuggestRedactionsDesc),
              new("CheckRedaction", "\uE9D5", Description: PdfStrings.Bar_CheckRedactionDesc),
              new("Sanitize", "\uE74D", Description: PdfStrings.Bar_SanitizeDesc),
              new("Sign", "\uEB68", Description: PdfStrings.Bar_DigitalSignDesc, StartsSection: true),

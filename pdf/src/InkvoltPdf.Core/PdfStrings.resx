@@ -7077,6 +7077,9 @@
     <value>Change the text and pictures on the page</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_FindReplaceDesc" xml:space="preserve">
+    <value>Change a word or phrase on every page</value>
+  </data>
   <data name="Bar_HeaderFooterDesc" xml:space="preserve">
     <value>Page numbers, dates or text on every page</value>
     <comment>Line under a command in the bar's menu</comment>
@@ -7238,5 +7241,86 @@
   <data name="Bar_HighlightAllDesc" xml:space="preserve">
     <value>Highlight every match of your search</value>
     <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Annot_NoProofText" xml:space="preserve">
+    <value>There's no text to insert.</value>
+  </data>
+  <data name="Annot_ProofTextTooLong" xml:space="preserve">
+    <value>The text is too long (more than {0:N0} characters).</value>
+  </data>
+  <data name="Comment_SummaryInsertText" xml:space="preserve">
+    <value>Insert text</value>
+    <comment>A comment's kind in Summarize Comments: a caret with text to insert</comment>
+  </data>
+  <data name="Comment_SummaryReplaceText" xml:space="preserve">
+    <value>Replace text</value>
+    <comment>A comment's kind in Summarize Comments: struck-out text with its replacement</comment>
+  </data>
+  <data name="Bar_InsertTextDesc" xml:space="preserve">
+    <value>Mark where words go in</value>
+    <comment>The command bar's Comment group</comment>
+  </data>
+  <data name="Bar_ReplaceTextDesc" xml:space="preserve">
+    <value>Cross out the selection and say what replaces it</value>
+    <comment>The command bar's Comment group</comment>
+  </data>
+  <data name="Redact_SuggestAsking" xml:space="preserve">
+    <value>Finding what to redact on {0}</value>
+  </data>
+  <data name="Redact_SuggestedName" xml:space="preserve">
+    <value>Suggested: name</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedOrganization" xml:space="preserve">
+    <value>Suggested: organization</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAddress" xml:space="preserve">
+    <value>Suggested: address</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAccount" xml:space="preserve">
+    <value>Suggested: account or ID number</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_Suggested" xml:space="preserve">
+    <value>Suggested</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_FromYourList" xml:space="preserve">
+    <value>From your list</value>
+    <comment>A redaction hit's kind: from the user's names and terms list</comment>
+  </data>
+  <data name="Pro_TitleRedactionSuggestions" xml:space="preserve">
+    <value>Redaction suggestions</value>
+  </data>
+  <data name="Pro_DescRedactionSuggestions" xml:space="preserve">
+    <value>Your own AI assistant reads the pages and suggests the names, organizations, addresses and account numbers to redact, or what you describe; or keep your own list of names and terms. Every suggestion goes into the review list before anything is removed, and the result is checked as for patterns.</value>
+  </data>
+  <data name="Pro_LockedRedactionSuggestions" xml:space="preserve">
+    <value>Redaction suggestions are part of Inkvolt Pro.</value>
+  </data>
+  <data name="Bar_SuggestRedactionsDesc" xml:space="preserve">
+    <value>Names and more, found by your AI or your list</value>
+    <comment>The command bar's Protect group</comment>
+  </data>
+  <data name="Ai_SavedTitle" xml:space="preserve">
+    <value>AI answers about {0}</value>
+    <comment>The title of a saved AI answer (Word or PDF); {0} is the document's name</comment>
+  </data>
+  <data name="Ai_SavedNote" xml:space="preserve">
+    <value>Written by an AI model ({0}) on {1}; it may be wrong. Check it against the document.</value>
+  </data>
+  <data name="Ai_NothingToSave" xml:space="preserve">
+    <value>There's no AI answer to save.</value>
+  </data>
+  <data name="Redact_SuggestTooMany" xml:space="preserve">
+    <value>There are {0:N0} different names and terms to look for, more than the {1:N0} one search takes, so nothing was searched. Choose fewer pages or shorten your list, then try again.</value>
+  </data>
+  <data name="Redact_TermsLineTooLong" xml:space="preserve">
+    <value>Line {0:N0} is longer than {1:N0} characters, so it couldn't be searched. Shorten it or split it, then save again.</value>
+  </data>
+  <data name="Redact_TermsTooMany" xml:space="preserve">
+    <value>The list has {0:N0} names and terms; it can hold {1:N0}. Remove some, then save again.</value>
   </data>
 </root>

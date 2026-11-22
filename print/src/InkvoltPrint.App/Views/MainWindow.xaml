@@ -571,6 +571,44 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
+                            <!-- Windows' new driver (roadmap 4.5): the queue's driver, what the printer answers, protected print mode -->
+                            <StackPanel Margin="0,10,0,0" Visibility="{Binding DriverRows.Count, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.Ready_Title}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                <ItemsControl ItemsSource="{Binding DriverRows}" Focusable="False">
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="AutomationProperties.Name">
+                                                <Setter.Value>
+                                                    <MultiBinding StringFormat="{}{0}: {1}">
+                                                        <Binding Path="Label" />
+                                                        <Binding Path="Value" />
+                                                    </MultiBinding>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type vm:InfoRow}">
+                                            <Grid Margin="0,0,0,6">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="130" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="{Binding Label}" Style="{StaticResource Caption}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="{Binding ScanDriverWarning}" TextWrapping="Wrap" Margin="0,2,0,0" MaxWidth="520" HorizontalAlignment="Left"
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"
+                                           Visibility="{Binding ScanDriverWarning, Converter={StaticResource VisibleWhen}}" />
+                                <Button Content="{x:Static loc:Strings.Ready_SetUp}" Command="{Binding SetUpWindowsDriverCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"
+                                        ToolTip="{x:Static loc:Strings.Ready_SetUpTip}" AutomationProperties.HelpText="{x:Static loc:Strings.Ready_SetUpTip}"
+                                        Visibility="{Binding OffersWindowsDriver, Converter={StaticResource VisibleWhen}}" />
+                                <TextBlock Text="{Binding WindowsDriverMessage}" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="520" HorizontalAlignment="Left"
+                                           AutomationProperties.LiveSetting="Polite" Visibility="{Binding WindowsDriverMessage, Converter={StaticResource VisibleWhen}}" />
+                            </StackPanel>
                             <!-- Canon, Epson, Brother…: say what's HP only instead of leaving the user to wonder where Printer settings went -->
                             <TextBlock Text="{Binding HpOnlyNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,8,0,0" MaxWidth="420"
                                        HorizontalAlignment="Left" Visibility="{Binding HpOnlyNote, Converter={StaticResource VisibleWhen}}" />
@@ -663,6 +701,8 @@
                 <DockPanel Grid.ColumnSpan="2" Margin="0,0,0,8">
                     <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.Overview_ManagePresets}" Command="{Binding ManagePresetsCommand}" Style="{StaticResource LinkButton}"
                             VerticalAlignment="Top" Margin="12,8,0,0" />
+                    <Button DockPanel.Dock="Right" Content="{x:Static loc:Strings.ScanTab_RecentScans}" Command="{Binding OpenRecentCommand}" Style="{StaticResource LinkButton}"
+                            VerticalAlignment="Top" Margin="12,8,0,0" ToolTip="{x:Static loc:Strings.ScanTab_RecentScansTip}" />
                     <TextBlock DockPanel.Dock="Left" Text="{x:Static loc:Strings.ScanTab_OneClick}" FontWeight="SemiBold" VerticalAlignment="Top" Margin="0,8,16,0" />
                     <ItemsControl ItemsSource="{Binding Presets}" AlternationCount="100" Focusable="False"
                                   AutomationProperties.Name="{x:Static loc:Strings.Overview_ScanPresetsName}"
@@ -919,6 +959,14 @@
                                 <TextBlock Text="{x:Static loc:Strings.PrintTab_ChoosePdf}" />
                             </StackPanel>
                         </Button>
+                        <Button AutomationProperties.Name="{x:Static loc:Strings.PrintTab_Clipboard}" Command="{Binding PrintClipboardCommand}" HorizontalAlignment="Stretch" Padding="0,8" Margin="0,8,0,0"
+                                ToolTip="{x:Static loc:Strings.PrintTab_ClipboardTip}" AutomationProperties.HelpText="{x:Static loc:Strings.PrintTab_ClipboardTip}"
+                                Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}, ConverterParameter=invert}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Style="{StaticResource Icon}" Text="&#xE77F;" Margin="0,0,8,0" />
+                                <TextBlock Text="{x:Static loc:Strings.PrintTab_Clipboard}" />
+                            </StackPanel>
+                        </Button>
                         <StackPanel Visibility="{Binding HasDocument, Converter={StaticResource VisibleWhen}}">
                             <DockPanel>
                                 <TextBlock DockPanel.Dock="Left" Style="{StaticResource Icon}" Text="&#xEA90;" FontSize="22" Margin="0,0,10,0"
@@ -930,10 +978,12 @@
                                     </TextBlock>
                                 </StackPanel>
                             </DockPanel>
-                            <StackPanel Orientation="Horizontal" Margin="32,6,0,0">
+                            <WrapPanel Margin="32,6,0,0">
                                 <Button Content="{x:Static loc:Strings.PrintTab_ChooseAnother}" Command="{Binding BrowseCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0" />
+                                <Button Content="{x:Static loc:Strings.PrintTab_ClipboardShort}" Command="{Binding PrintClipboardCommand}" Style="{StaticResource LinkButton}" Margin="0,0,16,0"
+                                        ToolTip="{x:Static loc:Strings.PrintTab_ClipboardTip}" />
                                 <Button Content="{x:Static loc:Strings.Common_Remove}" Command="{Binding ClearCommand}" Style="{StaticResource LinkButton}" />
-                            </StackPanel>
+                            </WrapPanel>
 
                             <TextBlock Text="{x:Static loc:Strings.PrintTab_Pages}" Margin="0,20,0,6" FontWeight="SemiBold" />
                             <RadioButton Content="{Binding AllPagesText}" IsChecked="{Binding AllPages}" GroupName="pages" />
@@ -965,8 +1015,9 @@
                             <RadioButton Content="{x:Static loc:Strings.PrintTab_FitToPaper}" IsChecked="{Binding FitToPaper}" GroupName="size" Margin="0,6,0,0"
                                          ToolTip="{x:Static loc:Strings.PrintTab_FitToPaperTip}" />
 
-                            <CheckBox Content="{x:Static loc:Strings.PrintTab_BothSides}" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
-                                      Visibility="{Binding CanTwoSided, Converter={StaticResource VisibleWhen}}" />
+                            <CheckBox Content="{Binding TwoSidedText}" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
+                                      ToolTip="{x:Static loc:Strings.Hand_BothSidesTip}"
+                                      Visibility="{Binding ShowTwoSided, Converter={StaticResource VisibleWhen}}" />
 
                             <CheckBox IsChecked="{Binding PrintDirect}" Margin="0,12,0,0" ToolTip="{x:Static loc:Strings.PrintTab_DirectTip}"
                                       AutomationProperties.Name="{x:Static loc:Strings.PrintTab_Direct}"
@@ -1149,7 +1200,7 @@
 
                             <CheckBox Content="{x:Static loc:Strings.Copy_ColorCopy}" IsChecked="{Binding IsColor}" Margin="0,16,0,0"
                                       ToolTip="{x:Static loc:Strings.Copy_ColorCopyTip}" Visibility="{Binding ShowColor, Converter={StaticResource VisibleWhen}}" />
-                            <CheckBox Content="{x:Static loc:Strings.PrintTab_BothSides}" IsChecked="{Binding TwoSided}" Margin="0,4,0,0"
+                            <CheckBox Content="{Binding TwoSidedText}" IsChecked="{Binding TwoSided}" Margin="0,4,0,0"
                                       Visibility="{Binding ShowTwoSided, Converter={StaticResource VisibleWhen}}" />
                             <CheckBox Content="{x:Static loc:Strings.Copy_PreviewFirst}" IsChecked="{Binding PreviewFirst}" Margin="0,4,0,0"
                                       ToolTip="{x:Static loc:Strings.Copy_PreviewFirstTip}" Visibility="{Binding ShowPcOptions, Converter={StaticResource VisibleWhen}}" />

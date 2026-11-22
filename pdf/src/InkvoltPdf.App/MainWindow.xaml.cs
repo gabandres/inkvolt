@@ -1869,6 +1869,7 @@ public partial class MainWindow : Window
         Bind(Cmd.Find, t => { t.SetOrganizing(false); t.ShowFindBar(); });
         Bind(Cmd.FindNext, t => t.FindNext(false));
         Bind(Cmd.FindPrevious, t => t.FindNext(true));
+        Bind(Cmd.Replace, t => _ = t.ShowReplaceAsync(), t => t.Session.IsPdf && t.PageView.PageCount > 0);
         Bind(Cmd.SearchPane, t => t.ShowSearchPane());
         // Reading tools act on the active pane of a split view; the tools that change the document on the main pane.
         Bind(Cmd.ToolHand, t => t.ActiveView.Tool = ViewerTool.Hand, t => !t.IsOrganizing);
@@ -1952,6 +1953,8 @@ public partial class MainWindow : Window
             (t, now) => t.CanMarkup || now && Cmd.DrawTool(ViewerTool.Highlighter).CanExecute(null, this));
         Bind(Cmd.Underline, t => _ = t.MarkupSelection(TextMarkupKind.Underline), t => t.CanMarkup);
         Bind(Cmd.StrikeOut, t => _ = t.MarkupSelection(TextMarkupKind.StrikeOut), t => t.CanMarkup);
+        Bind(Cmd.InsertText, t => _ = t.InsertText(), t => t.CanInsertText);
+        Bind(Cmd.ReplaceText, t => _ = t.ReplaceSelection(), t => t.CanReplaceText);
         Bind(Cmd.AddNote, t => ToggleTool(t, ViewerTool.AddNote), t => !t.IsOrganizing && t.Session.IsPdf);
         Bind(Cmd.AddImage, t =>
         {
@@ -2349,6 +2352,7 @@ public partial class MainWindow : Window
         {
             ["Theme"] = ThemeOf(s.Theme), ["RestorePosition"] = s.RestorePosition, ["ReopenTabs"] = s.ReopenTabs,
             ["KeepRecoveryCopies"] = s.KeepRecoveryCopies, ["DarkPages"] = s.DarkPages, ["CheckForUpdates"] = s.CheckForUpdates,
+            ["SpellCheck"] = s.SpellCheck,
             ["AuthorName"] = s.AuthorName ?? "",
             ["Language"] = LanguageOf(s.Language),
         });
@@ -2372,6 +2376,8 @@ public partial class MainWindow : Window
         var recovery = dlg.AddCheck(Strings.Settings_RecoveryCopies, s.KeepRecoveryCopies);
         recovery.ToolTip = Strings.Settings_RecoveryCopiesTip;
         var dark = dlg.AddCheck(Strings.Settings_DarkPages, s.DarkPages);
+        var spelling = dlg.AddCheck(Strings.Settings_SpellCheck, s.SpellCheck);
+        spelling.ToolTip = Strings.Settings_SpellCheckTip;
         // Store installs only: an unpackaged copy has nothing to ask the Store about.
         CheckBox? updates = null;
         if (AppEnvironment.IsPackaged)
@@ -2409,6 +2415,7 @@ public partial class MainWindow : Window
                 case "ReopenTabs": reopen.IsChecked = (bool)value!; break;
                 case "KeepRecoveryCopies": recovery.IsChecked = (bool)value!; break;
                 case "DarkPages": dark.IsChecked = (bool)value!; break;
+                case "SpellCheck": spelling.IsChecked = (bool)value!; break;
                 case "CheckForUpdates": if (updates is not null) updates.IsChecked = (bool)value!; break;
                 case "AuthorName": author.Text = (string)value! is { Length: > 0 } n ? n : Environment.UserName; break;
             }
@@ -2424,12 +2431,14 @@ public partial class MainWindow : Window
                 case "ReopenTabs": s.ReopenTabs = (bool)value!; break;
                 case "KeepRecoveryCopies": s.KeepRecoveryCopies = (bool)value!; break;
                 case "DarkPages": s.DarkPages = (bool)value!; break;
+                case "SpellCheck": s.SpellCheck = (bool)value!; break;
                 case "CheckForUpdates": s.CheckForUpdates = (bool)value!; break;
                 case "AuthorName": s.AuthorName = (string)value!; break;
             }
             session.Set(key, value);
             if (key == "Theme") App.ApplyTheme();
             if (key == "DarkPages") foreach (var t in Tabs) t.SetDarkPages(s.DarkPages);
+            if (key == "SpellCheck") foreach (var t in Tabs) t.PageView.RefreshSpelling(); // an open editor's underlines go (or come)
         }
         void Done()
         {
@@ -2455,6 +2464,7 @@ public partial class MainWindow : Window
         Toggles(reopen, "ReopenTabs");
         Toggles(recovery, "KeepRecoveryCopies");
         Toggles(dark, "DarkPages");
+        Toggles(spelling, "SpellCheck");
         if (updates is not null) Toggles(updates, "CheckForUpdates");
         // Empty = follow the Windows user name.
         author.TextChanged += (_, _) =>
@@ -2470,6 +2480,7 @@ public partial class MainWindow : Window
                      {
                          ["Theme"] = "System", ["RestorePosition"] = d.RestorePosition, ["ReopenTabs"] = d.ReopenTabs,
                          ["KeepRecoveryCopies"] = d.KeepRecoveryCopies, ["DarkPages"] = d.DarkPages, ["CheckForUpdates"] = d.CheckForUpdates,
+                         ["SpellCheck"] = d.SpellCheck,
                          ["AuthorName"] = "",
                      })
             {

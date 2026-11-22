@@ -277,6 +277,9 @@
   <data name="Cmd_FindPrevious" xml:space="preserve">
     <value>Buscar _anterior</value>
   </data>
+  <data name="Cmd_Replace" xml:space="preserve">
+    <value>R_eemplazar…</value>
+  </data>
   <data name="Cmd_SearchPane" xml:space="preserve">
     <value>Panel de _búsqueda</value>
   </data>
@@ -1467,6 +1470,129 @@
   </data>
   <data name="Settings_DarkPages" xml:space="preserve">
     <value>Páginas oscuras (colores invertidos para leer de noche)</value>
+  </data>
+  <data name="Settings_SpellCheck" xml:space="preserve">
+    <value>Revisar la ortografía mientras escribo</value>
+  </data>
+  <data name="Settings_SpellCheckTip" xml:space="preserve">
+    <value>Subraya las palabras que el diccionario de Windows no conoce en el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario, en el idioma del documento (si no, en el de la aplicación). Haz clic con el botón derecho en una palabra para ver sugerencias.</value>
+  </data>
+  <data name="Spell_NoSuggestions" xml:space="preserve">
+    <value>Sin sugerencias</value>
+  </data>
+  <data name="Spell_Ignore" xml:space="preserve">
+    <value>Omitir</value>
+  </data>
+  <data name="Spell_AddToDictionary" xml:space="preserve">
+    <value>Agregar al diccionario</value>
+  </data>
+  <data name="Spell_AddFailedTitle" xml:space="preserve">
+    <value>No se pudo agregar la palabra</value>
+  </data>
+  <data name="Spell_AddFailed" xml:space="preserve">
+    <value>Windows no agregó “{0}” a tu diccionario. Vuelve a intentarlo más tarde.</value>
+  </data>
+  <data name="Replace_Title" xml:space="preserve">
+    <value>Buscar y reemplazar</value>
+  </data>
+  <data name="Replace_Find" xml:space="preserve">
+    <value>Buscar:</value>
+  </data>
+  <data name="Replace_With" xml:space="preserve">
+    <value>Reemplazar por:</value>
+  </data>
+  <data name="Replace_Replace" xml:space="preserve">
+    <value>Reemplazar</value>
+  </data>
+  <data name="Replace_ReplaceTip" xml:space="preserve">
+    <value>Reemplaza ahora la coincidencia seleccionada y pasa a la siguiente</value>
+  </data>
+  <data name="Replace_All" xml:space="preserve">
+    <value>Reemplazar todo</value>
+  </data>
+  <data name="Replace_AllN" xml:space="preserve">
+    <value>Reemplazar todo ({0})</value>
+  </data>
+  <data name="Replace_Matches" xml:space="preserve">
+    <value>Coincidencias</value>
+  </data>
+  <data name="Replace_Spoken" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="Replace_TypeToFind" xml:space="preserve">
+    <value>Escribe lo que quieres buscar. Las coincidencias aparecen aquí con su página y las palabras de alrededor.</value>
+  </data>
+  <data name="Replace_Searching" xml:space="preserve">
+    <value>Buscando… página {0} de {1}</value>
+  </data>
+  <data name="Replace_None" xml:space="preserve">
+    <value>No hay coincidencias en el texto del documento.</value>
+  </data>
+  <data name="Replace_Found_One" xml:space="preserve">
+    <value>1 coincidencia. Desmárcala para dejarla como está.</value>
+  </data>
+  <data name="Replace_Found_Many" xml:space="preserve">
+    <value>{0} coincidencias en {1}. Desmarca las que quieras dejar como están.</value>
+  </data>
+  <data name="Replace_Pages_One" xml:space="preserve">
+    <value>1 página</value>
+  </data>
+  <data name="Replace_Pages_Many" xml:space="preserve">
+    <value>{0} páginas</value>
+  </data>
+  <data name="Replace_CutShort" xml:space="preserve">
+    <value>Solo se muestran las primeras {0}: alarga la búsqueda para ver el resto.</value>
+  </data>
+  <data name="Replace_SomeBlocked" xml:space="preserve">
+    <value>Algunas están en texto que no se puede cambiar (se indica debajo).</value>
+  </data>
+  <data name="Replace_CantSearch" xml:space="preserve">
+    <value>No se pudo buscar en el texto del documento. Vuelve a intentarlo o abre de nuevo el archivo.</value>
+  </data>
+  <data name="Replace_NothingTicked" xml:space="preserve">
+    <value>Marca al menos una coincidencia para reemplazar, o cierra.</value>
+  </data>
+  <data name="Replace_StillWorking" xml:space="preserve">
+    <value>Todavía se está reemplazando: espera un momento.</value>
+  </data>
+  <data name="Replace_StillSearching" xml:space="preserve">
+    <value>Todavía se están buscando las coincidencias de lo que escribiste: espera y revisa las marcas.</value>
+  </data>
+  <data name="Replace_Done_One" xml:space="preserve">
+    <value>Se reemplazó 1 coincidencia.</value>
+  </data>
+  <data name="Replace_Done_Many" xml:space="preserve">
+    <value>Se reemplazaron {0} coincidencias.</value>
+  </data>
+  <data name="Replace_NotesTitle" xml:space="preserve">
+    <value>Reemplazos que revisar</value>
+  </data>
+  <data name="Replace_NotesIntro" xml:space="preserve">
+    <value>Reemplazadas: {0}. Sin cambios: {1}. Deshacer (Ctrl+Z) revierte todos los reemplazos hechos.</value>
+  </data>
+  <data name="Replace_NoteLine" xml:space="preserve">
+    <value>{0} · {1}: {2}</value>
+  </data>
+  <data name="Replace_NoteStandIn" xml:space="preserve">
+    <value>reemplazada; para {0}, que la fuente del párrafo no tiene, se usa {1}, la fuente más parecida de este PC.</value>
+  </data>
+  <data name="Replace_NoteWider" xml:space="preserve">
+    <value>reemplazada; el texto de una sola línea no se ajusta, y esta línea es {0:0} pt más ancha: comprueba que no choque con lo que tiene al lado.</value>
+  </data>
+  <data name="Replace_NoteMissing" xml:space="preserve">
+    <value>sin cambios: ninguna fuente de este PC tiene {0}.</value>
+  </data>
+  <data name="Replace_NoteOverlap" xml:space="preserve">
+    <value>sin cambios: el párrafo, más largo, chocaría con el texto o la imagen de debajo. Cámbialo en Editar texto e imágenes para decidir.</value>
+  </data>
+  <data name="Replace_NoteCantEdit" xml:space="preserve">
+    <value>sin cambios: {0}</value>
+  </data>
+  <data name="Replace_NoteChanged" xml:space="preserve">
+    <value>sin cambios: el párrafo cambió desde que se encontró. Vuelve a buscar.</value>
+  </data>
+  <data name="Replace_NoteCount" xml:space="preserve">
+    <value> ({0} coincidencias en este párrafo)</value>
   </data>
   <data name="Settings_CheckForUpdates" xml:space="preserve">
     <value>Buscar actualizaciones al iniciar Inkvolt PDF</value>
@@ -12071,5 +12197,234 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   </data>
   <data name="Marks_CouldntMark" xml:space="preserve">
     <value>No se pudieron marcar las coincidencias: no se pudo leer el documento.</value>
+  </data>
+  <data name="Cmd_InsertText" xml:space="preserve">
+    <value>Insertar te_xto…</value>
+  </data>
+  <data name="Cmd_ReplaceText" xml:space="preserve">
+    <value>Reem_plazar texto…</value>
+  </data>
+  <data name="Tab_InsertText" xml:space="preserve">
+    <value>Insertar texto</value>
+  </data>
+  <data name="Tab_InsertTextTip" xml:space="preserve">
+    <value>Insertar texto: después de la selección, o donde hiciste clic en el texto</value>
+  </data>
+  <data name="Tab_ReplaceText" xml:space="preserve">
+    <value>Reemplazar texto</value>
+  </data>
+  <data name="Tab_ReplaceTextTip" xml:space="preserve">
+    <value>Reemplazar texto: tacha la selección y escribe lo que va en su lugar</value>
+  </data>
+  <data name="Tab_MenuInsertTextHere" xml:space="preserve">
+    <value>Insertar texto aquí…</value>
+  </data>
+  <data name="Review_KindReplaceText" xml:space="preserve">
+    <value>Reemplazar texto</value>
+    <comment>What a comment is called in the Comments pane</comment>
+  </data>
+  <data name="Review_InsertTextTitle" xml:space="preserve">
+    <value>Insertar texto</value>
+  </data>
+  <data name="Review_InsertTextNote" xml:space="preserve">
+    <value>Un signo de intercalación azul marca el lugar en la página {0}; el texto que escribas es su comentario. Autor: {1}.</value>
+  </data>
+  <data name="Review_ReplaceTextTitle" xml:space="preserve">
+    <value>Reemplazar texto</value>
+  </data>
+  <data name="Review_ReplaceTextNote" xml:space="preserve">
+    <value>«{0}» en la página {1} queda tachado, con un signo de intercalación azul detrás que guarda el texto que escribas. Autor: {2}.</value>
+  </data>
+  <data name="Review_ProofTextEmpty" xml:space="preserve">
+    <value>Escribe el texto.</value>
+  </data>
+  <data name="Review_InsertNoCaret" xml:space="preserve">
+    <value>Haz clic en el texto donde van las palabras (herramienta Seleccionar texto), o selecciona texto, y elige Insertar texto.</value>
+  </data>
+  <data name="Review_ReplaceOnePage" xml:space="preserve">
+    <value>Selecciona texto de una sola página para reemplazarlo.</value>
+  </data>
+  <data name="Cmd_SuggestRedactions" xml:space="preserve">
+    <value>_Sugerir qué eliminar…</value>
+  </data>
+  <data name="Redact_SuggestTitle" xml:space="preserve">
+    <value>Sugerir qué eliminar</value>
+  </data>
+  <data name="Redact_SuggestNoteAi" xml:space="preserve">
+    <value>Tu asistente de IA ({0} · {1}) lee el texto de las páginas y sugiere qué eliminar. Antes de enviar nada ves exactamente qué se envía y adónde.</value>
+  </data>
+  <data name="Redact_SuggestNoteNoAi" xml:space="preserve">
+    <value>El asistente de IA está desactivado, así que no se envía nada: solo se busca tu lista de nombres y términos. Para recibir sugerencias por su significado, configura tu propio asistente en Configuración › Asistente de IA.</value>
+  </data>
+  <data name="Redact_SuggestLookFor" xml:space="preserve">
+    <value>Pedir al asistente</value>
+  </data>
+  <data name="Redact_SuggestNames" xml:space="preserve">
+    <value>Nombres de personas</value>
+  </data>
+  <data name="Redact_SuggestOrganizations" xml:space="preserve">
+    <value>Empresas y organizaciones</value>
+  </data>
+  <data name="Redact_SuggestAddresses" xml:space="preserve">
+    <value>Direcciones postales</value>
+  </data>
+  <data name="Redact_SuggestAccounts" xml:space="preserve">
+    <value>Números de cuenta y de identificación</value>
+  </data>
+  <data name="Redact_SuggestDescribe" xml:space="preserve">
+    <value>Y también lo que sea (opcional)</value>
+  </data>
+  <data name="Redact_SuggestDescribeTip" xml:space="preserve">
+    <value>Descríbelo con tus palabras, por ejemplo: diagnósticos y medicamentos, o salarios</value>
+  </data>
+  <data name="Redact_SuggestUseList_One" xml:space="preserve">
+    <value>Y también mi lista de nombres y términos ({0} entrada)</value>
+  </data>
+  <data name="Redact_SuggestUseList_Many" xml:space="preserve">
+    <value>Y también mi lista de nombres y términos ({0} entradas)</value>
+  </data>
+  <data name="Redact_SuggestEditList" xml:space="preserve">
+    <value>Editar lista…</value>
+  </data>
+  <data name="Redact_SuggestReviewNote" xml:space="preserve">
+    <value>Todavía no se quita nada: cada lugar encontrado aparece en una lista para que lo aceptes u omitas, y el resultado se vuelve a leer y se comprueba.</value>
+  </data>
+  <data name="Redact_SuggestNeedSomething" xml:space="preserve">
+    <value>Elige algo que pedir al asistente, o usa tu lista.</value>
+  </data>
+  <data name="Redact_SuggestNeedList" xml:space="preserve">
+    <value>Tu lista de nombres y términos está vacía. Agrega nombres con Editar lista, o configura el asistente de IA.</value>
+  </data>
+  <data name="Redact_TermsTitle" xml:space="preserve">
+    <value>Nombres y términos que eliminar</value>
+  </data>
+  <data name="Redact_TermsNote" xml:space="preserve">
+    <value>Uno por línea: nombres, empresas, números de expediente, palabras. Se guarda solo en este equipo. Se omiten las líneas que empiezan con #.</value>
+  </data>
+  <data name="Redact_TermsLabel" xml:space="preserve">
+    <value>Nombres y términos</value>
+  </data>
+  <data name="Redact_TermsNotSaved" xml:space="preserve">
+    <value>No se pudo guardar la lista. Comprueba que se puede escribir en la carpeta de datos de la aplicación y vuelve a intentarlo.</value>
+  </data>
+  <data name="Redact_SuggestDropped_One" xml:space="preserve">
+    <value>{0} sugerencia no estaba en el texto tal como se escribió, o no se pudo leer, y se dejó fuera.</value>
+  </data>
+  <data name="Redact_SuggestDropped_Many" xml:space="preserve">
+    <value>{0} sugerencias no estaban en el texto tal como se escribieron, o no se pudieron leer, y se dejaron fuera.</value>
+  </data>
+  <data name="Redact_SuggestUnreadable_One" xml:space="preserve">
+    <value>{0} respuesta del asistente no era una lista y se omitió.</value>
+  </data>
+  <data name="Redact_SuggestUnreadable_Many" xml:space="preserve">
+    <value>{0} respuestas del asistente no eran una lista y se omitieron.</value>
+  </data>
+  <data name="Redact_SuggestNothing" xml:space="preserve">
+    <value>No se sugirió nada que eliminar.</value>
+  </data>
+  <data name="Redact_SuggestNoText_One" xml:space="preserve">
+    <value>No se envió nada: {1} no tiene texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR).</value>
+  </data>
+  <data name="Redact_SuggestNoText_Many" xml:space="preserve">
+    <value>No se envió nada: {1} no tienen texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR).</value>
+  </data>
+  <data name="Redact_SuggestSent" xml:space="preserve">
+    <value>El texto de {0}, para encontrar qué eliminar</value>
+  </data>
+  <data name="Redact_SuggestSendTitle" xml:space="preserve">
+    <value>¿Enviar para recibir sugerencias de eliminación?</value>
+  </data>
+  <data name="Redact_SuggestDone_One" xml:space="preserve">
+    <value>{0} sugerencia encontrada en el texto.</value>
+  </data>
+  <data name="Redact_SuggestDone_Many" xml:space="preserve">
+    <value>{0} sugerencias encontradas en el texto.</value>
+  </data>
+  <data name="Redact_SuggestFailed" xml:space="preserve">
+    <value>No hay sugerencias</value>
+  </data>
+  <data name="Cmd_AiSaveAnswer" xml:space="preserve">
+    <value>_Guardar la respuesta de IA…</value>
+  </data>
+  <data name="Cmd_AiSaveConversation" xml:space="preserve">
+    <value>Guardar la _conversación con la IA…</value>
+  </data>
+  <data name="Ai_SaveConversation" xml:space="preserve">
+    <value>Guardar la conversación</value>
+  </data>
+  <data name="Ai_SaveAnswer" xml:space="preserve">
+    <value>Guardar esta respuesta</value>
+  </data>
+  <data name="TabAi_NothingToSave" xml:space="preserve">
+    <value>Todavía no hay ninguna respuesta de IA que guardar: primero pregunta, resume o explica algo.</value>
+  </data>
+  <data name="TabAi_SaveAnswerTitle" xml:space="preserve">
+    <value>Guardar la respuesta de IA</value>
+  </data>
+  <data name="TabAi_SaveConversationTitle" xml:space="preserve">
+    <value>Guardar la conversación con la IA</value>
+  </data>
+  <data name="TabAi_SaveAnswerNote" xml:space="preserve">
+    <value>La respuesta a «{0}».</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_One" xml:space="preserve">
+    <value>{0} respuesta, con lo que se preguntó.</value>
+  </data>
+  <data name="TabAi_SaveConversationNote_Many" xml:space="preserve">
+    <value>{0} respuestas, cada una con lo que se preguntó.</value>
+  </data>
+  <data name="TabAi_SaveAs" xml:space="preserve">
+    <value>Guardar como</value>
+  </data>
+  <data name="TabAi_SaveAsWord" xml:space="preserve">
+    <value>Un documento de Word (.docx)</value>
+  </data>
+  <data name="TabAi_SaveAsPdf" xml:space="preserve">
+    <value>Un PDF</value>
+  </data>
+  <data name="TabAi_SaveAsComment" xml:space="preserve">
+    <value>Un comentario en la página {0} de este documento</value>
+  </data>
+  <data name="TabAi_SaveMarked" xml:space="preserve">
+    <value>Indica que lo escribió un modelo de IA, y cuál; puede contener errores. Un comentario va en la primera página que cita la respuesta.</value>
+  </data>
+  <data name="TabAi_SaveCommentUndo" xml:space="preserve">
+    <value>Agregar la respuesta de IA como comentario</value>
+  </data>
+  <data name="TabAi_SavedComment" xml:space="preserve">
+    <value>La respuesta es ahora un comentario en la página {0}.</value>
+  </data>
+  <data name="TabAi_SavedFileName" xml:space="preserve">
+    <value>{0} - respuestas de IA</value>
+  </data>
+  <data name="TabAi_CantSave" xml:space="preserve">
+    <value>No se guardó</value>
+  </data>
+  <data name="TabAi_CantSaveBody" xml:space="preserve">
+    <value>No se pudo escribir el archivo. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo.</value>
+  </data>
+  <data name="TabAi_SavedFile" xml:space="preserve">
+    <value>Se guardó {0}.</value>
+  </data>
+  <data name="TabAi_OpenSaved" xml:space="preserve">
+    <value>Abrir</value>
+  </data>
+  <data name="Redact_SuggestAiDidntRun" xml:space="preserve">
+    <value>No se incluyen las sugerencias del asistente (no devolvió nada): solo se buscó tu lista de nombres y términos.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_One" xml:space="preserve">
+    <value>El asistente no leyó {1}: no tiene texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR); la búsqueda de abajo igualmente las lee para tu lista y te las muestra para revisarlas.</value>
+  </data>
+  <data name="Redact_SuggestSomeNoText_Many" xml:space="preserve">
+    <value>El asistente no leyó {1}: no tienen texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR); la búsqueda de abajo igualmente las lee para tu lista y te las muestra para revisarlas.</value>
+  </data>
+  <data name="Redact_TermsTooLarge" xml:space="preserve">
+    <value>Tu lista guardada de nombres y términos ocupa más de {0} MB, así que no se usa nada de ella. Edítala para acortarla.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_One" xml:space="preserve">
+    <value>{0} entrada de tu lista guardada es demasiado larga, o supera lo que cabe en una lista, y no se busca. Edita la lista para corregirlo.</value>
+  </data>
+  <data name="Redact_TermsLeftOut_Many" xml:space="preserve">
+    <value>{0} entradas de tu lista guardada son demasiado largas, o superan lo que cabe en una lista, y no se buscan. Edita la lista para corregirlo.</value>
   </data>
 </root>

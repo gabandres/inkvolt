@@ -14,8 +14,6 @@ public enum ProFeature
     /// <summary>2.6: the fleet page's CSV and JSON, <c>inkvoltprint status --all</c>, Fix all.</summary>
     FleetExport,
 
-    /// <summary>3.1: a scanner shared on the network over eSCL.</summary>
-    ScannerSharing,
 
     /// <summary>3.2: SNMPv3 (a community per printer stays free).</summary>
     SnmpV3,
@@ -71,7 +69,7 @@ public static class Pro
         ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport,
         ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation,
         ProFeature.FleetExport => CoreStrings.Pro_FleetExport,
-        ProFeature.ScannerSharing => CoreStrings.Pro_ScannerSharing,
+
         _ => "SNMPv3",
     };
 
@@ -81,7 +79,7 @@ public static class Pro
         ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport_Describe,
         ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation_Describe,
         ProFeature.FleetExport => CoreStrings.Pro_FleetExport_Describe,
-        ProFeature.ScannerSharing => CoreStrings.Pro_ScannerSharing_Describe,
+
         _ => CoreStrings.Pro_Snmpv3_Describe,
     };
 
@@ -91,7 +89,7 @@ public static class Pro
         ProFeature.SupplyHistoryExport => CoreStrings.Pro_SupplyHistoryExport_Locked,
         ProFeature.BatchPrintAutomation => CoreStrings.Pro_BatchPrintAutomation_Locked,
         ProFeature.FleetExport => CoreStrings.Pro_FleetExport_Locked,
-        ProFeature.ScannerSharing => CoreStrings.Pro_ScannerSharing_Locked,
+
         _ => CoreStrings.Pro_Snmpv3_Locked,
     };
 

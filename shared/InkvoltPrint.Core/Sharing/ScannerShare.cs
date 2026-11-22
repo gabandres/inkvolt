@@ -17,8 +17,6 @@ public enum ShareState
     /// <summary>Nothing shared: nothing listens.</summary>
     Off,
 
-    /// <summary>Turned on, but Inkvolt Pro isn't unlocked: nothing listens.</summary>
-    Locked,
 
     /// <summary>Turned on, the scanner isn't connected (off, unplugged): nothing listens until it is.</summary>
     WaitingForScanner,
@@ -64,11 +62,10 @@ public sealed record ShareCard(string? DeviceId, bool IsOn, string Text, string?
 /// <summary>What turning sharing on did.</summary>
 public enum ShareSwitch
 {
-    /// <summary>Turned on (it listens once the scanner, Pro and a private network allow).</summary>
+    /// <summary>Turned on (it listens once the scanner and a private network allow).</summary>
     On,
 
-    /// <summary>Inkvolt Pro isn't unlocked: nothing changed; the app says what Pro is.</summary>
-    NeedsPro,
+
 
     /// <summary>The scanner isn't connected, or is one Windows reaches over eSCL itself: nothing changed.</summary>
     NoScanner,
@@ -146,10 +143,10 @@ public sealed record ShareEnvironment(IShareHost Host, IShareNetworks Networks, 
 }
 
 /// <summary>
-/// A scanner of this PC shared on the network as an eSCL scanner (print/ROADMAP.md 3.1, Inkvolt Pro): one scanner at a time, off by
+/// A scanner of this PC shared on the network as an eSCL scanner (print/ROADMAP.md 3.1, free since 2026-11-22): one scanner at a time, off by
 /// default, only on networks Windows calls Private, only while the app (or its notification-area icon) runs. Turned on, it listens
 /// over HTTPS on <see cref="DefaultPort"/> with a self-signed certificate (<see cref="Fingerprint"/>), serves the scanner through a
-/// <see cref="SharedScanner"/> and announces it as <c>_uscans._tcp</c>; it stops listening the moment it's turned off, Pro is gone,
+/// <see cref="SharedScanner"/> and announces it as <c>_uscans._tcp</c>; it stops listening the moment it's turned off,
 /// the scanner goes, the last private network goes, or the app closes. The app hands it the shared device's connected scanner
 /// (<see cref="OfferAsync"/>); calls are serialized; <see cref="Changed"/> comes from any thread.
 /// </summary>
@@ -161,7 +158,7 @@ public sealed class ScannerShare : IAsyncDisposable
     private readonly ShareEnvironment _env;
     private readonly string _computerName;
     private readonly Action<ScannerShareChoice> _save;
-    private readonly Func<bool> _allowed;
+
     private readonly Action<string> _log;
     private readonly ShareLimits? _limits;
     private readonly TimeProvider _time;
@@ -178,17 +175,16 @@ public sealed class ScannerShare : IAsyncDisposable
     private volatile IReadOnlyList<LocalNetwork> _served = [];
     private (SharedScanner Server, IShareListener Listener, IAsyncDisposable? Advert, X509Certificate2 Certificate, string Networks)? _running;
 
-    /// <param name="allowed">Inkvolt Pro allows sharing (<see cref="Pro.Allows"/>); asked each time it would start.</param>
     /// <param name="save">Keeps the choice when it changes.</param>
     /// <param name="log">Told what happens, in plain words: never a device's address.</param>
-    public ScannerShare(ShareEnvironment env, string computerName, ScannerShareChoice? choice, Action<ScannerShareChoice> save, Func<bool> allowed,
+    public ScannerShare(ShareEnvironment env, string computerName, ScannerShareChoice? choice, Action<ScannerShareChoice> save,
         Action<string>? log = null, ShareLimits? limits = null, TimeProvider? time = null)
     {
         _env = env;
         _computerName = computerName;
         _choice = choice ?? new ScannerShareChoice();
         _save = save;
-        _allowed = allowed;
+
         _log = log ?? (_ => { });
         _limits = limits;
         _time = time ?? TimeProvider.System;
@@ -254,7 +250,7 @@ public sealed class ScannerShare : IAsyncDisposable
         if (!IsShared(deviceId)) return string.Format(CoreStrings.Share_OtherShared, choice.Name ?? "");
         return state switch
         {
-            ShareState.Locked => Pro.Locked(ProFeature.ScannerSharing),
+
             ShareState.WaitingForScanner => CoreStrings.Share_WaitingForScanner,
             ShareState.NoPrivateNetwork => CoreStrings.Share_NoPrivateNetwork,
             ShareState.Starting => CoreStrings.Share_Starting,
@@ -280,13 +276,13 @@ public sealed class ScannerShare : IAsyncDisposable
     }
 
     /// <summary>
-    /// Turns sharing on for <paramref name="scanner"/>, the entry's connected scanner: the one Pro check (<see cref="ShareSwitch.NeedsPro"/>
-    /// changes nothing), and none for a scanner that isn't connected or that Windows reaches over eSCL.
+    /// Turns sharing on for <paramref name="scanner"/>, the entry's connected scanner; none for a scanner that isn't connected or that
+    /// Windows reaches over eSCL.
     /// </summary>
     public async Task<ShareSwitch> TurnOnAsync(WiaScanner? scanner)
     {
         if (scanner is not { Device.IsEscl: false }) return ShareSwitch.NoScanner;
-        if (!_allowed()) return ShareSwitch.NeedsPro;
+
         await ShareAsync(scanner).ConfigureAwait(false);
         return ShareSwitch.On;
     }
@@ -295,7 +291,7 @@ public sealed class ScannerShare : IAsyncDisposable
     public Task ForgetAsync(IEnumerable<string?> deviceIds) =>
         deviceIds.OfType<string>().Any(IsShared) ? StopAsync() : Task.CompletedTask;
 
-    /// <summary>Shares <paramref name="scanner"/> (instead of any other): it listens once Pro, a private network and the scanner allow.</summary>
+    /// <summary>Shares <paramref name="scanner"/> (instead of any other): it listens once a private network and the scanner allow.</summary>
     public async Task ShareAsync(WiaScanner scanner)
     {
         await _calls.WaitAsync().ConfigureAwait(false);
@@ -374,7 +370,7 @@ public sealed class ScannerShare : IAsyncDisposable
         Raise();
     }
 
-    /// <summary>Asks again whether it may run (after Inkvolt Pro was entered or removed).</summary>
+    /// <summary>Asks again whether it may run (after the networks changed).</summary>
     public async Task RecheckAsync()
     {
         await _calls.WaitAsync().ConfigureAwait(false);
@@ -409,7 +405,7 @@ public sealed class ScannerShare : IAsyncDisposable
         }
     }
 
-    /// <summary>Starts, stops or re-announces to match the choice, Pro, the scanner and the networks. Inside <see cref="_calls"/>.</summary>
+    /// <summary>Starts, stops or re-announces to match the choice, the scanner and the networks. Inside <see cref="_calls"/>.</summary>
     private async Task ApplyAsync()
     {
         ScannerShareChoice choice;
@@ -422,12 +418,7 @@ public sealed class ScannerShare : IAsyncDisposable
             SetState(ShareState.Off);
             return;
         }
-        if (!_allowed())
-        {
-            await StopRunningAsync().ConfigureAwait(false);
-            SetState(ShareState.Locked);
-            return;
-        }
+
         if (scanner is null)
         {
             await StopRunningAsync().ConfigureAwait(false);

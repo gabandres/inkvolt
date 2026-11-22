@@ -166,6 +166,7 @@
                                     <MenuItem Command="app:Cmd.Find" />
                                     <MenuItem Command="app:Cmd.FindNext" />
                                     <MenuItem Command="app:Cmd.FindPrevious" />
+                                    <MenuItem Command="app:Cmd.Replace" />
                                     <MenuItem Command="app:Cmd.SearchPane" />
                                     <MenuItem Command="app:Cmd.SearchFolders" />
                                     <Separator />
@@ -290,6 +291,8 @@
                                         <MenuItem Command="app:Cmd.UnderlineAllMatches" />
                                         <MenuItem Command="app:Cmd.StrikeOutAllMatches" />
                                     </MenuItem>
+                                    <MenuItem Command="app:Cmd.InsertText" />
+                                    <MenuItem Command="app:Cmd.ReplaceText" />
                                     <MenuItem x:Name="NoteMenu" Command="app:Cmd.AddNote" />
                                     <!-- Pen, highlighter, shapes, lines, text boxes: filled in code (MainWindow.BuildDrawMenu) -->
                                     <MenuItem x:Name="DrawMenu" Header="{x:Static loc:Strings.Main_MenuDraw}" />
@@ -321,6 +324,7 @@
                                     <MenuItem x:Name="RedactTextMenu" Header="{x:Static loc:Strings.Main_MenuMarkSelectedText}" Click="OnRedactText" />
                                     <MenuItem x:Name="RedactHitsMenu" Header="{x:Static loc:Strings.Main_MenuMarkSearchMatches}" Click="OnRedactHits" />
                                     <MenuItem Command="app:Cmd.RedactPatterns" />
+                                    <MenuItem Command="app:Cmd.SuggestRedactions" />
                                     <MenuItem x:Name="ApplyRedactMenu" Command="app:Cmd.ApplyRedactions" />
                                     <MenuItem Command="app:Cmd.CheckRedaction" />
                                     <MenuItem Command="app:Cmd.Sanitize" />
@@ -336,6 +340,9 @@
                                         <MenuItem Command="app:Cmd.AiAsk" />
                                         <MenuItem Command="app:Cmd.AiExplain" />
                                         <MenuItem Command="app:Cmd.AiTranslate" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.AiSaveAnswer" />
+                                        <MenuItem Command="app:Cmd.AiSaveConversation" />
                                         <Separator />
                                         <MenuItem Command="app:Cmd.AiSettings" />
                                     </MenuItem>

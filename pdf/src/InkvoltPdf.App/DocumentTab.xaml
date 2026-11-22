@@ -190,6 +190,10 @@
                                     ToolTip="{x:Static loc:Strings.Tab_UnderlineTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_Underline}" />
                             <Button Style="{StaticResource IconButton}" Command="app:Cmd.StrikeOut" Content="&#xE738;" FontSize="14"
                                     ToolTip="{x:Static loc:Strings.Tab_StrikeOutTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_StrikeOut}" />
+                            <Button Style="{StaticResource IconButton}" Command="app:Cmd.InsertText" Content="&#xE8D2;" FontSize="14"
+                                    ToolTip="{x:Static loc:Strings.Tab_InsertTextTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_InsertText}" />
+                            <Button Style="{StaticResource IconButton}" Command="app:Cmd.ReplaceText" Content="&#xE8AC;" FontSize="14"
+                                    ToolTip="{x:Static loc:Strings.Tab_ReplaceTextTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_ReplaceText}" />
                             <ToggleButton x:Name="NoteToolButton" Style="{StaticResource IconButton}" Command="app:Cmd.AddNote" Content="&#xE70B;" FontSize="14"
                                           ToolTip="{x:Static loc:Strings.Tab_AddNoteTip}" AutomationProperties.Name="{x:Static loc:Strings.Tab_AddNote}" />
                             <Border Style="{StaticResource BarSeparator}" />
@@ -684,6 +688,8 @@
                             <MenuItem x:Name="CtxHighlight" Command="app:Cmd.Highlight" />
                             <MenuItem x:Name="CtxUnderline" Command="app:Cmd.Underline" />
                             <MenuItem x:Name="CtxStrikeOut" Command="app:Cmd.StrikeOut" />
+                            <MenuItem x:Name="CtxReplaceText" Command="app:Cmd.ReplaceText" />
+                            <MenuItem x:Name="CtxInsertText" Header="{x:Static loc:Strings.Tab_MenuInsertTextHere}" />
                             <MenuItem x:Name="CtxLinkText" Command="app:Cmd.LinkSelection" />
                             <MenuItem x:Name="CtxRedactText" Header="{x:Static loc:Strings.Tab_MenuMarkForRedaction}" />
                             <Separator x:Name="CtxMarkupSeparator" />

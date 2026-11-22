@@ -32,4 +32,8 @@ $env:INKVOLTPDF_PDFJS = '1'; $env:INKVOLTPDF_CORPUS = 'Z:\PdfDesk\pdf\tools\expo
 dotnet test pdf/tests/InkvoltPdf.Tests --filter FullyQualifiedName~TranslationPdfJsTests
 ```
 
+`TextReplaceTests.ReplacedTextReadsTheSameInPdfJs` (`INKVOLTPDF_PDFJS` only) reads Find and Replace's Replace All with it:
+several paragraphs on two pages rewritten in one pass, and replacements with stand-in characters, each paragraph's words
+in order.
+
 Needs Node 20 or later. The edited PDFs are written to a temporary folder and deleted; results go to the test output.

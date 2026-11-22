@@ -44,6 +44,15 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Interface language** (`App/AppLanguage.cs`, the choice in the shared `UiLanguage`): the language the app's own words
   are in, English or Spanish, picked once at start-up and read from `Strings` (the app) and `PdfStrings` (Core, English
   unless the app opts in through `PdfLanguage`, so the command line stays English). What a document says stays as it is.
+- **Spell checker** (`Core/SpellChecker.cs`; in the app `App/Spelling.cs`): spell check where people type. It decides
+  what in typed text is a **word** to look up (letters, an apostrophe inside; not numbers, capitals or addresses) and asks
+  an `ISpellingDictionary` (Windows' own in the app, a word list in tests); a word it doesn't know is a **misspelling**.
+  **Ignore** lasts for the app's session; **Add to dictionary** writes Windows' user dictionary. Its language is the
+  document's (/Lang), else the interface's, else Windows'.
+- **Find and Replace** (`Core/TextReplace.cs`; in the app `ReplaceDialog`, `DocumentTab.Replace.cs`): a **match** is found
+  in a page's paragraphs as Edit Text & Images groups them, and **replaced** by rewriting its paragraph
+  (`ContentEditor.ReplaceParagraphIn`), all of Replace All's in one pass and one save. A **note** says how a replacement went
+  other than as asked: made in a stand-in font or on a wider line, or left as it was (and why).
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,
@@ -192,3 +201,22 @@ locality) are used in their usual sense: the interface is everything a caller mu
   makes the ticked ones links in one edit.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).
+- **Proofreading mark** (`Core/Annotations.Proofreading.cs`, `ProofMarkKind`): Insert Text (a /Caret at the **insertion
+  point**, the place before a character of the page's text, `Annotations.CaretAt`; the words to insert are its comment) or
+  Replace Text (a /Caret after struck-out words, holding the new text, with the /StrikeOut bound to it as a **comment
+  group**: /IRT the caret, /RT /Group, `AnnotationInfo.Grouped`). A group is one comment: its **head** (the caret) is
+  listed, its members aren't (`Annotations.IsGroupMember`), and deleting or moving the head takes them along. A reply
+  (/RT /R) is not a group.
+- **Redaction suggestion** (`Core/RedactionSuggestions.cs`, `RedactionProposal`; Windows `App/DocumentTab.RedactSuggest.cs`):
+  a **proposal** of something to redact, the exact words and what kind of thing they are (name, organization, address,
+  account, other), from the user's own model (Pro, never on by default; its answer is data, read as a list of quotes) or
+  from the user's **names and terms list** (`RedactionTerms`, one per line in the data folder). A model's proposal is
+  **kept** only when the text its request carried holds it word for word (`Verify`), else **dropped** and counted. Kept
+  proposals are searched for as phrases (`SearchOptions`, `RedactionSearch.Find`), each hit **labelled** by its kind
+  (`RedactionMatch.Label`), and go the Redact Patterns run's way: the review list, apply, read-back with the same phrases,
+  the check and the report.
+- **AI conversation** (`Core/AiAnswers.cs`: `AiConversation`, `AiExchange`; `DocumentSession.AiConversation`): the AI
+  assistant's answers about one document (each an **exchange**: what the pane showed as asked, what a follow-up sends as
+  that turn, the answer, the model, when), kept with its document session until cleared or closed. Follow-up questions
+  send it again (`Turns`); **Save an AI answer** (`AiAnswerExport`) writes one exchange or all of them to Word or a PDF,
+  or one as a note on the first page it cites, always naming the model and saying it may be wrong.

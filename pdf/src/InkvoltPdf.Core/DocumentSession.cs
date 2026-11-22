@@ -32,6 +32,9 @@ public sealed partial class DocumentSession : IDisposable
     /// <summary>PDFs this big or bigger open in place (see the class summary).</summary>
     public const long InPlaceBytes = 256L * 1024 * 1024;
 
+    /// <summary>The AI assistant's answers about this document, kept while it is open (edits, undo and saving keep them too).</summary>
+    public AiConversation AiConversation { get; } = new();
+
     private long _inPlaceBytes = InPlaceBytes; // tests open small files in place
 
     /// <summary>

@@ -7077,6 +7077,9 @@
     <value>Cambia el texto y las imágenes de la página</value>
     <comment>Line under a command in the bar's menu</comment>
   </data>
+  <data name="Bar_FindReplaceDesc" xml:space="preserve">
+    <value>Cambia una palabra o frase en todas las páginas</value>
+  </data>
   <data name="Bar_HeaderFooterDesc" xml:space="preserve">
     <value>Números, fechas o texto en cada página</value>
     <comment>Line under a command in the bar's menu</comment>
@@ -7238,5 +7241,86 @@
   <data name="Bar_HighlightAllDesc" xml:space="preserve">
     <value>Resalta cada coincidencia de tu búsqueda</value>
     <comment>Line under a command in the bar's menu</comment>
+  </data>
+  <data name="Annot_NoProofText" xml:space="preserve">
+    <value>No hay texto que insertar.</value>
+  </data>
+  <data name="Annot_ProofTextTooLong" xml:space="preserve">
+    <value>El texto es demasiado largo (más de {0:N0} caracteres).</value>
+  </data>
+  <data name="Comment_SummaryInsertText" xml:space="preserve">
+    <value>Insertar texto</value>
+    <comment>A comment's kind in Summarize Comments: a caret with text to insert</comment>
+  </data>
+  <data name="Comment_SummaryReplaceText" xml:space="preserve">
+    <value>Reemplazar texto</value>
+    <comment>A comment's kind in Summarize Comments: struck-out text with its replacement</comment>
+  </data>
+  <data name="Bar_InsertTextDesc" xml:space="preserve">
+    <value>Marca dónde van palabras nuevas</value>
+    <comment>The command bar's Comment group</comment>
+  </data>
+  <data name="Bar_ReplaceTextDesc" xml:space="preserve">
+    <value>Tacha la selección y di qué va en su lugar</value>
+    <comment>The command bar's Comment group</comment>
+  </data>
+  <data name="Redact_SuggestAsking" xml:space="preserve">
+    <value>Buscando qué eliminar en {0}</value>
+  </data>
+  <data name="Redact_SuggestedName" xml:space="preserve">
+    <value>Sugerido: nombre</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedOrganization" xml:space="preserve">
+    <value>Sugerido: organización</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAddress" xml:space="preserve">
+    <value>Sugerido: dirección</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_SuggestedAccount" xml:space="preserve">
+    <value>Sugerido: número de cuenta o de identificación</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_Suggested" xml:space="preserve">
+    <value>Sugerido</value>
+    <comment>A redaction hit's kind in the review list and the report</comment>
+  </data>
+  <data name="Redact_FromYourList" xml:space="preserve">
+    <value>De tu lista</value>
+    <comment>A redaction hit's kind: from the user's names and terms list</comment>
+  </data>
+  <data name="Pro_TitleRedactionSuggestions" xml:space="preserve">
+    <value>Sugerencias de eliminación</value>
+  </data>
+  <data name="Pro_DescRedactionSuggestions" xml:space="preserve">
+    <value>Tu propio asistente de IA lee las páginas y sugiere los nombres, organizaciones, direcciones y números de cuenta que eliminar, o lo que describas; o guarda tu propia lista de nombres y términos. Cada sugerencia pasa por la lista de revisión antes de quitar nada, y el resultado se comprueba igual que con los patrones.</value>
+  </data>
+  <data name="Pro_LockedRedactionSuggestions" xml:space="preserve">
+    <value>Las sugerencias de eliminación forman parte de Inkvolt Pro.</value>
+  </data>
+  <data name="Bar_SuggestRedactionsDesc" xml:space="preserve">
+    <value>Nombres y más, hallados por tu IA o tu lista</value>
+    <comment>The command bar's Protect group</comment>
+  </data>
+  <data name="Ai_SavedTitle" xml:space="preserve">
+    <value>Respuestas de IA sobre {0}</value>
+    <comment>The title of a saved AI answer (Word or PDF); {0} is the document's name</comment>
+  </data>
+  <data name="Ai_SavedNote" xml:space="preserve">
+    <value>Escrito por un modelo de IA ({0}) el {1}; puede contener errores. Compruébalo con el documento.</value>
+  </data>
+  <data name="Ai_NothingToSave" xml:space="preserve">
+    <value>No hay ninguna respuesta de IA que guardar.</value>
+  </data>
+  <data name="Redact_SuggestTooMany" xml:space="preserve">
+    <value>Hay {0:N0} nombres y términos distintos que buscar, más de los {1:N0} que admite una búsqueda, así que no se buscó nada. Elige menos páginas o acorta tu lista, y vuelve a intentarlo.</value>
+  </data>
+  <data name="Redact_TermsLineTooLong" xml:space="preserve">
+    <value>La línea {0:N0} tiene más de {1:N0} caracteres, así que no se podría buscar. Acórtala o divídela y vuelve a guardar.</value>
+  </data>
+  <data name="Redact_TermsTooMany" xml:space="preserve">
+    <value>La lista tiene {0:N0} nombres y términos; caben {1:N0}. Quita algunos y vuelve a guardar.</value>
   </data>
 </root>

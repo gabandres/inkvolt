@@ -16,8 +16,8 @@ namespace InkvoltPdf.App;
 /// delete · undo · redo · scroll dy · scrollbench [ms] [px/s]</c> (the frame rate of a scroll and its blank pages, for `tools/bench`) <c>· findworkers word · log text · exit</c>, plus <c>key Delete ctrl shift</c> (one WPF Key with modifiers),
 /// <c>focus</c> (log the focused element), <c>annots</c> (log the comments) and <c>clipboard</c> (what it holds: a picture's size, text, HTML or not). Drawing: <c>drawings</c> (log them with their bounds and look) <c>·
 /// selectdrawing i|none · drawsel</c> (the selection, tool and style bar) <c>· drawstyle color #RRGGBB|thinner|thicker|smaller|larger|clearer|opaque|fill|border|start|end|delete</c>; draw with <c>tool pen</c> + <c>drag</c>. Review steps: <c>selecttext p x1 y1 x2 y2 ·
-/// highlight · underline · strikeout · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
-/// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] ·
+/// highlight · underline · strikeout · inserttext p x y text|caret text · replacetext text (the selection) · commentlist (the Comments pane's items) · note p x y text · editcomment i text · deletecomment i · selectcomment i ·
+/// commentfilter text · pane comments|attachments|layers|signatures · redact p x y w h · redact-text · redact-search · redact-patterns [phrase] · redact-suggest names,orgs,addresses,accounts,terms[|description] · redactterms a;b;c · redact-suggest-dialog ·
 /// apply-redactions [confirm] (then the redaction check runs: its report or toast) · redaction-check (Check Redaction's findings, logged) ·
 /// inventory (What's in This PDF's report, logged) ·
 /// a11y (Accessibility Check: the pane opens, the result logged) · a11yselect i (choose a failure: the page scrolls to it) · a11ytick id (tick a person's check) ·
@@ -33,9 +33,9 @@ namespace InkvoltPdf.App;
 /// scanselect text · scanchoose glass|feeder|duplex Color|Grayscale|BlackAndWhite dpi</c> (choose the open Scan dialog's scanner and settings; "-" keeps one) <c>·
 /// scanpage file.jpg [dpi] [bw]</c> (give the open Scan dialog a page, as if scanned; bw: in black and white) <c>·
 /// printercheck queue[|port]</c> (printer status for a Windows queue) <c>· inkvolt</c> (is Inkvolt Print found). Create PDF: <c>convert path · webpage address|file · converters</c>. PDF/A: <c>pdfa</c> (with <c>savepath</c>). Measuring: <c>measure distance|perimeter|area|calibrate p x1 y1 … · setscale ratio [all] · measurements</c>, <c>tool measure-distance|measure-perimeter|measure-area</c>. Batch: <c>batch [paths] · batchadd · batchstep · batchout · batchoption · batchpw · batchrun · batchshot · batchstate · batchclose ·
-/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare] ·
+/// presetsave name · presetload name · watch folder;preset · watchshot out.png · watchstate</c>. Inkvolt Pro: <c>prowindow [presets|watched|cli|tag|ro|pdfa2a|ltv|foldersearch|compare|suggest] ·
 /// pro key|remove · proenforce on|off · proshot out.png · prostate</c>. Split view: <c>split h|v|off · switchpane · splitstate</c>. AI assistant (no network): <c>aiconfig Ollama|LMStudio|url model [context] · aioff ·
-/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · translate Language [pages] · translatestate ·
+/// aifake answer text|error401|refused|missing|translate [ms] · aipane on|off · aisummarize all|range · aiask question · aiexplain · aistate · aiconversation · aisave last|all [word|pdf|comment [path]] · translate Language [pages] · translatestate ·
 /// dialogfill check0=on … [expand]</c>. Store updates (no Store): <c>updatefake none|ready|mandatory|error · updatecheck [startup] · updatestate</c>. Compare: <c>compare old.pdf new.pdf ·
 /// compareshot out.png · comparemode text|visual · comparenext [n] · compareselect i · comparezoom percent|fit · comparegroup wording|moved|formatting|visual on|off · comparelist n · comparetext old|new page · comparestate · comparereport</c>.
 /// Search Folders: <c>foldersearch · indexadd folder · indexwait [s] · indexstate · indexsearch text · indexoption case|whole|accents on|off · indexopen i · indexpause on|off · indexremove · indexlatency ms · foldersearchshot out.png</c>.
@@ -45,6 +45,8 @@ namespace InkvoltPdf.App;
 /// suggestions · taborder on|off</c>. Edit Text &amp; Images: <c>editcontent on|off · contentstate · edittext p i [text]</c> (open
 /// the editor on text run i, then <c>key Enter</c> commits) <c>· editpara p i [text]</c> (the editor on paragraph i, a
 /// literal \n in the text a line break) <c>· paragraphs p</c> (the page's paragraphs, logged) <c>· imagesel p i|none · moveimage p i x y w h · cropimage p i x y w h · imageaction delete|replace file · parapicture file</c> (Insert Picture in the open paragraph editor, at its caret).
+/// Spell check: <c>spellstate · spellmenu offset · spellchoose Header · spelling on|off</c>. Find &amp; Replace: <c>replacedialog ·
+/// replacesearch find|with[|case,whole] · replacestate · replacesel i · replacetoggle i · replaceone · replaceall · replacetype text · replaced</c>.
 /// Mouse (page points, top-left origin): <c>mouse move|down|up|click|dbl|right p x y · drag p x1 y1 x2 y2 · tip</c> (the
 /// hover tip's text) <c>· menu Header</c> (click an item of the open context menu) <c>· tabmenu</c> (the selected tab's menu) <c>· tablabels · recover</c> (offer the documents a crashed run left) <c>· mouselog</c>. Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
@@ -62,6 +64,7 @@ internal static class DevScript
     public static async Task RunAsync(MainWindow window, string scriptPath)
     {
         var log = new List<string>();
+        Spelling.KeepUserDictionary = true; // never the user's own dictionary
         try
         {
             await Task.Delay(1500);
@@ -321,6 +324,21 @@ internal static class DevScript
             case "highlight": log.Add($"highlight: {await tab!.MarkupSelection(Core.TextMarkupKind.Highlight)}"); break;
             case "underline": log.Add($"underline: {await tab!.MarkupSelection(Core.TextMarkupKind.Underline)}"); break;
             case "strikeout": log.Add($"strikeout: {await tab!.MarkupSelection(Core.TextMarkupKind.StrikeOut)}"); break;
+            case "inserttext":
+            {
+                // inserttext <page> <x> <y> <text…>: an Insert Text mark at the text under a page point; "inserttext caret text" at the insertion point.
+                var a = arg.Split(' ', 4);
+                if (a[0] == "caret") log.Add($"inserttext: {await tab!.InsertText(arg.Split(' ', 2)[1])}");
+                else
+                {
+                    var page = int.Parse(a[0]) - 1;
+                    var text = tab!.PageView.Engine!.GetText(page);
+                    log.Add($"inserttext: {await tab.InsertTextAt(new TextPos(page, text.HitTest(Num(a[1]), Num(a[2]))), a[3])}");
+                }
+                break;
+            }
+            case "replacetext": log.Add($"replacetext: {await tab!.ReplaceSelection(arg)}"); break;
+            case "commentlist": log.Add($"comment list: {tab!.DevCommentList()}"); break;
             case "note":
             {
                 // note <page> <x> <y> <text…>
@@ -468,6 +486,26 @@ internal static class DevScript
                 log.Add($"redact-find rows: {string.Join("; ", tab.LastRedactionReport?.Removals.Select(r => $"{r.Page + 1} {r.PatternName} {r.Masked} {r.OutcomeText}") ?? [])}");
                 break;
             }
+            // redact-suggest names,orgs,addresses,accounts,terms[|description] [pages=1-3]: Suggest Redactions the whole way, without
+            // its dialog (use "later" for the send window, the list and the report; aifake answers) · redactterms a;b;c (the list kept) ·
+            // redact-suggest-dialog (the dialog itself; "later" + dialogshot/closedialog)
+            case "redact-suggest":
+            {
+                var (spec, description) = arg.Split('|', 2) is var p && p.Length > 1 ? (p[0], (string?)p[1]) : (arg, null);
+                var words = spec.Split([',', ' '], StringSplitOptions.RemoveEmptyEntries);
+                var kinds = SuggestKinds.None;
+                foreach (var w in words)
+                    kinds |= w switch { "names" => SuggestKinds.Names, "orgs" => SuggestKinds.Organizations, "addresses" => SuggestKinds.Addresses, "accounts" => SuggestKinds.AccountNumbers, _ => SuggestKinds.None };
+                var pageArg = words.FirstOrDefault(w => w.StartsWith("pages=", StringComparison.Ordinal));
+                var pages = pageArg is not null && Core.PageRange.TryParse(pageArg[6..], v!.PageCount, out var some, out _) ? some : [.. Enumerable.Range(0, v!.PageCount)];
+                var done = await tab!.SuggestRedactions(new RedactSuggestPlan(kinds, description, words.Contains("terms"), pages));
+                var s = tab.LastSuggestion;
+                log.Add($"redact-suggest: applied {done}; kept [{string.Join(", ", s?.Kept.Select(k => $"{k.Kind}:{k.Text}") ?? [])}] dropped {s?.Dropped ?? 0} unreadable {s?.Unreadable ?? 0}; {tab.LastRedactionReport?.Summary}");
+                log.Add($"redact-suggest rows: {string.Join("; ", tab.LastRedactionReport?.Removals.Select(r => $"{r.Page + 1} {r.PatternName} {r.Masked} {r.OutcomeText}") ?? [])}");
+                break;
+            }
+            case "redactterms": RedactionTerms.Save(RedactSuggestActions.TermsPath, RedactionTerms.Parse(arg.Replace(';', '\n'))); break;
+            case "redact-suggest-dialog": await RedactSuggestActions.Suggest(window, tab!); break;
             case "reviewselect": RedactReviewDialog.Open!.DevSelect(int.Parse(arg)); break;
             case "reviewearlier": RedactReviewDialog.Open!.DevSelectEarlier(); break;
             case "reviewtoggle": RedactReviewDialog.Open!.DevToggle(int.Parse(arg)); break;
@@ -718,6 +756,46 @@ internal static class DevScript
                 log.Add($"looks: {v.DevParagraphLooks()} | {tab!.DevContentState()}");
                 break;
             }
+            // Spell check (roadmap 4.1): spellstate (the open editor's language and underlined words) · spellmenu offset (its
+            // menu about the word there, logged) · spellchoose Header (run that menu item) · spelling on|off (the setting)
+            case "spellstate": log.Add(v!.DevSpelling()); break;
+            case "spellmenu": log.Add(v!.DevSpellingMenu(int.Parse(arg))); break;
+            case "spellchoose":
+                v!.DevSpellingChoose(arg);
+                await Task.Delay(200);
+                log.Add(v.DevSpelling());
+                break;
+            case "spelling":
+                AppSettings.Current.SpellCheck = arg != "off";
+                v?.RefreshSpelling(); // as Settings does
+                break;
+            // Find & Replace (roadmap 4.2): replacedialog (Edit › Replace…, waits until it and the replacing are done: drive
+            // it with "later") · replacesearch find|with[|case,whole] · replacestate · replacesel i · replacetoggle i ·
+            // replaceone (Replace: the selected match) · replaceall (Replace All: closes it) · replaced (what the last did)
+            case "replacedialog": await tab!.ShowReplaceAsync(); break;
+            case "replacesearch":
+            {
+                var a = arg.Split('|');
+                var flags = a.Length > 2 ? a[2] : "";
+                await ReplaceDialog.Open!.DevSearch(a[0], flags.Contains("case", StringComparison.Ordinal), flags.Contains("whole", StringComparison.Ordinal), a.Length > 1 ? a[1] : "");
+                log.Add(ReplaceDialog.Open.DevState());
+                break;
+            }
+            case "replacestate": log.Add(ReplaceDialog.Open?.DevState() ?? "replace: none open"); break;
+            case "replacesel": ReplaceDialog.Open!.DevSelect(int.Parse(arg)); break;
+            case "replacetoggle": ReplaceDialog.Open!.DevToggle(int.Parse(arg)); break;
+            case "replaceone":
+                await ReplaceDialog.Open!.DevReplace();
+                log.Add(ReplaceDialog.Open.DevState());
+                break;
+            case "replaceall": log.Add(ReplaceDialog.Open!.DevReplaceAll() is { } refused ? $"replaceall refused: {refused}" : "replaceall: closing"); break;
+            case "replacetype": ReplaceDialog.Open!.DevType(arg); break;
+            case "replaced":
+                while (tab!.IsBusy) await Task.Delay(100);
+                log.Add(tab.LastReplace is { } lr
+                    ? $"replaced: {lr.Replaced}, left {lr.Left}, notes {lr.Notes.Count}" + string.Concat(lr.Notes.Select(n => "\n  " + tab.NoteLine(n)))
+                    : "replaced: nothing yet");
+                break;
             case "paragraphs":
             {
                 var c = v!.DevContent(int.Parse(arg) - 1);
@@ -1307,6 +1385,16 @@ internal static class DevScript
                 break;
             case "aiexplain": await tab!.AiExplainSelection(); log.Add(tab.DevAiState()); break;
             case "aistate": log.Add(tab!.DevAiState()); break;
+            case "aiconversation": log.Add(tab!.DevAiConversation()); break;
+            case "aisave":
+            {
+                // aisave last|all [word|pdf|comment [path]]: Save AI Answer (no target: its dialog, answer it with "later")
+                var a = arg.Split(' ', 3);
+                IReadOnlyList<AiExchange>? chosen = a[0] == "all" ? null : tab!.LastAiAnswer is { } last ? [last] : [];
+                AiSaveTarget? target = a.Length > 1 ? a[1] switch { "word" => AiSaveTarget.Word, "pdf" => AiSaveTarget.Pdf, _ => AiSaveTarget.Comment } : null;
+                log.Add($"aisave: {await tab!.SaveAiAnswers(chosen, target, a.Length > 2 ? a[2] : null)}");
+                break;
+            }
             // Translate: translate Language [pages] (the whole job; answer its windows with "later") · translatestate
             case "translate":
             {
@@ -1434,7 +1522,7 @@ internal static class DevScript
                 break;
             }
             case "prowindow":
-                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, _ => null });
+                ProWindow.Open(window, arg switch { "redact" => ProFeature.PatternRedaction, "presets" => ProFeature.BatchPresets, "watched" => ProFeature.WatchedFolders, "cli" => ProFeature.CommandLine, "tag" => ProFeature.AutoTagging, "ro" => ProFeature.ReadingOrder, "pdfa2a" => ProFeature.AccessibleOutput, "ltv" => ProFeature.LongTermValidation, "foldersearch" => ProFeature.FolderSearch, "compare" => ProFeature.CompareOfficeAndScans, "suggest" => ProFeature.RedactionSuggestions, _ => null });
                 await Task.Delay(300);
                 break;
             case "pro" when arg == "remove": ProWindow.Open(window, null).DevRemove(); break;
@@ -1756,9 +1844,11 @@ internal static class DevScript
             _ => throw new ArgumentException($"Unknown modifier '{m}' (use ctrl, shift, alt)."),
         }).Distinct().ToList();
         var alt = mods.Contains(0x12);
-        uint down = alt ? 0x0104u : 0x0100u, up = alt ? 0x0105u : 0x0101u;
-        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
         var vk = System.Windows.Input.KeyInterop.VirtualKeyFromKey(key);
+        // F10 comes as a system key, as Windows sends it (Shift+F10 opens a context menu).
+        var system = alt || vk == 0x79;
+        uint down = system ? 0x0104u : 0x0100u, up = system ? 0x0105u : 0x0101u;
+        var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
 
         var saved = new byte[256];
         GetKeyboardState(saved);
@@ -1848,7 +1938,7 @@ internal static class DevScript
     {
         var list = tab.Comments.Where(c => !c.IsInkvoltPdfStamp).ToList();
         return $"annots: {list.Count}" + string.Concat(list.Select(c =>
-            $"\n  {c.Subtype} p{c.PageIndex + 1} {c.Rect.X:0},{c.Rect.Y:0} {c.Rect.Width:0}x{c.Rect.Height:0} quads={c.QuadRects.Count} color={DrawStyles.Hex(c.Color) ?? "-"} by '{c.Author}' replyTo={c.ReplyTo ?? "-"}: '{Trunc(c.Contents)}'"));
+            $"\n  {c.Subtype} p{c.PageIndex + 1} {c.Rect.X:0},{c.Rect.Y:0} {c.Rect.Width:0}x{c.Rect.Height:0} quads={c.QuadRects.Count} color={DrawStyles.Hex(c.Color) ?? "-"} by '{c.Author}' replyTo={c.ReplyTo ?? "-"}{(c.Grouped ? " (group)" : "")}: '{Trunc(c.Contents)}'"));
     }
 
     /// <summary>The drawing annotations (index, kind, where, look), one line each.</summary>
