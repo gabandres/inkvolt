@@ -1,7 +1,8 @@
 # Inkvolt PDF in Spanish: wording review
 
-For the owner, to review the wording quickly. The app's text is in `pdf/src/InkvoltPdf.App/Strings.es.resx` and Core's in
-`pdf/src/InkvoltPdf.Core/PdfStrings.es.resx` (5,172 strings in all); change a value there, keep its `{0}`, `{1}` and its
+For the owner, to review the wording quickly. The owner approved the Windows wording; the Mac-only wording ("Inkvolt PDF
+for Mac", below) is still to review. The app's text is in `pdf/src/InkvoltPdf.App/Strings.es.resx` and Core's in
+`pdf/src/InkvoltPdf.Core/PdfStrings.es.resx`; change a value there, keep its `{0}`, `{1}` and its
 access key `_` (`LocalizationTests` checks the placeholders). Shots of the screens: [`docs/ux-review/spanish-pdf/`](../../docs/ux-review/spanish-pdf/)
 (`docs/ux-review/pdf-spanish.txt` renders them again).
 
@@ -16,7 +17,8 @@ keys (Del, Ctrl+Shift+S) stay as they are, and so does what a document says.
 | English | Español |
 |---|---|
 | File · Edit · View · Organize · Review · Help | Archivo · Edición · Ver · Organizar · Revisar · Ayuda |
-| Hand · Fill & Sign · Comment · Draw · Organize | Mano · Llenar y firmar · Comentar · Dibujar · Organizar |
+| Hand · Edit · Convert · Comment · Fill & Sign · Organize · Protect · Scan & OCR (the command bar) | Mano · Editar · Convertir · Comentar · Llenar y firmar · Organizar · Proteger · Escanear y OCR |
+| Draw (Comment's submenu) | Dibujar |
 | Redact (bar button) | Eliminar información |
 | Commands (Ctrl+K) | Comandos |
 | Type a command, file, or page number | Escribe un comando, un archivo o un número de página |
@@ -101,22 +103,21 @@ keys (Del, Ctrl+Shift+S) stay as they are, and so does what a document says.
 | Keyboard Shortcuts · What's New · Report a Problem… | Métodos abreviados de teclado · Novedades · Informar un problema… |
 | About Inkvolt PDF | Acerca de Inkvolt PDF |
 
-## Word choices to check
+## Word choices
 
-Each of these could reasonably go another way; the first word is what the app says now.
+Each of these could reasonably go another way; the first word is what the app says (approved).
 
 - **Eliminar información confidencial** for Redact, from the listing ("elimina información confidencial de verdad"),
   never "redactar" (which means to write). The bar button says **Eliminar información**, the marks are **marcas de
   eliminación**, Apply Redactions is **Aplicar eliminaciones**, Check Redaction **Comprobar eliminación**. "Tachar" is
   Strike Out, so it isn't used for redaction.
-- **Qué hay en este PDF** for What's in This PDF. The live listing says "What's in This PDF" in English; when this ships,
-  the listing should say the same as the app (`pdf/packaging/README.md`).
+- **Qué hay en este PDF** for What's in This PDF, in the Store listing too (`pdf/packaging/README.md`).
 - **Llenar y firmar** (the listing's) for Fill & Sign, and **llenar** a form throughout.
 - **Acoplar** for Flatten (comments and fields into the page), as Acrobat in Spanish. "Aplanar" is the other common word.
 - **Rotulador** for the Highlighter pen, so it isn't confused with **Marcadores** (bookmarks) or **Resaltar** (the text
   highlight).
-- **Mano** for the Hand tool and **Comandos** for the palette button: short, as the bar is tight in Spanish (at 1400
-  DIPs Draw goes into "…", where English keeps it; the rule is the same).
+- **Mano** for the Hand tool and **Comandos** for the palette button: short, as the bar is tight in Spanish ("Llenar y
+  firmar", its longest label, goes into "…" before the bar drops its labels: `CommandBarLayout.FillSignPriority`).
 - **Ajuste predefinido** for a Batch preset (Print's scan presets are **ajustes de escaneo**). **Carpeta vigilada** for
   a watched folder.
 - **Identificación digital** for digital ID, **marca de tiempo** for timestamp, **validación a largo plazo** for
@@ -139,12 +140,12 @@ Each of these could reasonably go another way; the first word is what the app sa
 
 ## Inkvolt PDF for Mac
 
-The Mac app's text is in `mac/InkvoltPdf/Resources`: `Localizable.xcstrings` (the app, 1,738 sentences) and
+The Mac app's text is in `mac/InkvoltPdf/Resources`: `Localizable.xcstrings` (the app) and
 `PdfStrings.xcstrings` (what PdfCore shows: the menus, the accessibility check, the redaction check, What's in This PDF,
-Batch, errors; 1,912); what it shows from Inkvolt Print (Scan, a printer's status) comes from Inkvolt Print for Mac's
+Batch, errors); what it shows from Inkvolt Print (Scan, a printer's status) comes from Inkvolt Print for Mac's
 `CoreStrings.xcstrings`. Open either in Xcode, or change a `"value"` in the JSON and keep its `{0}`, `{1}`
-(`PdfStringsTests` checks them). Where Windows has the same English sentence, its Spanish above is used word for word
-(about 2,800 of the 3,650); the rest is the Mac's own, in the same voice (*tú*, sentence case). What's New is in Spanish
+(`PdfStringsTests` checks them). Where Windows has the same English sentence, its Spanish is used word for word; the
+rest is the Mac's own, in the same voice (*tú*, sentence case). What's New is in Spanish
 on the Mac (`mac/InkvoltPdf/WHATS-NEW.es.md`, every version; the Sparkle notes get `xml:lang="es"` once a release has
 `release-notes/<version>.es.md`). Inkvolt Print for Mac's What's New in Spanish is `mac/InkvoltPrint/WHATS-NEW.es.md`, and
 the App Store's es-MX text is in `listing.json` (sent only once the listing has a Spanish localization).
@@ -221,5 +222,5 @@ in Latin American Spanish. Please compare them with a Mac in Spanish.
 
 ### What stays in English on the Mac
 
-- The same as Windows (above), but What's New, which is in Spanish on the Mac.
+- The same as Windows (above).
 - The self-test's report (`--self-test`, a developer aid; its `--strings` check is how the app checks the catalogs).
