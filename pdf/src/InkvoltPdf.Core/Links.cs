@@ -129,11 +129,13 @@ public static class Links
 
     /// <summary>
     /// Makes each text a web or email link, as <see cref="PutOnText"/> makes one, in one change of the document (Links
-    /// from Addresses). Addresses <see cref="Normalize"/> refuses, pages out of range and texts without a box are skipped.
+    /// from Addresses). Addresses <see cref="Normalize"/> refuses, pages out of range and texts without a box are skipped;
+    /// when every one is, <paramref name="data"/> comes back as it was (no change to undo).
     /// </summary>
     public static byte[] PutOnTexts(byte[] data, string? password, IReadOnlyList<(int Page, IReadOnlyList<RectD> Lines, string Uri)> links)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Modify, PdfStrings.Doc_CantEdit);
+        var written = 0;
         foreach (var (pageIndex, lineRects, address) in links)
         {
             var lines = lineRects.Where(r => !r.IsEmpty).ToList();
@@ -141,8 +143,9 @@ public static class Links
             var all = RectD.FromEdges(lines.Min(r => r.X), lines.Min(r => r.Y), lines.Max(r => r.Right), lines.Max(r => r.Bottom));
             if (all.Width < 1 || all.Height < 1) continue;
             Write(doc, pageIndex, all, uri, -1, null, lines);
+            written++;
         }
-        return PdfObj.Save(doc);
+        return written == 0 ? data : PdfObj.Save(doc);
     }
 
     private static void Write(PdfDocument doc, int pageIndex, RectD rect, string? uri, int targetPage, string? replaceId, List<RectD>? lines)

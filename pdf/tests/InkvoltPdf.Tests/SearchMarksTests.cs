@@ -33,7 +33,8 @@ public class SearchMarksTests
         var hits = Hits(pdf, "invoice");
         Assert.Equal(3, hits.Count);
         var result = SearchMarks.Apply(pdf, null, hits, TextMarkupKind.Highlight, "Ana");
-        Assert.Equal((3, 0), (result.Marked, result.AlreadyMarked));
+        Assert.Equal(new SearchMarksCount(3, 0, 0, 0), result.Count);
+        Assert.Equal(result.Count, SearchMarks.Count(pdf, null, hits, TextMarkupKind.Highlight)); // what the undo step is named from
         var marks = Annotations.Read(result.Data, null);
         Assert.Equal(3, marks.Count);
         Assert.All(marks, m => Assert.Equal((AnnotationKind.Highlight, "Ana"), (m.Kind, m.Author)));
@@ -54,16 +55,17 @@ public class SearchMarksTests
         var hits = Hits(pdf, "invoice");
         var once = SearchMarks.Apply(pdf, null, hits, TextMarkupKind.Highlight, "Ana").Data;
         var twice = SearchMarks.Apply(once, null, hits, TextMarkupKind.Highlight, "Ana");
-        Assert.Equal((0, 3), (twice.Marked, twice.AlreadyMarked));
+        Assert.Equal(new SearchMarksCount(0, 3, 0, 0), twice.Count);
+        Assert.Equal(twice.Count, SearchMarks.Count(once, null, hits, TextMarkupKind.Highlight));
         Assert.Same(once, twice.Data); // nothing changed: the same bytes, no edit to undo
         var underlined = SearchMarks.Apply(once, null, hits, TextMarkupKind.Underline, "Ana");
-        Assert.Equal(3, underlined.Marked);
+        Assert.Equal(3, underlined.Count.Marked);
         Assert.Equal(6, Annotations.Read(underlined.Data, null).Count);
 
         // The same hit twice in the list is marked once; hits off the document or without a box are passed over.
         var odd = SearchMarks.Apply(pdf, null, [hits[0], hits[0], new HitToMark(7, hits[0].Rects), new HitToMark(0, []),
             new HitToMark(0, [new RectD(double.NaN, 0, 5, 5)])], TextMarkupKind.StrikeOut, "Ana");
-        Assert.Equal((1, 1), (odd.Marked, odd.AlreadyMarked));
+        Assert.Equal(new SearchMarksCount(1, 1, 0, 3), odd.Count);
         Assert.Equal(AnnotationKind.StrikeOut, Assert.Single(Annotations.Read(odd.Data, null)).Kind);
     }
 
@@ -74,6 +76,9 @@ public class SearchMarksTests
         var many = Enumerable.Range(0, SearchMarks.MaxMarks + 10)
             .Select(i => new HitToMark(0, [new RectD(10 + i % 50 * 11, 10 + i / 50 * 7, 10, 6)])).ToList();
         var result = SearchMarks.Apply(pdf, null, many, TextMarkupKind.Highlight, "Ana");
-        Assert.Equal(SearchMarks.MaxMarks, result.Marked);
+        // The hits past the limit are counted as left for another run, apart from those marked already or without a page.
+        Assert.Equal(new SearchMarksCount(SearchMarks.MaxMarks, 0, 10, 0), result.Count);
+        var again = SearchMarks.Apply(result.Data, null, [.. many, new HitToMark(9, many[0].Rects)], TextMarkupKind.Highlight, "Ana");
+        Assert.Equal(new SearchMarksCount(10, SearchMarks.MaxMarks, 0, 1), again.Count);
     }
 }

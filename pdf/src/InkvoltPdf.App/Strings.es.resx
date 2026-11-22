@@ -12063,4 +12063,13 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="Marks_StrikeOut_Many" xml:space="preserve">
     <value>Tachar {0} coincidencias</value>
   </data>
+  <data name="Links_NoneMade" xml:space="preserve">
+    <value>No se agregó ningún vínculo: ninguna de las direcciones marcadas se pudo convertir en vínculo.</value>
+  </data>
+  <data name="Marks_SearchStopped" xml:space="preserve">
+    <value>La búsqueda se detuvo antes de terminar: vuelve a buscar y vuelve a elegirlo.</value>
+  </data>
+  <data name="Marks_CouldntMark" xml:space="preserve">
+    <value>No se pudieron marcar las coincidencias: no se pudo leer el documento.</value>
+  </data>
 </root>

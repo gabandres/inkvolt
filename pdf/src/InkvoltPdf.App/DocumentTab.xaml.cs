@@ -940,7 +940,7 @@ public partial class DocumentTab : UserControl, IDisposable
         CancelSearch();
         _results.Clear();
         _searched = null;
-        _searchComplete = false;
+        _searchComplete = _searchFailed = false;
         _activeHit = -1;
         Viewer.SetSearchHits([]);
         Viewer.ShowHit(null);
@@ -1403,7 +1403,7 @@ public partial class DocumentTab : UserControl, IDisposable
         CancelSearch();
         var cts = _searchCts = new CancellationTokenSource();
         _searched = (query, matchCase, wholeWords, ignoreAccents);
-        _searchComplete = false;
+        _searchComplete = _searchFailed = false;
         _results.Clear();
         _activeHit = -1;
         Viewer.SetSearchHits([]);
@@ -1480,9 +1480,11 @@ public partial class DocumentTab : UserControl, IDisposable
                 ShowHit(FirstHitFrom(startPage, _searchBackwards));
             }
             else if (_activeHit >= 0) FindStatus.Text = Loc.Format(Strings.Tab_FindPosition, _activeHit + 1, _results.Count);
+            else FindStatus.Text = summary; // searched again without moving (after Mark All Matches): not left at "Searching…"
         }
         catch (OperationCanceledException)
         {
+            if (ReferenceEquals(_searchCts, cts) || _searchCts is null) _searchFailed = true; // stopped, not replaced by a new search
         }
         catch (ObjectDisposedException)
         {
@@ -1491,6 +1493,7 @@ public partial class DocumentTab : UserControl, IDisposable
         catch (Exception ex) // never leave "Searching…" up with an unobserved failure
         {
             Log.Write($"Search failed: {ex}");
+            if (ReferenceEquals(_searchCts, cts) || _searchCts is null) _searchFailed = true;
             if (cts.IsCancellationRequested) return;
             SearchStatus.Text = FindStatus.Text = Strings.Tab_SearchFailed;
             Notify(Loc.Format(Strings.Tab_SearchFailedToast, ex.Message), error: true);

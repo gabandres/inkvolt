@@ -60,6 +60,8 @@ public static class OneBitImages
         var bpc = PdfObj.Int(image.Elements["/BitsPerComponent"]);
         var stencil = PdfObj.Resolve(image.Elements["/ImageMask"]) is PdfBoolean { Value: true };
         if (bpc != 1 && !(stencil && bpc is null)) return null;
+        // One sample a pixel only: a 1-bit RGB or CMYK picture has three or four, which a grey drawing would mix up.
+        if (!stencil && !OneComponent(image.Elements["/ColorSpace"])) return null;
         int w = PdfObj.Int(image.Elements["/Width"]) ?? 0, h = PdfObj.Int(image.Elements["/Height"]) ?? 0;
         if (w <= 0 || h <= 0 || (long)w * h > MaxPixels || (long)w * h > BitImage.MaxPixels) return null;
         if (Filters(image) is not { } filters || filters.Any(f => f is "JBIG2Decode" or "JPXDecode" or "DCTDecode" or "Crypt")) return null;
@@ -183,6 +185,19 @@ public static class OneBitImages
         for (long i = 0; i < gray.Length; i++) gray[i] = rgb[3 * i + 1];
         return BitImage.FromGray(gray, w, h, 128);
     }
+
+    /// <summary>A colour space of one component a pixel: DeviceGray, CalGray, ICC-based with /N 1, Indexed or Separation.</summary>
+    internal static bool OneComponent(PdfItem? item) => PdfObj.Resolve(item) switch
+    {
+        PdfName n => n.Value is "/DeviceGray" or "/G",
+        PdfArray a when a.Elements.Count > 0 && PdfObj.Name(a.Elements[0]) is { } family => family switch
+        {
+            "CalGray" or "Indexed" or "I" or "Separation" => true,
+            "ICCBased" => a.Elements.Count > 1 && PdfObj.Dict(a.Elements[1]) is { } icc && PdfObj.Int(icc.Elements["/N"]) == 1,
+            _ => false,
+        },
+        _ => false,
+    };
 
     private static List<string>? Filters(PdfDictionary d) => PdfObj.Resolve(d.Elements["/Filter"]) switch
     {

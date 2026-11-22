@@ -5,8 +5,15 @@ namespace InkvoltPdf.Core;
 /// <summary>One search hit to mark: its page and its box on each line it runs over (page space).</summary>
 public sealed record HitToMark(int Page, IReadOnlyList<RectD> Rects);
 
-/// <summary>What <see cref="SearchMarks.Apply"/> did: the document, how many hits it marked and how many were marked already.</summary>
-public sealed record SearchMarksResult(byte[] Data, int Marked, int AlreadyMarked);
+/// <summary>
+/// What marking the hits does: <see cref="Marked"/> hits marked, <see cref="AlreadyMarked"/> under a mark of that kind
+/// already, <see cref="Limited"/> left for another run past <see cref="SearchMarks.MaxMarks"/>, <see cref="Skipped"/>
+/// on no page of the document or without a box.
+/// </summary>
+public sealed record SearchMarksCount(int Marked, int AlreadyMarked, int Limited, int Skipped);
+
+/// <summary>What <see cref="SearchMarks.Apply"/> did: the document (the same bytes when nothing was marked) and its counts.</summary>
+public sealed record SearchMarksResult(byte[] Data, SearchMarksCount Count);
 
 /// <summary>
 /// Mark All Matches (roadmap 4.18): every hit of a search highlighted, underlined or struck out as a comment of its own, as
@@ -34,26 +41,48 @@ public static class SearchMarks
     public static SearchMarksResult Apply(byte[] data, string? password, IReadOnlyList<HitToMark> hits, TextMarkupKind kind, string author)
     {
         using var doc = Annotations.OpenForEdit(data, password);
+        var (toMark, count) = Plan(doc, hits, kind);
+        foreach (var (page, rects) in toMark) Annotations.AddTextMarkupIn(doc, page, kind, rects, ColorOf(kind), null, author);
+        return new SearchMarksResult(toMark.Count == 0 ? data : PdfObj.Save(doc), count);
+    }
+
+    /// <summary>What <see cref="Apply"/> would do, nothing written: for the undo step's name, and to say when there is nothing to mark.</summary>
+    public static SearchMarksCount Count(byte[] data, string? password, IReadOnlyList<HitToMark> hits, TextMarkupKind kind)
+    {
+        using var doc = PdfObj.Open(data, password, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+        return Plan(doc, hits, kind).Count;
+    }
+
+    /// <summary>The hits to mark, in order, and the counts.</summary>
+    private static (List<(int Page, List<RectD> Rects)> ToMark, SearchMarksCount Count) Plan(PdfDocument doc, IReadOnlyList<HitToMark> hits, TextMarkupKind kind)
+    {
         var subtype = "/" + kind;
         var existing = new Dictionary<int, List<RectD>>();
-        int marked = 0, already = 0;
+        var toMark = new List<(int, List<RectD>)>();
+        int already = 0, limited = 0, skipped = 0;
         foreach (var hit in hits)
         {
-            if (marked >= MaxMarks) break;
-            if (hit.Page < 0 || hit.Page >= doc.PageCount) continue;
             var rects = hit.Rects.Where(r => !r.IsEmpty && double.IsFinite(r.X) && double.IsFinite(r.Y) && double.IsFinite(r.Width) && double.IsFinite(r.Height)).ToList();
-            if (rects.Count == 0) continue;
+            if (hit.Page < 0 || hit.Page >= doc.PageCount || rects.Count == 0)
+            {
+                skipped++;
+                continue;
+            }
             if (!existing.TryGetValue(hit.Page, out var quads)) existing[hit.Page] = quads = MarkedLines(doc.Pages[hit.Page], subtype);
             if (rects.All(r => quads.Any(q => Covers(q, r))))
             {
                 already++;
                 continue;
             }
-            Annotations.AddTextMarkupIn(doc, hit.Page, kind, rects, ColorOf(kind), null, author);
+            if (toMark.Count >= MaxMarks)
+            {
+                limited++;
+                continue;
+            }
+            toMark.Add((hit.Page, rects));
             quads.AddRange(rects); // the same place twice in the list is marked once
-            marked++;
         }
-        return new SearchMarksResult(marked == 0 ? data : PdfObj.Save(doc), marked, already);
+        return (toMark, new SearchMarksCount(toMark.Count, already, limited, skipped));
     }
 
     /// <summary>The lines the page's marks of this kind already cover.</summary>

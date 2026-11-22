@@ -69,6 +69,7 @@ public partial class DocumentTab
         });
         if (!dlg.ShowModal() || _disposed || !await SettleAsync() || !ReferenceEquals(data, Session.Data)) return;
 
-        await RunEdit(Loc.Plural(chosen.Count, Strings.Links_Edit_One, Strings.Links_Edit_Many), (d, pw) => AddressLinks.Apply(d, pw, chosen));
+        if (await TryEdit(Loc.Plural(chosen.Count, Strings.Links_Edit_One, Strings.Links_Edit_Many), (d, pw) => AddressLinks.Apply(d, pw, chosen)) == EditOutcome.NoChange)
+            Notify(Strings.Links_NoneMade);
     }
 }

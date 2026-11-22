@@ -137,6 +137,41 @@ public class OneBitImagesTests
     }
 
     [Fact]
+    public void OnlyOneComponentPicturesAreCodedAgain()
+    {
+        var (gray, w, h) = Smaller(2);
+        var raw = Samples(Bilevel.FromScan(gray, w, h, 150));
+        var stride = (w + 7) / 8;
+
+        // 1-bit RGB: three samples a pixel, rows of the page's bits laid side by side. Coding them as grey would garble it.
+        var rgbStride = (3 * w + 7) / 8;
+        var rgb = new byte[rgbStride * h];
+        for (var y = 0; y < h; y++)
+            for (var i = 0; i < rgbStride; i++) rgb[y * rgbStride + i] = raw[y * stride + i % stride];
+        foreach (var space in new[] { "/DeviceRGB", "/DeviceCMYK", "[/ICCBased << /N 3 >>]" })
+        {
+            byte[] data = space == "/DeviceCMYK" ? [.. rgb, .. rgb[..((w * 4 + 7) / 8 * h - rgb.Length)]] : rgb;
+            var pdf = OnePicturePage($"/Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace {space} /BitsPerComponent 1 /Filter /FlateDecode",
+                PdfObj.Deflate(data));
+            var result = Optimizer.Optimize(pdf, null, new OptimizeOptions { MaxImageDpi = null });
+            Assert.Equal(0, result.ImagesBlackAndWhite);
+            using var doc = Core2Pdf.Open(result.Data);
+            Assert.Equal("FlateDecode", PdfObj.Name(Picture(doc).Elements["/Filter"]));
+        }
+
+        // Indexed with two colours (one sample a pixel): coded again, drawn the same.
+        var indexed = OnePicturePage($"/Type /XObject /Subtype /Image /Width {w} /Height {h} /ColorSpace [/Indexed /DeviceRGB 1 <000080FFFFFF>] /BitsPerComponent 1 /Filter /FlateDecode",
+            PdfObj.Deflate(raw));
+        var recoded = Optimizer.Optimize(indexed, null, new OptimizeOptions { MaxImageDpi = null });
+        Assert.Equal(1, recoded.ImagesBlackAndWhite);
+        Assert.Equal(Pixels(indexed, 1), Pixels(recoded.Data, 1));
+
+        Assert.True(OneBitImages.OneComponent(new PdfName("/DeviceGray")));
+        Assert.False(OneBitImages.OneComponent(new PdfName("/DeviceRGB")));
+        Assert.False(OneBitImages.OneComponent(null));
+    }
+
+    [Fact]
     public void AStencilsDecodeArrayAndAGreyPictureAreLeftAsTheyDraw()
     {
         // A stencil painting its 1 samples in red (Decode [1 0]), as CCITT G4: coded again, drawn the same.

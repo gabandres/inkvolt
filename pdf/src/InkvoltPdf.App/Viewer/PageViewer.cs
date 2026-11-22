@@ -122,6 +122,15 @@ public sealed partial class PageViewer : ScrollViewer
 
     /// <summary>The last Snapshot box, still shown on its page until another tool is chosen or the document changes.</summary>
     public (int Page, RectD Area)? SnapshotArea => _snapArea;
+
+    /// <summary>No Snapshot box any more (its outline goes), and the next one copies its picture.</summary>
+    private void ClearSnapshotArea()
+    {
+        SnapshotCopies = AreaCopyKind.Picture;
+        if (_snapArea is null) return;
+        _snapArea = null;
+        _surface.InvalidateVisual();
+    }
     /// <summary>A (new) engine was attached (<see cref="SetEngine"/>); the argument is its contentOnly flag.</summary>
     public event EventHandler<bool>? EngineChanged;
 
@@ -284,7 +293,7 @@ public sealed partial class PageViewer : ScrollViewer
             if (_tool == value) return;
             CommitEditor();
             _tool = value;
-            if (value != ViewerTool.Snapshot) (_snapArea, SnapshotCopies) = (null, AreaCopyKind.Picture);
+            if (value != ViewerTool.Snapshot) ClearSnapshotArea();
             CancelMeasure();
             IsManipulationEnabled = value == ViewerTool.Hand;
             if (value != ViewerTool.SelectText && !_caretBrowsing) ClearSelection();
@@ -308,7 +317,7 @@ public sealed partial class PageViewer : ScrollViewer
     {
         var anchor = keepPosition && _engine is not null ? CaptureAnchor() : (Anchor?)null;
         contentOnly &= anchor is not null && _rects.Length == engine.PageCount;
-        if (!contentOnly) _snapArea = null; // the page under it may have changed
+        if (!contentOnly) ClearSnapshotArea(); // the page under it may have changed
         if (!contentOnly)
         {
             // Save what the editor holds (by field name, so it lands on the right field wherever it moved) and close it.

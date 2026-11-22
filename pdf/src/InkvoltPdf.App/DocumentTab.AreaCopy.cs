@@ -42,16 +42,25 @@ public partial class DocumentTab
         try
         {
             var engine = Session.Engine;
+            // An edit meanwhile retires this engine and may move the page: what was boxed is gone, and that is said.
+            bool Changed()
+            {
+                if (!_disposed && ReferenceEquals(engine, Session.Engine)) return false;
+                if (!_disposed) Notify(Strings.Viewer_SnapshotChanged, error: true);
+                return true;
+            }
             var read = await Task.Run(() => engine.GetExportPage(page, images: false));
+            if (Changed()) return;
             var clipped = AreaCopy.Clip(read, area);
             var recognized = false;
             if (!clipped.HasText)
             {
                 // A scan: read the box as Recognize Text would (its language; offered for download first when needed).
-                if (await PageOcr.ReadyAsync(Window.GetWindow(this)) is not { } ocr) return;
+                var ocr = await PageOcr.ReadyAsync(Window.GetWindow(this));
+                if (ocr is null || Changed()) return;
                 Notify(Strings.Area_Reading);
                 var words = await Task.Run(() => AreaCopy.Recognize(engine, page, area, ocr));
-                if (_disposed) return;
+                if (Changed()) return;
                 clipped = AreaCopy.FromWords(read, words);
                 recognized = true;
             }
@@ -93,10 +102,12 @@ public partial class DocumentTab
                 Notify(Loc.Format(Strings.Viewer_CopyFailed, ex.Message), error: true);
             }
         }
-        catch (Exception ex) when (ex is MuPDFCore.MuPDFException or PageRefusedException or InvalidOperationException)
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
+            // Run from a click without anyone awaiting it: whatever stops it (the engine retired by an edit, the recognizer,
+            // a damaged page) is logged and said, never left as "Reading…".
             Log.Write($"Copy from an area failed: {ex.GetType().Name}: {ex.Message}");
-            Notify(Strings.Area_CouldntRead, error: true);
+            if (!_disposed) Notify(Strings.Area_CouldntRead, error: true);
         }
         finally
         {

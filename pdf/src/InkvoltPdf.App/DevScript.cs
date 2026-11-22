@@ -843,9 +843,10 @@ internal static class DevScript
             {
                 // scanpage <file.jpg> [dpi] [bw]: hand the open Scan dialog a page as if scanned, in black and white with bw (then
                 // press its finish button).
-                var a = arg.Split(' ');
+                var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 var dlg = Application.Current.Windows.OfType<ScanDialog>().First();
-                await dlg.DevAddPageAsync(await File.ReadAllBytesAsync(a[0]), a.Length > 1 ? int.Parse(a[1]) : 150, a.Length > 2 && a[2] == "bw");
+                var dpi = a.Skip(1).Select(s => int.TryParse(s, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : (int?)null).FirstOrDefault(d => d is not null) ?? 150;
+                await dlg.DevAddPageAsync(await File.ReadAllBytesAsync(a[0]), dpi, a.Skip(1).Contains("bw", StringComparer.OrdinalIgnoreCase));
                 log.Add($"scanpage: {dlg.DevDescribe()}");
                 break;
             }

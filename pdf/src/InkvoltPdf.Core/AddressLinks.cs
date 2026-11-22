@@ -22,7 +22,7 @@ public static partial class AddressLinks
     // A web address: http(s):// or www. and what follows up to a space or a character addresses don't hold. An email
     // address: a local part, @, then a domain of labels ending in letters (international ones too). Neither may follow a
     // letter, digit or address character (no match inside a longer word).
-    [GeneratedRegex(@"(?<![\p{L}\p{N}@._%+/-])(?:(?:https?://|www\.)[^\s<>""{}|\\^`]+|[\p{L}\p{N}._%+-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+\p{L}{2,})",
+    [GeneratedRegex(@"(?<![\p{L}\p{N}@._%+/-])(?:(?:https?://|www\.)[^\s<>""{}|\\^`]+|[\p{L}\p{N}._%+-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?\.)+\p{L}{2,}(?![\p{L}\p{N}_@-]))",
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, matchTimeoutMilliseconds: 1000)]
     private static partial Regex Address();
 

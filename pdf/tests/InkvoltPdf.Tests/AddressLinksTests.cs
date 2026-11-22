@@ -31,6 +31,9 @@ public class AddressLinksTests
         Assert.Empty(Found("ftp://files.example.com"));    // only web and email addresses
         Assert.Empty(Found("x" + new string('a', 5000) + "@"));
         Assert.Equal(["www.example.com"], Found("go to www.example.com"));
+        // An address running on into letters or digits isn't cut short to a shorter domain.
+        Assert.Empty(Found("support@example.com2 and help@example.org_x and a@b.c-d"));
+        Assert.Equal(["support@example.com"], Found("support@example.com, then"));
     }
 
     private static byte[] Pdf() => Core2Pdf.Build(
@@ -82,6 +85,15 @@ public class AddressLinksTests
         Assert.Equal(["https://example.com/help", "https://www.example.org/"], found.Select(f => f.Uri));
         var links = Links.Read(AddressLinks.Apply(pdf, null, [found[1]]), null);
         Assert.Equal(["mailto:sales@example.com", "https://www.example.org/"], links.Select(l => l.Uri));
+    }
+
+    [Fact]
+    public void WhenNoAddressCanBeLinkedTheDocumentIsLeftAsItWas()
+    {
+        var pdf = Pdf();
+        Assert.Same(pdf, AddressLinks.Apply(pdf, null, [new FoundAddress(0, "x", "javascript:alert(1)", [new RectD(72, 80, 50, 12)]),
+            new FoundAddress(5, "a@b.co", "mailto:a@b.co", [new RectD(72, 80, 50, 12)]), new FoundAddress(0, "a@b.co", "mailto:a@b.co", [])]));
+        Assert.Same(pdf, Links.PutOnTexts(pdf, null, []));
     }
 
     [Fact]
