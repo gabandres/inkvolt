@@ -45,7 +45,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   `src/InkvoltPdf.Core/PdfStrings.resx` and `PdfStrings.es.resx` (what Core shows: the accessibility check, the redaction
   check, Batch's steps); a sentence is one format string (`Loc.Format`), a count two (`Loc.Plural`). The command palette
   also finds a command by its English name. Stay English: the command line's output (scripts read it), logs, dev scripts,
-  file formats and columns, What's New. Wording to review: `docs/SPANISH-REVIEW.md`.
+  file formats and columns. What's New is in Spanish from `WHATS-NEW.es.md`. Wording: `docs/SPANISH-REVIEW.md`.
 - **Command bar** (Fluent 2's pattern, one row; the groups where Nitro, Foxit and Acrobat put them,
   `docs/design/command-bar.md`): save, print, undo and redo as icons, the pointer tools (Hand / Select / Snapshot, an icon
   showing the one in use), then **Edit**, **Convert**, **Comment**, **Fill & Sign**, **Organize**, **Protect** and **Scan &
@@ -268,6 +268,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   SHA-384/512 for EC P-384/P-521). The signature is appended as an incremental update, so earlier signatures stay valid,
   then saved as a new file (name-signed.pdf) and verified.
 - **Redaction**: drag areas, mark selected text or every search match, then apply: the content is removed for good.
+  Redacted pages become images, and each line an area cuts is laid out again in them (its words in their order from the
+  line's alignment edge, evenly spaced, each box's width rounded to whole steps of twice the line's height), so neither the
+  words after a box nor the box itself tells how wide the removed text was.
   **Redact by Pattern…** (Review menu, command palette, the redaction bar) finds US Social Security numbers
   (not area 000, 666 or 9xx, group 00 or serial 0000), phone numbers (North American and international +CC), email
   addresses, payment card numbers (only those passing the Luhn check), dates (2026-10-27, 10/27/2026, 27.10.2026,
@@ -290,7 +293,8 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   palette) checks any PDF, such as one redacted elsewhere. It finds text still under black boxes, highlights and other
   comments or covers, or drawn in the color behind it (each character is drawn and looked at); pictures and drawings
   still under a dark box (the page is drawn again without the box); redaction marks never applied; text beside a box
-  that keeps its original positions, so the removed width can be measured; and the redacted text anywhere else: other
+  that keeps its original positions, so the removed width can be measured (beside drawn boxes, and beside boxes drawn
+  into a picture by another tool or on a scan); and the redacted text anywhere else: other
   pages, text in the content that doesn't show (hidden layers, outside the page), comments and their appearances, form
   fields (and XFA data), bookmarks, document properties and XMP, attached files (also inside zipped Office files and
   attached PDFs), tags (alternate text), scripts, objects nothing uses, earlier versions kept by incremental saves (each
@@ -385,7 +389,12 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   with (never downloading, never another language: if its files are gone, they say which language needs its download). Each page is straightened and cleaned first (on by default): skew up to 15°, sideways and upside-down pages
   turned upright (a page whose lines don't say which way up it is, such as one of numbers only, is turned over only when
   it reads clearly better so), a 3 × 3 median against noise, grey or shaded paper evened out to white, lone specks removed; the words
-  are then placed back on the page as it is, turned with it. **Replace the scans with the cleaned pages** (off by
+  are then placed back on the page as it is, turned with it. **Straighten pages photographed at an angle** and **Flatten
+  lines bent by a book's spine** (both on by default) act only on a page that clearly needs it: a page on a darker surface
+  whose four edges show is turned back into a rectangle, and lines that bow or sag towards a spine are flattened.
+  **Make Text Editable…** (Review menu and Scan & OCR) turns a page's recognized text into real text in the closest
+  installed font (its size, weight, slant and color matched to the scan, paragraphs that the paragraph editor reads as
+  one), covering the scan behind it in the paper's color or keeping it showing; one undo step. **Replace the scans with the cleaned pages** (off by
   default) puts the cleaned image in the page instead (grey stays grey, colour stays colour) and turns the page upright;
   comments, links and form fields stay. **Suspect words** (Review › Review Suspect Words, the pane's rail button, or the
   toast's Review): Windows' recognizer gives no confidence per word (its `OcrWord` has only text and a box), so Inkvolt
@@ -447,8 +456,9 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   have: pages of another size are shrunk to fit and centered. **HTML (.html)**: one file that reflows to any screen, with
   real headings (never skipping a level), paragraphs, bulleted and numbered lists (nested by indent), tables and
   pictures embedded in it, alternate text from the PDF's tags, and the language the PDF says or its words suggest. A
-  running header and footer appear once. Everything taken from the PDF is escaped: the file has no scripts, links or
-  anything that loads from elsewhere, and its Content-Security-Policy forbids them as well.
+  running header and footer appear once. Everything taken from the PDF is escaped: the file has no scripts or anything
+  that loads from elsewhere, and its Content-Security-Policy forbids them as well. Both formats keep the PDF's links on
+  the words they cover: web and mail addresses (http, https, mailto only) and jumps to an exported page.
 - **Reload** (F5) and an info bar when another program changes the open file; a reload that needs the file's password
   asks for it (after Remove Protection, the file on disk still has one). **Accessibility**: screen-reader names
   for pages, fields, links and lists; caret browsing (F7); F6 cycles command bar, side rail, pane and page (both panes of a split view); high-contrast aware;
@@ -527,7 +537,7 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   shown, and buying supports the project or gives a business a licence to invoice. With the gate on, a locked feature
   shows what it does and a button to the window (the command line prints the message and exits 2); removing the licence
   never takes away a result already made (saved presets and files the features produced stay).
-- **Help › What's New** shows `WHATS-NEW.md` (embedded); after an update it opens once by itself with the versions since the one
+- **Help › What's New** shows `WHATS-NEW.md` (embedded; `WHATS-NEW.es.md` in Spanish); after an update it opens once by itself with the versions since the one
   last run (`AppSettings.LastVersionSeen`; nothing on a new install or in dev-script runs). **Help › Report a Problem…** shows,
   then copies, the version, Windows, a settings summary and the log's last 200 lines, scrubbed of IP addresses, host names,
   UUIDs, serial-like IDs, file paths and the user's and PC's names (`InkvoltPrint.Core.Suite.Diagnostics`, shared with Inkvolt
@@ -732,7 +742,7 @@ at a time, each file once; the output is `name.docx` next to the PDF (never over
 gets `_`, `_CON.docx`), else in Documents. The package declares it as a verb on `.pdf` (`AppxManifest.template.xml`,
 its words in `packaging/Strings`); `install.ps1` writes the same verb under `SystemFileAssociations\.pdf` and
 `-Uninstall` removes it. A declared verb, not an `IExplorerCommand` handler: no code of ours loads into Explorer, which
-is why Windows 11 lists it under "Show more options" (the top of its menu takes only a COM handler, a native DLL), and why the Store build's verb shows only while Inkvolt PDF is the default PDF app (checked 2026-11-10: the package registers it on its .pdf ProgId, `smoke-msix.ps1` checks that; Explorer lists it for the default ProgId only). Showing it always, and at the top of Windows 11's menu, takes a `desktop4:FileExplorerContextMenus` handler: an `IExplorerCommand` COM DLL (C++, x64 and ARM64) in a surrogate.
+is why Windows 11 lists it under "Show more options" (the top of its menu takes only a COM handler, a native DLL), and why the Store build's verb shows only while Inkvolt PDF is the default PDF app (the package registers it on its .pdf ProgId, `smoke-msix.ps1` checks that; Explorer lists it for the default ProgId only). Showing it always, and at the top of Windows 11's menu, takes a `desktop4:FileExplorerContextMenus` handler: an `IExplorerCommand` COM DLL (C++, x64 and ARM64) in a surrogate.
 
 `--fill` (free, like the rest of roadmap 1.4) is Fill Forms from CSV: a filled form per row, in `--out` (default
 `<form> forms` beside the CSV), named by `--name` (default `<<name>> <<n:3>>`), a line per row; rows refused are listed
@@ -822,13 +832,11 @@ Make Accessible: `tag title|language` (without its window), `ro` (the Reading or
 `pdfa2a` (with `savepath`), `batchstep makeaccessible [language]`, `batchstep pdfa2a`, `prowindow tag|ro|pdfa2a`;
 `tools/a11y-corpus` `tag`, `pdfa` and `run.ps1 -Tag` run Make Accessible on the corpus and check the results with veraPDF
 (`plan` prints what it would tag, `glyphs` a font's characters without Unicode);
-`tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
+`tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `tools/pdfjs-check` reads edited pages with pdf.js so
+`ParagraphEditTests` (with `INKVOLTPDF_PDFJS`) can check they read the same there (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
 scanned copy, `export-scan.pdf`. Speed: `scrollbench [ms] [px/s]` scrolls the view for a while and logs the frame rate and
 blank pages (`tools/bench` runs it on its corpus; see its README). OCR: `tools/ocr-corpus` makes a scan corpus and
 measures Recognize Text's word error rate with and without the cleaning (see its README and RESULTS.md).
-`tools/a11y-corpus` compares the checker with veraPDF on 50 public PDFs (see its README); `tools/pdfjs-check` reads edited pages with pdf.js so
-`ParagraphEditTests` (with `INKVOLTPDF_PDFJS`) can check they read the same there (see its README); `ExportTests` with `INKVOLTPDF_SAMPLES` writes `export-sample.pdf` / `.docx` / `.xlsx` and a
-scanned copy, `export-scan.pdf`.
 Comments and form data: `savepath file` answers the next export, import or summary picker, then `cmd ExportComments`,
 `ImportComments`, `SummarizeComments`, `ExportFormData`, `ImportFormData` or `FillFormsFromCsv` (its dialog: `dialogshot`,
 `dialogok FillFormsFromCsv`, the report with `later … dialogshot` / `closedialog`); `CommentFilesTests.Commented()` is a
@@ -890,12 +898,15 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   aren't available to apps. Text is read in the order the page stores it, so multi-column layouts can read across.
 - Redacted pages become images (at 300 dpi). Their remaining text is put back by OCR as an invisible layer, so it
   stays searchable, but OCR text can contain recognition mistakes and the original fonts and structure are gone.
-  Batch's Redact Patterns doesn't add that layer: put Recognize Text (OCR) after it.
+  Batch's Redact Patterns doesn't add that layer: put Recognize Text (OCR) after it. A word moved when its line is laid
+  out again keeps the anti-aliased shading of where it was, a fraction of a pixel (MuPDF draws on the pixel grid); a line
+  whose spaces hold a rule or a picture stays in place, its boxes rounded only as far as its words allow, and the
+  redaction check reports it.
 - The redaction check finds text that doesn't show by drawing it, so text hidden by a cover that lets a few pixels through
   (a nearly opaque box, a light gray one over light text) counts as shown. Without knowing what was redacted (Check
   Redaction on a received file) it looks only for what covers and earlier versions give away; text cut out of a page
-  and repeated elsewhere isn't recognized as redacted. Glyph spacing is checked beside dark boxes, not inferred around
-  pixel redactions. An encrypted file's raw bytes aren't searched (they are ciphertext; its objects are). Tags (alternate
+  and repeated elsewhere isn't recognized as redacted. Glyph spacing is checked beside dark boxes and boxes drawn into
+  pictures, except those of lines Inkvolt PDF laid out itself (recorded in the page). An encrypted file's raw bytes aren't searched (they are ciphertext; its objects are). Tags (alternate
   text) have no fix of their own: redacting the page they describe drops its part. At most 32 earlier versions are opened.
 - Redact by Pattern reads scanned pages and pictures through Windows' OCR, which can misread words and miss lines: such
   a page is always flagged to be looked at by hand, and a value OCR can't read is found only by a person. Month names are
@@ -903,8 +914,9 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
 - OCR uses Windows' built-in recognizer, or Tesseract (downloaded on request) for a language Windows lacks: Windows' needs
   an OCR language installed (your display language, else English, unless another installed one is chosen), two
   languages a run at most (a Second language), and reads printed text only (not handwriting).
-  Straightening goes up to 15°; curved lines (a book's spine) and trapezoids (a photo of a page) aren't corrected, and a
-  page with too little text to show its lines stays as it is. Suspect words are a heuristic, not a confidence: a misread
+  Straightening goes up to 15°, and a page with too little text to show its lines stays as it is. A photographed page
+  is turned back into a rectangle only when its four edges show against a darker surface, letters squeezed near a book's
+  spine aren't widened, and two facing pages in one photo aren't split. With Windows' recognizer, suspect words are a heuristic, not a confidence: a misread
   word that is itself a real word ("form" for "from") isn't caught unless the scan before cleaning read it differently,
   and names or terms the dictionary lacks are listed though right. Pages recognized by an older version have no suspect
   words to review; an export counts its suspect words but has no text layer to review them in. A correction replaces one word with one word; the cleaned pages are
@@ -998,7 +1010,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   installed on Windows 10).
 - Search Folders: a word is looked up by its letters and digits, so a query of only punctuation is refused (Find in the open
   document takes it). A phrase is checked page by page among those with all its words, so when those are common and rarely side by
-  side it takes seconds, results coming as they are found. 500 pages are listed at most. A run of letters and digits longer than 48
+  side it is the slowest query (under a second for 500 pages of 10,000 files on the bench PC), results coming as they are found. 500 pages are listed at most. A run of letters and digits longer than 48
   characters (an identifier, a hash) is filed in overlapping pieces, so a word inside it is found, but only within its
   first 1,024 characters. The text of a changed or removed file stays in the index file, shown by no search, until the file is compacted
   (within about 2 minutes, while the app is open). A file only in a cloud drive isn't downloaded for this: it is counted, and read once it is on the PC. A moved or renamed file
@@ -1031,8 +1043,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   are free for now.
 - Accessibility Check: checks; Make Accessible fixes tagging, reading order and alternate text. Not
   checked: Ruby and Warichu tags (09-007, 09-008), printer's marks' appearances (28-018), a TrueType font's Differences
-  without a Windows Unicode cmap (31-023); glyph widths only against
-  TrueType programs (not CFF or Type 1); glyphs and widths of composite fonts whose CMap isn't Identity (their characters
+  without a Windows Unicode cmap (31-023); glyphs and widths of composite fonts whose CMap isn't Identity (their characters
   still are); content in external streams (PDFsharp can't read those files). A symbolic Type 1 font without an
   Encoding takes its CFF program's own, which isn't read: its glyphs aren't judged. It finds what the file says, not
   whether it makes sense: the checklist is for that.
@@ -1047,7 +1058,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   when a TWAIN manager of the app's own architecture is installed (the x64 build needs an x64 TWAINDSM.dll, the ARM64
   build an ARM64 one; makers mostly ship x64, so on an ARM64 PC a TWAIN-only scanner usually isn't listed); 32-bit-only
   TWAIN drivers aren't used (such a scanner is listed and says why). WIA and TWAIN scanning has been tested with made-up devices only: no page has gone through
-  a real WIA or TWAIN driver yet (on the one PC tried, the only WIA scanner was a printer no longer on the network).
+  a real WIA or TWAIN driver yet.
   A WIA 2.0 driver is used through WIA 2.0's own interface (as Inkvolt Print does: Stop stops a page in progress); a WIA
   1.0 driver's page in progress finishes before Stop takes effect. A driver's own extras (its blank page skipping, color dropout) aren't offered. Black-and-white pages
   are stored as JPEG (larger than CCITT/JBIG2 would be). A preset with a clean up (made in Inkvolt Print) crops and cleans
@@ -1058,8 +1069,8 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   200 ms pause, Find across 5,000 pages in under 5 s, the comment list in under 2 s and memory under 1.5 GB, measured
   before each release with `tools/bench` on its generated corpus (a 5,000-page text, a 500-page scan, a 1 GB drawing
   set, 10,000 comments); what the last run met and missed is in [tools/bench/RESULTS.md](tools/bench/RESULTS.md):
-  Find across 5,000 pages takes about 3 s, a first Find across a 1 GB drawing set about 30 s, and a sheet with 72,000
-  paths about 0.8 s to draw (a preview shows first). A search that will take more than about 2 s starts up to eight helper
+  Find across 5,000 pages takes under 3 s, but a first Find across the 1 GB drawing set about 35 s, and its sheets of
+  72,000 paths can't all be drawn within 200 ms of a scroll (MuPDFCore's limits: roadmap 3.6). A search that will take more than about 2 s starts up to eight helper
   processes of the app (`InkvoltPdf.exe --find-worker`, gone when the search ends), each using up to about 100 MB and a
   core; a file with a password, and any format other than PDF, is searched in the app itself, at the old speed.
   A PDF of 256 MB or more opens in place: Inkvolt PDF reads the file as pages need it, and other programs can't replace
@@ -1097,7 +1108,7 @@ All dependencies and their licenses: `THIRD-PARTY-NOTICES.md` (also in Help › 
   custom script) and submit buttons; detect comb boxes and table rows as one field each.
 - Export: Word columns for multi-column pages, joining paragraphs split across pages, text boxes for text that floats
   over pictures, charts and shapes as drawings, pictures cut out of scanned pages, numbered lists as Word numbering;
-  links in Word (PowerPoint and HTML carry them since 2026-11-20).
+  links in Word (PowerPoint and HTML carry them).
 - AI assistant: send pictures of pages to vision models; answers with tables; search by meaning (embeddings, with a
   local model) for Ask on long documents; save a conversation; summaries written into the document as a comment.
 - Optional support: GitHub Sponsors, and an in-app "Support Inkvolt" tip through the Store (Store commerce takes 15%).
