@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 using InkvoltPrint.Core.Imaging;
 
 namespace InkvoltPrint.Core.Pdf;
@@ -43,21 +44,41 @@ public static class PdfWriter
     /// <summary>The smallest font size written, in points: at "0.###" a smaller one would read as 0.</summary>
     private const double MinSize = 0.01;
 
-    public static void Write(Stream output, IReadOnlyList<PdfPage> pages, string? title = null)
+    /// <param name="options">PDF/A-2b or a password (<see cref="PdfWriteOptions"/>); null writes the plain file as before.</param>
+    /// <exception cref="ArgumentException">PDF/A and a password together (PDF/A forbids encryption), or a CMYK page in a PDF/A file.</exception>
+    public static void Write(Stream output, IReadOnlyList<PdfPage> pages, string? title = null, PdfWriteOptions? options = null)
     {
         if (pages.Count == 0) throw new ArgumentException("No pages", nameof(pages));
+        var archive = options?.PdfA == true;
+        var crypt = options?.Password is { } password ? PdfEncryption.Create(password) : null;
+        if (archive && crypt is not null) throw new ArgumentException("PDF/A files can't be encrypted.", nameof(options));
+        // PDF/A's sRGB output intent allows DeviceRGB and DeviceGray, never DeviceCMYK (ISO 19005-2, 6.2.4.3). Scans are never CMYK.
+        if (archive && pages.Any(p => p.Bits is null && JpegInfo(p.Jpeg).Components == 4))
+            throw new ArgumentException("A CMYK picture can't go into this PDF/A file.", nameof(pages));
         var w = new ObjWriter(output);
         var font = new OcrFont();
-        w.Raw("%PDF-1.4\n%\xE2\xE3\xCF\xD3\n");
+        // AES-256 (AESV3) is PDF 2.0's, Adobe's extension level 8 of PDF 1.7.
+        w.Raw(crypt is null ? "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n" : "%PDF-1.7\n%\xE2\xE3\xCF\xD3\n");
 
-        // Fixed ids: 1 catalog, 2 pages, 3 info; then 3 objects per page, then the font's when any page has text.
+        // Fixed ids: 1 catalog, 2 pages, 3 info; then 3 objects per page, then the font's when any page has text (6), then
+        // PDF/A's metadata and profile, or the encryption dictionary.
         const int infoId = 3;
         var pageIds = Enumerable.Range(0, pages.Count).Select(i => 4 + i * 3).ToList();
         var fontId = 4 + pages.Count * 3;
+        var (metadataId, profileId, encryptId) = (fontId + 6, fontId + 7, fontId + 6);
+        var created = (options?.Now ?? DateTime.UtcNow).ToUniversalTime();
+        var shownTitle = title ?? "Scan";
 
-        w.Obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
+        var catalog = "<< /Type /Catalog /Pages 2 0 R";
+        if (archive)
+            catalog += $" /Metadata {metadataId} 0 R /OutputIntents [<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (sRGB IEC61966-2.1) " +
+                       $"/Info (sRGB IEC61966-2.1) /DestOutputProfile {profileId} 0 R >>]";
+        if (crypt is not null) catalog += " /Extensions << /ADBE << /BaseVersion /1.7 /ExtensionLevel 8 >> >>";
+        // From here every object but the encryption dictionary has its strings and streams encrypted.
+        w.Encryption = crypt;
+        w.Obj(1, catalog + " >>");
         w.Obj(2, $"<< /Type /Pages /Count {pages.Count} /Kids [{string.Join(' ', pageIds.Select(id => $"{id} 0 R"))}] >>");
-        w.Obj(infoId, $"<< /Producer (Inkvolt Print) /Title {TextString(title ?? "Scan")} /CreationDate (D:{DateTime.UtcNow:yyyyMMddHHmmss}Z) >>");
+        w.Obj(infoId, $"<< /Producer (Inkvolt Print) /Title {TextString(shownTitle)} /CreationDate ({PdfDate(created)}) >>");
 
         // The black-and-white pages' coding, several at a time (each tries two or three codings).
         var oneBits = new (string Filter, byte[] Data)[pages.Count];
@@ -97,8 +118,17 @@ public static class PdfWriter
             w.Stream(contentId, $"<< /Length {contentBytes.Length} >>", contentBytes);
         }
         if (!font.IsEmpty) font.Write(w.Obj, w.Stream, fontId, fontId + 1);
+        if (archive)
+        {
+            var xmp = PdfArchive.Xmp(shownTitle, "Inkvolt Print", created);
+            w.Stream(metadataId, $"<< /Type /Metadata /Subtype /XML /Length {xmp.Length} >>", xmp);
+            var icc = IccProfiles.SrgbForPrint();
+            w.Stream(profileId, $"<< /N 3 /Length {icc.Length} >>", icc);
+        }
+        w.Encryption = null;
+        if (crypt is not null) w.Obj(encryptId, crypt.Dictionary());
 
-        w.Finish(rootId: 1, infoId: infoId);
+        w.Finish(rootId: 1, infoId: infoId, encryptId: crypt is null ? null : encryptId, withId: archive || crypt is not null);
     }
 
     /// <summary>
@@ -210,7 +240,7 @@ public static class PdfWriter
         w.Obj(1, "<< /Type /Catalog /Pages 2 0 R >>");
         w.Obj(2, "<< /Type /Pages /Count 1 /Kids [5 0 R] >>");
         w.Obj(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
-        w.Obj(4, $"<< /Producer (Inkvolt Print) /Title ({Escape(title)}) /CreationDate (D:{DateTime.UtcNow:yyyyMMddHHmmss}Z) >>");
+        w.Obj(4, $"<< /Producer (Inkvolt Print) /Title ({Escape(title)}) /CreationDate ({PdfDate(DateTime.UtcNow)}) >>");
         w.Obj(5, $"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {F(widthPt)} {F(heightPt)}] /Resources << /Font << /F1 3 0 R >> >> /Contents 6 0 R >>");
         w.Stream(6, $"<< /Length {bytes.Length} >>", bytes);
         w.Finish(rootId: 1, infoId: 4);
@@ -229,6 +259,12 @@ public static class PdfWriter
     }
 
     internal static string F(double d) => d.ToString("0.###", CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// A PDF date in UTC (D:YYYYMMDDHHmmSSZ), always in the Gregorian calendar: a Thai or Hijri regional format would otherwise write
+    /// another year, and a PDF/A file's Info date would no longer match its XMP one.
+    /// </summary>
+    internal static string PdfDate(DateTime utc) => "D:" + utc.ToUniversalTime().ToString("yyyyMMddHHmmss", CultureInfo.InvariantCulture) + "Z";
 
     internal static string Escape(string s)
     {
@@ -256,23 +292,34 @@ public static class PdfWriter
         private readonly List<(int Id, long Offset)> _offsets = [];
         private long _pos;
 
+        /// <summary>While set, each object's strings and each stream's data are encrypted as written.</summary>
+        public PdfEncryption? Encryption { get; set; }
+
         public void Raw(string text) => Bytes(Latin1.GetBytes(text));
 
         public void Obj(int id, string body)
         {
             _offsets.Add((id, _pos));
-            Raw($"{id} 0 obj\n{body}\nendobj\n");
+            Raw($"{id} 0 obj\n{Encryption?.EncryptStrings(body) ?? body}\nendobj\n");
         }
 
         public void Stream(int id, string dict, byte[] data)
         {
             _offsets.Add((id, _pos));
+            if (Encryption is { } crypt)
+            {
+                var plain = data.Length;
+                data = crypt.Encrypt(data);
+                dict = crypt.EncryptStrings(Regex.Replace(dict, $@"/Length {plain}(?!\d)", $"/Length {data.Length}"));
+            }
             Raw($"{id} 0 obj\n{dict}\nstream\n");
             Bytes(data);
             Raw("\nendstream\nendobj\n");
         }
 
-        public void Finish(int rootId, int infoId)
+        /// <param name="encryptId">The encryption dictionary's object, when the file has a password.</param>
+        /// <param name="withId">Writes the file identifier PDF/A and encryption ask for (a new random one).</param>
+        public void Finish(int rootId, int infoId, int? encryptId = null, bool withId = false)
         {
             var max = _offsets.Max(o => o.Id);
             var byId = _offsets.ToDictionary(o => o.Id, o => o.Offset);
@@ -281,7 +328,13 @@ public static class PdfWriter
             sb.Append($"xref\n0 {max + 1}\n0000000000 65535 f \n");
             for (var i = 1; i <= max; i++)
                 sb.Append(byId.TryGetValue(i, out var off) ? $"{off:D10} 00000 n \n" : "0000000000 65535 f \n");
-            sb.Append($"trailer\n<< /Size {max + 1} /Root {rootId} 0 R /Info {infoId} 0 R >>\nstartxref\n{xref}\n%%EOF\n");
+            var extra = encryptId is { } e ? $" /Encrypt {e} 0 R" : "";
+            if (withId)
+            {
+                var id = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(16));
+                extra += $" /ID [<{id}> <{id}>]";
+            }
+            sb.Append($"trailer\n<< /Size {max + 1} /Root {rootId} 0 R /Info {infoId} 0 R{extra} >>\nstartxref\n{xref}\n%%EOF\n");
             Raw(sb.ToString());
             s.Flush();
         }

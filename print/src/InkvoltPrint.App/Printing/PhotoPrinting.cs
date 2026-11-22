@@ -46,7 +46,7 @@ public sealed record PhotoQueueOptions(
 public sealed record PaperSetup(bool CanBorderless, SheetPaper Paper);
 
 /// <summary>The choices for one photo job (Print Schema names; null: the queue's default).</summary>
-public sealed record PhotoJobSettings(PaperChoice? Paper, string? MediaType, string? Quality, string? Color, bool Borderless);
+public sealed record PhotoJobSettings(PaperChoice? Paper, string? MediaType, string? Quality, string? Color, bool Borderless, bool TwoSided = false);
 
 /// <summary>
 /// Photo printing through the printer's Windows queue (the same XPS path as PDFs and copies, <see cref="QueuePrinter"/>):
@@ -117,7 +117,7 @@ public static class PhotoPrinting
     {
         var ticket = queue.DefaultPrintTicket.Clone();
         ticket.CopyCount = 1; // copies are laid out on the sheets
-        ticket.Duplexing = Duplexing.OneSided;
+        ticket.Duplexing = settings.TwoSided ? Duplexing.TwoSidedLongEdge : Duplexing.OneSided; // a card with its inside on the back
         ticket.PageOrientation = PageOrientation.Portrait;
         if (settings.Paper?.Media is { } media) ticket.PageMediaSize = media;
         if (Enum.TryParse<PageMediaType>(settings.MediaType, out var type)) ticket.PageMediaType = type;
@@ -197,9 +197,58 @@ public static class PhotoPrinting
             Color = IppPhotoNames.Color(settings.Color),
             Quality = IppPhotoNames.Quality(settings.Quality),
             MediaType = IppPhotoNames.MediaTypeKeyword(settings.MediaType),
+            TwoSided = settings.TwoSided,
         };
         await DirectPrinter.PrintAsync(direct, jobName, request, (paper, images) => new PhotoPaginator(laidOut, photos, paper, images), progress, ct);
         return laidOut.Count;
+    }
+
+    /// <summary>Save as PDF draws each sheet at this resolution: sharp on paper, a few hundred KB a sheet.</summary>
+    public const int PdfDpi = 200;
+
+    /// <summary>
+    /// The sheets as a PDF (roadmap 4.16): each drawn by <see cref="PhotoPaginator"/>, as it prints, at <see cref="PdfDpi"/> into a
+    /// JPEG page (<see cref="Core.Pdf.PdfWriter"/>), on an STA thread of its own with its own pictures; written under a temporary
+    /// name, then moved over <paramref name="path"/>.
+    /// </summary>
+    public static async Task SavePdfAsync(string path, IReadOnlyList<PhotoSheet> sheets, IReadOnlyList<PhotoJobPhoto> photos, SheetPaper paper, string title)
+    {
+        var done = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                using var images = new PrintImages();
+                var size = new Size(paper.Width * 96, paper.Height * 96);
+                var paginator = new PhotoPaginator(sheets, photos, size, images);
+                var pages = new List<Core.Pdf.PdfPage>(paginator.PageCount);
+                for (var i = 0; i < paginator.PageCount; i++)
+                {
+                    var page = paginator.GetPage(i);
+                    var bitmap = new RenderTargetBitmap((int)Math.Ceiling(paper.Width * PdfDpi), (int)Math.Ceiling(paper.Height * PdfDpi), PdfDpi, PdfDpi, PixelFormats.Pbgra32);
+                    bitmap.Render(page.Visual);
+                    var encoder = new JpegBitmapEncoder { QualityLevel = 90 };
+                    encoder.Frames.Add(BitmapFrame.Create(new FormatConvertedBitmap(bitmap, PixelFormats.Bgr24, null, 0)));
+                    using var ms = new System.IO.MemoryStream();
+                    encoder.Save(ms);
+                    pages.Add(new Core.Pdf.PdfPage(ms.ToArray(), PdfDpi));
+                }
+                var tmp = path + ".partial";
+                using (var file = System.IO.File.Create(tmp)) Core.Pdf.PdfWriter.Write(file, pages, title);
+                System.IO.File.Move(tmp, path, overwrite: true);
+                done.SetResult();
+            }
+            catch (Exception ex)
+            {
+                try { System.IO.File.Delete(path + ".partial"); }
+                catch (Exception) { /* nothing written, or it can't be removed: the next save replaces it */ }
+                done.SetException(ex);
+            }
+        })
+        { IsBackground = true, Name = "Inkvolt Print photos PDF" };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        await done.Task;
     }
 
     /// <summary>The job's pages. Each sheet's pictures are decoded when the serializer asks for it, at no more than <see cref="PrintDpi"/>.</summary>
@@ -280,6 +329,45 @@ public static class PhotoDrawing
             dc.Pop();
             if (cell.Caption is { } caption) DrawCaption(dc, photo.Source.Name, Scale(caption, unit), pixelsPerDip);
         }
+        // Cards and calendars (roadmap 4.16): their marks, rules and words.
+        foreach (var line in sheet.Lines)
+            dc.DrawLine(line.Dashed ? MarkPen : RulePen, new Point(line.X1 * unit, line.Y1 * unit), new Point(line.X2 * unit, line.Y2 * unit));
+        foreach (var text in sheet.Texts) DrawText(dc, text, unit, pixelsPerDip);
+    }
+
+    private static readonly Pen RulePen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0xB0, 0xB4, 0xBA)), 0.75));
+    private static readonly Pen MarkPen = Frozen(new Pen(new SolidColorBrush(Color.FromRgb(0x70, 0x74, 0x7A)), 0.75) { DashStyle = DashStyles.Dash });
+    private static readonly Brush TextBrush = Frozen(new SolidColorBrush(Color.FromRgb(0x20, 0x22, 0x26)));
+
+    private static Pen Frozen(Pen p)
+    {
+        p.Freeze();
+        return p;
+    }
+
+    /// <summary>A sheet's words: wrapped in their box, trimmed past it, centered or to one side.</summary>
+    private static void DrawText(DrawingContext dc, InkvoltPrint.Core.Photos.SheetText text, double unit, double pixelsPerDip)
+    {
+        var box = Scale(text.Box, unit);
+        var size = text.Size * unit;
+        if (box.Width < 2 || box.Height < 2 || size < 0.5 || text.Text.Length == 0) return;
+        var formatted = new FormattedText(text.Text, CultureInfo.CurrentUICulture, FlowDirection.LeftToRight,
+            new Typeface(CaptionFace.FontFamily, FontStyles.Normal, text.Bold ? FontWeights.SemiBold : FontWeights.Normal, FontStretches.Normal),
+            size, text.Muted ? CaptionBrush : TextBrush, pixelsPerDip)
+        {
+            MaxTextWidth = box.Width,
+            MaxTextHeight = box.Height,
+            Trimming = TextTrimming.CharacterEllipsis,
+            TextAlignment = text.Align switch
+            {
+                InkvoltPrint.Core.Photos.SheetTextAlign.Left => TextAlignment.Left,
+                InkvoltPrint.Core.Photos.SheetTextAlign.Right => TextAlignment.Right,
+                _ => TextAlignment.Center,
+            },
+        };
+        // Vertically centered in a box taller than the text (a title, a message), at the top of a day's box.
+        var y = text.Align == InkvoltPrint.Core.Photos.SheetTextAlign.Center ? box.Y + Math.Max(0, (box.Height - formatted.Height) / 2) : box.Y;
+        dc.DrawText(formatted, new Point(box.X, y));
     }
 
     /// <summary>

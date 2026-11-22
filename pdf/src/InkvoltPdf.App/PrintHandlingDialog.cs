@@ -4,6 +4,8 @@ using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Sheets;
+using Placement = InkvoltPrint.Core.Printing.Placement;
 
 namespace InkvoltPdf.App;
 
@@ -21,7 +23,7 @@ public static class PrintHandlingDialog
     /// <param name="size">A page's size as shown, in DIPs.</param>
     /// <param name="paper">The paper (DIPs) and its printable area.</param>
     /// <param name="duplex">The printer prints both sides by itself (a booklet is set to flip on the short edge).</param>
-    public static PrintSetup? Ask(Window owner, IReadOnlyList<int> pages, Func<int, (double W, double H)> size, Size paper, RectD area, bool duplex)
+    public static PrintSetup? Ask(Window owner, IReadOnlyList<int> pages, Func<int, (double W, double H)> size, Size paper, Placement area, bool duplex)
     {
         var s = AppSettings.Current;
         var dlg = new FormDialog(owner, Strings.Print_SizingTitle, Strings.Common_Print, 760);
@@ -180,7 +182,7 @@ public static class PrintHandlingDialog
     }
 
     /// <summary>The first sheet as boxes: the paper, its printable area, each page with its number (turned with it), cut marks.</summary>
-    private sealed class SheetSketch(Size paper, RectD area) : FrameworkElement
+    private sealed class SheetSketch(Size paper, Placement area) : FrameworkElement
     {
         private PrintSheet? _sheet;
         private string _label = "";
@@ -198,10 +200,10 @@ public static class PrintHandlingDialog
             var k = Math.Min(ActualWidth / paper.Width, (ActualHeight - caption) / paper.Height);
             if (!(k > 0)) return;
             var ox = (ActualWidth - paper.Width * k) / 2;
-            Rect R(RectD r) => new(ox + r.X * k, r.Y * k, r.Width * k, r.Height * k);
+            Rect R(Placement r) => new(ox + r.X * k, r.Y * k, r.Width * k, r.Height * k);
             var line = (Brush)FindResource("TextFillColorSecondaryBrush");
             var pagePen = new Pen(line, 1);
-            dc.DrawRectangle(Brushes.White, new Pen(line, 1), R(new RectD(0, 0, paper.Width, paper.Height)));
+            dc.DrawRectangle(Brushes.White, new Pen(line, 1), R(new Placement(0, 0, paper.Width, paper.Height)));
             dc.DrawRectangle(null, new Pen(Brushes.LightGray, 1) { DashStyle = DashStyles.Dash }, R(area));
             var dpi = VisualTreeHelper.GetDpi(this).PixelsPerDip;
             if (_sheet is { } sheet)

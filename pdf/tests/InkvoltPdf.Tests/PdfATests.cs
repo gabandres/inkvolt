@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using MuPDFCore;
 using InkvoltPdf.Core;
+using IccProfiles = InkvoltPrint.Core.Pdf.IccProfiles;
 using PdfSharp.Pdf;
 
 namespace InkvoltPdf.Tests;

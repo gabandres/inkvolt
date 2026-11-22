@@ -206,6 +206,20 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     Mac half waits.
   - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone; the Mac half waits.
   - **4.12 A camera as a scan source.** Done on Windows: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window; the Mac half waits (AVFoundation).
+  - **4.18 From Inkvolt PDF into Print's presets and Print a PDF.** Done on Windows: a PDF preset saves PDF/A-2b or puts a
+    password on the PDF (AES-256 as Inkvolt PDF writes it; the password asked once and kept in Credential Manager if wanted,
+    never in the presets); Print a PDF's Layout prints several pages per sheet (2, 4, 6, 9, 16), a booklet (saddle-stitch order,
+    both sides, by hand on a one-sided printer) or a poster (150 to 400% over overlapping sheets with cut marks). Inkvolt PDF's
+    print layouts and sRGB profile moved into the shared core, Inkvolt PDF's behavior unchanged; Print's PDF/A and protected
+    scans pass Inkvolt PDF's PDF/A check and open in its PDFsharp and MuPDF (README, "Print a PDF", "Scan presets";
+    `SheetPrint`, `PdfArchive`, `PdfEncryption`). **Next:** a booklet and a poster on paper (the owner's M234dw: fold, trim);
+    a protected scan opened in Acrobat; veraPDF on a PDF/A scan; the Mac half waits.
+  - **4.16 Cards, calendars and collages in Photos.** Done on Windows: a folded card (two to a sheet, the photo on the front,
+    a typed message inside on the sheet's back, fold and cut marks), a calendar (a month or a year per photo, in the interface
+    language's month and day names and first day of the week) and a collage (2 to 9 photos in rows, columns or one large;
+    spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
+    (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
+    paper; the Mac half waits.
   - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
     and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the
@@ -219,8 +233,6 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     demo mode. **Next:** an Android phone's default print service and Mopria, a Mac, and an iPhone (AirPrint's `_universal` subtype is
     answered by our own mDNS responder beside Windows', `MdnsSubtype`); IPPS; the Mac half waits
     (macOS shares printers itself).
-  - Still to come: 4.16 Cards, calendars and collages in Photos. 4.18 From Inkvolt PDF into Print's presets and Print a PDF:
-    PDF/A, a password, booklet, poster, pages per sheet.
 - **4.17 Setting up a new printer's Wi-Fi out of the box** (the owner's "middle option", 2026-11-22: Windows' Wi-Fi and the
   printer's own page, not each maker's protocol). Done on Windows: the printers' setup and Wi-Fi Direct networks nearby, joined on
   a click (an open one with a temporary profile, a secured one in Windows' own list), the printer's setup page opened, back to the

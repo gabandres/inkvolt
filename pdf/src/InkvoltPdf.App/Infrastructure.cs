@@ -575,7 +575,7 @@ public sealed class AppSettings
     /// <summary>Export to Word / Excel / text: recognize scanned pages, open the file when done.</summary>
     public bool ExportOcr { get; set; } = true;
     public bool ExportOpen { get; set; } = true;
-    /// <summary>Print: page sizing &amp; handling last chosen (<see cref="Core.PrintHandling"/> and its options).</summary>
+    /// <summary>Print: page sizing &amp; handling last chosen (<see cref="InkvoltPrint.Core.Sheets.PrintHandling"/> and its options).</summary>
     public string WebPaper { get; set; } = "";
     public bool WebLandscape { get; set; }
     public string WebMargins { get; set; } = "";

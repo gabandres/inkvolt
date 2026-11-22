@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using InkvoltPdf.App.Viewer;
 using InkvoltPdf.Core;
+using InkvoltPrint.Core.Sheets;
 
 namespace InkvoltPdf.App;
 
@@ -1344,15 +1345,15 @@ internal static class DevScript
                 // xpsjob: the same through the Windows 11 dialog's job writer (ModernPrint: a sheet at a time, XPS object model).
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                var setup = a.Length < 2 ? new Core.PrintSetup() : a[1] switch
+                var setup = a.Length < 2 ? new PrintSetup() : a[1] switch
                 {
-                    "fill" => new Core.PrintSetup { Sizing = Core.PrintSizing.FitToPaper },
-                    "nup" => new Core.PrintSetup { Handling = Core.PrintHandling.PagesPerSheet, PagesPerSheet = int.Parse(a[2]), Order = a.Contains("down") ? Core.PagesOrder.Down : Core.PagesOrder.Across, Borders = a.Contains("borders") },
-                    "booklet" => new Core.PrintSetup { Handling = Core.PrintHandling.Booklet, RightBinding = a.Contains("right") },
-                    "poster" => new Core.PrintSetup { Handling = Core.PrintHandling.Poster, PosterScale = Num(a[2]) / 100, Overlap = a.Length > 3 && a[3] != "nomarks" ? Num(a[3]) : 0, CutMarks = !a.Contains("nomarks") },
-                    _ => new Core.PrintSetup(),
+                    "fill" => new PrintSetup { Sizing = PrintSizing.FitToPaper },
+                    "nup" => new PrintSetup { Handling = PrintHandling.PagesPerSheet, PagesPerSheet = int.Parse(a[2]), Order = a.Contains("down") ? PagesOrder.Down : PagesOrder.Across, Borders = a.Contains("borders") },
+                    "booklet" => new PrintSetup { Handling = PrintHandling.Booklet, RightBinding = a.Contains("right") },
+                    "poster" => new PrintSetup { Handling = PrintHandling.Poster, PosterScale = Num(a[2]) / 100, Overlap = a.Length > 3 && a[3] != "nomarks" ? Num(a[3]) : 0, CutMarks = !a.Contains("nomarks") },
+                    _ => new PrintSetup(),
                 };
-                var all = setup.Handling == Core.PrintHandling.Fit ? Math.Min(6, v!.PageCount) : v!.PageCount;
+                var all = setup.Handling == PrintHandling.Fit ? Math.Min(6, v!.PageCount) : v!.PageCount;
                 var n = cmd.Equals("xpsjob", StringComparison.OrdinalIgnoreCase)
                     ? await ModernPrint.WriteJobXps(tab!.Session.Engine, [.. Enumerable.Range(0, all)], a[0], setup)
                     : await FileActions.WriteXps(tab!.Session.Engine, [.. Enumerable.Range(0, all)], a[0], setup);
@@ -1379,7 +1380,7 @@ internal static class DevScript
                 var a = arg.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 AppSettings.Current.PrintHandling = a[0];
                 var chosen = PrintHandlingDialog.Ask(window, [.. Enumerable.Range(0, v!.PageCount)], FileActions.SizesOf(tab!.Session.Engine),
-                    new Size(816, 1056), new Core.RectD(24, 24, 768, 1008), a.Contains("duplex"));
+                    new Size(816, 1056), new InkvoltPrint.Core.Printing.Placement(24, 24, 768, 1008), a.Contains("duplex"));
                 log.Add($"printhandling: {(chosen is null ? "cancelled" : $"{chosen.Handling} {chosen.Sizing} n={chosen.PagesPerSheet} {chosen.Order} borders={chosen.Borders} right={chosen.RightBinding} poster={chosen.PosterScale:P0} overlap={chosen.Overlap} marks={chosen.CutMarks}")}");
                 break;
             }

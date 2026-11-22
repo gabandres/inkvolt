@@ -96,10 +96,9 @@ public static class QueuePrinter
         return SpoolAsync(queueName, ticketCopies, twoSided, jobName, (paper, images) => new PagesPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images));
     }
 
-    /// <summary>One pass of two-sided by hand (<see cref="HandDuplexPrinting"/>): these sides in this order (−1: blank), one copy, one-sided.</summary>
-    public static Task PrintSidesAsync(string queueName, IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, IReadOnlyList<int> order, int pagesPerSheet,
-        string jobName, PageSizing sizing) =>
-        SpoolAsync(queueName, 1, twoSided: false, jobName, (paper, images) => new PagesPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images));
+    /// <summary>Sheets laid out by the PC (Print a PDF's layouts, a pass of two-sided by hand), every copy among them: one copy on the ticket.</summary>
+    public static Task PrintPassAsync(string queueName, bool twoSided, string jobName, Func<Size, PrintImages, DocumentPaginator> paginator) =>
+        SpoolAsync(queueName, 1, twoSided, jobName, paginator);
 
     /// <summary>A batch's file: pages already drawn, on the ticket <paramref name="makeTicket"/> validated.</summary>
     internal static Task PrintPagesAsync(string queueName, IReadOnlyList<RenderedPage> pages, string jobName, PageSizing sizing, Func<PrintQueue, PrintTicket> makeTicket) =>

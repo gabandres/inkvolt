@@ -4573,4 +4573,12 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Phone_CertExpected" xml:space="preserve">
     <value>The warning before this page was expected: {0} made its own certificate for it.</value>
   </data>
+  <data name="Preset_PdfAShort" xml:space="preserve">
+    <value>PDF/A</value>
+    <comment>preset summary part</comment>
+  </data>
+  <data name="Preset_PasswordShort" xml:space="preserve">
+    <value>a password to open</value>
+    <comment>preset summary part</comment>
+  </data>
 </root>

@@ -48,17 +48,28 @@ public static class HandDuplexPrinting
     /// (<see cref="CopyLayout.Sides"/>), the plan's numbers being sides. <paramref name="onSending"/> and <paramref name="onSent"/>
     /// mark each pass's point of no return and its end.
     /// </summary>
-    public static async Task<HandDuplexOutcome> PrintAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, int pagesPerSheet,
+    public static Task<HandDuplexOutcome> PrintAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, int pagesPerSheet,
         HandDuplexPlan plan, string jobName, PageSizing sizing, HandDuplexPrinter printer, IProgress<string>? progress, CancellationToken ct,
-        Action? onSending = null, Action? onSent = null)
+        Action? onSending = null, Action? onSent = null) =>
+        PrintAsync(target, plan, order => (paper, images) => new QueuePrinter.PagesPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images),
+            jobName, printer, progress, ct, onSending, onSent);
+
+    /// <summary>
+    /// The fronts, the prompt, the backs, each pass drawn by <paramref name="pass"/> from the sides it prints (−1: blank), the plan's
+    /// numbers being those sides (Print a PDF's layouts, <see cref="SheetPrinting"/>).
+    /// </summary>
+    public static async Task<HandDuplexOutcome> PrintAsync(PrintTarget target, HandDuplexPlan plan,
+        Func<IReadOnlyList<int>, Func<System.Windows.Size, PrintImages, System.Windows.Documents.DocumentPaginator>> pass,
+        string jobName, HandDuplexPrinter printer, IProgress<string>? progress, CancellationToken ct, Action? onSending = null, Action? onSent = null)
     {
-        await SidesAsync(target, pages, sides, pagesPerSheet, plan.Fronts, string.Format(Strings.Hand_FrontsJob, jobName), sizing, progress, ct, onSending, onSent);
+        await PassAsync(target, pass(plan.Fronts), plan.Fronts.Count, string.Format(Strings.Hand_FrontsJob, jobName), progress, ct, onSending, onSent);
         if (!plan.HasBacks) return HandDuplexOutcome.OneSide;
         ct.ThrowIfCancellationRequested();
         if (Ask(jobName, plan, printer) is not { } chosen) return HandDuplexOutcome.FrontsOnly;
         ct.ThrowIfCancellationRequested();
         progress?.Report(Strings.Hand_PrintingBacks);
-        await SidesAsync(target, pages, sides, pagesPerSheet, plan.Backs(chosen), string.Format(Strings.Hand_BacksJob, jobName), sizing, progress, ct, onSending, onSent);
+        var backs = plan.Backs(chosen);
+        await PassAsync(target, pass(backs), backs.Count, string.Format(Strings.Hand_BacksJob, jobName), progress, ct, onSending, onSent);
         return HandDuplexOutcome.Both;
     }
 
@@ -74,22 +85,21 @@ public static class HandDuplexPrinting
         return chosen;
     }
 
-    /// <summary>One pass: these sides (−1: blank), one copy, one-sided, through the queue or straight to the printer.</summary>
-    private static async Task SidesAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, IReadOnlyList<int[]> sides, int pagesPerSheet, IReadOnlyList<int> order,
-        string jobName, PageSizing sizing, IProgress<string>? progress, CancellationToken ct, Action? onSending, Action? onSent)
+    /// <summary>One pass: <paramref name="count"/> sides drawn by <paramref name="paginator"/>, one copy, one-sided, through the queue or straight to the printer.</summary>
+    private static async Task PassAsync(PrintTarget target, Func<System.Windows.Size, PrintImages, System.Windows.Documents.DocumentPaginator> paginator, int count,
+        string jobName, IProgress<string>? progress, CancellationToken ct, Action? onSending, Action? onSent)
     {
         switch (target)
         {
             case PrintTarget.Queue q:
                 ct.ThrowIfCancellationRequested();
                 onSending?.Invoke();
-                progress?.Report(Core.Plural.Of(order.Count, Strings.Print_SendingPages_One, Strings.Print_SendingPages_Many));
-                await QueuePrinter.PrintSidesAsync(q.Name, pages, sides, order, pagesPerSheet, jobName, sizing);
+                progress?.Report(Core.Plural.Of(count, Strings.Print_SendingPages_One, Strings.Print_SendingPages_Many));
+                await QueuePrinter.PrintPassAsync(q.Name, twoSided: false, jobName, paginator);
                 onSent?.Invoke();
                 break;
             case PrintTarget.Direct d:
-                await DirectPrinter.PrintAsync(d, jobName, new DirectPrintRequest(1, TwoSided: false),
-                    (paper, images) => new QueuePrinter.PagesPaginator(pages, sides, order, pagesPerSheet, paper, sizing, images), progress, ct, onSending, onSent);
+                await DirectPrinter.PrintAsync(d, jobName, new DirectPrintRequest(1, TwoSided: false), paginator, progress, ct, onSending, onSent);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(target));

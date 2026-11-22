@@ -9,6 +9,7 @@ using Microsoft.Win32;
 using InkvoltPrint.App.Printing;
 using InkvoltPrint.Core.Printing;
 using InkvoltPrint.Core.Printing.Direct;
+using InkvoltPrint.Core.Sheets;
 using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.App.ViewModels;
@@ -79,7 +80,8 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     /// <summary>Set by the printer: which way up its sheets land, for two-sided by hand.</summary>
     public HandDuplexPrinter? ByHand { get; init; }
 
-    public bool ShowTwoSided => CanTwoSided || OffersByHand;
+    /// <summary>A booklet always prints on both sides and a poster never: the box shows for the others.</summary>
+    public bool ShowTwoSided => (CanTwoSided || OffersByHand) && Layout.Value is not (PdfLayout.Booklet or PdfLayout.Poster);
 
     public string TwoSidedText => CanTwoSided ? Strings.PrintTab_BothSides : Strings.Hand_BothSides;
 
@@ -88,6 +90,96 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
 
     /// <summary>Enlarge small pages (labels, receipts) to fill the paper; off prints them at their own size.</summary>
     [ObservableProperty] public partial bool FitToPaper { get; set; }
+
+    // ---- Layout (roadmap 4.18): pages per sheet, a booklet, a poster ----
+
+    /// <summary>The layouts, their words in the interface's language when asked for.</summary>
+    public IReadOnlyList<Option<PdfLayout>> Layouts =>
+    [
+        new(PdfLayout.Normal, Strings.PrintLayout_Normal),
+        new(PdfLayout.PagesPerSheet, Strings.PrintLayout_PerSheet),
+        new(PdfLayout.Booklet, Strings.PrintLayout_Booklet),
+        new(PdfLayout.Poster, Strings.PrintLayout_Poster),
+    ];
+
+    public IReadOnlyList<Option<int>> PerSheetChoices => [.. PrintSetup.PagesPerSheetChoices.Select(n => new Option<int>(n, string.Format(Strings.PrintLayout_PerSheetCount, n)))];
+
+    public IReadOnlyList<Option<int>> PosterChoices => [.. SheetPrint.PosterPercents.Select(p => new Option<int>(p, string.Format(Strings.PrintLayout_PosterPercent, p)))];
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary), nameof(IsNormalLayout), nameof(IsPerSheet), nameof(IsPoster), nameof(LayoutNote), nameof(ShowTwoSided))]
+    public partial Option<PdfLayout> Layout { get; set; } = new(PdfLayout.Normal, Strings.PrintLayout_Normal);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    public partial Option<int> PerSheet { get; set; } = new(2, string.Format(Strings.PrintLayout_PerSheetCount, 2));
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Summary))]
+    public partial Option<int> PosterPercent { get; set; } = new(200, string.Format(Strings.PrintLayout_PosterPercent, 200));
+
+    [ObservableProperty] public partial bool CutMarks { get; set; } = true;
+
+    public bool IsNormalLayout => Layout.Value == PdfLayout.Normal;
+    public bool IsPerSheet => Layout.Value == PdfLayout.PagesPerSheet;
+    public bool IsPoster => Layout.Value == PdfLayout.Poster;
+
+    /// <summary>What to do with the printed sheets: fold a booklet, trim and join a poster.</summary>
+    public string? LayoutNote => Layout.Value switch
+    {
+        PdfLayout.Booklet => Strings.PrintLayout_BookletNote,
+        PdfLayout.Poster => Strings.PrintLayout_PosterNote,
+        _ => null,
+    };
+
+    /// <summary>The shared layout's setup for the choice; null for one page per sheet.</summary>
+    private PrintSetup? Setup => SheetPrint.Setup(new SheetChoice(Layout.Value, PerSheet.Value, PosterPercent.Value, CutMarks));
+
+    /// <summary>
+    /// Each page's size (DIPs), what a layout counts with: read only once a layout is chosen, on the UI thread a few hundred pages at a
+    /// time (Windows' PDF document is read there everywhere else too), every page of the file; null until then.
+    /// </summary>
+    private IReadOnlyList<(double W, double H)>? _sizes;
+    private Task<IReadOnlyList<(double W, double H)>?>? _reading;
+
+    partial void OnLayoutChanged(Option<PdfLayout> value) => _ = SizesAsync();
+
+    /// <summary>The open PDF's page sizes, read when first asked for; null when the PDF changed or closed meanwhile.</summary>
+    private Task<IReadOnlyList<(double W, double H)>?> SizesAsync()
+    {
+        if (_sizes is { } known) return Task.FromResult<IReadOnlyList<(double W, double H)>?>(known);
+        if (_pdf is not { } pdf) return Task.FromResult<IReadOnlyList<(double W, double H)>?>(null);
+        return _reading ??= Read(pdf, _openGeneration);
+
+        async Task<IReadOnlyList<(double W, double H)>?> Read(PdfSource source, int generation)
+        {
+            var sizes = new List<(double W, double H)>(source.PageCount);
+            try
+            {
+                for (var n = 1; n <= source.PageCount; n++)
+                {
+                    if (generation != _openGeneration) return null;
+                    var (w, h) = source.PageSizeInches(n);
+                    sizes.Add((w * 96, h * 96));
+                    if (n % 200 == 0) await Task.Yield(); // the window stays responsive on a long file
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Write($"Page sizes unreadable: {ex.Message}");
+                if (generation == _openGeneration) _reading = null;
+                return null;
+            }
+            if (generation != _openGeneration) return null;
+            _sizes = sizes;
+            OnPropertyChanged(nameof(Summary));
+            return sizes;
+        }
+    }
+
+    /// <summary>How a laid-out job prints its two sides here (<see cref="SheetPrint.Route"/>).</summary>
+    private SheetRoute Route(PrintSetup setup) =>
+        SheetPrint.Route(setup, TwoSided && ShowTwoSided, CanTwoSided, OffersByHand && ByHand is not null);
 
     [ObservableProperty]
     [NotifyCanExecuteChangedFor(nameof(PrintCommand), nameof(BrowseCommand), nameof(PrintClipboardCommand))]
@@ -120,6 +212,21 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         get
         {
             if (PageCount == 0 || !TrySelectedPages(out var pages)) return "";
+            if (Setup is { } setup)
+            {
+                // Laid out (roadmap 4.18): counted on Letter or A4, the printer's own paper being known only once it prints.
+                var route = Route(setup);
+                if (route == SheetRoute.NoBothSides) return Strings.PrintLayout_NoBothSides;
+                if (_sizes is not { } sizes || pages.Any(p => p < 1 || p > sizes.Count)) return Strings.PrintLayout_Counting;
+                var twoSided = route != SheetRoute.OneSided;
+                var (_, laid) = SheetPrint.Count(setup, [.. pages.Select(p => sizes[p - 1])],
+                    SheetPrint.GuessPaper(System.Globalization.RegionInfo.CurrentRegion.IsMetric), Copies, twoSided);
+                var on = route == SheetRoute.ByHand
+                    ? Core.Plural.Of(laid, Strings.Hand_Sheets_One, Strings.Hand_Sheets_Many)
+                    : twoSided ? Core.Plural.Of(laid, Strings.Print_SheetsBothSides_One, Strings.Print_SheetsBothSides_Many)
+                    : Core.Plural.Of(laid, Strings.Print_Sheets_One, Strings.Print_Sheets_Many);
+                return string.Format(Strings.Print_Summary, PagesAndCopies(pages.Count, Copies), on);
+            }
             var both = TwoSided && ShowTwoSided;
             var perCopy = both ? (pages.Count + 1) / 2 : pages.Count;
             var sheets = perCopy * Copies;
@@ -210,6 +317,9 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             FileName = Path.GetFileName(path);
             RangeText = "";
             AllPages = true;
+            // The pages' sizes are read only for a layout (SizesAsync): now when one is chosen already.
+            (_sizes, _reading) = (null, null);
+            if (Setup is not null) _ = SizesAsync();
             PageCount = pdf.PageCount;
             var (w, h) = pdf.PageSizeInches(1);
             PaperText = PaperName(w, h);
@@ -315,7 +425,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         }
         if (HandDuplexPrinting.Forced) CanTwoSided = false;
         OffersByHand = ByHand is not null && answered && HandDuplex.Offered(CanTwoSided);
-        if (!ShowTwoSided) TwoSided = false;
+        if (!CanTwoSided && !OffersByHand) TwoSided = false;
         return answered;
     }
 
@@ -348,6 +458,36 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             }
             var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
             var sizing = FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize;
+            if (Setup is { } setup)
+            {
+                // Laid out (roadmap 4.18); both sides by hand when the printer can't print them, refused when neither can be done.
+                // A job past the limit is refused first, every page measured.
+                var route = Route(setup);
+                if (route == SheetRoute.NoBothSides)
+                {
+                    SetMessage(Strings.PrintLayout_NoBothSides, error: true);
+                    return;
+                }
+                SetMessage(Strings.PrintLayout_Counting);
+                if (await SizesAsync() is not { } sizes || pages.Any(p => p < 1 || p > sizes.Count))
+                {
+                    SetMessage(Strings.PrintLayout_SizesUnread, error: true);
+                    return;
+                }
+                if (SheetPrint.TooMany(setup, [.. pages.Select(p => sizes[p - 1])], SheetPrint.GuessPaper(System.Globalization.RegionInfo.CurrentRegion.IsMetric), Copies))
+                {
+                    SetMessage(string.Format(Strings.PrintLayout_TooMany, SheetPrint.MaxSides), error: true);
+                    return;
+                }
+                var twoSided = route != SheetRoute.OneSided;
+                var byHand = route == SheetRoute.ByHand ? ByHand : null;
+                var laid = await SheetPrinting.PrintAsync(target, _pdf, new PrintOptions(pages, Copies, twoSided, FileName ?? "PDF"), setup, byHand,
+                    progress, _cts.Token, onSpooling: () => IsSpooling = true, onSent: () => IsSpooling = false);
+                SetMessage(laid == HandDuplexOutcome.FrontsOnly ? Strings.Hand_FrontsOnly
+                    : string.Format(Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds));
+                if (laid != HandDuplexOutcome.FrontsOnly) RatingRequest.NoteSuccess(state);
+                return;
+            }
             if (PrintsByHand)
             {
                 var outcome = await PrintTargets.PrintPdfByHandAsync(target, _pdf, new PrintOptions(pages, Copies, false, FileName ?? "PDF", sizing), ByHand!,
@@ -495,6 +635,14 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         }
     }
 
+    /// <summary>Developer aid (DevSnapshot's <c>--pdf-sheets</c>): the layout's paginator for <paramref name="paper"/>, as a job would draw it.</summary>
+    internal async Task<System.Windows.Documents.DocumentPaginator?> DevPaginatorAsync(System.Windows.Size paper, PrintImages images)
+    {
+        if (_pdf is null || Setup is not { } setup || !TrySelectedPages(out var pages)) return null;
+        var drawn = await PrintTargets.RenderAsync(_pdf, pages, new Progress<string>(), CancellationToken.None, SheetPrint.RenderDpi(setup));
+        return new SheetPrinting.SheetsPaginator(drawn, setup, null, SheetPrint.TwoSided(setup, TwoSided && ShowTwoSided), Copies, paper, images);
+    }
+
     [RelayCommand]
     private void Cancel() => _cts?.Cancel();
 
@@ -503,6 +651,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     {
         _openGeneration++;
         _pdf = null;
+        (_sizes, _reading) = (null, null);
         FileName = null;
         PageCount = 0;
         PaperText = null;

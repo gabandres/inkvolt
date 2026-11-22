@@ -1099,11 +1099,28 @@
                                 </Button>
                             </StackPanel>
 
-                            <TextBlock Text="{x:Static loc:Strings.PrintTab_Size}" Margin="0,20,0,6" FontWeight="SemiBold" />
-                            <RadioButton Content="{x:Static loc:Strings.PrintTab_ActualSize}" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="size"
-                                         ToolTip="{x:Static loc:Strings.PrintTab_ActualSizeTip}" />
-                            <RadioButton Content="{x:Static loc:Strings.PrintTab_FitToPaper}" IsChecked="{Binding FitToPaper}" GroupName="size" Margin="0,6,0,0"
-                                         ToolTip="{x:Static loc:Strings.PrintTab_FitToPaperTip}" />
+                            <!-- Roadmap 4.18: pages per sheet, a booklet, a poster (the shared core's sheet layouts) -->
+                            <TextBlock Text="{x:Static loc:Strings.PrintLayout_Label}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                            <ComboBox ItemsSource="{Binding Layouts}" SelectedItem="{Binding Layout}" HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="{x:Static loc:Strings.PrintLayout_Label}" />
+                            <ComboBox ItemsSource="{Binding PerSheetChoices}" SelectedItem="{Binding PerSheet}" HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.PrintLayout_PerSheet}"
+                                      Visibility="{Binding IsPerSheet, Converter={StaticResource VisibleWhen}}" />
+                            <StackPanel Visibility="{Binding IsPoster, Converter={StaticResource VisibleWhen}}">
+                                <ComboBox ItemsSource="{Binding PosterChoices}" SelectedItem="{Binding PosterPercent}" HorizontalAlignment="Stretch" Margin="0,6,0,0"
+                                          AutomationProperties.Name="{x:Static loc:Strings.PrintLayout_PosterSize}" ToolTip="{x:Static loc:Strings.PrintLayout_PosterSize}" />
+                                <CheckBox Content="{x:Static loc:Strings.PrintLayout_CutMarks}" IsChecked="{Binding CutMarks}" Margin="0,8,0,0" />
+                            </StackPanel>
+                            <TextBlock Text="{Binding LayoutNote}" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,6,0,0"
+                                       Visibility="{Binding LayoutNote, Converter={StaticResource VisibleWhen}}" />
+
+                            <StackPanel Visibility="{Binding IsNormalLayout, Converter={StaticResource VisibleWhen}}">
+                                <TextBlock Text="{x:Static loc:Strings.PrintTab_Size}" Margin="0,20,0,6" FontWeight="SemiBold" />
+                                <RadioButton Content="{x:Static loc:Strings.PrintTab_ActualSize}" IsChecked="{Binding FitToPaper, Converter={StaticResource Not}}" GroupName="size"
+                                             ToolTip="{x:Static loc:Strings.PrintTab_ActualSizeTip}" />
+                                <RadioButton Content="{x:Static loc:Strings.PrintTab_FitToPaper}" IsChecked="{Binding FitToPaper}" GroupName="size" Margin="0,6,0,0"
+                                             ToolTip="{x:Static loc:Strings.PrintTab_FitToPaperTip}" />
+                            </StackPanel>
 
                             <CheckBox Content="{Binding TwoSidedText}" IsChecked="{Binding TwoSided}" Margin="0,16,0,0"
                                       ToolTip="{x:Static loc:Strings.Hand_BothSidesTip}"
@@ -1458,6 +1475,34 @@
                         <CheckBox Content="{x:Static loc:Strings.PhotosTab_FillSheet}" IsChecked="{Binding OnePhotoPerSheet}" Margin="0,10,0,0"
                                   ToolTip="{x:Static loc:Strings.PhotosTab_FillSheetTip}"
                                   Visibility="{Binding ShowOnePerSheet, Converter={StaticResource VisibleWhen}}" />
+                        <!-- Roadmap 4.16: a card's message, a calendar's month and year, a collage's arrangement -->
+                        <StackPanel Visibility="{Binding IsCard, Converter={StaticResource VisibleWhen}}">
+                            <TextBlock Text="{x:Static loc:Strings.Photos_CardMessage}" Margin="0,12,0,4" TextWrapping="Wrap" />
+                            <TextBox Text="{Binding CardMessage, UpdateSourceTrigger=PropertyChanged, Delay=300}" AcceptsReturn="True" TextWrapping="Wrap"
+                                     MinHeight="64" MaxLength="400" AutomationProperties.Name="{x:Static loc:Strings.Photos_CardMessage}" />
+                        </StackPanel>
+                        <Grid Visibility="{Binding IsCalendar, Converter={StaticResource VisibleWhen}}" Margin="0,12,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="88" />
+                            </Grid.ColumnDefinitions>
+                            <ComboBox ItemsSource="{x:Static vm:PhotosViewModel.Months}" SelectedItem="{Binding CalendarMonth}" HorizontalAlignment="Stretch"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Photos_CalendarMonth}" ToolTip="{x:Static loc:Strings.Photos_CalendarMonth}"
+                                      Visibility="{Binding IsMonthCalendar, Converter={StaticResource VisibleWhen}}" />
+                            <TextBox Grid.Column="2" Text="{Binding CalendarYear, UpdateSourceTrigger=PropertyChanged, Delay=400}" TextAlignment="Center"
+                                     AutomationProperties.Name="{x:Static loc:Strings.Photos_CalendarYear}" ToolTip="{x:Static loc:Strings.Photos_CalendarYear}" />
+                        </Grid>
+                        <StackPanel Visibility="{Binding IsCollage, Converter={StaticResource VisibleWhen}}">
+                            <ComboBox ItemsSource="{x:Static vm:PhotosViewModel.Arrangements}" SelectedItem="{Binding Arrangement}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Photos_CollageArrangement}" ToolTip="{x:Static loc:Strings.Photos_CollageArrangement}" />
+                            <ComboBox ItemsSource="{x:Static vm:PhotosViewModel.Spacings}" SelectedItem="{Binding Spacing}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Photos_CollageSpacing}" ToolTip="{x:Static loc:Strings.Photos_CollageSpacing}" />
+                            <ComboBox ItemsSource="{x:Static vm:PhotosViewModel.Borders}" SelectedItem="{Binding Border}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                      AutomationProperties.Name="{x:Static loc:Strings.Photos_CollageBorder}" ToolTip="{x:Static loc:Strings.Photos_CollageBorder}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding ProjectNote}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" Margin="0,8,0,0"
+                                   Visibility="{Binding ProjectNote, Converter={StaticResource VisibleWhen}}" />
 
                         <TextBlock Text="{x:Static loc:Strings.PhotosTab_Paper}" Margin="0,20,0,6" FontWeight="SemiBold" />
                         <ComboBox ItemsSource="{Binding Papers}" SelectedItem="{Binding Paper}" HorizontalAlignment="Stretch" AutomationProperties.Name="{x:Static loc:Strings.PhotosTab_PaperSize}" />
@@ -1496,6 +1541,8 @@
                         </Button>
                         <Button Content="{x:Static loc:Strings.Common_Cancel}" Command="{Binding CancelCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
                                 Visibility="{Binding CanCancel, Converter={StaticResource VisibleWhen}}" />
+                        <Button Content="{x:Static loc:Strings.Photos_SavePdf}" Command="{Binding SaveAsPdfCommand}" HorizontalAlignment="Stretch" Margin="0,8,0,0"
+                                ToolTip="{x:Static loc:Strings.Photos_SavePdfTip}" />
 
                         <ProgressBar IsIndeterminate="True" Height="3" Margin="0,12,0,0"
                                      Visibility="{Binding IsBusy, Converter={StaticResource VisibleWhen}}" />
@@ -1545,6 +1592,8 @@
                                         <KeyBinding Key="Add" Command="{Binding MoreCopiesCommand}" />
                                         <KeyBinding Key="OemMinus" Command="{Binding FewerCopiesCommand}" />
                                         <KeyBinding Key="Subtract" Command="{Binding FewerCopiesCommand}" />
+                                        <KeyBinding Modifiers="Alt" Key="Left" Command="{Binding MoveEarlierCommand}" />
+                                        <KeyBinding Modifiers="Alt" Key="Right" Command="{Binding MoveLaterCommand}" />
                                     </ListBox.InputBindings>
                                     <ListBox.ItemsPanel>
                                         <ItemsPanelTemplate>

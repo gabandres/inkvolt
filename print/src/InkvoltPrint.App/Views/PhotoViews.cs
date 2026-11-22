@@ -86,6 +86,7 @@ public sealed class PhotoSheetView : FrameworkElement
     {
         base.OnMouseMove(e);
         if (_dragCell < 0 || Preview is not { } p || _dragCell >= p.Sheet.Cells.Count || Unit <= 0) return;
+        if (p.Owner.IsCollage) return; // a collage's photo is dragged onto another's place (released there), its crop in the crop view
         var now = e.GetPosition(this);
         p.Owner.Drag(p.Sheet.Cells[_dragCell], (now.X - _last.X) / Unit, (now.Y - _last.Y) / Unit);
         _last = now;
@@ -94,6 +95,16 @@ public sealed class PhotoSheetView : FrameworkElement
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        // Roadmap 4.16: a collage's photo released on another's place swaps the two.
+        if (_dragCell >= 0 && Preview is { Owner.IsCollage: true } p && CellAt(e.GetPosition(this)) is >= 0 and var target && target != _dragCell
+            && _dragCell < p.Sheet.Cells.Count)
+        {
+            var (from, to) = (p.Sheet.Cells[_dragCell].Photo, p.Sheet.Cells[target].Photo);
+            _dragCell = -1;
+            ReleaseMouseCapture();
+            p.Owner.Swap(from, to);
+            return;
+        }
         _dragCell = -1;
         ReleaseMouseCapture();
     }
@@ -107,7 +118,7 @@ public sealed class PhotoSheetView : FrameworkElement
     protected override void OnMouseEnter(MouseEventArgs e)
     {
         base.OnMouseEnter(e);
-        Cursor = Preview?.Owner.IsContactSheet == true ? Cursors.Hand : Cursors.SizeAll;
+        Cursor = Preview?.Owner.IsContactSheet == true ? Cursors.Hand : Preview?.Owner.IsCollage == true ? Cursors.Hand : Cursors.SizeAll;
     }
 
     internal static Pen Frozen(Pen pen)

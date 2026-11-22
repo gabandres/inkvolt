@@ -157,6 +157,17 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
   goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never
   touches its files.
+- **Photo project** (Photos tab, roadmap 4.16): a sheet made from photos with words and marks on it (`PhotoProjects`): a **card**
+  (half a sheet folded once: **front** panel with the photo, **back** panel, the **inside** printed on the sheet's back with the
+  **message**; **fold marks**, **cut marks**), a **calendar** (a **month** or a **year** per photo, the **first day** of the week the
+  interface language's), a **collage** (2 to 9 photos in an **arrangement**, with **spacing** and a **border**; **swap** two by dragging).
+- **Archive PDF**: a preset's PDF saved as PDF/A-2b, meant to open the same way for years: an sRGB **output intent** and XMP
+  metadata that say so (`PdfArchive`, `IccProfiles`). **Password on the PDF**: AES-256 protection a preset puts on its PDF
+  (`PdfEncryption`); never with PDF/A. The password lives in Windows Credential Manager under the preset, never in the presets.
+- **Layout** (Print a PDF): how pages go on the paper (`SheetPrint`, `PrintLayout`, shared with Inkvolt PDF): one per sheet,
+  **pages per sheet** (2, 4, 6, 9, 16 in a grid), **booklet** (saddle-stitch order: two pages a side, both sides, folded and
+  stapled) or **poster** (one page enlarged over **tiles**, sheets that **overlap** and carry **cut marks**). A **turned sheet** has its
+  long side across; its backs are drawn upside down (**half-turned**) so a long-edge flip reads right.
 - **Printer setup guide** (roadmap 4.17): putting a new printer on the home Wi-Fi through its own **setup network** (open, while it
   waits to be told the Wi-Fi) or its **Wi-Fi Direct** network (`SetupNetworks`), its **setup page** (its web server, at the gateway
   that network gives) and **going back** to the network the PC was on, by Windows' saved profile (`PrinterSetupGuide`). **Away**: on
