@@ -130,6 +130,27 @@ public static partial class FolderAsk
         return new FolderAskRequest([AiMessage.System(sb.ToString()), AiMessage.User(question)], sources, passages, trimmed);
     }
 
+    /// <summary>
+    /// The pages sharing the question's words joined by those close to it in meaning: a page in both keeps its place and gets
+    /// its closeness; one found only by meaning comes after them. A file's path is compared without regard to case.
+    /// </summary>
+    public static IReadOnlyList<FolderAskPage> WithMeaning(IReadOnlyList<FolderAskPage> byWords, IReadOnlyList<FolderAskPage> byMeaning)
+    {
+        var result = byWords.ToList();
+        var at = new Dictionary<(string, int), int>();
+        for (var i = 0; i < result.Count; i++) at.TryAdd((result[i].Path.ToUpperInvariant(), result[i].Page), i);
+        foreach (var m in byMeaning)
+        {
+            if (at.TryGetValue((m.Path.ToUpperInvariant(), m.Page), out var i)) result[i] = result[i] with { Meaning = m.Meaning };
+            else
+            {
+                at[(m.Path.ToUpperInvariant(), m.Page)] = result.Count;
+                result.Add(m);
+            }
+        }
+        return result;
+    }
+
     /// <summary>"[Source 2: report.pdf, page 5]": the line before a passage, which the model cites as [2, p. 5].</summary>
     public static string Marker(FolderAskSource source, int page) => $"[Source {source.Number}: {source.Name}, page {page + 1}]";
 

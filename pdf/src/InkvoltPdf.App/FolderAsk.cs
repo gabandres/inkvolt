@@ -316,8 +316,8 @@ internal sealed class FolderAskWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Log.Write($"Ask across folders failed: {ex.GetType().Name}");
-            Say(Loc.Format(Strings.Folder_SearchError, ex.Message));
+            Log.Write($"Ask across folders failed: {ex.GetType().Name}: {ex.Message}");
+            Say(Strings.FolderAsk_ReadFailed);
         }
         finally
         {
@@ -374,26 +374,19 @@ internal sealed class FolderAskWindow : Window
     /// <summary>Pages closest in meaning brought to a question by search by meaning.</summary>
     private const int MeaningPages = 30;
 
-    /// <summary>The pages with their closeness in meaning: those already proposed get it, the others are read and added.</summary>
+    /// <summary>The pages closest in meaning, read from their folders' indexes, joined to those sharing the question's words (<see cref="FolderAsk.WithMeaning"/>).</summary>
     private static List<FolderAskPage> WithMeaning(List<FolderAskPage> pages, IReadOnlyList<(IndexedFolder Folder, MeaningHit Hit)> hits, CancellationToken cancel)
     {
-        var byPage = pages.Select((p, i) => (p, i)).ToDictionary(x => (x.p.Path.ToUpperInvariant(), x.p.Page), x => x.i);
-        var result = pages.ToList();
+        var close = new List<FolderAskPage>();
         foreach (var group in hits.GroupBy(h => h.Folder))
         {
-            var missing = new List<(string RelativePath, int Page, double Score)>();
-            foreach (var (_, hit) in group)
-            {
-                var path = Path.Combine(group.Key.Folder, hit.RelativePath);
-                if (byPage.TryGetValue((path.ToUpperInvariant(), hit.Page), out var at)) result[at] = result[at] with { Meaning = hit.Score };
-                else missing.Add((hit.RelativePath, hit.Page, hit.Score));
-            }
-            if (missing.Count == 0 || group.Key.Indexer?.Index is not { } index) continue;
-            var texts = index.PageTexts([.. missing.Select(m => (m.RelativePath, m.Page))], cancel);
-            for (var i = 0; i < missing.Count; i++)
-                result.Add(new FolderAskPage(Path.Combine(group.Key.Folder, missing[i].RelativePath), missing[i].RelativePath, missing[i].Page, texts[i]) { Meaning = missing[i].Score });
+            if (group.Key.Indexer?.Index is not { } index) continue;
+            var list = group.Select(g => g.Hit).ToList();
+            var texts = index.PageTexts([.. list.Select(h => (h.RelativePath, h.Page))], cancel);
+            for (var i = 0; i < list.Count; i++)
+                close.Add(new FolderAskPage(Path.Combine(group.Key.Folder, list[i].RelativePath), list[i].RelativePath, list[i].Page, texts[i]) { Meaning = list[i].Score });
         }
-        return result;
+        return [.. FolderAsk.WithMeaning(pages, close)];
     }
 
     private static List<FolderAskPage> FromFiles(List<string> files, List<string> notes, CancellationToken cancel)

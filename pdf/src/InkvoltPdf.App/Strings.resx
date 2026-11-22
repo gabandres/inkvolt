@@ -13146,4 +13146,7 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="AskEdit_Done_Many" xml:space="preserve">
     <value>Ran {0} steps. Undo takes each edit back.</value>
   </data>
+  <data name="FolderAsk_ReadFailed" xml:space="preserve">
+    <value>A folder's index or a file couldn't be read. Check that the folder is still there and the files aren't open in another app, then try again.</value>
+  </data>
 </root>

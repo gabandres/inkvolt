@@ -13127,4 +13127,7 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="AskEdit_Done_Many" xml:space="preserve">
     <value>Se ejecutaron {0} pasos. Deshacer revierte cada edición.</value>
   </data>
+  <data name="FolderAsk_ReadFailed" xml:space="preserve">
+    <value>No se pudo leer el índice de una carpeta o un archivo. Comprueba que la carpeta sigue ahí y que los archivos no están abiertos en otra aplicación, y vuelve a intentarlo.</value>
+  </data>
 </root>

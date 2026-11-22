@@ -618,8 +618,8 @@ internal sealed class FolderSearchWindow : Window
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ObjectDisposedException)
         {
-            Log.Write($"Search by meaning failed: {ex.GetType().Name}");
-            _status.Text = Loc.Format(Strings.Folder_SearchError, ex.Message);
+            Log.Write($"Search by meaning failed: {ex.GetType().Name}: {ex.Message}");
+            _status.Text = Strings.FolderAsk_ReadFailed;
         }
         finally
         {
