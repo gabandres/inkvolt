@@ -23,7 +23,8 @@ internal static class SpeechFile
         using var synth = new SpeechSynthesizer();
         if (ReadAloud.ChosenVoiceId is { } id && SpeechSynthesizer.AllVoices.FirstOrDefault(v => v.Id == id) is { } voice) synth.Voice = voice;
         synth.Options.SpeakingRate = ReadAloud.ChosenSpeed;
-        var parts = new List<byte[]>();
+        // Counted as each paragraph comes: past one WAV file's 2 GB it stops there (WavTooLongException), not once all are in memory.
+        var parts = new WavParts(TimeSpan.FromMilliseconds(350));
         for (var i = 0; i < paragraphs.Count; i++)
         {
             cancel.ThrowIfCancellationRequested();
@@ -31,7 +32,7 @@ internal static class SpeechFile
             parts.Add(await ReadAll(stream, cancel));
             progress?.Report((i + 1, paragraphs.Count));
         }
-        var wav = WavFile.Join(parts, TimeSpan.FromMilliseconds(350));
+        var wav = parts.Join();
         var duration = WavFile.Read(wav).Duration;
         if (!path.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase))
         {

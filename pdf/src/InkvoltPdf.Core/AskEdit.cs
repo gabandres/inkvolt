@@ -46,8 +46,11 @@ public static class AskEdit
     /// <summary>Most steps taken from one answer (the rest are said to be left out).</summary>
     public const int MaxSteps = 10;
 
-    /// <summary>Longest request, bookmark title and text to highlight or find.</summary>
-    public const int MaxRequestChars = 500, MaxTitleChars = 120, MaxTextChars = 200;
+    /// <summary>Most calls read from one answer, refused ones counted: past it the rest are left out and said.</summary>
+    public const int MaxCalls = 50;
+
+    /// <summary>Longest request, bookmark title, text to highlight or find, and pages argument ("1-3, 5").</summary>
+    public const int MaxRequestChars = 500, MaxTitleChars = 120, MaxTextChars = 200, MaxPagesChars = 200;
 
     public const string SystemPrompt =
         "You turn a person's request about the PDF they have open into calls of the tools you are given, in the order to do them. " +
@@ -114,7 +117,8 @@ public static class AskEdit
     /// <summary>
     /// Reads a chat completion's tool calls into steps for a document of <paramref name="pageCount"/> pages. A call of
     /// another tool, with arguments that aren't JSON, pages out of range or other values out of their limits is refused
-    /// and said; past <see cref="MaxSteps"/> steps the rest are left out and said.
+    /// and said; past <see cref="MaxSteps"/> steps, or <see cref="MaxCalls"/> calls read, the rest are left out and said.
+    /// Its cost is bounded by the answer's length (a pages argument past <see cref="MaxPagesChars"/> is refused unread).
     /// </summary>
     /// <exception cref="AiException">The answer isn't a chat completion.</exception>
     public static AskEditPlan Parse(string json, int pageCount)
@@ -142,11 +146,17 @@ public static class AskEdit
             var refused = new List<string>();
             if (message.TryGetProperty("tool_calls", out var calls) && calls.ValueKind == JsonValueKind.Array)
             {
+                var read = 0;
                 foreach (var call in calls.EnumerateArray())
                 {
                     if (steps.Count >= MaxSteps)
                     {
                         refused.Add(Loc.Format(PdfStrings.AskEdit_TooMany, MaxSteps));
+                        break;
+                    }
+                    if (read++ >= MaxCalls)
+                    {
+                        refused.Add(Loc.Format(PdfStrings.AskEdit_TooManyCalls, MaxCalls));
                         break;
                     }
                     var (step, why) = Read(call, pageCount);
@@ -193,7 +203,7 @@ public static class AskEdit
             int[]? Pages()
             {
                 var s = Str("pages")?.Trim();
-                if (string.IsNullOrEmpty(s)) return null;
+                if (string.IsNullOrEmpty(s) || s.Length > MaxPagesChars) return null;
                 if (s.Equals("all", StringComparison.OrdinalIgnoreCase)) return [.. Enumerable.Range(0, pageCount)];
                 return PageRange.TryParse(s, pageCount, out var pages, out _) && pages.Length > 0 ? pages : null;
             }
@@ -300,6 +310,7 @@ public sealed partial class AiClient
                 ? Loc.Format(PdfStrings.AskEdit_NoTools, _model, _endpoint.Host)
                 : AiProtocol.DescribeError((int)response.StatusCode, said, _model, _endpoint)) { Status = (int)response.StatusCode };
         }
-        return AskEdit.Parse(body, pageCount);
+        // Off the caller's (the window's) thread: an answer of up to the reply limit is parsed and checked on a worker.
+        return await Task.Run(() => AskEdit.Parse(body, pageCount), CancellationToken.None);
     }
 }

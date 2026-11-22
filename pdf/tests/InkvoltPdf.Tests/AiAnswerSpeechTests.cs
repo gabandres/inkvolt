@@ -37,7 +37,7 @@ public sealed class AiAnswerSpeechTests
     }
 
     /// <summary>A WAV file of <paramref name="samples"/> 16-bit mono samples at 16 kHz, with a LIST chunk of odd length before the samples.</summary>
-    private static byte[] Wav(short[] samples, int rate = 16000, bool unsetSize = false)
+    internal static byte[] Wav(short[] samples, int rate = 16000, bool unsetSize = false)
     {
         var list = "LIST"u8.ToArray().Concat(BitConverter.GetBytes(3)).Concat("abc\0"u8.ToArray()).ToArray(); // 3 bytes and a pad byte
         var data = new byte[samples.Length * 2];

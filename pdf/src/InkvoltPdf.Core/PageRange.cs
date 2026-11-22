@@ -2,7 +2,11 @@ namespace InkvoltPdf.Core;
 
 public enum PageSubset { All, Even, Odd }
 
-/// <summary>Parses user page ranges such as "1-3, 5, 8-" or "2-end" (1-based) into sorted 0-based page indices.</summary>
+/// <summary>
+/// Parses user page ranges such as "1-3, 5, 8-" or "2-end" (1-based) into sorted 0-based page indices. Bounded for any
+/// text: the ranges are kept as ranges and merged once, so "-,-,-,…" (each the whole document) costs its length plus the
+/// page count, not the two multiplied.
+/// </summary>
 public static class PageRange
 {
     public static bool TryParse(string? text, int pageCount, out int[] pages, out string? error)
@@ -15,7 +19,7 @@ public static class PageRange
             return false;
         }
 
-        var set = new SortedSet<int>();
+        var ranges = new List<(int From, int To)>();
         foreach (var raw in text.Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
         {
             var dash = raw.IndexOfAny(['-', '–', '—']); // en and em dashes come in from copied text and autocorrect
@@ -40,10 +44,18 @@ public static class PageRange
                 error = Loc.Format(PdfStrings.Page_RangeOutside, raw, pageCount);
                 return false;
             }
-            for (var p = from; p <= to; p++) set.Add(p - 1);
+            ranges.Add((from - 1, to - 1));
         }
 
-        pages = [.. set];
+        ranges.Sort();
+        var list = new List<int>();
+        var next = 0; // the first page not yet listed: each page is listed once, a range inside one already listed adds nothing
+        foreach (var (from, to) in ranges)
+        {
+            for (var p = Math.Max(from, next); p <= to; p++) list.Add(p);
+            next = Math.Max(next, to + 1);
+        }
+        pages = [.. list];
         return pages.Length > 0 || Fail(text, out error);
     }
 

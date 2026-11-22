@@ -142,12 +142,8 @@ public static class FileActions
 
     private static string Pages(int n) => n == 1 ? "1 page" : $"{n} pages";
 
-    /// <summary>Page sizes as shown, in DIPs, for the print layout.</summary>
-    internal static Func<int, (double W, double H)> SizesOf(PdfEngine engine) => p =>
-    {
-        var g = engine.GetPage(p);
-        return (g.Width * 96 / 72, g.Height * 96 / 72);
-    };
+    /// <summary>Page sizes as shown, in DIPs, for the print layout: bounded as Inkvolt Print's are (<see cref="PrintPageSizes"/>).</summary>
+    internal static Func<int, (double W, double H)> SizesOf(PdfEngine engine) => PrintPageSizes.Of(engine);
 
     /// <summary>True when the chosen printer prints both sides flipping on the short edge (what a booklet needs).</summary>
     private static bool CanPrintBothSides(PrintDialog dlg)
@@ -244,8 +240,8 @@ public static class FileActions
         {
             var p = sheet.Pages[i];
             var g = engine.GetPage(p.Page);
-            // The part of the page shown, in points (the plan works in DIPs).
-            var region = p.Source is { } src ? new RectD(src.X * 0.75, src.Y * 0.75, src.Width * 0.75, src.Height * 0.75) : new RectD(0, 0, g.Width, g.Height);
+            // The part of the page shown, in points (the plan works in DIPs, a huge page brought down to its bounded size).
+            var region = PrintPageSizes.Shown(g, p.Source);
             // Its size on paper (DIPs) over its size on the page (points), at the resolution asked for.
             var across = p.Turns == 1 ? p.Box.Height : p.Box.Width;
             var pxScale = dpi / 96 * across / region.Width;

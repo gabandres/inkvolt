@@ -1067,11 +1067,12 @@ public static class FormDesign
         var byDict = new Dictionary<PdfDictionary, FormEditor.Field>(ReferenceEqualityComparer.Instance);
         foreach (var f in fields) byDict.TryAdd(f.Dict, f);
         var order = new List<FormEditor.Field>();
+        var listed = new HashSet<FormEditor.Field>(); // a form of thousands of fields: never a list searched once a field
         if (PdfObj.Array(acro.Elements["/CO"]) is { } co)
             foreach (var item in co.Elements)
-                if (PdfObj.Dict(item) is { } d && byDict.TryGetValue(d, out var f) && !order.Contains(f)) order.Add(f);
+                if (PdfObj.Dict(item) is { } d && byDict.TryGetValue(d, out var f) && listed.Add(f)) order.Add(f);
         foreach (var f in fields)
-            if (!order.Contains(f) && f.Type is "/Tx" or "/Ch" && (CalculateScript(f.Dict) ?? f.Widgets.Select(CalculateScript).FirstOrDefault(x => x is not null)) is not null) order.Add(f);
+            if (!listed.Contains(f) && f.Type is "/Tx" or "/Ch" && (CalculateScript(f.Dict) ?? f.Widgets.Select(CalculateScript).FirstOrDefault(x => x is not null)) is not null && listed.Add(f)) order.Add(f);
         return order;
     }
 
@@ -1088,7 +1089,8 @@ public static class FormDesign
         var acro = PdfObj.Dict(doc.Internals.Catalog.Elements["/AcroForm"]);
         if (acro is null) return data;
         var old = OrderedCalculations(Fields(doc, acro), acro).Where(f => f.Dict.Reference is not null).ToList();
-        var ordered = names.Distinct().SelectMany(n => old.Where(f => f.Name == n)).Concat(old).Distinct().ToList();
+        var byName = old.ToLookup(f => f.Name);
+        var ordered = names.Distinct().SelectMany(n => byName[n]).Concat(old).Distinct().ToList();
         if (PdfObj.Array(acro.Elements["/CO"]) is { } co && co.Elements.Select(e => (object?)PdfObj.Dict(e)).SequenceEqual(ordered.Select(f => (object?)f.Dict), ReferenceEqualityComparer.Instance))
             return data;
         acro.Elements["/CO"] = new PdfArray(doc, [.. ordered.Select(f => (PdfItem)f.Dict.Reference!)]);
