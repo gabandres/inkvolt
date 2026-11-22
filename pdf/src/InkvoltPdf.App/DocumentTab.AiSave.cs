@@ -33,7 +33,7 @@ public partial class DocumentTab
             Notify(Strings.TabAi_NothingToSave);
             return false;
         }
-        var one = list.Count == 1;
+        var one = chosen is not null && list.Count == 1; // named by what was asked: the conversation, even of one answer, is a conversation
         var canComment = one && Session.IsPdf && !IsOrganizing && Viewer.PageCount > 0;
         var commentPage = canComment ? AiAnswerExport.CommentPage(list[0], Viewer.PageCount, Viewer.CurrentPage) : 0;
         if (target is null)
@@ -77,7 +77,7 @@ public partial class DocumentTab
             var bytes = await Task.Run(() => word ? AiAnswerExport.ToDocx(list, documentName) : AiAnswerExport.ToPdf(list, documentName));
             await File.WriteAllBytesAsync(path, bytes);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is not OutOfMemoryException) // fire-and-forget: anything that fails is said, never lost
         {
             Log.Write($"Saving AI answers failed: {ex.GetType().Name}");
             Prompt.Error(owner, Strings.TabAi_CantSave, Strings.TabAi_CantSaveBody);

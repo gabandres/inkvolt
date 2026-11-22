@@ -25,8 +25,12 @@ public sealed partial class PageViewer
     /// </summary>
     public TextPos? InsertionPoint => OrderedSelection() is (_, { } end) ? end : _caretBrowsing && _selActive is { } c ? c : _lastClick;
 
-    /// <summary>Where a click without a drag last put the caret in the text (Select Text tool).</summary>
+    /// <summary>Where a click without a drag on the text last put the caret (Select Text tool); cleared with the selection,
+    /// by another tool and when the pages are shown again.</summary>
     private TextPos? _lastClick;
+
+    /// <summary>The Select Text press was on the page's text (not a margin, a picture or between pages).</summary>
+    private bool _downOverText;
 
     /// <summary>The place in the text under the pointer as the context menu opened (from the keyboard: <see cref="InsertionPoint"/>); null off the text.</summary>
     public TextPos? ContextCaret { get; private set; }
@@ -39,6 +43,7 @@ public sealed partial class PageViewer
 
     public void ClearSelection()
     {
+        _lastClick = null;
         if (_selAnchor is null && _selActive is null) return;
         _selAnchor = _selActive = _caretBrowsing ? _selActive : null; // caret browsing keeps the caret
         _surface.InvalidateVisual();

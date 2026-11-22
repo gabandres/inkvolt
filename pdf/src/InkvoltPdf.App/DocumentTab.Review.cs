@@ -402,13 +402,13 @@ public partial class DocumentTab
         Viewer.AnnotationActivated += (_, a) => _ = EditComment(a);
 
         CtxRedactText.Click += (_, _) => _ = RedactSelection();
-        InitProofreading();
         Viewer.ContextMenuOpening += (_, _) =>
         {
             var markup = Session.IsPdf && Viewer.HasSelection;
             foreach (var item in new FrameworkElement[] { CtxHighlight, CtxUnderline, CtxStrikeOut, CtxLinkText, CtxRedactText, CtxMarkupSeparator })
                 item.Visibility = markup ? Visibility.Visible : Visibility.Collapsed;
         };
+        InitProofreading(); // after the handler above: Insert Text Here keeps the separator below it shown
         InitSigning();
         InitDrawing();
         InitMeasure();

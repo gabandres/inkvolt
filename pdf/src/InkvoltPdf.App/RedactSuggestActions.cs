@@ -17,7 +17,7 @@ public static class RedactSuggestActions
     internal static string TermsPath => Path.Combine(AppPaths.DataDirectory, "redaction-terms.txt");
 
     /// <summary>The last choices, offered again next time (until the app closes). Nothing is chosen for the assistant at first.</summary>
-    private static RedactSuggestPlan _last = new(SuggestKinds.Names | SuggestKinds.Organizations | SuggestKinds.Addresses | SuggestKinds.AccountNumbers, null, true, []);
+    private static RedactSuggestPlan _last = new(SuggestKinds.None, null, true, []);
 
     public static async Task Suggest(MainWindow host, DocumentTab tab)
     {

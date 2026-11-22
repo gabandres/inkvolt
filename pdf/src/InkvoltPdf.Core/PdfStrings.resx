@@ -7295,4 +7295,7 @@
   <data name="Ai_NothingToSave" xml:space="preserve">
     <value>There's no AI answer to save.</value>
   </data>
+  <data name="Redact_SuggestTooMany" xml:space="preserve">
+    <value>There are {0:N0} different names and terms to look for, more than the {1:N0} one search takes, so nothing was searched. Choose fewer pages or shorten your list, then try again.</value>
+  </data>
 </root>

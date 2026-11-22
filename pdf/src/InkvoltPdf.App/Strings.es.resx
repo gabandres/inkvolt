@@ -12130,4 +12130,7 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="TabAi_OpenSaved" xml:space="preserve">
     <value>Abrir</value>
   </data>
+  <data name="Redact_SuggestAiDidntRun" xml:space="preserve">
+    <value>No se incluyen las sugerencias del asistente (no devolvió nada): solo se buscó tu lista de nombres y términos.</value>
+  </data>
 </root>

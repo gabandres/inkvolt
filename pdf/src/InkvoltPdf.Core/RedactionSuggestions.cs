@@ -19,6 +19,13 @@ public enum SuggestKinds
 /// <param name="Kind">One of <see cref="RedactionSuggestions.KindNames"/>: "name", "organization", "address", "account", "other", "term".</param>
 public sealed record RedactionProposal(string Text, string Kind);
 
+/// <summary>More different things to look for than one search takes (<see cref="RedactionPatterns.MaxPhrases"/>): nothing was searched.</summary>
+public sealed class TooManySuggestionsException(int count, int limit)
+    : Exception(Loc.Format(PdfStrings.Redact_SuggestTooMany, count, limit))
+{
+    public int Count { get; } = count;
+}
+
 /// <summary>One request for suggestions: its messages, the pages whose text it carries (0-based, inclusive), and that text
 /// as sent, without the page markers (what its answer is checked against).</summary>
 public sealed record RedactionSuggestRequest(IReadOnlyList<AiMessage> Messages, int FirstPage, int LastPage, string Text);
@@ -147,16 +154,26 @@ public static partial class RedactionSuggestions
     public static string NormalizeKind(string? kind)
     {
         var k = (kind ?? "").Trim().ToLowerInvariant();
-        return k switch
-        {
-            _ when k.Contains("org") || k.Contains("compan") || k.Contains("business") || k.Contains("institution") => "organization",
-            _ when k.Contains("name") || k.Contains("person") || k.Contains("people") => "name",
-            _ when k.Contains("address") || k.Contains("street") || k.Contains("location") => "address",
-            _ when k.Contains("account") || k.Contains("number") || k.Contains("id") => "account",
-            "term" => "term",
-            _ => "other",
-        };
+        if (k == "term") return "term";
+        // Whole words only ("residence" isn't an ID, "street name" is an address), the place before the name.
+        var words = KindWord().Matches(k).Select(m => m.Value).ToHashSet();
+        foreach (var (canonical, synonyms) in KindSynonyms)
+            if (words.Overlaps(synonyms)) return canonical;
+        return "other";
     }
+
+    /// <summary>The words a model may call a kind by, checked in this order.</summary>
+    private static readonly (string Kind, string[] Words)[] KindSynonyms =
+    [
+        ("address", ["address", "addresses", "street", "location", "residence", "city", "postal", "postcode", "zip", "gpe", "loc"]),
+        ("organization", ["org", "orgs", "organization", "organizations", "organisation", "organisations", "company", "companies",
+            "business", "institution", "corporation", "employer", "agency", "firm"]),
+        ("account", ["account", "accounts", "number", "numbers", "id", "ids", "iban", "card", "policy", "case", "ssn", "passport", "identifier"]),
+        ("name", ["name", "names", "person", "persons", "people", "individual", "per"]),
+    ];
+
+    [GeneratedRegex(@"\p{L}+")]
+    private static partial Regex KindWord();
 
     /// <summary>
     /// The proposals the text sent holds (<paramref name="sent"/>), as written there, each once (any case), and how many were left out. A quote
@@ -230,14 +247,21 @@ public static partial class RedactionSuggestions
     /// What to search the document for: every proposal as a phrase (whole words, any case), no built-in kind, on
     /// <paramref name="pages"/>. The read-back after the redaction searches the same way.
     /// </summary>
-    public static RedactionPatternOptions SearchOptions(IEnumerable<RedactionProposal> proposals, IReadOnlyList<int>? pages) => new()
+    /// <exception cref="TooManySuggestionsException">More different phrases than a search takes: nothing is searched, since
+    /// a list missing some of them must not look complete.</exception>
+    public static RedactionPatternOptions SearchOptions(IEnumerable<RedactionProposal> proposals, IReadOnlyList<int>? pages)
     {
-        Patterns = new HashSet<RedactionPattern>(),
-        Phrases = [.. proposals.Select(p => p.Text).Distinct(StringComparer.OrdinalIgnoreCase).Take(RedactionPatterns.MaxPhrases)],
-        WholeWord = true,
-        MatchCase = false,
-        Pages = pages,
-    };
+        List<string> phrases = [.. proposals.Select(p => p.Text).Distinct(StringComparer.OrdinalIgnoreCase)];
+        if (phrases.Count > RedactionPatterns.MaxPhrases) throw new TooManySuggestionsException(phrases.Count, RedactionPatterns.MaxPhrases);
+        return new()
+        {
+            Patterns = new HashSet<RedactionPattern>(),
+            Phrases = phrases,
+            WholeWord = true,
+            MatchCase = false,
+            Pages = pages,
+        };
+    }
 
     /// <summary>The search's hits, each named by what its proposal said it is ("Suggested: name", "Your list").</summary>
     public static RedactionSearchResult Label(RedactionSearchResult found, IEnumerable<RedactionProposal> proposals)

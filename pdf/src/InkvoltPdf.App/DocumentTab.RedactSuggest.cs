@@ -29,11 +29,15 @@ public partial class DocumentTab
         LastSuggestion = null;
         if (plan.AsksAi && AiService.IsEnabled)
         {
-            if (await AskForSuggestions(owner, plan, notes) is not { } result) return false;
-            LastSuggestion = result;
-            proposals.AddRange(result.Kept);
-            if (result.Dropped > 0) notes.Add(Loc.Plural(result.Dropped, Strings.Redact_SuggestDropped_One, Strings.Redact_SuggestDropped_Many));
-            if (result.Unreadable > 0) notes.Add(Loc.Plural(result.Unreadable, Strings.Redact_SuggestUnreadable_One, Strings.Redact_SuggestUnreadable_Many));
+            if (await AskForSuggestions(owner, plan, notes) is { } result)
+            {
+                LastSuggestion = result;
+                proposals.AddRange(result.Kept);
+                if (result.Dropped > 0) notes.Add(Loc.Plural(result.Dropped, Strings.Redact_SuggestDropped_One, Strings.Redact_SuggestDropped_Many));
+                if (result.Unreadable > 0) notes.Add(Loc.Plural(result.Unreadable, Strings.Redact_SuggestUnreadable_One, Strings.Redact_SuggestUnreadable_Many));
+            }
+            else if (!plan.UseTerms || _disposed) return false; // not sent, stopped or failed: said where it happened
+            else notes.Add(Strings.Redact_SuggestAiDidntRun); // the list is still searched, and the list says the assistant's part is missing
         }
         if (plan.UseTerms) proposals.AddRange(RedactionTerms.AsProposals(RedactionTerms.Load(RedactSuggestActions.TermsPath)));
         var note = notes.Count > 0 ? string.Join(" ", notes) : null;
@@ -43,7 +47,16 @@ public partial class DocumentTab
             return false;
         }
 
-        var options = RedactionSuggestions.SearchOptions(proposals, plan.Pages);
+        RedactionPatternOptions options;
+        try
+        {
+            options = RedactionSuggestions.SearchOptions(proposals, plan.Pages);
+        }
+        catch (TooManySuggestionsException ex)
+        {
+            Prompt.Error(owner, Strings.Redact_SuggestTitle, ex.Message);
+            return false;
+        }
         if (await SearchPatterns(options) is not { } found) return false;
         found = RedactionSuggestions.Label(found, proposals);
         if (found.Hits.Count == 0 && found.Looks.Count == 0)

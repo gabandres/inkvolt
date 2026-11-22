@@ -202,6 +202,36 @@ public sealed class RedactionSuggestionsTests : IDisposable
     }
 
     [Fact]
+    public void WhatTheReadBackFindsAgain_KeepsItsSuggestionsName()
+    {
+        var pdf = Contract();
+        List<RedactionProposal> proposals = [new("Jane Doe", "name")];
+        var options = RedactionSuggestions.SearchOptions(proposals, null);
+        RedactionSearchResult found;
+        using (var engine = PdfEngine.Open(pdf, InputFileTypes.PDF, null))
+            found = RedactionSuggestions.Label(RedactionSearch.Find(engine, options), proposals);
+        var run = new PatternRedaction("contract.pdf", options, found, found.Hits, [], PatternRedactionMode.Reviewed, null);
+        // Read back as if the redaction never happened: both are still there, named as suggested, not "Your words and phrases".
+        var outcome = run.Verify(pdf, null, pdf);
+        Assert.Equal(PatternRedactionVerdict.StillThere, outcome.Verdict);
+        Assert.Equal(2, outcome.StillThere.Count);
+        Assert.All(outcome.StillThere, h => Assert.Equal("Suggested: name", h.KindName));
+        Assert.All(outcome.Report.Removals.Where(r => r.Outcome == RedactionOutcome.StillThere), r => Assert.Equal("Suggested: name", r.PatternName));
+    }
+
+    [Fact]
+    public void MoreSuggestionsThanASearchTakes_AreRefused_NotCutShort()
+    {
+        var many = Enumerable.Range(0, RedactionPatterns.MaxPhrases + 1).Select(i => new RedactionProposal($"Name {i}", "name")).ToList();
+        var ex = Assert.Throws<TooManySuggestionsException>(() => RedactionSuggestions.SearchOptions(many, null));
+        Assert.Equal(RedactionPatterns.MaxPhrases + 1, ex.Count);
+        Assert.Contains("nothing was searched", ex.Message);
+        // The same words twice, in another case, count once: exactly the limit still searches.
+        var atLimit = many.Take(RedactionPatterns.MaxPhrases).Concat([new RedactionProposal("NAME 0", "name")]);
+        Assert.Equal(RedactionPatterns.MaxPhrases, RedactionSuggestions.SearchOptions(atLimit, null).Phrases.Count);
+    }
+
+    [Fact]
     public void TheTermsList_IsOnePerLine_TidiedBoundedAndKeptOnThisPc()
     {
         var terms = RedactionTerms.Parse("Jane Doe\r\n# a comment\n\n  Acme Corp  \njane doe\n" + new string('x', 600) + "\nCASE-12");
@@ -225,6 +255,12 @@ public sealed class RedactionSuggestionsTests : IDisposable
     [InlineData("passport ID", "account")]
     [InlineData("diagnosis", "other")]
     [InlineData(null, "other")]
+    [InlineData("residence", "address")] // no "id" inside a word
+    [InlineData("street name", "address")] // the place before the name
+    [InlineData("organizational unit", "other")]
+    [InlineData("provider", "other")]
+    [InlineData("first_name", "name")]
+    [InlineData("PER", "name")]
     public void Kinds_AreReadWhateverTheModelCallsThem(string? kind, string expected) =>
         Assert.Equal(expected, RedactionSuggestions.NormalizeKind(kind));
 

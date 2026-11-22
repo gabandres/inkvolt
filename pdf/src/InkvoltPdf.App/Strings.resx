@@ -12133,4 +12133,7 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="TabAi_OpenSaved" xml:space="preserve">
     <value>Open</value>
   </data>
+  <data name="Redact_SuggestAiDidntRun" xml:space="preserve">
+    <value>The assistant's suggestions aren't included (nothing came back from it): only your names and terms list was searched.</value>
+  </data>
 </root>
