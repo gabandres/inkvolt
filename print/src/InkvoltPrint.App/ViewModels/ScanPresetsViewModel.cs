@@ -95,7 +95,7 @@ public sealed partial class ScanPresetsViewModel : ObservableObject
     ];
 
     public static string TokenHelp =>
-        "{date}  {date:yyyy-MM}  {time}  {time:HH.mm}  {preset}  {printer}  {n}  {n:000}  {pages}";
+        "{date}  {date:yyyy-MM}  {time}  {time:HH.mm}  {preset}  {printer}  {n}  {n:000}  {pages}  {text-date}  {text-title}  {text-number}";
 
     /// <summary>The choice for a stored folder; a custom folder not in the list is added (above "Other folder…").</summary>
     public FolderChoice ChoiceFor(PresetFolder kind, string? path)
@@ -334,8 +334,9 @@ public sealed partial class PresetItem : ObservableObject
     {
         get
         {
+            // What a page might say, for {text-…}: today's date, a heading, an invoice number.
             var ctx = new NameContext(DateTime.Now, string.IsNullOrWhiteSpace(Name) ? Strings.Presets_ExampleName : Name.Trim(), _owner.PrinterName, _original.NextNumber, 2,
-                CultureInfo.CurrentCulture);
+                CultureInfo.CurrentCulture, new FoundInText(DateTime.Today, Strings.Presets_ExampleTitle, "INV-1042"));
             var folder = Folder.IsBrowse ? "…" : Folder.Kind == PresetFolder.Custom ? Folder.Path ?? "" : Folder.Label;
             var sub = FileNameTemplate.Subfolder(Subfolder, ctx);
             var name = FileNameTemplate.FileName(FileName, ctx);

@@ -5070,4 +5070,20 @@ The files stay where they are.</value>
     <value>Join pages {0} and {1}</value>
     <comment>what Undo puts back</comment>
   </data>
+  <data name="ScanTab_FileName" xml:space="preserve">
+    <value>File name</value>
+    <comment>label: the name the preset's save gives, filled from the page's text</comment>
+  </data>
+  <data name="ScanTab_FileNameHelp" xml:space="preserve">
+    <value>Read from the first page, as the preset names it; change it if you like.</value>
+    <comment>caption</comment>
+  </data>
+  <data name="Presets_TextTokensHelp" xml:space="preserve">
+    <value>{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.</value>
+    <comment>caption in the presets editor; the tokens stay as they are</comment>
+  </data>
+  <data name="Presets_ExampleTitle" xml:space="preserve">
+    <value>Invoice</value>
+    <comment>made-up heading for the example file name</comment>
+  </data>
 </root>

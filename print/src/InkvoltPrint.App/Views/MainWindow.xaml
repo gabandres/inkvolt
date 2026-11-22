@@ -880,6 +880,13 @@
                                 <TextBlock Text="{Binding PageCountText}" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
                                 <TextBlock Text="{x:Static loc:Strings.ScanTab_DragHint}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap"
                                            Visibility="{Binding HasPages, Converter={StaticResource VisibleWhen}}" />
+                                <!-- A preset that names the file from the page's text: the name, to change before saving -->
+                                <StackPanel Margin="0,8,0,0" Visibility="{Binding ShowsSaveName, Converter={StaticResource VisibleWhen}}">
+                                    <TextBlock Text="{x:Static loc:Strings.ScanTab_FileName}" Margin="0,0,0,4" />
+                                    <TextBox Text="{Binding SaveName, UpdateSourceTrigger=PropertyChanged}" MinWidth="280" MaxWidth="460" HorizontalAlignment="Left" MaxLength="120"
+                                             AutomationProperties.Name="{x:Static loc:Strings.ScanTab_FileName}" AutomationProperties.HelpText="{x:Static loc:Strings.ScanTab_FileNameHelp}" />
+                                    <TextBlock Text="{x:Static loc:Strings.ScanTab_FileNameHelp}" Style="{StaticResource Caption}" FontSize="12" TextWrapping="Wrap" />
+                                </StackPanel>
                             </StackPanel>
                             <WrapPanel HorizontalAlignment="Right" VerticalAlignment="Center">
                                 <!-- Puts back the last change to the pages (delete, turn, crop, move, file start): the tooltip says which -->

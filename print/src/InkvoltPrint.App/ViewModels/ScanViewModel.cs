@@ -142,6 +142,7 @@ public sealed partial class ScanViewModel : ObservableObject
 
     private void PagesChanged()
     {
+        if (ShowsSaveName && !_saveNameEdited && !IsScanning) _ = FillSaveNameAsync(); // a scan fills it once its pages are checked
         OnPropertyChanged(nameof(HasPages));
         OnPropertyChanged(nameof(PageCountText));
         OnPropertyChanged(nameof(HasUnsavedPages));
@@ -769,6 +770,7 @@ public sealed partial class ScanViewModel : ObservableObject
         if (!HasPages) ActivePreset = null;
         var preset = ActivePreset;
         await ScanPagesAsync(() => preset is null ? Task.FromResult(TabJob()) : PlanAsync(preset));
+        if (ShowsSaveName && !_saveNameEdited) _ = FillSaveNameAsync();
     }
 
     /// <summary>Scans with the job <paramref name="makeJob"/> gives (it may ask the scanner first). Returns the pages added; -1 when it failed or was cancelled.</summary>
@@ -1719,9 +1721,70 @@ public sealed partial class ScanViewModel : ObservableObject
 
     /// <summary>The preset the pages on screen were scanned with: "Scan more pages" keeps using it, "Save (name)" saves with it.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasActivePreset), nameof(SavePresetText))]
+    [NotifyPropertyChangedFor(nameof(HasActivePreset), nameof(SavePresetText), nameof(ShowsSaveName))]
     [NotifyCanExecuteChangedFor(nameof(SaveWithPresetCommand))]
     public partial ScanPreset? ActivePreset { get; set; }
+
+    partial void OnActivePresetChanged(ScanPreset? value)
+    {
+        if (value?.Id == _saveNameFor) return;
+        _saveNameFor = value?.Id;
+        _saveNameEdited = false;
+        _settingSaveName = true;
+        SaveName = null;
+        _settingSaveName = false;
+    }
+
+    // ---- The file's name from the page's text (roadmap 4.11) ----
+
+    /// <summary>The review shows the name the preset's save will give (its template reads the page's text), to change before saving.</summary>
+    public bool ShowsSaveName => ActivePreset is { Review: true } p && FileNameTemplate.ReadsText(p.FileName);
+
+    /// <summary>The first file's name (no extension): filled from the page's text, or as typed in the review.</summary>
+    [ObservableProperty] public partial string? SaveName { get; set; }
+
+    private bool _settingSaveName, _saveNameEdited;
+    private string? _saveNameFor;
+    private int _saveNameFills;
+
+    partial void OnSaveNameChanged(string? value)
+    {
+        if (!_settingSaveName) _saveNameEdited = true;
+    }
+
+    /// <summary>What the first page of <paramref name="file"/> says for the preset's name, once its text is read; null when the name doesn't ask.</summary>
+    private static async Task<FoundInText?> FoundInAsync(List<ScanPageViewModel> file, ScanPreset preset)
+    {
+        if (!FileNameTemplate.ReadsText(preset.FileName) && !FileNameTemplate.ReadsText(preset.Subfolder)) return null;
+        if (file.FirstOrDefault(p => !p.HasPhotos) is not { } page) return FoundInText.None;
+        return await page.OcrAsync() is { } words ? await Task.Run(() => TextFinds.Find(words)) : FoundInText.None;
+    }
+
+    /// <summary>Fills <see cref="SaveName"/> as the save would name the first file (with the preset's next number), unless it was typed.</summary>
+    private async Task FillSaveNameAsync()
+    {
+        if (ActivePreset is not { } preset) return;
+        var fill = ++_saveNameFills;
+        var files = Files();
+        try
+        {
+            if (files.Count == 0) return;
+            var found = await FoundInAsync(files[0], preset);
+            if (fill != _saveNameFills || _saveNameEdited || ActivePreset?.Id != preset.Id) return;
+            var current = _presets.FindById(preset.Id) ?? preset;
+            var ctx = new NameContext(DateTime.Now, current.Name, _printerName, current.NextNumber, files[0].Sum(p => p.ImageCount), Found: found);
+            _settingSaveName = true;
+            SaveName = FileNameTemplate.FileName(current.FileName, ctx);
+        }
+        catch (Exception ex)
+        {
+            Log.Write($"Naming the scan from its text failed: {ex.Message}");
+        }
+        finally
+        {
+            _settingSaveName = false;
+        }
+    }
 
     public bool HasActivePreset => ActivePreset is not null;
 
@@ -1778,7 +1841,11 @@ public sealed partial class ScanViewModel : ObservableObject
         var added = await ScanPagesAsync(() => PlanAsync(preset));
         if (added <= 0) return;
         if (!preset.Review) await SaveWithPresetAsync();
-        else Message += " " + string.Format(Strings.Scan_CheckThenSave, SavePresetText);
+        else
+        {
+            Message += " " + string.Format(Strings.Scan_CheckThenSave, SavePresetText);
+            if (ShowsSaveName) _ = FillSaveNameAsync(); // once the first page's text is read
+        }
     }
 
     private bool CanSaveWithPreset() => ActivePreset is not null && !IsBusy;
@@ -1830,11 +1897,13 @@ public sealed partial class ScanViewModel : ObservableObject
                 // {n} is taken now, in one step on the UI thread, so a scan saved meanwhile (another printer) can't get it too;
                 // a batch takes one per file (counting on by itself if the preset was deleted meanwhile), and {pages} is each file's own.
                 var number = numbers.Take(_presets.IncrementCounter(preset.Id));
-                var ctx = new NameContext(now, preset.Name, _printerName, number, file.Sum(p => p.ImageCount));
+                var ctx = new NameContext(now, preset.Name, _printerName, number, file.Sum(p => p.ImageCount), Found: await FoundInAsync(file, preset));
                 var into = Path.Combine(root, FileNameTemplate.Subfolder(preset.Subfolder, ctx));
                 folder ??= into;
                 Directory.CreateDirectory(into);
-                var stem = FileNameTemplate.FileName(preset.FileName, ctx);
+                // The first file's name as the review shows it, when it was changed there; else the template's.
+                var stem = file == files[0] && _saveNameEdited && !string.IsNullOrWhiteSpace(SaveName)
+                    ? FileNameTemplate.Sanitize(SaveName) : FileNameTemplate.FileName(preset.FileName, ctx);
                 var asSent = jpg ? null : ScannerPdf.KeepAsSent(ToSave(file));
                 List<string> written = jpg ? await WriteImagesAsync(file, into, stem)
                     : [await WritePdfAsync(asSent is null ? await PdfPagesAsync(file) : null, asSent, into, stem)];

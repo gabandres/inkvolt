@@ -3424,7 +3424,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   </data>
   <data name="Preset_UnknownToken" xml:space="preserve">
     <value>Unknown token {0}. Use {1} or {2}.</value>
-    <comment>{0} = token typed, {1} = '{date}, {time}, {preset}, {printer}, {n}', {2} = '{pages}'</comment>
+    <comment>{0} = token typed, {1} = '{date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title}', {2} = '{text-number}'</comment>
   </data>
   <data name="Preset_NoClosingBrace" xml:space="preserve">
     <value>A { has no closing }. Type {{ for a brace.</value>
@@ -4342,5 +4342,9 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Imaging_HolesRemoved" xml:space="preserve">
     <value>punch holes removed</value>
     <comment>page cleanup done</comment>
+  </data>
+  <data name="Preset_NoOcrForName" xml:space="preserve">
+    <value>This PC can't read text, so the parts of the file name taken from the page stay empty.</value>
+    <comment>status note after a preset scan</comment>
   </data>
 </root>

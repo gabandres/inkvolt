@@ -3613,4 +3613,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Imaging_HolesRemoved" xml:space="preserve">
     <value>perforaciones quitadas</value>
   </data>
+  <data name="Preset_NoOcrForName" xml:space="preserve">
+    <value>Este PC no puede leer texto, así que las partes del nombre del archivo que se toman de la página quedan vacías.</value>
+  </data>
 </root>

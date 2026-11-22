@@ -138,6 +138,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Join two halves**: one page from two scans of an original too big for the glass (`HalvesJoin`). **Overlap**: what both
   halves show; found by matching, else the second half is **nudged** by hand. **Seam**: where the joined page passes from the first
   half to the second, the middle of the overlap.
+- **Name from the text**: a scan's file named from what its first page says (`TextFinds`, `FoundInText`): a **found date**, its
+  **heading** (the tallest line near the top) and an **invoice-like number**, through `{text-date}`, `{text-title}`, `{text-number}`.
 - **Print the clipboard**: printing what another app put on the clipboard by sending it to the tab that prints its kind (`ClipboardPrint`):
   text laid out on pages as a PDF to Print a PDF, a picture to Print photos, copied files as they are. **Laid out**: wrapped to the
   columns and lines a page holds at 10 pt (`ClipboardTextLayout`).

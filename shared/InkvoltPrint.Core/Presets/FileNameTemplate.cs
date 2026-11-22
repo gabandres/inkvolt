@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace InkvoltPrint.Core.Presets;
 
@@ -7,23 +8,26 @@ namespace InkvoltPrint.Core.Presets;
 /// <param name="Number">The preset's counter, <c>{n}</c>.</param>
 /// <param name="Pages">Pages saved, <c>{pages}</c>.</param>
 /// <param name="Culture">For date and time formats (month names); null = the current culture.</param>
-public sealed record NameContext(DateTime Now, string Preset, string Printer, int Number, int Pages, CultureInfo? Culture = null);
+/// <param name="Found">What the first page's text says (<see cref="TextFinds"/>), for <c>{text-date}</c>, <c>{text-title}</c> and <c>{text-number}</c>; null: nothing read.</param>
+public sealed record NameContext(DateTime Now, string Preset, string Printer, int Number, int Pages, CultureInfo? Culture = null, FoundInText? Found = null);
 
 /// <summary>
 /// File-name and subfolder templates for scan presets: <c>{date}</c> / <c>{date:yyyy-MM}</c>, <c>{time}</c> /
 /// <c>{time:HH.mm}</c>, <c>{preset}</c>, <c>{printer}</c>, <c>{n}</c> / <c>{n:000}</c> (the preset's counter),
-/// <c>{pages}</c>; <c>{{</c> and <c>}}</c> are literal braces. Names come out safe for Windows (no reserved characters or
+/// <c>{pages}</c>; from the first page's text (roadmap 4.11) <c>{text-date}</c> / <c>{text-date:yyyy-MM}</c> (a date found on it),
+/// <c>{text-title}</c> (its first heading) and <c>{text-number}</c> (an invoice-like number), empty when the page doesn't say (the
+/// spaces and dashes they leave are tidied); <c>{{</c> and <c>}}</c> are literal braces. Names come out safe for Windows (no reserved characters or
 /// device names, no trailing dots or spaces, never empty); subfolders never leave the chosen folder; and a name already
 /// taken gets <c>-2</c>, <c>-3</c>… so nothing is overwritten.
 /// </summary>
-public static class FileNameTemplate
+public static partial class FileNameTemplate
 {
     /// <summary>Longest file name (without extension) a template makes: leaves room for the folder within MAX_PATH-minded tools.</summary>
     public const int MaxNameLength = 120;
 
     private const string DefaultDate = "yyyy-MM-dd", DefaultTime = "HHmm";
     private static string Fallback => CoreStrings.Preset_FallbackFileName;
-    private const string TokenList = "{date}, {time}, {preset}, {printer}, {n}", LastToken = "{pages}";
+    private const string TokenList = "{date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title}", LastToken = "{text-number}";
 
     // Windows' reserved characters, whatever the OS these run on (Path.GetInvalidFileNameChars differs per platform).
     private static readonly char[] Reserved = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
@@ -41,7 +45,7 @@ public static class FileNameTemplate
             if (part.Kind != Kind.Token) continue;
             switch (part.Text.ToLowerInvariant())
             {
-                case "date" or "time":
+                case "date" or "time" or "text-date":
                     if (part.Format is { } f)
                     {
                         try { _ = new DateTime(2026, 1, 2, 3, 4, 5).ToString(f, CultureInfo.InvariantCulture); }
@@ -50,7 +54,7 @@ public static class FileNameTemplate
                     break;
                 case "n":
                     break;
-                case "preset" or "printer" or "pages":
+                case "preset" or "printer" or "pages" or "text-title" or "text-number":
                     if (part.Format is not null) return string.Format(CoreStrings.Preset_TokenNoFormat, $"{{{part.Text}}}");
                     break;
                 default:
@@ -64,10 +68,27 @@ public static class FileNameTemplate
     public static string FileName(string? template, NameContext ctx)
     {
         var sb = new StringBuilder();
-        foreach (var part in Parse(template ?? "", out _))
+        var parts = Parse(template ?? "", out _);
+        foreach (var part in parts)
             sb.Append(part.Kind switch { Kind.Token => Value(part, ctx), Kind.Separator => part.Text, _ => part.Text });
-        return Sanitize(sb.ToString());
+        return Sanitize(parts.Any(IsTextToken) ? Tidy(sb.ToString()) : sb.ToString());
     }
+
+    /// <summary>The template names the file from the page's text (<c>{text-…}</c>): the scan is read (OCR) for it.</summary>
+    public static bool ReadsText(string? template) => Parse(template ?? "", out _).Any(IsTextToken);
+
+    private static bool IsTextToken(Part part) =>
+        part.Kind == Kind.Token && part.Text.ToLowerInvariant() is "text-date" or "text-title" or "text-number";
+
+    /// <summary>What an empty <c>{text-…}</c> leaves: two spaces or dashes running together, or one at an end.</summary>
+    private static string Tidy(string name)
+    {
+        var s = TidyRuns().Replace(name, m => m.Value.Contains('-') ? " - " : " ");
+        return s.Trim(' ', '-', '_');
+    }
+
+    [GeneratedRegex(@"\s{2,}|(?:\s*-\s*){2,}")]
+    private static partial Regex TidyRuns();
 
     /// <summary>
     /// The template as a relative folder path ("" = none): <c>/</c> and <c>\</c> outside tokens separate folders; each
@@ -171,6 +192,9 @@ public static class FileNameTemplate
                 "preset" when token.Format is null => ctx.Preset,
                 "printer" when token.Format is null => ctx.Printer,
                 "pages" when token.Format is null => ctx.Pages.ToString(culture),
+                "text-date" => ctx.Found?.Date is { } found ? found.ToString(token.Format ?? DefaultDate, culture) : "",
+                "text-title" when token.Format is null => ctx.Found?.Title ?? "",
+                "text-number" when token.Format is null => ctx.Found?.Number ?? "",
                 _ => Literal(token),
             };
         }

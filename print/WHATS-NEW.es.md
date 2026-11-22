@@ -7,6 +7,7 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 
 ## Next
 - La limpieza puede quitar un color: las líneas de un formulario rojo, las notas de un bolígrafo azul o un sello se vuelven blancos, y lo impreso en negro se queda. Elige rojo, verde o azul, o haz clic en el color de la página. Quitar perforaciones rellena con el color del papel las marcas redondas de las perforaciones cerca de los bordes. Las dos funcionan en cada escaneo, en cada ajuste y en cada página.
+- Nombrar un escaneo por lo que dice: el nombre de archivo de un ajuste puede usar {text-date}, {text-title} y {text-number}, una fecha, el título y un número de factura o de pedido leídos en la primera página. Con el paso de revisión, el nombre se muestra antes de guardar, para cambiarlo si quieres.
 - Unir dos mitades: para un original demasiado grande para el cristal, escanea una mitad, luego la otra con un poco de superposición, y elige Unir con la página siguiente… en la primera. Se encuentra la superposición y las mitades se vuelven una sola página; si no se encuentra, coloca la segunda mitad con las flechas.
 
 ## 1.8.0

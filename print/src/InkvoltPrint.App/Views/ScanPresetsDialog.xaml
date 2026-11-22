@@ -213,6 +213,7 @@
                     <TextBlock Style="{StaticResource Caption}" FontSize="12" Margin="0,6,0,0" TextWrapping="Wrap">
                         <Run Text="{x:Static loc:Strings.Presets_Tokens}" /> <Run Text="{x:Static vm:ScanPresetsViewModel.TokenHelp}" FontFamily="Consolas" />
                         <LineBreak /><Run Text="{x:Static loc:Strings.Presets_CounterHelp}" />
+                        <LineBreak /><Run Text="{x:Static loc:Strings.Presets_TextTokensHelp}" />
                     </TextBlock>
                     <TextBlock Style="{StaticResource Caption}" Margin="0,8,0,0" TextWrapping="Wrap">
                         <Run Text="{x:Static loc:Strings.Presets_NextFile}" /> <Run Text="{Binding Example, Mode=OneWay}" Foreground="{DynamicResource TextFillColorPrimaryBrush}" />

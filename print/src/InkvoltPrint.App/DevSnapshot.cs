@@ -125,6 +125,9 @@ internal static class DevSnapshot
         }
         // --share (demo only): shares the shown entry's Windows scanner (the USB laser's, the photo flatbed), to this PC only.
         if (args.Contains("--share") && window.DataContext is ViewModels.MainViewModel main0) await ShareAsync(main0, wait: false);
+        // --glass form|halves: the made-up glass holds a punched order form (red rules, a blue pen's notes, a date and an invoice number),
+        // or the two halves of a plan too wide for it in turn (demo only).
+        if (Value(args, "--glass") is { } glass) Demo.GlassHolds = glass;
         if (scans > 0 && window.DataContext is ViewModels.MainViewModel { Selected.Scan: { } scanner })
         {
             // --source glass|feeder|duplex, --split none|patch|blank|either and --keep-separators set the tab first.
@@ -158,8 +161,6 @@ internal static class DevSnapshot
                 var drop = cleanup.Contains("drop-green") ? Core.Imaging.DropColor.Green : cleanup.Contains("drop-blue") ? Core.Imaging.DropColor.Blue : Core.Imaging.DropColor.Red;
                 scanner.TabDropColor = scanner.DropColors.FirstOrDefault(o => o.Value == drop) ?? scanner.TabDropColor;
             }
-            // --glass form: the made-up glass holds a punched order form with red rules and a blue pen's notes (demo only).
-            if (Value(args, "--glass") is { } glass) Demo.GlassHolds = glass;
             var asked = ViewModels.Prompt.Confirm;
             if (args.Contains("--turn-stack")) ViewModels.Prompt.Confirm = (_, _) => true; // "turn the stack over… Scan the backs"
             try
@@ -216,6 +217,9 @@ internal static class DevSnapshot
             // turning it over (demo only).
             if (args.Contains("--smaller-file") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } small)
                 presetMain.Presets.Update(small with { SmallerFile = true, FileType = small.FileType == Core.Presets.PresetFileType.Jpeg ? Core.Presets.PresetFileType.Pdf : small.FileType });
+            // --name-from-text [save]: the preset scans the glass, stops on the review (save: saves at once) and names the file from the page's text (demo only).
+            if (args.Contains("--name-from-text") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } named)
+                presetMain.Presets.Update(named with { FileName = "{text-date} {text-title} {text-number}", Review = Value(args, "--name-from-text") != "save", Source = Core.Presets.PresetSource.Glass });
             if (args.Contains("--turn-stack") && presetMain.Presets.IsDemo && presetMain.Presets.Find(preset) is { } stack)
                 presetMain.Presets.Update(stack with { Source = Core.Presets.PresetSource.Feeder, TwoSided = true, TurnStack = true });
             var ask = ViewModels.Prompt.Confirm;

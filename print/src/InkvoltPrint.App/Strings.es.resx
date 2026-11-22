@@ -4173,4 +4173,16 @@ Los archivos se quedan donde están.</value>
   <data name="Scan_UndoJoin" xml:space="preserve">
     <value>Unir las páginas {0} y {1}</value>
   </data>
+  <data name="ScanTab_FileName" xml:space="preserve">
+    <value>Nombre del archivo</value>
+  </data>
+  <data name="ScanTab_FileNameHelp" xml:space="preserve">
+    <value>Tomado de la primera página, como lo nombra el ajuste; cámbialo si quieres.</value>
+  </data>
+  <data name="Presets_TextTokensHelp" xml:space="preserve">
+    <value>{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página.</value>
+  </data>
+  <data name="Presets_ExampleTitle" xml:space="preserve">
+    <value>Factura</value>
+  </data>
 </root>

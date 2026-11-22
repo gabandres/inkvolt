@@ -60,9 +60,13 @@ public sealed record PresetPlan(ScanRequest Request, bool Ocr, IReadOnlyList<str
         if (preset.PageSize is { } wanted && size.Key != wanted && ScanChoices.PageSizes.FirstOrDefault(p => p.Key == wanted) is { } missing)
             notes.Add(string.Format(CoreStrings.Preset_SizeDoesntFit, missing.Label, size.Label));
 
-        var ocr = preset.FileType == PresetFileType.SearchablePdf && ocrAvailable;
+        // Text is read for a searchable PDF, and for a name taken from the page (its PDF gets the text layer too).
+        var readsName = FileNameTemplate.ReadsText(preset.FileName) || FileNameTemplate.ReadsText(preset.Subfolder);
+        var ocr = (preset.FileType == PresetFileType.SearchablePdf || readsName) && ocrAvailable;
         if (preset.FileType == PresetFileType.SearchablePdf && !ocrAvailable)
             notes.Add(CoreStrings.Preset_NoOcr);
+        else if (readsName && !ocrAvailable)
+            notes.Add(CoreStrings.Preset_NoOcrForName);
 
         return new(ScanChoices.ToRequest(source, color, dpi, size), ocr, notes) { TurnStack = turnStack, OneBit = oneBit };
     }

@@ -1665,6 +1665,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   ported, a Batch preset with `removeBlankPages` or `splitAtBlankPages` is refused on the Mac as an unknown action.
 - Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
   `PunchHoles`), done on Windows.
+- Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
+  `{text-number}`), done on Windows.
 - Inkvolt Print 4.8: join two halves of an original too big for the glass (`HalvesJoin`), done on Windows.
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's

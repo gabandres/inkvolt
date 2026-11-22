@@ -6,6 +6,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 - Clean up can drop a color: a red form's rules, a blue pen's notes or a stamp turn white, and the black print stays. Pick red, green or blue, or click the color on the page. Remove punch holes fills the round hole marks near the edges with the paper's color. Both work per scan, per preset and per page.
+- Name a scan from what it says: a preset's file name can use {text-date}, {text-title} and {text-number}, a date, the heading and an invoice or order number read on the first page. With the review step, the name shows before you save, to change if you like.
 - Join two halves: for an original too big for the glass, scan one half, then the other with a little overlap, and choose Join with the next page… on the first. The overlap is found and the halves become one page; if it can't be found, move the second half into place with the arrows.
 
 ## 1.8.0
