@@ -62,7 +62,7 @@ nothing made, when `dir` holds no index or the count isn't a whole number). `ind
 included: the step that changes a file is skipped when the folder isn't an `index-make` corpus (its counted queries then
 miss, exit 1).
 `index-read` on a corpus just made, then again, shows what a first read costs: Windows Defender scans each file a worker
-opens, and while it is busy the workers wait with processors free (14.0 s, then 0.2 s, on 2026-11-20; ROADMAP 3.5).
+opens, and while it is busy the workers wait with processors free (14.0 s the first time, then 0.2 s; ROADMAP 3.5).
 Run as `dotnet Bench.dll`, the workers are started from `Bench.exe` beside it (from `dotnet.exe` they never started).
 
 Files of 1 to 24 pages (72,797 in all) of made-up prose: a 200-word bank and, one word in five, a vocabulary of 300,000 made-up
