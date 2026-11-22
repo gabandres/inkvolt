@@ -138,6 +138,18 @@ public sealed class DocumentWindows
         return null;
     }
 
+    private readonly HashSet<string> _opening = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// A window starts reading <paramref name="path"/> (a full path) into a new tab. False when that file is already on its
+    /// way in any window (double-clicked twice, or asked for in two windows) or open in a tab: it isn't read again. Each
+    /// true is followed by <see cref="EndOpening"/>, whether the tab opened or not.
+    /// </summary>
+    public bool BeginOpening(string path) => FindFile(path) is null && _opening.Add(path);
+
+    /// <summary>The file asked for in <see cref="BeginOpening"/> opened as a tab (<see cref="Add"/> came first), or didn't.</summary>
+    public void EndOpening(string path) => _opening.Remove(path);
+
     /// <summary>Whether <paramref name="tab"/> can go to <paramref name="target"/>; <paramref name="busy"/>: a job holds its document.</summary>
     public TabMoveCheck CanMove(long tab, int target, bool busy)
     {

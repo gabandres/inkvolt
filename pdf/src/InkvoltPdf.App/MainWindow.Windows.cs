@@ -108,6 +108,7 @@ public partial class MainWindow
         if (reflowing) model.Tab.SetReflow(false);
         var moved = App.Hub.Move(model.Id, target.WindowId, index);
         Release(model, moving: true);
+        _autosave.Copy(wait: false); // this window's recovery copy of it goes now, not at the next pass
         // A toast about the document ("Delete 1 page · Undo") stays with this window: its Undo would act on another's tab.
         foreach (var card in Toasts.Children.OfType<FrameworkElement>().Where(c => c.Tag == model.Tab).ToList()) Toasts.Children.Remove(card);
         if (wasActive && _tabs.Count > 0) TabStrip.SelectedItem = _tabs[Math.Clamp(at, 0, _tabs.Count - 1)];

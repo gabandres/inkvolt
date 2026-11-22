@@ -26,6 +26,23 @@ public class DocumentWindowsTests
     }
 
     [Fact]
+    public void AFileOnItsWayInOneWindowIsntReadAgainInAnother()
+    {
+        var windows = new DocumentWindows();
+        var a = windows.Open();
+        windows.Open();
+        Assert.True(windows.BeginOpening(@"C:\Docs\big.pdf")); // window a starts reading it
+        Assert.False(windows.BeginOpening(@"c:\docs\BIG.pdf")); // window b asks for it meanwhile
+        windows.Add(a, 1, @"C:\Docs\big.pdf");
+        windows.EndOpening(@"C:\Docs\big.pdf");
+        Assert.False(windows.BeginOpening(@"C:\Docs\big.pdf")); // open in a tab now
+        windows.Remove(1);
+        Assert.True(windows.BeginOpening(@"C:\Docs\big.pdf")); // closed: it can open again
+        windows.EndOpening(@"C:\Docs\big.pdf"); // a wrong password, say: not opened
+        Assert.True(windows.BeginOpening(@"C:\Docs\big.pdf"));
+    }
+
+    [Fact]
     public void OtherLaunchesGoToTheWindowUsedLast()
     {
         var windows = new DocumentWindows();

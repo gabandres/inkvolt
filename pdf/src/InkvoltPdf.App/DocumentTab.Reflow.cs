@@ -31,6 +31,7 @@ public partial class DocumentTab
     private DispatcherTimer? _reflowTimer;
     private bool _reflowAsking;
     private bool _reflowStale;
+    private bool _reflowDriving; // the view is sending the page view to its page
     private double _reflowZoom = 1;
     private EventHandler? _reflowRescale;
 
@@ -264,7 +265,18 @@ public partial class DocumentTab
             var answer = await _reflowWeb.ExecuteScriptAsync(Reflow.TopPageScript);
             if (!IsReflowing || _reflowPos is null) return;
             var id = JsonSerializer.Deserialize<string>(answer);
-            if (_reflowPos.Scrolled(Reflow.PageOf(id, _reflowPos.Pages)) is { } page) Viewer.GoToPage(page, record: false);
+            if (_reflowPos.Scrolled(Reflow.PageOf(id, _reflowPos.Pages), Environment.TickCount64) is { } page)
+            {
+                _reflowDriving = true; // the page view's own reports while it moves aren't the reader's
+                try
+                {
+                    Viewer.GoToPage(page, record: false);
+                }
+                finally
+                {
+                    _reflowDriving = false;
+                }
+            }
             if (_reflowStale && !IsBusy) _ = ShowReflowAsync(); // the document changed: laid out again
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException or System.Runtime.InteropServices.COMException or ObjectDisposedException)
@@ -279,8 +291,8 @@ public partial class DocumentTab
     /// <summary>The page view moved (the page box, Next Page, a bookmark): the view scrolls there.</summary>
     private void ReflowFollowViewer()
     {
-        if (!IsReflowing || _reflowPos is null || _reflowWeb?.CoreWebView2 is null) return;
-        if (_reflowPos.ViewerMoved(Viewer.CurrentPage) is { } page) _ = _reflowWeb.ExecuteScriptAsync(Reflow.ScrollScript(page));
+        if (_reflowDriving || !IsReflowing || _reflowPos is null || _reflowWeb?.CoreWebView2 is null) return;
+        if (_reflowPos.ViewerMoved(Viewer.CurrentPage, Environment.TickCount64) is { } page) _ = _reflowWeb.ExecuteScriptAsync(Reflow.ScrollScript(page));
     }
 
     /// <summary>Zoom In (+1), Zoom Out (-1) or Actual Size (0) in the Reflow view: the text's size.</summary>
@@ -330,6 +342,9 @@ public partial class DocumentTab
     private void InitReflow()
     {
         Viewer.CurrentPageChanged += (_, _) => ReflowFollowViewer();
+        // Under the view the page view still lays out (a window resize, a zoom): the page it settles on isn't the reader's.
+        Viewer.SizeChanged += (_, _) => _reflowPos?.ViewerRelaid(Environment.TickCount64);
+        Viewer.ZoomChanged += (_, _) => _reflowPos?.ViewerRelaid(Environment.TickCount64);
         // An edit, undo or reload while Reflow shows (a reload, a form value from a script): laid out again once idle.
         Session.ContentChanged += (_, _) =>
         {

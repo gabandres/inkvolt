@@ -97,7 +97,6 @@ public partial class MainWindow : Window
 
     private readonly Dictionary<DocumentTab, Task<bool>> _saves = [];
     private readonly HashSet<DocumentTab> _closingTabs = [];
-    private readonly HashSet<string> _opening = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _forwardedWhileClosing = [];
     private int _openBusy;
     private bool _closeApproved;
@@ -117,6 +116,9 @@ public partial class MainWindow : Window
         get => (double)GetValue(TabMaxWidthProperty);
         set => SetValue(TabMaxWidthProperty, value);
     }
+
+    /// <summary>Asking about its unsaved documents because Windows is ending the session.</summary>
+    internal bool SessionPromptRunning => _sessionPromptRunning;
 
     /// <summary>This window's number in <see cref="App.Hub"/>.</summary>
     internal int WindowId { get; }
@@ -431,6 +433,12 @@ public partial class MainWindow : Window
         {
             _sessionEnded = true; // Windows is ending the session now: close without prompts
         }
+        else if (msg == WM_ENDSESSION)
+        {
+            // The sign-out or shutdown was cancelled (by this app or another): windows close one at a time again, once
+            // no window is still asking about its documents for it.
+            App.Current.SessionEndCancelled();
+        }
         return IntPtr.Zero;
     }
 
@@ -472,6 +480,8 @@ public partial class MainWindow : Window
             finally
             {
                 _sessionPromptRunning = false;
+                // Settled (closed, or kept open by the user): a later close is one window's again, unless Windows did end it.
+                if (!_sessionEnded) App.Current.SessionEndCancelled();
                 ShutdownBlockReasonDestroy(hwnd);
                 OpenForwardedWhileClosing();
             }
@@ -647,7 +657,7 @@ public partial class MainWindow : Window
             }
             return;
         }
-        if (!_opening.Add(full)) return; // already on its way (e.g. double-clicked twice)
+        if (!App.Hub.BeginOpening(full)) return; // already on its way, in this window or another (e.g. double-clicked twice)
 
         // Office files and web pages are converted into a new, unsaved PDF tab (the file itself isn't changed).
         if (Converting.Handles(full))
@@ -658,7 +668,7 @@ public partial class MainWindow : Window
             }
             finally
             {
-                _opening.Remove(full);
+                App.Hub.EndOpening(full);
             }
             return;
         }
@@ -703,7 +713,7 @@ public partial class MainWindow : Window
         }
         finally
         {
-            _opening.Remove(full);
+            App.Hub.EndOpening(full);
             SetOpenBusy(false);
         }
     }

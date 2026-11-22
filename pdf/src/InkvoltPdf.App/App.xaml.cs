@@ -272,6 +272,16 @@ public partial class App : Application
     internal static bool ClosingAll { get; set; }
 
     /// <summary>
+    /// Windows' sign-out or shutdown was cancelled (WM_ENDSESSION false), or a window asking about it was kept open: once
+    /// no window is still asking, closing a window is one window's close again, saving the open tabs and placement.
+    /// </summary>
+    internal void SessionEndCancelled()
+    {
+        if (_windows.Any(w => w.SessionPromptRunning)) return;
+        ClosingAll = false;
+    }
+
+    /// <summary>
     /// File › Exit: closes every main window, the one in use first, each asking about its own unsaved documents; stops at
     /// the first the user keeps open.
     /// </summary>
@@ -395,8 +405,19 @@ public partial class App : Application
 
         if (!_windows.Contains(window)) return; // closed meanwhile (OnMainClosed)
         _ready = true;
-        foreach (var queued in _pendingArgs) window.OpenFiles(queued);
-        if (_pendingArgs.Count > 0) window.BringToFront();
+        // Launches that came while the window started, as OnForwarded takes them: --new-window is a window, not a file.
+        var toFront = false;
+        foreach (var queued in _pendingArgs)
+        {
+            var launch = Core.WindowLaunch.Parse(queued);
+            if (launch.NewWindow) OpenNewWindow(launch.Files);
+            else
+            {
+                window.OpenFiles(launch.Files);
+                toFront = true;
+            }
+        }
+        if (toFront) window.BringToFront();
         _pendingArgs.Clear();
         foreach (var request in _pendingConverts) ExplorerConvert.Route(request);
         _pendingConverts.Clear();

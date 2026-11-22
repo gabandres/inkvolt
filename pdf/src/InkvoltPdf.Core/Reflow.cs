@@ -181,10 +181,17 @@ public static class Reflow
 /// <summary>
 /// The page the Reflow view is at, kept in step with the page view's (roadmap 4.16): Reflow opens at the page the reader
 /// was on, scrolling it moves the page box, the page box and the page commands scroll it, and leaving opens Pages at the
-/// page it was at. Each side's report of a move the other caused comes back as no move, so they never chase each other.
+/// page it was at. Each side's report of a move the other caused comes back as no move, so they never chase each other:
+/// the page view, sent to a page or laid out again (resized under the view), passes through other pages as it settles,
+/// and what it reports for <see cref="SettleMs"/> after is its settling, not the reader's.
 /// </summary>
 public sealed class ReflowPosition(int pages)
 {
+    /// <summary>How long after the page view was sent somewhere, or laid out again, its page reports are ignored (ms).</summary>
+    public const long SettleMs = 800;
+
+    private long _quietUntil = long.MinValue;
+
     public int Pages { get; } = Math.Max(1, pages);
 
     /// <summary>The page in view (0-based).</summary>
@@ -193,16 +200,27 @@ public sealed class ReflowPosition(int pages)
     /// <summary>Reflow opens with the page view at <paramref name="viewerPage"/>: the page to scroll to.</summary>
     public int Enter(int viewerPage) => Page = Math.Clamp(viewerPage, 0, Pages - 1);
 
-    /// <summary>The view reports the page at its top (null: it couldn't tell): the page for the page view, or null when it hasn't moved.</summary>
-    public int? Scrolled(int? reflowPage)
+    /// <summary>
+    /// The view reports the page at its top (null: it couldn't tell) at <paramref name="now"/> (ms): the page to send
+    /// the page view to, or null when it hasn't moved.
+    /// </summary>
+    public int? Scrolled(int? reflowPage, long now)
     {
         if (reflowPage is not { } p || p < 0 || p >= Pages || p == Page) return null;
+        _quietUntil = now + SettleMs;
         return Page = p;
     }
 
-    /// <summary>The page view moved to <paramref name="viewerPage"/> (the page box, Next Page): the page to scroll the view to, or null when it is there.</summary>
-    public int? ViewerMoved(int viewerPage)
+    /// <summary>The page view was laid out again (resized, zoomed) at <paramref name="now"/>: its page may change on its own.</summary>
+    public void ViewerRelaid(long now) => _quietUntil = Math.Max(_quietUntil, now + SettleMs);
+
+    /// <summary>
+    /// The page view moved to <paramref name="viewerPage"/> at <paramref name="now"/> (the page box, Next Page): the page
+    /// to scroll the view to, or null when it is there or the page view is still settling.
+    /// </summary>
+    public int? ViewerMoved(int viewerPage, long now)
     {
+        if (now < _quietUntil) return null;
         var p = Math.Clamp(viewerPage, 0, Pages - 1);
         if (p == Page) return null;
         return Page = p;

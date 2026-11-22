@@ -138,13 +138,38 @@ public class ReflowTests
     {
         var position = new ReflowPosition(10);
         position.Enter(2);
-        Assert.Null(position.Scrolled(2));
-        Assert.Null(position.Scrolled(null));
-        Assert.Null(position.Scrolled(12)); // not a page
-        Assert.Equal(5, position.Scrolled(5));
+        Assert.Null(position.Scrolled(2, 0));
+        Assert.Null(position.Scrolled(null, 0));
+        Assert.Null(position.Scrolled(12, 0)); // not a page
+        Assert.Equal(5, position.Scrolled(5, 0));
         // The page view, moved there, reports page 5: no move back.
-        Assert.Null(position.ViewerMoved(5));
+        Assert.Null(position.ViewerMoved(5, 10));
         Assert.Equal(5, position.Leave());
+    }
+
+    [Fact]
+    public void ThePageViewSettlingAfterAMoveDoesntJumpTheReader()
+    {
+        var position = new ReflowPosition(10);
+        position.Enter(0);
+        Assert.Equal(8, position.Scrolled(8, 1000)); // the reader scrolls near the end
+        // The page view, sent to page 9, passes through pages 7 and 8 and lands on 7 (the last pages fit on screen).
+        Assert.Null(position.ViewerMoved(7, 1100));
+        Assert.Null(position.ViewerMoved(6, 1000 + ReflowPosition.SettleMs - 1));
+        Assert.Equal(8, position.Page);
+        // Later, the page box: followed.
+        Assert.Equal(3, position.ViewerMoved(3, 1000 + ReflowPosition.SettleMs));
+    }
+
+    [Fact]
+    public void ThePageViewLaidOutAgainDoesntJumpTheReader()
+    {
+        var position = new ReflowPosition(10);
+        position.Enter(4);
+        position.ViewerRelaid(5000); // the window was resized under the view
+        Assert.Null(position.ViewerMoved(2, 5200));
+        Assert.Equal(4, position.Page);
+        Assert.Equal(2, position.ViewerMoved(2, 5000 + ReflowPosition.SettleMs));
     }
 
     [Fact]
@@ -152,8 +177,8 @@ public class ReflowTests
     {
         var position = new ReflowPosition(10);
         position.Enter(0);
-        Assert.Equal(7, position.ViewerMoved(7));
-        Assert.Null(position.Scrolled(7)); // the view, scrolled there, reports page 7: no move back
+        Assert.Equal(7, position.ViewerMoved(7, 0));
+        Assert.Null(position.Scrolled(7, 10)); // the view, scrolled there, reports page 7: no move back
         Assert.Equal(7, position.Leave());
     }
 }
