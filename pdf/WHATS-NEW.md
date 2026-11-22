@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.18.0
 - Two documents side by side: File › New Window (Ctrl+N), New Window in the taskbar's jump list, or drag a tab out of the tab bar and it becomes a window of its own, ready for Windows Snap. Drag a tab onto another window's tabs to move it there; it keeps its page, panes, undo and unsaved changes. Right-click a tab for Move to New Window and Move to Window. A file already open in one window comes forward there instead of opening twice, and closing a window asks only about its own documents.
 - Reflow (View › Reflow, Ctrl+3): read the document as one column of text that fits the window, handy on a small screen or when you need larger text. It follows Windows' text size and Dark pages, Zoom In and Zoom Out change the text size, links work, and you come back to Pages at the page you were reading.
 - Calculated form fields (Prepare Form): a text field can add up, multiply, average, or take the lowest or highest of the fields you tick, or work out a formula like Price * Quantity. They update as the form is filled, here and in Acrobat, which reads them back as its own. Calculation Order sets which ones work out first. New number formats: negatives in brackets, 1.234,56 and euros.

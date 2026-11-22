@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.9.0
 - Print log: the sidebar's Print log lists every job this PC printed while Inkvolt Print was running, from any app, with each month's pages per printer and per person. It stays on this PC, and you can turn it off or clear it. Saving it as a CSV file is part of Inkvolt Pro.
 - Share a printer with phones: a USB printer (or any printer set up in Windows) can take print jobs from Android phones, Macs and other computers on your home network. Turn on Share this printer on the network in its Print tab; it's off until you turn it on, works only on networks Windows calls Private and only while Inkvolt Print runs, and it's free.
 - Set up a new printer's Wi-Fi: Add a printer › Set up a new printer… finds a new printer's setup network nearby, joins it when you press Connect, opens the printer's own page where you choose your Wi-Fi, then brings this PC back to your network and finds the printer there. Your Wi-Fi password is typed only on the printer's page or in Windows, never in Inkvolt Print.

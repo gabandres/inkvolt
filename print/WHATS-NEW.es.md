@@ -6,6 +6,8 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+
+## 1.9.0
 - Registro de impresión: Registro de impresión, en la barra lateral, muestra cada trabajo que este PC imprimió mientras Inkvolt Print estaba abierto, desde cualquier aplicación, con las páginas de cada mes por impresora y por persona. Se queda en este PC, y puedes desactivarlo o borrarlo. Guardarlo como archivo CSV es parte de Inkvolt Pro.
 - Compartir una impresora con teléfonos: una impresora USB (o cualquier impresora configurada en Windows) puede recibir trabajos de teléfonos Android, Mac y otros equipos de tu red doméstica. Activa Compartir esta impresora en la red en su pestaña Imprimir; está desactivado hasta que lo actives, funciona solo en redes que Windows llama privadas y solo mientras Inkvolt Print está abierto, y es gratis.
 - Configurar el Wi-Fi de una impresora nueva: Agregar una impresora › Configurar una impresora nueva… encuentra cerca la red de configuración de una impresora nueva, se une a ella cuando presionas Conectar, abre la propia página de la impresora donde eliges tu Wi-Fi, y luego devuelve este equipo a tu red y encuentra allí la impresora. Tu contraseña de Wi-Fi se escribe solo en la página de la impresora o en Windows, nunca en Inkvolt Print.

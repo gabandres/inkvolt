@@ -6,6 +6,8 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+
+## 1.18.0
 - Dos documentos lado a lado: Archivo › Nueva ventana (Ctrl+N), Nueva ventana en la lista de accesos directos de la barra de tareas, o arrastra una pestaña fuera de la barra de pestañas y se convierte en una ventana propia, lista para Ajustar de Windows. Arrastra una pestaña sobre las pestañas de otra ventana para moverla allí; conserva su página, sus paneles, lo que puedes deshacer y los cambios sin guardar. Haz clic con el botón derecho en una pestaña para Mover a una ventana nueva y Mover a otra ventana. Un archivo que ya está abierto en una ventana pasa al frente allí en vez de abrirse dos veces, y al cerrar una ventana solo se pregunta por sus propios documentos.
 - Redistribuir (Ver › Redistribuir, Ctrl+3): lee el documento como una sola columna de texto que se ajusta a la ventana, útil en una pantalla pequeña o cuando necesitas el texto más grande. Sigue el tamaño del texto de Windows y las Páginas oscuras, Acercar y Alejar cambian el tamaño del texto, los vínculos funcionan y, al volver a las páginas, sigues en la que estabas leyendo.
 - Campos de formulario calculados (Preparar formulario): un campo de texto puede sumar, multiplicar, promediar o tomar el menor o el mayor de los campos que marques, o calcular una fórmula como Precio * Cantidad. Se actualizan al llenar el formulario, aquí y en Acrobat, que los lee como suyos. Orden de cálculo decide cuáles se calculan primero. Nuevos formatos de número: negativos entre paréntesis, 1.234,56 y euros.
