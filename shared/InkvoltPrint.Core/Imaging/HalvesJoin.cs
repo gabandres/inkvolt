@@ -47,6 +47,9 @@ public static class HalvesJoin
 
     private const double CoarsePpi = 12, MinSpread = 6;
 
+    /// <summary>The longest side of the coarse copies every placement is tried on (a 33 inch half at 12 pixels an inch).</summary>
+    public const int MaxCoarseSide = 400;
+
     /// <summary>How many of the coarse search's best placements are refined.</summary>
     private const int Refined = 6;
 
@@ -62,7 +65,9 @@ public static class HalvesJoin
         var fallback = new JoinFound(EdgeToEdge(JoinSide.Right, false, first.Width, first.Height, second.Width, second.Height), false, 0);
         if (ppi < 4 || first.Width < 8 || first.Height < 8 || second.Width < 8 || second.Height < 8 || Math.Max(Math.Max(first.Width, first.Height), Math.Max(second.Width, second.Height)) > MaxSide)
             return fallback; // nothing to match, or not the analysis copies it is made for
-        var factor = Math.Max(1, (int)Math.Round(ppi / CoarsePpi));
+        // About 12 pixels an inch, and never more than MaxCoarseSide pixels a side: a huge page's every-placement search stays seconds.
+        var longest = Math.Max(Math.Max(first.Width, first.Height), Math.Max(second.Width, second.Height));
+        var factor = Math.Max(Math.Max(1, (int)Math.Round(ppi / CoarsePpi)), (longest + MaxCoarseSide - 1) / MaxCoarseSide);
         var a = Shrink(first, factor);
         var coarsePpi = ppi / factor;
         var turnedSecond = Turned(second);
@@ -87,32 +92,40 @@ public static class HalvesJoin
             tops.Add(c);
             if (tops.Count == Refined) break;
         }
-        // Refined on copies at half the size given (when that still has 30 pixels an inch), then the best on the copies given.
+        // Refined on copies at half the size given (when that still has 30 pixels an inch), then the best on the copies given. Coarse
+        // copies made smaller than usual (a huge page) are refined on copies twice as large each time first, so no step looks far.
         var half = ppi >= 60 ? 2 : 1;
-        var (midFirst, midSecond, midTurned) = (Shrink(first, half), Shrink(second, half), Shrink(turnedSecond, half));
-        var refined = new List<(JoinPlacement Placement, double Score)>();
-        foreach (var top in tops)
+        var steps = new List<int>();
+        if (factor > Math.Round(ppi / CoarsePpi))
+            for (var f = factor / 2; f >= half * 2; f /= 2) steps.Add(f);
+        steps.Add(half);
+        var refined = tops.Select(t => (Placement: new JoinPlacement(t.Side, t.Turned, t.X, t.Y), t.Score)).ToList();
+        var from = factor;
+        foreach (var step in steps)
         {
-            cancel.ThrowIfCancellationRequested();
-            var scale = factor / (double)half;
-            refined.Add(Refine(midFirst, top.Turned ? midTurned : midSecond, new JoinPlacement(top.Side, top.Turned, top.X, top.Y).Scaled(scale),
-                (int)Math.Ceiling(scale / 2) + 1));
+            var (stepFirst, stepSecond, stepTurned) = (Shrink(first, step), Shrink(second, step), Shrink(turnedSecond, step));
+            var scale = from / (double)step;
+            for (var i = 0; i < refined.Count; i++)
+                refined[i] = Refine(stepFirst, refined[i].Placement.Turned ? stepTurned : stepSecond, refined[i].Placement.Scaled(scale),
+                    (int)Math.Ceiling(scale / 2) + 1, cancel);
+            from = step;
         }
         var best = refined.MaxBy(r => r.Score);
         var other = refined.Where(r => r != best).Select(r => r.Score).DefaultIfEmpty(-1).Max();
-        var (placement, score) = half == 1 ? best : Refine(first, best.Placement.Turned ? turnedSecond : second, best.Placement.Scaled(half), half + 1);
+        var (placement, score) = half == 1 ? best : Refine(first, best.Placement.Turned ? turnedSecond : second, best.Placement.Scaled(half), half + 1, cancel);
         // Ahead of the next: what the next leaves unmatched at least twice what the best does (a near-perfect match needs little
         // lead, a fair one a lot).
         return new JoinFound(placement, score >= SureScore && 1 - other >= Lead * (1 - best.Score), Math.Max(0, score), other);
     }
 
     /// <summary>The best placement within <paramref name="reach"/> pixels of <paramref name="near"/>, and its match.</summary>
-    private static (JoinPlacement Placement, double Score) Refine(GrayImage a, GrayImage b, JoinPlacement near, int reach)
+    private static (JoinPlacement Placement, double Score) Refine(GrayImage a, GrayImage b, JoinPlacement near, int reach, CancellationToken cancel)
     {
         var (fx, fy, fine) = (near.X, near.Y, double.NegativeInfinity);
         for (var dy = -reach; dy <= reach; dy++)
             for (var dx = -reach; dx <= reach; dx++)
             {
+                cancel.ThrowIfCancellationRequested();
                 var score = Ncc(a, b, near.X + dx, near.Y + dy, 1);
                 if (score > fine) (fx, fy, fine) = (near.X + dx, near.Y + dy, score);
             }
@@ -294,8 +307,10 @@ public static class HalvesJoin
         var (x0, y0) = (Math.Max(0, x), Math.Max(0, y));
         var (x1, y1) = (Math.Min(a.Width, x + b.Width), Math.Min(a.Height, y + b.Height));
         if (x1 <= x0 || y1 <= y0 || (long)(x1 - x0) * (y1 - y0) < minArea) return double.NegativeInfinity;
-        // A large overlap (the fine search) is read every other row: plenty to tell a match by, half the time.
-        var rowStep = (long)(x1 - x0) * (y1 - y0) > 100_000 ? 2 : 1;
+        // A large overlap (the fine search) is read every other row, a huge one (a huge page's) on about a million pixels: plenty to
+        // tell a match by, in a fraction of the time.
+        var area = (long)(x1 - x0) * (y1 - y0);
+        var rowStep = area > 100_000 ? (int)Math.Max(2, area / 1_000_000) : 1;
         long sa = 0, sb = 0, saa = 0, sbb = 0, sab = 0, count = 0;
         for (var py = y0; py < y1; py += rowStep)
         {

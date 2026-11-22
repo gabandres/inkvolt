@@ -14,7 +14,9 @@ public sealed record SharedQueue(string Name, bool Color, bool TwoSided, string 
 /// <summary>A job a phone sent, for the app to print on the Windows queue (pages fitted to its paper).</summary>
 /// <param name="Format">What the document is (sniffed, never only what the phone said): PDF, JPEG, PWG Raster or Apple Raster.</param>
 /// <param name="Document">The request's own bytes after its attributes: never copied on the way.</param>
-public sealed record SharedPrintJob(string Queue, string Format, ReadOnlyMemory<byte> Document, int Copies, bool TwoSided, bool Monochrome, string JobName);
+/// <param name="Media">The queue's paper (<see cref="SharedQueue.Media"/>): pages are drawn at its size (<see cref="SharedPages"/>).</param>
+public sealed record SharedPrintJob(string Queue, string Format, ReadOnlyMemory<byte> Document, int Copies, bool TwoSided, bool Monochrome, string JobName,
+    string Media = SharedPrinterMedia.Letter);
 
 /// <summary>
 /// The bytes of documents held in memory, all shared printers and connections together (roadmap 4.10): the server takes a request's body
@@ -69,6 +71,9 @@ public sealed record PrinterShareLimits
     public int MaxJobs { get; init; } = 20;
 
     public TimeSpan KeepFinished { get; init; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>The longest a job may take to be drawn, from when it starts printing: past it it's stopped and aborted (the next goes on).</summary>
+    public TimeSpan MaxPrintTime { get; init; } = TimeSpan.FromMinutes(10);
 }
 
 /// <summary>The paper a shared printer names: PWG self-describing names and their sizes in hundredths of a millimetre.</summary>
@@ -255,6 +260,14 @@ public sealed class SharedPrinter : IDisposable
         return null;
     }
 
+    /// <summary>
+    /// Whether a request's head (<see cref="Precheck"/>'s) is one that carries a document: Print-Job. Any other request is its attributes
+    /// alone (<see cref="PrinterShareLimits.MaxAttributeBytes"/> at most), so the server reads, and holds, no more of it.
+    /// </summary>
+    public static bool CarriesDocument(ShareRequest head) =>
+        head.Method == "POST" && head.Body.Length >= 4 && head.Body[0] is (1 or 2)
+        && BinaryPrimitives.ReadUInt16BigEndian(head.Body.AsSpan(2)) == IppCodec.PrintJob;
+
     private ShareReply PrintJob(byte major, byte minor, int requestId, Dictionary<string, List<object>> op, Dictionary<string, List<object>> template,
         ReadOnlyMemory<byte> document, IPAddress peer, string? authority)
     {
@@ -280,7 +293,7 @@ public sealed class SharedPrinter : IDisposable
             job = new Job(_nextId++, peer, options.Name, _time.GetUtcNow(), CancellationTokenSource.CreateLinkedTokenSource(_closed.Token), document.Length);
             _jobs.Add(job);
         }
-        var print = new SharedPrintJob(_queue.Name, sniffed, document, options.Copies, options.TwoSided, options.Monochrome, options.Name);
+        var print = new SharedPrintJob(_queue.Name, sniffed, document, options.Copies, options.TwoSided, options.Monochrome, options.Name, _queue.Media);
         _ = Task.Run(() => RunAsync(job, print));
         return Reply(major, minor, unsupported.Count > 0 ? OkIgnored : Ok, requestId, null,
             [.. unsupported.Count > 0 ? [(IppCodec.UnsupportedTag, (IReadOnlyList<IppValue>)unsupported)] : Array.Empty<(byte, IReadOnlyList<IppValue>)>(),
@@ -298,6 +311,9 @@ public sealed class SharedPrinter : IDisposable
             End(job, Canceled, "job-canceled-by-user");
             return;
         }
+        // Drawing the job has a deadline from when it starts printing: a document slow to draw can't hold the printer for good.
+        using var deadline = new CancellationTokenSource(_limits.MaxPrintTime, _time);
+        using var stop = CancellationTokenSource.CreateLinkedTokenSource(job.Cancel.Token, deadline.Token);
         try
         {
             lock (_gate)
@@ -307,13 +323,18 @@ public sealed class SharedPrinter : IDisposable
                 job.Reason = "job-printing";
             }
             _log($"Printer sharing: a job came in ({print.Format}, {print.Document.Length / 1024} KB, {print.Copies} copies).");
-            await _sink.PrintAsync(print, job.Cancel.Token).ConfigureAwait(false);
+            await _sink.PrintAsync(print, stop.Token).ConfigureAwait(false);
             End(job, Completed, "job-completed-successfully");
             _log("Printer sharing: the job went to the Windows queue.");
         }
         catch (OperationCanceledException) when (job.Cancel.IsCancellationRequested)
         {
             End(job, Canceled, "job-canceled-by-user");
+        }
+        catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+        {
+            End(job, Aborted, "aborted-by-system");
+            _log($"Printer sharing: the job took longer than {_limits.MaxPrintTime.TotalMinutes:0.#} minutes to draw and was stopped.");
         }
         catch (FormatException ex)
         {
@@ -360,14 +381,19 @@ public sealed class SharedPrinter : IDisposable
     private ShareReply Cancel(byte major, byte minor, int requestId, Dictionary<string, List<object>> op, IPAddress peer)
     {
         if (Find(op, peer) is not { } job) return Reply(major, minor, NotFound, requestId, "no such job");
+        bool waiting;
         lock (_gate)
         {
-            if (job.State != Pending) return Reply(major, minor, NotPossible, requestId, job.State == Processing ? "already printing" : "already ended");
-            Mark(job, Canceled, "job-canceled-by-user"); // in the lock: the printing can't take it up after this
+            if (job.State >= Canceled) return Reply(major, minor, NotPossible, requestId, "already ended");
+            waiting = job.State == Pending;
+            // Waiting: canceled now, in the lock, so the printing can't take it up after this. Printing: its drawing is stopped, and it
+            // ends canceled once it has (one already handed to the Windows queue prints, and ends completed).
+            if (waiting) Mark(job, Canceled, "job-canceled-by-user");
+            else job.Reason = "processing-to-stop-point";
         }
         try { job.Cancel.Cancel(); }
         catch (ObjectDisposedException) { }
-        Ended(job);
+        if (waiting) Ended(job);
         return Reply(major, minor, Ok, requestId, null);
     }
 

@@ -84,6 +84,30 @@ public class HalvesJoinTests
     }
 
     [Fact]
+    public void A_huge_page_is_searched_on_a_small_copy_and_still_found()
+    {
+        // Halves said to be at 12 pixels an inch, 1600 pixels long (133 inches): searched on copies that size, every placement takes
+        // minutes (hours for a page as tall); on copies of at most 400 pixels a side, a moment.
+        const int w = 2700, h = 200;
+        var original = Drawing(w, h, seed: 7);
+        var first = Part(original, w, h, 0, 0, 1600, h);
+        var second = Part(original, w, h, 1100, 0, 1600, h);
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var found = HalvesJoin.Find(new GrayImage(1600, h, first), new GrayImage(1600, h, second), 12);
+        Assert.InRange(watch.Elapsed, TimeSpan.Zero, Timing.Limit(TimeSpan.FromSeconds(10)));
+        Assert.Equal(new JoinPlacement(JoinSide.Right, false, 1100, 0), found.Placement);
+    }
+
+    [Fact]
+    public void Finding_the_overlap_stops_when_cancelled()
+    {
+        var original = Drawing(1500, 1000);
+        var (first, second) = (Part(original, 1500, 1000, 0, 0, 850, 1000), Part(original, 1500, 1000, 650, 0, 850, 1000));
+        Assert.ThrowsAny<OperationCanceledException>(() =>
+            HalvesJoin.Find(new GrayImage(850, 1000, first), new GrayImage(850, 1000, second), Ppi, new CancellationToken(canceled: true)));
+    }
+
+    [Fact]
     public void Halves_one_above_the_other_and_given_in_either_order()
     {
         const int w = 1000, h = 1500;

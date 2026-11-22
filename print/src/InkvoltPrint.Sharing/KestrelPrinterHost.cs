@@ -14,22 +14,32 @@ namespace InkvoltPrint.Sharing;
 /// The shared printers' IPP server (roadmap 4.10): Kestrel, HTTP/1.1 in the clear as IPP printers speak it (<c>ipp://</c>), on the port
 /// <see cref="PrinterListen"/> names. As the shared scanner's server (<see cref="KestrelShareHost"/>): a device
 /// <see cref="PrinterListen.AllowPeer"/> refuses is closed before a byte is read, each device holds a few connections and the server a few
-/// dozen, headers are small and slow requests time out. A body may be a whole document, so it's bounded by
-/// <see cref="PrinterListen.MaxBodyBytes"/> (chunked or not: Kestrel stops one past it) and must arrive at a minimum rate; only POST with
-/// <c>application/ipp</c> is read. Every request goes to <see cref="PrinterListen.Handle"/>; nothing names a file. No logging of devices.
+/// dozen, headers are small and slow requests time out. Only POST with <c>application/ipp</c> is read: its head (the attributes,
+/// <see cref="PrinterListen.HeadBytes"/>) first, and the rest only for a request that carries a document
+/// (<see cref="PrinterListen.CarriesDocument"/>) the printer hasn't turned away (<see cref="PrinterListen.Precheck"/>): one such upload
+/// at a time from each device, bounded by <see cref="PrinterListen.MaxBodyBytes"/> (chunked or not: Kestrel stops one past it), at a
+/// minimum rate and all of it within <see cref="BodyTime"/>. Every request goes to <see cref="PrinterListen.Handle"/>; nothing names a
+/// file. No logging of devices.
 /// </summary>
-public sealed class KestrelPrinterHost : IPrinterShareHost
+/// <param name="bodyTime">How long a request's whole body may take to arrive (<see cref="DefaultBodyTime"/>; tests shorten it).</param>
+public sealed class KestrelPrinterHost(TimeSpan? bodyTime = null) : IPrinterShareHost
 {
     public const int MaxConnections = 32, MaxConnectionsPerPeer = 8;
 
     /// <summary>Request bodies held in memory at once, all connections together, when the listen brings no budget of its own (<see cref="PrinterListen.Budget"/>, which queued documents share).</summary>
     public const long MaxBytesInFlight = 160L * 1024 * 1024;
 
+    /// <summary>A whole body within 5 minutes: the largest document (64 MB) at about 220 KB a second, so a slow upload can't hold its bytes for half an hour.</summary>
+    public static readonly TimeSpan DefaultBodyTime = TimeSpan.FromMinutes(5);
+
+    public TimeSpan BodyTime { get; } = bodyTime ?? DefaultBodyTime;
+
     public async Task<IShareListener> StartAsync(PrinterListen listen, CancellationToken ct)
     {
         var builder = WebApplication.CreateEmptyBuilder(new WebApplicationOptions { ApplicationName = typeof(KestrelPrinterHost).Assembly.GetName().Name });
         ListenOptions? endpoint = null;
         var perPeer = new ConcurrentDictionary<IPAddress, int>();
+        var uploading = new ConcurrentDictionary<IPAddress, byte>();
         builder.WebHost.UseKestrelCore().ConfigureKestrel(o =>
         {
             o.AddServerHeader = false;
@@ -72,7 +82,7 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         });
         var app = builder.Build();
         var budget = listen.Budget ?? new ShareBudget(MaxBytesInFlight);
-        app.Run(context => HandleAsync(context, listen, budget));
+        app.Run(context => HandleAsync(context, listen, budget, uploading, BodyTime));
         try
         {
             await app.StartAsync(ct).ConfigureAwait(false);
@@ -95,7 +105,8 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         }
     }
 
-    private static async Task HandleAsync(HttpContext context, PrinterListen listen, ShareBudget budget)
+    private static async Task HandleAsync(HttpContext context, PrinterListen listen, ShareBudget budget, ConcurrentDictionary<IPAddress, byte> uploading,
+        TimeSpan bodyTime)
     {
         var request = context.Request;
         var response = context.Response;
@@ -106,7 +117,11 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         }
         var path = request.Path.Value ?? "/";
         var authority = request.Host.HasValue ? request.Host.Value : null;
+        var device = SharePeers.Normal(peer);
+        var uploads = false;
         using var kept = new BodyBuffer(budget, listen.MaxBodyBytes);
+        using var reading = CancellationTokenSource.CreateLinkedTokenSource(context.RequestAborted);
+        reading.CancelAfter(bodyTime);
         try
         {
             byte[] body = [];
@@ -122,19 +137,40 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
                     Refuse(response, StatusCodes.Status413PayloadTooLarge);
                     return;
                 }
-                // The head first (the request's attributes): a busy printer or a document past the limit is refused before the rest is
-                // read. A body of a known length is read into one array of that length, held against the budget all documents share
-                // (a queued job keeps its document there until it ends) and handed on as it is; one sent in chunks grows from small.
-                var within = request.ContentLength is not { } length || kept.Reserve(length);
-                var ended = false;
-                if (within) (ended, within) = await kept.ReadAsync(request.Body, listen.HeadBytes, context.RequestAborted).ConfigureAwait(false);
-                if (within && listen.Precheck?.Invoke(new ShareRequest(request.Method, path, kept.Head(listen.HeadBytes), peer, authority), request.ContentLength) is { } early)
+                // The head first (the request's attributes), grown from small whatever length the request says: a busy printer or a
+                // document past the limit is refused before the rest is read, and nothing more is held for a request that carries no
+                // document. Then a document's whole known length is read into one array of it, held against the budget all documents
+                // share (a queued job keeps its document there until it ends) and handed on as it is; one sent in chunks grows.
+                var (ended, within) = await kept.ReadAsync(request.Body, listen.HeadBytes, reading.Token).ConfigureAwait(false);
+                var head = new ShareRequest(request.Method, path, kept.Head(listen.HeadBytes), peer, authority);
+                if (within && listen.Precheck?.Invoke(head, request.ContentLength) is { } early)
                 {
                     response.Headers.Connection = "close"; // the rest of the body is never read as a request
                     await WriteAsync(response, early, context.RequestAborted).ConfigureAwait(false);
                     return;
                 }
-                if (within && !ended) (_, within) = await kept.ReadAsync(request.Body, listen.MaxBodyBytes, context.RequestAborted).ConfigureAwait(false);
+                if (within && !ended && listen.CarriesDocument?.Invoke(head) != true)
+                {
+                    // Its attributes alone: one byte more than the head is one too many.
+                    (ended, within) = await kept.ReadAsync(request.Body, listen.HeadBytes + 1L, reading.Token).ConfigureAwait(false);
+                    if (within && !ended)
+                    {
+                        Refuse(response, StatusCodes.Status413PayloadTooLarge);
+                        return;
+                    }
+                }
+                if (within && !ended)
+                {
+                    // One document coming in at a time from each device: another waits its turn (try again in a moment).
+                    if (!(uploads = uploading.TryAdd(device, 0)))
+                    {
+                        response.Headers.RetryAfter = "10";
+                        Refuse(response, StatusCodes.Status503ServiceUnavailable);
+                        return;
+                    }
+                    within = request.ContentLength is not { } length || kept.Reserve(length);
+                    if (within) (_, within) = await kept.ReadAsync(request.Body, request.ContentLength ?? listen.MaxBodyBytes, reading.Token).ConfigureAwait(false);
+                }
                 if (!within || kept.Exact() is not { } exact)
                 {
                     // Several large documents at once: try again in a moment.
@@ -161,6 +197,15 @@ public sealed class KestrelPrinterHost : IPrinterShareHost
         catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
         {
             // The device went away, or sharing stopped.
+        }
+        catch (OperationCanceledException) when (reading.IsCancellationRequested)
+        {
+            // The body took longer than it may: the connection goes, and with it what was held of the body.
+            context.Abort();
+        }
+        finally
+        {
+            if (uploads) uploading.TryRemove(device, out _);
         }
     }
 

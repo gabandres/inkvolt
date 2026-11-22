@@ -247,14 +247,20 @@ public static class PrintLayout
         }
         var (c1, r1) = Count(areaW, areaH);
         var (c2, r2) = Count(areaH, areaW);
-        return c2 * r2 < c1 * r1 ? (c2, r2, true) : (c1, r1, false);
+        return (long)c2 * r2 < (long)c1 * r1 ? (c2, r2, true) : (c1, r1, false);
     }
 
     private static double ClampOverlap(double overlap, double w, double h) => Math.Clamp(overlap, 0, Math.Min(w, h) / 4);
 
-    /// <summary>Tiles of <paramref name="tile"/> overlapping by <paramref name="ov"/> needed to cover <paramref name="length"/>.</summary>
-    private static int Tiles(double length, double tile, double ov) =>
-        Math.Max(1, (int)Math.Ceiling((length - ov) / (tile - ov) - 1e-9));
+    /// <summary>
+    /// Tiles of <paramref name="tile"/> overlapping by <paramref name="ov"/> needed to cover <paramref name="length"/>: at most
+    /// <see cref="int.MaxValue"/> (an absurd poster on tiny paper, or a size that isn't a number), never a wrapped count.
+    /// </summary>
+    private static int Tiles(double length, double tile, double ov)
+    {
+        var n = Math.Ceiling((length - ov) / (tile - ov) - 1e-9);
+        return double.IsNaN(n) || n >= int.MaxValue ? int.MaxValue : Math.Max(1, (int)n);
+    }
 
     /// <summary>
     /// Sheet <paramref name="tile"/> (row by row from the top-left) of the poster of page <paramref name="page"/>
@@ -344,22 +350,34 @@ public sealed class PrintPlan
                 SheetCount = (pages.Count + setup.PagesPerSheet - 1) / setup.PagesPerSheet;
                 break;
             case PrintHandling.Poster:
+            {
+                // Counted in long, and no further once past MaxCounted: a tiny paper and a huge page enlarged would wrap an int.
                 _posterStart = new int[pages.Count + 1];
-                for (var i = 0; i < pages.Count; i++)
+                Array.Fill(_posterStart, int.MaxValue, 1, pages.Count); // a page not counted holds no sheet
+                long total = 0;
+                for (var i = 0; i < pages.Count && total <= MaxCounted; i++)
                 {
                     var (w, h) = size(pages[i]);
                     var (c, r, _) = PrintLayout.PosterTiles(w, h, setup.PosterScale, area.Width, area.Height, setup.Overlap);
-                    _posterStart[i + 1] = _posterStart[i] + c * r;
+                    total = Math.Min(total + (long)c * r, MaxCounted + 1L);
+                    _posterStart[i + 1] = (int)total;
                 }
-                SheetCount = _posterStart[^1];
+                SheetCount = (int)total;
                 break;
+            }
             default:
                 SheetCount = pages.Count;
                 break;
         }
     }
 
-    /// <summary>Sides of paper printed (a booklet: two per sheet of paper).</summary>
+    /// <summary>
+    /// A poster's sheets are counted up to this (twice <see cref="SheetPrint.MaxSides"/>, the most any print path lets through): past
+    /// it counting stops and <see cref="SheetCount"/> is one more, a job every limit refuses.
+    /// </summary>
+    public const int MaxCounted = SheetPrint.MaxSides * 2;
+
+    /// <summary>Sides of paper printed (a booklet: two per sheet of paper); a poster's at most <see cref="MaxCounted"/> + 1.</summary>
     public int SheetCount { get; }
 
     /// <summary>Sheets of paper used (a booklet prints on both sides).</summary>

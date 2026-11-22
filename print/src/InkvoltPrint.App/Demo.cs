@@ -107,7 +107,8 @@ internal static class Demo
         {
             public async Task PrintAsync(Core.Sharing.SharedPrintJob job, CancellationToken ct)
             {
-                var pages = await Printing.SharedQueuePrinting.PagesAsync(job, ct);
+                using var images = new Printing.PrintImages();
+                var pages = await Printing.SharedQueuePrinting.PagesAsync(job, images, ct);
                 Demo.PrintJobs.Add(job.JobName, pages.Count * job.Copies);
             }
         }

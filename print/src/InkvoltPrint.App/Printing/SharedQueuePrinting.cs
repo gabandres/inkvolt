@@ -11,10 +11,13 @@ namespace InkvoltPrint.App.Printing;
 
 /// <summary>
 /// A shared printer's jobs on its Windows queue (roadmap 4.10; what's taken and how is <see cref="SharedPrinter"/>'s): the document drawn
-/// as pages and spooled through <see cref="QueuePrinter"/>, each fitted to the queue's paper, like Print a PDF. A PDF is drawn by Windows'
-/// own PDF engine (at most <see cref="MaxPages"/> pages); a JPEG is decoded and encoded again, so only a picture this app made reaches the
-/// spooler; PWG and Apple Raster are read by the core's <see cref="RasterReader"/>. Monochrome jobs are made grey here. A document that
-/// can't be read is a <see cref="FormatException"/> (the phone is told the job was its document's fault).
+/// as pages and spooled through <see cref="QueuePrinter"/>, each fitted to the queue's paper, like Print a PDF. Each page is drawn at the
+/// size it prints at (<see cref="SharedPages"/>: the queue's paper at the shared printer's resolution, never the size the document names)
+/// and kept as a file of the job as soon as it's drawn, so one page at a time is in memory, and all of a job's together are at most
+/// <see cref="SharedPages.MaxJobBytes"/>. A PDF is drawn by Windows' own PDF engine (at most <see cref="MaxPages"/> pages); a JPEG is
+/// decoded and encoded again, so only a picture this app made reaches the spooler; PWG and Apple Raster are read by the core's
+/// <see cref="RasterReader"/>. Monochrome jobs are made grey here. A document that can't be read (or is too large once drawn) is a
+/// <see cref="FormatException"/> (the phone is told the job was its document's fault).
 /// </summary>
 public sealed class SharedQueuePrinting : ISharedPrintSink
 {
@@ -25,16 +28,17 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
 
     public async Task PrintAsync(SharedPrintJob job, CancellationToken ct)
     {
-        var pages = await PagesAsync(job, ct).ConfigureAwait(false);
-        if (pages.Count == 0) throw new FormatException("no pages");
+        using var images = new PrintImages();
+        var pages = await PagesAsync(job, images, ct).ConfigureAwait(false);
         ct.ThrowIfCancellationRequested();
         // From here the job belongs to the spooler (a half-written XPS job gets stuck in the queue): no more cancelling.
-        await QueuePrinter.PrintPagesAsync(job.Queue, pages, job.Copies, job.TwoSided, job.JobName, PageSizing.FitToPaper).ConfigureAwait(false);
+        await QueuePrinter.PrintSavedAsync(job.Queue, pages, job.Copies, job.TwoSided, job.JobName, PageSizing.FitToPaper).ConfigureAwait(false);
     }
 
-    /// <summary>The document's pages as JPEG pictures with their size in inches (grey for a monochrome job).</summary>
-    internal static async Task<IReadOnlyList<RenderedPage>> PagesAsync(SharedPrintJob job, CancellationToken ct)
+    /// <summary>The document's pages as JPEG files of <paramref name="images"/> with their size in inches (grey for a monochrome job).</summary>
+    internal static async Task<IReadOnlyList<SavedPage>> PagesAsync(SharedPrintJob job, PrintImages images, CancellationToken ct)
     {
+        var kept = new Kept(images);
         switch (job.Format)
         {
             case "application/pdf":
@@ -49,44 +53,66 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
                     throw new FormatException(ex.Message, ex);
                 }
                 if (pdf.PageCount is < 1 or > MaxPages) throw new FormatException($"{pdf.PageCount} pages");
-                var pages = new List<RenderedPage>(pdf.PageCount);
                 for (var n = 1; n <= pdf.PageCount; n++)
                 {
                     ct.ThrowIfCancellationRequested();
-                    var page = await pdf.RenderAsync(n, QueuePrinter.RenderDpi, ct: ct).ConfigureAwait(false);
-                    pages.Add(job.Monochrome ? await StaThread.RunAsync(() => Grey(page)).ConfigureAwait(false) : page);
+                    var (widthInches, heightInches) = pdf.PageSizeInches(n);
+                    var (width, _) = SharedPages.Pixels(widthInches, heightInches, job.Media);
+                    var page = await pdf.RenderAsync(n, SharedPages.Dpi, maxWidthPx: width, ct: ct).ConfigureAwait(false);
+                    kept.Add(job.Monochrome ? await StaThread.RunAsync(() => Grey(page)).ConfigureAwait(false) : page);
                 }
-                return pages;
+                break;
             }
             case "image/jpeg":
-                return [await StaThread.RunAsync(() => Picture(job.Document, job.Monochrome)).ConfigureAwait(false)];
+                kept.Add(await StaThread.RunAsync(() => Picture(job.Document, job.Monochrome, job.Media)).ConfigureAwait(false));
+                break;
             case "image/pwg-raster" or "image/urf":
-                return await StaThread.RunAsync(() =>
+                await StaThread.RunAsync(() =>
                 {
                     var data = job.Document;
                     var limits = new RasterLimits { MaxPages = MaxPages, MaxPixels = MaxPixels }; // the PDF's limits: no more pages through raster
                     var read = job.Format == "image/urf" ? RasterReader.ReadUrf(data, limits) : RasterReader.ReadPwg(data, limits);
-                    var pages = new List<RenderedPage>();
-                    foreach (var page in read)
+                    foreach (var page in read) // decoded one at a time
                     {
                         ct.ThrowIfCancellationRequested();
-                        pages.Add(Raster(page, job.Monochrome));
+                        kept.Add(Raster(page, job.Monochrome, job.Media));
                     }
-                    return (IReadOnlyList<RenderedPage>)pages;
+                    return true;
                 }).ConfigureAwait(false);
+                break;
             default:
                 throw new FormatException("not a document this printer takes");
         }
+        if (kept.Pages.Count == 0) throw new FormatException("no pages");
+        return kept.Pages;
     }
 
-    /// <summary>A picture decoded (its size checked first) and encoded again; its size from its resolution, 96 dpi when it names none.</summary>
+    /// <summary>A job's pages as they're drawn: each saved to its file at once, their bytes counted against <see cref="SharedPages.MaxJobBytes"/>.</summary>
+    private sealed class Kept(PrintImages images)
+    {
+        private long _bytes;
+
+        public List<SavedPage> Pages { get; } = [];
+
+        public void Add(RenderedPage page)
+        {
+            _bytes += page.Image.Length;
+            if (_bytes > SharedPages.MaxJobBytes) throw new FormatException("too large once drawn");
+            Pages.Add(new SavedPage(images.Save(page.Image), page.WidthInches, page.HeightInches));
+        }
+    }
+
     /// <summary>The document's bytes as a read-only stream over them, not a copy.</summary>
     private static MemoryStream Stream(ReadOnlyMemory<byte> data) =>
         System.Runtime.InteropServices.MemoryMarshal.TryGetArray(data, out var segment)
             ? new MemoryStream(segment.Array!, segment.Offset, segment.Count, writable: false)
             : new MemoryStream(data.ToArray(), writable: false);
 
-    private static RenderedPage Picture(ReadOnlyMemory<byte> jpeg, bool grey)
+    /// <summary>
+    /// A picture decoded (its size checked first), brought down to the size it prints at and encoded again; its size from its
+    /// resolution, 96 dpi when it names none.
+    /// </summary>
+    private static RenderedPage Picture(ReadOnlyMemory<byte> jpeg, bool grey, string media)
     {
         // Its size is read from the header first (nothing decoded yet), then the pixels are decoded and encoded again, all inside the
         // try: a damaged picture is the document's fault (document-format-error), not this PC's.
@@ -97,8 +123,9 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
             if (frame.PixelWidth <= 0 || frame.PixelHeight <= 0 || (long)frame.PixelWidth * frame.PixelHeight > MaxPixels) throw new FormatException("picture too large");
             var dpiX = frame.DpiX is > 1 and < 5000 ? frame.DpiX : 96;
             var dpiY = frame.DpiY is > 1 and < 5000 ? frame.DpiY : 96;
+            var (widthInches, heightInches) = (frame.PixelWidth / dpiX, frame.PixelHeight / dpiY);
             BitmapSource source = grey ? new FormatConvertedBitmap(frame, PixelFormats.Gray8, null, 0) : frame;
-            return new RenderedPage(Encode(source), frame.PixelWidth / dpiX, frame.PixelHeight / dpiY);
+            return new RenderedPage(Encode(Fitted(source, widthInches, heightInches, media)), widthInches, heightInches);
         }
         catch (Exception ex) when (ex is NotSupportedException or FileFormatException or ArgumentException or InvalidOperationException
                                        or System.Runtime.InteropServices.COMException or OverflowException or IOException)
@@ -107,13 +134,22 @@ public sealed class SharedQueuePrinting : ISharedPrintSink
         }
     }
 
-    private static RenderedPage Raster(RasterDocumentPage page, bool grey)
+    private static RenderedPage Raster(RasterDocumentPage page, bool grey, string media)
     {
         var p = page.Page;
         var format = p.Color == RasterColor.Gray8 ? PixelFormats.Gray8 : PixelFormats.Rgb24;
         BitmapSource source = BitmapSource.Create(p.Width, p.Height, page.DpiX, page.DpiY, format, null, p.Pixels, p.BytesPerLine);
         if (grey && p.Color != RasterColor.Gray8) source = new FormatConvertedBitmap(source, PixelFormats.Gray8, null, 0);
-        return new RenderedPage(Encode(source), page.WidthInches, page.HeightInches);
+        return new RenderedPage(Encode(Fitted(source, page.WidthInches, page.HeightInches, media)), page.WidthInches, page.HeightInches);
+    }
+
+    /// <summary>A picture brought down to the size it prints at on the queue's paper (<see cref="SharedPages.Fitted"/>); as it is when no larger.</summary>
+    private static BitmapSource Fitted(BitmapSource source, double widthInches, double heightInches, string media)
+    {
+        var (w, h) = SharedPages.Fitted(source.PixelWidth, source.PixelHeight, widthInches, heightInches, media);
+        return w == source.PixelWidth && h == source.PixelHeight
+            ? source
+            : new TransformedBitmap(source, new ScaleTransform(w / (double)source.PixelWidth, h / (double)source.PixelHeight));
     }
 
     private static RenderedPage Grey(RenderedPage page)
