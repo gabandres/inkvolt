@@ -68,17 +68,21 @@ public static class ClipboardPrinting
     /// </summary>
     public static Task<(string? Path, int Pages, bool Cut)> TextPdfAsync(string text, string name, bool metric, CancellationToken ct = default)
     {
-        Sweep();
-        var (w, h) = metric ? (8.27, 11.69) : (8.5, 11.0);
-        var layout = ClipboardPrint.Layout(w, h);
-        var pages = ClipboardPrint.Pages(text, layout.Columns, layout.Lines, out var cut);
-        if (pages.Count == 0) return Task.FromResult<(string?, int, bool)>((null, 0, cut));
-        var path = Unique(name, ".pdf");
         var done = new TaskCompletionSource<(string?, int, bool)>(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
         {
             try
             {
+                Sweep();
+                var (w, h) = metric ? (8.27, 11.69) : (8.5, 11.0);
+                var layout = ClipboardPrint.Layout(w, h);
+                var pages = ClipboardPrint.Pages(text, layout.Columns, layout.Lines, out var cut);
+                if (pages.Count == 0)
+                {
+                    done.SetResult((null, 0, cut));
+                    return;
+                }
+                var path = Unique(name, ".pdf");
                 var drawn = pages.Select(p =>
                 {
                     ct.ThrowIfCancellationRequested();

@@ -1962,7 +1962,7 @@ Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un re
     <value>Configurando… Windows está agregando la impresora (unos 30 segundos).</value>
   </data>
   <data name="Printer_SetupFailed" xml:space="preserve">
-    <value>No se pudo configurar: {0}</value>
+    <value>No se pudo configurar la impresora en Windows. Vuelve a intentarlo o agrégala en Configuración de Windows › Impresoras y escáneres.</value>
   </data>
   <data name="Printer_ReinstallNotDiscovered" xml:space="preserve">
     <value>no se detectó en la red, así que no se puede volver a configurar automáticamente</value>
@@ -3889,7 +3889,7 @@ Los archivos se quedan donde están.</value>
     <value>El texto copiado ocupa más de {0} páginas: aquí solo están las primeras {0}.</value>
   </data>
   <data name="Clip_Failed" xml:space="preserve">
-    <value>No se pudo imprimir el portapapeles: {0}</value>
+    <value>Lo que está en el portapapeles no se pudo preparar para imprimir. Cópialo de nuevo y vuelve a intentarlo.</value>
   </data>
   <data name="Hand_BothSides" xml:space="preserve">
     <value>Imprimir a doble cara a mano</value>
@@ -4046,5 +4046,11 @@ Los archivos se quedan donde están.</value>
   </data>
   <data name="Ready_PrintCanSetUp" xml:space="preserve">
     <value>Lista cuando la configures: la impresora responde por IPP, y Configurar (arriba) usa el controlador propio de Windows.</value>
+  </data>
+  <data name="Clip_Cancelled" xml:space="preserve">
+    <value>Se canceló Imprimir el portapapeles.</value>
+  </data>
+  <data name="Clip_NotOpened" xml:space="preserve">
+    <value>Mientras tanto se abrió o se quitó otro PDF, así que el texto copiado no se abrió. Vuelve a usar Imprimir el portapapeles para usarlo.</value>
   </data>
 </root>

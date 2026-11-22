@@ -256,7 +256,7 @@ public partial class MainWindow : Window
             case ("printer", "print"): Run(p?.GoToPrintCommand); break;
             case ("printer", "scan"): Run(p?.GoToScanCommand); break;
             case ("printer", "clipboard") when p is not null: _ = p.PrintClipboardAsync(); break;
-            case ("printer", "recent") when p?.Scan is not null: Run(p.Scan.OpenRecentCommand); break;
+            case ("printer", "recent") when p is not null: Prompt.ShowRecentScans?.Invoke(p.RecentScans()); break;
             case ("printer", "setup"): Run(p?.SetUpCommand); break;
             case ("printer", "reconnect"): Run(p?.ReconnectCommand); break;
             case ("printer", "photos"): Run(p?.GoToPhotosCommand); break;

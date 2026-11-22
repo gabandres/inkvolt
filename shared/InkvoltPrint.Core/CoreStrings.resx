@@ -4316,4 +4316,7 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Batch_SentByHand" xml:space="preserve">
     <value>Sent on both sides by hand: {0}.</value>
   </data>
+  <data name="Batch_BacksFailed" xml:space="preserve">
+    <value>Fronts printed; the backs weren't: {0}</value>
+  </data>
 </root>

@@ -53,6 +53,15 @@ public class RecentScansTests
     }
 
     [Fact]
+    public void Dropping_the_files_found_missing_keeps_a_scan_saved_since()
+    {
+        var before = RecentScans.Add([], Scan(@"C:\Scans\gone.pdf"));
+        var gone = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { @"C:\Scans\gone.pdf" };
+        var now = RecentScans.Add(before, Scan(@"C:\Scans\new.pdf", 1)); // saved while the disk was being checked
+        Assert.Equal(["new.pdf"], RecentScans.Present(now, f => !gone.Contains(f)).Select(r => r.Name));
+    }
+
+    [Fact]
     public void Remove_takes_out_one_entry()
     {
         var list = RecentScans.Add(RecentScans.Add([], Scan(@"C:\a.pdf")), Scan(@"C:\b.pdf"));

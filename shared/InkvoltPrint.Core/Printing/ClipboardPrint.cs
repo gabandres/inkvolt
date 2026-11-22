@@ -123,14 +123,16 @@ public static class ClipboardPrint
     {
         columns = Math.Max(1, columns);
         linesPerPage = Math.Max(1, linesPerPage);
-        var over = text.Length > MaxChars;
-        if (over) text = text[..MaxChars];
+        // Two reasons for a cut: text past MaxChars (the rest is laid out), and lines with something on them past MaxPages.
+        var tooLong = text.Length > MaxChars;
+        if (tooLong) text = text[..MaxChars];
+        var dropped = false;
         var pages = new List<List<string>>();
         var page = new List<string>();
         foreach (var raw in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
         {
             var parts = raw.Split('\f');
-            for (var p = 0; p < parts.Length && !over; p++)
+            for (var p = 0; p < parts.Length && !dropped; p++)
             {
                 if (p > 0 && page.Count > 0) (pages, page) = (Then(pages, page), []);
                 foreach (var line in Wrap(Expand(parts[p]), columns))
@@ -138,16 +140,17 @@ public static class ClipboardPrint
                     if (page.Count == linesPerPage) (pages, page) = (Then(pages, page), []);
                     if (pages.Count >= MaxPages)
                     {
-                        over = true;
+                        if (line.Length == 0) continue; // blank lines past the last page lose nothing
+                        dropped = true;
                         break;
                     }
                     page.Add(line);
                 }
             }
-            if (over) break;
+            if (dropped) break;
         }
-        if (page.Count > 0 && pages.Count < MaxPages) pages.Add(page);
-        cut = over;
+        if (page.Count > 0) pages.Add(page);
+        cut = tooLong || dropped;
         // No blank lines or pages at the end.
         while (pages.Count > 0)
         {

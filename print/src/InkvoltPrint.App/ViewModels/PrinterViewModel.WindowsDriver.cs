@@ -122,7 +122,7 @@ public sealed partial class PrinterViewModel
         catch (Exception ex)
         {
             Log.Write($"[{Name}] set up with Windows' driver failed: {ex}");
-            WindowsDriverMessage = string.Format(Strings.Printer_SetupFailed, ex.Message);
+            WindowsDriverMessage = Strings.Printer_SetupFailed; // the details are in the log
         }
         finally
         {

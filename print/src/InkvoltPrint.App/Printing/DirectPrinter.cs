@@ -237,7 +237,7 @@ public static class PrintTargets
         IProgress<string> progress, CancellationToken ct, Action? onSpooling = null, Action? onSent = null)
     {
         var pages = await RenderAsync(pdf, options.Pages, progress, ct);
-        var plan = HandDuplexPlan.For([.. Enumerable.Range(0, pages.Count)], options.Copies);
+        var plan = HandDuplexPlan.For([.. Enumerable.Range(0, pages.Count)], options.Copies, i => options.Pages[i]);
         return await HandDuplexPrinting.PrintAsync(target, pages, CopyLayout.Sides(pages.Count, 1), 1, plan, options.JobName, options.Sizing, printer,
             progress, ct, onSpooling, onSent);
     }
@@ -248,7 +248,8 @@ public static class PrintTargets
     {
         var sides = CopyLayout.Sides(pages.Count, pagesPerSheet);
         var (order, repeat) = CopyLayout.Order(sides.Count, copies, collate, twoSided: true);
-        return HandDuplexPrinting.PrintAsync(target, pages, sides, pagesPerSheet, HandDuplexPlan.For(order, repeat), jobName, sizing, printer, progress, ct);
+        return HandDuplexPrinting.PrintAsync(target, pages, sides, pagesPerSheet, HandDuplexPlan.For(order, repeat, side => side * pagesPerSheet + 1),
+            jobName, sizing, printer, progress, ct);
     }
 
     /// <summary>

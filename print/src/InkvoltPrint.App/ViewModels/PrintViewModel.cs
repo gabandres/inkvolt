@@ -437,15 +437,35 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
                     break;
                 case ClipboardWhat.Text:
                     ShowBatch = false;
-                    SetMessage(Strings.Clip_LayingOut);
-                    var (path, pages, cut) = await ClipboardPrinting.TextPdfAsync(content.Text!, name, System.Globalization.RegionInfo.CurrentRegion.IsMetric);
-                    if (path is null)
+                    // Laid out off the UI thread, busy (Cancel stops it) so nothing else opens meanwhile; a file opened or removed
+                    // before it's done (Remove isn't held) is left as it is.
+                    var generation = _openGeneration;
+                    (string? Path, int Pages, bool Cut) made;
+                    IsBusy = true;
+                    _cts = new CancellationTokenSource();
+                    try
+                    {
+                        SetMessage(Strings.Clip_LayingOut);
+                        made = await ClipboardPrinting.TextPdfAsync(content.Text!, name, System.Globalization.RegionInfo.CurrentRegion.IsMetric, _cts.Token);
+                    }
+                    finally
+                    {
+                        _cts.Dispose();
+                        _cts = null;
+                        IsBusy = false;
+                    }
+                    if (made.Path is not { } path)
                     {
                         SetMessage(Strings.Clip_Nothing, error: true);
                         break;
                     }
+                    if (generation != _openGeneration)
+                    {
+                        SetMessage(Strings.Clip_NotOpened);
+                        break;
+                    }
                     await OpenAsync(path, rememberFolder: false);
-                    SetMessage(cut ? string.Format(Strings.Clip_TextCut, ClipboardPrint.MaxPages) : Core.Plural.Of(pages, Strings.Clip_Text_One, Strings.Clip_Text_Many));
+                    SetMessage(made.Cut ? string.Format(Strings.Clip_TextCut, ClipboardPrint.MaxPages) : Core.Plural.Of(made.Pages, Strings.Clip_Text_One, Strings.Clip_Text_Many));
                     break;
                 case ClipboardWhat.NotPrintable:
                     SetMessage(Strings.Clip_NotPrintable, error: true);
@@ -458,10 +478,14 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
                     break;
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException or InvalidOperationException)
+        catch (OperationCanceledException)
+        {
+            SetMessage(Strings.Clip_Cancelled);
+        }
+        catch (Exception ex) // whatever the clipboard, the disk or the drawing throws: a plain message, the details in the log
         {
             Log.Write($"Print the clipboard failed: {ex}");
-            SetMessage(string.Format(Strings.Clip_Failed, ex.Message), error: true);
+            SetMessage(Strings.Clip_Failed, error: true);
         }
     }
 

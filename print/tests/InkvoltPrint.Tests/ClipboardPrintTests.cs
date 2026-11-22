@@ -96,6 +96,19 @@ public class ClipboardPrintTests
     }
 
     [Fact]
+    public void Blank_lines_past_the_page_limit_lose_nothing_and_text_past_the_character_limit_is_still_laid_out()
+    {
+        var full = string.Join("\n", Enumerable.Range(0, ClipboardPrint.MaxPages * 3).Select(i => "x")) + "\n\n\n\n\n";
+        Assert.Equal(ClipboardPrint.MaxPages, ClipboardPrint.Pages(full, 40, 3, out var cut).Count);
+        Assert.False(cut);
+        var longText = "a b c\n" + new string('z', ClipboardPrint.MaxChars);
+        var pages = ClipboardPrint.Pages(longText, 5000, 5000, out cut);
+        Assert.NotEmpty(pages);
+        Assert.Equal("a b c", pages[0][0]);
+        Assert.True(cut);
+    }
+
+    [Fact]
     public void Past_the_page_limit_the_rest_is_left_out_and_said()
     {
         var text = string.Join("\n", Enumerable.Range(0, (ClipboardPrint.MaxPages + 5) * 3).Select(i => "x"));

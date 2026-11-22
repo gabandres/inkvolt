@@ -54,13 +54,24 @@ public static class HandDuplexPrinting
     {
         await SidesAsync(target, pages, sides, pagesPerSheet, plan.Fronts, string.Format(Strings.Hand_FrontsJob, jobName), sizing, progress, ct, onSending, onSent);
         if (!plan.HasBacks) return HandDuplexOutcome.OneSide;
-        var face = printer.Face();
-        if (AskReload?.Invoke(jobName, plan, face) is not { } chosen) return HandDuplexOutcome.FrontsOnly;
-        if (chosen != face) printer.Remember(chosen);
+        ct.ThrowIfCancellationRequested();
+        if (Ask(jobName, plan, printer) is not { } chosen) return HandDuplexOutcome.FrontsOnly;
         ct.ThrowIfCancellationRequested();
         progress?.Report(Strings.Hand_PrintingBacks);
         await SidesAsync(target, pages, sides, pagesPerSheet, plan.Backs(chosen), string.Format(Strings.Hand_BacksJob, jobName), sizing, progress, ct, onSending, onSent);
         return HandDuplexOutcome.Both;
+    }
+
+    /// <summary>
+    /// The reload prompt (<see cref="AskReload"/>) with this printer's face chosen first; a different answer is kept for the printer.
+    /// The face confirmed, or null when the person stopped. On the UI thread (Print a PDF, Copy, and Batch through the dispatcher).
+    /// </summary>
+    public static OutputFace? Ask(string jobName, HandDuplexPlan plan, HandDuplexPrinter printer)
+    {
+        var face = printer.Face();
+        if (AskReload?.Invoke(jobName, plan, face) is not { } chosen) return null;
+        if (chosen != face) printer.Remember(chosen);
+        return chosen;
     }
 
     /// <summary>One pass: these sides (−1: blank), one copy, one-sided, through the queue or straight to the printer.</summary>

@@ -87,13 +87,7 @@ public sealed partial class BatchPrintViewModel(IBatchQueue queue, IBatchDocumen
 
     /// <summary>The reload prompt for a batch's file, on the UI thread (the batch runs off it); the person's answer kept for the printer.</summary>
     private static Task<Core.Printing.OutputFace?> AskTurnStackAsync(string name, Core.Printing.HandDuplexPlan plan, HandDuplexPrinter hand) =>
-        Application.Current.Dispatcher.InvokeAsync(() =>
-        {
-            var face = hand.Face();
-            var chosen = HandDuplexPrinting.AskReload?.Invoke(name, plan, face);
-            if (chosen is { } c && c != face) hand.Remember(c);
-            return chosen;
-        }).Task;
+        Application.Current.Dispatcher.InvokeAsync(() => HandDuplexPrinting.Ask(name, plan, hand)).Task;
 
     // ------------------------------------------------------------------ for all files
 

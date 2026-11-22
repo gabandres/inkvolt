@@ -47,7 +47,7 @@ public sealed record HandDuplexPlan
     /// <summary>Each sheet's back, first sheet first (−1: nothing on it).</summary>
     public IReadOnlyList<int> SheetBacks => _backs;
 
-    /// <summary>The page number shown on each sheet's front (for "page 7"): the side's index plus one within its copy.</summary>
+    /// <summary>The document's page number on each sheet's front (for "page 7"), as the caller numbers its sides.</summary>
     internal IReadOnlyList<int> SheetPages { get; }
 
     public int Sheets => Fronts.Count;
@@ -72,10 +72,13 @@ public sealed record HandDuplexPlan
     /// <summary>
     /// The plan for <paramref name="order"/>, the sides of one copy in reading order (−1: a blank side), times
     /// <paramref name="copies"/>: each copy starts on a sheet of its own (an odd copy ends on a blank back), so no two copies share a sheet.
+    /// <paramref name="pageNumber"/> gives the document's page number a side shows (pages 2, 4 and 6 printed: side 2 is page 6);
+    /// by default the side plus one.
     /// </summary>
-    public static HandDuplexPlan For(IReadOnlyList<int> order, int copies = 1)
+    public static HandDuplexPlan For(IReadOnlyList<int> order, int copies = 1, Func<int, int>? pageNumber = null)
     {
         copies = Math.Clamp(copies, 1, 999);
+        pageNumber ??= side => side + 1;
         var sequence = new List<int>(order.Count * copies + copies);
         var pages = new List<int>();
         for (var c = 0; c < copies; c++)
@@ -89,7 +92,7 @@ public sealed record HandDuplexPlan
         {
             fronts.Add(sequence[i]);
             backs.Add(i + 1 < sequence.Count ? sequence[i + 1] : -1);
-            pages.Add(i % (order.Count + order.Count % 2) + 1);
+            pages.Add(sequence[i] < 0 ? 0 : pageNumber(sequence[i]));
         }
         return new HandDuplexPlan(fronts, backs, pages);
     }

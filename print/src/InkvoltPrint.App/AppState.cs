@@ -304,10 +304,40 @@ public sealed class AppState
         Save();
     }
 
-    /// <summary>Keeps <paramref name="list"/> as the recent scans (an entry removed, the gone files dropped, the list cleared).</summary>
-    public void SetRecentScans(IReadOnlyList<Core.History.RecentScan> list)
+    /// <summary>
+    /// Drops <paramref name="gone"/> (files found missing) from the recent scans as they are now, so a scan saved meanwhile stays;
+    /// returns the list kept.
+    /// </summary>
+    public IReadOnlyList<Core.History.RecentScan> DropMissingRecentFiles(IReadOnlySet<string> gone)
     {
-        lock (_gate) RecentScans = [.. Core.History.RecentScans.Clean(list)];
+        IReadOnlyList<Core.History.RecentScan> kept;
+        lock (_gate)
+        {
+            if (gone.Count == 0) return [.. RecentScans];
+            RecentScans = [.. Core.History.RecentScans.Present(RecentScans, f => !gone.Contains(f))];
+            kept = [.. RecentScans];
+        }
+        Save();
+        return kept;
+    }
+
+    /// <summary>Takes <paramref name="scan"/> off the recent scans as they are now; returns the list kept.</summary>
+    public IReadOnlyList<Core.History.RecentScan> RemoveRecentScan(Core.History.RecentScan scan)
+    {
+        IReadOnlyList<Core.History.RecentScan> kept;
+        lock (_gate)
+        {
+            RecentScans = [.. Core.History.RecentScans.Remove(RecentScans, scan)];
+            kept = [.. RecentScans];
+        }
+        Save();
+        return kept;
+    }
+
+    /// <summary>Empties the recent scans (the files stay).</summary>
+    public void ClearRecentScans()
+    {
+        lock (_gate) RecentScans = [];
         Save();
     }
 

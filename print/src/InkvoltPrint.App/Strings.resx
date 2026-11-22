@@ -2406,7 +2406,7 @@ Only do this if it really is this printer, for example after a repair, a reset o
     <value>Setting up… Windows is adding the printer (about 30 seconds).</value>
   </data>
   <data name="Printer_SetupFailed" xml:space="preserve">
-    <value>Setup failed: {0}</value>
+    <value>The printer couldn't be set up in Windows. Try again, or add it in Windows Settings › Printers &amp; scanners.</value>
     <comment>{0} = error message</comment>
   </data>
   <data name="Printer_ReinstallNotDiscovered" xml:space="preserve">
@@ -4748,7 +4748,7 @@ The files stay where they are.</value>
     <value>The copied text is longer than {0} pages: only the first {0} are here.</value>
   </data>
   <data name="Clip_Failed" xml:space="preserve">
-    <value>The clipboard couldn't be printed: {0}</value>
+    <value>What's on the clipboard couldn't be made ready to print. Copy it again and try once more.</value>
   </data>
   <data name="Hand_BothSides" xml:space="preserve">
     <value>Print on both sides by hand</value>
@@ -4905,5 +4905,11 @@ The files stay where they are.</value>
   </data>
   <data name="Ready_PrintCanSetUp" xml:space="preserve">
     <value>Ready once set up: the printer answers IPP, and Set up (at the top) uses Windows' own driver.</value>
+  </data>
+  <data name="Clip_Cancelled" xml:space="preserve">
+    <value>Print the clipboard was cancelled.</value>
+  </data>
+  <data name="Clip_NotOpened" xml:space="preserve">
+    <value>Another PDF was opened or removed meanwhile, so the copied text wasn't opened. Print the clipboard again to use it.</value>
   </data>
 </root>

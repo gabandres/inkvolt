@@ -3592,4 +3592,7 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Batch_SentByHand" xml:space="preserve">
     <value>Enviado a doble cara a mano: {0}.</value>
   </data>
+  <data name="Batch_BacksFailed" xml:space="preserve">
+    <value>Se imprimieron los anversos; los reversos no: {0}</value>
+  </data>
 </root>

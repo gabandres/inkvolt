@@ -1414,7 +1414,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         catch (Exception ex)
         {
             Log.Write($"[{Name}] setup failed: {ex}");
-            SetupMessage = string.Format(Strings.Printer_SetupFailed, ex.Message);
+            SetupMessage = Strings.Printer_SetupFailed; // the details are in the log
         }
         finally
         {

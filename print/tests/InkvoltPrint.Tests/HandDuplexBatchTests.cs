@@ -17,6 +17,12 @@ public class HandDuplexBatchTests
     {
         public List<BatchPrintJob> Sent { get; } = [];
 
+        /// <summary>Thrown when the n-th job (0: the fronts, 1: the backs) is sent, after it's handed over.</summary>
+        public Func<int, Exception?>? FailOn { get; init; }
+
+        /// <summary>The sheets the queue says a job took, in place of its pages.</summary>
+        public Func<BatchPrintJob, int>? SheetsTaken { get; init; }
+
         public Task<BatchQueueInfo?> ReadAsync(CancellationToken ct) => Task.FromResult<BatchQueueInfo?>(OneSided);
 
         public Task<string?> ProblemAsync(CancellationToken ct) => Task.FromResult<string?>(null);
@@ -25,8 +31,9 @@ public class HandDuplexBatchTests
         {
             foreach (var page in job.Pages.Where(p => p > 0)) await document.RenderAsync(page, ct);
             onSpooling?.Invoke();
+            if (FailOn?.Invoke(Sent.Count) is { } failure) throw failure;
             Sent.Add(job);
-            return new BatchReceipt(job.Pages.Count, BatchPrintSettings.Sheets(job.Pages.Count, job.Copies, job.TwoSided));
+            return new BatchReceipt(job.Pages.Count, SheetsTaken?.Invoke(job) ?? BatchPrintSettings.Sheets(job.Pages.Count, job.Copies, job.TwoSided));
         }
     }
 
@@ -90,6 +97,58 @@ public class HandDuplexBatchTests
         Assert.Equal(CoreStrings.Batch_BacksNotPrinted, summary.Items[0].Message);
         Assert.Equal(BatchPrintState.Stopped, summary.Items[1].State);
         Assert.NotNull(summary.StoppedAt);
+    }
+
+    [Fact]
+    public async Task The_backs_failing_says_the_fronts_printed_and_stops_without_sending_again()
+    {
+        using var folder = new BatchFolder();
+        var options = new BatchPrintOptions { TurnStack = (_, _, _) => Task.FromResult<OutputFace?>(OutputFace.Down) };
+        foreach (var failure in new Exception[] { new BatchQueueException("The printer stopped.", mayHaveSent: true), new InvalidOperationException("driver"),
+                     new OperationCanceledException() })
+        {
+            var queue = new Queue { FailOn = n => n == 1 ? failure : null };
+            var summary = await BatchPrintRunner.RunAsync([await Line(folder, "a.pdf", 5), await Line(folder, "b.pdf", 2)], queue, new FakeDocuments(), options, null, default);
+            var a = summary.Items[0];
+            Assert.Equal(3, a.SheetsSent); // the fronts are on paper
+            Assert.True(a.MayHaveSent); // never sent again by itself (reprinting would print the fronts twice)
+            Assert.Contains(a.State, new[] { BatchPrintState.Failed, BatchPrintState.Stopped });
+            Assert.Equal(BatchPrintState.Stopped, summary.Items[1].State);
+            Assert.NotNull(summary.StoppedAt);
+            Assert.DoesNotContain("driver", a.Message); // no exception text
+        }
+    }
+
+    [Fact]
+    public async Task Stopped_before_the_prompt_it_isnt_shown()
+    {
+        using var folder = new BatchFolder();
+        using var stop = new CancellationTokenSource();
+        var asked = 0;
+        var queue = new Queue { SheetsTaken = j => { stop.Cancel(); return j.Pages.Count; } }; // Stop pressed while the fronts went
+        var options = new BatchPrintOptions { TurnStack = (_, _, _) => { asked++; return Task.FromResult<OutputFace?>(OutputFace.Down); } };
+        var summary = await BatchPrintRunner.RunAsync([await Line(folder, "a.pdf", 4)], queue, new FakeDocuments(), options, null, stop.Token);
+        Assert.Equal(0, asked);
+        Assert.Single(queue.Sent);
+        Assert.Equal(CoreStrings.Batch_BacksNotPrinted, summary.Items[0].Message);
+        Assert.Equal(2, summary.Items[0].SheetsSent);
+    }
+
+    [Fact]
+    public async Task A_pass_taking_more_sheets_than_estimated_stops_the_batch()
+    {
+        using var folder = new BatchFolder();
+        var asked = 0;
+        var queue = new Queue { SheetsTaken = j => 99 };
+        var options = new BatchPrintOptions { TurnStack = (_, _, _) => { asked++; return Task.FromResult<OutputFace?>(OutputFace.Down); } };
+        var summary = await BatchPrintRunner.RunAsync([await Line(folder, "a.pdf", 4)], queue, new FakeDocuments(), options, null, default);
+        Assert.Equal(0, asked); // stopped after the fronts
+        Assert.Equal(CoreStrings.Batch_MoreThanEstimatedStop, summary.StopReason);
+        Assert.Equal(99, summary.Items[0].SheetsSent);
+
+        var backsOver = new Queue { SheetsTaken = j => j.Pages.SequenceEqual([4, 2]) ? 99 : j.Pages.Count };
+        summary = await BatchPrintRunner.RunAsync([await Line(folder, "b.pdf", 4)], backsOver, new FakeDocuments(), options, null, default);
+        Assert.Equal(CoreStrings.Batch_MoreThanEstimatedStop, summary.StopReason);
     }
 
     [Fact]

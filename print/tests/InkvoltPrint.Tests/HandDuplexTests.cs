@@ -95,6 +95,17 @@ public class HandDuplexTests
     }
 
     [Fact]
+    public void The_sheet_set_aside_is_named_by_its_page_in_the_document()
+    {
+        // Pages 2, 4 and 6 printed: the last sheet shows page 6, not the third position.
+        Assert.Equal(6, HandDuplexPlan.For([0, 1, 2], pageNumber: i => new[] { 2, 4, 6 }[i]).Reload(OutputFace.Down).LastPage);
+        // Copy's collated copies of 3 pages come as one padded order: the last sheet is page 3 of its copy, not position 7.
+        Assert.Equal(3, HandDuplexPlan.For([0, 1, 2, -1, 0, 1, 2, -1]).Reload(OutputFace.Down).LastPage);
+        // Two pages a side: side 2 starts with page 5.
+        Assert.Equal(5, HandDuplexPlan.For([0, 1, 2], pageNumber: side => side * 2 + 1).Reload(OutputFace.Up).LastPage);
+    }
+
+    [Fact]
     public void One_page_has_no_backs_and_a_copy_sides_order_is_kept()
     {
         Assert.False(HandDuplexPlan.For([0]).HasBacks);

@@ -36,13 +36,21 @@ public sealed partial class RecentScansViewModel(AppState state, bool opensOther
     /// <summary>Asks the window to close (before Print moves to the Print or Photos tab).</summary>
     public event Action? CloseRequested;
 
-    /// <summary>Reads the kept list, drops what's gone from the disk (off the UI thread: a share may be slow) and keeps the result.</summary>
+    /// <summary>
+    /// Reads the kept list, finds the files gone from the disk (off the UI thread: a share may be slow) and drops only those from the
+    /// list as it is by then, so a scan saved meanwhile stays.
+    /// </summary>
     public async Task LoadAsync()
     {
-        var kept = state.GetRecentScans();
-        var shown = await Task.Run(() => RecentScans.Present(kept, File.Exists));
-        if (shown.Count != kept.Count || shown.Sum(s => s.Files.Count) != kept.Sum(s => s.Files.Count)) state.SetRecentScans(shown);
-        Show(shown);
+        var files = state.GetRecentScans().SelectMany(s => s.Files).ToList();
+        var gone = await Task.Run(() => files.Where(f => !Exists(f)).ToHashSet(StringComparer.OrdinalIgnoreCase));
+        Show(state.DropMissingRecentFiles(gone));
+
+        static bool Exists(string path)
+        {
+            try { return File.Exists(path); }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return false; }
+        }
     }
 
     private void Show(IReadOnlyList<RecentScan> list)
@@ -134,9 +142,7 @@ public sealed partial class RecentScansViewModel(AppState state, bool opensOther
     private void Remove(RecentScanRow? row)
     {
         if (row is null) return;
-        var left = RecentScans.Remove(state.GetRecentScans(), row.Scan);
-        state.SetRecentScans(left);
-        Show(left);
+        Show(state.RemoveRecentScan(row.Scan));
         Message = string.Format(Strings.Recent_Removed, row.Scan.Name);
     }
 
@@ -144,7 +150,7 @@ public sealed partial class RecentScansViewModel(AppState state, bool opensOther
     private void Clear()
     {
         if (Items.Count == 0 || !Prompt.Ask(Strings.Recent_ClearAsk, Strings.Recent_Clear)) return;
-        state.SetRecentScans([]);
+        state.ClearRecentScans();
         Show([]);
     }
 }

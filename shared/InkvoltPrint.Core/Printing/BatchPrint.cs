@@ -758,19 +758,25 @@ public static class BatchPrintRunner
     /// <summary>
     /// A file on both sides by hand (roadmap 4.2): its fronts as one job, the person asked to put the stack back
     /// (<see cref="BatchPrintOptions.TurnStack"/>), its backs as another, in the order the plan gives for the way it went back. A page
-    /// number 0 is a blank side. Stopped at the prompt, the fronts are said printed and the batch stops there.
+    /// number 0 is a blank side. Each pass is held to the file's estimate. Stopped before or at the prompt, or the backs failing or
+    /// stopped, the fronts are said printed (the sheets used, and the file may be there: never sent again by itself) and the batch
+    /// stops there.
     /// </summary>
     private static async Task<(BatchPrintState State, string Message, int Sheets, string? Stop, bool Unsure)> ByHandAsync(BatchPrintLine line, IBatchQueue queue,
         IBatchDocument document, BatchPrintOptions options, Func<string, HandDuplexPlan, CancellationToken, Task<OutputFace?>> turnStack,
         IProgress<BatchPrintProgress>? progress, int index, CancellationToken ct)
     {
-        var plan = HandDuplexPlan.For([.. Enumerable.Range(0, line.Pages.Count)], line.Settings.Copies);
+        var plan = HandDuplexPlan.For([.. Enumerable.Range(0, line.Pages.Count)], line.Settings.Copies, i => line.Pages[i]);
         int Page(int side) => side < 0 ? 0 : line.Pages[side];
         var fronts = new BatchPrintJob(line.Name, [.. plan.Fronts.Select(Page)], 1, false, line.Settings.Paper, plan.Sheets);
-        var (_, failed) = await SendJobAsync(queue, document, fronts, options, progress, index, ct).ConfigureAwait(false);
+        var (receipt, failed) = await SendJobAsync(queue, document, fronts, options, progress, index, ct).ConfigureAwait(false);
         if (failed is { } failure) return failure;
+        if (OverEstimate(receipt!) is { } over) return over;
         if (!plan.HasBacks) return (BatchPrintState.Sent, string.Format(CoreStrings.Batch_SentToQueue, BatchPrintText.Sheets(plan.Sheets)), plan.Sheets, null, false);
 
+        // From here the fronts are on paper: whatever stops the backs says so, and the file isn't sent again by itself.
+        var frontsOnly = (BatchPrintState.Stopped, CoreStrings.Batch_BacksNotPrinted, plan.Sheets, CoreStrings.Batch_YouStopped, true);
+        if (ct.IsCancellationRequested) return frontsOnly;
         progress?.Report(new BatchPrintProgress(index, BatchPrintState.Sending, CoreStrings.Batch_TurnStack));
         OutputFace? face;
         try
@@ -781,12 +787,33 @@ public static class BatchPrintRunner
         {
             face = null;
         }
-        if (face is not { } chosen) return (BatchPrintState.Stopped, CoreStrings.Batch_BacksNotPrinted, plan.Sheets, CoreStrings.Batch_YouStopped, false);
+        if (face is not { } chosen || ct.IsCancellationRequested) return frontsOnly;
 
         var backs = new BatchPrintJob(line.Name, [.. plan.Backs(chosen).Select(Page)], 1, false, line.Settings.Paper, plan.Sheets);
-        (_, failed) = await SendJobAsync(queue, document, backs, options, progress, index, ct).ConfigureAwait(false);
-        if (failed is { } backsFailure) return backsFailure with { Sheets = plan.Sheets };
+        try
+        {
+            (receipt, failed) = await SendJobAsync(queue, document, backs, options, progress, index, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            return frontsOnly;
+        }
+        catch (Exception ex)
+        {
+            var reason = ex is BatchQueueException or BatchFileException or BatchSettingRefusedException ? ex.Message : CoreStrings.Batch_SendFailed;
+            return (BatchPrintState.Failed, string.Format(CoreStrings.Batch_BacksFailed, reason), plan.Sheets, reason, true);
+        }
+        if (failed is { } backsFailure)
+            return (BatchPrintState.Failed, string.Format(CoreStrings.Batch_BacksFailed, backsFailure.Message), plan.Sheets, backsFailure.Stop ?? backsFailure.Message, true);
+        if (OverEstimate(receipt!) is { } overBacks) return overBacks;
         return (BatchPrintState.Sent, string.Format(CoreStrings.Batch_SentByHand, BatchPrintText.Sheets(plan.Sheets)), plan.Sheets, null, false);
+
+        // A pass the queue says took more sheets than the file's estimate: the batch stops, as a two-sided file's would.
+        (BatchPrintState State, string Message, int Sheets, string? Stop, bool Unsure)? OverEstimate(BatchReceipt taken) =>
+            taken.Sheets > line.Sheets
+                ? (BatchPrintState.Failed, string.Format(CoreStrings.Batch_MoreThanEstimated, BatchPrintText.Sheets(taken.Sheets), line.Sheets), taken.Sheets,
+                    CoreStrings.Batch_MoreThanEstimatedStop, true)
+                : null;
     }
 
     /// <summary>Reports on the reporting thread (Progress&lt;T&gt; would post them later, after the summary line).</summary>
