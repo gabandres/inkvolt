@@ -178,8 +178,12 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
   - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
     copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
     half waits.
-  - **Still to do:** 4.2 Two-sided printing by hand for printers without a duplexer (odd sides, how to reload, even sides;
-    Print a PDF, Batch, Copy, Photos; needs a one-sided printer to confirm). 4.5 Ready for Windows' new driver: per
+  - **4.2 Two-sided printing by hand.** Done on Windows: Print a PDF, Batch and Copy, through the queue or straight to the
+    printer; the fronts, a prompt for face down or face up (the printer's answer first, the person's kept) and an odd last sheet,
+    the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
+    Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
+    down; Batch with two files) and a one-sided printer; the Mac half waits.
+  - **Still to do:** 4.5 Ready for Windows' new driver: per
     printer, which driver its queue uses, whether the printer answers IPP and eSCL, *Set up with Windows' driver* beside
     the old queue, and a warning for a WIA- or TWAIN-only scanner under protected print mode.
 - **Batch C:** 4.7 Drop a pen or form color, and remove punch holes (Clean up). 4.8 Join two halves of an oversized

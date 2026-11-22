@@ -3583,4 +3583,13 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Palette_RecentScans" xml:space="preserve">
     <value>Escaneos recientes…</value>
   </data>
+  <data name="Batch_TurnStack" xml:space="preserve">
+    <value>Anversos enviados. Vuelve a poner la pila como dice la ventana y luego imprime los reversos.</value>
+  </data>
+  <data name="Batch_BacksNotPrinted" xml:space="preserve">
+    <value>Se imprimieron los anversos; los reversos no, porque te detuviste.</value>
+  </data>
+  <data name="Batch_SentByHand" xml:space="preserve">
+    <value>Enviado a doble cara a mano: {0}.</value>
+  </data>
 </root>

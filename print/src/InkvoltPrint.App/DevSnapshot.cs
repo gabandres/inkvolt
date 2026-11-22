@@ -267,6 +267,25 @@ internal static class DevSnapshot
                     $"message: {batch.Message}", $"estimate: {batch.EstimateText}", $"can print: {batch.PrintCommand.CanExecute(null)}"]);
             await Task.Delay(TimeSpan.FromSeconds(2));
         }
+        // --hand-duplex with --sample-pdf: waits for Print a PDF to offer two-sided by hand (the route and the printer are asked first), and ticks it.
+        if (args.Contains("--hand-duplex") && args.Contains("--sample-pdf") && window.DataContext is ViewModels.MainViewModel { Selected: { } handPrinter })
+        {
+            for (var i = 0; i < 60 && !handPrinter.Print.OffersByHand; i++) await Task.Delay(250);
+            handPrinter.Print.TwoSided = handPrinter.Print.OffersByHand;
+            await Task.Delay(TimeSpan.FromMilliseconds(500));
+            // --hand-duplex-print: presses Print, the prompt answered with the face it shows (demo: the made-up printer "prints" both passes).
+            if (args.Contains("--hand-duplex-print") && handPrinter.Pc.IsDemo)
+            {
+                var ask = Printing.HandDuplexPrinting.AskReload;
+                Printing.HandDuplexPrinting.AskReload = (_, plan, face) =>
+                {
+                    System.Diagnostics.Trace.WriteLine($"hand duplex: {plan.Sheets} sheets, fronts {string.Join(",", plan.Fronts)}, backs {string.Join(",", plan.Backs(face))}, face {face}");
+                    return face;
+                };
+                try { await handPrinter.Print.PrintCommand.ExecuteAsync(null); }
+                finally { Printing.HandDuplexPrinting.AskReload = ask; }
+            }
+        }
         // --clipboard text|picture: Print the clipboard with made-up content in its place (the real clipboard is never read or changed).
         if (Value(args, "--clipboard") is { } clip && window.DataContext is ViewModels.MainViewModel { Selected: { } clipPrinter })
         {
@@ -406,6 +425,8 @@ internal static class DevSnapshot
                 "addprinter" => AddPrinterWindow.Create(dialogMain),
                 "pro" => ProWindow.Create(window),
                 "confirm" => ConfirmDialog.Preview(window),
+                "hand-duplex" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Down),
+                "hand-duplex-up" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Up),
                 "recent" => RecentScansDialog.Create(dialogMain.Selected?.RecentScans() ?? new ViewModels.RecentScansViewModel(dialogMain.State, false, null)),
                 "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", // protocols other than the defaults: the note shows

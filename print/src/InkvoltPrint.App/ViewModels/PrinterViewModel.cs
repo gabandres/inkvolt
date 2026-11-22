@@ -68,15 +68,18 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
                 () => state.GetAcceptedUuids(uuid), uuids => state.AcceptUuids(uuid, uuids), OnMonitor,
                 new FirmwareMemory(() => state.GetFirmware(uuid), record => state.SetFirmware(uuid, record)),
                 line => Log.Write($"[{Name}] {line}"));
+        var byHand = new Printing.HandDuplexPrinter(DeliveryFace, face => state.SetOutputFace(uuid, face));
         Print = new PrintViewModel(PrintTargetAsync, state)
         {
             OpenPictures = OpenPhotosAsync,
+            ByHand = byHand,
             Batch = new BatchPrintViewModel(pc.IsDemo ? pc.BatchQueue(uuid, FindQueueAsync)
                 : new Core.Printing.Direct.RoutedBatchQueue(pc.BatchQueue(uuid, FindQueueAsync), Routing.Router,
                     ipp => Printing.DirectBatchJobs.For(Name, new Printing.PrintTarget.Direct(ipp, _pc.UserName, CapsFor(ipp)))),
                 Printing.WindowsBatchDocuments.Instance, state)
             {
                 Routing = Routing,
+                ByHand = byHand,
             },
             Routing = Routing,
         };
@@ -86,7 +89,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         };
         _jobQueue = pc.IsDemo ? pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync)
             : new Printing.RoutedJobQueueReader(pc.JobQueue(uuid, () => WindowsQueue, FindQueueAsync), Routing.Router, pc.UserName);
-        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { Routing = Routing };
+        Copy = new CopyViewModel(PrintTargetAsync, state, pc.MadeUpPrint) { Routing = Routing, ByHand = byHand };
         Photos = new PhotosViewModel(PrintTargetAsync, state, pc.PhotoQueue(uuid)) { Routing = Routing };
         Fixer = new OfflineFixerViewModel(FixerDevice, pc.OfflineProbes, pc.OfflineRepairs(ReinstallQueueAsync), AdoptAddress,
             canElevate: Features.ElevatedRepairs);
@@ -311,6 +314,13 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
 
     /// <summary>Print photos and other pictures with layouts, through the Windows queue.</summary>
     public PhotosViewModel Photos { get; }
+
+    /// <summary>
+    /// Which way up this printer's sheets land, for two-sided by hand (roadmap 4.2): the person's last answer for it, else what its
+    /// IPP answer says (<see cref="Core.Printing.HandDuplex.FaceOf(Core.Ipp.IppResponse?)"/>), else face down (most printers).
+    /// </summary>
+    private Core.Printing.OutputFace DeliveryFace() =>
+        _state.GetOutputFace(Uuid) ?? Core.Printing.HandDuplex.FaceOf(_monitor?.Connection?.Probe.Ipp) ?? Core.Printing.OutputFace.Down;
 
     /// <summary>The printer's IPP client when it takes PWG raster, Apple raster or PCLm (roadmap 2.1), else null.</summary>
     private Core.Ipp.IppClient? DirectIpp =>

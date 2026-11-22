@@ -4307,4 +4307,13 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Palette_RecentScans" xml:space="preserve">
     <value>Recent scans…</value>
   </data>
+  <data name="Batch_TurnStack" xml:space="preserve">
+    <value>Fronts sent. Put the stack back as the window says, then print the backs.</value>
+  </data>
+  <data name="Batch_BacksNotPrinted" xml:space="preserve">
+    <value>Fronts printed; the backs weren't, as you stopped.</value>
+  </data>
+  <data name="Batch_SentByHand" xml:space="preserve">
+    <value>Sent on both sides by hand: {0}.</value>
+  </data>
 </root>

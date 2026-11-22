@@ -274,6 +274,20 @@ public sealed class AppState
     /// <summary>Printers the person prints to straight over IPP although they have a Windows queue (roadmap 2.1).</summary>
     public List<string> DirectPrinters { get; set; } = [];
 
+    /// <summary>Printer id → which way up its sheets land, as the person said at two-sided by hand's prompt ("Down" or "Up"; roadmap 4.2).</summary>
+    public Dictionary<string, string> OutputFaces { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Core.Printing.OutputFace? GetOutputFace(string uuid)
+    {
+        lock (_gate) return OutputFaces.TryGetValue(uuid, out var v) && Enum.TryParse<Core.Printing.OutputFace>(v, out var face) ? face : null;
+    }
+
+    public void SetOutputFace(string uuid, Core.Printing.OutputFace face)
+    {
+        lock (_gate) OutputFaces[uuid] = face.ToString();
+        Save();
+    }
+
     /// <summary>The last saved scans, newest first (roadmap 4.15, <see cref="Core.History.RecentScans"/>): kept in this file, on this PC only.</summary>
     public List<Core.History.RecentScan> RecentScans { get; set; } = [];
 
@@ -444,6 +458,7 @@ public sealed class AppState
             state.CertificatePins = new(state.CertificatePins ?? [], StringComparer.OrdinalIgnoreCase);
             state.QueueNames = new(state.QueueNames ?? [], StringComparer.OrdinalIgnoreCase);
             state.TwoSidedQueues = new(state.TwoSidedQueues ?? [], StringComparer.OrdinalIgnoreCase);
+            state.OutputFaces = new((state.OutputFaces ?? []).Where(kv => kv.Value is not null).Take(256), StringComparer.OrdinalIgnoreCase);
             state.ScanButtons = new((state.ScanButtons ?? []).Where(kv => kv.Value is not null), StringComparer.OrdinalIgnoreCase);
             state.Firmware = new((state.Firmware ?? []).Where(kv => kv.Value is { Version: not null }), StringComparer.OrdinalIgnoreCase);
             state.Tray?.Repair();

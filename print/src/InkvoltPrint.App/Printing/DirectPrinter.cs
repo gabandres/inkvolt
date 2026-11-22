@@ -212,14 +212,43 @@ public static class PrintTargets
             await QueuePrinter.PrintAsync(queue.Name, pdf, options, progress, ct, onSpooling);
             return false;
         }
-        var pages = new List<RenderedPage>(options.Pages.Count);
-        for (var i = 0; i < options.Pages.Count; i++)
+        var pages = await RenderAsync(pdf, options.Pages, progress, ct);
+        return await PrintPagesAsync(target, pages, options.Copies, options.TwoSided, options.JobName, options.Sizing, progress, ct, onSpooling, onSent);
+    }
+
+    /// <summary>The PDF's pages drawn for printing, at <see cref="QueuePrinter.RenderDpi"/>.</summary>
+    public static async Task<List<RenderedPage>> RenderAsync(PdfSource pdf, IReadOnlyList<int> numbers, IProgress<string> progress, CancellationToken ct)
+    {
+        var pages = new List<RenderedPage>(numbers.Count);
+        for (var i = 0; i < numbers.Count; i++)
         {
             ct.ThrowIfCancellationRequested();
-            progress.Report(string.Format(Strings.Print_PreparingPage, i + 1, options.Pages.Count));
-            pages.Add(await pdf.RenderAsync(options.Pages[i], QueuePrinter.RenderDpi, ct: ct));
+            progress.Report(string.Format(Strings.Print_PreparingPage, i + 1, numbers.Count));
+            pages.Add(await pdf.RenderAsync(numbers[i], QueuePrinter.RenderDpi, ct: ct));
         }
-        return await PrintPagesAsync(target, pages, options.Copies, options.TwoSided, options.JobName, options.Sizing, progress, ct, onSpooling, onSent);
+        return pages;
+    }
+
+    /// <summary>
+    /// Print a PDF on both sides by hand (roadmap 4.2): its pages drawn once, then the fronts, the reload prompt and the backs
+    /// (<see cref="HandDuplexPrinting"/>), each copy starting on a sheet of its own.
+    /// </summary>
+    public static async Task<HandDuplexOutcome> PrintPdfByHandAsync(PrintTarget target, PdfSource pdf, PrintOptions options, HandDuplexPrinter printer,
+        IProgress<string> progress, CancellationToken ct, Action? onSpooling = null, Action? onSent = null)
+    {
+        var pages = await RenderAsync(pdf, options.Pages, progress, ct);
+        var plan = HandDuplexPlan.For([.. Enumerable.Range(0, pages.Count)], options.Copies);
+        return await HandDuplexPrinting.PrintAsync(target, pages, CopyLayout.Sides(pages.Count, 1), 1, plan, options.JobName, options.Sizing, printer,
+            progress, ct, onSpooling, onSent);
+    }
+
+    /// <summary>A page copy on both sides by hand: its sides laid out as <see cref="PrintCopyAsync"/>'s, collated or not, in the plan's two passes.</summary>
+    public static Task<HandDuplexOutcome> PrintCopyByHandAsync(PrintTarget target, IReadOnlyList<RenderedPage> pages, int copies, bool collate, int pagesPerSheet,
+        string jobName, PageSizing sizing, HandDuplexPrinter printer, IProgress<string>? progress = null, CancellationToken ct = default)
+    {
+        var sides = CopyLayout.Sides(pages.Count, pagesPerSheet);
+        var (order, repeat) = CopyLayout.Order(sides.Count, copies, collate, twoSided: true);
+        return HandDuplexPrinting.PrintAsync(target, pages, sides, pagesPerSheet, HandDuplexPlan.For(order, repeat), jobName, sizing, printer, progress, ct);
     }
 
     /// <summary>

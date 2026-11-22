@@ -67,7 +67,24 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     [NotifyPropertyChangedFor(nameof(Summary))]
     public partial bool TwoSided { get; set; }
 
-    [ObservableProperty] public partial bool CanTwoSided { get; set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTwoSided), nameof(TwoSidedText), nameof(Summary))]
+    public partial bool CanTwoSided { get; set; }
+
+    /// <summary>The printer said it can't print both sides: two-sided by hand is offered in its place (roadmap 4.2).</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowTwoSided), nameof(TwoSidedText), nameof(Summary))]
+    public partial bool OffersByHand { get; set; }
+
+    /// <summary>Set by the printer: which way up its sheets land, for two-sided by hand.</summary>
+    public HandDuplexPrinter? ByHand { get; init; }
+
+    public bool ShowTwoSided => CanTwoSided || OffersByHand;
+
+    public string TwoSidedText => CanTwoSided ? Strings.PrintTab_BothSides : Strings.Hand_BothSides;
+
+    /// <summary>Two-sided is asked and the printer can't: the fronts, the reload prompt, the backs.</summary>
+    private bool PrintsByHand => TwoSided && !CanTwoSided && OffersByHand && ByHand is not null;
 
     /// <summary>Enlarge small pages (labels, receipts) to fill the paper; off prints them at their own size.</summary>
     [ObservableProperty] public partial bool FitToPaper { get; set; }
@@ -103,9 +120,12 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
         get
         {
             if (PageCount == 0 || !TrySelectedPages(out var pages)) return "";
-            var perCopy = TwoSided ? (pages.Count + 1) / 2 : pages.Count;
+            var both = TwoSided && ShowTwoSided;
+            var perCopy = both ? (pages.Count + 1) / 2 : pages.Count;
             var sheets = perCopy * Copies;
-            var paper = TwoSided
+            var paper = PrintsByHand
+                ? Core.Plural.Of(sheets, Strings.Hand_Sheets_One, Strings.Hand_Sheets_Many)
+                : both
                 ? Core.Plural.Of(sheets, Strings.Print_SheetsBothSides_One, Strings.Print_SheetsBothSides_Many)
                 : Core.Plural.Of(sheets, Strings.Print_Sheets_One, Strings.Print_Sheets_Many);
             return string.Format(Strings.Print_Summary, PagesAndCopies(pages.Count, Copies), paper);
@@ -293,7 +313,9 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
             Log.Write($"Two-sided check failed: {ex}");
             CanTwoSided = false;
         }
-        if (!CanTwoSided) TwoSided = false;
+        if (HandDuplexPrinting.Forced) CanTwoSided = false;
+        OffersByHand = ByHand is not null && answered && HandDuplex.Offered(CanTwoSided);
+        if (!ShowTwoSided) TwoSided = false;
         return answered;
     }
 
@@ -325,8 +347,21 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
                 return;
             }
             var progress = new Progress<string>(m => { if (IsBusy) SetMessage(m); }); // a late report never covers the result
-            var printed = await PrintTargets.PrintPdfAsync(target, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF",
-                    FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize),
+            var sizing = FitToPaper ? PageSizing.FitToPaper : PageSizing.ActualSize;
+            if (PrintsByHand)
+            {
+                var outcome = await PrintTargets.PrintPdfByHandAsync(target, _pdf, new PrintOptions(pages, Copies, false, FileName ?? "PDF", sizing), ByHand!,
+                    progress, _cts.Token, onSpooling: () => IsSpooling = true, onSent: () => IsSpooling = false);
+                SetMessage(outcome switch
+                {
+                    HandDuplexOutcome.FrontsOnly => Strings.Hand_FrontsOnly,
+                    HandDuplexOutcome.OneSide => string.Format(Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds),
+                    _ => string.Format(Strings.Hand_Done, PagesAndCopies(pages.Count, Copies)),
+                });
+                if (outcome == HandDuplexOutcome.Both) RatingRequest.NoteSuccess(state);
+                return;
+            }
+            var printed = await PrintTargets.PrintPdfAsync(target, _pdf, new PrintOptions(pages, Copies, TwoSided && CanTwoSided, FileName ?? "PDF", sizing),
                 progress, _cts.Token, onSpooling: () => IsSpooling = true, onSent: () => IsSpooling = false);
             SetMessage(string.Format(printed ? Strings.Print_SentDirect : Strings.Print_Sent, PagesAndCopies(pages.Count, Copies), sw.Elapsed.TotalSeconds));
             RatingRequest.NoteSuccess(state);

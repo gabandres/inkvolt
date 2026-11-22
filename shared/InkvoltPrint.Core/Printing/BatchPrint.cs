@@ -400,6 +400,13 @@ public sealed record BatchPrintOptions
     public TimeSpan SendTimeout { get; init; } = TimeSpan.FromMinutes(5);
 
     public TimeSpan SendTimePerPage { get; init; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>
+    /// Two-sided by hand (roadmap 4.2): asks the person, between a file's fronts and its backs, to put the stack back (the file's name,
+    /// the plan); returns which way up the sheets came out, or null to stop there. Null where nobody can be asked (the command line, a
+    /// watched folder): two-sided on a printer that can't print both sides is then refused as before.
+    /// </summary>
+    public Func<string, HandDuplexPlan, CancellationToken, Task<OutputFace?>>? TurnStack { get; init; }
 }
 
 /// <summary>Looking at a file: its pages, and its password when it has one, asked a bounded number of times.</summary>
@@ -468,12 +475,15 @@ public static class BatchMeasurer
 /// <summary>One line of a batch: a file, how it prints, and what that comes to now that its pages are known.</summary>
 public sealed class BatchPrintLine
 {
-    public BatchPrintLine(string path, BatchPrintSettings settings, BatchMeasure measure, BatchQueueInfo? queue)
+    /// <param name="byHand">Two-sided on a printer that can't print both sides is printed by hand (roadmap 4.2): someone is there to
+    /// put the stack back (<see cref="BatchPrintOptions.TurnStack"/>).</param>
+    public BatchPrintLine(string path, BatchPrintSettings settings, BatchMeasure measure, BatchQueueInfo? queue, bool byHand = false)
     {
         Path = path;
         Settings = settings;
         Measure = measure;
-        Problem = Check(settings, measure, queue, out var pages);
+        ByHand = byHand && settings.TwoSided && queue is { CanTwoSided: false };
+        Problem = Check(settings, measure, queue, byHand, out var pages);
         Pages = pages;
         Sheets = Problem is null ? BatchPrintSettings.Sheets(pages.Count, settings.Copies, settings.TwoSided) : 0;
     }
@@ -482,6 +492,9 @@ public sealed class BatchPrintLine
     public string Name => System.IO.Path.GetFileName(Path);
     public BatchPrintSettings Settings { get; }
     public BatchMeasure Measure { get; }
+
+    /// <summary>Two-sided by hand: the fronts, the stack put back, the backs (<see cref="HandDuplexPlan"/>).</summary>
+    public bool ByHand { get; }
 
     /// <summary>Why this line won't print, or null. Never quietly another range, paper or side: it says so and doesn't print.</summary>
     public string? Problem { get; }
@@ -493,12 +506,12 @@ public sealed class BatchPrintLine
 
     public override string ToString() => $"{BatchPrintText.Clean(Name)}: {Problem ?? BatchPrintText.Sheets(Sheets)}";
 
-    private static string? Check(BatchPrintSettings s, BatchMeasure measure, BatchQueueInfo? queue, out IReadOnlyList<int> pages)
+    private static string? Check(BatchPrintSettings s, BatchMeasure measure, BatchQueueInfo? queue, bool byHand, out IReadOnlyList<int> pages)
     {
         pages = [];
         if (measure.State != BatchMeasureState.Ready) return measure.Problem ?? CoreStrings.Batch_CantRead;
         if (s.Copies is < 1 or > BatchPrintLimits.MaxCopies) return string.Format(CoreStrings.Batch_CopiesRange, BatchPrintLimits.MaxCopies);
-        if (s.TwoSided && queue is { CanTwoSided: false }) return CoreStrings.Batch_NoTwoSided;
+        if (s.TwoSided && queue is { CanTwoSided: false } && !byHand) return CoreStrings.Batch_NoTwoSided;
         if (s.Paper is { } paper && queue is not null && !queue.Papers.Any(p => string.Equals(p.Key, paper, StringComparison.OrdinalIgnoreCase)))
             return string.Format(CoreStrings.Batch_NoSuchPaper, BatchPrintText.Clean(paper));
         return PageRange.TryParse(s.Range, measure.PageCount, out pages, out var error) ? null : string.Format(CoreStrings.Batch_BadRange, BatchPrintText.Clean(s.Range ?? ""), error);
@@ -669,31 +682,14 @@ public static class BatchPrintRunner
                         ? Plural.Of(line.Measure.PageCount, CoreStrings.Batch_ChangedPages_One, CoreStrings.Batch_ChangedPages_Many, document.PageCount)
                         : CoreStrings.Batch_Changed, 0, null, false);
 
+                if (line.ByHand)
+                    return options.TurnStack is { } turnStack
+                        ? await ByHandAsync(line, queue, document, options, turnStack, progress, index, ct).ConfigureAwait(false)
+                        : (BatchPrintState.Skipped, CoreStrings.Batch_NoTwoSided, 0, null, false); // nobody to put the stack back
                 var job = new BatchPrintJob(line.Name, line.Pages, line.Settings.Copies, line.Settings.TwoSided, line.Settings.Paper, line.Sheets);
-                var spooling = false;
-                var report = progress is null ? null : new Relay(m => progress.Report(new BatchPrintProgress(index, BatchPrintState.Sending, m)));
-                // The wait isn't cancelled by the token: the queue takes it up to the point of no return, and a job past it has to finish.
-                using var sendCancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
-                var sending = queue.SendAsync(document, job, report, () => spooling = true, sendCancel.Token);
-                // A queue that routes each call (RoutedBatchQueue) answers for the route of this file's ready check, just before.
-                var limit = queue.SendLimit(job, options);
-                BatchReceipt receipt;
-                try
-                {
-                    receipt = await sending.WaitAsync(limit, CancellationToken.None).ConfigureAwait(false);
-                }
-                catch (TimeoutException) when (spooling && queue.EndsOnItsOwnOnceSpooling)
-                {
-                    receipt = await sending.ConfigureAwait(false);
-                }
-                catch (TimeoutException)
-                {
-                    sendCancel.Cancel(); // a drawing that hung sends nothing if it ever wakes up
-                    return (BatchPrintState.Failed, spooling ? CoreStrings.Batch_SpoolTimeout
-                        : CoreStrings.Batch_DrawTimeout, 0,
-                        spooling ? CoreStrings.Batch_WindowsStoppedTaking : null, spooling);
-                }
-                if (receipt.Sheets > line.Sheets)
+                var (receipt, failed) = await SendJobAsync(queue, document, job, options, progress, index, ct).ConfigureAwait(false);
+                if (failed is { } failure) return failure;
+                if (receipt!.Sheets > line.Sheets)
                     return (BatchPrintState.Failed, string.Format(CoreStrings.Batch_MoreThanEstimated, BatchPrintText.Sheets(receipt.Sheets), line.Sheets), receipt.Sheets,
                         CoreStrings.Batch_MoreThanEstimatedStop, true);
                 return (BatchPrintState.Sent, string.Format(CoreStrings.Batch_SentToQueue, BatchPrintText.Sheets(receipt.Sheets)), receipt.Sheets, null, false);
@@ -724,6 +720,73 @@ public static class BatchPrintRunner
             // Spooler, driver and serializer errors come in many types. Whether any of the job got there isn't known.
             return (BatchPrintState.Failed, CoreStrings.Batch_SendFailed, 0, ex.Message, true);
         }
+    }
+
+    /// <summary>
+    /// One job handed to the queue and waited for within its limit (<see cref="IBatchQueue.SendLimit"/>): the queue's receipt, or why
+    /// it failed as the file's result.
+    /// </summary>
+    private static async Task<(BatchReceipt? Receipt, (BatchPrintState State, string Message, int Sheets, string? Stop, bool Unsure)? Failed)> SendJobAsync(
+        IBatchQueue queue, IBatchDocument document, BatchPrintJob job, BatchPrintOptions options, IProgress<BatchPrintProgress>? progress, int index, CancellationToken ct)
+    {
+            var spooling = false;
+            var report = progress is null ? null : new Relay(m => progress.Report(new BatchPrintProgress(index, BatchPrintState.Sending, m)));
+            // The wait isn't cancelled by the token: the queue takes it up to the point of no return, and a job past it has to finish.
+            using var sendCancel = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            var sending = queue.SendAsync(document, job, report, () => spooling = true, sendCancel.Token);
+            // A queue that routes each call (RoutedBatchQueue) answers for the route of this file's ready check, just before.
+            var limit = queue.SendLimit(job, options);
+            BatchReceipt receipt;
+            try
+            {
+                receipt = await sending.WaitAsync(limit, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (TimeoutException) when (spooling && queue.EndsOnItsOwnOnceSpooling)
+            {
+                receipt = await sending.ConfigureAwait(false);
+            }
+            catch (TimeoutException)
+            {
+                sendCancel.Cancel(); // a drawing that hung sends nothing if it ever wakes up
+                return (null, (BatchPrintState.Failed, spooling ? CoreStrings.Batch_SpoolTimeout
+                    : CoreStrings.Batch_DrawTimeout, 0,
+                    spooling ? CoreStrings.Batch_WindowsStoppedTaking : null, spooling));
+            }
+        return (receipt, null);
+    }
+
+    /// <summary>
+    /// A file on both sides by hand (roadmap 4.2): its fronts as one job, the person asked to put the stack back
+    /// (<see cref="BatchPrintOptions.TurnStack"/>), its backs as another, in the order the plan gives for the way it went back. A page
+    /// number 0 is a blank side. Stopped at the prompt, the fronts are said printed and the batch stops there.
+    /// </summary>
+    private static async Task<(BatchPrintState State, string Message, int Sheets, string? Stop, bool Unsure)> ByHandAsync(BatchPrintLine line, IBatchQueue queue,
+        IBatchDocument document, BatchPrintOptions options, Func<string, HandDuplexPlan, CancellationToken, Task<OutputFace?>> turnStack,
+        IProgress<BatchPrintProgress>? progress, int index, CancellationToken ct)
+    {
+        var plan = HandDuplexPlan.For([.. Enumerable.Range(0, line.Pages.Count)], line.Settings.Copies);
+        int Page(int side) => side < 0 ? 0 : line.Pages[side];
+        var fronts = new BatchPrintJob(line.Name, [.. plan.Fronts.Select(Page)], 1, false, line.Settings.Paper, plan.Sheets);
+        var (_, failed) = await SendJobAsync(queue, document, fronts, options, progress, index, ct).ConfigureAwait(false);
+        if (failed is { } failure) return failure;
+        if (!plan.HasBacks) return (BatchPrintState.Sent, string.Format(CoreStrings.Batch_SentToQueue, BatchPrintText.Sheets(plan.Sheets)), plan.Sheets, null, false);
+
+        progress?.Report(new BatchPrintProgress(index, BatchPrintState.Sending, CoreStrings.Batch_TurnStack));
+        OutputFace? face;
+        try
+        {
+            face = await turnStack(line.Name, plan, ct).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            face = null;
+        }
+        if (face is not { } chosen) return (BatchPrintState.Stopped, CoreStrings.Batch_BacksNotPrinted, plan.Sheets, CoreStrings.Batch_YouStopped, false);
+
+        var backs = new BatchPrintJob(line.Name, [.. plan.Backs(chosen).Select(Page)], 1, false, line.Settings.Paper, plan.Sheets);
+        (_, failed) = await SendJobAsync(queue, document, backs, options, progress, index, ct).ConfigureAwait(false);
+        if (failed is { } backsFailure) return backsFailure with { Sheets = plan.Sheets };
+        return (BatchPrintState.Sent, string.Format(CoreStrings.Batch_SentByHand, BatchPrintText.Sheets(plan.Sheets)), plan.Sheets, null, false);
     }
 
     /// <summary>Reports on the reporting thread (Progress&lt;T&gt; would post them later, after the summary line).</summary>

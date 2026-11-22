@@ -3891,4 +3891,85 @@ Los archivos se quedan donde están.</value>
   <data name="Clip_Failed" xml:space="preserve">
     <value>No se pudo imprimir el portapapeles: {0}</value>
   </data>
+  <data name="Hand_BothSides" xml:space="preserve">
+    <value>Imprimir a doble cara a mano</value>
+  </data>
+  <data name="Hand_BothSidesTip" xml:space="preserve">
+    <value>Esta impresora no imprime a doble cara por sí sola: imprime los anversos, luego vuelves a poner la pila y imprime los reversos</value>
+  </data>
+  <data name="Hand_SummaryBothSides" xml:space="preserve">
+    <value>a doble cara a mano</value>
+  </data>
+  <data name="Hand_Sheets_One" xml:space="preserve">
+    <value>{0} hoja, a doble cara a mano</value>
+  </data>
+  <data name="Hand_Sheets_Many" xml:space="preserve">
+    <value>{0} hojas, a doble cara a mano</value>
+  </data>
+  <data name="Hand_FrontsJob" xml:space="preserve">
+    <value>{0} (anversos)</value>
+  </data>
+  <data name="Hand_BacksJob" xml:space="preserve">
+    <value>{0} (reversos)</value>
+  </data>
+  <data name="Hand_PrintingBacks" xml:space="preserve">
+    <value>Imprimiendo los reversos…</value>
+  </data>
+  <data name="Hand_FrontsOnly" xml:space="preserve">
+    <value>Se imprimieron los anversos; los reversos no. Imprime de nuevo para empezar otra vez.</value>
+  </data>
+  <data name="Hand_Done" xml:space="preserve">
+    <value>{0} impreso a doble cara a mano.</value>
+  </data>
+  <data name="Hand_Title" xml:space="preserve">
+    <value>Vuelve a poner la pila para los reversos</value>
+  </data>
+  <data name="Hand_Heading_One" xml:space="preserve">
+    <value>Los anversos se están imprimiendo en {0} hoja</value>
+  </data>
+  <data name="Hand_Heading_Many" xml:space="preserve">
+    <value>Los anversos se están imprimiendo en {0} hojas</value>
+  </data>
+  <data name="Hand_Wait" xml:space="preserve">
+    <value>Espera a que todas las hojas salgan de la impresora y luego:</value>
+  </data>
+  <data name="Hand_CameOut" xml:space="preserve">
+    <value>Las hojas salieron</value>
+  </data>
+  <data name="Hand_FaceDown" xml:space="preserve">
+    <value>Cara impresa hacia abajo (la mayoría de las impresoras láser)</value>
+  </data>
+  <data name="Hand_FaceUp" xml:space="preserve">
+    <value>Cara impresa hacia arriba (la mayoría de las impresoras de inyección de tinta)</value>
+  </data>
+  <data name="Hand_SetAside" xml:space="preserve">
+    <value>Quita la hoja de arriba (la página {0}) de la pila y déjala aparte: no lleva nada por detrás. Cuando terminen los reversos, ponla al final.</value>
+  </data>
+  <data name="Hand_StepDown_One" xml:space="preserve">
+    <value>Sin darle la vuelta, pon la hoja en la bandeja de papel tal como salió, con la cara impresa hacia abajo y la parte de arriba de la página entrando primero.</value>
+  </data>
+  <data name="Hand_StepDown_Many" xml:space="preserve">
+    <value>Sin darles la vuelta ni cambiar su orden, pon las {0} hojas en la bandeja de papel tal como salieron, con la cara impresa hacia abajo y la parte de arriba de las páginas entrando primero.</value>
+  </data>
+  <data name="Hand_StepUp_One" xml:space="preserve">
+    <value>Dale la vuelta a la hoja, como si pasaras una página, y ponla en la bandeja de papel con la parte de arriba de la página entrando primero.</value>
+  </data>
+  <data name="Hand_StepUp_Many" xml:space="preserve">
+    <value>Dale la vuelta a la pila de {0} hojas, como si pasaras una página, y ponla en la bandeja de papel con la parte de arriba de las páginas entrando primero, sin cambiar el orden.</value>
+  </data>
+  <data name="Hand_BlankBacks_One" xml:space="preserve">
+    <value>{0} hoja de la pila no lleva nada por detrás: vuelve a pasar por la impresora y sale en blanco por ese lado.</value>
+  </data>
+  <data name="Hand_BlankBacks_Many" xml:space="preserve">
+    <value>{0} hojas de la pila no llevan nada por detrás: vuelven a pasar por la impresora y salen en blanco por ese lado.</value>
+  </data>
+  <data name="Hand_TrayNote" xml:space="preserve">
+    <value>Las bandejas de papel no son todas iguales: si los reversos se imprimen encima de los anversos, elige la otra opción la próxima vez.</value>
+  </data>
+  <data name="Hand_PrintBacks" xml:space="preserve">
+    <value>Imprimir los reversos</value>
+  </data>
+  <data name="Hand_Stop" xml:space="preserve">
+    <value>No imprimir los reversos</value>
+  </data>
 </root>

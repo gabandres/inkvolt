@@ -748,7 +748,7 @@ internal sealed class DemoBatchQueue(PhotoQueueOptions options) : Core.Printing.
         {
             ct.ThrowIfCancellationRequested();
             progress?.Report($"Preparing page {drawn + 1} of {job.Pages.Count}…");
-            await document.RenderAsync(page, ct).ConfigureAwait(false);
+            if (page > 0) await document.RenderAsync(page, ct).ConfigureAwait(false); // 0: a blank side (two-sided by hand)
             drawn++;
         }
         ct.ThrowIfCancellationRequested();

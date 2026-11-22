@@ -124,6 +124,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   answering now.
 - **Safe repair**: what Fix all may do, each confirmed: resume a queue, turn off Use Printer Offline (`Repair.IsSafe`). It loses nothing, moves no
   job elsewhere and interrupts no other printer; the rest stays on each printer's own fixer.
+- **Two-sided by hand**: both sides on a printer that can't print them: the fronts, the stack put back, the backs (`HandDuplexPlan`).
+  **Output face**: which way up sheets land in the output tray (`OutputFace`); it decides how the stack goes back (**as it came out**,
+  face down, backs last sheet first; **turned over like a page**, face up, backs in order). **Set aside**: an odd last sheet with no
+  back, taken off before the stack goes back and put last.
 - **Print the clipboard**: printing what another app put on the clipboard by sending it to the tab that prints its kind (`ClipboardPrint`):
   text laid out on pages as a PDF to Print a PDF, a picture to Print photos, copied files as they are. **Laid out**: wrapped to the
   columns and lines a page holds at 10 pt (`ClipboardTextLayout`).

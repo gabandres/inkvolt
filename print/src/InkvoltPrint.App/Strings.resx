@@ -4750,4 +4750,85 @@ The files stay where they are.</value>
   <data name="Clip_Failed" xml:space="preserve">
     <value>The clipboard couldn't be printed: {0}</value>
   </data>
+  <data name="Hand_BothSides" xml:space="preserve">
+    <value>Print on both sides by hand</value>
+  </data>
+  <data name="Hand_BothSidesTip" xml:space="preserve">
+    <value>This printer can't print both sides by itself: it prints the fronts, then you put the stack back and it prints the backs</value>
+  </data>
+  <data name="Hand_SummaryBothSides" xml:space="preserve">
+    <value>both sides by hand</value>
+  </data>
+  <data name="Hand_Sheets_One" xml:space="preserve">
+    <value>{0} sheet, both sides by hand</value>
+  </data>
+  <data name="Hand_Sheets_Many" xml:space="preserve">
+    <value>{0} sheets, both sides by hand</value>
+  </data>
+  <data name="Hand_FrontsJob" xml:space="preserve">
+    <value>{0} (fronts)</value>
+  </data>
+  <data name="Hand_BacksJob" xml:space="preserve">
+    <value>{0} (backs)</value>
+  </data>
+  <data name="Hand_PrintingBacks" xml:space="preserve">
+    <value>Printing the backs…</value>
+  </data>
+  <data name="Hand_FrontsOnly" xml:space="preserve">
+    <value>The fronts were printed; the backs weren't. Print again to start over.</value>
+  </data>
+  <data name="Hand_Done" xml:space="preserve">
+    <value>{0} printed on both sides by hand.</value>
+  </data>
+  <data name="Hand_Title" xml:space="preserve">
+    <value>Put the stack back for the backs</value>
+  </data>
+  <data name="Hand_Heading_One" xml:space="preserve">
+    <value>The fronts are printing on {0} sheet</value>
+  </data>
+  <data name="Hand_Heading_Many" xml:space="preserve">
+    <value>The fronts are printing on {0} sheets</value>
+  </data>
+  <data name="Hand_Wait" xml:space="preserve">
+    <value>Wait until every sheet is out of the printer, then:</value>
+  </data>
+  <data name="Hand_CameOut" xml:space="preserve">
+    <value>The sheets came out</value>
+  </data>
+  <data name="Hand_FaceDown" xml:space="preserve">
+    <value>Printed side down (most laser printers)</value>
+  </data>
+  <data name="Hand_FaceUp" xml:space="preserve">
+    <value>Printed side up (most inkjet printers)</value>
+  </data>
+  <data name="Hand_SetAside" xml:space="preserve">
+    <value>Take the top sheet (page {0}) off the stack and set it aside: it has nothing on its back. Once the backs are done, put it last.</value>
+  </data>
+  <data name="Hand_StepDown_One" xml:space="preserve">
+    <value>Without turning it over, put the sheet in the paper tray as it came out, printed side down, with the top of the page going in first.</value>
+  </data>
+  <data name="Hand_StepDown_Many" xml:space="preserve">
+    <value>Without turning the {0} sheets over or changing their order, put them in the paper tray as they came out, printed side down, with the top of the pages going in first.</value>
+  </data>
+  <data name="Hand_StepUp_One" xml:space="preserve">
+    <value>Turn the sheet over, like turning a page, and put it in the paper tray with the top of the page going in first.</value>
+  </data>
+  <data name="Hand_StepUp_Many" xml:space="preserve">
+    <value>Turn the stack of {0} sheets over, like turning a page, and put it in the paper tray with the top of the pages going in first, without changing the order.</value>
+  </data>
+  <data name="Hand_BlankBacks_One" xml:space="preserve">
+    <value>{0} sheet in the stack has nothing on its back: it goes through the printer again and comes out blank on that side.</value>
+  </data>
+  <data name="Hand_BlankBacks_Many" xml:space="preserve">
+    <value>{0} sheets in the stack have nothing on their backs: they go through the printer again and come out blank on that side.</value>
+  </data>
+  <data name="Hand_TrayNote" xml:space="preserve">
+    <value>Paper trays differ: if the backs print on top of the fronts, choose the other way next time.</value>
+  </data>
+  <data name="Hand_PrintBacks" xml:space="preserve">
+    <value>Print the backs</value>
+  </data>
+  <data name="Hand_Stop" xml:space="preserve">
+    <value>Don't print the backs</value>
+  </data>
 </root>
