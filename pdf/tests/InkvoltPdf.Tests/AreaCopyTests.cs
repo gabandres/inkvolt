@@ -53,6 +53,33 @@ public class AreaCopyTests
     }
 
     [Fact]
+    public void OneCharacterLinesOnADiagonal_AreNoTableOfMillionsOfCells_ButText()
+    {
+        // Lines each its own row and its own column: 20,000 made 400 million cells, out of memory in Html(); 6,000 make 36 million.
+        var lines = Enumerable.Range(0, 6_000).Select(i =>
+            ExportLine.Of([new ExportSpan("x", "Arial", 1, false, false, 0, new RectD(i * 0.1, i * 0.13, 0.05, 0.05))])).ToList();
+        var page = new ExportPage(612, 792, lines, [], []);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var table = AreaCopy.Table(AreaCopy.Clip(page, new RectD(0, 0, 612, 792)));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(30), $"took {clock.Elapsed}");
+        Assert.True(table.TooLarge);
+        Assert.Empty(table.Rows);
+        Assert.Equal("<table></table>", table.Html());
+        Assert.Contains("x", AreaCopy.Text(AreaCopy.Clip(page, new RectD(0, 0, 612, 792)))); // what is copied instead
+
+        // At the limit's edge a table is still a table: 300 rows of 300 columns is 90,000 cells.
+        var grid = Enumerable.Range(0, 300).Select(i =>
+            ExportLine.Of([new ExportSpan("y", "Arial", 1, false, false, 0, new RectD(i * 2, i * 2.6, 1, 1))])).ToList();
+        var square = AreaCopy.Table(new ExportPage(612, 792, grid, [], []));
+        Assert.False(square.TooLarge);
+        Assert.Equal(300, square.Rows.Count);
+        Assert.Equal(300, square.ColumnCount);
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        Assert.Throws<OperationCanceledException>(() => AreaCopy.Table(new ExportPage(612, 792, grid, [], []), stop.Token));
+    }
+
+    [Fact]
     public void TextIsCutToTheBoxAndReadInOrder()
     {
         var page = Page(ExportTestPdf.Make());

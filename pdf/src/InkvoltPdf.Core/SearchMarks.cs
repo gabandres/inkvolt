@@ -10,7 +10,9 @@ public sealed record HitToMark(int Page, IReadOnlyList<RectD> Rects);
 /// already, <see cref="Limited"/> left for another run past <see cref="SearchMarks.MaxMarks"/>, <see cref="Skipped"/>
 /// on no page of the document or without a box.
 /// </summary>
-public sealed record SearchMarksCount(int Marked, int AlreadyMarked, int Limited, int Skipped);
+/// <param name="PagesNotAllRead">Pages whose marks of that kind cover more lines than are read (<see cref="SearchMarks.MaxMarkedLines"/>):
+/// a hit there under one of the rest is marked again, and that is said.</param>
+public sealed record SearchMarksCount(int Marked, int AlreadyMarked, int Limited, int Skipped, int PagesNotAllRead = 0);
 
 /// <summary>What <see cref="SearchMarks.Apply"/> did: the document (the same bytes when nothing was marked) and its counts.</summary>
 public sealed record SearchMarksResult(byte[] Data, SearchMarksCount Count);
@@ -24,6 +26,12 @@ public static class SearchMarks
 {
     /// <summary>The most hits marked at once (a search for "e" finds tens of thousands; the reader would crawl).</summary>
     public const int MaxMarks = 5000;
+
+    /// <summary>
+    /// The most lines of a page's existing marks read to tell what is marked already (a hostile page can list one mark
+    /// of 20,000 lines thousands of times: hundreds of millions of boxes).
+    /// </summary>
+    public const int MaxMarkedLines = 50_000;
 
     /// <summary>The usual colour of each kind (as Highlight, Underline and Strike Out Text use).</summary>
     public static AnnotColor ColorOf(TextMarkupKind kind) => kind switch
@@ -59,7 +67,7 @@ public static class SearchMarks
         var subtype = "/" + kind;
         var existing = new Dictionary<int, List<RectD>>();
         var toMark = new List<(int, List<RectD>)>();
-        int already = 0, limited = 0, skipped = 0;
+        int already = 0, limited = 0, skipped = 0, notAllRead = 0;
         foreach (var hit in hits)
         {
             var rects = hit.Rects.Where(r => !r.IsEmpty && double.IsFinite(r.X) && double.IsFinite(r.Y) && double.IsFinite(r.Width) && double.IsFinite(r.Height)).ToList();
@@ -68,7 +76,11 @@ public static class SearchMarks
                 skipped++;
                 continue;
             }
-            if (!existing.TryGetValue(hit.Page, out var quads)) existing[hit.Page] = quads = MarkedLines(doc.Pages[hit.Page], subtype);
+            if (!existing.TryGetValue(hit.Page, out var quads))
+            {
+                existing[hit.Page] = quads = MarkedLines(doc.Pages[hit.Page], subtype, out var cut);
+                if (cut) notAllRead++;
+            }
             if (rects.All(r => quads.Any(q => Covers(q, r))))
             {
                 already++;
@@ -82,17 +94,31 @@ public static class SearchMarks
             toMark.Add((hit.Page, rects));
             quads.AddRange(rects); // the same place twice in the list is marked once
         }
-        return (toMark, new SearchMarksCount(toMark.Count, already, limited, skipped));
+        return (toMark, new SearchMarksCount(toMark.Count, already, limited, skipped, notAllRead));
     }
 
-    /// <summary>The lines the page's marks of this kind already cover.</summary>
-    private static List<RectD> MarkedLines(PdfSharp.Pdf.PdfPage page, string subtype)
+    /// <summary>
+    /// The lines the page's marks of this kind already cover: each mark once however often /Annots lists it, at most
+    /// <see cref="MaxMarkedLines"/> (<paramref name="cut"/> when there were more).
+    /// </summary>
+    private static List<RectD> MarkedLines(PdfSharp.Pdf.PdfPage page, string subtype, out bool cut)
     {
         var lines = new List<RectD>();
+        cut = false;
         if (PdfObj.Array(page.Elements["/Annots"]) is not { } annots) return lines;
+        var seen = new HashSet<PdfDictionary>(ReferenceEqualityComparer.Instance);
         foreach (var item in annots.Elements.Take(10_000))
-            if (PdfObj.Dict(item) is { } a && PdfObj.NameOf(a, "/Subtype") == subtype)
-                lines.AddRange(Annotations.QuadRectsOf(page, a));
+        {
+            if (PdfObj.Dict(item) is not { } a || !seen.Add(a) || PdfObj.NameOf(a, "/Subtype") != subtype) continue;
+            var quads = Annotations.QuadRectsOf(page, a, Math.Min(Annotations.MaxQuads, MaxMarkedLines - lines.Count));
+            if (lines.Count + quads.Count > MaxMarkedLines)
+            {
+                lines.AddRange(quads.Take(MaxMarkedLines - lines.Count));
+                cut = true;
+                break;
+            }
+            lines.AddRange(quads);
+        }
         return lines;
     }
 

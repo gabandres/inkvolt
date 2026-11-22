@@ -110,6 +110,31 @@ public class ProofreadingTests
     }
 
     [Fact]
+    public void AGroupThatLoops_IsListedAsPlainComments_NotHidden()
+    {
+        // A in B's group and B in A's: each was the other's member, so the Comments pane and the summary showed neither.
+        AnnotationInfo Note(string id, string? to, bool grouped, double y) =>
+            new(id, AnnotationKind.StrikeOut, "StrikeOut", 0, new RectD(10, y, 50, 10), id, null, null, null, null, [], false, to, false, Grouped: grouped);
+        List<AnnotationInfo> all =
+        [
+            Note("a", "b", true, 10), Note("b", "a", true, 40), // a loop of groups
+            Note("c", "c", true, 70), // in its own group
+            Note("d", "e", false, 100), Note("e", "d", false, 130), // a loop of replies
+            Note("f", "a", true, 160), // a member of a looped head: the head stands for it
+            Note("g", "d", false, 190), // a reply into a loop: still a reply
+        ];
+        var listed = Annotations.AsListed(all);
+        Assert.Equal(["a", "b", "c", "d", "e", "g"], listed.Select(a => a.Id));
+        Assert.All(listed.Where(a => a.Id != "g"), a => Assert.True(a.ReplyTo is null && !a.Grouped));
+        Assert.Equal("d", listed.Single(a => a.Id == "g").ReplyTo);
+
+        // The summary lists each loop's comments as comments of their own, the reply under its comment.
+        var plan = CommentSummary.Plan(all).Single().Entries;
+        Assert.Equal(["a", "b", "c", "d", "g", "e"], plan.Select(e => e.Comment.Id));
+        Assert.Equal([0, 0, 0, 0, 1, 0], plan.Select(e => e.Depth));
+    }
+
+    [Fact]
     public void ARealReplyIsNotAGroup()
     {
         var pdf = Annotations.AddInsertText(TestPdf.Make(1), null, 0, new RectD(100, 100, 0, 20), "x", "Ana", "ins-1");
