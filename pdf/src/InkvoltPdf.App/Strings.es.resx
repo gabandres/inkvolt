@@ -12792,7 +12792,7 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
     <comment>Grid Spacing list</comment>
   </data>
   <data name="Cmd_AskFolders" xml:space="preserve">
-    <value>_Preguntar en carpetas…</value>
+    <value>Preguntar e_n carpetas…</value>
   </data>
   <data name="FolderAsk_Title" xml:space="preserve">
     <value>Preguntar en carpetas</value>
@@ -12968,5 +12968,40 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   </data>
   <data name="FolderAsk_MeaningFoldersOnly" xml:space="preserve">
     <value>La búsqueda por significado solo funciona en carpetas indexadas.</value>
+  </data>
+  <data name="Cmd_AiSummaryAudio" xml:space="preserve">
+    <value>Resumen en a_udio…</value>
+  </data>
+  <data name="TabAi_SaveAsAudio" xml:space="preserve">
+    <value>Una grabación hablada (MP3 o WAV), con la voz de Leer en voz alta</value>
+  </data>
+  <data name="TabAi_AudioTitle" xml:space="preserve">
+    <value>Guardar como audio</value>
+  </data>
+  <data name="TabAi_AudioFileName" xml:space="preserve">
+    <value>{0} - resumen</value>
+    <comment>{0} is the document's name</comment>
+  </data>
+  <data name="TabAi_AudioFilter" xml:space="preserve">
+    <value>Audio MP3 (*.mp3)|*.mp3|Audio WAV (*.wav)|*.wav</value>
+  </data>
+  <data name="TabAi_AudioSpeaking" xml:space="preserve">
+    <value>Leyendo la respuesta en voz alta…</value>
+  </data>
+  <data name="TabAi_AudioProgress" xml:space="preserve">
+    <value>Leyendo en voz alta: párrafo {0} de {1}…</value>
+  </data>
+  <data name="TabAi_AudioSaved" xml:space="preserve">
+    <value>Se guardó {0} ({1}).</value>
+    <comment>{0} is a file name, {1} its length such as 2:35</comment>
+  </data>
+  <data name="TabAi_AudioNoMp3" xml:space="preserve">
+    <value>Windows no puede crear archivos MP3 en este PC, así que se guardó como WAV.</value>
+  </data>
+  <data name="TabAi_AudioStopped" xml:space="preserve">
+    <value>Detenido. No se guardó ninguna grabación.</value>
+  </data>
+  <data name="TabAi_AudioFailed" xml:space="preserve">
+    <value>No se pudo crear o guardar la grabación. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo.</value>
   </data>
 </root>

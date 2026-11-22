@@ -368,6 +368,7 @@
                                     <!-- Bring your own AI: off by default (AiActions, DocumentTab.Ai) -->
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuAiAssistant}">
                                         <MenuItem Command="app:Cmd.AiSummarize" />
+                                        <MenuItem Command="app:Cmd.AiSummaryAudio" />
                                         <MenuItem Command="app:Cmd.AiAsk" />
                                         <MenuItem Command="app:Cmd.AskFolders" />
                                         <MenuItem Command="app:Cmd.AiExplain" />

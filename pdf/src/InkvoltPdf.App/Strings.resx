@@ -12988,4 +12988,39 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="FolderAsk_MeaningFoldersOnly" xml:space="preserve">
     <value>Search by meaning works on indexed folders only.</value>
   </data>
+  <data name="Cmd_AiSummaryAudio" xml:space="preserve">
+    <value>Summary to A_udio…</value>
+  </data>
+  <data name="TabAi_SaveAsAudio" xml:space="preserve">
+    <value>A spoken recording (MP3 or WAV), in Read Aloud's voice</value>
+  </data>
+  <data name="TabAi_AudioTitle" xml:space="preserve">
+    <value>Save as Audio</value>
+  </data>
+  <data name="TabAi_AudioFileName" xml:space="preserve">
+    <value>{0} - summary</value>
+    <comment>{0} is the document's name</comment>
+  </data>
+  <data name="TabAi_AudioFilter" xml:space="preserve">
+    <value>MP3 audio (*.mp3)|*.mp3|WAV audio (*.wav)|*.wav</value>
+  </data>
+  <data name="TabAi_AudioSpeaking" xml:space="preserve">
+    <value>Reading the answer aloud…</value>
+  </data>
+  <data name="TabAi_AudioProgress" xml:space="preserve">
+    <value>Reading aloud: paragraph {0} of {1}…</value>
+  </data>
+  <data name="TabAi_AudioSaved" xml:space="preserve">
+    <value>Saved {0} ({1}).</value>
+    <comment>{0} is a file name, {1} its length such as 2:35</comment>
+  </data>
+  <data name="TabAi_AudioNoMp3" xml:space="preserve">
+    <value>Windows can't make MP3 files on this PC, so it was saved as WAV.</value>
+  </data>
+  <data name="TabAi_AudioStopped" xml:space="preserve">
+    <value>Stopped. No recording was saved.</value>
+  </data>
+  <data name="TabAi_AudioFailed" xml:space="preserve">
+    <value>The recording couldn't be made or saved. Check that the folder exists and the file isn't open in another app, then try again.</value>
+  </data>
 </root>

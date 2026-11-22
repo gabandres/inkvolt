@@ -29,6 +29,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   (`FolderIndex.Rank`, any word, not all as a search); their **passages** that fit the model go, each under its **source**
   (a file, numbered as the model cites it) and page; a **citation** ([2, p. 5]) is a link only when that source's page was
   sent. The send window's **listing** names every file and its pages.
+- **Summary to audio** (`Core/AiAnswerSpeech.cs`; Windows `App/SpeechFile.cs`): an AI answer read aloud to a file. Its
+  **paragraphs** are what a voice reads (`AiAnswerSpeech.Paragraphs`: what was asked, the answer as sentences, the AI
+  note), each synthesized by Read Aloud's voice and **joined** into one WAV (`WavFile.Join`), or encoded to MP3 by Windows.
 - **Meaning index** (`Core/MeaningIndex.cs`, `Core/AiEmbeddings.cs`; Windows `App/FolderMeaning.cs`): search by meaning's file
   beside a folder index (`.meaning`): each page's text in a few **pieces**, each piece's **embedding** (a vector from the
   user's own embedding model) kept unit length in 8 bits a number. **Pending** is what it lacks against its folder index

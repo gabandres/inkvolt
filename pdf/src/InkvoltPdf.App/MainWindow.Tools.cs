@@ -58,6 +58,11 @@ public partial class MainWindow
             if (!AiReady()) return;
             if (AiActions.AskSummaryPages(this, t) is { } pages) _ = t.AiSummarize(pages);
         }, t => t.PageView.PageCount > 0 && !t.IsAiBusy);
+        Bind(Cmd.AiSummaryAudio, t =>
+        {
+            if (!AiReady()) return;
+            if (AiActions.AskSummaryPages(this, t) is { } pages) _ = t.AiSummaryToAudio(pages);
+        }, t => t.PageView.PageCount > 0 && !t.IsAiBusy);
         Bind(Cmd.AiAsk, t =>
         {
             if (AiReady()) t.ShowAiPane();

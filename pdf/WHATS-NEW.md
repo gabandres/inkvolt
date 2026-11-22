@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Summary to Audio (Review › AI Assistant): summarize pages with your AI assistant and get the summary read aloud to an MP3 or WAV file in your Read Aloud voice, to listen to later. Save AI Answer can save any answer as a recording too.
 - Search by meaning (Search Folders and Ask Across Folders; Inkvolt Pro): find pages by what they mean, not only the words they use. Turn it on and name an embedding model on your own AI server; you see every page before it's sent, the result stays on your PC beside the folder index, and only new or changed pages are sent after that.
 - Ask Across Folders (Edit menu; Inkvolt Pro): ask a question about the PDFs in your indexed folders, or about PDFs you choose, and your own AI assistant answers from the pages most related to it. Each answer cites the file and page, and a click opens it there. Before anything goes, you see every page that will be sent and from which file.
 

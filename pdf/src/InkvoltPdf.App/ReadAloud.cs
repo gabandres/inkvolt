@@ -25,6 +25,12 @@ public sealed class ReadAloud : IDisposable
     private static string? _voiceId;
     private static double _speed = 1;
 
+    /// <summary>The voice chosen last (null: Windows' default), for a summary read aloud to a file.</summary>
+    internal static string? ChosenVoiceId => _voiceId;
+
+    /// <summary>The speed chosen last.</summary>
+    internal static double ChosenSpeed => _speed;
+
     private readonly DocumentTab _tab;
     private readonly PageViewer _viewer;
     private readonly Grid _host;
