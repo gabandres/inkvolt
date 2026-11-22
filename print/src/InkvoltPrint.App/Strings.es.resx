@@ -4053,4 +4053,103 @@ Los archivos se quedan donde están.</value>
   <data name="Clip_NotOpened" xml:space="preserve">
     <value>Mientras tanto se abrió o se quitó otro PDF, así que el texto copiado no se abrió. Vuelve a usar Imprimir el portapapeles para usarlo.</value>
   </data>
+  <data name="ScanTab_Capture" xml:space="preserve">
+    <value>Escanear con tu teléfono o una cámara</value>
+  </data>
+  <data name="ScanTab_CaptureHelp" xml:space="preserve">
+    <value>Sin app en el teléfono: su navegador toma las fotos y las envía a este PC por tu Wi-Fi, nunca por Internet. Cada página se detecta, se endereza y se limpia, y luego se revisa y se guarda como un escaneo.</value>
+  </data>
+  <data name="ScanTab_UsePhone" xml:space="preserve">
+    <value>Usar tu teléfono</value>
+  </data>
+  <data name="ScanTab_CaptureWith" xml:space="preserve">
+    <value>Configuración</value>
+  </data>
+  <data name="ScanTab_CaptureTabSettings" xml:space="preserve">
+    <value>La configuración de escaneo de abajo</value>
+  </data>
+  <data name="Phone_QrName" xml:space="preserve">
+    <value>Código QR de la página que abre tu teléfono</value>
+  </data>
+  <data name="Phone_OrOpen" xml:space="preserve">
+    <value>O abre esta dirección en el navegador del teléfono:</value>
+  </data>
+  <data name="Phone_CertificateNote" xml:space="preserve">
+    <value>La página viene de este PC, no de un sitio web, así que ninguna entidad de certificación la respalda y el navegador del teléfono dice que la conexión no es privada. En Android (Chrome): toca Configuración avanzada y luego Acceder a la dirección. En un iPhone (Safari): toca Mostrar detalles y luego visitar este sitio web. Para asegurarte de que es este PC, abre los detalles del certificado del aviso: su huella digital SHA-256 empieza como se ve abajo.</value>
+  </data>
+  <data name="Phone_Fingerprint" xml:space="preserve">
+    <value>SHA-256 {0}…</value>
+  </data>
+  <data name="Phone_Finish" xml:space="preserve">
+    <value>Terminar</value>
+  </data>
+  <data name="Phone_FinishTip" xml:space="preserve">
+    <value>Termina el escaneo con el teléfono: las páginas ya enviadas se quedan y el teléfono no puede enviar más.</value>
+  </data>
+  <data name="Capture_Waiting" xml:space="preserve">
+    <value>Esperando fotos…</value>
+  </data>
+  <data name="Capture_NoPhotos" xml:space="preserve">
+    <value>No llegó ninguna foto.</value>
+  </data>
+  <data name="Capture_Done_One" xml:space="preserve">
+    <value>Listo: 1 página de una foto.</value>
+  </data>
+  <data name="Capture_Done_Many" xml:space="preserve">
+    <value>Listo: {0} páginas de fotos.</value>
+  </data>
+  <data name="Capture_LeftOut_One" xml:space="preserve">
+    <value>Se omitió 1 foto: no era una foto JPEG o PNG de una página.</value>
+  </data>
+  <data name="Capture_LeftOut_Many" xml:space="preserve">
+    <value>Se omitieron {0} fotos: no eran fotos JPEG o PNG de una página.</value>
+  </data>
+  <data name="Phone_EmptyHint" xml:space="preserve">
+    <value>Las páginas de tu teléfono aparecen aquí a medida que llegan.</value>
+  </data>
+  <data name="ScanTab_UseCamera" xml:space="preserve">
+    <value>Usar una cámara</value>
+  </data>
+  <data name="ScanTab_UseCameraHelp" xml:space="preserve">
+    <value>Una cámara web o de documentos de este PC: su imagen en vivo en una ventana, Capturar página para cada página. Las páginas se enderezan y se limpian como los escaneos.</value>
+  </data>
+  <data name="Camera_Title" xml:space="preserve">
+    <value>Escanear con una cámara</value>
+  </data>
+  <data name="Camera_Capture" xml:space="preserve">
+    <value>Capturar página</value>
+  </data>
+  <data name="Camera_CaptureTip" xml:space="preserve">
+    <value>Toma la imagen de la cámara como la página siguiente (Espacio)</value>
+  </data>
+  <data name="Camera_Which" xml:space="preserve">
+    <value>Cámara</value>
+  </data>
+  <data name="Camera_PreviewName" xml:space="preserve">
+    <value>Lo que ve la cámara</value>
+  </data>
+  <data name="Nav_Capture" xml:space="preserve">
+    <value>Escanear con tu teléfono</value>
+  </data>
+  <data name="Nav_CaptureTip" xml:space="preserve">
+    <value>Escanea con tu teléfono o una cámara, con o sin escáner</value>
+  </data>
+  <data name="Capture_PageTitle" xml:space="preserve">
+    <value>Escanear con tu teléfono o una cámara</value>
+  </data>
+  <data name="Capture_PageName" xml:space="preserve">
+    <value>Teléfono o cámara</value>
+  </data>
+  <data name="Capture_EmptyHint" xml:space="preserve">
+    <value>Usa tu teléfono o una cámara arriba: las páginas llegan aquí, para revisarlas y guardarlas como un escaneo.</value>
+  </data>
+  <data name="Capture_NoScanner" xml:space="preserve">
+    <value>Aquí no hay escáner: usa tu teléfono o una cámara.</value>
+  </data>
+  <data name="Main_CloseCapturing" xml:space="preserve">
+    <value>Todavía hay un escaneo con tu teléfono o una cámara en curso, y sus páginas no están guardadas. ¿Cerrar Inkvolt Print de todos modos?</value>
+  </data>
+  <data name="Phone_CertificateHeading" xml:space="preserve">
+    <value>Tu teléfono te avisará primero: es normal</value>
+  </data>
 </root>

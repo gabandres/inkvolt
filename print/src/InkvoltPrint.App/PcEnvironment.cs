@@ -80,6 +80,15 @@ public abstract class PcEnvironment
     public abstract Core.Sharing.ShareEnvironment ScannerSharing { get; }
 
     /// <summary>
+    /// Where a phone scan's page (roadmap 4.6) is served: Kestrel on its own port with scanner sharing's networks and certificate (private
+    /// networks only); on the made-up PC, on 127.0.0.1 only, any free port, a certificate made for the run.
+    /// </summary>
+    public abstract Core.Capture.PhoneEnvironment PhoneScanning { get; }
+
+    /// <summary>The cameras a camera scan (roadmap 4.12) uses: Windows.Media.Capture's, or the made-up PC's document camera.</summary>
+    public abstract Core.Capture.ICameras Cameras { get; }
+
+    /// <summary>
     /// Network printers' Windows queues are looked up (whether one is set up, and setting one up). False on the made-up PC,
     /// where every printer's queue counts as set up and is never looked for.
     /// </summary>
@@ -217,6 +226,11 @@ public abstract class PcEnvironment
         public override Core.Sharing.ShareEnvironment ScannerSharing => _sharing ??= new(new InkvoltPrint.Sharing.KestrelShareHost(),
             new Windows.Sharing.WindowsNetworks(), new Windows.Sharing.DnssdAdvertiser(), new Windows.Sharing.ShareCertificateStore(AppState.DataDirectory));
         private Core.Sharing.ShareEnvironment? _sharing;
+
+        public override Core.Capture.PhoneEnvironment PhoneScanning => _phone ??= new(new InkvoltPrint.Sharing.KestrelPhoneHost(), ScannerSharing.Networks, ScannerSharing.Certificates);
+        private Core.Capture.PhoneEnvironment? _phone;
+
+        public override Core.Capture.ICameras Cameras => Windows.Capture.WindowsCameras.Instance;
 
         public override async Task<string?> FindQueueAsync(string uuid, string? host, SpoolerQueue? listed, AppState state)
         {

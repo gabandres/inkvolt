@@ -6,6 +6,8 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Escanear con tu teléfono, sin necesidad de escáner: Escanear con tu teléfono en la barra lateral (o en la pestaña Escanear de un escáner) muestra un código; apunta la cámara del teléfono hacia él y toma una foto de cada página en su navegador. Sin app y sin Internet: las fotos llegan directamente a este PC por tu Wi-Fi, cada página enderezada y con su tamaño como un escaneo, lista para revisar y guardar, con tu configuración de escaneo o un ajuste.
+- Escanear con una cámara: Usar una cámara, junto a Usar tu teléfono, muestra tu cámara web o de documentos en vivo; Capturar página toma cada página, enderezada y con su tamaño como un escaneo, lista para revisar y guardar.
 
 ## 1.8.0
 - Ambas caras en un alimentador que escanea una sola cara: marca Ambas caras: dar la vuelta a la pila (o la opción del ajuste), escanea los anversos, dale la vuelta a la pila cuando se te pida y escanea los reversos. Las páginas salen en orden; si la bandeja de tu escáner invierte la pila, Reversos en el otro orden lo corrige, y la revisión te avisa cuando los anversos y los reversos no coinciden.

@@ -89,6 +89,10 @@ internal static class Demo
 
         // A made-up scanner shared for real, but to this PC only: 127.0.0.1, any free port, nothing announced, no key kept.
         public override Core.Sharing.ShareEnvironment ScannerSharing { get; } = Core.Sharing.ShareEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelShareHost());
+        // The phone's page served for real, to this PC only (a browser here, or --phone send, plays the phone).
+        public override Core.Capture.PhoneEnvironment PhoneScanning { get; } = Core.Capture.PhoneEnvironment.ThisPcOnly(new InkvoltPrint.Sharing.KestrelPhoneHost());
+        // A made-up document camera looking down at a page on a desk: no real camera is opened.
+        public override Core.Capture.ICameras Cameras { get; } = new DemoCameras();
         public override Task<string?> FindQueueAsync(string uuid, string? host, Core.Queues.SpoolerQueue? listed, AppState state) => Task.FromResult<string?>(null);
         protected override Core.Queues.IQueueStatusSource SpoolerStatus(Core.Queues.SpoolerQueue q) => Demo.QueueStatus(q);
         protected override IReadOnlyList<Core.Queues.IQueueDeviceReader> DeviceReaders(Core.Queues.SpoolerQueue q) => Core.Fleet.DemoFleet.DeviceReaders(q);
@@ -709,6 +713,45 @@ internal static class Demo
         bmp.Render(visual);
         bmp.Freeze();
         return bmp;
+    }
+
+    /// <summary>
+    /// A made-up phone photo (roadmap 4.6): a letter on a dark wooden desk, taken from a little in front, so the page is a trapezoid
+    /// (narrower at the top), its lines of text drawn across it; 1200 × 1600, JPEG.
+    /// </summary>
+    public static byte[] PhonePhoto()
+    {
+        const int w = 1200, h = 1600;
+        (double X, double Y) tl = (300, 230), tr = (930, 260), br = (1080, 1420), bl = (130, 1380);
+        static (double X, double Y) Lerp((double X, double Y) a, (double X, double Y) b, double t) => (a.X + (b.X - a.X) * t, a.Y + (b.Y - a.Y) * t);
+        var visual = new DrawingVisual();
+        using (var dc = visual.RenderOpen())
+        {
+            dc.DrawRectangle(new LinearGradientBrush(Color.FromRgb(0x4A, 0x36, 0x28), Color.FromRgb(0x2E, 0x22, 0x19), 35), null, new Rect(0, 0, w, h));
+            var page = new StreamGeometry();
+            using (var ctx = page.Open())
+            {
+                ctx.BeginFigure(new Point(tl.X, tl.Y), true, true);
+                ctx.LineTo(new Point(tr.X, tr.Y), true, false);
+                ctx.LineTo(new Point(br.X, br.Y), true, false);
+                ctx.LineTo(new Point(bl.X, bl.Y), true, false);
+            }
+            page.Freeze();
+            dc.DrawGeometry(new LinearGradientBrush(Color.FromRgb(0xF4, 0xF2, 0xEC), Color.FromRgb(0xDE, 0xDA, 0xD0), 90), null, page);
+            var ink = new Pen(new SolidColorBrush(Color.FromRgb(0x33, 0x33, 0x3A)), 1);
+            for (var i = 0; i < 26; i++)
+            {
+                var t = 0.1 + i * 0.031;
+                var (left, right) = (Lerp(tl, bl, t), Lerp(tr, br, t));
+                var heading = i == 0;
+                var end = heading ? 0.55 : i % 7 == 6 ? 0.5 : 0.9;
+                var a = Lerp(left, right, 0.1);
+                var b = Lerp(left, right, end);
+                ink.Thickness = heading ? 14 : 6 + 4 * t;
+                dc.DrawLine(ink, new Point(a.X, a.Y), new Point(b.X, b.Y));
+            }
+        }
+        return Jpeg(visual, w, h);
     }
 
     private static byte[] Jpeg(Visual visual, int pixelWidth, int pixelHeight)
