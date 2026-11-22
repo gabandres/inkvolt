@@ -172,6 +172,18 @@ public abstract class PcEnvironment
     /// <summary>Printers' SNMP logins (a community): Windows Credential Manager, or (demo) memory. Never in state.json.</summary>
     public abstract Core.Snmp.ISnmpLogins SnmpLogins { get; }
 
+    /// <summary>This PC's Wi-Fi for the printer setup guide (roadmap 4.17): Windows' WLAN API, or the made-up PC's made-up Wi-Fi.</summary>
+    public abstract Core.Setup.IWifi Wifi { get; }
+
+    /// <summary>Opens Windows' own Wi-Fi list (where the person joins a secured network); the made-up PC's person joins at once.</summary>
+    public abstract void OpenWifiList();
+
+    /// <summary>Opens a page of Windows Settings (<c>ms-settings:…</c>); nothing on the made-up PC.</summary>
+    public virtual void OpenSettings(string uri)
+    {
+        if (!IsDemo) Shell.Open(uri);
+    }
+
     /// <summary>Opens a page in the browser; null where nothing is opened (the demo printers' pages don't exist).</summary>
     public abstract Action<string>? Browser { get; }
 
@@ -268,7 +280,10 @@ public abstract class PcEnvironment
         public override bool PairsAnyPrinter => false;
         public override IPrinterPasswords Passwords { get; } = new CredentialManager();
         public override Core.Snmp.ISnmpLogins SnmpLogins => InkvoltPrint.Windows.Security.SnmpLoginStore.Instance;
-        public override Action<string>? Browser => Shell.Open;        public override bool OpensOtherApps => true;
+        public override Action<string>? Browser => Shell.Open;
+        public override Core.Setup.IWifi Wifi { get; } = new Windows.Setup.WlanWifi();
+        public override void OpenWifiList() => Shell.Open("ms-availablenetworks:");
+        public override bool OpensOtherApps => true;
         public override string RecordingsFolder =>
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments) is { Length: > 0 } documents ? documents : AppState.DataDirectory, "Inkvolt Print recordings");
         public override string UserName => Environment.UserName;

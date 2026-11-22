@@ -31,7 +31,8 @@ namespace InkvoltPrint.App;
 /// and runs its n-th action (demo only, see <see cref="MaintenanceAsync"/>); <c>--delete n</c> deletes the n-th scanned page and <c>--undo</c> undoes the last review change; <c>--cleanup crop,whiten,descreen,restore</c> sets the tab's clean up before scanning and <c>--clean n</c> opens the clean up view on the n-th page; <c>--presets [n]</c> opens the presets editor on its n-th preset and renders the editor instead of the main window;
 /// <c>--clipboard text|picture</c> prints made-up clipboard content (roadmap 4.13); <c>--hand-duplex</c> (with <c>--sample-pdf</c>) waits for two-sided by
 /// hand to be offered and ticks it, <c>--hand-duplex-print</c> then prints with the prompt answered (roadmap 4.2, demo only);
-/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|printlog|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>--dialog settings|help|whatsnew|report|addprinter|confirm|pro|recent|printlog|setup|hand-duplex|hand-duplex-up [--dialog-wait ms]</c> renders that window instead (<c>pro</c>: Help › Inkvolt Pro;
+/// <c>setup</c>: Set up a new printer's Wi-Fi, with <c>--setup-step connect|secured|back|stuck</c> on the made-up Wi-Fi, <see cref="SetupStepAsync"/>;
 /// <c>--record</c> with <c>report</c> records the printer shown first; <c>--pro-key KEY</c> enters a key first, <c>--pro-enforce</c> shows the wording with the gate on; demo keeps the key in memory); <c>--a11y-audit findings.txt</c> writes the
 /// shown window's controls without an accessible name or under 24 × 24 (<see cref="UiInspection"/>) before the snapshot;
 /// <c>--needs-driver [scanner]</c> shows the first USB printer (or scanner) that needs its driver (with <c>--demo</c>: a made-up one), <c>--get-driver</c> then presses Get the driver (<c>--driver-link</c>: as a Store copy does it; <c>--driver-licence</c>: a find under a licence to accept first); <c>--nav open</c> opens the folded sidebar (a narrow window or a large Text size folds it); <c>--palette [words]</c> opens the
@@ -114,6 +115,23 @@ internal static class DevSnapshot
         {
             Log.Write($"Shared printer test failed: {ex}");
         }
+    }
+
+    /// <summary>
+    /// <c>--dialog setup --setup-step connect|secured|back|stuck</c> (demo only, roadmap 4.17): the setup guide on the made-up Wi-Fi,
+    /// Connect pressed on the made-up HP's open setup network (or the Epson's secured one, joined "in Windows"), then Done (back home), or
+    /// Done with going back made to fail.
+    /// </summary>
+    private static async Task SetupStepAsync(ViewModels.PrinterSetupViewModel setup, PcEnvironment pc, string step)
+    {
+        if (pc.Wifi is not Core.Setup.DemoWifi wifi) return;
+        for (var i = 0; i < 50 && setup.Networks.Count == 0; i++) await Task.Delay(100);
+        var row = setup.Networks.FirstOrDefault(r => r.Candidate.Network.Secured == (step == "secured"));
+        if (row is null) return;
+        if (step == "stuck") wifi.ReturnFails = true;
+        await setup.ConnectCommand.ExecuteAsync(row);
+        if (step is "back" or "stuck") await setup.ReturnCommand.ExecuteAsync(null);
+        await Task.Delay(300);
     }
 
     /// <summary>Renders <paramref name="window"/> to <paramref name="path"/> as the flags in <paramref name="args"/> (above) say, then exits.</summary>
@@ -475,7 +493,9 @@ internal static class DevSnapshot
                 "hand-duplex" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Down),
                 "hand-duplex-up" => HandDuplexDialog.Preview(Core.Printing.OutputFace.Up),
                 "recent" => RecentScansDialog.Create(dialogMain.Selected?.RecentScans() ?? new ViewModels.RecentScansViewModel(dialogMain.State, false, null)),
-                "printlog" => PrintLogDialog.Create(dialogMain),                "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
+                "printlog" => PrintLogDialog.Create(dialogMain),
+                "setup" => PrinterSetupWindow.Create(dialogMain, dialogMain.Pc),
+                "snmp" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", Core.Snmp.SnmpLogin.Public),
                 "snmp3" => SnmpAccessDialog.Create(dialogMain.Selected?.Name ?? "Demo printer", // protocols other than the defaults: the note shows
                     Core.Snmp.SnmpLogin.ForUser("inkvolt-reader", "demo-auth-pass", "demo-priv-pass", out _, Core.Snmp.SnmpAuth.Sha1, Core.Snmp.SnmpPriv.Aes256)!),
                 // Save pressed with a made-up answer from the printer: no answer (Save anyway), a refused passphrase, another device.
@@ -499,7 +519,9 @@ internal static class DevSnapshot
             {
                 dialog.Owner = window;
                 dialog.Show();
-                if (dialog is SnmpAccessDialog snmpCheck && name.StartsWith("snmp-", StringComparison.Ordinal)) await snmpCheck.DevSaveAsync();                // Add a printer searches the (made-up) network first: about three seconds.
+                if (dialog is SnmpAccessDialog snmpCheck && name.StartsWith("snmp-", StringComparison.Ordinal)) await snmpCheck.DevSaveAsync();
+                if (dialog is PrinterSetupWindow setup && Value(args, "--setup-step") is { } step) await SetupStepAsync(setup.Model, dialogMain.Pc, step);
+                // Add a printer searches the (made-up) network first: about three seconds.
                 await Task.Delay(Value(args, "--dialog-wait") is { } ms ? TimeSpan.FromMilliseconds(int.Parse(ms)) : TimeSpan.FromSeconds(name == "addprinter" ? 5 : 1));
                 if (scrollToEnd)
                 {

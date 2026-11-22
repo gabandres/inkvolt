@@ -72,6 +72,7 @@ public static class PrintPalette
             foreach (var (id, name, glyph) in Menu(p)) list.Add(new($"printer:{id}", name, category, "", glyph));
         }
         list.Add(new("app:add", CoreStrings.Palette_AddPrinter, "", "", "\uE710"));
+        list.Add(new("app:setupwifi", CoreStrings.Palette_SetUpPrinter, "", "", "\uE701"));
         list.Add(new("app:fleet", CoreStrings.Palette_Fleet, "", "", "\uE8A9"));
         list.Add(new("app:search", CoreStrings.Palette_SearchAgain, "", "", "\uE72C"));
         list.Add(new("app:printlog", CoreStrings.Palette_PrintLog, "", "", "\uE81C"));

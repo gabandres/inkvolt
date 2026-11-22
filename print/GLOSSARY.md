@@ -145,6 +145,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   entry is one save: its files, when, the pages, the scanner and preset. **Saved again**: an entry sharing a file with a newer save
   goes. **Gone**: a file no longer on the disk when the list is shown; an entry with none left drops out. Removing an entry never
   touches its files.
+- **Printer setup guide** (roadmap 4.17): putting a new printer on the home Wi-Fi through its own **setup network** (open, while it
+  waits to be told the Wi-Fi) or its **Wi-Fi Direct** network (`SetupNetworks`), its **setup page** (its web server, at the gateway
+  that network gives) and **going back** to the network the PC was on, by Windows' saved profile (`PrinterSetupGuide`). **Away**: on
+  the printer's network, not back yet. A **secured** network is joined in **Windows' own Wi-Fi list**, never by the app.
 - **Print log**: the jobs this PC's spooler saw while the app ran, one entry each, kept on this PC only (`PrintLog`, `PrintLogFile`): when,
   the queue, the document's name, the user and PC, pages and copies, color and two-sided when known, and how it **ended**: **printed**
   (the spooler said so, or it had started printing), **cancelled** (deleted before printing; counts no pages) or **left** (went with

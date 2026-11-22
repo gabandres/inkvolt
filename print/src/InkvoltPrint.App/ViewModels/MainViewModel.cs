@@ -153,6 +153,9 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
     /// <summary>The scanner shared on the network (roadmap 3.1, free): off by default; the Scan tab's card and the notification-area menu turn it on.</summary>
     public ScannerShare Share { get; }
 
+    /// <summary>This PC, or demo mode's made-up one (the printer setup guide's Wi-Fi, roadmap 4.17).</summary>
+    public PcEnvironment Pc => _pc;
+
     /// <summary>Windows queues shared with phones (roadmap 4.10, free): off by default; a queue printer's Print tab card turns each on.</summary>
     public PrinterShare PrinterShares { get; }
 

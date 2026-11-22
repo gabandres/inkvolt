@@ -129,6 +129,17 @@ internal static class Demo
         public override IPrinterPasswords Passwords { get; } = new MemoryPasswords();
         public override Core.Snmp.ISnmpLogins SnmpLogins { get; } = new Core.Snmp.MemorySnmpLogins();
         public override Action<string>? Browser => null;
+
+        // A made-up Wi-Fi: this PC's is never read or changed in demo mode. Windows' list "opens" as the person joining the network chosen.
+        public override Core.Setup.IWifi Wifi => _wifi;
+        private readonly Core.Setup.DemoWifi _wifi = new();
+
+        public override void OpenWifiList()
+        {
+            // From home: the made-up printer's secured network (the only one there is); from anywhere else: home again.
+            var to = _wifi.Now.IsOn(Core.Setup.DemoWifi.Home) ? Core.Setup.DemoWifi.EpsonDirect : Core.Setup.DemoWifi.Home;
+            _ = Task.Delay(1500).ContinueWith(_ => _wifi.JoinInWindows(to), TaskScheduler.Default);
+        }
         public override bool OpensOtherApps => false;
         public override string RecordingsFolder => System.IO.Path.Combine(System.IO.Path.GetTempPath(), "Inkvolt Print demo recordings");
         public override string UserName => "demo";

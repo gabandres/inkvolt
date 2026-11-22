@@ -3661,4 +3661,31 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="PrinterShare_JobName" xml:space="preserve">
     <value>Impreso desde un teléfono</value>
   </data>
+  <data name="Setup_NoWifi" xml:space="preserve">
+    <value>Este equipo no tiene Wi-Fi, así que no puede unirse a la red de configuración de la impresora. Configúrala desde su panel de control o con la aplicación del fabricante para el teléfono.</value>
+  </data>
+  <data name="Setup_LocationOff" xml:space="preserve">
+    <value>Windows solo muestra los nombres de las redes Wi-Fi a las aplicaciones con el acceso a la ubicación activado. Activa Configuración › Privacidad y seguridad › Ubicación › Permitir que las aplicaciones de escritorio accedan a tu ubicación y vuelve a buscar.</value>
+  </data>
+  <data name="Setup_NotListed" xml:space="preserve">
+    <value>Windows no mostró las redes Wi-Fi cercanas. Vuelve a buscar en un momento.</value>
+  </data>
+  <data name="Setup_NoneFound" xml:space="preserve">
+    <value>No hay ninguna red de configuración de impresora al alcance. Enciende la impresora, ponla en modo de configuración Wi-Fi (su manual dice cómo; muchas lo inician solas cuando son nuevas o tras restablecer la red), espera un minuto y vuelve a buscar.</value>
+  </data>
+  <data name="Setup_InWindows" xml:space="preserve">
+    <value>"{0}" pide una contraseña. Elígela en la lista de Wi-Fi de Windows que se acaba de abrir y escribe la contraseña que muestra el panel de la impresora o su página de red; Inkvolt Print nunca la ve. Esta ventana sigue cuando el equipo esté conectado.</value>
+  </data>
+  <data name="Setup_NotJoined" xml:space="preserve">
+    <value>El equipo no se unió a la red de la impresora, así que volvió a la anterior. Comprueba que la impresora siga en modo de configuración Wi-Fi y vuelve a intentarlo.</value>
+  </data>
+  <data name="Setup_NoPage" xml:space="preserve">
+    <value>El equipo está en la red de la impresora, pero la impresora no dio una dirección para su página de configuración. Su manual indica la dirección que hay que escribir en un navegador.</value>
+  </data>
+  <data name="Setup_CouldNotReturn" xml:space="preserve">
+    <value>El equipo no pudo volver a "{0}" por sí solo. Abre la lista de Wi-Fi de Windows (el botón de abajo, o el icono de red de la barra de tareas) y elige "{0}".</value>
+  </data>
+  <data name="Palette_SetUpPrinter" xml:space="preserve">
+    <value>Configurar el Wi-Fi de una impresora nueva…</value>
+  </data>
 </root>

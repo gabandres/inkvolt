@@ -266,6 +266,7 @@ public partial class MainWindow : Window
             case ("printer", "snmp"): Run(p?.SetSnmpLoginCommand); break;
             case ("printer", "remove"): Run(vm.ForgetCommand, p); break;
             case ("app", "add"): AddPrinterWindow.Open(this, vm); break;
+            case ("app", "setupwifi"): PrinterSetupWindow.Open(this, vm, vm.Pc); break;
             case ("app", "search"): Run(vm.SearchAgainCommand); break;
             case ("app", "printlog"): PrintLogDialog.Open(this, vm); break;
             case ("app", "settings"): SettingsWindow.Open(this, vm, (Application.Current as App)?.Tray); break;

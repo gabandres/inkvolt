@@ -4152,4 +4152,91 @@ Los archivos se quedan donde están.</value>
   <data name="PrintTab_ShareSwitch" xml:space="preserve">
     <value>Compartir esta impresora en la red</value>
   </data>
+  <data name="AddPrinter_NewTitle" xml:space="preserve">
+    <value>Una impresora nueva, todavía sin tu Wi-Fi</value>
+  </data>
+  <data name="AddPrinter_NewHint" xml:space="preserve">
+    <value>Únete a su red de configuración, escribe tu Wi-Fi en su propia página y vuelve aquí.</value>
+  </data>
+  <data name="AddPrinter_SetUpNew" xml:space="preserve">
+    <value>Configurar una impresora nueva…</value>
+  </data>
+  <data name="Setup_Title" xml:space="preserve">
+    <value>Configurar el Wi-Fi de una impresora nueva</value>
+  </data>
+  <data name="Setup_Intro" xml:space="preserve">
+    <value>Una impresora nueva ofrece una red propia hasta que conoce tu Wi-Fi. Únete a ella aquí, escribe el nombre y la contraseña de tu Wi-Fi en la propia página de la impresora, y este equipo vuelve a tu red y encuentra allí la impresora.</value>
+  </data>
+  <data name="Setup_Looking" xml:space="preserve">
+    <value>Buscando cerca la red de configuración de una impresora…</value>
+  </data>
+  <data name="Setup_Choose" xml:space="preserve">
+    <value>Estas parecen redes de una impresora. Conéctate a la tuya: este equipo deja tu Wi-Fi unos minutos y vuelve solo.</value>
+  </data>
+  <data name="Setup_Promise" xml:space="preserve">
+    <value>Inkvolt Print nunca ve ni envía una contraseña de Wi-Fi, cambia de red solo cuando presionas Conectar o Listo, y siempre vuelve a tu red.</value>
+  </data>
+  <data name="Setup_Networks" xml:space="preserve">
+    <value>Redes de impresoras cercanas</value>
+  </data>
+  <data name="Setup_KindSetup" xml:space="preserve">
+    <value>Red de configuración de {0}</value>
+  </data>
+  <data name="Setup_KindDirect" xml:space="preserve">
+    <value>Wi-Fi Direct de {0}</value>
+  </data>
+  <data name="Setup_AsksPassword" xml:space="preserve">
+    <value>pide una contraseña en Windows</value>
+  </data>
+  <data name="Setup_Connect" xml:space="preserve">
+    <value>Conectar</value>
+  </data>
+  <data name="Setup_Connecting" xml:space="preserve">
+    <value>Uniéndose a "{0}"…</value>
+  </data>
+  <data name="Setup_OnPrinter" xml:space="preserve">
+    <value>Este equipo está en "{0}", la red de la impresora (aquí no hay internet).</value>
+  </data>
+  <data name="Setup_OnPage" xml:space="preserve">
+    <value>Abre la página de la impresora, elige allí tu Wi-Fi, escribe su contraseña y guarda. La impresora se une entonces a tu Wi-Fi y su propia red desaparece. Después presiona Listo.</value>
+  </data>
+  <data name="Setup_OpenPage" xml:space="preserve">
+    <value>Abrir la página de la impresora</value>
+  </data>
+  <data name="Setup_Done" xml:space="preserve">
+    <value>Listo: volver a mi Wi-Fi</value>
+  </data>
+  <data name="Setup_Returning" xml:space="preserve">
+    <value>Volviendo a "{0}"…</value>
+  </data>
+  <data name="Setup_YourNetwork" xml:space="preserve">
+    <value>tu red</value>
+  </data>
+  <data name="Setup_Back" xml:space="preserve">
+    <value>De vuelta en "{0}". Buscando allí la impresora; puede tardar uno o dos minutos después de que se una.</value>
+  </data>
+  <data name="Setup_BackOffWifi" xml:space="preserve">
+    <value>Este equipo dejó la red de la impresora. Buscando la impresora en tu red; puede tardar uno o dos minutos.</value>
+  </data>
+  <data name="Setup_Found" xml:space="preserve">
+    <value>Encontrada: {0} está en tu red.</value>
+  </data>
+  <data name="Setup_ShowFound" xml:space="preserve">
+    <value>Mostrar la impresora</value>
+  </data>
+  <data name="Setup_OpenWifiList" xml:space="preserve">
+    <value>Abrir la lista de Wi-Fi de Windows</value>
+  </data>
+  <data name="Setup_CheckAgain" xml:space="preserve">
+    <value>Ya volví: comprobar de nuevo</value>
+  </data>
+  <data name="Setup_LookAgain" xml:space="preserve">
+    <value>Volver a buscar</value>
+  </data>
+  <data name="Setup_LocationSettings" xml:space="preserve">
+    <value>Abrir la configuración de ubicación</value>
+  </data>
+  <data name="Setup_DemoPage" xml:space="preserve">
+    <value>Demo: aquí se abriría la página de la impresora: {0}</value>
+  </data>
 </root>

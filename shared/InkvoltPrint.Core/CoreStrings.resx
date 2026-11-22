@@ -4385,4 +4385,31 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="PrinterShare_JobName" xml:space="preserve">
     <value>Printed from a phone</value>
   </data>
+  <data name="Setup_NoWifi" xml:space="preserve">
+    <value>This PC has no Wi-Fi, so it can't join the printer's setup network. Set the printer up from its control panel or the maker's phone app instead.</value>
+  </data>
+  <data name="Setup_LocationOff" xml:space="preserve">
+    <value>Windows shows Wi-Fi names to apps only with location access on. Turn on Settings › Privacy &amp; security › Location › Let desktop apps access your location, then look again.</value>
+  </data>
+  <data name="Setup_NotListed" xml:space="preserve">
+    <value>Windows didn't list the Wi-Fi networks nearby. Look again in a moment.</value>
+  </data>
+  <data name="Setup_NoneFound" xml:space="preserve">
+    <value>No printer's setup network is in range. Turn the printer on, put it in Wi-Fi setup mode (its manual says how; many start it on their own when new or after a network reset), wait a minute and look again.</value>
+  </data>
+  <data name="Setup_InWindows" xml:space="preserve">
+    <value>"{0}" asks for a password. Choose it in Windows' Wi-Fi list that just opened and type the password shown on the printer's panel or its network page; Inkvolt Print never sees it. This window goes on once the PC is on it.</value>
+  </data>
+  <data name="Setup_NotJoined" xml:space="preserve">
+    <value>The PC didn't join the printer's network, so it went back. Check that the printer is still in Wi-Fi setup mode and try again.</value>
+  </data>
+  <data name="Setup_NoPage" xml:space="preserve">
+    <value>The PC is on the printer's network, but the printer gave no address for its setup page. Its manual names the address to type in a browser.</value>
+  </data>
+  <data name="Setup_CouldNotReturn" xml:space="preserve">
+    <value>The PC couldn't go back to "{0}" by itself. Open Windows' Wi-Fi list (the button below, or the network icon on the taskbar) and choose "{0}".</value>
+  </data>
+  <data name="Palette_SetUpPrinter" xml:space="preserve">
+    <value>Set up a new printer's Wi-Fi…</value>
+  </data>
 </root>

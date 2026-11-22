@@ -5011,4 +5011,91 @@ The files stay where they are.</value>
   <data name="PrintTab_ShareSwitch" xml:space="preserve">
     <value>Share this printer on the network</value>
   </data>
+  <data name="AddPrinter_NewTitle" xml:space="preserve">
+    <value>A new printer, not on your Wi-Fi yet</value>
+  </data>
+  <data name="AddPrinter_NewHint" xml:space="preserve">
+    <value>Join its setup network, enter your Wi-Fi on its own page, and come back here.</value>
+  </data>
+  <data name="AddPrinter_SetUpNew" xml:space="preserve">
+    <value>Set up a new printer…</value>
+  </data>
+  <data name="Setup_Title" xml:space="preserve">
+    <value>Set up a new printer's Wi-Fi</value>
+  </data>
+  <data name="Setup_Intro" xml:space="preserve">
+    <value>A new printer offers a network of its own until it's told your Wi-Fi. Join it here, enter your Wi-Fi's name and password on the printer's own page, and this PC goes back to your network and finds the printer there.</value>
+  </data>
+  <data name="Setup_Looking" xml:space="preserve">
+    <value>Looking for a printer's setup network nearby…</value>
+  </data>
+  <data name="Setup_Choose" xml:space="preserve">
+    <value>These look like a printer's networks. Connect to yours: this PC leaves your Wi-Fi for a few minutes and comes back on its own.</value>
+  </data>
+  <data name="Setup_Promise" xml:space="preserve">
+    <value>Inkvolt Print never sees or sends a Wi-Fi password, changes networks only when you press Connect or Done, and always goes back to your network.</value>
+  </data>
+  <data name="Setup_Networks" xml:space="preserve">
+    <value>Printers' networks nearby</value>
+  </data>
+  <data name="Setup_KindSetup" xml:space="preserve">
+    <value>{0}'s setup network</value>
+  </data>
+  <data name="Setup_KindDirect" xml:space="preserve">
+    <value>{0}'s Wi-Fi Direct</value>
+  </data>
+  <data name="Setup_AsksPassword" xml:space="preserve">
+    <value>asks for a password in Windows</value>
+  </data>
+  <data name="Setup_Connect" xml:space="preserve">
+    <value>Connect</value>
+  </data>
+  <data name="Setup_Connecting" xml:space="preserve">
+    <value>Joining "{0}"…</value>
+  </data>
+  <data name="Setup_OnPrinter" xml:space="preserve">
+    <value>This PC is on "{0}", the printer's network (no internet here).</value>
+  </data>
+  <data name="Setup_OnPage" xml:space="preserve">
+    <value>Open the printer's page, choose your Wi-Fi there and type its password, and save. The printer then joins your Wi-Fi and its own network goes away. Then press Done.</value>
+  </data>
+  <data name="Setup_OpenPage" xml:space="preserve">
+    <value>Open the printer's page</value>
+  </data>
+  <data name="Setup_Done" xml:space="preserve">
+    <value>Done: go back to my Wi-Fi</value>
+  </data>
+  <data name="Setup_Returning" xml:space="preserve">
+    <value>Going back to "{0}"…</value>
+  </data>
+  <data name="Setup_YourNetwork" xml:space="preserve">
+    <value>your network</value>
+  </data>
+  <data name="Setup_Back" xml:space="preserve">
+    <value>Back on "{0}". Looking for the printer there; it can take a minute or two after it joins.</value>
+  </data>
+  <data name="Setup_BackOffWifi" xml:space="preserve">
+    <value>This PC left the printer's network. Looking for the printer on your network; it can take a minute or two.</value>
+  </data>
+  <data name="Setup_Found" xml:space="preserve">
+    <value>Found it: {0} is on your network.</value>
+  </data>
+  <data name="Setup_ShowFound" xml:space="preserve">
+    <value>Show the printer</value>
+  </data>
+  <data name="Setup_OpenWifiList" xml:space="preserve">
+    <value>Open Windows' Wi-Fi list</value>
+  </data>
+  <data name="Setup_CheckAgain" xml:space="preserve">
+    <value>I'm back: check again</value>
+  </data>
+  <data name="Setup_LookAgain" xml:space="preserve">
+    <value>Look again</value>
+  </data>
+  <data name="Setup_LocationSettings" xml:space="preserve">
+    <value>Open location settings</value>
+  </data>
+  <data name="Setup_DemoPage" xml:space="preserve">
+    <value>Demo: the printer's page would open here: {0}</value>
+  </data>
 </root>
