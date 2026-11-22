@@ -192,6 +192,7 @@
                         <MenuItem Command="app:Cmd.InsertPages" />
                         <MenuItem Command="app:Cmd.InsertBlank" />
                         <MenuItem Command="app:Cmd.CropPages" />
+                        <MenuItem Command="app:Cmd.ResizePages" />
                         <Separator />
                         <MenuItem Command="app:Cmd.Print" Header="{x:Static loc:Strings.Organize_PrintPagesMenu}" />
                         <MenuItem Command="app:Cmd.ExportImages" />

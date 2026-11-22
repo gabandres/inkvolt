@@ -998,6 +998,9 @@
   <data name="Bar_RemoveBlankDesc" xml:space="preserve">
     <value>Busca las páginas en blanco y elimínalas</value>
   </data>
+  <data name="Bar_ResizeDesc" xml:space="preserve">
+    <value>Pon las páginas en Carta, A4 u otro tamaño</value>
+  </data>
   <data name="Batch_StepFlatten" xml:space="preserve">
     <value>Acoplar</value>
     <comment>Batch action name</comment>
@@ -5031,6 +5034,9 @@
   </data>
   <data name="Page_InterleaveOverlap" xml:space="preserve">
     <value>Una página no puede ser anverso y reverso a la vez.</value>
+  </data>
+  <data name="Page_ResizeSize" xml:space="preserve">
+    <value>Un lado del papel debe medir entre {0} y {1} pulgadas.</value>
   </data>
   <data name="Page_NothingToCombine" xml:space="preserve">
     <value>No hay nada que combinar.</value>

@@ -259,6 +259,7 @@
                                     <MenuItem Command="app:Cmd.ReversePages" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CropPages" />
+                                    <MenuItem Command="app:Cmd.ResizePages" />
                                     <MenuItem Command="app:Cmd.Flatten" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.AddHeaderFooter" />

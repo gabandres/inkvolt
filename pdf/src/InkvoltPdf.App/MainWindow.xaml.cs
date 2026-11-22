@@ -1932,6 +1932,7 @@ public partial class MainWindow : Window
         BindEdit(Cmd.ScanBacks, t => Scanning.ScanBacks(this, t));
         BindEdit(Cmd.RemoveBlankPages, t => Organize.BlankPagesCommand(this, t, this, split: false));
         BindEdit(Cmd.SplitAtBlankPages, t => Organize.BlankPagesCommand(this, t, this, split: true), t => t.PageView.PageCount > 1);
+        BindEdit(Cmd.ResizePages, t => Organize.Resize(this, t));
 
         // Review: panes, text markup, notes, redaction
         Bind(Cmd.ShowComments, t => t.ShowReviewPane(ReviewPane.Comments), t => t.Session.IsPdf);

@@ -5359,6 +5359,47 @@ Modified {1:g}</value>
   <data name="Tab_BookmarksFromHeadingsTip" xml:space="preserve">
     <value>Make bookmarks from the document's headings</value>
   </data>
+  <data name="Cmd_ResizePages" xml:space="preserve">
+    <value>Resi_ze Pages…</value>
+  </data>
+  <data name="Organize_ResizeTitle" xml:space="preserve">
+    <value>Resize Pages</value>
+  </data>
+  <data name="Organize_ResizeButton" xml:space="preserve">
+    <value>Resize</value>
+  </data>
+  <data name="Organize_ResizeCustom" xml:space="preserve">
+    <value>Custom size</value>
+  </data>
+  <data name="Organize_ResizeWidth" xml:space="preserve">
+    <value>Width</value>
+  </data>
+  <data name="Organize_ResizeHeight" xml:space="preserve">
+    <value>Height</value>
+  </data>
+  <data name="Organize_ResizeContent" xml:space="preserve">
+    <value>The content</value>
+  </data>
+  <data name="Organize_ResizeScale" xml:space="preserve">
+    <value>Scale it to fit the paper</value>
+  </data>
+  <data name="Organize_ResizeMargins" xml:space="preserve">
+    <value>Keep its size and add margins (shrunk only if it doesn't fit)</value>
+  </data>
+  <data name="Organize_ResizeNote" xml:space="preserve">
+    <value>A page that shows landscape gets the paper sideways. Comments and form fields move with the content.</value>
+  </data>
+  <data name="Organize_ResizeEnterSize" xml:space="preserve">
+    <value>Enter a width and a height between 1 and 200 inches (25 and 5080 mm).</value>
+  </data>
+  <data name="Organize_EditResize_One" xml:space="preserve">
+    <value>Resize 1 page</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_EditResize_Many" xml:space="preserve">
+    <value>Resize {0} pages</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Crop Pages</value>
     <comment>Dialog title</comment>

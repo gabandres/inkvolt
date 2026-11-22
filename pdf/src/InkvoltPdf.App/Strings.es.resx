@@ -5358,6 +5358,47 @@ Modificado {1:g}</value>
   <data name="Tab_BookmarksFromHeadingsTip" xml:space="preserve">
     <value>Crea marcadores a partir de los títulos del documento</value>
   </data>
+  <data name="Cmd_ResizePages" xml:space="preserve">
+    <value>Cambiar el tama_ño de las páginas…</value>
+  </data>
+  <data name="Organize_ResizeTitle" xml:space="preserve">
+    <value>Cambiar el tamaño de las páginas</value>
+  </data>
+  <data name="Organize_ResizeButton" xml:space="preserve">
+    <value>Cambiar tamaño</value>
+  </data>
+  <data name="Organize_ResizeCustom" xml:space="preserve">
+    <value>Tamaño personalizado</value>
+  </data>
+  <data name="Organize_ResizeWidth" xml:space="preserve">
+    <value>Ancho</value>
+  </data>
+  <data name="Organize_ResizeHeight" xml:space="preserve">
+    <value>Alto</value>
+  </data>
+  <data name="Organize_ResizeContent" xml:space="preserve">
+    <value>El contenido</value>
+  </data>
+  <data name="Organize_ResizeScale" xml:space="preserve">
+    <value>Ajustarlo al papel</value>
+  </data>
+  <data name="Organize_ResizeMargins" xml:space="preserve">
+    <value>Mantener su tamaño y agregar márgenes (se reduce solo si no cabe)</value>
+  </data>
+  <data name="Organize_ResizeNote" xml:space="preserve">
+    <value>Una página horizontal recibe el papel de lado. Los comentarios y los campos de formulario se mueven con el contenido.</value>
+  </data>
+  <data name="Organize_ResizeEnterSize" xml:space="preserve">
+    <value>Escribe un ancho y un alto entre 1 y 200 pulgadas (25 y 5080 mm).</value>
+  </data>
+  <data name="Organize_EditResize_One" xml:space="preserve">
+    <value>Cambiar el tamaño de 1 página</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
+  <data name="Organize_EditResize_Many" xml:space="preserve">
+    <value>Cambiar el tamaño de {0} páginas</value>
+    <comment>Edit name; {0} is the page count</comment>
+  </data>
   <data name="Organize_CropTitle" xml:space="preserve">
     <value>Recortar páginas</value>
     <comment>Dialog title</comment>
