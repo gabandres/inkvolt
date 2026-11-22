@@ -20,6 +20,9 @@ public static class OneBitImages
     /// <summary>The smallest grey picture taken for a scanned page: about a third of a letter page at 150 dpi.</summary>
     internal const long MinScanPixels = 700_000;
 
+    /// <summary>The smallest 1-bit picture coded again, in bytes as stored.</summary>
+    private const int MinRecodedBytes = 4096;
+
     /// <summary>The image stream's filter entries for <paramref name="coding"/> (any older parameters removed).</summary>
     public static void SetCoding(PdfDictionary image, OneBitCoding coding, int width, int height)
     {
@@ -52,7 +55,8 @@ public static class OneBitImages
     /// <param name="draw">Draws a one-image page (the picture's dictionary entries and stream) at one pixel a sample, as RGB.</param>
     internal static Action? Recode(PdfDictionary image, Func<string, byte[], int, int, byte[]?> draw, CancellationToken cancel = default)
     {
-        if (image.Stream is not { } stream) return null;
+        // A small picture (an icon, a rule) has little to save and costs two drawings: left as it is.
+        if (image.Stream is not { } stream || stream.Value.Length < MinRecodedBytes) return null;
         var bpc = PdfObj.Int(image.Elements["/BitsPerComponent"]);
         var stencil = PdfObj.Resolve(image.Elements["/ImageMask"]) is PdfBoolean { Value: true };
         if (bpc != 1 && !(stencil && bpc is null)) return null;

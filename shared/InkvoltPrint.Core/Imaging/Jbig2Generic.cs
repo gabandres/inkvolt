@@ -5,19 +5,17 @@ namespace InkvoltPrint.Core.Imaging;
 /// <summary>
 /// Lossless JBIG2 (ITU-T T.88) of a black-and-white image: one immediate generic region over the whole page, coded pixel by
 /// pixel with the MQ arithmetic coder in template 0's 16-pixel contexts (the four adaptive pixels where T.88 puts them by
-/// default) and typical prediction (a row the same as the one above costs one decision). Every pixel is coded as it is:
-/// no symbol matching or substitution, so nothing like the scanners whose JBIG2 swapped a 6 for an 8. As PDF's
-/// /JBIG2Decode reads it embedded (a page information segment, then the region; no globals, no file header): a set bit is
-/// black. A page of text usually comes out smaller than <see cref="CcittG4"/>'s, since each pixel is predicted from its
-/// neighbours rather than coded as runs.
+/// default). Every pixel is coded as it is: no symbol matching or substitution, so nothing like the scanners whose JBIG2
+/// swapped a 6 for an 8. As PDF's /JBIG2Decode reads it embedded (a page information segment, then the region; no
+/// globals, no file header): a set bit is black. A page of text usually comes out a quarter smaller than
+/// <see cref="CcittG4"/>'s, since each pixel is predicted from its neighbours rather than coded as runs. No typical
+/// prediction (TPGDON): Windows' own PDF reader (Windows.Data.Pdf) draws noise for most pages coded with it, though
+/// MuPDF reads them, and it saves little on a page of text.
 /// </summary>
 public static class Jbig2Generic
 {
     /// <summary>Template 0's adaptive pixels at T.88's nominal places: (3, −1), (−3, −1), (2, −2), (−2, −2).</summary>
     private static readonly sbyte[] Adaptive = [3, -1, -3, -1, 2, -2, -2, -2];
-
-    /// <summary>The context typical prediction's "same row" decision is coded in, for template 0 (T.88 §6.2.5.7).</summary>
-    private const int SltpContext = 0x9B25;
 
     /// <summary>The image as PDF's /JBIG2Decode stream data (embedded organisation, no globals).</summary>
     public static byte[] Encode(BitImage image, CancellationToken cancel = default)
@@ -34,7 +32,7 @@ public static class Jbig2Generic
         BinaryPrimitives.WriteInt32BigEndian(head, image.Width);
         BinaryPrimitives.WriteInt32BigEndian(head.AsSpan(4), image.Height);
         // x and y 0, combination operator OR (the page is white beneath)
-        head[17] = 0b0000_1000; // MMR 0, GBTEMPLATE 0, TPGDON 1
+        head[17] = 0; // MMR 0, GBTEMPLATE 0, TPGDON 0
         for (var i = 0; i < 8; i++) head[18 + i] = (byte)Adaptive[i];
         Segment(ms, 1, 38, [.. head, .. region]);
         return ms.ToArray();
@@ -62,7 +60,6 @@ public static class Jbig2Generic
         // Three rows of 0/1 bytes: two above and the row coded.
         var rows = new[] { new byte[rowLength], new byte[rowLength], new byte[rowLength] };
         var coder = new MqEncoder(Math.Max(64, image.Bits.Length / 16));
-        var ltp = false;
         for (var y = 0; y < height; y++)
         {
             if ((y & 63) == 0) cancel.ThrowIfCancellationRequested();
@@ -72,24 +69,18 @@ public static class Jbig2Generic
             var start = y * stride;
             for (var x = 0; x < width; x++) line[pad + x] = (byte)((image.Bits[start + (x >> 3)] >> (7 - (x & 7))) & 1);
 
-            var same = line.AsSpan().SequenceEqual(up1);
-            coder.Encode(same != ltp ? 1 : 0, SltpContext);
-            ltp = same;
-            if (!same)
+            // The context as T.88's Figure 3 numbers it: bits 0-3 this row's x−1 to x−4; bits 4-10 the row above's x+3 (A1)
+            // to x−3 (A2); bits 11-15 the row two above's x+2 (A3) to x−2 (A4). Each part is a window slid one pixel right
+            // per pixel, the newest pixel coming in at its low bit.
+            int left = 0, above = 0, above2 = 0;
+            for (var i = pad - 3; i < pad; i++) above = (above << 1) | up1[i + 3];
+            for (var i = pad - 2; i < pad; i++) above2 = (above2 << 1) | up2[i + 2];
+            for (var i = pad; i < pad + width; i++)
             {
-                // The context as T.88's Figure 3 numbers it: bits 0-3 this row's x−1 to x−4; bits 4-10 the row above's x+3 (A1)
-                // to x−3 (A2); bits 11-15 the row two above's x+2 (A3) to x−2 (A4). Each part is a window slid one pixel
-                // right per pixel, the newest pixel coming in at its low bit.
-                int left = 0, above = 0, above2 = 0;
-                for (var i = pad - 3; i < pad; i++) above = (above << 1) | up1[i + 3];
-                for (var i = pad - 2; i < pad; i++) above2 = (above2 << 1) | up2[i + 2];
-                for (var i = pad; i < pad + width; i++)
-                {
-                    above = ((above << 1) | up1[i + 3]) & 0x7F;
-                    above2 = ((above2 << 1) | up2[i + 2]) & 0x1F;
-                    coder.Encode(line[i], left | above << 4 | above2 << 11);
-                    left = ((left << 1) | line[i]) & 0xF;
-                }
+                above = ((above << 1) | up1[i + 3]) & 0x7F;
+                above2 = ((above2 << 1) | up2[i + 2]) & 0x1F;
+                coder.Encode(line[i], left | above << 4 | above2 << 11);
+                left = ((left << 1) | line[i]) & 0xF;
             }
             rows[0] = up1;
             rows[1] = line;

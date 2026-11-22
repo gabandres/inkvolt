@@ -62,7 +62,7 @@ public class Jbig2RenderTests(ITestOutputHelper output)
     [Fact]
     public void RowsLikeTheOneAboveAndBlankPagesComeBackToo()
     {
-        // Typical prediction: runs of rows equal to the one above (blank, and repeated ink), on and off.
+        // Runs of rows equal to the one above (blank, and repeated ink), on and off.
         var (w, h) = (200, 120);
         var stride = (w + 7) / 8;
         var bits = new byte[stride * h];
