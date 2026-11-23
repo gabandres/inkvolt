@@ -191,6 +191,22 @@ mac/InkvoltPrintKit --build-system native`.
   Report a Problem's details, recordings, export columns, protocol and parser errors. Not checked: a Mac whose macOS is
   in Spanish, the UI on screen in Spanish.
 
+### Wave 4 (print/ROADMAP.md): what differs and what's left, per item
+
+Ported test-first from the .NET tests (same names in lower camel case); PrintCore on the PC, the app on `buildmac`.
+
+- **4.1 Two-sided scanning on a one-sided feeder.** PrintCore `TurnedStack` (`TurnedStackTests`), the preset's
+  `turnStack` (Windows' field name `TurnStack`), `PresetPlan.turnStack` (`turnsStacks:`, Inkvolt PDF's Scan leaves it off),
+  `ScanChoices.offersTurnStack`; the review's pairing is `ScanPages.pair`/`unpair` with `StackScan` (Windows keeps it in its
+  view model; `aTurnedStacksPagesPairAndUndoInTheReview` is Mac only). The question is an `NSAlert` (Scan the Backs / Only
+  the Fronts); `--report … --turn-stack` answers it yes. **Mac differences:** a negative count reads as none and
+  `separatorBacks` answers nil for flags that don't fit (Windows throws); only patch code sheets are separator sheets (no QR
+  or barcode sheets on the Mac yet); a scan stopped during the backs keeps them in order, as Windows does, but a preset then
+  doesn't save by itself (Windows saves); the review's Undo, which held only clean ups, now also takes the stack's order and
+  Backs in the Other Order back (each one step, as Windows), still not turns, crops or moves by hand; the demo's stack comes
+  from the USB demo laser (`DemoScanDevice`, a one-sided feeder; the eSCL demo inkjet's feeder scans both sides). Not
+  checked: a real one-sided feeder, either kind of output tray, the alert and the button on screen, VoiceOver.
+
 ## Mac differences
 
 - Numbers from outside that become an Int: Swift's `Int(x)` traps on NaN, infinity or a value out of range

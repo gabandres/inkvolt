@@ -14,7 +14,9 @@ public enum DemoScanPage {
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return [] }
         context.setFillColor(CGColor(red: 0.985, green: 0.98, blue: 0.97, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: w, height: h))
-        if page == DemoScan.separatorSheet {
+        if DemoScan.reportPages.contains(page) {
+            reportPage(page - DemoScan.reportPage(0), upsideDown: DemoScan.isUpsideDown(page), context, w, h)
+        } else if page == DemoScan.separatorSheet {
             separatorSheet(context, w, h)
         } else if page == DemoScan.photos {
             photos(context, w, h)
@@ -84,6 +86,39 @@ public enum DemoScanPage {
         }
     }
 
+    /// Page `number` of a short report of made-up prose (the Windows demo's `TextPage`), turned over when `upsideDown` (a
+    /// sheet fed the wrong way up): a heading, paragraphs of serif text and the page's number large enough to read on a
+    /// thumbnail. Never a real scan.
+    private static func reportPage(_ number: Int, upsideDown: Bool, _ context: CGContext, _ w: Int, _ h: Int) {
+        let words = ["the", "quarterly", "report", "shows", "steady", "growth", "in", "every", "region", "with", "higher", "sales", "of",
+                     "paper", "toner", "and", "ink", "while", "shipping", "costs", "fell", "slightly", "during", "the", "spring", "months",
+                     "before", "rising", "again", "in", "July", "our", "teams", "kept", "delivery", "times", "short", "and", "customers",
+                     "told", "us", "they", "liked"]
+        if upsideDown {
+            context.translateBy(x: CGFloat(w), y: CGFloat(h))
+            context.rotate(by: .pi)
+        }
+        let scale = CGFloat(w) / 1275 // laid out for letter at 150 pixels per inch
+        let top = CGFloat(h)
+        draw("Quarterly report, page \(number)", size: 30 * scale, bold: true, at: CGPoint(x: 120 * scale, y: top - 140 * scale), context)
+        var seed = UInt64(number) &* 7919
+        func next(_ n: Int) -> Int { // a small fixed generator: the same page every time
+            seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            return Int((seed >> 33) % UInt64(n))
+        }
+        var y = 190 * scale
+        for line in 0..<38 {
+            defer { y += 32 * scale }
+            if line % 9 == 8 { y += 18 * scale; continue } // a gap between paragraphs
+            var text = ""
+            while text.count < (line % 9 == 7 ? 40 : 78) { text += words[next(words.count)] + " " }
+            let sentence = text.trimmingCharacters(in: .whitespaces)
+            draw(sentence.prefix(1).uppercased() + sentence.dropFirst() + ".", size: 17 * scale, bold: false, font: "Georgia",
+                 at: CGPoint(x: 120 * scale, y: top - y - 17 * scale), context)
+        }
+        draw("\(number)", size: 150 * scale, bold: true, at: CGPoint(x: CGFloat(w) - 260 * scale, y: top - 1440 * scale), context)
+    }
+
     /// The demo lid's grey.
     static let lidLevel: CGFloat = 0.72
 
@@ -114,8 +149,8 @@ public enum DemoScanPage {
         }
     }
 
-    private static func draw(_ text: String, size: CGFloat, bold: Bool, at point: CGPoint, _ context: CGContext) {
-        let font = CTFontCreateWithName((bold ? "Helvetica-Bold" : "Helvetica") as CFString, size, nil)
+    private static func draw(_ text: String, size: CGFloat, bold: Bool, font name: String = "Helvetica", at point: CGPoint, _ context: CGContext) {
+        let font = CTFontCreateWithName((bold ? name + "-Bold" : name) as CFString, size, nil)
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: [
             NSAttributedString.Key(kCTFontAttributeName as String): font,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: 0.12, alpha: 1),

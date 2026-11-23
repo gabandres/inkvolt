@@ -163,9 +163,10 @@ printers on Windows' IPP class driver, which lacks the makers' extras: 4.2 and 4
 merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 
 - **Batch A (a pile of paper):**
-  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows: fronts, the stack turned over, backs, pages put in
+  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows and Mac: fronts, the stack turned over, backs, pages put in
     order, the other order one click away, counts that differ said; a preset option (README, "Two-sided on a one-sided
-    feeder"; `TurnedStack`). **Next:** a person with a one-sided feeder to try both tray kinds; the Mac half waits for the new Mac.
+    feeder"; `TurnedStack`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person with a one-sided feeder to try
+    both tray kinds, on Windows and on a Mac.
   - **4.3 Pages turned upright on their own.** Done on Windows: sideways and upside down, only when sure, on by default
     (every corpus page each way round), one Undo step (`PageUpright`). **Next:** real feeder scans, and pages in scripts it
     leaves alone; the Mac half waits.

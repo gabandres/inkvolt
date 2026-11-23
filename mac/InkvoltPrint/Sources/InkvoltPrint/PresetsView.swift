@@ -131,6 +131,10 @@ private struct PresetEditor: View {
                     Text("Feeder").tag(PresetSource.feeder)
                 }
                 Toggle("Both sides (feeder)", isOn: $preset.twoSided).disabled(preset.source == .glass)
+                if preset.twoSided && preset.source != .glass {
+                    Toggle("On a one-sided feeder, turn the stack over for the backs", isOn: $preset.turnStack)
+                        .help("Asks you to turn the stack over after the fronts, then puts the pages in order")
+                }
                 Toggle("Color", isOn: $preset.color)
                 Picker("Resolution", selection: $preset.resolution) { ForEach([150, 200, 300, 600], id: \.self) { Text("\($0) dpi").tag($0) } }
                 Picker("Size", selection: $preset.pageSize) {

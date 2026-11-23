@@ -57,6 +57,7 @@ enum Report {
             }
             if model.isDemo && args.contains("--scan") { cancelled += await scanCheck(model) }
             if model.isDemo && args.contains("--batch") { cancelled += await batchCheck(model) }
+            if model.isDemo && args.contains("--turn-stack") { cancelled += await turnStackCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }

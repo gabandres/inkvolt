@@ -467,6 +467,16 @@
         }
       }
     },
+    "%lld fronts but %lld backs: a sheet may have gone through twice or been left behind. The backs were matched from the last sheet: check the order and drag any page that's out of place, or click Undo to put the backs after the fronts.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld anversos pero %lld reversos: puede que una hoja pasara dos veces o se quedara atrás. Los reversos se emparejaron desde la última hoja: revisa el orden y arrastra la página que esté fuera de lugar, o haz clic en Deshacer para poner los reversos después de los anversos."
+          }
+        }
+      }
+    },
     "%lld jobs from other people stay in the queue.": {
       "localizations": {
         "es": {
@@ -1140,6 +1150,16 @@
         }
       }
     },
+    "Asks you to turn the stack over after the fronts, then puts the pages in order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Te pide dar la vuelta a la pila después de los anversos y luego pone las páginas en orden"
+          }
+        }
+      }
+    },
     "Attach to a new email": {
       "localizations": {
         "es": {
@@ -1196,6 +1216,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Reverso: da la vuelta a la tarjeta"
+          }
+        }
+      }
+    },
+    "Backs in the Other Order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversos en el otro orden"
           }
         }
       }
@@ -1276,6 +1306,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las dos caras están en una hoja, a tamaño real. Vuelve a imprimir o empieza de nuevo con otra tarjeta."
+          }
+        }
+      }
+    },
+    "Both sides: turn the stack over": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambas caras: dar la vuelta a la pila"
           }
         }
       }
@@ -2346,6 +2386,16 @@
         }
       }
     },
+    "For a scanner whose output tray reverses the stack: matches the backs to the fronts the other way round. Undo puts them back.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para un escáner cuya bandeja de salida invierte la pila: empareja los reversos con los anversos al revés. Deshacer los deja como estaban."
+          }
+        }
+      }
+    },
     "For files added:": {
       "localizations": {
         "es": {
@@ -2392,6 +2442,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frente"
+          }
+        }
+      }
+    },
+    "Fronts and backs are in page order.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los anversos y los reversos están en orden de página."
+          }
+        }
+      }
+    },
+    "Fronts scanned: %lld page.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos escaneados: %lld página."
+          }
+        }
+      }
+    },
+    "Fronts scanned: %lld pages.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos escaneados: %lld páginas."
           }
         }
       }
@@ -3254,6 +3334,16 @@
         }
       }
     },
+    "On a one-sided feeder, turn the stack over for the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En un alimentador de una cara, dar la vuelta a la pila para los reversos"
+          }
+        }
+      }
+    },
     "On your network": {
       "localizations": {
         "es": {
@@ -3330,6 +3420,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un restablecimiento o una nueva tarjeta de red le dio un nuevo ID. Si no, es otro dispositivo que tomó la dirección de la impresora."
+          }
+        }
+      }
+    },
+    "Only the Fronts": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo los anversos"
+          }
+        }
+      }
+    },
+    "Only the fronts were scanned.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se escanearon los anversos."
           }
         }
       }
@@ -3876,12 +3986,32 @@
         }
       }
     },
+    "Put the backs in the other order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner los reversos en el otro orden"
+          }
+        }
+      }
+    },
     "Put the card face down in the corner of the scanner glass (by the arrow mark), then click Scan Front. You'll turn it over halfway.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Coloca la tarjeta boca abajo en la esquina del cristal del escáner (junto a la flecha) y haz clic en Escanear frente. A mitad tendrás que darle la vuelta."
+          }
+        }
+      }
+    },
+    "Put the fronts and backs in order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordenar los anversos y los reversos"
           }
         }
       }
@@ -4544,6 +4674,16 @@
         }
       }
     },
+    "Scan the Backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear los reversos"
+          }
+        }
+      }
+    },
     "Scan with %@": {
       "localizations": {
         "es": {
@@ -4590,6 +4730,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escaneando desde el alimentador…"
+          }
+        }
+      }
+    },
+    "Scanning the backs was stopped: the pages scanned are in order.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se detuvo el escaneo de los reversos: las páginas escaneadas están en orden."
+          }
+        }
+      }
+    },
+    "Scanning the backs…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneando los reversos…"
           }
         }
       }
@@ -5156,6 +5316,36 @@
         }
       }
     },
+    "The backs are matched from the last sheet again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos vuelven a emparejarse desde la última hoja."
+          }
+        }
+      }
+    },
+    "The backs are now matched from the first sheet. Undo puts them back.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora los reversos se emparejan desde la primera hoja. Deshacer los deja como estaban."
+          }
+        }
+      }
+    },
+    "The backs couldn't be scanned: %@ The fronts are kept.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron escanear los reversos: %@ Los anversos se conservan."
+          }
+        }
+      }
+    },
     "The copy couldn't be prepared for printing.": {
       "localizations": {
         "es": {
@@ -5166,12 +5356,52 @@
         }
       }
     },
+    "The feeder sent no backs, so only %lld front is here.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El alimentador no envió reversos, así que solo hay %lld anverso."
+          }
+        }
+      }
+    },
+    "The feeder sent no backs, so only the %lld fronts are here.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El alimentador no envió reversos, así que solo hay %lld anversos."
+          }
+        }
+      }
+    },
     "The first page is on its way.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "La primera página está en camino."
+          }
+        }
+      }
+    },
+    "The front of %lld sheet is scanned. Take it out of the output tray, turn it over like a page of a book, put it back in the feeder and click Scan the Backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se escaneó el anverso de %lld hoja. Sácala de la bandeja de salida, dale la vuelta como a la página de un libro, vuelve a ponerla en el alimentador y haz clic en Escanear los reversos."
+          }
+        }
+      }
+    },
+    "The fronts of %lld sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and click Scan the Backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se escanearon los anversos de %lld hojas. Saca la pila de la bandeja de salida, dale la vuelta como a la página de un libro sin ordenarla, vuelve a ponerla en el alimentador y haz clic en Escanear los reversos."
           }
         }
       }
@@ -5540,6 +5770,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esto no la quita de macOS. Vuelve a aparecer si se configura de nuevo en macOS."
+          }
+        }
+      }
+    },
+    "This feeder scans one side: the fronts, then the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este alimentador escanea una cara: los anversos y luego los reversos"
           }
         }
       }
@@ -6192,6 +6432,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "la impresora"
+          }
+        }
+      }
+    },
+    "the scanner stopped answering.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el escáner dejó de responder."
           }
         }
       }

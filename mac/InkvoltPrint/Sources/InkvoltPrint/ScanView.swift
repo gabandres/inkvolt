@@ -126,6 +126,10 @@ private struct ScanSettings: View {
                 Toggle("Several photos on the glass", isOn: $scan.findPhotos)
                     .help("Each photo laid on the glass is found and saved as its own picture, cut out straight")
             } else {
+                if scan.offersTurnStack {
+                    Toggle("Both sides: turn the stack over", isOn: $scan.turnStack)
+                        .help("This feeder scans one side: the fronts, then the backs")
+                }
                 Picker("Split into files at", selection: $scan.splitAt) {
                     ForEach(SplitAt.known, id: \.self) { Text(Separators.label($0)).tag($0) }
                 }
@@ -390,6 +394,10 @@ private struct SaveBar: View {
                     .help(scan.savedPdfs.count == 1 ? String(localized: "Open the PDF just saved in Inkvolt PDF") : String(localized: "Open the PDFs just saved in Inkvolt PDF"))
             }
             Spacer()
+            if scan.canSwapBacks {
+                Button("Backs in the Other Order") { scan.swapBacks() }
+                    .help("For a scanner whose output tray reverses the stack: matches the backs to the fronts the other way round. Undo puts them back.")
+            }
             if let name = scan.undoName, scan.canUndo {
                 Button("Undo") { scan.undo() }.help("Undo: \(name.lowercased())")
             }

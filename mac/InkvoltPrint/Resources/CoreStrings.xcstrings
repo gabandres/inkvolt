@@ -9120,6 +9120,17 @@
         }
       }
     },
+    "the stack turned over for the backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "dando la vuelta a la pila para los reversos"
+          }
+        }
+      }
+    },
     "then {0}": {
       "extractionState": "manual",
       "localizations": {

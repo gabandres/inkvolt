@@ -6,6 +6,7 @@ versión ya tiene esa localización en App Store Connect). Los mismos encabezado
 línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su español (`PdfStringsTests` lo comprueba).
 
 ## Next
+- Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

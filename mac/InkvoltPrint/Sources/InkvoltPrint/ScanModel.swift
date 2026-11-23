@@ -64,6 +64,10 @@ final class ScanModel {
     var findPhotos: Bool {
         didSet { UserDefaults.standard.set(findPhotos, forKey: "scanFindPhotos") }
     }
+    /// The feeder scans one side: both sides by turning the stack over for the backs (`TurnedStack`, roadmap 4.1).
+    var turnStack: Bool {
+        didSet { UserDefaults.standard.set(turnStack, forKey: "scanTurnStack") }
+    }
     /// The tab's clean up (Scan settings › Clean up): what each scanned page gets (a preset has its own), each to be changed
     /// on a page in the review. Stored as Windows' number.
     var cleanup: PageFilters {
@@ -83,8 +87,13 @@ final class ScanModel {
     private(set) var problem: String?
     /// The PDFs the last save wrote (a batch: one per file), for the save bar's Open in Inkvolt PDF.
     private(set) var savedPdfs: [URL] = []
-    /// The review's Undo of a clean up: a scan's by its settings, the Clean up view's Done or All Pages, each one step.
+    /// The review's Undo: a scan's clean up by its settings, the Clean up view's Done or All Pages, a turned stack put in
+    /// order or its backs swapped, each one step.
     private(set) var undoSteps: [UndoStep] = []
+    /// The last scan's turned stack, while its backs can be put the other way (until the next scan or Clear).
+    var stack: StackScan?
+    /// What the turned stack's question answers instead of asking (`--report`); nil: the alert asks.
+    @ObservationIgnored var answerTurnStack: (@MainActor (Int) -> Bool)?
 
     @ObservationIgnored private var images: [String: [UInt8]] = [:]
     /// The scanner's PDF each page came from, for a scanner that sends only PDF (roadmap 1.3, `ScannerPdf.origin`).
@@ -106,6 +115,7 @@ final class ScanModel {
         splitAt = split.isKnown ? split : .none
         keepSeparators = d.bool(forKey: "scanKeepSeparators")
         findPhotos = d.bool(forKey: "scanFindPhotos")
+        turnStack = d.bool(forKey: "scanTurnStack")
         cleanup = PageFilters(rawValue: d.integer(forKey: "scanCleanup")).intersection(.all)
         ocrLanguage = d.string(forKey: "scanOcrLanguage")
         sizeKey = Locale.current.measurementSystem == .metric ? "a4" : "letter"
@@ -117,6 +127,8 @@ final class ScanModel {
     var colors: [ScanColor] { caps.map { ScanChoices.colors($0, source) } ?? [.color] }
     var resolutions: [Int] { caps.map { ScanChoices.resolutions($0, source) } ?? ScanChoices.documentResolutions }
     var sizes: [ScanPageSize] { caps.map { ScanChoices.pageSizes($0, source) } ?? ScanChoices.pageSizes }
+    /// The feeder is chosen and scans one side only: the tab offers `turnStack`.
+    var offersTurnStack: Bool { caps.map { ScanChoices.offersTurnStack($0, source) } ?? false }
 
     /// Reads what the scanner offers (once connected).
     func load() async {
@@ -152,7 +164,7 @@ final class ScanModel {
     func scan(with p: ScanPreset) async {
         if caps == nil { await load() }
         guard let caps, !isScanning else { return }
-        let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric)
+        let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric, turnsStacks: true)
         source = plan.request.source
         color = plan.request.color
         dpi = plan.request.resolution
@@ -163,18 +175,20 @@ final class ScanModel {
         // The preset's checks are its own: the tab's settings stay as the user set them.
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
                               findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage)
-        scan(check: check, keepSeparators: p.keepSeparators) {
+        scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
         }
     }
 
-    /// Scans with the tab's settings, or a preset's `check` and `keepSeparators`. Batches come from the feeder only, photos
-    /// from the glass only.
-    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, then finished: (@MainActor () async -> Void)? = nil) {
+    /// Scans with the tab's settings, or a preset's `check`, `keepSeparators` and `turnStack`. Batches come from the feeder
+    /// only, photos from the glass only; a turned stack (`TurnedStack`) only from a feeder that scans one side.
+    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, turnStack turnGiven: Bool? = nil,
+              then finished: (@MainActor () async -> Void)? = nil) {
         guard !isScanning else { return }
         problem = nil
         isScanning = true
+        stack = nil // "Backs in the Other Order" is for the last turned stack only
         status = source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…")
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
@@ -182,9 +196,11 @@ final class ScanModel {
         if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
         let check = c, split = c.splitAt, photos = c.findPhotos
         let duplex = source == .adfDuplex
+        let turning = (turnGiven ?? turnStack) && offersTurnStack
         if pages.isEmpty || split != .none { pages.keepSeparators = keepGiven ?? keepSeparators } // the batch's setting when it was scanned
         if app.isDemo {
-            Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper))
+            Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper),
+                                   turnedStack: turning ? .fronts : nil)
         }
         let widthIn300ths = request.width ?? caps?.input(for: source)?.maxWidth
         scanning = Task {
@@ -200,14 +216,55 @@ final class ScanModel {
             var count = 0
             var added: [String] = []
             var failure: (any Error)?
-            do {
+            var sides: [[String]] = [[], []] // a turned stack's fronts, then its backs
+            var side = 0
+            @MainActor func pass() async throws {
                 for try await jpeg in scanner.scan(request) {
                     count += 1
                     status = count == 1 ? String(localized: "Scanned \(count) page…") : String(localized: "Scanned \(count) pages…")
-                    added.append(await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check))
+                    let id = await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check)
+                    added.append(id)
+                    sides[side].append(id)
                 }
+                if Task.isCancelled { throw CancellationError() } // the stream ends quietly when the task is stopped
+            }
+            do {
+                try await pass()
             } catch {
                 failure = error
+            }
+            // Both sides on a one-sided feeder: the backs once the stack is turned over, then every page in its place.
+            var stackNote = ""
+            var backsStopped = false
+            if turning && failure == nil && !sides[0].isEmpty {
+                let fronts = sides[0].count
+                status = fronts == 1 ? String(localized: "Fronts scanned: \(fronts) page.") : String(localized: "Fronts scanned: \(fronts) pages.")
+                if await askTurnStack(fronts) {
+                    if app.isDemo { Demo.scanSetup.prepare(feederBatch: split != .none, photosOnGlass: false, turnedStack: .backs) }
+                    status = String(localized: "Scanning the backs…")
+                    side = 1
+                    do {
+                        try await pass()
+                    } catch is CancellationError {
+                        // Stopped part-way: the backs scanned so far are put in order like any others, and that is said.
+                        stackNote = String(localized: "Scanning the backs was stopped: the pages scanned are in order.")
+                        backsStopped = true
+                    } catch {
+                        // The fronts are kept: what went wrong with the backs is said, and they can be scanned again by hand.
+                        let why = (error as? ScanError)?.description ?? String(localized: "the scanner stopped answering.")
+                        stackNote = String(localized: "The backs couldn't be scanned: \(why) The fronts are kept.")
+                    }
+                    await checksLanded()
+                    let backs = sides[1]
+                    if !backs.isEmpty { putStackInOrder(fronts: sides[0], backs: backs) } // with each separator sheet's other side
+                    let counts = fronts == backs.count ? String(localized: "Fronts and backs are in page order.")
+                        : backs.isEmpty ? (fronts == 1 ? String(localized: "The feeder sent no backs, so only \(fronts) front is here.")
+                                            : String(localized: "The feeder sent no backs, so only the \(fronts) fronts are here."))
+                        : String(localized: "\(fronts) fronts but \(backs.count) backs: a sheet may have gone through twice or been left behind. The backs were matched from the last sheet: check the order and drag any page that's out of place, or click Undo to put the backs after the fronts.")
+                    stackNote = stackNote.isEmpty ? counts : !backs.isEmpty && fronts != backs.count ? stackNote + " " + counts : stackNote
+                } else {
+                    stackNote = String(localized: "Only the fronts were scanned.")
+                }
             }
             // Every page check lands (blank pages skipped, separators found, pages cleaned up) before the scan's clean up
             // becomes its step of Undo and a preset saves, as Windows waits for them all; a stopped scan's pages too.
@@ -217,9 +274,10 @@ final class ScanModel {
             let cleaned = recordCleanup(added, check.cleanup)
             switch failure {
             case nil:
-                let found = notes(added, split: split, photos: photos, duplex: duplex) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
+                let found = (stackNote.isEmpty ? [] : [stackNote]) + notes(added, split: split, photos: photos, duplex: duplex || stack != nil)
+                    + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
                 status = count == 0 ? String(localized: "No pages came from the scanner.") : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
-                await finished?()
+                if !backsStopped { await finished?() } // stopped: the pages stay for a look, not saved by a preset
             case is CancellationError:
                 status = String(localized: "Scan stopped.")
             case let e as ScanError:
@@ -419,14 +477,74 @@ final class ScanModel {
     func keepPage(_ id: String) { change(id) { $0.keep(id) } }
     func skipPage(_ id: String) { change(id) { $0.skip(id) } }
 
+    // MARK: A turned stack (roadmap 4.1)
+
+    /// Asks for the stack to be turned over once its `fronts` are scanned (the Windows app's question, a modal alert);
+    /// false: only the fronts.
+    private func askTurnStack(_ fronts: Int) async -> Bool {
+        if let answerTurnStack { return answerTurnStack(fronts) }
+        let alert = NSAlert()
+        alert.messageText = fronts == 1 ? String(localized: "Fronts scanned: \(fronts) page.") : String(localized: "Fronts scanned: \(fronts) pages.")
+        alert.informativeText = fronts == 1
+            ? String(localized: "The front of \(fronts) sheet is scanned. Take it out of the output tray, turn it over like a page of a book, put it back in the feeder and click Scan the Backs.")
+            : String(localized: "The fronts of \(fronts) sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and click Scan the Backs.")
+        alert.addButton(withTitle: String(localized: "Scan the Backs"))
+        alert.addButton(withTitle: String(localized: "Only the Fronts"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// A turned stack's fronts and backs put in page order (backs last sheet first), each separator sheet's other side with
+    /// it; one step of Undo puts them back as scanned.
+    private func putStackInOrder(fronts: [String], backs: [String]) {
+        var scanned = StackScan(fronts: fronts, backs: backs)
+        pages.pair(&scanned, reversed: TurnedStack.backsReversed)
+        stack = scanned
+        let ids = fronts + backs, first = scanned
+        recordUndo(String(localized: "Put the fronts and backs in order")) { model in
+            // A later scan let this stack go: its pairing is still the first one (Undo takes a swap back before this).
+            var now = model.stack.flatMap { $0.fronts == fronts && $0.backs == backs ? $0 : nil } ?? first
+            model.pages.unpair(&now)
+            if model.stack?.fronts == fronts { model.stack = nil }
+            return ids
+        }
+    }
+
+    /// "Backs in the Other Order" can run: there's a turned stack and nothing is scanning or saving.
+    var canSwapBacks: Bool { stack != nil && !isScanning && !isSaving }
+
+    /// The backs matched the other way round (a scanner whose output tray reverses the stack): first sheet first, or back to
+    /// last sheet first; one step of Undo.
+    func swapBacks() {
+        guard canSwapBacks, var scanned = stack else { return }
+        savedParts.clear()
+        let before = pages.pages.map(\.id)
+        let was = scanned.reversed
+        // The sheets pair differently now: each separator sheet's other side is found again (the old marks put back).
+        pages.pair(&scanned, reversed: !was)
+        stack = scanned
+        keep()
+        let ids = stack.map { $0.fronts + $0.backs } ?? []
+        for id in ids { refreshThumbnail(id) }
+        recordUndo(String(localized: "Put the backs in the other order")) { model in
+            if var now = model.stack {
+                model.pages.pair(&now, reversed: was)
+                model.stack = now
+            }
+            model.pages.reorder(before)
+            return ids
+        }
+        status = was ? String(localized: "The backs are now matched from the first sheet. Undo puts them back.")
+            : String(localized: "The backs are matched from the last sheet again.")
+    }
+
     // MARK: Clean up (roadmap 2.3)
 
-    /// One step of the review's Undo: each page's edits before a clean up and right after it (what of its crop and filters
-    /// is still as the clean up left it goes back, `ScanPages.restoreCleanup`).
+    /// One step of the review's Undo: a clean up (each page's edits before it and right after it: what of its crop and filters
+    /// is still as the clean up left it goes back, `ScanPages.restoreCleanup`), a turned stack put in order or its backs
+    /// swapped, pages turned upright; `undo` puts it back and returns the pages whose thumbnails change.
     struct UndoStep {
         var name: String
-        var before: [String: PageEdits]
-        var after: [String: PageEdits]
+        var undo: @MainActor (ScanModel) -> [String]
     }
 
     /// Counts every change to the steps of Undo: Edit › Undo is registered again on each, even when two steps share a name.
@@ -438,20 +556,27 @@ final class ScanModel {
     /// Undo can run: there's a step, and no scan or save is under way (Windows' `CanUndo`, not while busy).
     var canUndo: Bool { !undoSteps.isEmpty && !isSaving && !isScanning }
 
-    /// Undoes the last clean up.
+    /// Undoes the last step.
     func undo() {
         guard canUndo, let step = undoSteps.popLast() else { return }
         undoChanges += 1
         savedParts.clear()
-        pages.restoreCleanup(step.before, after: step.after)
+        let changed = step.undo(self)
         keep()
-        for id in step.before.keys { refreshThumbnail(id) }
+        for id in changed { refreshThumbnail(id) }
         status = "Undone: \(step.name.prefix(1).lowercased() + step.name.dropFirst())."
     }
 
     private func recordUndo(_ name: String, _ before: [String: PageEdits], after: [String: PageEdits]) {
         guard !before.isEmpty else { return }
-        undoSteps.append(UndoStep(name: name, before: before, after: after))
+        recordUndo(name) { model in
+            model.pages.restoreCleanup(before, after: after)
+            return Array(before.keys)
+        }
+    }
+
+    private func recordUndo(_ name: String, _ undo: @escaping @MainActor (ScanModel) -> [String]) {
+        undoSteps.append(UndoStep(name: name, undo: undo))
         undoChanges += 1
     }
 
@@ -603,6 +728,7 @@ final class ScanModel {
     /// Drops every page (after saving them, or when the user starts over).
     func clear() {
         preset = nil
+        stack = nil
         savedParts.clear()
         pages = ScanPages()
         images = [:]

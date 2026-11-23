@@ -61,6 +61,10 @@ public struct ScanPreset: Equatable, Sendable, Codable {
 
     /// Both sides of each page, when the feeder is used and can.
     public var twoSided = false
+
+    /// With `twoSided`, on a feeder that scans one side: the fronts, then the stack turned over for the backs, put in order
+    /// (`TurnedStack`). Off: one side only, as before.
+    public var turnStack = false
     public var color = true
     public var resolution = 300
 
@@ -115,7 +119,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         init?(intValue: Int) { nil }
     }
 
-    private static let names = ["Id", "Name", "Source", "TwoSided", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten",
+    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten",
                                 "Cleanup", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
@@ -125,6 +129,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         name = get("Name", "")
         source = get("Source", .auto)
         twoSided = get("TwoSided", false)
+        turnStack = get("TurnStack", false)
         color = get("Color", true)
         resolution = get("Resolution", 300)
         pageSize = get("PageSize", nil as String?)
@@ -154,6 +159,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(name, forKey: Key("Name"))
         try c.encode(source, forKey: Key("Source"))
         try c.encode(twoSided, forKey: Key("TwoSided"))
+        try c.encode(turnStack, forKey: Key("TurnStack"))
         try c.encode(color, forKey: Key("Color"))
         try c.encode(resolution, forKey: Key("Resolution"))
         try c.encode(pageSize, forKey: Key("PageSize"))
@@ -436,6 +442,7 @@ public enum ScanPresetText {
     /// "Searchable PDF · feeder or glass · grey, 300 dpi · Documents/Scans", plus the review step and what happens after saving.
     public static func summary(_ p: ScanPreset) -> String {
         var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), p.color ? loc("color, {0} dpi", p.resolution) : loc("grey, {0} dpi", p.resolution), folder(p)]
+        if p.twoSided && p.turnStack && p.source != .glass { parts.append(loc("the stack turned over for the backs")) }
         if p.splitAt != .none { parts.append(loc("a new file at each {0}", splitText(p.splitAt))) }
         if p.findPhotos { parts.append(loc("each photo on the glass by itself")) }
         let cleanup = PageCleanup.describe(p.cleanup)

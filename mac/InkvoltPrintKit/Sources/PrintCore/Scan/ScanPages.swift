@@ -72,6 +72,28 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     }
 }
 
+/// The last turned stack (roadmap 4.1): its fronts and backs as scanned, whether its backs are now matched last sheet first,
+/// and the pages that pairing made the other side of a separator sheet (`ScanPages.pair`).
+public struct StackScan: Equatable, Sendable {
+    public let fronts: [String]
+    public let backs: [String]
+    public var reversed = TurnedStack.backsReversed
+    public var marks: [SheetBackMark] = []
+
+    public init(fronts: [String], backs: [String]) {
+        self.fronts = fronts
+        self.backs = backs
+    }
+}
+
+/// A page made the other side of a separator sheet, with what it was before, to put back when the pairing changes.
+public struct SheetBackMark: Equatable, Sendable {
+    public let id: String
+    public let separator: SeparatorFound
+    public let edits: PageEdits
+    public let skipped: Bool
+}
+
 /// The scan review's pages (the Windows app's Scan tab list): pages join as they're scanned, the page check skips blank ones
 /// and straightens crooked ones (each when it's on), and the user turns, crops, deletes, reorders and keeps pages before
 /// saving. A value: the app keeps one per scanner and saves it to the recovery folder as it changes.
@@ -176,6 +198,61 @@ public struct ScanPages: Equatable, Sendable {
                 p.skipped = false
                 p.separator = SeparatorFound(.sheetBack)
                 p.edits = .none // not straightened: it isn't saved (unless separators are kept)
+            }
+        }
+    }
+
+    // MARK: A turned stack (roadmap 4.1)
+
+    /// A turned stack's fronts and backs put in page order (`TurnedStack.rearrange`) where they are now, each separator
+    /// sheet's other side marked again (`TurnedStack.separatorBacks`, the marks of the old pairing put back first).
+    public mutating func pair(_ stack: inout StackScan, reversed: Bool) {
+        unmark(stack.marks)
+        reorder(TurnedStack.rearrange(pages.map(\.id), stack.fronts, stack.backs, reversed: reversed))
+        stack.reversed = reversed
+        stack.marks = markSheetBacks(stack.fronts, stack.backs, reversed: reversed)
+    }
+
+    /// Undo of `pair`: the marks put back and the stack's pages as scanned (its fronts, then its backs) in their places.
+    public mutating func unpair(_ stack: inout StackScan) {
+        unmark(stack.marks)
+        stack.marks = []
+        reorder(TurnedStack.inPlaces(pages.map(\.id), stack.fronts + stack.backs))
+    }
+
+    /// The pages put in `order`'s order where they are now (`TurnedStack.inPlaces`): ids not here are passed over, pages it
+    /// doesn't name stay where they are.
+    public mutating func reorder(_ order: [String]) {
+        let byId = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        pages = TurnedStack.inPlaces(pages.map(\.id), order).compactMap { byId[$0] }
+    }
+
+    private mutating func markSheetBacks(_ fronts: [String], _ backs: [String], reversed: Bool) -> [SheetBackMark] {
+        let all = fronts + backs
+        let byId = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // A page the review deleted reads as no sheet and not blank: it is never marked.
+        let found = all.map { byId[$0] }
+        let sheet = found.map { $0?.separator.kind == .patchCode }
+        let blank = found.map { $0?.looksBlank ?? false }
+        var marks: [SheetBackMark] = []
+        for i in TurnedStack.separatorBacks(fronts.count, backs.count, reversed: reversed, sheet: sheet, blank: blank) ?? [] {
+            guard let page = found[i], !page.isSeparator else { continue }
+            marks.append(SheetBackMark(id: page.id, separator: page.separator, edits: page.edits, skipped: page.skipped))
+            update(page.id) { p in
+                p.skipped = false
+                p.separator = SeparatorFound(.sheetBack)
+                p.edits = .none // not straightened: it isn't saved (unless separators are kept)
+            }
+        }
+        return marks
+    }
+
+    private mutating func unmark(_ marks: [SheetBackMark]) {
+        for m in marks {
+            update(m.id) { p in
+                p.separator = m.separator
+                p.edits = m.edits
+                p.skipped = m.skipped
             }
         }
     }
