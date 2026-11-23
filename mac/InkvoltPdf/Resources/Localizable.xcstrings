@@ -22814,6 +22814,248 @@
           }
         }
       }
+    },
+    "Finding headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando títulos"
+          }
+        }
+      }
+    },
+    "No headings found": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontraron títulos"
+          }
+        }
+      }
+    },
+    "Headings are found from text set larger than the body text. This document has none, or its pages are scans without text: recognize the text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los títulos se reconocen por el texto más grande que el del cuerpo. Este documento no tiene ninguno, o sus páginas son escaneos sin texto: reconoce el texto primero."
+          }
+        }
+      }
+    },
+    "1 heading found. The bookmarks will be:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontró 1 título. Los marcadores serán:"
+          }
+        }
+      }
+    },
+    "{0} headings found. The bookmarks will be:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontraron {0} títulos. Los marcadores serán:"
+          }
+        }
+      }
+    },
+    "Bookmarks to make": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores que se crearán"
+          }
+        }
+      }
+    },
+    "All levels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todos los niveles"
+          }
+        }
+      }
+    },
+    "Level 1 only": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo el nivel 1"
+          }
+        }
+      }
+    },
+    "Levels 1 and 2": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niveles 1 y 2"
+          }
+        }
+      }
+    },
+    "Levels 1 to 3": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niveles 1 a 3"
+          }
+        }
+      }
+    },
+    "Heading levels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niveles de títulos"
+          }
+        }
+      }
+    },
+    "Headings:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Títulos:"
+          }
+        }
+      }
+    },
+    "Replace them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazarlos"
+          }
+        }
+      }
+    },
+    "Keep them and add these after": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conservarlos y agregar estos después"
+          }
+        }
+      }
+    },
+    "The document has 1 bookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento tiene 1 marcador"
+          }
+        }
+      }
+    },
+    "The document has {0} bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento tiene {0} marcadores"
+          }
+        }
+      }
+    },
+    "{0}  (page {1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}  (página {1})"
+          }
+        }
+      }
+    },
+    "No heading at these levels.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún título en estos niveles."
+          }
+        }
+      }
+    },
+    "Bookmarks from Headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores a partir de los títulos"
+          }
+        }
+      }
+    },
+    "Make Bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear marcadores"
+          }
+        }
+      }
+    },
+    "Bookmark 1 heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear 1 marcador a partir de un título"
+          }
+        }
+      }
+    },
+    "Bookmark {0} headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear {0} marcadores a partir de títulos"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

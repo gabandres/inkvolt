@@ -132,9 +132,9 @@ extension DocumentWindowController {
 /// Runs a closure when a pop-up (or any control) changes: for sheets built in code.
 @MainActor
 final class PopUpAction: NSObject {
-    private let run: () -> Void
+    private let run: @MainActor () -> Void
 
-    init(_ run: @escaping () -> Void) { self.run = run }
+    init(_ run: @escaping @MainActor () -> Void) { self.run = run }
 
     @objc func changed(_ sender: Any?) { run() }
 }

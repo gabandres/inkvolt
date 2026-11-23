@@ -6,7 +6,7 @@ import PrintCore
 /// `--only-paper` runs it alone): each through the menu bar's item (enabled, its sheet's edit run as the sheet runs it)
 /// and the edit the sheet makes, checked on the document, then undone so the next starts from the document as opened.
 /// Page Labels (4.14), Interleave Pages (4.3; Scan the Backs in `AppTest`, with the demo scanner), Remove Blank Pages and
-/// Split at Blank Pages (4.4). Only counts, labels and states are written.
+/// Split at Blank Pages (4.4), Bookmarks from Headings (4.5). Only counts, labels and states are written.
 @MainActor
 struct PaperTest {
     let controller: DocumentWindowController
@@ -68,6 +68,7 @@ struct PaperTest {
         await pageLabels()
         await interleave()
         await blankPages()
+        await headings()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         Report.note("paper commands took \(Int(Date().timeIntervalSince(started))) s")
@@ -148,5 +149,28 @@ struct PaperTest {
               && undoneInsert,
               "Remove Blank Pages… and Split at Blank Pages… (Pages menu): the blank page found (\(found?.pages ?? [])) and shown, removed as one step "
               + "and undone; split into \(parts.count) files of \(partPages) pages")
+    }
+
+    private func bookmarkCount() -> Int {
+        func count(_ tree: [Bookmark]) -> Int { tree.reduce(0) { $0 + 1 + count($1.children) } }
+        return count(session.flatMap { try? Bookmarks.read($0.data, $0.password) } ?? [])
+    }
+
+    /// Bookmarks from Headings…: the document's headings found (with the progress sheet) and made its bookmarks in place of
+    /// those it has, as one step, then undone; a document without headings is said to have none.
+    private mutating func headings() async {
+        let n = count
+        let menu = offered("Bookmarks from Headings…", "bookmarksFromHeadings:")
+        let before = bookmarkCount()
+        guard let found = await controller.findHeadings() else { return check(false, "Bookmarks from Headings…: the headings read") }
+        if found.headings.isEmpty {
+            return check(menu && found.existing == before, "Bookmarks from Headings… (Pages menu): this document has no headings, so none is offered")
+        }
+        let made = await controller.makeHeadingBookmarks(found.headings, replace: true, deepest: 6)
+        let after = bookmarkCount()
+        let named = session?.undoLabel == (found.headings.count == 1 ? loc("Bookmark 1 heading") : loc("Bookmark {0} headings", CoreLanguage.number(found.headings.count)))
+        let undone = await undo(n)
+        check(menu && made && named && after == found.headings.count && undone && bookmarkCount() == before,
+              "Bookmarks from Headings… (Pages menu): \(found.headings.count) headings made the bookmarks (\(before) before), undone")
     }
 }

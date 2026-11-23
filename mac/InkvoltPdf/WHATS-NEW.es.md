@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Marcadores a partir de los títulos… (menú Páginas, y el menú de la lista Marcadores): marcadores creados a partir de los títulos del documento, anidados por nivel y mostrados antes de crearlos. Reemplazan los marcadores o se agregan después.
 - Quitar páginas en blanco… (menú Páginas) encuentra las páginas que son casi solo papel, te las muestra para que desmarques las que quieras conservar y las elimina en un solo paso que Deshacer revierte. Dividir en las páginas en blanco… guarda las páginas que hay entre hojas separadoras en blanco como PDF separados. Las dos son también acciones de En lote.
 - Intercalar páginas… (menú Páginas): las hojas a doble cara escaneadas primero por un lado y luego por el otro vuelven a quedar en orden: anverso 1, reverso 1, anverso 2… Los reversos pueden ser páginas del mismo archivo o de otro PDF, en orden inverso (una pila a la que se le dio la vuelta) o no. Archivo › Escanear los reversos… escanea los reversos directamente en su lugar.
 - Etiquetas de página… (menú Páginas): numera las páginas i, ii, iii o I, II, A, B, a, b, 1, 2, 3, con un prefijo (A-1) y un primer número, para cualquier intervalo: un prólogo en números romanos y el cuerpo desde 1 en un solo paso. Ir a la página las acepta.

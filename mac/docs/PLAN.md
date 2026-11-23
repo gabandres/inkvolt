@@ -503,7 +503,7 @@ at under "What a person must look at" and in each section.
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
-| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions) | PageLabelEditTests, InterleaveTests, BlankPagesTests; BatchAutomationTests' preset round trip |
+| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests; BatchAutomationTests' preset round trip |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1677,6 +1677,13 @@ and undoes it.
   each with a "Page N" checkbox, in an alert with Delete them / Split the document at them. Batch's Bates numbers that
   continue go on from the pages stamped when blank pages are removed after (`batesPages`, Windows' `BatesPages`). The
   UX review's dialog shots don't open these two (the search comes first).
+- **4.5 Bookmarks from Headings…** (Pages menu, by Add Bookmark; the Bookmarks list's context menu, where Windows also has
+  a button in its pane): `HeadingBookmarks` over `DocLayout.analyzeForTags`, as Windows. Titles are cut at 200 UTF-16
+  units (.NET's `Length`) between characters as shown (Swift's `Character`s are grapheme clusters, so an emoji or a
+  letter with its accent is never split). The headings are read off the main thread with the progress sheet; the
+  preview is a read-only text view, the levels a pop-up (Windows' choices), Replace them / Keep them and add these after
+  when the document has bookmarks. The signed-file test uses `IncrSignatureTests.signedForm(twoPages:)`, so its status
+  is verified (modified after signing) as on Windows. PaperTest makes them only if the synthetic document has headings.
 
 ## Open decisions
 
@@ -1690,7 +1697,7 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.5, 4.7, 4.13), done on Windows.
+- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.7, 4.13), done on Windows.
 - Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
   `PunchHoles`), done on Windows.
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,

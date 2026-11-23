@@ -382,6 +382,7 @@ public enum DocumentCommands {
         c("Flatten…", "flattenDocument:", needs: longTask),
         sep,
         c("Add Bookmark", "addBookmark:", "d"),
+        c("Bookmarks from Headings…", "bookmarksFromHeadings:", needs: [.pages] + longTask),
         c("Show Bookmarks", "showBookmarks:", "2", [.command, .option]),
     ])
 

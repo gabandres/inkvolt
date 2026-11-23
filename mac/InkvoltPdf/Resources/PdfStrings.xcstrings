@@ -26323,6 +26323,17 @@
           }
         }
       }
+    },
+    "Bookmarks from Headings…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores a partir de los títulos…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
