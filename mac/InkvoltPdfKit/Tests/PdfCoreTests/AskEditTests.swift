@@ -94,6 +94,19 @@ struct AskEditTests {
         #expect(AskEdit.afterDelete(highlight, [0]) == highlight)
     }
 
+    @Test func halfOfAHugeFileDeletedThenEveryPageTurnedIsRenumberedInAMoment() {
+        // 100,000 pages, 1–50,000 deleted, then all turned: each page counted the deleted ones before it (billions).
+        let all: [Int] = Array(0..<100_000)
+        var deleted = DeletedPages()
+        let clock = ContinuousClock.now
+        deleted.add(Array(0..<50_000))
+        deleted.add([49_999, 50_000, 3]) // pages already gone count once
+        let rotate = AskEdit.afterDelete(AskEditStep(.rotatePages, pages: all, degrees: 90), deleted)
+        #expect(ContinuousClock.now - clock < .seconds(5), "took \(ContinuousClock.now - clock)")
+        #expect(deleted.sorted.count == 50_001)
+        #expect(rotate?.pages == Array(0..<49_999))
+    }
+
     @Test func aModelThatCantCallToolsIsRefusedInWords() async throws {
         #expect(AskEdit.isNoToolsError(400, "registry.ollama.ai/library/gemma3:4b does not support tools"))
         #expect(!AskEdit.isNoToolsError(400, "context length exceeded"))

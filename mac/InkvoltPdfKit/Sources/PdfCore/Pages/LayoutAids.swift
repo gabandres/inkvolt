@@ -243,20 +243,33 @@ public final class PageGuides {
 
     /// Each page's identity for its guides (roadmap 4.19): its boxes, its turn and its own content as stored. Annotations,
     /// form fields and the document's other pages don't change it; moving the page keeps it, turning, resizing, cropping
-    /// or replacing the page (or editing its text) changes it.
-    public static func keys(_ data: [UInt8], _ password: String?) throws -> [String] {
+    /// or replacing the page (or editing its text) changes it. A content stream several pages share is read and hashed
+    /// once (each stream's digest goes into its page's).
+    /// - Throws: `CancellationError` when `cancel` fires (checked before each page and stream).
+    public static func keys(_ data: [UInt8], _ password: String?, cancel: CancelToken? = nil) throws -> [String] {
         let doc = try PdfEdit.openToRead(data, password)
         var keys: [String] = []
+        var digests: [Int: [UInt8]] = [:] // by object number, streams being indirect
         for i in 0..<(try doc.pageCount()) {
+            try cancel?.check()
             let page = doc.page(i)
             var hash = SHA256()
-            func add(_ item: PObj?) {
-                if let item, item.isStream, let bytes = item.rawStreamData { hash.update(data: bytes) }
+            func add(_ item: PObj?) throws {
+                guard let item, item.isStream else { return }
+                if item.isRef, let known = digests[item.num] {
+                    hash.update(data: known)
+                    return
+                }
+                try cancel?.check()
+                guard let bytes = item.rawStreamData else { return }
+                let digest: [UInt8] = Array(SHA256.hash(data: bytes))
+                if item.isRef { digests[item.num] = digest }
+                hash.update(data: digest)
             }
             if let parts = page["Contents"], parts.isArray {
-                for part in parts.elements { add(part) }
+                for part in parts.elements { try add(part) }
             } else {
-                add(page["Contents"])
+                try add(page["Contents"])
             }
             func box(_ key: String) -> String {
                 guard let b = PageBoxes.inherited(page, key), b.isArray else { return "" }

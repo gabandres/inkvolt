@@ -155,4 +155,28 @@ struct LayoutAidsTests {
         d.dragged(to: PointD(312, 213), shift: false, threshold: 2, snap: nil)
         #expect(d.shownRect(b) == RectD(302, 203, 100, 20))
     }
+
+    @Test func pagesSharingOneHugeContentStreamAreKeyedInAMomentAndStopWhenAsked() throws {
+        // 3,000 pages drawing one 16 MB stream: it was copied and hashed once per page (48 GB); once now.
+        let pages = 3_000
+        let content = String(repeating: "0 0 m 1 1 l S\n", count: 16 * 1024 * 1024 / 14)
+        let kids: String = (0..<pages).map { (i: Int) -> String in "\(i + 5) 0 R" }.joined(separator: " ")
+        var objects: [String] = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [\(kids)] /Count \(pages) >>",
+                                 Core2Pdf.stream(content), Core2Pdf.stream("0 0 m 2 2 l S")]
+        for i in 0..<pages {
+            let contents: String = i == 1 ? "4 0 R" : (i == 2 ? "[3 0 R 4 0 R]" : "3 0 R")
+            objects.append("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents \(contents) >>")
+        }
+        let pdf = Core2Pdf.build(objects)
+        let clock = ContinuousClock.now
+        let keys = try PageGuides.keys(pdf, nil)
+        #expect(ContinuousClock.now - clock < .seconds(10), "took \(ContinuousClock.now - clock)")
+        #expect(keys.count == pages)
+        #expect(keys[0] == keys[3] && keys[0] == keys[pages - 1]) // the same stream: the same key
+        #expect(Set(keys[0...2]).count == 3) // the other stream, or both
+
+        let stop = CancelToken()
+        stop.cancel()
+        #expect(throws: CancellationError.self) { try PageGuides.keys(pdf, nil, cancel: stop) }
+    }
 }

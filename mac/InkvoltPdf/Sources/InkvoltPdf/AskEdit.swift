@@ -204,7 +204,7 @@ extension DocumentWindowController {
 
     /// Runs the steps in order, each edit its own undo step, the pages of later steps following pages deleted before them.
     private func runAskEditSteps(_ steps: [AskEditStep]) async {
-        var deleted: [Int] = [] // pages of the document as it was asked about
+        var deleted = DeletedPages() // pages of the document as it was asked about
         var done = 0
         var notes: [String] = []
         for original in steps {
@@ -226,7 +226,7 @@ extension DocumentWindowController {
                     continue
                 }
                 ok = await removePages(chosen)
-                if ok { deleted += original.pages.filter { !deleted.contains($0) } }
+                if ok { deleted.add(original.pages) }
             case .addBookmark:
                 ok = await addBookmark(title: step.text, page: step.pages[0], top: nil, after: nil)
             case .highlightText:

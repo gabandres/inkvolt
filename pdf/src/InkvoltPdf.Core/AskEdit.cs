@@ -34,6 +34,41 @@ public sealed record AskEditStep(AskEditKind Kind)
 public sealed record AskEditPlan(IReadOnlyList<AskEditStep> Steps, IReadOnlyList<string> Refused, string? Said);
 
 /// <summary>
+/// The pages the steps run so far deleted (0-based, of the document as it was asked about), each once: kept in order, so
+/// how many go before a page is a binary search, and in a set for asking about one (a 100,000-page file, half of it
+/// deleted, then every page turned, takes a moment rather than billions of comparisons).
+/// </summary>
+public sealed class DeletedPages : IReadOnlyCollection<int>
+{
+    private readonly List<int> _sorted = [];
+    private readonly HashSet<int> _all = [];
+
+    public int Count => _sorted.Count;
+    public bool Contains(int page) => _all.Contains(page);
+
+    /// <summary>Adds a page not already in (one at a time is for a collection expression; a step's pages go through <see cref="AddRange"/>).</summary>
+    public void Add(int page) => AddRange([page]);
+
+    /// <summary>Adds the pages not already in.</summary>
+    public void AddRange(IEnumerable<int> pages)
+    {
+        var before = _sorted.Count;
+        foreach (var p in pages) if (_all.Add(p)) _sorted.Add(p);
+        if (_sorted.Count > before) _sorted.Sort();
+    }
+
+    /// <summary>How many deleted pages go before <paramref name="page"/>.</summary>
+    public int CountBelow(int page)
+    {
+        var i = _sorted.BinarySearch(page);
+        return i >= 0 ? i : ~i;
+    }
+
+    public IEnumerator<int> GetEnumerator() => _sorted.GetEnumerator();
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+}
+
+/// <summary>
 /// Edit by Asking (roadmap 4.23, free): the user's own endpoint, with tool calling, maps a request in the person's words
 /// onto a few of the command palette's commands (go to a page, rotate or delete pages, add a bookmark, highlight a word or
 /// phrase, find pattern matches for redaction's review list). The request sends the person's words, the page count and the
@@ -270,11 +305,10 @@ public static class AskEdit
     /// A step's pages once <paramref name="deleted"/> (0-based, of the document as it was asked about) are gone: each page
     /// after them moves up. Null when every page the step needs went (it is then left out and said).
     /// </summary>
-    public static AskEditStep? AfterDelete(AskEditStep step, IReadOnlyCollection<int> deleted)
+    public static AskEditStep? AfterDelete(AskEditStep step, DeletedPages deleted)
     {
         if (deleted.Count == 0 || step.Pages.Count == 0) return step;
-        var gone = deleted.ToHashSet();
-        var kept = step.Pages.Where(p => !gone.Contains(p)).Select(p => p - deleted.Count(d => d < p)).ToList();
+        var kept = step.Pages.Where(p => !deleted.Contains(p)).Select(p => p - deleted.CountBelow(p)).ToList();
         if (kept.Count == 0) return null;
         return step with { Pages = kept };
     }

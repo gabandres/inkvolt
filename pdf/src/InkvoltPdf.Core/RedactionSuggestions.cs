@@ -225,7 +225,11 @@ public static partial class RedactionSuggestions
         foreach (var p in proposals)
         {
             cancel.ThrowIfCancellationRequested();
-            var match = Variants(p.Text).FirstOrDefault(v => texts.Any(t => PageText.Matches(t, v, matchCase: false, wholeWord: true)));
+            var match = Variants(p.Text).FirstOrDefault(v => texts.Any(t =>
+            {
+                cancel.ThrowIfCancellationRequested();
+                return PageText.Matches(t, v, matchCase: false, wholeWord: true);
+            }));
             if (match is null)
             {
                 dropped++;
@@ -236,16 +240,23 @@ public static partial class RedactionSuggestions
         return new RedactionSuggestResult(kept, dropped, 0);
     }
 
-    /// <summary>The ways a quote may be written in the text, the tidiest first; none when it isn't worth searching for.</summary>
+    /// <summary>The longest quote <see cref="Variants"/> tidies: four phrases' worth of spaces, quotes and brackets around one.</summary>
+    internal const int MaxQuoteLength = 4 * RedactionPatterns.MaxPhraseLength;
+
+    private static readonly char[] Around = ['"', '\'', '“', '”', '‘', '’', '«', '»', '`', '(', ')', '[', ']', '{', '}', '<', '>', '*', ' '];
+    private static readonly char[] AroundOrAfter = [.. Around, '.', ',', ';', ':', '!', '?'];
+
+    /// <summary>
+    /// The ways a quote may be written in the text, the tidiest first; none when it isn't worth searching for (one past
+    /// <see cref="MaxQuoteLength"/> isn't read: it can't tidy down to a phrase but by a hostile answer's padding).
+    /// </summary>
     internal static IEnumerable<string> Variants(string quote)
     {
+        if (quote.Length > MaxQuoteLength) yield break;
         var s = Spaces().Replace(quote.Replace('\n', ' ').Replace('\r', ' ').Replace('\t', ' '), " ").Trim();
-        // Quotes, brackets and a full stop around it, in any order ("“Jane Doe”." or "(Acme.)"), until none is left.
-        for (var before = ""; before != s;)
-        {
-            before = s;
-            s = s.Trim('"', '\'', '“', '”', '‘', '’', '«', '»', '`', '(', ')', '[', ']', '{', '}', '<', '>', '*', ' ').TrimEnd('.', ',', ';', ':', '!', '?', ' ');
-        }
+        // Quotes, brackets and a full stop around it, in any order ("“Jane Doe”." or "(Acme.)"), until none is left: one
+        // pass from each end, the end taking both (a full stop only follows).
+        s = s.TrimStart(Around).TrimEnd(AroundOrAfter);
         if (s.Length > RedactionPatterns.MaxPhraseLength || s.Count(char.IsLetterOrDigit) < 2) yield break;
         yield return s;
         if (s.Contains('’')) yield return s.Replace('’', '\'');

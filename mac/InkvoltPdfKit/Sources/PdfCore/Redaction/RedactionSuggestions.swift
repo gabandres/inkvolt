@@ -247,15 +247,21 @@ public enum RedactionSuggestions {
     /// The proposals the text sent holds (`sent`), as written there, each once (any case), and how many were left out. A
     /// quote is tidied first (its spaces, quotes and brackets around it, a full stop after it, typographic apostrophes
     /// either way); one of fewer than two letters or digits, or longer than a phrase may be, is left out too.
-    /// - Throws: `CancellationError` when `cancel` fires (checked between proposals).
+    /// - Throws: `CancellationError` when `cancel` fires (checked between proposals and before each text is searched).
     public static func verify(_ proposals: [RedactionProposal], _ sent: [String], cancel: CancelToken? = nil) throws -> RedactionSuggestResult {
         var kept: [RedactionProposal] = []
         var seen = Set<String>()
         var dropped = 0
         let texts = sent.filter { !$0.isEmpty }
+        let holds: (String) throws -> Bool = { (v: String) throws -> Bool in
+            try texts.contains { (t: String) throws -> Bool in
+                try cancel?.check()
+                return PageText.matches(t, v, matchCase: false, wholeWord: true)
+            }
+        }
         for p in proposals {
             try cancel?.check()
-            guard let match = variants(p.text).first(where: { v in texts.contains { PageText.matches($0, v, matchCase: false, wholeWord: true) } }) else {
+            guard let match = try variants(p.text).first(where: holds) else {
                 dropped += 1
                 continue
             }
@@ -267,19 +273,19 @@ public enum RedactionSuggestions {
     private static let around: Set<Character> = ["\"", "'", "“", "”", "‘", "’", "«", "»", "`", "(", ")", "[", "]", "{", "}", "<", ">", "*", " "]
     private static let after: Set<Character> = [".", ",", ";", ":", "!", "?", " "]
 
-    /// The ways a quote may be written in the text, the tidiest first; none when it isn't worth searching for.
+    /// The longest quote `variants` tidies (UTF-16 units): four phrases' worth of spaces, quotes and brackets around one.
+    static let maxQuoteLength = 4 * RedactionPatterns.maxPhraseLength
+
+    /// The ways a quote may be written in the text, the tidiest first; none when it isn't worth searching for (one past
+    /// `maxQuoteLength` isn't read: it can't tidy down to a phrase but by a hostile answer's padding).
     static func variants(_ quote: String) -> [String] {
-        var s = spaced(quote)
-        // Quotes, brackets and a full stop around it, in any order ("“Jane Doe”." or "(Acme.)"), until none is left.
-        var before = ""
-        while before != s {
-            before = s
-            var t = Substring(s)
-            while let f = t.first, around.contains(f) { t = t.dropFirst() }
-            while let l = t.last, around.contains(l) { t = t.dropLast() }
-            while let l = t.last, after.contains(l) { t = t.dropLast() }
-            s = String(t)
-        }
+        if quote.utf16.count > maxQuoteLength { return [] }
+        // Quotes, brackets and a full stop around it, in any order ("“Jane Doe”." or "(Acme.)"), until none is left: one
+        // pass from each end, the end taking both (a full stop only follows).
+        var t = Substring(spaced(quote))
+        while let f = t.first, around.contains(f) { t = t.dropFirst() }
+        while let l = t.last, around.contains(l) || after.contains(l) { t = t.dropLast() }
+        let s = String(t)
         if s.utf16.count > RedactionPatterns.maxPhraseLength || s.filter({ $0.isLetter || $0.isNumber }).count < 2 { return [] }
         var out = [s]
         if s.contains("’") { out.append(s.replacingOccurrences(of: "’", with: "'")) }

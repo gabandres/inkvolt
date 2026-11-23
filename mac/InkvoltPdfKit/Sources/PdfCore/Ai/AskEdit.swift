@@ -52,6 +52,37 @@ public struct AskEditPlan: Sendable {
     public let said: String?
 }
 
+/// The pages the steps run so far deleted (0-based, of the document as it was asked about), each once: kept in order, so
+/// how many go before a page is a binary search, and in a set for asking about one (a 100,000-page file, half of it
+/// deleted, then every page turned, takes a moment rather than billions of comparisons).
+public struct DeletedPages: Sendable, Equatable, ExpressibleByArrayLiteral {
+    public private(set) var sorted: [Int] = []
+    private var all = Set<Int>()
+
+    public init(arrayLiteral pages: Int...) { add(pages) }
+
+    public var isEmpty: Bool { sorted.isEmpty }
+    public func contains(_ page: Int) -> Bool { all.contains(page) }
+
+    /// Adds the pages not already in.
+    public mutating func add(_ pages: [Int]) {
+        var new: [Int] = []
+        for p in pages where all.insert(p).inserted { new.append(p) }
+        if new.isEmpty { return }
+        sorted = (sorted + new).sorted()
+    }
+
+    /// How many deleted pages go before `page`.
+    public func countBelow(_ page: Int) -> Int {
+        var lo = 0, hi = sorted.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if sorted[mid] < page { lo = mid + 1 } else { hi = mid }
+        }
+        return lo
+    }
+}
+
 /// Edit by Asking (roadmap 4.23, free; the Windows `AskEdit`): the user's own endpoint, with tool calling, maps a request in
 /// the person's words onto a few of the command palette's commands (go to a page, rotate or delete pages, add a bookmark,
 /// highlight a word or phrase, find pattern matches for redaction's review list). The request sends the person's words,
@@ -249,10 +280,9 @@ public enum AskEdit {
 
     /// A step's pages once `deleted` (0-based, of the document as it was asked about) are gone: each page after them moves
     /// up. Nil when every page the step needs went (it is then left out and said).
-    public static func afterDelete(_ step: AskEditStep, _ deleted: [Int]) -> AskEditStep? {
+    public static func afterDelete(_ step: AskEditStep, _ deleted: DeletedPages) -> AskEditStep? {
         if deleted.isEmpty || step.pages.isEmpty { return step }
-        let gone = Set(deleted)
-        let kept = step.pages.filter { !gone.contains($0) }.map { p in p - deleted.filter { $0 < p }.count }
+        let kept: [Int] = step.pages.filter { !deleted.contains($0) }.map { (p: Int) -> Int in p - deleted.countBelow(p) }
         if kept.isEmpty { return nil }
         var moved = step
         moved.pages = kept

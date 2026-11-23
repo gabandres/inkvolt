@@ -106,6 +106,21 @@ public sealed class AskEditTests
     }
 
     [Fact]
+    public void Half_of_a_huge_file_deleted_then_every_page_turned_is_renumbered_in_a_moment()
+    {
+        // 100,000 pages, 1–50,000 deleted, then all turned: each page counted the deleted ones before it (billions).
+        var all = Enumerable.Range(0, 100_000).ToList();
+        var deleted = new DeletedPages();
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        deleted.AddRange(Enumerable.Range(0, 50_000));
+        deleted.AddRange([49_999, 50_000, 3]); // pages already gone count once
+        var rotate = AskEdit.AfterDelete(new AskEditStep(AskEditKind.RotatePages) { Pages = all, Degrees = 90 }, deleted);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+        Assert.Equal(50_001, deleted.Count);
+        Assert.Equal(Enumerable.Range(0, 49_999), rotate!.Pages);
+    }
+
+    [Fact]
     public async Task A_model_that_cant_call_tools_is_refused_in_words()
     {
         Assert.True(AskEdit.IsNoToolsError(400, "registry.ollama.ai/library/gemma3:4b does not support tools"));

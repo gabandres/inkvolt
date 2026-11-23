@@ -154,4 +154,28 @@ public class LayoutAidsTests
         d.Move(new PointD(312, 213), shift: false, dragged: true);
         Assert.Equal(new RectD(302, 203, 100, 20), d.ShownRect(b));
     }
+
+    [Fact]
+    public void PagesSharingOneHugeContentStreamAreKeyedInAMomentAndStopWhenAsked()
+    {
+        // 3,000 pages drawing one 16 MB stream: it was hashed once per page (48 GB); once now.
+        const int pages = 3_000;
+        var content = string.Concat(Enumerable.Repeat("0 0 m 1 1 l S\n", 16 * 1024 * 1024 / 14));
+        var kids = string.Join(' ', Enumerable.Range(0, pages).Select(i => $"{i + 5} 0 R"));
+        var objects = new List<string> { "<< /Type /Catalog /Pages 2 0 R >>", $"<< /Type /Pages /Kids [{kids}] /Count {pages} >>",
+            Core2Pdf.Stream(content), Core2Pdf.Stream("0 0 m 2 2 l S") };
+        for (var i = 0; i < pages; i++)
+            objects.Add($"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents {(i == 1 ? "4 0 R" : i == 2 ? "[3 0 R 4 0 R]" : "3 0 R")} >>");
+        var pdf = Core2Pdf.Build(objects);
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var keys = PageGuides.Keys(pdf, null);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(10), $"took {clock.Elapsed}");
+        Assert.Equal(pages, keys.Count);
+        Assert.True(keys[0] == keys[3] && keys[0] == keys[pages - 1]); // the same stream: the same key
+        Assert.Equal(3, keys.Take(3).Distinct().Count()); // the other stream, or both
+
+        using var stop = new CancellationTokenSource();
+        stop.Cancel();
+        Assert.Throws<OperationCanceledException>(() => PageGuides.Keys(pdf, null, stop.Token));
+    }
 }
