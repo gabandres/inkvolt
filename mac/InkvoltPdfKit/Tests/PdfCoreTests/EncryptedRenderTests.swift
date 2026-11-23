@@ -52,6 +52,20 @@ struct EncryptedRenderTests {
         #expect(try Self.ink(engine) > 0.01, "\(method)")
     }
 
+    /// A file with only an owner password opens with none; a wrong owner password tried later (Remove Protection's prompt)
+    /// keeps it readable too (the empty password authenticated again; the orchestrator's review).
+    @Test(arguments: methods)
+    func aWrongOwnerPasswordOnAFileThatOpensWithNoneKeepsItReadable(method: String) throws {
+        let pdf = Encrypt.with(TestPdf.make(1), method, user: "", owner: Self.user + "-owner")
+        let doc = try MuDoc.open(pdf)
+        #expect(!doc.needsPassword)
+        #expect(doc.authBits("wrong") == 0)
+        let plain = try doc.write("encrypt=none")
+        let engine = try PdfEngine.open(plain)
+        defer { engine.close() }
+        #expect(try Self.ink(engine) > 0.01, "\(method)")
+    }
+
     /// The engine's other instances (a sibling, as print and search threads use; the text one; a saved picture) and the
     /// print copy read a protected document as the plain one.
     @Test func theEnginesOtherReadersAndThePrintCopyDrawAProtectedDocument() throws {

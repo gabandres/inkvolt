@@ -1125,6 +1125,9 @@ static int inkv_try_password(fz_context *ctx, inkv_doc *d, const char *password)
             }
         } else if (d->opened_with) {
             (void)fz_authenticate_password(ctx, d->doc, d->opened_with);
+        } else if (!d->needs) {
+            // Opened with no password (none, or only an owner one): the empty one it opened with, again.
+            (void)fz_authenticate_password(ctx, d->doc, "");
         }
     }
     fz_catch(ctx) {
