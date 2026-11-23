@@ -1209,3 +1209,108 @@ final class ScanModel {
         if !InkvoltPdfApp.open(savedPdfs) { problem = String(localized: "Inkvolt PDF isn't installed on this Mac. The scan is saved.") }
     }
 }
+
+// MARK: Join two halves (roadmap 4.8)
+
+/// Join with the Next Page…'s work: both halves as saved (RGB, full size), the overlap `HalvesJoin` found on copies a
+/// `factor` smaller, whether it is sure, and the page ids it was opened on.
+struct JoinWork: Sendable {
+    let first: String, second: String
+    let a: JoinImages.Half, b: JoinImages.Half
+    let dpi: Int
+    let found: JoinFound
+    /// The overlap in full-size pixels (`HalvesJoin.fromCopy`): where the second half starts.
+    let placement: JoinPlacement
+}
+
+extension ScanModel {
+    /// Why page `id` can't be joined with the next one; nil when it can (the next page there, neither a separator nor a scan
+    /// of photos, both checked and at one resolution).
+    func joinProblem(_ id: String) -> String? {
+        guard let n = pages.number(id), let page = pages.page(id) else { return String(localized: "The pages changed while the join was open: choose Join with the Next Page… again.") }
+        guard n < pages.pages.count else { return String(localized: "Page \(n) is the last: join a page with the one after it.") }
+        let next = pages.pages[n]
+        if page.isSeparator || next.isSeparator || page.photos != nil || next.photos != nil || page.tooLargeToEdit || next.tooLargeToEdit {
+            return String(localized: "Page \(n) or the next one can't be joined: separator sheets and scans of photos stay as they are.")
+        }
+        if !page.analysed || !next.analysed { return String(localized: "Page \(n) or the next one is still being checked: join them in a moment.") }
+        if page.dpi != next.dpi { return String(localized: "The two pages were scanned at different resolutions: scan both halves at the same one to join them.") }
+        return nil
+    }
+
+    /// The two halves read and their overlap looked for (on grey copies of about 100 pixels an inch); nil (with `problem` set)
+    /// when they can't be joined or read.
+    func findJoin(_ id: String, stop: BatchStop = BatchStop()) async -> JoinWork? {
+        if let why = joinProblem(id) {
+            problem = why
+            return nil
+        }
+        guard let n = pages.number(id) else { return nil }
+        let (first, second) = (pages.pages[n - 1], pages.pages[n])
+        guard let jpegA = images[first.id], let jpegB = images[second.id] else { return nil }
+        let dpi = first.dpi
+        let work: JoinWork? = await offPool {
+            guard let a = try? JoinImages.half(jpegA, first.edits, dpi: dpi, stop: stop),
+                  let b = try? JoinImages.half(jpegB, second.edits, dpi: dpi, stop: stop) else { return nil }
+            let factor = max(1, Int((Double(dpi) / 100).rounded())) // bounded: a page's resolution, at most 9600
+            let copyA = HalvesJoin.gray(a.rgb, a.width, a.height, channels: 3, factor: factor)
+            let copyB = HalvesJoin.gray(b.rgb, b.width, b.height, channels: 3, factor: factor)
+            guard let found = try? HalvesJoin.find(copyA, copyB, ppi: Double(dpi) / Double(factor), stop: stop) else { return nil }
+            let placement = found.sure || found.score > 0
+                ? HalvesJoin.fromCopy(found.placement, factor: factor, secondWidth: b.width, secondHeight: b.height)
+                : HalvesJoin.edgeToEdge(found.placement.side, found.placement.turned, a.width, a.height, b.width, b.height)
+            return JoinWork(first: first.id, second: second.id, a: a, b: b, dpi: dpi, found: found, placement: placement)
+        }
+        if work == nil && !stop.isStopped { problem = String(localized: "Couldn't join the pages. Try scanning the halves again.") }
+        return work
+    }
+
+    /// The halves joined at `placement` into one page in their place (one step of Undo); false (with `problem` set) when the
+    /// joined page would be too large or the pages changed meanwhile.
+    @discardableResult
+    func join(_ work: JoinWork, at placement: JoinPlacement) async -> Bool {
+        guard pages.page(work.first) != nil, pages.page(work.second) != nil, pages.number(work.second) == pages.number(work.first).map({ $0 + 1 }) else {
+            problem = String(localized: "The pages changed while the join was open: choose Join with the Next Page… again.")
+            return false
+        }
+        let made: (bytes: [UInt8]?, tooLarge: Bool) = await offPool {
+            guard let joined = HalvesJoin.join(work.a.rgb, work.a.width, work.a.height, work.b.rgb, work.b.width, work.b.height, channels: 3, placement) else {
+                return (nil, true)
+            }
+            return (try? JoinImages.jpeg(joined.pixels, width: joined.width, height: joined.height), false)
+        }
+        guard let bytes = made.bytes else {
+            problem = made.tooLarge ? String(localized: "The joined page would be too large: move the second half closer.")
+                : String(localized: "Couldn't join the pages. Try scanning the halves again.")
+            return false
+        }
+        let (n1, n2) = (pages.number(work.first) ?? 1, pages.number(work.second) ?? 2)
+        let id = ScanRecoveryStore.newPageName()
+        images[id] = bytes
+        var page = ScannedPage(id: id, dpi: work.dpi, analysed: true, ocrLanguage: pages.page(work.first)?.ocrLanguage)
+        page.oneBit = pages.page(work.first)?.oneBit ?? false
+        guard let done = pages.join(work.first, work.second, into: page) else { return false }
+        savedParts.clear()
+        problem = nil
+        keep()
+        refreshThumbnail(id)
+        recordUndo(String(localized: "Join pages \(n1) and \(n2)")) { model in
+            model.pages.unjoin(id, halves: done.halves, at: done.at)
+            model.thumbnails[id] = nil
+            return done.halves.map(\.id)
+        }
+        status = String(localized: "Pages \(n1) and \(n2) joined into one.")
+        return true
+    }
+
+    /// A small copy of the halves joined at `placement`, for the join sheet's preview (at most about `side` pixels a side).
+    nonisolated static func joinPreview(_ work: JoinWork, _ placement: JoinPlacement, side: Int = 900) -> CGImage? {
+        let longest = max(work.a.width, work.a.height, work.b.width, work.b.height) * 2
+        let factor = max(1, longest / side)
+        let a = HalvesJoin.shrink(work.a.rgb, work.a.width, work.a.height, channels: 3, factor: factor)
+        let b = HalvesJoin.shrink(work.b.rgb, work.b.width, work.b.height, channels: 3, factor: factor)
+        let at = HalvesJoin.toCopy(placement, factor: factor, secondWidth: work.b.width, secondHeight: work.b.height)
+        guard let joined = HalvesJoin.join(a.pixels, a.width, a.height, b.pixels, b.width, b.height, channels: 3, at) else { return nil }
+        return try? JoinImages.picture(joined.pixels, width: joined.width, height: joined.height)
+    }
+}

@@ -12,6 +12,8 @@ struct ScanView: View {
     @State private var cropping: String?
     @State private var photos: String?
     @State private var cleaning: String?
+    /// The page whose Join with the Next Page… is open (roadmap 4.8).
+    @State private var joining: String?
     @Environment(\.undoManager) private var undoManager
 
     // One statement a modifier or two: as one expression it took Xcode's type checker past the 150 ms limit.
@@ -19,7 +21,8 @@ struct ScanView: View {
         let loading = content.task { await scan.load() }
         let withCrop = loading.sheet(item: croppingTarget) { (target: CropTarget) in cropSheet(target) }
         let withPhotos = withCrop.sheet(item: photosTarget) { (target: CropTarget) in photosSheet(target) }
-        let sheets = withPhotos.sheet(item: cleaningTarget) { (target: CropTarget) in CleanSheet(scan: scan, id: target.id) }
+        let cleaned = withPhotos.sheet(item: cleaningTarget) { (target: CropTarget) in CleanSheet(scan: scan, id: target.id) }
+        let sheets = cleaned.sheet(item: joiningTarget) { (target: CropTarget) in JoinSheet(scan: scan, id: target.id) }
         let undoState = UndoState(changes: scan.undoChanges, can: scan.canUndo)
         let undo = sheets.onChange(of: undoState, initial: true) { (_: UndoState, _: UndoState) in registerUndo() }
         return undo.onChange(of: app.paneRequest, initial: true) { (old: PaneRequest?, new: PaneRequest?) in requested(old, new) }
@@ -80,7 +83,7 @@ struct ScanView: View {
                 ContentUnavailableView("No pages yet", systemImage: "doc.viewfinder",
                                        description: Text(scan.isScanning ? String(localized: "The first page is on its way.") : String(localized: "Put a page on the glass or pages in the feeder, then click Scan.")))
             } else {
-                PageGrid(scan: scan, cropping: $cropping, photos: $photos, cleaning: $cleaning)
+                PageGrid(scan: scan, cropping: $cropping, photos: $photos, cleaning: $cleaning, joining: $joining)
             }
             Divider()
             SaveBar(scan: scan)
@@ -90,6 +93,7 @@ struct ScanView: View {
     private var croppingTarget: Binding<CropTarget?> { Binding(get: { cropping.map(CropTarget.init) }, set: { cropping = $0?.id }) }
     private var photosTarget: Binding<CropTarget?> { Binding(get: { photos.map(CropTarget.init) }, set: { photos = $0?.id }) }
     private var cleaningTarget: Binding<CropTarget?> { Binding(get: { cleaning.map(CropTarget.init) }, set: { cleaning = $0?.id }) }
+    private var joiningTarget: Binding<CropTarget?> { Binding(get: { joining.map(CropTarget.init) }, set: { joining = $0?.id }) }
 }
 
 private struct CropTarget: Identifiable { let id: String }
@@ -279,13 +283,15 @@ private struct PageGrid: View {
     @Binding var cropping: String?
     @Binding var photos: String?
     @Binding var cleaning: String?
+    @Binding var joining: String?
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
                 let starts = scan.pages.fileStarts
                 ForEach(scan.pages.pages) { page in
-                    PageTile(scan: scan, page: page, file: starts[page.id] ?? 0, cropping: $cropping, photos: $photos, cleaning: $cleaning)
+                    PageTile(scan: scan, page: page, file: starts[page.id] ?? 0, cropping: $cropping, photos: $photos, cleaning: $cleaning,
+                             joining: $joining)
                 }
             }
             .padding(14)
@@ -303,6 +309,8 @@ private struct PageTile: View {
     @Binding var photos: String?
     /// The page in the Clean up view.
     @Binding var cleaning: String?
+    /// The page in the join sheet (with the next one).
+    @Binding var joining: String?
 
     var body: some View {
         let number = scan.pages.number(page.id) ?? 0
@@ -357,6 +365,8 @@ private struct PageTile: View {
                 if !page.edits.isEmpty { Button("Undo Edits") { scan.reset(page.id) } }
             }
             Button("Clean Up…") { cleaning = page.id }
+            Button("Join with the Next Page…") { joining = page.id }
+                .disabled(number >= scan.pages.pages.count || page.isSeparator || page.photos != nil)
             if page.photos != nil {
                 Button("Photos…") { photos = page.id }
                 Button("Find Photos Again") { Task { await scan.findPhotosAgain(page.id) } }

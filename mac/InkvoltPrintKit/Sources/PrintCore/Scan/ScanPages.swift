@@ -349,6 +349,27 @@ public struct ScanPages: Equatable, Sendable {
         return changed
     }
 
+    /// Join two halves (roadmap 4.8): `first` and `second` give way to `joined` in `first`'s place, which keeps `first`'s
+    /// new-file mark (a batch's boundary stays). Returns the halves as they were and where the first was, for Undo; nil when
+    /// either isn't here.
+    public mutating func join(_ first: String, _ second: String, into joined: ScannedPage) -> (halves: [ScannedPage], at: Int)? {
+        guard first != second, let a = pages.firstIndex(where: { $0.id == first }), let b = pages.firstIndex(where: { $0.id == second }) else { return nil }
+        let halves = [pages[a], pages[b]]
+        var page = joined
+        page.startsFile = pages[a].startsFile
+        pages.remove(at: max(a, b))
+        pages.remove(at: min(a, b))
+        pages.insert(page, at: min(a, b))
+        return (halves, min(a, b))
+    }
+
+    /// Undo of `join`: the joined page taken out (when it's still here), the halves back from `at` on.
+    public mutating func unjoin(_ joined: String, halves: [ScannedPage], at: Int) {
+        let place = pages.firstIndex { $0.id == joined } ?? at
+        pages.removeAll { $0.id == joined }
+        pages.insert(contentsOf: halves, at: min(max(place, 0), pages.count))
+    }
+
     /// Undoes every edit, the straightening too.
     public mutating func reset(_ id: String) { update(id) { $0.edits = .none } }
 

@@ -196,9 +196,10 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
     `ColorDropout`, `PunchHoles`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** real punched sheets from a feeder and a
     flatbed, on both.
-  - **4.8 Join two halves.** Done on Windows: a page's Join with the next page… finds the overlap of two scans of an original
+  - **4.8 Join two halves.** Done on Windows and Mac: a page's Join with the next page… finds the overlap of two scans of an original
     too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
-    one Undo step (README, "Join two halves"; `HalvesJoin`). **Next:** a real A3 drawing on a letter or A4 glass; the Mac half waits.
+    one Undo step (README, "Join two halves"; `HalvesJoin`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a real A3
+    drawing on a letter or A4 glass, on both.
   - **4.11 Name the file from its contents.** Done on Windows: a preset's file name can hold `{text-date}`, `{text-title}` and
     `{text-number}`, read from the first page (a date in the usual ways of writing it, in English and Spanish; the heading; an
     invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`).

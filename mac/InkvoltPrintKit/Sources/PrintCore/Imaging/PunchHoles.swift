@@ -147,9 +147,8 @@ public enum PunchHoles {
         let outer = r + max(2, 0.06 * Double(dpi))
         var histograms = [[Int]](repeating: [Int](repeating: 0, count: 256), count: channels)
         var counted = 0
-        // bounded: a hole's centre and radius are inside the page's own pixels
-        let (x0, y0) = (max(0, Int((hole.x - outer).rounded(.down))), max(0, Int((hole.y - outer).rounded(.down))))
-        let (x1, y1) = (min(width - 1, Int((hole.x + outer).rounded(.up))), min(height - 1, Int((hole.y + outer).rounded(.up))))
+        let (x0, y0) = (max(0, Int((hole.x - outer).rounded(.down))), max(0, Int((hole.y - outer).rounded(.down)))) // bounded: a hole found on this page, its radius under an inch
+        let (x1, y1) = (min(width - 1, Int((hole.x + outer).rounded(.up))), min(height - 1, Int((hole.y + outer).rounded(.up)))) // bounded: as above
         if x0 > x1 || y0 > y1 { return }
         func distance(_ x: Int, _ y: Int) -> Double { ((Double(x) - hole.x) * (Double(x) - hole.x) + (Double(y) - hole.y) * (Double(y) - hole.y)).squareRoot() }
         for y in y0...y1 {

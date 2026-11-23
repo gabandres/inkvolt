@@ -161,6 +161,35 @@ extension Report {
         return (red, holes)
     }
 
+    /// `--join` (roadmap 4.8): the demo inkjet's glass holds a 14-inch plan's left half, then its right half (three inches on
+    /// both); Join with the Next Page…'s search, the join, the page's size and Undo; then a page with itself refused.
+    static func joinCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["join: no demo inkjet"] }
+        let kept = (scan.cleanup, scan.source, scan.straighten, scan.upright)
+        defer {
+            (scan.cleanup, scan.source, scan.straighten, scan.upright) = kept
+            Demo.scanSetup.hold(nil)
+        }
+        (scan.cleanup, scan.source, scan.straighten, scan.upright) = ([], .platen, false, false)
+        for half in [DemoScan.leftHalf, DemoScan.rightHalf] {
+            Demo.scanSetup.hold(half)
+            await scanAndWait(scan)
+        }
+        guard scan.pages.pages.count == 2, let first = scan.pages.pages.first else { return ["join: \(scan.status) \(scan.problem ?? "")"] }
+        guard let work = await scan.findJoin(first.id) else { return ["join: not found (\(scan.problem ?? "-"))"] }
+        var lines = ["join: sure \(work.found.sure), score " + String(format: "%.3f", work.found.score) + ", next " + String(format: "%.3f", work.found.next)
+                     + ", second half at \(work.placement.x), \(work.placement.y) (\(work.placement.side), turned \(work.placement.turned)); halves \(work.a.width) × \(work.a.height)"]
+        let joined = await scan.join(work, at: work.placement)
+        let page = scan.pages.pages.first
+        let size = page.flatMap { scan.scannedJpeg($0.id) }.flatMap(ScanImaging.size)
+        lines.append("  joined \(joined): \(scan.status) pages \(scan.pages.pages.count), the page \(size.map { "\($0.width) × \($0.height)" } ?? "-"); undo: \(scan.undoName ?? "none")")
+        scan.undo()
+        lines.append("  undone: \(scan.status) pages \(scan.pages.pages.count)")
+        lines.append("  the last page with the next: \(scan.joinProblem(scan.pages.pages.last?.id ?? "") ?? "allowed")")
+        scan.clear()
+        return lines
+    }
+
     /// Pixels darker than mid-grey in `image` drawn grey (-1 when it can't be drawn).
     private static func darkPixels(_ image: NSImage) -> Int {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }

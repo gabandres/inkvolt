@@ -14,7 +14,9 @@ public enum DemoScanPage {
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return [] }
         context.setFillColor(CGColor(red: 0.985, green: 0.98, blue: 0.97, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: w, height: h))
-        if page == DemoScan.punchedForm {
+        if page == DemoScan.leftHalf || page == DemoScan.rightHalf {
+            planHalf(right: page == DemoScan.rightHalf, context, w, h)
+        } else if page == DemoScan.punchedForm {
             punchedForm(context, w, h)
         } else if DemoScan.reportPages.contains(page) {
             reportPage(page - DemoScan.reportPage(0), upsideDown: DemoScan.isUpsideDown(page), context, w, h)
@@ -144,6 +146,33 @@ public enum DemoScanPage {
         for y in [1.0, 5.5, 10.0] {
             context.fillEllipse(in: CGRect(x: 0.5 * inch - 0.14 * inch, y: top - CGFloat(y) * inch - 0.14 * inch, width: 0.28 * inch, height: 0.28 * inch))
         }
+    }
+
+    /// Half of a 14 × 11 inch floor plan (roadmap 4.8): rooms, walls of several weights and their labels all over, so the
+    /// halves' three shared inches can be matched; the right half is the plan's last 8.5 inches.
+    private static func planHalf(right: Bool, _ context: CGContext, _ w: Int, _ h: Int) {
+        let inch = CGFloat(w) / 8.5
+        context.saveGState()
+        if right { context.translateBy(x: -5.5 * inch, y: 0) }
+        let top = CGFloat(h)
+        var seed: UInt64 = 4242
+        func next(_ n: Int) -> CGFloat {
+            seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            return CGFloat((seed >> 33) % UInt64(n))
+        }
+        context.setStrokeColor(CGColor(gray: 0.15, alpha: 1))
+        for _ in 0..<70 {
+            let (x, y) = (0.3 * inch + next(1300) / 100 * inch, 0.4 * inch + next(980) / 100 * inch)
+            let (rw, rh) = ((0.4 + next(200) / 100) * inch, (0.3 + next(150) / 100) * inch)
+            context.setLineWidth((1 + next(4)) * inch / 100)
+            context.stroke(CGRect(x: x, y: top - y - rh, width: rw, height: rh))
+        }
+        let names = ["Kitchen", "Hall", "Bath", "Office", "Store", "Bed 1", "Bed 2", "Lobby", "Stairs", "Porch"]
+        for i in 0..<40 {
+            let (x, y) = (0.4 * inch + next(1280) / 100 * inch, 0.6 * inch + next(960) / 100 * inch)
+            draw("\(names[i % names.count]) \(i + 1)", size: 0.14 * inch, bold: i % 3 == 0, at: CGPoint(x: x, y: top - y), context)
+        }
+        context.restoreGState()
     }
 
     /// The demo lid's grey.

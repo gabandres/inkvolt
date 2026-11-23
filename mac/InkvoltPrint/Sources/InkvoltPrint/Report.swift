@@ -61,6 +61,7 @@ enum Report {
             if model.isDemo && args.contains("--upright") { cancelled += await uprightCheck(model) }
             if model.isDemo && args.contains("--smaller-file") { cancelled += await smallerFileCheck(model) }
             if model.isDemo && args.contains("--cleanup-marks") { cancelled += await cleanupMarksCheck(model) }
+            if model.isDemo && args.contains("--join") { cancelled += await joinCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }

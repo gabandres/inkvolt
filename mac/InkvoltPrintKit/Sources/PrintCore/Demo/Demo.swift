@@ -181,6 +181,10 @@ public enum DemoScan {
     /// An order form on the glass (roadmap 4.7, the Windows demo's punched form): red rules with black print over them, a blue
     /// pen's line, and three punch holes down its left edge.
     public static let punchedForm = 7
+
+    /// The two halves of a 14-inch-wide plan scanned on a letter glass (roadmap 4.8): its left 8.5 inches, then its right 8.5
+    /// inches, three inches of it on both.
+    public static let leftHalf = 8, rightHalf = 9
 }
 
 /// Which pass of a turned stack (`TurnedStack`) the demo feeder's next scan is (the Windows demo's `StackSide`).
@@ -191,12 +195,17 @@ public enum DemoStackSide: Sendable { case fronts, backs }
 /// (`DemoScan.onLid`) when it crops to the paper, a turned stack's fronts or backs.
 public final class DemoScanSetup: Sendable {
     private let state = Shared((batch: false, photos: false, lid: false, stack: DemoStackSide?.none, form: false))
+    private let held = Shared(Int?.none)
 
-    /// The glass's page now: photos, the punched form (a scan that drops a color or removes holes), the sheet on the lid, or
-    /// the letter.
+    /// The glass's page now: one laid there by `hold` (`--report`), photos, the punched form (a scan that drops a color or
+    /// removes holes), the sheet on the lid, or the letter.
     public var glassPage: Int {
-        state.withLock { $0.photos ? DemoScan.photos : $0.form ? DemoScan.punchedForm : $0.lid ? DemoScan.onLid : DemoScan.letter }
+        if let page = held.withLock({ $0 }) { return page }
+        return state.withLock { $0.photos ? DemoScan.photos : $0.form ? DemoScan.punchedForm : $0.lid ? DemoScan.onLid : DemoScan.letter }
     }
+
+    /// Lays `page` on the glass whatever the scan asks for (nil: as it asks): a plan's halves for Join with the Next Page….
+    public func hold(_ page: Int?) { held.withLock { $0 = page } }
 
     public init() {}
 

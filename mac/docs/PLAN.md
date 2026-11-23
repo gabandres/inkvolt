@@ -246,6 +246,19 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   its decoder); the Mac's 2.3 tests that ran `.pixelFilters` on a grey page now name the three 2.3 filters (a grey page has
   no colour to drop and no holes). Not checked: real punched sheets from a feeder and a flatbed, a real pen's and a form's
   colours, picking a colour on screen (the crosshair, VoiceOver).
+- **4.8 Join two halves.** PrintCore `HalvesJoin` (`find`: normalized cross-correlation on coarse copies of at most 400
+  pixels a side, every side either way up, the six best refined, sure only when well ahead of the next; `join`, `gray`,
+  `shrink`, `fromCopy`/`toCopy`, `edgeToEdge`), `JoinPlacement`, `JoinFound`, `ScanPages.join`/`unjoin` (the joined page keeps
+  the first half's new-file mark); `HalvesJoinTests` (PC). PrintMac `JoinImages` (each half as saved, RGB at full size; the
+  joined page as JPEG). The app: the page's Join with the Next Page… (refused for the last page, separators, photos, pages
+  being checked or at another resolution, each said), a sheet that shows the joined page, arrows to move the second half (a
+  fiftieth of an inch, ⇧ a fifth), Turn the Second Half, Other Side, Join (one step of Undo: the halves come back); the
+  overlap is looked for on copies at about 100 pixels an inch. `--report … --join` joins the demo glass's two halves of a
+  14-inch plan (`DemoScanSetup.hold`). **Mac differences:** a stop is a `BatchStop` (`CancellationError`); the coarse search's
+  placements are put in a fixed order before the best are taken (Windows' come from parallel rows in any order), so the same
+  halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows
+  keeps the channels both have; a join placed past Int's range is refused. Not checked: a real A3 drawing on a letter or A4
+  glass, the sheet on screen (the arrows' keys, VoiceOver).
 
 ## Mac differences
 
@@ -1723,7 +1736,6 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
   `{text-number}`), done on Windows.
 - Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
-- Inkvolt Print 4.8: join two halves of an original too big for the glass (`HalvesJoin`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to

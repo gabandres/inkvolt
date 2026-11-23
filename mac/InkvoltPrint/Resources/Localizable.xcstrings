@@ -1880,6 +1880,26 @@
         }
       }
     },
+    "Couldn't find where the halves overlap: move the second half with the arrows (Shift moves it further), turn it, or put it on another side.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró dónde se superponen las mitades: mueve la segunda mitad con las flechas (con Mayús se mueve más), gírala o ponla en otro lado."
+          }
+        }
+      }
+    },
+    "Couldn't join the pages. Try scanning the halves again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron unir las páginas. Prueba a escanear las mitades de nuevo."
+          }
+        }
+      }
+    },
     "Couldn't show the page: it couldn't be read.": {
       "localizations": {
         "es": {
@@ -2466,6 +2486,16 @@
         }
       }
     },
+    "For an original too big for the glass: scan one half, then the other with an inch or so of overlap (turning the original round is fine).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para un original demasiado grande para el cristal: escanea una mitad y luego la otra con unos 2 o 3 cm de superposición (puedes girar el original)."
+          }
+        }
+      }
+    },
     "For files added:": {
       "localizations": {
         "es": {
@@ -2482,6 +2512,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Olvidar contraseña"
+          }
+        }
+      }
+    },
+    "Found where the halves overlap. Move the second half if it isn't quite right.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontró dónde se superponen las mitades. Mueve la segunda mitad si no queda bien del todo."
           }
         }
       }
@@ -2892,6 +2932,46 @@
         }
       }
     },
+    "Join": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir"
+          }
+        }
+      }
+    },
+    "Join page %lld and page %lld": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir la página %lld y la página %lld"
+          }
+        }
+      }
+    },
+    "Join pages %lld and %lld": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir las páginas %lld y %lld"
+          }
+        }
+      }
+    },
+    "Join with the Next Page…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir con la página siguiente…"
+          }
+        }
+      }
+    },
     "Keep": {
       "localizations": {
         "es": {
@@ -3134,6 +3214,16 @@
         }
       }
     },
+    "Looking for where the halves overlap…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando dónde se superponen las mitades…"
+          }
+        }
+      }
+    },
     "Looks for the photos again, dropping the changes made here": {
       "localizations": {
         "es": {
@@ -3230,6 +3320,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Subir"
+          }
+        }
+      }
+    },
+    "Move the second half down": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad hacia abajo"
+          }
+        }
+      }
+    },
+    "Move the second half left": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad a la izquierda"
+          }
+        }
+      }
+    },
+    "Move the second half right": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad a la derecha"
+          }
+        }
+      }
+    },
+    "Move the second half up": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad hacia arriba"
           }
         }
       }
@@ -3674,6 +3804,16 @@
         }
       }
     },
+    "Other Side": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otro lado"
+          }
+        }
+      }
+    },
     "PDF": {
       "localizations": {
         "es": {
@@ -3690,6 +3830,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Páginas del PDF en blanco y negro: una página de texto ocupa una décima parte o menos"
+          }
+        }
+      }
+    },
+    "Page %lld is the last: join a page with the one after it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página %lld es la última: une una página con la siguiente."
+          }
+        }
+      }
+    },
+    "Page %lld or the next one can't be joined: separator sheets and scans of photos stay as they are.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página %lld o la siguiente no se pueden unir: las hojas separadoras y los escaneos de fotos se quedan como están."
+          }
+        }
+      }
+    },
+    "Page %lld or the next one is still being checked: join them in a moment.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página %lld o la siguiente todavía se está revisando: únelas en un momento."
           }
         }
       }
@@ -3732,6 +3902,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Páginas"
+          }
+        }
+      }
+    },
+    "Pages %lld and %lld joined into one.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas %lld y %lld se unieron en una."
           }
         }
       }
@@ -4142,6 +4322,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ordenar los anversos y los reversos"
+          }
+        }
+      }
+    },
+    "Puts the second half below, to the left of, above or to the right of the first": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pone la segunda mitad debajo, a la izquierda, encima o a la derecha de la primera"
           }
         }
       }
@@ -5586,6 +5776,26 @@
         }
       }
     },
+    "The joined page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página unida"
+          }
+        }
+      }
+    },
+    "The joined page would be too large: move the second half closer.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página unida sería demasiado grande: acerca la segunda mitad."
+          }
+        }
+      }
+    },
     "The keychain didn't keep it, so it isn't used. Try again, or restart your Mac.": {
       "localizations": {
         "es": {
@@ -5642,6 +5852,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "La página tal como se escaneó"
+          }
+        }
+      }
+    },
+    "The pages changed while the join was open: choose Join with the Next Page… again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas cambiaron mientras la unión estaba abierta: elige Unir con la página siguiente… otra vez."
           }
         }
       }
@@ -5854,6 +6074,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron preparar las hojas para imprimir."
+          }
+        }
+      }
+    },
+    "The two pages were scanned at different resolutions: scan both halves at the same one to join them.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las dos páginas se escanearon con resoluciones distintas: escanea las dos mitades con la misma para unirlas."
           }
         }
       }
@@ -6230,6 +6460,16 @@
         }
       }
     },
+    "Turn the Second Half": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar la segunda mitad"
+          }
+        }
+      }
+    },
     "Turn the card over in the same corner of the glass, then click Scan Back.": {
       "localizations": {
         "es": {
@@ -6246,6 +6486,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Desactiva las actualizaciones automáticas de firmware, para que una actualización de HP no pueda instalarse sola, y comprueba que la impresora lo conservó."
+          }
+        }
+      }
+    },
+    "Turns it half a turn, for an original turned round on the glass": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La gira media vuelta, para un original que giraste en el cristal"
           }
         }
       }
