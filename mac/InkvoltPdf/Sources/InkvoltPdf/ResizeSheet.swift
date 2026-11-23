@@ -74,7 +74,7 @@ extension DocumentWindowController {
             millimeters = toMm
             for f in [widthField, heightField] {
                 guard let v = TypedNumber.parse(f.stringValue), v >= 0, v <= 1e6 else { continue }
-                f.stringValue = toMm ? String(Int((v * 25.4).rounded())) : PdfNum.f((v / 25.4 * 100).rounded() / 100)
+                f.stringValue = toMm ? String(Int((v * 25.4).rounded())) : PdfNum.f((v / 25.4 * 100).rounded() / 100) // bounded: v checked 0...1e6 above
             }
         }
         size.target = enable
