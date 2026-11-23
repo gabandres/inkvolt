@@ -227,10 +227,10 @@ locality) are used in their usual sense: the interface is everything a caller mu
   picture, drawn with its comments at about 1,100 pixels, is almost all paper by the test File › Scan skips blank scans
   with (a short line of text is not blank; specks and show-through are). Remove Blank Pages deletes them; Split at Blank
   Pages and its Batch action take them as **separator pages** between documents.
-- **Page label** (`Core/PageLabels.cs`, the document's /PageLabels): what the page box, thumbnails and Go to Page show for
-  a page instead of its number ("iv", "A-3"), a numbering, prefix and first number per range. Page Labels sets them for a
-  range; every page edit keeps each page's label with it (`PdfStructure.WriteLabels`; a replacing page takes the label
-  of the page it replaces).
+- **Page label** (`Core/PageLabels.cs`, the document's /PageLabels; Mac: PdfCore `Pages/PageLabels.swift`): what the page
+  box, thumbnails and Go to Page show for a page instead of its number ("iv", "A-3"), a numbering, prefix and first number
+  per range. Page Labels sets them for a range; every page edit keeps each page's label with it (`PdfStructure.WriteLabels`;
+  a replacing page takes the label of the page it replaces).
 - **Black-and-white picture** (`Core/OneBitImages.cs`; the codings in the shared `InkvoltPrint.Core/Imaging`: `CcittG4`,
   `Jbig2Generic`, chosen by `PdfWriter.OneBit`): a picture stored at 1 bit, in the smallest of lossless JBIG2 (one
   generic region, every pixel coded as it is: never symbol matching, which can swap one digit for another), CCITT G4 or

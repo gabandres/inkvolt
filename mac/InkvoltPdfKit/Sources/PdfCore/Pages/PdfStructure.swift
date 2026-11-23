@@ -100,12 +100,24 @@ enum PdfStructure {
         var known: [ObjId: PageLabel] = [:]
         for (page, label) in before where known[page] == nil { known[page] = label }
 
-        let nums = doc.array()
+        var labels: [PageLabel] = []
+        labels.reserveCapacity(pages.count)
         var previous: PageLabel?
-        for (i, page) in pages.enumerated() {
+        for page in pages {
             let label = known[page.id]
                 ?? previous.map { PageLabel(style: $0.style, prefix: $0.prefix, number: $0.number == Int(Int32.max) ? $0.number : $0.number + 1) }
                 ?? PageLabel(style: "D", prefix: "", number: 1)
+            labels.append(label)
+            previous = label
+        }
+        writeRanges(doc, labels)
+    }
+
+    /// Writes each page's label (one per page, in order) as the fewest /PageLabels ranges (/S, /P, /St).
+    static func writeRanges(_ doc: MuDoc, _ labels: [PageLabel]) {
+        let nums = doc.array()
+        var previous: PageLabel?
+        for (i, label) in labels.enumerated() {
             if previous == nil || previous!.style != label.style || previous!.prefix != label.prefix
                 || (label.style != nil && label.number != previous!.number + 1) {
                 let range = doc.dict()

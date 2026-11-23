@@ -22154,6 +22154,160 @@
           }
         }
       }
+    },
+    "No number (the prefix only)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin número (solo el prefijo)"
+          }
+        }
+      }
+    },
+    "Numbering": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeración"
+          }
+        }
+      }
+    },
+    "Start at": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezar en"
+          }
+        }
+      }
+    },
+    "Numbering:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeración:"
+          }
+        }
+      }
+    },
+    "Prefix:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prefijo:"
+          }
+        }
+      }
+    },
+    "Start at:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezar en:"
+          }
+        }
+      }
+    },
+    "Number the pages after them 1, 2, 3…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numerar las páginas siguientes 1, 2, 3…"
+          }
+        }
+      }
+    },
+    "A page's label is what the page box, the thumbnails and Go to Page show for it, such as i, ii for a preface and then 1, 2.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La etiqueta de una página es lo que muestran para ella el cuadro de página, las miniaturas e Ir a la página, como i, ii para un prólogo y luego 1, 2."
+          }
+        }
+      }
+    },
+    "These pages will show: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas páginas mostrarán: {0}"
+          }
+        }
+      }
+    },
+    "Enter the first number, from 1 to {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el primer número, de 1 a {0}."
+          }
+        }
+      }
+    },
+    "Page Labels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etiquetas de página"
+          }
+        }
+      }
+    },
+    "Use Plain Numbers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar números simples"
+          }
+        }
+      }
+    },
+    "Set page labels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Establecer etiquetas de página"
+          }
+        }
+      }
+    },
+    "Remove page labels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar etiquetas de página"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

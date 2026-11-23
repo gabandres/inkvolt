@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Page Labels… (Pages menu): number pages i, ii, iii or I, II, A, B, a, b, 1, 2, 3, with a prefix (A-1) and a first number, for any range: a preface in Roman numerals and the body from 1 in one step. Go to Page takes them.
 
 ## 1.12.1
 - A signed file's later changes can no longer hide behind the validation data it stores: a change to what a comment written into a page's list draws, to a page size or turn the pages inherit, or to the page order now shows as a change after signing.

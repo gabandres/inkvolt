@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Etiquetas de página… (menú Páginas): numera las páginas i, ii, iii o I, II, A, B, a, b, 1, 2, 3, con un prefijo (A-1) y un primer número, para cualquier intervalo: un prólogo en números romanos y el cuerpo desde 1 en un solo paso. Ir a la página las acepta.
 
 ## 1.12.1
 - Los cambios posteriores a un archivo firmado ya no pueden esconderse tras los datos de validación que guarda: un cambio en lo que dibuja un comentario escrito dentro de la lista de una página, en un tamaño o giro que heredan las páginas o en el orden de las páginas se muestra ahora como un cambio después de firmar.

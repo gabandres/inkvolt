@@ -63,7 +63,7 @@ extension DocumentWindowController {
         let entries: [(String, Selector)] = [
             (loc("Rotate Left"), #selector(rotatePagesLeft(_:))), (loc("Rotate Right"), #selector(rotatePagesRight(_:))), ("", Selector(("separator"))),
             (loc("Duplicate"), #selector(duplicatePages(_:))), (loc("Extract Pages…"), #selector(extractPages(_:))),
-            (loc("Crop Pages…"), #selector(cropPages(_:))), ("", Selector(("separator"))),
+            (loc("Crop Pages…"), #selector(cropPages(_:))), (loc("Page Labels…"), #selector(editPageLabels(_:))), ("", Selector(("separator"))),
             (loc("Insert Pages from File…"), #selector(insertPagesFromFile(_:))), (loc("Insert Blank Page"), #selector(insertBlankPage(_:))),
             ("", Selector(("separator"))), (loc("Delete"), #selector(deletePages(_:))),
         ]
@@ -145,7 +145,7 @@ extension DocumentWindowController {
     }
 
     /// A PDF (its password asked when it needs one) or pictures made into one; nil when cancelled or unreadable.
-    private func loadSource(_ urls: [URL]) -> PdfSource? {
+    func loadSource(_ urls: [URL]) -> PdfSource? {
         let pdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
         do {
             if pdfs.isEmpty {
@@ -349,7 +349,7 @@ extension DocumentWindowController {
     }
 
     /// After an edit, the pages it made or moved stay chosen (in the grid and the thumbnails).
-    private func reselect(_ chosen: [Int]) {
+    func reselect(_ chosen: [Int]) {
         let valid = chosen.filter { $0 >= 0 && $0 < engine.pageCount }
         organizer?.select(valid)
         sidebar.selectPages(valid)

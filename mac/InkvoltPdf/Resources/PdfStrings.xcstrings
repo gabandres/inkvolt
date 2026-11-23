@@ -26070,6 +26070,50 @@
           }
         }
       }
+    },
+    "A prefix can be up to {0} characters, without line breaks or tabs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un prefijo puede tener hasta {0} caracteres, sin saltos de línea ni tabulaciones."
+          }
+        }
+      }
+    },
+    "The first number must be from 1 to {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El primer número debe estar entre 1 y {0}."
+          }
+        }
+      }
+    },
+    "Choose a numbering or type a prefix.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige una numeración o escribe un prefijo."
+          }
+        }
+      }
+    },
+    "Page Labels…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etiquetas de página…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

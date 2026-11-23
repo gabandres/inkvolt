@@ -369,6 +369,7 @@ public enum DocumentCommands {
         c("Extract Pages…", "extractPages:"),
         c("Split Document…", "splitDocument:"),
         c("Crop Pages…", "cropPages:"),
+        c("Page Labels…", "editPageLabels:"),
         sep,
         c("Add Header & Footer…", "addHeaderFooter:", needs: longTask),
         c("Remove Header & Footer", "removeHeaderFooter:", needs: longTask),
