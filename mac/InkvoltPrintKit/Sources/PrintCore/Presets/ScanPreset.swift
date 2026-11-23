@@ -70,6 +70,13 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     /// A PDF's pages saved in black and white (1 bit, CCITT G4) for a much smaller file; scanned in grey (roadmap 4.4). Not
     /// for photos on the glass, which stay in color (`ScanPresets.savesSmallerFile`).
     public var smallerFile = false
+
+    /// A PDF saved as PDF/A-2b, for archiving (`ScanPresets.savesPdfA`, roadmap 4.18); never with `password`.
+    public var pdfA = false
+
+    /// A PDF that asks for a password to open (AES-256, `ScanPresets.savesWithPassword`). The password itself is never in the
+    /// preset: the Keychain keeps it under the preset's id, or the save asks for it.
+    public var password = false
     public var resolution = 300
 
     /// `ScanChoices.pageSizes` key; nil = Letter or A4 by region.
@@ -129,7 +136,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         init?(intValue: Int) { nil }
     }
 
-    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "SmallerFile", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
+    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "SmallerFile", "PdfA", "Password", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
                                 "Cleanup", "DropColor", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
@@ -142,6 +149,8 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         turnStack = get("TurnStack", false)
         color = get("Color", true)
         smallerFile = get("SmallerFile", false)
+        pdfA = get("PdfA", false)
+        password = get("Password", false)
         resolution = get("Resolution", 300)
         pageSize = get("PageSize", nil as String?)
         fileType = get("FileType", .searchablePdf)
@@ -175,6 +184,8 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(turnStack, forKey: Key("TurnStack"))
         try c.encode(color, forKey: Key("Color"))
         try c.encode(smallerFile, forKey: Key("SmallerFile"))
+        try c.encode(pdfA, forKey: Key("PdfA"))
+        try c.encode(password, forKey: Key("Password"))
         try c.encode(resolution, forKey: Key("Resolution"))
         try c.encode(pageSize, forKey: Key("PageSize"))
         try c.encode(fileType, forKey: Key("FileType"))
@@ -320,6 +331,49 @@ public enum ScanPresets {
         let onGlass = source.map { $0 == .platen } ?? (p.source == .glass)
         return p.smallerFile && (p.fileType == .pdf || p.fileType == .searchablePdf) && !(p.findPhotos && onGlass)
     }
+
+    /// The preset's PDF is PDF/A-2b: a PDF file type, and no password (PDF/A forbids encryption: the password wins).
+    public static func savesPdfA(_ p: ScanPreset) -> Bool { p.pdfA && isPdf(p.fileType) && !p.password }
+
+    /// The preset's PDF asks for a password to open: a PDF file type with the option on.
+    public static func savesWithPassword(_ p: ScanPreset) -> Bool { p.password && isPdf(p.fileType) }
+
+    /// The editor's PDF/A box ticked or cleared: ticking it clears the password (they can't go together), the last one ticked winning.
+    public static func withPdfA(_ p: ScanPreset, _ on: Bool) -> ScanPreset {
+        var p = p
+        p.pdfA = on
+        if on { p.password = false }
+        return p
+    }
+
+    /// The editor's password box ticked or cleared: ticking it clears PDF/A.
+    public static func withPassword(_ p: ScanPreset, _ on: Bool) -> ScanPreset {
+        var p = p
+        p.password = on
+        if on { p.pdfA = false }
+        return p
+    }
+
+    /// The ids whose saved password goes when `before` becomes `after`: deleted, or the password turned off.
+    public static func passwordsToForget(_ before: [ScanPreset], _ after: [ScanPreset]) -> [String] {
+        let kept = Set(after.filter(\.password).map(\.id))
+        return before.filter { $0.password && !kept.contains($0.id) }.map(\.id)
+    }
+
+    /// How the preset's PDF is written (`PdfWriter.write`): PDF/A, or with `password` when it asks for one; nil for the plain
+    /// file. A PDF/A or protected file is always written here, never the scanner's own PDF as sent.
+    /// - Throws: `PdfEncryption.Problem.noPassword` when the preset asks for a password and `password` can't be one: a
+    ///   protected preset never saves its PDF open.
+    public static func writeOptions(_ p: ScanPreset, _ password: String?) throws -> PdfWriteOptions? {
+        if savesWithPassword(p) {
+            guard PdfEncryption.usable(password) else { throw PdfEncryption.Problem.noPassword }
+            return PdfWriteOptions(password: password)
+        }
+        return savesPdfA(p) ? PdfWriteOptions(pdfA: true) : nil
+    }
+
+    /// A PDF (searchable or not): what opens in Inkvolt PDF and can be saved in black and white, as PDF/A or with a password.
+    public static func isPdf(_ type: PresetFileType) -> Bool { type == .pdf || type == .searchablePdf }
 
     /// Ids go on a command line or into a URL unquoted: letters, digits and '-' only, at most 64.
     public static func isValidId(_ id: String?) -> Bool {
@@ -473,6 +527,8 @@ public enum ScanPresetText {
     /// "Searchable PDF · feeder or glass · grey, 300 dpi · Documents/Scans", plus the review step and what happens after saving.
     public static func summary(_ p: ScanPreset) -> String {
         var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), colorDpi(p), folder(p)]
+        if ScanPresets.savesPdfA(p) { parts.append(loc("PDF/A")) }
+        if ScanPresets.savesWithPassword(p) { parts.append(loc("a password to open")) }
         if p.twoSided && p.turnStack && p.source != .glass { parts.append(loc("the stack turned over for the backs")) }
         if p.splitAt != .none { parts.append(loc("a new file at each {0}", splitText(p.splitAt))) }
         if p.findPhotos { parts.append(loc("each photo on the glass by itself")) }

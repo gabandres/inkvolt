@@ -1,17 +1,24 @@
 import Foundation
 
-/// ICC color profiles written here (no third-party profile is shipped), the Windows app's `IccProfiles`.
+/// ICC color profiles written here (no third-party profile is shipped), the Windows core's `IccProfiles`. Moved from Inkvolt
+/// PDF's PdfCore (roadmap 4.18) so that Inkvolt Print's PDF/A scans (`PdfWriter`) carry the same profile; only the application
+/// named in its description differs.
 public enum IccProfiles {
-    private static let srgbProfile = buildSrgb()
+    private static let srgbPdf = buildSrgb("Inkvolt PDF")
+    private static let srgbPrint = buildSrgb("Inkvolt Print")
 
     /// An sRGB (IEC 61966-2-1) display profile, ICC version 2.1: the sRGB primaries adapted to D50 (Bradford), D65 white
-    /// point, and the sRGB tone curve as a 1024-entry table. About 2.6 KB; the same bytes as Windows writes.
-    public static func srgb() -> [UInt8] { srgbProfile }
+    /// point, and the sRGB tone curve as a 1024-entry table. About 2.6 KB; the same bytes as Windows writes. Inkvolt PDF's,
+    /// named so in its description and copyright.
+    public static func srgb() -> [UInt8] { srgbPdf }
 
-    private static func buildSrgb() -> [UInt8] {
+    /// The same profile, named after Inkvolt Print.
+    static func srgbForPrint() -> [UInt8] { srgbPrint }
+
+    private static func buildSrgb(_ application: String) -> [UInt8] {
         let tags: [(sig: String, data: [UInt8])] = [
-            ("desc", desc("sRGB IEC61966-2.1 (Inkvolt PDF)")),
-            ("cprt", text("No copyright: the sRGB colorimetry of IEC 61966-2-1, written by Inkvolt PDF")),
+            ("desc", desc("sRGB IEC61966-2.1 (\(application))")),
+            ("cprt", text("No copyright: the sRGB colorimetry of IEC 61966-2-1, written by \(application)")),
             ("wtpt", xyz(0.9505, 1.0, 1.0890)),
             ("rXYZ", xyz(0.4361, 0.2225, 0.0139)),
             ("gXYZ", xyz(0.3851, 0.7169, 0.0971)),

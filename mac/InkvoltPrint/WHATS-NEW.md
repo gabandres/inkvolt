@@ -11,6 +11,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Smaller file (black and white) in a scan preset: its PDF's pages are saved in black and white, so a page of text takes a tenth of the space or less.
 - Clean up drops a color and removes punch holes: a red form's lines, a blue pen's notes or a stamp turn white while the black print stays (red, green, blue, or a color you pick off the page), and the round shadows of punch holes near the edges take the paper's color. In Scan settings, each scan preset, and Clean Up… on a page.
 - Join two halves: for an original too big for the glass, scan one half, then the other with an inch or so of overlap, and choose Join with the Next Page… on the first. Inkvolt Print finds where they overlap (either way up, on any side) and shows the joined page; when it isn't sure, move the second half with the arrows. Undo splits them again.
+- PDF/A and passwords in scan presets: a PDF preset can save PDF/A, meant to open the same way for years, or put a password on the PDF (AES-256, as Inkvolt PDF protects files). The password is asked the first time the preset saves, and kept in your keychain if you choose.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

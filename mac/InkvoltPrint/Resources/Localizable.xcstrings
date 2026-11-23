@@ -853,6 +853,16 @@
         }
       }
     },
+    "A password for %@'s PDFs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una contraseña para los PDF de %@"
+          }
+        }
+      }
+    },
     "A pen's or a form's color becomes white; black print stays": {
       "localizations": {
         "es": {
@@ -889,6 +899,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Una hoja entera de cada foto"
+          }
+        }
+      }
+    },
+    "AES-256, as Inkvolt PDF protects files. Asked the first time the preset saves; kept in your keychain if you choose.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AES-256, como protege los archivos Inkvolt PDF. Se pide la primera vez que el ajuste guarda; se guarda en tu llavero si lo eliges."
           }
         }
       }
@@ -2852,6 +2872,16 @@
         }
       }
     },
+    "It asks for its password to open.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pide su contraseña para abrirse."
+          }
+        }
+      }
+    },
     "It needs Local Network access to find printers and read their status. Allow it when macOS asks, or turn it on in System Settings.": {
       "localizations": {
         "es": {
@@ -3534,6 +3564,16 @@
         }
       }
     },
+    "Not saved: the preset puts a password on its PDF, and none was entered.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se guardó: el ajuste pone una contraseña a su PDF y no se escribió ninguna."
+          }
+        }
+      }
+    },
     "Nothing more": {
       "localizations": {
         "es": {
@@ -3834,6 +3874,16 @@
         }
       }
     },
+    "PDF/A-2b: a PDF meant to open the same way for years. It can't have a password.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF/A-2b: un PDF pensado para abrirse igual durante años. No puede llevar contraseña."
+          }
+        }
+      }
+    },
     "Page %lld is the last: join a page with the one after it.": {
       "localizations": {
         "es": {
@@ -4076,6 +4126,16 @@
         }
       }
     },
+    "Preview can't open a PDF whose password has letters like ñ or é (Inkvolt PDF and Acrobat can). Save again to keep it, or type another.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista Previa no puede abrir un PDF cuya contraseña tenga letras como ñ o é (Inkvolt PDF y Acrobat sí pueden). Guarda otra vez para conservarla, o escribe otra."
+          }
+        }
+      }
+    },
     "Print": {
       "localizations": {
         "es": {
@@ -4292,6 +4352,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Coloca una página en el cristal o páginas en el alimentador y haz clic en Escanear."
+          }
+        }
+      }
+    },
+    "Put a password on the PDF": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner una contraseña al PDF"
           }
         }
       }
@@ -4756,6 +4826,16 @@
         }
       }
     },
+    "Save as PDF/A, for archiving": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como PDF/A, para archivar"
+          }
+        }
+      }
+    },
     "Save cancelled after %lld files (%@): Save again writes the rest.": {
       "localizations": {
         "en": {
@@ -4910,6 +4990,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Guardado como %@ en la carpeta Grabaciones de Inkvolt Print. Léelo antes de compartirlo y luego adjúntalo a la incidencia."
+          }
+        }
+      }
+    },
+    "Saved as PDF/A.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardado como PDF/A."
           }
         }
       }
@@ -6088,6 +6178,16 @@
         }
       }
     },
+    "The two passwords don't match.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las dos contraseñas no coinciden."
+          }
+        }
+      }
+    },
     "Then": {
       "localizations": {
         "es": {
@@ -6520,6 +6620,16 @@
         }
       }
     },
+    "Type it again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escríbela otra vez"
+          }
+        }
+      }
+    },
     "Type its password to print it, or leave it out of the batch.": {
       "localizations": {
         "es": {
@@ -6630,6 +6740,16 @@
         }
       }
     },
+    "Use it for this preset from now on (kept in your keychain)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usarla para este ajuste desde ahora (se guarda en tu llavero)"
+          }
+        }
+      }
+    },
     "Use page numbers like 1-3, 5": {
       "localizations": {
         "es": {
@@ -6732,6 +6852,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Blanquear el fondo"
+          }
+        }
+      }
+    },
+    "Whoever opens the PDF will need it. Nobody can open the file without it, Inkvolt Print included: keep it somewhere safe.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quien abra el PDF la necesitará. Nadie puede abrir el archivo sin ella, ni siquiera Inkvolt Print: guárdala en un lugar seguro."
           }
         }
       }
