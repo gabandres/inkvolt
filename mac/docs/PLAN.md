@@ -509,6 +509,7 @@ at under "What a person must look at" and in each section.
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
 | 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
 | 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
+| 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 
 From the steps, besides the sections below:
@@ -582,6 +583,19 @@ From the steps, besides the sections below:
   reach a running Mac app by Apple Events, not a second launch). A path is compared ignoring case with its links
   followed (`WindowHub.fullPath`), where NSDocumentController compares URLs. Not checked by a person: a tab dragged out
   and onto another window by hand, the tab bar with long names, VoiceOver on the tabs.
+- 4.16: the page is put in the WKWebView with `loadHTMLString` at `Reflow.address` (Windows serves it there through
+  WebView2's request filter; WebKit keeps https for itself), with page scripts off, a data store nothing outlives,
+  pop-ups, link previews, media and the online list of bad sites off; the app's scripts (the page at the top, a scroll,
+  the look) run in their own world (`.defaultClient`), sharing only the page's elements. The text size follows the
+  view's zoom alone: the Mac has no Text size for apps (Windows' `TextScale`), so `ReflowLook.textScale` is 1. The
+  commands that run are `Reflow.runs`' by the Mac's menu actions (`Reflow.runsAction`, `macActions`: those the Mac has,
+  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Export Images, Back and
+  Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
+  are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
+  it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
+  reflow says Recognize Text where Windows adds Scan & OCR. Swift's HtmlWriter has no links yet ("Windows ahead, to
+  port": E15's links), so the column's own links wait for it; `follow` is ported and tested. Not checked by a person: the
+  column's look in light and dark, VoiceOver reading it, a trackpad's scrolling, a real web link opening the browser.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.
@@ -1781,8 +1795,6 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
-  `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
   (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
   `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port

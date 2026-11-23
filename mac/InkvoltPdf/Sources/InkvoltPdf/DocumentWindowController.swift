@@ -92,6 +92,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var spellingLanguage: (engine: ObjectIdentifier, language: String?)?
     var spellingLanguageReading: ObjectIdentifier?
     var lastReplace: ReplaceResult?
+    /// The Reflow view (roadmap 4.16, ReflowView.swift): the text as one column in place of the pages.
+    private(set) var reflow: ReflowView!
 
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
     // pane while the view is split, how, and which pane navigation acts on.
@@ -185,6 +187,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         noticeBar.isHidden = true
         content.view = stack
         contentStack = stack
+        reflow = ReflowView(controller: self)
+        // Over the panes, not instead of them: the page view under it keeps its page, which Reflow reads and moves.
+        stack.addSubview(reflow.host)
+        NSLayoutConstraint.activate([
+            reflow.host.leadingAnchor.constraint(equalTo: paneSplit.leadingAnchor), reflow.host.trailingAnchor.constraint(equalTo: paneSplit.trailingAnchor),
+            reflow.host.topAnchor.constraint(equalTo: paneSplit.topAnchor), reflow.host.bottomAnchor.constraint(equalTo: paneSplit.bottomAnchor),
+        ])
         findBar.onSearch = { [weak self] query in self?.find(query) }
         findBar.onNext = { [weak self] in self?.step(1) }
         findBar.onPrevious = { [weak self] in self?.step(-1) }
@@ -301,6 +310,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Reopen at last page: where this file was left.
         if !Report.isRunning || AppTest.isActive { rememberPosition() }
         progressSheet?.cancelClicked()
+        reflow.stop()
         readAloud.stop()
         ai.cancel?.cancel()
         ai.pageTexts.clear()
@@ -317,6 +327,33 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     func windowDidBecomeKey(_ notification: Notification) { checkDisk() }
+
+    /// The pages are laid out again under the Reflow view: the page they settle on isn't the reader's.
+    func windowDidResize(_ notification: Notification) { reflow?.viewerRelaid() }
+
+    // MARK: Reflow (roadmap 4.16)
+
+    /// View › Reflow (⌘3): the text as one column, from the page in view; again, back to the pages at the page it was at.
+    @objc func toggleReflow(_ sender: Any?) { setReflow(!reflow.isShown) }
+
+    func setReflow(_ on: Bool) {
+        guard on != reflow.isShown else { return }
+        if on {
+            guard engine.pageCount > 0 else { return }
+            // The page before the bars go: the pages lay out again under the view as they do.
+            let page = pages.currentPage
+            if organizerShown { showOrganizer(false) }
+            if !findBar.isHidden { hideFind() }
+            toolStrip.isHidden = true
+            reflow.show(at: page)
+        } else {
+            let page = reflow.hide()
+            toolStrip.isHidden = !AppSettings.markupShown
+            if let page, page != pages.currentPage { go(page) }
+            window?.makeFirstResponder(pages)
+            pages.requestVisible()
+        }
+    }
 
     /// Its group of tabs is the one in use: documents opened from elsewhere join it (WindowHub).
     func windowDidBecomeMain(_ notification: Notification) { WindowHub.shared.activated(self) }
@@ -348,6 +385,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         verifySignatures(onOpen: change == .reload)
         refreshAttachmentsAndLayers()
         refreshSuspectWords()
+        reflow.contentChanged()
         updateSubtitle()
     }
 
@@ -789,6 +827,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// checkmarks and the titles that change are set here first.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         markMenuItem(item)
+        // Read-only while Reflow shows: only its commands (roadmap 4.16; Copy and Select All are the web view's own).
+        if reflow.isShown, let action = item.action, !Reflow.runsAction(NSStringFromSelector(action)) { return false }
         if item.action == #selector(barItemClicked(_:)) {
             return (item.representedObject as? String).flatMap(Self.barEntry).map(barEnabled) ?? false
         }
@@ -821,6 +861,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             item.state = readingOrder.isShown ? .on : .off
         case #selector(toggleOrganizer(_:)):
             item.state = organizerShown ? .on : .off
+        case #selector(toggleReflow(_:)):
+            item.state = reflow.isShown ? .on : .off
         case #selector(protectDocument(_:)):
             item.title = pdf.session?.hasEncryption == true ? loc("Change Password Protection…") : loc("Protect with Password…")
         default:
@@ -995,9 +1037,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     // MARK: Zoom
 
-    @objc func zoomIn(_ sender: Any?) { zoom(by: 1.25) }
-    @objc func zoomOut(_ sender: Any?) { zoom(by: 0.8) }
-    @objc func actualSize(_ sender: Any?) { setZoom(1) }
+    // While Reflow shows, its text's size (roadmap 4.16).
+    @objc func zoomIn(_ sender: Any?) { if reflow.isShown { reflow.zoom(1) } else { zoom(by: 1.25) } }
+    @objc func zoomOut(_ sender: Any?) { if reflow.isShown { reflow.zoom(-1) } else { zoom(by: 0.8) } }
+    @objc func actualSize(_ sender: Any?) { if reflow.isShown { reflow.zoom(0) } else { setZoom(1) } }
     @objc func fitWidth(_ sender: Any?) { fitWidth(sender, atMost: 8) }
 
     /// View › Zoom to Page: the whole current page in the window.
@@ -1044,6 +1087,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func magnified() {
+        reflow?.viewerRelaid()
         for view in allPanes {
             view.needsDisplay = true
             view.requestVisible()
@@ -1069,6 +1113,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func scrolled() {
+        reflow?.viewerMoved(pages.currentPage)
         followBeside(fromSecond: false)
         updateSubtitle()
         sidebar.showCurrent(activePages.currentPage)

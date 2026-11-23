@@ -17,7 +17,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   its tab: the **document export**'s HTML with a **look** of its own (`ReflowLook`: Windows' Text size, the view's zoom,
   Dark pages), served at one address with page scripts off. Read-only: `Reflow.Runs` names the commands that work while
   it shows. The **page kept** (`ReflowPosition`): the page at the top of the column and the page view's, kept in step
-  both ways, each side's echo of the other's move ignored.
+  both ways, each side's echo of the other's move ignored. On the Mac (`PdfCore/Export/Reflow.swift`; the app's
+  `ReflowView`) the column is put in a WKWebView at the same address, and `Reflow.runsAction` names its menu actions.
 - **Refused shape** (`Core/PdfShapeGuard.cs`, `PdfShapeException`): a file PDFsharp is never given because it couldn't survive it: nesting
   without end, a page tree that holds itself, runs deep or multiplies, one comment list shared by too many pages, cross-reference
   sections that loop. Checked once per byte array in `PdfObj.Read`. Its pages still show (MuPDF); its objects can't be read or edited.

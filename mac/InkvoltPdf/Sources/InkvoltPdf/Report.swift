@@ -17,7 +17,7 @@ import PdfCore
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `TranslateTest` (`--only-translate` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `WindowsTest` (`--only-windows` runs it alone), `PaperTest` (`--only-paper` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `TranslateTest` (`--only-translate` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `WindowsTest` (`--only-windows` runs it alone), `ReflowTest` (`--only-reflow` runs it alone), `PaperTest` (`--only-paper` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
 /// `CompareTest` (`--only-compare` runs it alone) and `FolderSearchTest` (`--only-folder-search` runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
@@ -60,6 +60,8 @@ enum Report {
         Scenario(flag: "--only-split", documents: .notForm) { c, n in var t = SplitTest(controller: c, name: n); await t.run() },
         // Two documents side by side (roadmap 4.9): a file open once, the group of tabs in use, New Window, AppKit's moves.
         Scenario(flag: "--only-windows", documents: .synthetic) { c, n in var t = WindowsTest(controller: c, name: n); await t.run() },
+        // The Reflow view (roadmap 4.16): the column, its page kept both ways, its look, links, what runs while it shows.
+        Scenario(flag: "--only-reflow", documents: .synthetic) { c, n in var t = ReflowTest(controller: c, name: n); await t.run() },
         // Wave 4's paper commands (roadmap Batch A): page labels, interleave, blank pages, headings, resize, replace.
         Scenario(flag: "--only-paper", documents: .synthetic) { c, n in var t = PaperTest(controller: c, name: n); await t.run() },
         Scenario(flag: "--only-read-aloud", documents: .notForm) { c, n in var t = ReadAloudTest(controller: c, name: n); await t.run() },
@@ -242,6 +244,8 @@ enum Report {
                     await split.run()
                     var windows = WindowsTest(controller: controller, name: name)
                     await windows.run()
+                    var reflowing = ReflowTest(controller: controller, name: name)
+                    await reflowing.run()
                     var paper = PaperTest(controller: controller, name: name)
                     await paper.run()
                     var view = ViewTest(controller: controller, name: name)
