@@ -9,6 +9,7 @@ import PrintCore
 extension DocumentWindowController {
     func wireBookmarks() {
         sidebar.onAddBookmark = { [weak self] in self?.addBookmark(nil) }
+        sidebar.onBookmarksFromHeadings = { [weak self] in self?.bookmarksFromHeadings(nil) }
         sidebar.onRenameBookmark = { [weak self] path in self?.askRenameBookmark(path) }
         sidebar.onDeleteBookmark = { [weak self] path in
             guard let self else { return }

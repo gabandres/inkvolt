@@ -26070,6 +26070,369 @@
           }
         }
       }
+    },
+    "A prefix can be up to {0} characters, without line breaks or tabs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un prefijo puede tener hasta {0} caracteres, sin saltos de línea ni tabulaciones."
+          }
+        }
+      }
+    },
+    "The first number must be from 1 to {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El primer número debe estar entre 1 y {0}."
+          }
+        }
+      }
+    },
+    "Choose a numbering or type a prefix.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige una numeración o escribe un prefijo."
+          }
+        }
+      }
+    },
+    "Page Labels…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etiquetas de página…"
+          }
+        }
+      }
+    },
+    "Choose pages for both the fronts and the backs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige páginas para los anversos y para los reversos."
+          }
+        }
+      }
+    },
+    "A page can't be both a front and a back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página no puede ser anverso y reverso a la vez."
+          }
+        }
+      }
+    },
+    "Interleave Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar páginas…"
+          }
+        }
+      }
+    },
+    "Scan the Backs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear los reversos…"
+          }
+        }
+      }
+    },
+    "Fronts and backs scanned apart, in order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos y reversos escaneados aparte, en orden"
+          }
+        }
+      }
+    },
+    "Scan the backs, put after their fronts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanea los reversos y ponlos tras sus anversos"
+          }
+        }
+      }
+    },
+    "Remove blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar páginas en blanco"
+          }
+        }
+      }
+    },
+    "Split at blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir en las páginas en blanco"
+          }
+        }
+      }
+    },
+    "Every page looks blank: the pages were kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las páginas parecen estar en blanco: se conservaron."
+          }
+        }
+      }
+    },
+    "1 blank page removed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se quitó 1 página en blanco."
+          }
+        }
+      }
+    },
+    "{0} blank pages removed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se quitaron {0} páginas en blanco."
+          }
+        }
+      }
+    },
+    "Looking for blank pages ({0} of {1})…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando páginas en blanco ({0} de {1})…"
+          }
+        }
+      }
+    },
+    "No blank page found: nothing was split.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ninguna página en blanco: no se dividió nada."
+          }
+        }
+      }
+    },
+    "{0} - part {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - parte {1}"
+          }
+        }
+      }
+    },
+    "1 part saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó 1 parte."
+          }
+        }
+      }
+    },
+    "{0} parts saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardaron {0} partes."
+          }
+        }
+      }
+    },
+    "Remove Blank Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar páginas en blanco…"
+          }
+        }
+      }
+    },
+    "Split at Blank Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir en las páginas en blanco…"
+          }
+        }
+      }
+    },
+    "Find blank pages and delete them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca las páginas en blanco y elimínalas"
+          }
+        }
+      }
+    },
+    "Bookmarks from Headings…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores a partir de los títulos…"
+          }
+        }
+      }
+    },
+    "A side of the paper must be between {0} and {1} inches.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un lado del papel debe medir entre {0} y {1} pulgadas."
+          }
+        }
+      }
+    },
+    "Page {0} has a size in the file that can't be right, so no page was resized.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} tiene en el archivo un tamaño que no puede ser correcto, así que no se cambió el tamaño de ninguna página."
+          }
+        }
+      }
+    },
+    "Resize Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de las páginas…"
+          }
+        }
+      }
+    },
+    "Put pages on Letter, A4 or any size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon las páginas en Carta, A4 u otro tamaño"
+          }
+        }
+      }
+    },
+    "Choose as many pages to put in as pages to replace.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige tantas páginas para poner como páginas para reemplazar."
+          }
+        }
+      }
+    },
+    "A page to replace is named twice: each can be replaced once.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se indicó dos veces una página para reemplazar: cada una se puede reemplazar una sola vez."
+          }
+        }
+      }
+    },
+    "A page of the other PDF is named twice: each can take only one page's place.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se indicó dos veces una página del otro PDF: cada una puede ocupar el lugar de una sola página."
+          }
+        }
+      }
+    },
+    "Replace Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar páginas…"
+          }
+        }
+      }
+    },
+    "Swap pages for those of another PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia páginas por las de otro PDF"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

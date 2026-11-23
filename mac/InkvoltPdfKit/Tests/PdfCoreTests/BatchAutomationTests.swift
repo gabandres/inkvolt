@@ -64,6 +64,8 @@ extension ProGated {
             .watermark(WatermarkOptions(image: StampImage(2, 1, [255, 0, 0, 0, 0, 255], [255, 128]), color: AnnotColor(0, 0, 1), imageScale: 0.2)), // colors keep 8 bits a channel
             .headerFooter(header, continueBates: true),
             .rotate(-90),
+            .removeBlankPages,
+            .splitAtBlankPages,
             .flatten(FlattenOptions(links: true, printableOnly: true)),
             .unprotect,
             .export(.jpeg, dpi: 300),

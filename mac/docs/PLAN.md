@@ -503,6 +503,7 @@ at under "What a person must look at" and in each section.
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
+| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1649,6 +1650,56 @@ Not checked: EU DSS's validator on the Mac's files (`pdf/tools/pades-check` was 
 enabled", a real certificate authority and timestamp server (`INKVOLTPDF_REAL_TSA` runs the one test against Sectigo), a
 person looking at the windows and the pane, VoiceOver on the address lists.
 
+### Wave 4: paper commands (roadmap Batch A)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`), each command in the Pages menu (and the organizer's
+and thumbnails' context menu), one undo step through the edit transaction, a signed file's change appended. PaperTest
+(`--edit --only-paper`, on the synthetic text document) runs each edit the way its sheet runs it, checks the document
+and undoes it.
+- **4.14 Page Labels…** (`PageLabels`, `PageEditor.editLabels`; `PdfStructure.writeRanges` split out of `writeLabels`
+  as on Windows). The sheet is an alert with the range, numbering, prefix, first number, "Number the pages after them 1,
+  2, 3…" and a live preview; Use Plain Numbers is its third button, shown only when the document has labels (Windows
+  disables its button instead). Mac difference, from before: the Mac shows labels in Go to Page only, not in a page box
+  or the thumbnails, so What's New says Go to Page takes them.
+- **4.3 Interleave Pages…** (Pages menu, the command bar's Organize) **and Scan the Backs…** (File menu, the bar's Scan &
+  OCR): `PageEditor.interleaveOrder`, `interleave`, `interleaveWith` (the backs grafted as Insert grafts pages, their
+  annotations copied, as the Mac's Insert does where PDFsharp's import brings them). Scan the Backs is the Scan window in
+  a backs mode: "Leave out blank pages" off and unavailable (a back left out would put every later back beside the
+  wrong front), not remembered as the scan choice, and a preset saved there keeps the remembered choice (Windows'
+  review fix); with "Make the text searchable", only the backs are read afterwards (the Mac reads scans after they
+  become pages; Windows reads them in its dialog). `AppTest` drives it with the demo scanner. The signed-file test uses
+  `IncrSignatureTests.signedForm(twoPages:)`, signed for real, so its status is verified as on Windows.
+- **4.4 Remove Blank Pages… and Split at Blank Pages…** (Pages menu, the bar's Organize; Batch's Remove blank pages and
+  Split at blank pages, presets `removeBlankPages` and `splitAtBlankPages`, no longer refused): `BlankPages` judges each
+  page drawn at 1,100 px by PrintCore's `BlankPage` (the Mac's picture is RGB, so the grey weights are Windows' in RGB
+  order); a page out of range is checked before it is drawn (Windows catches the engine's exception; Swift would trap).
+  The search runs off the main thread with the progress sheet (Cancel stops it); the found pages are a grid of pictures,
+  each with a "Page N" checkbox, in an alert with Delete them / Split the document at them. Batch's Bates numbers that
+  continue go on from the pages stamped when blank pages are removed after (`batesPages`, Windows' `BatesPages`). The
+  UX review's dialog shots don't open these two (the search comes first).
+- **4.5 Bookmarks from Headings…** (Pages menu, by Add Bookmark; the Bookmarks list's context menu, where Windows also has
+  a button in its pane): `HeadingBookmarks` over `DocLayout.analyzeForTags`, as Windows. Titles are cut at 200 UTF-16
+  units (.NET's `Length`) between characters as shown (Swift's `Character`s are grapheme clusters, so an emoji or a
+  letter with its accent is never split). The headings are read off the main thread with the progress sheet; the
+  preview is a read-only text view, the levels a pop-up (Windows' choices), Replace them / Keep them and add these after
+  when the document has bookmarks. The signed-file test uses `IncrSignatureTests.signedForm(twoPages:)`, so its status
+  is verified (modified after signing) as on Windows. PaperTest makes them only if the synthetic document has headings.
+- **4.7 Resize Pages…** (Pages menu, the bar's Organize): `PageEditor.resize`, `resizeTransform`, `moveDestination` over
+  `forEachDestination` (the walk Replace Pages shares), as on Windows; the content wrapped in a `q … cm … re W n` / `Q`
+  pair of streams around the page's own. A box of no size (MediaBox [0 0 0 0], with or without a CropBox) is left as it
+  is and the other pages resized, as on Windows. Mac difference: MuPDF reads ±1e308 written out as 0 (and reals past
+  about 1e10 wrongly), where PDFsharp reads 1e308, so such a box is skipped as one of no size rather than refused; a
+  box past any page that MuPDF does read (±1e17) is refused as on Windows. Moved points are kept within a float's range, the largest number MuPDF writes. The sheet: the six paper
+  sizes (A4 first where the system is metric, as Windows), a custom size in inches or millimeters, scale or margins,
+  the pages.
+- **4.13 Replace Pages…** (Pages menu, the bar's Organize): `PageEditor.replace`, `retargetDestinations` over
+  `forEachDestination`; the new pages grafted after the pages they replace and their annotations copied, as the Mac's
+  Insert does (PDFsharp's import brings them on Windows), each taking the replaced page's label. The other PDF is
+  chosen first (an open panel), then the two ranges.
+- Not checked by a person: the sheets by eye and with VoiceOver, the blank pages' picture grid, a real scanner's backs.
+  The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
+  file to choose.
+
 ## Open decisions
 
 None.
@@ -1661,8 +1712,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.3, 4.4, 4.5, 4.7, 4.13, 4.14), done on Windows. Until 4.4 is
-  ported, a Batch preset with `removeBlankPages` or `splitAtBlankPages` is refused on the Mac as an unknown action.
 - Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
   `PunchHoles`), done on Windows.
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,

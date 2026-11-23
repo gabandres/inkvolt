@@ -6,6 +6,12 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Replace Pages… (Pages menu): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.
+- Resize Pages… (Pages menu): put pages on Letter, A4, Legal or a size you type, the content scaled to fit or kept at its size with margins added. Pages of mixed sizes become one size, and comments and form fields move with the content.
+- Bookmarks from Headings… (Pages menu, and the Bookmarks list's menu): bookmarks made from the document's headings, nested by level and shown before they're made. They replace the bookmarks or go after them.
+- Remove Blank Pages… (Pages menu) finds the pages that are almost all paper, shows them for you to untick any you want to keep, and deletes them in one step Undo puts back. Split at Blank Pages… saves the pages between blank separator sheets as separate PDFs. Both are Batch actions too.
+- Interleave Pages… (Pages menu): two-sided sheets scanned one side at a time come back in order, front 1, back 1, front 2… The backs can be pages of the same file or another PDF, in reverse order (a stack turned over) or not. File › Scan the Backs… scans the backs straight into place.
+- Page Labels… (Pages menu): number pages i, ii, iii or I, II, A, B, a, b, 1, 2, 3, with a prefix (A-1) and a first number, for any range: a preface in Roman numerals and the body from 1 in one step. Go to Page takes them.
 
 ## 1.12.1
 - A signed file's later changes can no longer hide behind the validation data it stores: a change to what a comment written into a page's list draws, to a page size or turn the pages inherit, or to the page order now shows as a change after signing.

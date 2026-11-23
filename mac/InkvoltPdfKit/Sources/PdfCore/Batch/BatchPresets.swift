@@ -222,7 +222,7 @@ public enum BatchPresets {
                 w.string("conformance", "a")
             case .addLongTerm(let url):
                 w.string("timestampServer", url)
-            case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .saveAsPdfA:
+            case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .saveAsPdfA, .removeBlankPages, .splitAtBlankPages:
                 break
             }
         }
@@ -230,7 +230,8 @@ public enum BatchPresets {
 
     /// Each action's name in a preset, in the order the Batch window offers them (the Windows app's list).
     public static let actionNames = ["optimize", "protect", "unprotect", "sanitize", "redactPatterns", "checkRedaction", "checkAccessibility", "reportContents", "watermark",
-                                     "headerFooter", "rotate", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "addLongTermData", "export"]
+                                     "headerFooter", "rotate", "removeBlankPages", "splitAtBlankPages", "flatten", "ocr", "makeAccessible", "saveAsPdfA", "addLongTermData",
+                                     "export"]
 
     private static func actionName(_ step: BatchStep) -> String {
         switch step {
@@ -245,6 +246,8 @@ public enum BatchPresets {
         case .watermark: "watermark"
         case .headerFooter: "headerFooter"
         case .rotate: "rotate"
+        case .removeBlankPages: "removeBlankPages"
+        case .splitAtBlankPages: "splitAtBlankPages"
         case .flatten: "flatten"
         case .ocr: "ocr"
         case .makeAccessible: "makeAccessible"
@@ -496,6 +499,10 @@ public enum BatchPresets {
         case "flatten":
             step = .flatten(FlattenOptions(annotations: try f.bool("annotations", true), formFields: try f.bool("formFields", true),
                                            links: try f.bool("links", false), printableOnly: try f.bool("printableOnly", false)))
+        case "removeBlankPages":
+            step = .removeBlankPages
+        case "splitAtBlankPages":
+            step = .splitAtBlankPages
         case "ocr":
             step = .ocr
         case "makeAccessible":

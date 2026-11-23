@@ -238,6 +238,7 @@ public enum DocumentCommands {
         c("Combine Files…", "combineFiles:"),
         c("Compare Files…", "compareFiles:"),
         c("Scan…", "scan:"),
+        c("Scan the Backs…", "scanBacks:", needs: [.pages]),
         sep,
         c("Close", "performClose:", "w"),
         c("Save", "saveDocument:", "s"),
@@ -369,6 +370,12 @@ public enum DocumentCommands {
         c("Extract Pages…", "extractPages:"),
         c("Split Document…", "splitDocument:"),
         c("Crop Pages…", "cropPages:"),
+        c("Interleave Pages…", "interleavePages:", needs: [.pages]),
+        c("Remove Blank Pages…", "removeBlankPages:", needs: [.pages] + longTask),
+        c("Split at Blank Pages…", "splitAtBlankPages:", needs: [.pages] + longTask),
+        c("Resize Pages…", "resizePages:", needs: [.pages]),
+        c("Replace Pages…", "replacePages:", needs: [.pages]),
+        c("Page Labels…", "editPageLabels:"),
         sep,
         c("Add Header & Footer…", "addHeaderFooter:", needs: longTask),
         c("Remove Header & Footer", "removeHeaderFooter:", needs: longTask),
@@ -377,6 +384,7 @@ public enum DocumentCommands {
         c("Flatten…", "flattenDocument:", needs: longTask),
         sep,
         c("Add Bookmark", "addBookmark:", "d"),
+        c("Bookmarks from Headings…", "bookmarksFromHeadings:", needs: [.pages] + longTask),
         c("Show Bookmarks", "showBookmarks:", "2", [.command, .option]),
     ])
 
