@@ -3755,6 +3755,17 @@
         }
       }
     },
+    "PDF/A": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF/A"
+          }
+        }
+      }
+    },
     "Page {0} can't be drawn.": {
       "extractionState": "manual",
       "localizations": {
@@ -8224,6 +8235,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "un archivo nuevo en cada {0}"
+          }
+        }
+      }
+    },
+    "a password to open": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "con contraseña para abrir"
           }
         }
       }

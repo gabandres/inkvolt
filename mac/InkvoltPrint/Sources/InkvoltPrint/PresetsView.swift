@@ -170,6 +170,17 @@ private struct PresetEditor: View {
                         .help("PDF pages in black and white: a page of text takes a tenth of the space or less")
                 }
                 if [PresetFileType.searchablePdf, .word, .text].contains(preset.fileType) { TextLanguagePicker(language: $preset.ocrLanguage) }
+                if ScanPresets.isPdf(preset.fileType) {
+                    // Roadmap 4.18: PDF/A-2b for archiving, or a password (AES-256); never both, the last ticked winning.
+                    Toggle(isOn: Binding(get: { preset.pdfA }, set: { preset = ScanPresets.withPdfA(preset, $0) })) {
+                        Text("Save as PDF/A, for archiving")
+                        Text("PDF/A-2b: a PDF meant to open the same way for years. It can't have a password.")
+                    }
+                    Toggle(isOn: Binding(get: { preset.password }, set: { preset = ScanPresets.withPassword(preset, $0) })) {
+                        Text("Put a password on the PDF")
+                        Text("AES-256, as Inkvolt PDF protects files. Asked the first time the preset saves; kept in your keychain if you choose.")
+                    }
+                }
                 HStack {
                     Text("Folder")
                     Spacer()

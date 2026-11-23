@@ -35,7 +35,8 @@ public enum ScanPdf {
         }
     }
 
-    public static func write(_ pages: [Page], title: String? = nil) throws -> Data {
+    /// `options`: PDF/A-2b or a password (roadmap 4.18); nil writes the plain file.
+    public static func write(_ pages: [Page], title: String? = nil, options: PdfWriteOptions? = nil) throws -> Data {
         let written = try pages.map { page -> PdfWriter.Page in
             if let bits = page.bits {
                 return .blackAndWhite(bits, dpi: page.dpi, words: page.words.map { pixelWords($0, width: bits.width, height: bits.height) })
@@ -44,7 +45,7 @@ public enum ScanPdf {
             let size = try PdfWriter.jpegInfo(page.jpeg)
             return PdfWriter.Page(page.jpeg, dpi: page.dpi, words: pixelWords(words, width: size.width, height: size.height))
         }
-        return Data(try PdfWriter.write(written, title: title))
+        return Data(try PdfWriter.write(written, title: title, options: options))
     }
 
     /// Vision's words (fractions of the image from its bottom left) in the image's pixels from its top left, as `PdfWriter`

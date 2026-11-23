@@ -1046,11 +1046,12 @@ final class ScanModel {
     /// Writes `files` (each a PDF at `targets[f][0]`, or its images at `targets[f]`), every file's images rendered first. A
     /// file whose `asSent[f]` is there is the scanner's own PDF, written as it sent it (nothing rendered).
     /// - Throws: `SaveStopped` with the files written so far when `stop` fires.
+    /// `options`: a preset's PDF/A-2b or password (roadmap 4.18); `asSent` is all nil then (always the app's own PDF).
     nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?],
-                                          stop: BatchStop? = nil) throws -> [URL] {
+                                          stop: BatchStop? = nil, options: PdfWriteOptions? = nil) throws -> [URL] {
         var written: [[URL]] = jobs.map { _ in [] }
         do {
-            try write(jobs, to: targets, format: format, asSent: asSent, stop: stop, written: &written)
+            try write(jobs, to: targets, format: format, asSent: asSent, stop: stop, options: options, written: &written)
         } catch is CancellationError {
             throw SaveStopped(written: written)
         }
@@ -1058,7 +1059,7 @@ final class ScanModel {
     }
 
     nonisolated private static func write(_ jobs: [[PageJob]], to targets: [[URL]], format: ScanFormat, asSent: [[UInt8]?],
-                                          stop: BatchStop?, written: inout [[URL]]) throws {
+                                          stop: BatchStop?, options: PdfWriteOptions?, written: inout [[URL]]) throws {
         var files: [[OutputImage]] = []
         for (f, job) in jobs.enumerated() { files.append(f < asSent.count && asSent[f] != nil ? [] : try render([job], stop: stop)[0]) }
         for (f, (file, urls)) in zip(files, targets).enumerated() {
@@ -1078,7 +1079,8 @@ final class ScanModel {
                     try stop?.check()
                     return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words, bits: bits)
                 }
-                try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent).write(to: urls[0], options: .atomic)
+                try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent, options: options)
+                    .write(to: urls[0], options: .atomic)
                 written[f] = [urls[0]]
             case .jpeg:
                 var images: [URL] = []
@@ -1114,7 +1116,8 @@ final class ScanModel {
     /// Saves the way the preset says: in its folder (asked for once, then remembered), its subfolder, its file name, each file
     /// of a batch with its own `{n}` and `{pages}`; then what the preset does after (print a copy, attach to an email). A save
     /// that failed part-way writes only the files it hadn't when Save is pressed again.
-    func saveWithPreset() async {
+    /// `reveal` false (the report's checks): nothing is shown or opened once saved.
+    func saveWithPreset(reveal: Bool = true) async {
         guard let p = preset else { return }
         var folder = app.presetFolder(p.id)
         if folder == nil {
@@ -1130,6 +1133,27 @@ final class ScanModel {
             folder = app.presetFolder(p.id) ?? url
         }
         guard let folder, !pages.toSave.isEmpty, !isSaving else { return }
+        // A preset's PDF/A or password (roadmap 4.18): the password kept in the keychain, else asked now (and kept when the
+        // person says so). Such a PDF is always the app's own, never the scanner's as it sent it.
+        var password: String?
+        if format != .jpeg && ScanPresets.savesWithPassword(p) {
+            password = app.presetPasswords.password(for: p.id)
+            if !PdfEncryption.usable(password) {
+                guard let asked = PresetPasswordPrompt.ask(presetName: p.name), PdfEncryption.usable(asked.password) else {
+                    problem = String(localized: "Not saved: the preset puts a password on its PDF, and none was entered.")
+                    return
+                }
+                password = asked.password
+                if asked.remember { app.presetPasswords.set(asked.password, for: p.id) }
+            }
+        }
+        let options: PdfWriteOptions?
+        do {
+            options = format == .jpeg ? nil : try ScanPresets.writeOptions(p, password)
+        } catch {
+            problem = String(localized: "Not saved: the preset puts a password on its PDF, and none was entered.")
+            return
+        }
         let accessing = folder.startAccessingSecurityScopedResource()
         defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
         let files = pages.files
@@ -1161,7 +1185,7 @@ final class ScanModel {
             let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
             let format = format
             let job = jobs([file])
-            let sent = asSent([file])
+            let sent = options == nil ? asSent([file]) : [nil]
             let result: Result<[URL], any Error> = await offPool {
                 Result {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -1170,7 +1194,7 @@ final class ScanModel {
                     if let document {
                         return try Self.writeDocument(job[0], to: URL(fileURLWithPath: paths[0]), type: document, title: stem, stop: stop)
                     }
-                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop)
+                    return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop, options: options)
                 }
             }
             if case .failure(let error) = result, error is SaveStopped || error is CancellationError {
@@ -1192,15 +1216,18 @@ final class ScanModel {
             all += urls
         }
         isSaving = false
-        await finishSaving(all, in: folder.lastPathComponent, note: asSentNote(files), reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
-        await after(p.after, all, document: document != nil)
+        let note = options == nil ? asSentNote(files)
+            : options?.pdfA == true ? " " + String(localized: "Saved as PDF/A.") : " " + String(localized: "It asks for its password to open.")
+        await finishSaving(all, in: folder.lastPathComponent, note: note, reveal: reveal && p.after == .none, presetOpens: !reveal || p.after == .openInInkvoltPdf)
+        await after(p.after, all, document: document != nil, password: options?.password)
     }
 
     /// The preset's step after saving: print a copy of what was saved on this printer, attach it to a new email in the
     /// user's mail app (Inkvolt Print has no mail account of its own), or open the saved PDFs in Inkvolt PDF (as on Windows,
     /// JPEG scans are only saved).
     /// A Word or text scan (`document`) prints its pages, as Windows' copy does, and isn't opened in Inkvolt PDF (it opens PDFs).
-    private func after(_ step: PresetAfter, _ urls: [URL], document: Bool = false) async {
+    /// `password`: the one the preset put on its PDFs, which PDFKit opens them with to print the copy (Windows' engine can't).
+    private func after(_ step: PresetAfter, _ urls: [URL], document: Bool = false, password: String? = nil) async {
         switch step {
         case .print where document:
             await printPages()
@@ -1210,6 +1237,12 @@ final class ScanModel {
             let document = PDFDocument()
             for url in urls {
                 if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
+                    if pdf.isLocked, !(password.map { pdf.unlock(withPassword: $0) } ?? false) {
+                        // PDFKit can't open AES-256 with a password beyond ASCII (an ñ): the copy is printed from the
+                        // scanned pages instead, as a Word or text scan's is, rather than nothing said and nothing printed.
+                        await printPages()
+                        return
+                    }
                     for i in 0..<pdf.pageCount { if let page = pdf.page(at: i) { document.insert(page, at: document.pageCount) } }
                 } else if let image = NSImage(contentsOf: url), let page = PDFPage(image: image) {
                     document.insert(page, at: document.pageCount)

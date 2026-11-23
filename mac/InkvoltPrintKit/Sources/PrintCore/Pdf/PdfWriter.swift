@@ -47,6 +47,10 @@ public enum PdfWriter {
         case noPages
         /// Not a JPEG with a frame header, or one with no height (an unterminated feeder page).
         case notAJpeg
+        /// PDF/A and a password together: PDF/A forbids encryption.
+        case pdfAWithPassword
+        /// A CMYK picture in a PDF/A file (its sRGB output intent allows RGB and grey only).
+        case cmykInPdfA
     }
 
     /// Text scaling (Tz, percent) is kept within what readers accept, whatever box a recognizer gives.
@@ -55,22 +59,43 @@ public enum PdfWriter {
     /// The smallest font size written, in points: at "0.###" a smaller one would read as 0.
     private static let minSize = 0.01
 
-    /// The PDF's bytes. `title`: the Info dictionary's (nil: "Scan").
-    public static func write(_ pages: [Page], title: String? = nil) throws -> [UInt8] {
+    /// The PDF's bytes. `title`: the Info dictionary's (nil: "Scan"). `options`: PDF/A-2b or a password (`PdfWriteOptions`,
+    /// roadmap 4.18); nil writes the plain file as before.
+    /// - Throws: `WriteError.pdfAWithPassword` (PDF/A forbids encryption), `WriteError.cmykInPdfA`, `PdfEncryption.Problem` for
+    ///   a password that can't be used or no cryptography installed.
+    public static func write(_ pages: [Page], title: String? = nil, options: PdfWriteOptions? = nil) throws -> [UInt8] {
         if pages.isEmpty { throw WriteError.noPages }
+        let archive = options?.pdfA == true
+        if archive && options?.password != nil { throw WriteError.pdfAWithPassword }
+        let crypt = try options?.password.map { try PdfEncryption.create($0) }
+        // PDF/A's sRGB output intent allows DeviceRGB and DeviceGray, never DeviceCMYK (ISO 19005-2, 6.2.4.3). Scans are never CMYK.
+        if archive, try pages.contains(where: { try $0.bits == nil && jpegInfo($0.jpeg).components == 4 }) { throw WriteError.cmykInPdfA }
         var w = ObjWriter()
         var font = OcrFont()
-        w.raw("%PDF-1.4\n")
+        // AES-256 (AESV3) is PDF 2.0's, Adobe's extension level 8 of PDF 1.7.
+        w.raw(crypt == nil ? "%PDF-1.4\n" : "%PDF-1.7\n")
         w.bytes([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A])
 
-        // Fixed ids: 1 catalog, 2 pages, 3 info; then 3 objects per page, then the font's when any page has text.
+        // Fixed ids: 1 catalog, 2 pages, 3 info; then 3 objects per page, then the font's when any page has text (6), then
+        // PDF/A's metadata and profile, or the encryption dictionary.
         let infoId = 3
         let pageIds = pages.indices.map { 4 + $0 * 3 }
         let fontId = 4 + pages.count * 3
+        let (metadataId, profileId, encryptId) = (fontId + 6, fontId + 7, fontId + 6)
+        let created = options?.now ?? Date()
+        let shownTitle = title ?? "Scan"
 
-        w.obj(1, "<< /Type /Catalog /Pages 2 0 R >>")
+        var catalog = "<< /Type /Catalog /Pages 2 0 R"
+        if archive {
+            catalog += " /Metadata \(metadataId) 0 R /OutputIntents [<< /Type /OutputIntent /S /GTS_PDFA1 /OutputConditionIdentifier (sRGB IEC61966-2.1) "
+                + "/Info (sRGB IEC61966-2.1) /DestOutputProfile \(profileId) 0 R >>]"
+        }
+        if crypt != nil { catalog += " /Extensions << /ADBE << /BaseVersion /1.7 /ExtensionLevel 8 >> >>" }
+        // From here every object but the encryption dictionary has its strings and streams encrypted.
+        w.encryption = crypt
+        w.obj(1, catalog + " >>")
         w.obj(2, "<< /Type /Pages /Count \(pages.count) /Kids [\(pageIds.map { "\($0) 0 R" }.joined(separator: " "))] >>")
-        w.obj(infoId, "<< /Producer (Inkvolt Print) /Title \(textString(title ?? "Scan")) /CreationDate (D:\(creationDate(Date()))Z) >>")
+        w.obj(infoId, "<< /Producer (Inkvolt Print) /Title \(textString(shownTitle)) /CreationDate (\(PdfArchive.pdfDate(created))) >>")
 
         for (p, page) in pages.enumerated() {
             let (pxW, pxH, components) = try page.bits.map { ($0.width, $0.height, 1) } ?? jpegInfo(page.jpeg)
@@ -98,8 +123,16 @@ public enum PdfWriter {
             w.stream(contentId, "<< /Length \(contentBytes.count) >>", contentBytes)
         }
         if !font.isEmpty { font.write({ w.obj($0, $1) }, { w.stream($0, $1, $2) }, fontId: fontId, firstId: fontId + 1) }
+        if archive {
+            let xmp = PdfArchive.xmp(title: shownTitle, producer: "Inkvolt Print", created: created)
+            w.stream(metadataId, "<< /Type /Metadata /Subtype /XML /Length \(xmp.count) >>", xmp)
+            let icc = IccProfiles.srgbForPrint()
+            w.stream(profileId, "<< /N 3 /Length \(icc.count) >>", icc)
+        }
+        w.encryption = nil
+        if let crypt { w.obj(encryptId, crypt.dictionary()) }
 
-        w.finish(rootId: 1, infoId: infoId)
+        try w.finish(rootId: 1, infoId: infoId, encryptId: crypt == nil ? nil : encryptId, withId: archive || crypt != nil)
         return w.out
     }
 
@@ -198,14 +231,6 @@ public enum PdfWriter {
     /// A text string for the Info dictionary, in UTF-16 with its byte order mark, hex-encoded.
     private static func textString(_ text: String) -> String { "<FEFF\(utf16Hex(OcrText.clean(text)))>" }
 
-    private static func creationDate(_ date: Date) -> String {
-        var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(identifier: "UTC")!
-        let c = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
-        func two(_ v: Int?) -> String { let v = v ?? 0; return v < 10 ? "0\(v)" : "\(v)" }
-        return "\(c.year ?? 2000)\(two(c.month))\(two(c.day))\(two(c.hour))\(two(c.minute))\(two(c.second))"
-    }
-
     /// Pixel size and component count from the JPEG's frame header.
     public static func jpegInfo(_ jpeg: [UInt8]) throws -> (width: Int, height: Int, components: Int) {
         let off = JpegFix.findSofHeightOffset(jpeg)
@@ -279,19 +304,62 @@ public enum PdfWriter {
 
         mutating func bytes(_ data: [UInt8]) { out += data }
 
+        /// While set, each object's strings and each stream's data are encrypted as written.
+        var encryption: PdfEncryption?
+
+        /// The first body whose strings couldn't be read for encryption: `finish` throws it, so no file goes out half open.
+        private var failure: (any Error)?
+
         mutating func obj(_ id: Int, _ body: String) {
             offsets[id] = out.count
-            raw("\(id) 0 obj\n\(body)\nendobj\n")
+            raw("\(id) 0 obj\n\(encrypted(body))\nendobj\n")
         }
 
         mutating func stream(_ id: Int, _ dict: String, _ data: [UInt8]) {
             offsets[id] = out.count
+            var (dict, data) = (dict, data)
+            if let crypt = encryption {
+                let plain = data.count
+                data = crypt.encrypt(data)
+                dict = encrypted(Self.replaceLength(dict, plain, data.count))
+            }
             raw("\(id) 0 obj\n\(dict)\nstream\n")
             bytes(data)
             raw("\nendstream\nendobj\n")
         }
 
-        mutating func finish(rootId: Int, infoId: Int) {
+        private mutating func encrypted(_ body: String) -> String {
+            guard let crypt = encryption else { return body }
+            do {
+                return try crypt.encryptStrings(body)
+            } catch {
+                if failure == nil { failure = error }
+                return body
+            }
+        }
+
+        /// "/Length <plain>" (not followed by another digit) made "/Length <encrypted>".
+        static func replaceLength(_ dict: String, _ plain: Int, _ length: Int) -> String {
+            let key = "/Length \(plain)"
+            var rest = Substring(dict)
+            var out = ""
+            while let r = rest.range(of: key) {
+                let after = rest[r.upperBound...]
+                if let next = after.first, next.isASCII, next.isNumber {
+                    out += rest[..<r.upperBound]
+                } else {
+                    out += rest[..<r.lowerBound] + "/Length \(length)"
+                }
+                rest = after
+            }
+            return out + rest
+        }
+
+        /// - Parameters:
+        ///   - encryptId: the encryption dictionary's object, when the file has a password.
+        ///   - withId: writes the file identifier PDF/A and encryption ask for (a new random one).
+        mutating func finish(rootId: Int, infoId: Int, encryptId: Int? = nil, withId: Bool = false) throws {
+            if let failure { throw failure }
             let max = offsets.keys.max() ?? 0
             let xref = out.count
             var s = "xref\n0 \(max + 1)\n0000000000 65535 f \n"
@@ -303,7 +371,12 @@ public enum PdfWriter {
                     s += "0000000000 65535 f \n"
                 }
             }
-            s += "trailer\n<< /Size \(max + 1) /Root \(rootId) 0 R /Info \(infoId) 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
+            var extra = encryptId.map { " /Encrypt \($0) 0 R" } ?? ""
+            if withId {
+                let id = PdfEncryption.hex(PdfEncryption.random(16))
+                extra += " /ID [<\(id)> <\(id)>]"
+            }
+            s += "trailer\n<< /Size \(max + 1) /Root \(rootId) 0 R /Info \(infoId) 0 R\(extra) >>\nstartxref\n\(xref)\n%%EOF\n"
             raw(s)
         }
     }

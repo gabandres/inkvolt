@@ -46,7 +46,7 @@ struct PrinterPane: View {
         .toolbar {
             if !printer.isScannerOnly { ToolbarItem {
                 Menu {
-                    Button("Print a PDF…") { Printing.printPdf(on: printer, app: app) }
+                    Button("Print a PDF…") { Task { await Printing.printPdf(on: printer, app: app) } }
                     Button("Print Photos…") { printingPhotos = true }
                     if printer.canScan {
                         Divider()

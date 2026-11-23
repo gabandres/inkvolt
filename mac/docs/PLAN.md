@@ -297,6 +297,54 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
   file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
   (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
+- **4.18 A PDF preset's PDF/A-2b and password.** PrintCore `PdfArchive` (`PdfWriteOptions`; the XMP packet, its text
+  escaped by hand as .NET's XElement writes it; `pdfDate`/`isoDate` in the Gregorian calendar, UTC), `PdfEncryption`
+  (AES-256, the standard security handler's revision 6: algorithm 2.B, /U /UE /O /OE /Perms, every string and stream
+  encrypted with its own IV, `encryptStrings`, NFKC passwords cut at 127 bytes on a character, `checkNew`) over a
+  `PdfCrypto` (SHA-256/384/512, AES-CBC), `IccProfiles` (moved from PdfCore: `srgb()` named for Inkvolt PDF, as it was,
+  `srgbForPrint()`), `PdfWriter.write(…options:)` (PDF 1.7 with Adobe's extension level 8 when protected, the output
+  intent, metadata and file ID for PDF/A, a CMYK picture refused, PDF/A with a password refused);
+  `ScanPreset.pdfA`/`password` (`PdfA`, `Password`, the Windows names), `ScanPresets.savesPdfA`, `savesWithPassword`,
+  `withPdfA`/`withPassword` (the last ticked wins), `passwordsToForget`, `writeOptions` (throws rather than save a
+  protected preset's PDF open), `isPdf`; `ScanArchiveTests` (PC, 20). PrintMac `ApplePdfCrypto` (CryptoKit's hashes,
+  CommonCrypto's AES-CBC; installed at launch with SNMPv3's, `PdfCryptoTests`), `PresetPasswords` (the login keychain by
+  preset id, memory in demo mode). The app: the preset editor's Save as PDF/A and Put a password on the
+  PDF (a PDF type only, each clearing the other), the password asked the first time the preset saves (typed twice; Use it
+  for this preset from now on keeps it in the keychain), forgotten when the preset goes or its option is turned off; such a
+  file is always the app's own PDF, never the scanner's as sent, and the status says Saved as PDF/A or It asks for its
+  password to open. PdfCoreTests `PrintScanArchiveTests` (Mac, the Windows names): Inkvolt PDF for Mac's PDF/A check passes
+  the PDF/A scan, MuPDF opens the protected one only with its password (a Spanish one too) and finds its text, Remove
+  Protection takes the password off. `--report … --demo --scan-archive` saves the demo laser's feeder through each preset
+  into the container and has PDFKit open the protected one with its password (an ASCII one opens it; "Contraseña 2026"
+  doesn't: PDFKit, Preview's engine, takes only ASCII for AES-256, where MuPDF takes any, so the prompt says so once before
+  keeping such a password, as Windows' README names its own engine's limit). **Mac differences:** the password is in the
+  keychain (Windows: Credential Manager); the preset's Print a copy step opens the protected file with its password through
+  PDFKit (Windows' own PDF engine can't open these files); the crypto is the system's behind `PdfCrypto`, the PC's tests a
+  stand-in of their own (`TestPdfCrypto`: FIPS 180-4 and 197, a table cipher fast enough that the suite doesn't hold up the
+  Mac's timing tests); DatesAreGregorianWhateverTheRegionalCalendar can't switch Foundation's calendar for the process, so
+  it checks the dates written don't follow the region. Found here: PdfEngine draws every page of a document opened with its open password white (Inkvolt PDF's own Protect
+  output the same, AES-128 or AES-256; owner-only files draw), so AProtectedScanDrawsAsThePlainOne is off ("Open"). Not
+  checked: a protected scan in Acrobat, veraPDF on the PDF/A scan, the password sheet on screen (VoiceOver).
+- **4.18 Print a PDF's pages per sheet, booklet and poster.** PrintCore `Sheets` (`PrintLayout`, `PrintSetup`, `PrintPlan`,
+  `PrintSheet`, `PlacedPage`, `CutMark`, `PrintHandling`, `PrintSizing`, `PagesOrder`: the Windows core's `Core/Sheets`, moved
+  there from Inkvolt PDF, ported over `Placement`, which gains `right`, `bottom`, `intersect`, `inflate`), `SheetPrint`,
+  `SheetChoice`, `PdfLayout`, `SheetRoute`; `SheetPrintTests` (PC, 14). PrintMac `LibCups.printsBothSides` (the queue's
+  `sides-supported`). The app (`SheetPrinting.swift`): Print a PDF's open panel has a Layout row under the file list (one page
+  per sheet as before, several pages per sheet with 2 to 16, a booklet, a poster with its size and cut marks); a layout other
+  than one page per sheet prints `SheetPrintView` through the print panel: the plan laid out for the panel's paper as it
+  changes, each page drawn by PDFKit (vectors, annotations included) into its place, a poster's part clipped to its box, cut
+  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words, a booklet on a queue that
+  says it prints one side only too. `--report … --pdf-layout` prints the sample to PDFs in the container and says where
+  PDFKit finds each page's words. **Mac differences:** Inkvolt PDF for Mac's PdfCore keeps its own `PrintLayout` (Windows
+  moved Inkvolt PDF's into the shared core), so PrintCore's are nested in `Sheets` (PdfCore imports PrintCore, and two
+  `PrintSetup`s at the top level would collide in every file that imports both); `grid` takes a count that isn't a choice
+  as 2 (Windows throws); lengths are in DIPs as on Windows and drawn in points (`SheetPrint.pointsPerUnit`); copies and two
+  sides are the print panel's (macOS makes the copies, so `SheetPrint.order`'s blank back between copies isn't used); a
+  booklet asks the panel for two-sided on the long edge, and a back is drawn half-turned only while the job prints on the
+  long edge (on the short edge it needs no turn); no two-sided by hand, so a booklet on a one-sided queue is refused rather
+  than printed by hand; pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
+  its Print a PDF view, with a count of the sheets). Not checked: a booklet and a poster on paper (fold, trim), the open
+  panel's Layout row on screen (VoiceOver), a printer with no queue picked in the panel for a booklet.
 
 ## Mac differences
 
@@ -1976,9 +2024,9 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
-- Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
-  the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
-  Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
+- Inkvolt PDF for Mac: `PdfEngine.render` draws every page of a document opened with its open password white (AES-128 and
+  AES-256, Inkvolt PDF's own Protect output too; an owner-only file draws; its text reads, and Remove Protection's copy
+  draws). Found by Print 4.18's `PrintScanArchiveTests.aProtectedScanDrawsAsThePlainOne`, off until it's fixed.
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
   `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
   format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
