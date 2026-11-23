@@ -195,8 +195,20 @@ mac/InkvoltPrintKit --build-system native`.
   `panelNote`; the Printer MIB's console lines, IPP's `printer-state-message`, LEDM's LocString; `PanelTextTests`).
   Queue change notices: **Mac difference: polling.** macOS's cupsd has no subscriptions (Create-Printer-Subscriptions is
   0x501, not supported, on the build Mac's macOS 27.1), so PrintMac's `CupsQueueNotices` reads the queue list with
-  CUPS-Get-Printers (names, device URIs, models only) every 2 s on a thread of its own, a change from the last read a
-  notice; it asks for CUPS's subscription first and would pull its events where a cupsd has them. A burst is read as one
+  CUPS-Get-Printers (names, device URIs, models only) on a thread of its own, a change from the last read a notice; it
+  asks for CUPS's subscription first and would pull its events where a cupsd has them. The pace is
+  `QueueNoticePolling`'s (PrintCore): every 2 s while the window shows, every 6 s on battery or in Low Power Mode, and not
+  at all while it's closed (the thread waits; the 60 s read of the queues goes on, and cupsd, which launchd starts on
+  demand, may exit when idle); opening the window reads the list at once. The thread holds only its `PollingLoop` (a
+  stop flag and a wait `stop` and `wake` cut short) and state, not the notices: `stop`, or letting them go, ends it
+  (review fix 2026-11-23: it used to poll every 2 s for the app's whole life, window closed or on battery, and the loop
+  held the object, so nothing could stop it). `--report … --window-closed 150` closes the window for 150 s and counts
+  cupsd's questions. On the build Mac (on power), the polling thread asked once in the first 3 s open, none in 90 s
+  closed, and once in the second after it reopened (a first run asked once while closed: a wait already running when the
+  window closed; such a wait now asks nothing). cupsd (one pid throughout a 150 s closed run) stayed up and exited 30 to
+  60 s after the app quit: the app's
+  60 s read of the queues while the window is closed still keeps it up. **Open:** a longer closed-window read,
+  or one read only when the menu bar asks, if cupsd should exit with the window closed. A burst is read as one
   (`QueueChangeNotices`, 750 ms quiet, 3 s at most, as Windows); the report's "Queue change notices" line says which way
   and how many queues the last read found. Windows' spooler tests (which notice means a relist, the refresh after lost
   notices) have no Mac counterpart. Not checked: the panel line on screen, a queue added,
@@ -463,7 +475,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - A printer added by address keeps the Windows app's id (MD5 of the host as a .NET Guid; PrintCore has its own MD5 and
   SHA-256, since CryptoKit is Apple's).
 - Quiet hours are minutes after midnight on a given time zone (the tracker takes one; tests pass UTC-4 as the .NET tests'
-  offset). Polling backs off on battery and on a constrained network (macOS's Low Data Mode) rather than Windows' metered one.
+  offset). Polling backs off on battery and on a constrained network (macOS's Low Data Mode) rather than Windows' metered one;
+  the queue list's polling (queue change notices, above) on battery and in Low Power Mode, and stops while the window is
+  closed.
 - Network search addresses are dotted IPv4 strings; the scanner protocol is async (`NetworkScanner`), and the sweep runs
   64 addresses at a time in a task group, the SNMP question beside it and awaited when the search stops.
 - Presets keep the Windows app's JSON field names and stored numbers (`StoredChoice`), so the apps read each other's

@@ -2,6 +2,7 @@ import AppKit
 import Observation
 import PrintCore
 import PrintMac
+import Synchronization
 
 /// The app: the printer list (network printers, and queue printers from macOS's CUPS queues), discovery, Local Network
 /// access, and the menu bar's alerts. One per process, made at launch
@@ -40,6 +41,8 @@ final class AppModel {
     /// The main window is on screen: printers are watched live; closed, they're checked now and then.
     @ObservationIgnored private(set) var windowOpen = true
     @ObservationIgnored private let conditions = PollingConditions()
+    /// `windowOpen` for the queue notices' thread, which reads it at each pull.
+    @ObservationIgnored private let windowShown = WindowShown()
     @ObservationIgnored let queues: any PrintQueues
     /// The offline fixer's network checks and its queue repairs (this Mac's, or demo mode's made-up ones).
     @ObservationIgnored let offlineProbes: any OfflineProbes
@@ -47,13 +50,16 @@ final class AppModel {
     /// "Set up in macOS": creates a CUPS queue (this Mac's cupsd, or demo mode's made-up one).
     @ObservationIgnored let queueSetup: any QueueSetupControl
     @ObservationIgnored private var readingQueues: Task<Void, Never>?
-    /// Queue change notices (Windows' spooler notices): CUPS's printer-added, -deleted and -modified events, a burst read
-    /// as one (`QueueChangeNotices`, as Windows waits: 750 ms quiet, 3 s at most). Nil in demo mode.
+    /// Queue change notices (Windows' spooler notices): CUPS's printer-added, -deleted and -modified events, or macOS's
+    /// queue list polled only while the window shows (`QueueNoticePolling`), a burst read as one (`QueueChangeNotices`, as
+    /// Windows waits: 750 ms quiet, 3 s at most). Nil in demo mode.
     @ObservationIgnored private var queueNotices: (cups: CupsQueueNotices, burst: QueueChangeNotices)?
     /// What the report says of them: CUPS's subscription taken, refused (the 10 s read alone), or nil in demo mode.
     var queueNoticesState: CupsQueueNotices.Subscription? { queueNotices?.cups.subscription }
     /// Polling: the queues the last read of the list found (the report).
     var queueNoticesListed: Int? { queueNotices?.cups.listedQueues }
+    /// How many times the notices asked cupsd (the report's `--window-closed`).
+    var queueNoticesAsked: Int? { queueNotices?.cups.asked }
     /// Discovery's first sweep is over: network queues may be listed (a printer it finds would take their place).
     @ObservationIgnored private var sweepDone = false
     /// A queue printer selected last time, selected again once it's listed.
@@ -215,7 +221,11 @@ final class AppModel {
             let burst = QueueChangeNotices(quiet: .milliseconds(750), longest: .seconds(3)) { [weak self] in
                 Task { @MainActor in await self?.readQueues() }
             }
-            queueNotices = (CupsQueueNotices { burst.notice() }, burst)
+            let conditions = conditions, shown = windowShown
+            let interval: @Sendable () -> Duration? = { () -> Duration? in
+                QueueNoticePolling.interval(windowOpen: shown.value, onBattery: conditions.onBattery, lowPower: conditions.lowPower)
+            }
+            queueNotices = (CupsQueueNotices(interval: interval) { burst.notice() }, burst)
         }
         if isDemo {
             isSearching = false
@@ -657,6 +667,8 @@ final class AppModel {
     func windowChanged(open: Bool) {
         guard open != windowOpen, !isDemo || self !== AppModel.demo else { return }
         windowOpen = open
+        windowShown.value = open
+        if open { queueNotices?.cups.wake() } // the queue list polled again now; closed, its thread waits for this
         for p in printers where p.isNetwork {
             if open { p.resume() } else { p.suspend(conditions) }
         }
@@ -726,4 +738,14 @@ struct AppFleetMac: FleetMac {
     func recipe(_ printer: KnownPrinter) -> PrinterRecipe { makeRecipe(printer.uuid) }
     func destinations() async throws -> [CupsDestination]? { await queues.destinations() }
     func scanners() async throws -> [SystemScanner]? { await listScanners() }
+}
+
+/// The window shows, for a thread that isn't the main one (the queue notices' pace).
+private final class WindowShown: Sendable {
+    private let shown = Atomic<Bool>(true)
+
+    var value: Bool {
+        get { shown.load(ordering: .relaxed) }
+        set { shown.store(newValue, ordering: .relaxed) }
+    }
 }

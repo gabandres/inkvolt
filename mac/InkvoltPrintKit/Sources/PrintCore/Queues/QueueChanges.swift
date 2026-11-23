@@ -69,3 +69,63 @@ public final class QueueChangeNotices: Sendable {
 
     deinit { state.withLock { $0.waiting?.cancel() } }
 }
+
+/// How often macOS's queue list is polled for changes (PrintMac's `CupsQueueNotices`: macOS's cupsd takes no
+/// subscriptions): every `live` while the window shows, every `saving` on battery or in Low Power Mode, and not at all while
+/// it's closed (nil): the app's 60 s read of the queues is enough then, and cupsd, started on demand, may exit when idle.
+public enum QueueNoticePolling {
+    public static let live: Duration = .seconds(2)
+    public static let saving: Duration = .seconds(6)
+
+    public static func interval(windowOpen: Bool, onBattery: Bool, lowPower: Bool) -> Duration? {
+        guard windowOpen else { return nil }
+        return onBattery || lowPower ? saving : live
+    }
+}
+
+/// A polling thread's pace and stop flag, shared with its owner instead of the owner itself (the owner's deinit stops it,
+/// so dropping the owner ends the thread). `pause` waits `interval()` (while that's nil, until `wake`) and says whether to
+/// go on; `stop` and `wake` cut a wait short, and a wait that ends with the interval nil (the window closed meanwhile)
+/// waits on for `wake`. `sleep` stands in for the timed wait in tests (a fake clock).
+public final class PollingLoop: Sendable {
+    private let interval: @Sendable () -> Duration?
+    private let sleep: (@Sendable (Duration) -> Void)?
+    private let running = Mutex<Bool>(true)
+    private let signal = DispatchSemaphore(value: 0)
+
+    public init(interval: @escaping @Sendable () -> Duration?, sleep: (@Sendable (Duration) -> Void)? = nil) {
+        self.interval = interval
+        self.sleep = sleep
+    }
+
+    public var isRunning: Bool { running.withLock { $0 } }
+
+    /// Waits for the next poll; false once stopped.
+    public func pause() -> Bool {
+        guard isRunning else { return false }
+        if let every = interval() {
+            var woken = false
+            if let sleep {
+                sleep(every)
+            } else {
+                let parts = every.components
+                let seconds = Double(parts.seconds) + Double(parts.attoseconds) / 1e18
+                woken = signal.wait(timeout: .now() + seconds) == .success
+            }
+            if !woken && isRunning && interval() == nil { signal.wait() } // closed meanwhile: nothing until it opens
+        } else {
+            signal.wait()
+        }
+        while signal.wait(timeout: .now()) == .success {} // wakes that came together count once
+        return isRunning
+    }
+
+    /// The interval may have changed (the window opened): a wait ends now.
+    public func wake() { signal.signal() }
+
+    /// No more polls: a wait ends now, and `pause` says stop.
+    public func stop() {
+        running.withLock { $0 = false }
+        signal.signal()
+    }
+}

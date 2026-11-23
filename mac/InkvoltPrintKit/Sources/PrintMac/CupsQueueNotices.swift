@@ -7,14 +7,13 @@ import Synchronization
 /// keeps a connection per thread, so the app's other libcups calls never wait on it). First CUPS's own: a subscription to
 /// cupsd's printer-added, printer-deleted and printer-modified events, pulled with Get-Notifications (RFC 3996's `ippget`;
 /// nothing is pushed to a sandboxed app). macOS's cupsd has no subscriptions (27.1: Create-Printer-Subscriptions is
-/// 0x501, not supported), so there the list is polled instead: CUPS-Get-Printers' names, device URIs and models every
-/// `pull`, a change from the last read a notice. Each notice goes to the app's `QueueChangeNotices`, which reads the queues
-/// once a burst is over. A subscription is cancelled on `stop`, and its lease (`lease`) lets cupsd drop it if the app ends
-/// without that.
+/// 0x501, not supported), so there the list is polled instead: CUPS-Get-Printers' names, device URIs and models, a change
+/// from the last read a notice. Either is asked at `interval()`'s pace (`QueueNoticePolling`: only while the window shows,
+/// less often on battery or in Low Power Mode; nil waits for `wake`, so cupsd may exit when idle). Each notice goes to the
+/// app's `QueueChangeNotices`, which reads the queues once a burst is over. The thread holds only its `PollingLoop` and
+/// state, never this object: `stop`, or dropping it, ends the thread. A subscription is cancelled as the thread ends, and
+/// its lease (`lease`) lets cupsd drop it if the app ends without that.
 public final class CupsQueueNotices: Sendable {
-    /// How often the notices are pulled.
-    public static let pull: Duration = .seconds(2)
-
     /// The subscription's lease in seconds (another is taken when it ends).
     public static let lease: Int32 = 3600
 
@@ -24,76 +23,96 @@ public final class CupsQueueNotices: Sendable {
     }
 
     private struct State {
-        var running = true
         var subscription = Subscription.asking
         var events = 0
         var listed: Int?
+        var asked = 0
     }
 
-    private let notice: @Sendable () -> Void
-    private let state = Mutex(State())
+    /// What the thread and this object share (a Mutex can't be captured by itself).
+    private final class Shared: Sendable {
+        let state = Mutex(State())
+    }
 
-    /// Subscribes and starts pulling on a thread of its own; `notice` is called on that thread for each pull that brought events.
-    public init(notice: @escaping @Sendable () -> Void) {
-        self.notice = notice
-        OwnThread.run("CUPS queue notices") { [weak self] in self?.loop() }
+    let pace: PollingLoop // internal: the tests see it stop
+    private let shared = Shared()
+
+    /// Subscribes and starts pulling on a thread of its own at `interval()`'s pace; `notice` is called on that thread for
+    /// each pull that brought events.
+    public init(interval: @escaping @Sendable () -> Duration?, notice: @escaping @Sendable () -> Void) {
+        let pace = PollingLoop(interval: interval)
+        self.pace = pace
+        let shared = self.shared
+        OwnThread.run("CUPS queue notices") { Self.loop(pace, shared, notice) }
     }
 
     /// The subscription as it stands now (the report).
-    public var subscription: Subscription { state.withLock { $0.subscription } }
+    public var subscription: Subscription { shared.state.withLock { $0.subscription } }
 
     /// Polling: how many queues the last read of the list found (nil before one answered; the report).
-    public var listedQueues: Int? { state.withLock { $0.listed } }
+    public var listedQueues: Int? { shared.state.withLock { $0.listed } }
 
     /// How many events were pulled (the report).
-    public var events: Int { state.withLock { $0.events } }
+    public var events: Int { shared.state.withLock { $0.events } }
 
-    /// Stops pulling; the subscription is cancelled by the loop as it ends.
-    public func stop() { state.withLock { $0.running = false } }
+    /// How many times cupsd was asked for events or the list (the report: none while the window is closed).
+    public var asked: Int { shared.state.withLock { $0.asked } }
 
-    deinit { state.withLock { $0.running = false } }
+    /// The pace may have changed (the window opened): the next pull is now.
+    public func wake() { pace.wake() }
 
-    private func loop() {
+    /// Stops pulling; the subscription is cancelled by the thread as it ends.
+    public func stop() { pace.stop() }
+
+    /// Still pulling (until `stop`, or this object goes).
+    public var isRunning: Bool { pace.isRunning }
+
+    deinit { pace.stop() }
+
+    private static func loop(_ pace: PollingLoop, _ shared: Shared, _ notice: @Sendable () -> Void) {
         cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil) // never a password prompt from this thread
-        var id = subscribe()
+        var id = subscribe(shared)
         if id == nil {
-            poll()
+            poll(pace, shared, notice)
             return
         }
         var sequence: Int32 = 1
-        while state.withLock({ $0.running }), let current = id {
-            Thread.sleep(forTimeInterval: Double(Self.pull.components.seconds))
-            guard state.withLock({ $0.running }) else { break }
-            switch Self.pullEvents(current, from: sequence) {
+        while let current = id, pace.pause() {
+            shared.state.withLock { $0.asked += 1 }
+            switch pullEvents(current, from: sequence) {
             case .events(let count, let next):
                 sequence = next
                 if count > 0 {
-                    state.withLock { $0.events += count }
+                    shared.state.withLock { $0.events += count }
                     notice()
                 }
             case .gone:
                 // The lease ended or cupsd restarted: subscribe again, and read the queues (events may have been missed).
-                id = subscribe()
+                id = subscribe(shared)
                 sequence = 1
                 notice()
             case .failed:
                 continue // cupsd busy or restarting: the next pull asks again
             }
         }
-        if let id { Self.cancel(id) }
+        if let id {
+            cancel(id)
+        } else if pace.isRunning {
+            poll(pace, shared, notice) // subscribing again was refused: poll the list instead
+        }
     }
 
-    /// No subscriptions: the queue list read every `pull`, a change from the last read a notice. A read that fails changes
+    /// No subscriptions: the queue list read at each pull, a change from the last read a notice. A read that fails changes
     /// nothing (cupsd busy or restarting).
-    private func poll() {
-        var last = Self.listed()
-        state.withLock { $0.listed = last?.count }
-        while state.withLock({ $0.running }) {
-            Thread.sleep(forTimeInterval: Double(Self.pull.components.seconds))
-            guard state.withLock({ $0.running }), let now = Self.listed() else { continue }
-            state.withLock { $0.listed = now.count }
+    private static func poll(_ pace: PollingLoop, _ shared: Shared, _ notice: @Sendable () -> Void) {
+        var last = listed()
+        shared.state.withLock { $0.listed = last?.count }
+        while pace.pause() {
+            shared.state.withLock { $0.asked += 1 }
+            guard let now = listed() else { continue }
+            shared.state.withLock { $0.listed = now.count }
             if let before = last, before != now {
-                state.withLock { $0.events += 1 }
+                shared.state.withLock { $0.events += 1 }
                 notice()
             }
             last = now
@@ -135,9 +154,9 @@ public final class CupsQueueNotices: Sendable {
 
     /// Create-Printer-Subscriptions on the server (every queue): the events that change the list; its id, or nil (the
     /// reason kept in `subscription`).
-    private func subscribe() -> Int32? {
-        let result = Self.createSubscription()
-        state.withLock {
+    private static func subscribe(_ shared: Shared) -> Int32? {
+        let result = createSubscription()
+        shared.state.withLock {
             switch result {
             case .success: $0.subscription = .taken
             case .failure(let why): $0.subscription = .polling(why.text)
