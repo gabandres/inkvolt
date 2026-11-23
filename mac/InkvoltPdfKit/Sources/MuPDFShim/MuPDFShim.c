@@ -598,7 +598,21 @@ struct inkv_doc {
     unsigned char *checked; // by object number: objects whose streams, and all they lead to, a walk found fine
     int checked_bits;
     long long walked;       // test hook: objects the walks looked at
+    // MuPDF keeps one key per document, and every failed fz_authenticate_password overwrites it (fz_needs_password
+    // itself tries ""): a document opened with its password then read every stream with a wrong key and drew blank
+    // pages. So whether it needs a password is asked once, at open, and a failed attempt after a good one
+    // authenticates the good one again.
+    int needs;              // fz_needs_password at open, before any password
+    char *opened_with;      // the password that last authenticated it (zeroed and freed with it); NULL: none yet
 };
+
+/// Drops the kept password, its bytes zeroed first.
+static void inkv_forget_password(fz_context *ctx, inkv_doc *d) {
+    if (!d->opened_with) return;
+    for (volatile char *p = d->opened_with; *p; p++) *p = 0;
+    fz_free(ctx, d->opened_with);
+    d->opened_with = NULL;
+}
 
 /// The walks' verdicts no longer hold: the document's objects changed, or may have been renumbered.
 static void inkv_forget_checks(fz_context *ctx, inkv_doc *d) {
@@ -900,7 +914,8 @@ void inkv_drop_context(void *vctx) {
 static void inkv_setup(fz_context *ctx, inkv_doc *d, int cache) {
     d->capacity = cache > 0 ? cache : 32;
     // A document that needs a password can't count its pages yet: counted after inkv_authenticate.
-    d->count = fz_needs_password(ctx, d->doc) ? 0 : fz_count_pages(ctx, d->doc);
+    d->needs = fz_needs_password(ctx, d->doc);
+    d->count = d->needs ? 0 : fz_count_pages(ctx, d->doc);
 }
 
 /// The arrays for `count` pages (made on first use, after a password may have opened the document). Throws.
@@ -1086,29 +1101,41 @@ void inkv_drop_doc(void *vctx, inkv_doc *d) {
     fz_free(ctx, d->banded);
     fz_free(ctx, d->used);
     fz_free(ctx, d->checked);
+    inkv_forget_password(ctx, d);
     fz_drop_document(ctx, d->doc);
     fz_free(ctx, d);
 }
 
 int inkv_needs_password(void *vctx, inkv_doc *d) {
-    fz_context *ctx = vctx;
-    int needs = 0;
-    fz_try(ctx) needs = fz_needs_password(ctx, d->doc);
-    fz_catch(ctx) {
-        fz_ignore_error(ctx);
-        needs = 0;
-    }
-    return needs;
+    (void)vctx;
+    return d->needs; // never fz_needs_password again: its try of "" would undo a password that opened the document
 }
 
-int inkv_authenticate(void *vctx, inkv_doc *d, const char *password) {
-    fz_context *ctx = vctx;
+/// fz_authenticate_password's bits for `password`, keeping the document readable: a failed attempt after a good one
+/// (whose key MuPDF has just overwritten) authenticates the good password again. 0 also when MuPDF throws.
+static int inkv_try_password(fz_context *ctx, inkv_doc *d, const char *password) {
     int bits = 0;
-    fz_try(ctx) bits = fz_authenticate_password(ctx, d->doc, password);
+    fz_try(ctx) {
+        bits = fz_authenticate_password(ctx, d->doc, password);
+        if (bits & 6) {
+            if (!d->opened_with || strcmp(d->opened_with, password) != 0) {
+                char *kept = fz_strdup(ctx, password);
+                inkv_forget_password(ctx, d);
+                d->opened_with = kept;
+            }
+        } else if (d->opened_with) {
+            (void)fz_authenticate_password(ctx, d->doc, d->opened_with);
+        }
+    }
     fz_catch(ctx) {
         fz_ignore_error(ctx);
         bits = 0;
     }
+    return bits;
+}
+
+int inkv_authenticate(void *vctx, inkv_doc *d, const char *password) {
+    int bits = inkv_try_password(vctx, d, password ? password : "");
     if (bits & 4) return 2; // owner
     return bits ? 1 : 0;
 }
@@ -1725,14 +1752,7 @@ int inkv_write_pdf(void *vctx, inkv_doc *d, const char *options, uint8_t **out, 
 }
 
 int inkv_auth_bits(void *vctx, inkv_doc *d, const char *password) {
-    fz_context *ctx = vctx;
-    int bits = 0;
-    fz_try(ctx) bits = fz_authenticate_password(ctx, d->doc, password ? password : "");
-    fz_catch(ctx) {
-        fz_ignore_error(ctx);
-        bits = 0;
-    }
-    return bits;
+    return inkv_try_password(vctx, d, password ? password : "");
 }
 
 static pdf_document *inkv_pdf(fz_context *ctx, inkv_doc *d) {
