@@ -34,6 +34,11 @@ public struct AiCitation: Sendable, Equatable {
     public let start: Int
     public let length: Int
     public let page: Int
+    public init(start: Int, length: Int, page: Int) {
+        self.start = start
+        self.length = length
+        self.page = page
+    }
 }
 
 /// Text handling for the AI assistant: size estimates, the context budget, chunking, page citations. Offsets and limits

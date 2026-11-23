@@ -75,6 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if Pro.allows(.watchedFolders) { WatchedFoldersWindowController.show() } else { ProWindowController.show(feature: .watchedFolders) }
     }
     @objc func showFolderSearch(_ sender: Any?) { FolderSearchWindowController.show() }
+    @objc func showFolderAsk(_ sender: Any?) { FolderAskWindowController.show() }
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
     @objc func reportProblem(_ sender: Any?) { ReportProblemWindowController.show() }

@@ -29,6 +29,12 @@ public enum ProFeature: CaseIterable, Sendable {
     case longTermValidation
     /// Certifying a form with a choice of fields to lock (a field's own /Lock is always honored).
     case fieldLocking
+    /// Edit › Find › Ask Across Folders: a question over the indexed folders or a set of PDFs, answered by the user's own
+    /// AI endpoint with each point citing its file and page (roadmap 4.11).
+    case folderAsk
+    /// Search Folders' By meaning and Ask Across Folders' Also find pages by meaning: embeddings of the indexed folders'
+    /// pages from the user's own AI endpoint, kept beside each folder index (roadmap 4.21).
+    case meaningSearch
     /// Redaction suggestions: what to redact proposed by the user's own AI endpoint, or found from their names and terms
     /// list (roadmap 4.10).
     case redactionSuggestions
@@ -99,6 +105,8 @@ public enum Pro {
         case .compareOfficeAndScans: loc("Compare Office files and scans")
         case .longTermValidation: loc("Long-term validation")
         case .fieldLocking: loc("Field locking")
+        case .folderAsk: loc("Ask across folders")
+        case .meaningSearch: loc("Search by meaning")
         case .redactionSuggestions: loc("Redaction suggestions")
         }
     }
@@ -128,6 +136,10 @@ public enum Pro {
             loc("Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.")
         case .fieldLocking:
             loc("When you certify a form, lock the fields you filled in, or all but the ones others still have to fill in: a later change to a locked field shows as not allowed when the signatures are checked.")
+        case .meaningSearch:
+            loc("Find pages by what they mean, not only the words they use: your own AI endpoint turns the pages of your indexed folders into embeddings kept beside the folder index, and Search Folders and Ask Across Folders use them. Off until you turn it on, and the send window shows every page before it goes.")
+        case .folderAsk:
+            loc("Ask a question over your indexed folders or a set of PDFs: the folder index picks the pages, your own AI assistant answers, and each answer cites the file and page, which open on a click. The send window lists every page that goes, from which files.")
         case .redactionSuggestions:
             loc("Your own AI assistant reads the pages and suggests the names, organizations, addresses and account numbers to redact, or what you describe; or keep your own list of names and terms. Every suggestion goes into the review list before anything is removed, and the result is checked as for patterns.")
         }
@@ -147,6 +159,8 @@ public enum Pro {
         case .compareOfficeAndScans: loc("Comparing Office files, scans and formatting is part of Inkvolt Pro.")
         case .longTermValidation: loc("Adding long-term validation data is part of Inkvolt Pro.")
         case .fieldLocking: loc("Choosing fields to lock is part of Inkvolt Pro.")
+        case .folderAsk: loc("Asking across folders is part of Inkvolt Pro.")
+        case .meaningSearch: loc("Searching by meaning is part of Inkvolt Pro.")
         case .redactionSuggestions: loc("Redaction suggestions are part of Inkvolt Pro.")
         }
     }

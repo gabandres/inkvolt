@@ -115,6 +115,9 @@ final class ReadAloud {
     /// The voice and speed chosen last (this session), used by every window, as on Windows.
     private static var voiceId: String?
     private static var speed = 1.0
+    /// The voice and speed Read Aloud uses now (Summary to Audio reads with them, as on Windows).
+    static var chosenVoice: String? { voiceId ?? ReadAloudVoices.all().first?.id }
+    static var chosenSpeed: Double { speed }
 
     private weak var controller: DocumentWindowController?
     let bar = ReadAloudBar()

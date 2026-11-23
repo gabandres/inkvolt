@@ -23,6 +23,17 @@ final class FolderSearches {
         let path: String
         var paused: Bool
         fileprivate(set) var indexer: FolderIndexer?
+        /// Its meaning index (search by meaning), read once for the model and endpoint in use.
+        var meaning: MeaningIndex?
+
+        /// The meaning index's file, beside the folder's index.
+        var meaningPath: String { MeaningIndex.pathFor(FolderIndex.basePathFor(FolderSearches.indexDirectory, path)) }
+
+        /// Throws the meaning index away (removed, or the model's vectors changed length).
+        func forgetMeaning() {
+            meaning = nil
+            unlink(meaningPath)
+        }
 
         init(path: String, paused: Bool) {
             self.path = path
@@ -97,6 +108,7 @@ final class FolderSearches {
         let indexer = f.indexer ?? FolderIndexer(folder: f.path, basePath: FolderIndex.basePathFor(Self.indexDirectory, f.path))
         f.indexer = nil
         indexer.changed = nil
+        f.forgetMeaning()
         save()
         // Off this thread: a reading may need a moment to stop.
         Thread.detachNewThread { indexer.stopAndDelete() }
@@ -148,12 +160,16 @@ final class FolderSearchWindowController: NSWindowController, NSWindowDelegate, 
     struct Row {
         let folder: String
         let hit: FolderHit
+        /// Found by meaning: how close (about 0 to 1); it opens at its page, without the Find bar.
+        var meaning: Double? = nil
     }
 
     let field = NSSearchField()
     let matchCase = NSButton(checkboxWithTitle: loc("Match case"), target: nil, action: nil)
     let wholeWords = NSButton(checkboxWithTitle: loc("Whole words"), target: nil, action: nil)
     let ignoreAccents = NSButton(checkboxWithTitle: loc("Ignore accents"), target: nil, action: nil)
+    /// Search by meaning (roadmap 4.21, Pro): nothing is sent until Search is pressed.
+    let byMeaning = NSButton(checkboxWithTitle: loc("By meaning"), target: nil, action: nil)
     let status = NSTextField(wrappingLabelWithString: "")
     let results = ReturnTableView()
     let folders = NSTableView()
@@ -221,7 +237,12 @@ final class FolderSearchWindowController: NSWindowController, NSWindowDelegate, 
             box.target = self
             box.action = #selector(search)
         }
-        let options = NSStackView(views: [matchCase, wholeWords, ignoreAccents])
+        byMeaning.toolTip = loc("Find pages close in meaning to your words through your own AI assistant's embedding model (Inkvolt Pro). Nothing is sent until you press Search.")
+        byMeaning.target = self
+        byMeaning.action = #selector(byMeaningClicked)
+        let meaningSettings = NSButton(title: loc("Meaning…"), target: self, action: #selector(meaningSettingsClicked))
+        meaningSettings.setAccessibilityLabel(loc("Search by Meaning"))
+        let options = NSStackView(views: [matchCase, wholeWords, ignoreAccents, byMeaning, meaningSettings])
 
         for (id, title, width) in [("file", loc("File", context: "column"), 220.0), ("where", loc("Where"), 120.0), ("text", loc("Text"), 440.0)] {
             let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(id))
@@ -321,8 +342,12 @@ final class FolderSearchWindowController: NSWindowController, NSWindowDelegate, 
         rows = []
         results.reloadData()
         guard !query.isEmpty else {
-            status.stringValue = ""
+            status.stringValue = byMeaning.state == .on ? loc("Type what you're looking for and press Search. Nothing is sent before you see it.") : ""
             onSearched?()
+            return
+        }
+        if byMeaning.state == .on {
+            meaningJob = Task { @MainActor [weak self] in await self?.searchByMeaning(query) }
             return
         }
         let options = options
@@ -417,6 +442,93 @@ final class FolderSearchWindowController: NSWindowController, NSWindowDelegate, 
         onSearched?()
     }
 
+    // MARK: By meaning
+
+    /// The search by meaning running (the self-test awaits it).
+    private(set) var meaningJob: Task<Void, Never>?
+
+    @objc func byMeaningClicked() {
+        Task { @MainActor in
+            if byMeaning.state == .on && FolderMeaning.model == nil, let window {
+                if !(await FolderMeaning.showSettings(on: window)) || FolderMeaning.model == nil { byMeaning.state = .off }
+            }
+            for box in [matchCase, wholeWords, ignoreAccents] { box.isEnabled = byMeaning.state != .on }
+            cancel?.cancel()
+            rows = []
+            results.reloadData()
+            status.stringValue = byMeaning.state == .on ? loc("Type what you're looking for and press Search. Nothing is sent before you see it.") : ""
+        }
+    }
+
+    @objc func meaningSettingsClicked() {
+        guard let window else { return }
+        Task { @MainActor in
+            _ = await FolderMeaning.showSettings(on: window)
+            if FolderMeaning.model == nil { byMeaning.state = .off }
+            for box in [matchCase, wholeWords, ignoreAccents] { box.isEnabled = byMeaning.state != .on }
+        }
+    }
+
+    private func searchByMeaning(_ query: String) async {
+        guard let window else { return }
+        let all = FolderSearches.shared.all
+        let open = all.filter { $0.indexer?.currentIndex != nil }
+        if open.isEmpty {
+            status.stringValue = all.isEmpty ? loc("No folder is indexed yet. Add Folder… chooses one.") : loc("The index isn't open yet. Try again in a moment.")
+            onSearched?()
+            return
+        }
+        defer { onSearched?() }
+        guard let config = await FolderMeaning.ready(on: window) else {
+            status.stringValue = loc("Not sent.")
+            return
+        }
+        let token = CancelToken()
+        cancel = token
+        let generation = generation
+        do {
+            guard let hits = try await FolderMeaning.search(on: window, config, open, query, count: 50, say: { [weak self] in self?.status.stringValue = $0 }, cancel: token),
+                  generation == self.generation else { return }
+            // Each page's closest piece, read from its folder's index, as the excerpt.
+            let lookups = open.compactMap { f in f.indexer?.currentIndex.map { UncheckedBox((f.path, $0)) } }
+            let found: [Row] = try await Task.detached(priority: .userInitiated) {
+                var rows: [Row] = []
+                for box in lookups {
+                    let (folder, index) = box.value
+                    let mine = hits.filter { $0.folder == folder }
+                    if mine.isEmpty { continue }
+                    let texts = try index.pageTexts(mine.map { ($0.hit.relativePath, $0.hit.page) }, cancel: token)
+                    for (h, text) in zip(mine, texts) { rows.append(Self.meaningRow(folder, h.hit, text)) }
+                }
+                return rows.sorted { ($0.meaning ?? 0) > ($1.meaning ?? 0) }
+            }.value
+            guard generation == self.generation else { return }
+            rows = found
+            results.reloadData()
+            let pages = found.count == 1 ? loc("{0} page", CoreLanguage.number(1)) : loc("{0} pages", CoreLanguage.number(found.count))
+            status.stringValue = found.isEmpty ? loc("Nothing found by meaning: the folders' pages may have no text yet.") : loc("{0} closest in meaning, best first.", pages)
+            if all.contains(where: { $0.indexer?.status.phase != .upToDate }) { status.stringValue += " " + loc("Still indexing: more may turn up.") }
+        } catch is CancellationError {
+            status.stringValue = loc("Stopped. The pages already turned into embeddings are kept.")
+        } catch let e as AiError {
+            status.stringValue = e.message
+        } catch is FolderIndexDamaged {
+            for f in open { f.indexer?.rebuild() }
+            status.stringValue = loc("A folder's index doesn't read back and is being built again. Search by meaning again once it's up to date.")
+        } catch {
+            status.stringValue = loc("A folder's index or a file couldn't be read. Check that the folder is still there and the files aren't open in another app, then try again.")
+        }
+    }
+
+    /// A page found by meaning: its closeness, and the start of its closest piece as the excerpt.
+    nonisolated static func meaningRow(_ folder: String, _ hit: MeaningHit, _ pageText: String) -> Row {
+        let piece = MeaningIndex.pieceText(pageText, hit.piece).replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ")
+        var excerpt = piece
+        if piece.count > 160 { excerpt = AiText.trim(String(piece.prefix(160))) + "…" }
+        return Row(folder: folder, hit: FolderHit(relativePath: hit.relativePath, page: hit.page, hits: 0, excerpt: excerpt, matchStart: 0, matchLength: 0),
+                   meaning: min(max(hit.score, 0), 1))
+    }
+
     // MARK: Opening a result
 
     @objc func openSelected() {
@@ -428,6 +540,7 @@ final class FolderSearchWindowController: NSWindowController, NSWindowDelegate, 
     /// Opens the result's PDF (or brings it forward) at the hit, the Find bar showing the words. Calls `opened` with its window.
     func open(_ row: Row, opened: ((DocumentWindowController?) -> Void)? = nil) {
         let url = URL(fileURLWithPath: row.folder).appendingPathComponent(row.hit.relativePath)
+        if row.meaning != nil { return FolderAskWindowController.open(url.path, page: row.hit.page, opened: opened) }
         let query = lastQuery, options = lastOptions, page = row.hit.page
         NSDocumentController.shared.openDocument(withContentsOf: url, display: true) { document, _, _ in
             MainActor.assumeIsolated {
@@ -564,7 +677,11 @@ final class FolderSearchWindowController: NSWindowController, NSWindowDelegate, 
                 cell.toolTip = (r.folder as NSString).appendingPathComponent(r.hit.relativePath)
             case "where":
                 let page = CoreLanguage.number(r.hit.page + 1)
-                cell.stringValue = r.hit.hits > 1 ? loc("page {0}, {1} times", page, CoreLanguage.number(r.hit.hits)) : loc("page {0}", page)
+                if let meaning = r.meaning {
+                    cell.stringValue = loc("page {0}, {1} close in meaning", page, (meaning).formatted(.percent.precision(.fractionLength(0)).locale(CoreLanguage.locale)))
+                } else {
+                    cell.stringValue = r.hit.hits > 1 ? loc("page {0}, {1} times", page, CoreLanguage.number(r.hit.hits)) : loc("page {0}", page)
+                }
             default:
                 cell.attributedStringValue = Self.excerpt(r.hit)
             }
