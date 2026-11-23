@@ -63,7 +63,8 @@ final class BatchRow: Identifiable {
 
     /// The line again with the row's settings now and the printer as last read.
     func refresh(_ info: BatchQueueInfo?) {
-        line = measure.map { BatchPrintLine(path, settings, $0, info) }
+        // The window has someone to put the stack back: two-sided on a one-sided printer prints by hand (roadmap 4.2).
+        line = measure.map { BatchPrintLine(path, settings, $0, info, byHand: true) }
     }
 
     func forget() {
@@ -369,7 +370,12 @@ final class BatchPrintModel {
             Task { @MainActor in self?.apply(p, send) }
         }
         let documents = documents
-        let summary = await Task.detached { await BatchPrintRunner.run(lines, queue, documents, progress: progressing, stop) }.value
+        var options = BatchPrintOptions()
+        if let id = queueId, lines.contains(where: \.byHand) {
+            options.turnStack = HandDuplexPrinting.turnStack(queue: id, printerFace: await HandDuplexPrinting.printerFace(id, app: app))
+        }
+        let chosen = options
+        let summary = await Task.detached { await BatchPrintRunner.run(lines, queue, documents, options: chosen, progress: progressing, stop) }.value
         // Progress arrives in tasks of its own: every result is applied here in case a late one hasn't landed.
         for result in summary.items { send[result.index].finished(result) }
         lastSummary = summary

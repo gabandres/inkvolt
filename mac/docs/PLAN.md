@@ -326,6 +326,20 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   past 300 pages is said in an alert before the print panel (Windows' message line); the made files go in the app's
   temporary folder, cleared of anything a day old. Not checked: Finder's copied files read from the clipboard in the sandbox
   (macOS grants a pasted file), Word's and Excel's text-and-picture copies, the print panel's preview, VoiceOver.
+- **4.2 Two-sided printing by hand.** PrintCore `HandDuplexPlan` (`plan`, `fronts`, `sheetBacks`, `backs`, `reload`),
+  `HandDuplexReload`, `OutputFace`, `HandDuplex` (`offered`, `faceOf`); `BatchPrintLine.byHand`, `BatchPrintOptions.turnStack`
+  and the runner's by-hand path (the fronts, the prompt, the backs, each pass held to the estimate, the fronts said printed
+  whatever stops the backs), page 0 a blank side in `DemoBatchQueue` and PrintMac's `CupsBatchQueue` (the size of the page
+  before it), `CupsBatchQueue.outputFace` (cupsd's `output-bin-default` and `printer-output-tray`); `HandDuplexTests`,
+  `HandDuplexBatchTests` (PC). The app (`HandDuplexPrinting.swift`): the prompt (an alert: which way up the sheets came out,
+  starting from the face chosen last for the queue, else the printer's, else face down; the steps follow it; Print the Backs
+  or Stop); Batch Print's Two-sided always on offer, a file two-sided on a one-sided queue printed by hand; the Print menu's
+  Print a PDF on Both Sides by Hand… where the queue can't print both sides (copies asked, then straight to the queue as Batch
+  sends a file); `--report … --hand-duplex`. **Mac differences:** Print a PDF by hand goes straight to the queue at its
+  default paper (Windows' Print tab keeps its own options), not through macOS's print panel, which runs one job; a PDF that
+  needs a password isn't asked for one there (it's said and left out; Batch asks); no Copy (the Mac's Copy is the ID card's,
+  one side); the printer's face is cupsd's copy of the printer's attributes. Not checked: paper on a real one-sided printer,
+  face down and up (`--hand-duplex` answers the prompt), the alert on screen, VoiceOver.
 
 ## Mac differences
 

@@ -697,6 +697,16 @@
         }
       }
     },
+    "%lld sheets go through again with nothing printed on their backs (the ends of copies).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld hojas vuelven a pasar sin nada impreso en sus reversos (los finales de las copias)."
+          }
+        }
+      }
+    },
     "%lld%%": {
       "localizations": {
         "es": {
@@ -729,6 +739,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld. %@"
+          }
+        }
+      }
+    },
+    "%lld. Put the stack in the paper tray that way, the top edge going in first as before, then click Print the Backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld. Pon la pila así en la bandeja de papel, con el borde superior entrando primero como antes, y luego haz clic en Imprimir los reversos."
+          }
+        }
+      }
+    },
+    "%lld. Take %@ and turn the stack over like the page of a book, so the printed side faces down and the first page is on top.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Take %2$@ and turn the stack over like the page of a book, so the printed side faces down and the first page is on top."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Toma %2$@ y da la vuelta a la pila como la página de un libro, para que el lado impreso quede hacia abajo y la primera página arriba."
+          }
+        }
+      }
+    },
+    "%lld. Take %@ as they came out, printed side down, without turning the stack over.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Take %2$@ as they came out, printed side down, without turning the stack over."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Toma %2$@ tal como salieron, con el lado impreso hacia abajo, sin dar la vuelta a la pila."
           }
         }
       }
@@ -859,6 +911,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 hoja"
+          }
+        }
+      }
+    },
+    "1. Take the top sheet (page %lld) off the output tray and set it aside: nothing prints on its back. It goes on the bottom of the finished stack.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Quita la hoja de arriba (página %lld) de la bandeja de salida y apártala: en su reverso no se imprime nada. Va al final de la pila terminada."
           }
         }
       }
@@ -1580,6 +1642,16 @@
         }
       }
     },
+    "Choose a PDF to print on both sides by hand on %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige un PDF para imprimir a doble cara a mano en %@."
+          }
+        }
+      }
+    },
     "Choose the folder for the %lld files.": {
       "localizations": {
         "es": {
@@ -1886,6 +1958,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copia los detalles y abre una incidencia nueva de GitHub en tu navegador para pegarlos"
+          }
+        }
+      }
+    },
+    "Copies:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copias:"
           }
         }
       }
@@ -3754,6 +3836,16 @@
         }
       }
     },
+    "One sheet goes through again with nothing printed on its back (the end of a copy).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una hoja vuelve a pasar sin nada impreso en su reverso (el final de una copia)."
+          }
+        }
+      }
+    },
     "One-click scans": {
       "localizations": {
         "es": {
@@ -4256,6 +4348,16 @@
         }
       }
     },
+    "Print %@ on both sides by hand": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir %@ a doble cara a mano"
+          }
+        }
+      }
+    },
     "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)": {
       "localizations": {
         "es": {
@@ -4306,6 +4408,16 @@
         }
       }
     },
+    "Print a PDF on Both Sides by Hand…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir un PDF a doble cara a mano…"
+          }
+        }
+      }
+    },
     "Print a PDF…": {
       "localizations": {
         "es": {
@@ -4352,6 +4464,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tamaño de impresión"
+          }
+        }
+      }
+    },
+    "Print the Backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir los reversos"
           }
         }
       }
@@ -6042,12 +6164,32 @@
         }
       }
     },
+    "The fronts of %@ are printing. Put the stack back for the backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se están imprimiendo los anversos de %@. Vuelve a poner la pila para los reversos."
+          }
+        }
+      }
+    },
     "The fronts of %lld sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and click Scan the Backs.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Se escanearon los anversos de %lld hojas. Saca la pila de la bandeja de salida, dale la vuelta como a la página de un libro sin ordenarla, vuelve a ponerla en el alimentador y haz clic en Escanear los reversos."
+          }
+        }
+      }
+    },
+    "The fronts print first. Then Inkvolt Print says how to put the stack back in the paper tray for the backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero se imprimen los anversos. Luego Inkvolt Print te dice cómo volver a poner la pila en la bandeja de papel para los reversos."
           }
         }
       }
@@ -6364,6 +6506,26 @@
         }
       }
     },
+    "The sheets came out printed side down": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las hojas salieron con el lado impreso hacia abajo"
+          }
+        }
+      }
+    },
+    "The sheets came out printed side up": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las hojas salieron con el lado impreso hacia arriba"
+          }
+        }
+      }
+    },
     "The sheets couldn't be prepared for printing.": {
       "localizations": {
         "es": {
@@ -6596,6 +6758,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta impresora no tiene una cola de impresión de macOS por la que imprimir."
+          }
+        }
+      }
+    },
+    "This printer prints one side: the fronts print, you put the stack back as shown, then the backs print": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora imprime por una cara: se imprimen los anversos, vuelves a poner la pila como se indica y luego se imprimen los reversos"
+          }
+        }
+      }
+    },
+    "This printer prints one side: two-sided files print by hand, the fronts then the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora imprime por una cara: los archivos a doble cara se imprimen a mano, primero los anversos y luego los reversos"
           }
         }
       }
@@ -7062,6 +7244,16 @@
         }
       }
     },
+    "Which way up the sheets came out": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cómo salieron las hojas"
+          }
+        }
+      }
+    },
     "Whiten the background": {
       "localizations": {
         "es": {
@@ -7252,6 +7444,16 @@
         }
       }
     },
+    "the %lld printed sheets": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "las %lld hojas impresas"
+          }
+        }
+      }
+    },
     "the feeder": {
       "localizations": {
         "es": {
@@ -7268,6 +7470,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "el cristal"
+          }
+        }
+      }
+    },
+    "the printed sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la hoja impresa"
           }
         }
       }

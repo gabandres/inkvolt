@@ -181,11 +181,12 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
   - **4.13 Print the clipboard.** Done on Windows and Mac: text laid out on pages and printed as a PDF, a picture through Print photos,
     copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`; the Mac's in
     `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person to print copied text, a picture and Finder files on a Mac.
-  - **4.2 Two-sided printing by hand.** Done on Windows: Print a PDF, Batch and Copy, through the queue or straight to the
+  - **4.2 Two-sided printing by hand.** Done on Windows and Mac: Print a PDF, Batch and Copy (the Mac: Print a PDF and Batch), through the queue or straight to the
     printer; the fronts, a prompt for face down or face up (the printer's answer first, the person's kept) and an odd last sheet,
     the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
     Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
-    down; Batch with two files) and a one-sided printer; the Mac half waits.
+    down; Batch with two files) and a one-sided printer; on a Mac, Print a PDF on Both Sides by Hand and Batch on paper (the Mac's
+    in `mac/docs/PLAN.md`, "Wave 4").
   - **4.5 Ready for Windows' new driver.** Done on Windows: per printer the queue's driver (Windows' IPP class driver,
     Microsoft's, the maker's version 3 or 4), whether it answers IPP and eSCL (and says Mopria), whether it's ready for protected
     print mode, *Set up with Windows' driver* beside the old queue (never removed), and a warning for a WIA- or TWAIN-only

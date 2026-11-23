@@ -66,6 +66,7 @@ enum Report {
             if model.isDemo && args.contains("--word-text") { cancelled += await wordTextCheck(model) }
             if model.isDemo && args.contains("--recent-scans") { cancelled += await recentScansCheck(model) }
             if args.contains("--clipboard") { cancelled += clipboardCheck() }
+            if model.isDemo && args.contains("--hand-duplex") { cancelled += await handDuplexCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
