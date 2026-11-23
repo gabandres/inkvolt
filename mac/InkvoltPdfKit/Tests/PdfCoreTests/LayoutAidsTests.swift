@@ -34,6 +34,13 @@ struct LayoutAidsTests {
 
         #expect(LayoutAids.ticks(0, 100, 0, .inches).isEmpty)
         #expect(LayoutAids.ticks(0, .infinity, 1, .inches).isEmpty)
+        // The review (Mac only: Swift's Int traps where .NET's cast clamps): a hostile /Measure scale draws no ruler, at
+        // any zoom, and never traps or loops.
+        for zoom in [0.1, 1, 4, 64] {
+            #expect(LayoutAids.ticks(0, 612, zoom, RulerUnit("u", 1 / 2.5e306)).isEmpty)
+            #expect(LayoutAids.ticks(0, 612, zoom, RulerUnit("u", 1e300)).count <= 20_001)
+        }
+        #expect(LayoutAids.niceStep(1.5e308) == 1)
         #expect(LayoutAids.niceStep(1.3) == 2)
         #expect(abs(LayoutAids.niceStep(0.041) - 0.05) < 1e-9)
         #expect(LayoutAids.niceStep(10) == 10)

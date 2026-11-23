@@ -958,6 +958,17 @@
         }
       }
     },
+    "Align": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear"
+          }
+        }
+      }
+    },
     "Alignment": {
       "extractionState": "manual",
       "localizations": {

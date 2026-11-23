@@ -96,8 +96,11 @@ public enum LayoutAids {
         let minor = step / Double(divisions)
         let first = (from / unit.pointsPer / minor).rounded(.down)
         let last = (to / unit.pointsPer / minor).rounded(.up)
-        if last - first > 20_000 { return [] }
-        let decimals = max(0, Int((-log10(step) - 1e-9).rounded(.up)))
+        // A hostile /Measure scale (a /C of 1e306 or 1e-306): nothing drawn rather than a trap or a loop that never ends
+        // (k += 1 stops counting past 2⁵³).
+        guard step.isFinite, minor > 0, minor.isFinite, first.isFinite, last.isFinite, abs(first) < 1e9, abs(last) < 1e9,
+              last - first <= 20_000 else { return [] }
+        let decimals = max(0, Int(exactly: (-log10(step) - 1e-9).rounded(.up)) ?? 0)
         let format = NumberFormatter()
         format.locale = locale
         format.numberStyle = .decimal
@@ -112,7 +115,7 @@ public enum LayoutAids {
             let units = k * minor
             let at = units * unit.pointsPer
             if at < from - 1e-9 || at > to + 1e-9 { continue }
-            var i = Int(k.rounded()) % divisions
+            var i = (Int(exactly: k.rounded()) ?? 0) % divisions // k within ±1e9 (above)
             if i < 0 { i += divisions }
             let level = i == 0 ? 0 : divisions % 2 == 0 && i == divisions / 2 ? 1 : 2
             let label = level == 0 ? format.string(from: NSNumber(value: roundedHalfEven(units, decimals))) : nil
@@ -131,8 +134,8 @@ public enum LayoutAids {
     public static func niceStep(_ atLeast: Double) -> Double {
         guard atLeast > 0, atLeast.isFinite else { return 1 }
         let p = pow(10, log10(atLeast).rounded(.down))
-        for m in [1.0, 2, 5, 10] where m * p >= atLeast * (1 - 1e-9) { return m * p }
-        return 10 * p
+        for m in [1.0, 2, 5, 10] where m * p >= atLeast * (1 - 1e-9) { return (m * p).isFinite ? m * p : 1 }
+        return (10 * p).isFinite ? 10 * p : 1
     }
 
     /// The guide a drag from a ruler makes: from the top ruler a line across the screen, from the left one a line down it,
