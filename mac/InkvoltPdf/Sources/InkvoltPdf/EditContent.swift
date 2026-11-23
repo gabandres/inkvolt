@@ -421,7 +421,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
     }
 
     /// Turns a paragraph `degrees` clockwise about its middle.
-    func rotate(_ p: TextParagraph, by degrees: Double) {
+    func rotate(_ p: PdfCore.TextParagraph, by degrees: Double) {
         guard let editor else { return }
         pendingEdit = Task {
             await editor.rotateParagraph(p, degrees)

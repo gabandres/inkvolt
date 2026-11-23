@@ -535,7 +535,7 @@ extension DocumentEditor {
     }
 
     @discardableResult
-    func rotateParagraph(_ paragraph: TextParagraph, _ degrees: Double) async -> Bool {
+    func rotateParagraph(_ paragraph: PdfCore.TextParagraph, _ degrees: Double) async -> Bool {
         await run(loc("Turn text")) { data, pw in try ContentEditor.rotateParagraph(data, pw, paragraph, degrees) }
     }
 
