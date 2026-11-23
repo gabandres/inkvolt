@@ -78,6 +78,7 @@ struct TextToolsTest {
         await linksFromAddresses()
         await copyFromArea()
         spellCheck()
+        await findAndReplace()
         lines.append("RESULT: " + "\(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -241,5 +242,59 @@ struct TextToolsTest {
         AppSettings.spellCheck = was
     }
 
-    // MARK: Find and Replace (
+    // MARK: Find and Replace (4.2)
+
+    /// Waits until the sheet's search is in, at most `seconds`.
+    private func searched(_ sheet: ReplaceSheet, _ seconds: Double = 20) async {
+        let end = Date().addingTimeInterval(seconds)
+        await settle(400) // past the typing pause
+        while sheet.busy && Date() < end { await settle(50) }
+    }
+
+    private mutating func findAndReplace() async {
+        guard let before = session?.data, let text = try? ContentEditor.read(before, nil, 0).paragraphs.map(\.text).joined(separator: " "),
+              text.contains("five dozen") else {
+            lines.append("SKIP Find and Replace: the synthetic text wasn't found")
+            return
+        }
+        check(choose(loc("Find and Replace…")) && controller.replaceSheet != nil, "Edit › Find › Find and Replace… opens its sheet")
+        guard let sheet = controller.replaceSheet else { return }
+        sheet.findField.stringValue = "five dozen"
+        sheet.withField.stringValue = "six dozen"
+        sheet.search()
+        await searched(sheet)
+        let found = sheet.matches.count
+        check(found == 2 && sheet.matches.map(\.pageIndex) == [0, 1], "both pages' “five dozen” listed: \(found) matches")
+        sheet.untick(1)
+        let edits = editor.finishedEdits
+        sheet.replaceAllClicked()
+        let end0 = Date().addingTimeInterval(30)
+        while editor.finishedEdits == edits && Date() < end0 { await settle(50) }
+        await settle(300)
+        let page1 = (try? ContentEditor.read(session?.data ?? [], nil, 0).paragraphs.map(\.text).joined(separator: " ")) ?? ""
+        let page2 = (try? ContentEditor.read(session?.data ?? [], nil, 1).paragraphs.map(\.text).joined(separator: " ")) ?? ""
+        check(page1.contains("six dozen") && page2.contains("five dozen") && session?.undoLabel == loc("Replace All")
+              && controller.lastReplace?.replaced == 1 && controller.replaceSheet == nil,
+              "Replace All changes the ticked match only, as one undo step: \(controller.lastReplace?.replaced ?? -1) replaced")
+        controller.window?.undoManager?.undo()
+        await settle(300)
+        check(session?.data == before, "Undo puts it back")
+
+        // Replace: the selected match now, then the list found again with the next one selected.
+        choose(loc("Find and Replace…"))
+        guard let again = controller.replaceSheet else { return check(false, "the sheet opens again") }
+        check(again.findField.stringValue == "five dozen" && again.withField.stringValue == "six dozen", "it remembers what was looked for")
+        again.search()
+        await searched(again)
+        again.replaceClicked()
+        let end = Date().addingTimeInterval(20)
+        while (again.busy || again.matches.count == 2) && Date() < end { await settle(100) }
+        await searched(again)
+        check(again.matches.count == 1 && again.matches.first?.pageIndex == 1 && session?.undoLabel == loc("Replace"),
+              "Replace changes one and lists the rest: \(again.matches.count) left")
+        again.closeClicked()
+        controller.window?.undoManager?.undo()
+        await settle(300)
+        check(controller.replaceSheet == nil && session?.data == before, "Close, and Undo puts it back")
+    }
 }

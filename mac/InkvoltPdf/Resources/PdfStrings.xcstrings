@@ -26136,6 +26136,17 @@
           }
         }
       }
+    },
+    "Find and Replace…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar y reemplazar…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

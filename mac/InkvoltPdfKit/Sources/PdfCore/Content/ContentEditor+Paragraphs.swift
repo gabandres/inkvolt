@@ -1051,6 +1051,33 @@ extension ContentEditor {
         let spans = newSpans ?? carry(paragraph.text, text, paragraph.spans)
         if same(text, paragraph.text) && sameSpans(text, spans, paragraph.spans) { return data }
         let doc = try PdfEdit.open(data, password, failure: loc("This PDF can't be edited"))
+        try replaceParagraphIn(doc, paragraph, text, allowOverlap: allowOverlap, spans: spans)
+        SignedEdits.noteRemoval() // the old text stays in a signed file's earlier revision
+        try doc.checkFailure()
+        return try PdfEdit.save(doc, original: data, password: password)
+    }
+
+    /// The page's paragraphs as Edit Text & Images groups them, in a document already open (Find & Replace, roadmap 4.2;
+    /// Windows' `ParagraphsOf`): none for a page past the end or a damaged page.
+    /// - Throws: `CancellationError` when `cancel` fired; `ContentEditError` when the page can't be edited.
+    static func paragraphsOf(_ doc: MuDoc, _ pageIndex: Int, _ cancel: CancelToken?) throws -> [TextParagraph] {
+        guard pageIndex >= 0, pageIndex < (try doc.pageCount()) else { return [] }
+        let page = doc.page(pageIndex)
+        do {
+            return withParagraphs(try walk(doc, page, pageIndex, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel).content).paragraphs
+        } catch let e as CancellationError {
+            throw e
+        } catch let e as ContentEditError {
+            throw e
+        } catch {
+            return [] // a damaged page (as `read(pages:)` has it): nothing to find or change on it
+        }
+    }
+
+    /// `replaceParagraph` in a document already open for editing (several paragraphs, one save: Find & Replace's Replace
+    /// All). `text` is the new text as `paragraphText` leaves it and `spans` its looks. A refusal leaves the page's text as
+    /// it was (at most a font has learned codes no text then uses).
+    static func replaceParagraphIn(_ doc: MuDoc, _ paragraph: TextParagraph, _ text: String, allowOverlap: Bool, spans: [TextSpan]) throws {
         let page = try pageOf(doc, paragraph.pageIndex)
         let streams = streams(page)
         let ops = ContentLexer.parse(streams.bytes)
@@ -1101,9 +1128,6 @@ extension ContentEditor {
             edits.append((op.start, op.end, latin1Bytes(removed(op, run))))
         }
         try writeTarget(doc, page, target, edits)
-        SignedEdits.noteRemoval() // the old text stays in a signed file's earlier revision
-        try doc.checkFailure()
-        return try PdfEdit.save(doc, original: data, password: password)
     }
 
     /// A paragraph's runs found again in a new reading of the page (by id, else by text and place), and the paragraph as
@@ -1138,7 +1162,7 @@ extension ContentEditor {
     }
 
     /// Whether two sets of spans give every character of `text` the same look.
-    private static func sameSpans(_ text: String, _ a: [TextSpan], _ b: [TextSpan]) -> Bool {
+    static func sameSpans(_ text: String, _ a: [TextSpan], _ b: [TextSpan]) -> Bool {
         let u = Array(text.utf16)
         let x = looksOf(u, a), y = looksOf(u, b)
         for i in u.indices {

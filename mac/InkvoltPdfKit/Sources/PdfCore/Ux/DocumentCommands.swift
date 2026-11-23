@@ -300,6 +300,8 @@ public enum DocumentCommands {
             c("Find…", "showFind:", "f"),
             c("Find Next", "findNext:", "g"),
             c("Find Previous", "findPrevious:", "g", [.command, .shift]),
+            // Roadmap 4.2 (Windows: Edit › Replace…, Ctrl+H; ⌘H hides the app here, and ⌥⌘F is Prepare Form's).
+            c("Find and Replace…", "showReplace:", needs: [.pages, .idle, .organizerHidden]),
             sep,
             // Mark All Matches (roadmap 4.18; Windows: the Find bar's and the Search pane's Highlight All Matches menu).
             c("Highlight All Matches", "highlightAllMatches:", needs: [.searchMatches, .idle]),

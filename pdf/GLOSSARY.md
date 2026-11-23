@@ -83,7 +83,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Find and Replace** (`Core/TextReplace.cs`; in the app `ReplaceDialog`, `DocumentTab.Replace.cs`): a **match** is found
   in a page's paragraphs as Edit Text & Images groups them, and **replaced** by rewriting its paragraph
   (`ContentEditor.ReplaceParagraphIn`), all of Replace All's in one pass and one save. A **note** says how a replacement went
-  other than as asked: made in a stand-in font or on a wider line, or left as it was (and why).
+  other than as asked: made in a stand-in font or on a wider line, or left as it was (and why). On the Mac:
+  `PdfCore/Content/TextReplace.swift`, the app's `ReplaceSheet.swift`.
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,

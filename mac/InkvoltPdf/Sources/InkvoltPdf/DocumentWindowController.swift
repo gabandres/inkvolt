@@ -85,6 +85,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var snapshotArea: SnapshotArea?
     /// Copy Text from Area or Copy Area as Table chosen with no box: the next Snapshot box copies that instead of a picture.
     var pendingAreaCopy: AreaCopyKind?
+    /// Find and Replace's sheet while it's open (ReplaceSheet.swift), and what the last Replace or Replace All did.
+    var replaceSheet: ReplaceSheet?
+    var lastReplace: ReplaceResult?
 
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
     // pane while the view is split, how, and which pane navigation acts on.

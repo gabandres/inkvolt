@@ -22660,6 +22660,391 @@
           }
         }
       }
+    },
+    "Replacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazando"
+          }
+        }
+      }
+    },
+    "Replace All": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar todo"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar"
+          }
+        }
+      }
+    },
+    "Replaced 1 match.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reemplazó 1 coincidencia."
+          }
+        }
+      }
+    },
+    "Replaced {0} matches.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reemplazaron {0} coincidencias."
+          }
+        }
+      }
+    },
+    "Replaced: {0}. Left as they were: {1}. Undo (⌘Z) puts back every replacement made.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazadas: {0}. Sin cambios: {1}. Deshacer (⌘Z) revierte todos los reemplazos hechos."
+          }
+        }
+      }
+    },
+    "Replacements to check": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazos que revisar"
+          }
+        }
+      }
+    },
+    "a space": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un espacio"
+          }
+        }
+      }
+    },
+    "replaced; {0} drawn in {1}, the closest font on this Mac (the paragraph's font lacks them).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reemplazada; para {0}, que la fuente del párrafo no tiene, se usa {1}, la fuente más parecida de este Mac."
+          }
+        }
+      }
+    },
+    "replaced; text on one line doesn't wrap, and this line is {0} pt wider: check it doesn't run into what's beside it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reemplazada; el texto de una sola línea no se ajusta, y esta línea es {0} pt más ancha: comprueba que no choque con lo que tiene al lado."
+          }
+        }
+      }
+    },
+    "left as it was: no font on this Mac has {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: ninguna fuente de este Mac tiene {0}."
+          }
+        }
+      }
+    },
+    "left as it was: the longer paragraph would run into the text or picture below it. Change it in Edit Text & Images to decide.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: el párrafo, más largo, chocaría con el texto o la imagen de debajo. Cámbialo en Editar texto e imágenes para decidir."
+          }
+        }
+      }
+    },
+    "left as it was: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: {0}"
+          }
+        }
+      }
+    },
+    "left as it was: the paragraph changed since it was found. Search again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: el párrafo cambió desde que se encontró. Vuelve a buscar."
+          }
+        }
+      }
+    },
+    " ({0} matches in this paragraph)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " ({0} coincidencias en este párrafo)"
+          }
+        }
+      }
+    },
+    "Page {0} · “{1}”: {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página {0} · “{1}”: {2}"
+          }
+        }
+      }
+    },
+    "Find and Replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar y reemplazar"
+          }
+        }
+      }
+    },
+    "Replace with": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar por"
+          }
+        }
+      }
+    },
+    "Text to find": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto que buscar"
+          }
+        }
+      }
+    },
+    "Text to put instead": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto que poner en su lugar"
+          }
+        }
+      }
+    },
+    "Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coincidencias"
+          }
+        }
+      }
+    },
+    "Replaces the selected match now and goes on to the next": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplaza ahora la coincidencia seleccionada y pasa a la siguiente"
+          }
+        }
+      }
+    },
+    "Find:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar:"
+          }
+        }
+      }
+    },
+    "Replace with:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar por:"
+          }
+        }
+      }
+    },
+    "Type what to find. Matches are listed here with their page and the words around them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe lo que quieres buscar. Las coincidencias aparecen aquí con su página y las palabras de alrededor."
+          }
+        }
+      }
+    },
+    "Searching… page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando… página {0} de {1}"
+          }
+        }
+      }
+    },
+    "The document's text couldn't be searched. Try again, or reopen the file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo buscar en el texto del documento. Vuelve a intentarlo o abre de nuevo el archivo."
+          }
+        }
+      }
+    },
+    "No matches in the document's text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay coincidencias en el texto del documento."
+          }
+        }
+      }
+    },
+    "1 page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 página"
+          }
+        }
+      }
+    },
+    "1 match. Untick it to keep it as it is.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 coincidencia. Desmárcala para dejarla como está."
+          }
+        }
+      }
+    },
+    "{0} matches on {1}. Untick any to keep as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} coincidencias en {1}. Desmarca las que quieras dejar como están."
+          }
+        }
+      }
+    },
+    "Only the first {0} are listed: make the search longer to see the rest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se muestran las primeras {0}: alarga la búsqueda para ver el resto."
+          }
+        }
+      }
+    },
+    "Some are in text that can't be changed (said under them).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algunas están en texto que no se puede cambiar (se indica debajo)."
+          }
+        }
+      }
+    },
+    "Replace All ({0})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar todo ({0})"
+          }
+        }
+      }
+    },
+    "Tick at least one match to replace, or close.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos una coincidencia para reemplazar, o cierra."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

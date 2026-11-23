@@ -507,6 +507,7 @@ at under "What a person must look at" and in each section.
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
 | 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
+| 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -556,6 +557,13 @@ From the steps, besides the sections below:
   ends. Ignore is "Ignore Spelling" (macOS's name), for the session in every editor. The third language tried is the Mac's
   (`Locale.current`) where Windows tries Windows' display language. Not checked by a person: the red underline's look,
   the menu by Control-click and from the keyboard, VoiceOver reading a misspelled word.
+- 4.2: matching is Foundation's (`NSString.range(of:options:)`, case-insensitive unless Match case) where Windows uses the
+  invariant culture's `CompareInfo`; offsets are UTF-16 as on Windows. `ContentEditor.replaceParagraph` now opens the
+  document and calls `replaceParagraphIn` (Replace All's per-paragraph path), as Windows' does. The command has no key
+  (Windows: Ctrl+H; ⌘H hides the app, ⌥⌘F is Prepare Form's) and is off while Organize Pages shows. Replace from the sheet
+  shows no progress (one paragraph); Replace All shows it page by page with Cancel. `nextAfter` gives nil where Windows'
+  gives -1. Not run here: `ReplacedTextReadsTheSameInPdfJs` (INKVOLTPDF_PDFJS, needs Node on the Mac). Not checked by a
+  person: the sheet's look, VoiceOver on its list.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.
