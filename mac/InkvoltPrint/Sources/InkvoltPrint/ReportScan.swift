@@ -218,6 +218,47 @@ extension Report {
     /// `--word-text` (roadmap 4.14): the demo glass's made-up invoice scanned with a Word preset and a text preset, each saved
     /// by itself into a folder in the container: the files, the document's paragraphs (Heading 1 first) and the text file's
     /// first lines.
+    /// A camera scan (roadmap 4.12) with demo mode's document camera: Use a Camera's window, two Capture Page, Done, the
+    /// pages in the review (found on the desk and warped flat, sized as their paper), then a preset's camera scan saved.
+    static func cameraCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["camera: no demo inkjet"] }
+        scan.clear()
+        scan.scanWithCamera()
+        var lines = ["camera:"]
+        for _ in 0..<50 where CameraWindow.model?.canCapture != true { try? await Task.sleep(for: .milliseconds(100)) }
+        guard let camera = CameraWindow.model else { return lines + ["  no camera window"] }
+        lines.append("  window \(CameraWindow.size.map { "\(Int($0.width)) × \(Int($0.height))" } ?? "not shown"), cameras \(camera.cameras.map(\.name)), " + camera.status)
+        for _ in 0..<2 {
+            await camera.capture()
+            for _ in 0..<100 where !camera.canCapture { try? await Task.sleep(for: .milliseconds(100)) }
+        }
+        lines.append("  after two captures: " + camera.status)
+        camera.done()
+        for _ in 0..<150 where scan.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        let sizes = scan.pages.pages.compactMap { scan.scannedJpeg($0.id).flatMap(ScanImaging.size) }.map { "\($0.width) × \($0.height)" }
+        lines.append("  review: \(scan.pages.pages.count) pages \(sizes), window closed \(CameraWindow.model == nil): " + scan.status)
+        // A preset's camera scan: its settings, saved by itself (no review).
+        let folder = AppModel.dataFolder.appendingPathComponent("camera-check", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var p = ScanPresets.builtIns()[0]
+        p.id = "camera-check"
+        p.name = "Camera check"
+        (p.review, p.skipBlank, p.after) = (false, false, .none)
+        model.setPresetFolder(p.id, folder)
+        scan.clear()
+        scan.scanWithCamera(p)
+        for _ in 0..<50 where CameraWindow.model?.canCapture != true { try? await Task.sleep(for: .milliseconds(100)) }
+        await CameraWindow.model?.capture()
+        try? await Task.sleep(for: .milliseconds(500))
+        CameraWindow.model?.done()
+        for _ in 0..<150 where scan.isScanning || scan.isSaving || !scan.pages.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        let saved = ((try? FileManager.default.subpathsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".pdf") }.sorted()
+        lines.append("  preset (\(ScanPresetText.summary(p))): saved \(saved.count) PDF(s): " + scan.status)
+        try? FileManager.default.removeItem(at: folder)
+        return lines
+    }
+
     static func wordTextCheck(_ model: AppModel) async -> [String] {
         guard let scan = await demoScanner(model) else { return ["word and text: no demo inkjet"] }
         defer { Demo.scanSetup.hold(nil) }

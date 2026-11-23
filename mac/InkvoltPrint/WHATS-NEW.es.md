@@ -14,6 +14,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - Un escaneo con el nombre de su primera página: {text-date}, {text-title} y {text-number} en el nombre de archivo de un ajuste de escaneo toman una fecha, el título y un número de factura o de pedido del texto de la página. Con Detenerse en las páginas para revisarlas antes de guardar, el nombre aparece junto a Guardar, para cambiarlo antes de guardar.
 - Escanear directo a Word o a texto: un ajuste de escaneo guarda el texto leído en las páginas como documento de Word (.docx), con títulos y párrafos listos para editar y las fotos como imágenes, o como archivo de texto (.txt).
 - Registro de impresión: Ventana › Registro de impresión muestra cada trabajo que imprimió este Mac, de la propia lista de trabajos terminados de macOS, con las páginas de cada mes por impresora y por persona. Se guarda solo en este Mac, durante 13 meses; ahí se desactiva o se borra. Exportar… lo guarda como CSV (una función de Inkvolt Pro).
+- Escanear con una cámara: Usar una cámara…, junto a Escanear, abre la imagen en vivo de tu cámara web, tu cámara de documentos o tu iPhone; cada Capturar página (o Espacio) toma la página que se ve, encontrada sobre el escritorio, enderezada y del tamaño de su papel, y la pasa a la revisión con la configuración de escaneo o la de un ajuste de escaneo.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

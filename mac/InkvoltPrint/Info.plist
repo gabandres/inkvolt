@@ -26,6 +26,8 @@
 	<false/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Inkvolt Print uses the camera only while you scan with it: each page you capture becomes a scanned page on this Mac. Nothing is recorded or sent.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Inkvolt Print finds your printers and scanners on this network and reads their status, ink and toner.</string>
 	<key>NSBonjourServices</key>

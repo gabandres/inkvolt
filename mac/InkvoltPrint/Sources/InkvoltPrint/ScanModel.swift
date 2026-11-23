@@ -171,14 +171,17 @@ final class ScanModel {
 
     /// One click: the preset matched to this scanner (said in the status line where it had to give), scanned, and saved
     /// by itself unless the preset stops on the pages for a review.
-    func scan(with p: ScanPreset) async {
-        if caps == nil { await load() }
-        guard let caps, !isScanning else { return }
-        let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric, turnsStacks: true)
-        source = plan.request.source
-        color = plan.request.color
-        dpi = plan.request.resolution
-        sizeKey = ScanChoices.pageSizes.first { $0.width == plan.request.width && $0.height == plan.request.height }?.key ?? sizeKey
+    func scan(with p: ScanPreset, camera: Bool = false) async {
+        if caps == nil && !camera { await load() }
+        guard let caps = camera ? CaptureScanner.capabilities(String(localized: "Camera")) : caps, !isScanning else { return }
+        let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric,
+                                   turnsStacks: !camera)
+        if !camera { // a camera's scan leaves the scanner's settings as they are
+            source = plan.request.source
+            color = plan.request.color
+            dpi = plan.request.resolution
+            sizeKey = ScanChoices.pageSizes.first { $0.width == plan.request.width && $0.height == plan.request.height }?.key ?? sizeKey
+        }
         format = p.fileType == .jpeg ? .jpeg : plan.ocr ? .searchablePdf : .pdf
         if preset?.id != p.id { forgetSaveName() }
         preset = p
@@ -187,7 +190,9 @@ final class ScanModel {
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
                               findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage,
                               upright: p.turnUpright, oneBit: plan.oneBit, drop: DropColor.parse(p.dropColor) ?? .red)
-        scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
+        let capture = camera ? cameraCapture(ScanRequest(source: .platen, color: plan.request.color, resolution: plan.request.resolution)) : nil
+        if camera && capture == nil { return }
+        scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack, capture: capture) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
             if p.review { await self.fillSaveName() } // once its pages are checked
@@ -249,34 +254,45 @@ final class ScanModel {
 
     /// Scans with the tab's settings, or a preset's `check`, `keepSeparators` and `turnStack`. Batches come from the feeder
     /// only, photos from the glass only; a turned stack (`TurnedStack`) only from a feeder that scans one side.
-    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, turnStack turnGiven: Bool? = nil,
+    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, turnStack turnGiven: Bool? = nil, capture: CaptureScan? = nil,
               then finished: (@MainActor () async -> Void)? = nil) {
-        guard !isScanning else { return }
+        guard !isScanning else {
+            capture?.end()
+            return
+        }
         problem = nil
         isScanning = true
         stack = nil // "Backs in the Other Order" is for the last turned stack only
-        status = source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…")
-        let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
+        capturing = capture
+        status = capture?.status ?? (source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…"))
+        let request = capture?.request ?? ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
                                    ocrLanguage: ocrLanguage, upright: upright, drop: dropColor)
-        if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
+        if capture != nil {
+            // A photographed page: one at a time, the whole photo made a page (no photos on a glass, no batch, no turned stack).
+            c.splitAt = .none
+            c.findPhotos = false
+        } else if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
         // Which way up is told by Latin-like letters only: a page in Hebrew, Arabic or Chinese isn't turned.
         c.upright = c.upright && PageUpright.suitsLanguage(c.ocrLanguage ?? Locale.preferredLanguages.first)
         let check = c, split = c.splitAt, photos = c.findPhotos
-        let duplex = source == .adfDuplex
-        let turning = (turnGiven ?? turnStack) && offersTurnStack
+        let duplex = capture == nil && source == .adfDuplex
+        let turning = capture == nil && (turnGiven ?? turnStack) && offersTurnStack
         if pages.isEmpty || split != .none { pages.keepSeparators = keepGiven ?? keepSeparators } // the batch's setting when it was scanned
-        if app.isDemo {
+        if app.isDemo && capture == nil {
             Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper),
                                    turnedStack: turning ? .fronts : nil, markedForm: !c.cleanup.isDisjoint(with: [.dropColor, .punchHoles]))
         }
-        let widthIn300ths = request.width ?? caps?.input(for: source)?.maxWidth
+        let widthIn300ths = capture == nil ? request.width ?? caps?.input(for: source)?.maxWidth : nil
         scanning = Task {
             defer {
                 isScanning = false
                 scanning = nil
+                capture?.end() // the camera window closes, the camera stops
+                capturing = nil
             }
-            guard let scanner = await printer.scanner() else {
+            let device: (any ScanDevice)? = if let capture { capture.device } else { await printer.scanner() }
+            guard let scanner = device else {
                 problem = String(localized: "The scanner isn't available while the printer isn't connected.")
                 status = ""
                 return
@@ -370,7 +386,49 @@ final class ScanModel {
         }
     }
 
-    func stop() { scanning?.cancel() }
+    func stop() {
+        capturing?.end()
+        scanning?.cancel()
+    }
+
+    // MARK: A camera or a phone as the scanner (roadmap 4.12, 4.6)
+
+    /// A capture source a scan takes its pages from instead of the printer's scanner: the photos' scanner, its request (the
+    /// whole photo at a capture's resolution), the status line while it runs, and what ends the source (its window closed).
+    struct CaptureScan {
+        let device: any ScanDevice
+        let request: ScanRequest
+        let status: String
+        let end: @MainActor () -> Void
+    }
+
+    /// The capture source of the scan under way, if any.
+    @ObservationIgnored private var capturing: CaptureScan?
+
+    /// Use a Camera (roadmap 4.12): a webcam's, a document camera's or an iPhone's live picture in a window of its own; each
+    /// Capture page takes its next frame in full as a page, straightened and cleaned up as a scanner's page is, at the
+    /// settings here (`preset` nil) or the preset's, until Done or the window closes.
+    func scanWithCamera(_ preset: ScanPreset? = nil) {
+        guard !isScanning else { return }
+        if let preset {
+            Task { await scan(with: preset, camera: true) }
+            return
+        }
+        guard let capture = cameraCapture(ScanRequest(source: .platen, color: color, resolution: PhotoPage.captureResolution(dpi))) else { return }
+        scan(capture: capture)
+    }
+
+    /// The camera window opened on a new camera session, and the scan's capture source over it.
+    private func cameraCapture(_ request: ScanRequest) -> CaptureScan? {
+        let session = CameraSession()
+        CameraWindow.show(session, cameras: app.cameras, demo: app.isDemo)
+        let request = ScanRequest(source: .platen, color: request.color, resolution: PhotoPage.captureResolution(request.resolution))
+        let device = CaptureScanner(session.photos, codec: ImageIOPhotoCodec(), name: String(localized: "Camera"))
+        return CaptureScan(device: device, request: request, status: String(localized: "Capturing pages with the camera: Capture Page in its window, then Done.")) {
+            session.finish()
+            CameraWindow.close()
+        }
+    }
 
     /// The page's resolution: what was asked, unless its size says otherwise (a scanner that sent another one).
     static func dpi(of jpeg: [UInt8], asked: Int, widthIn300ths: Int?) -> Int {

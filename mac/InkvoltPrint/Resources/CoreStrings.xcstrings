@@ -210,6 +210,17 @@
         }
       }
     },
+    "1 page captured. Put the next one under the camera, or Done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 página capturada. Pon la siguiente bajo la cámara, o Listo."
+          }
+        }
+      }
+    },
     "1 page · plain paper": {
       "extractionState": "manual",
       "localizations": {
@@ -470,6 +481,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Una frase de contraseña puede tener como máximo {0} caracteres."
+          }
+        }
+      }
+    },
+    "A photo was left out: it isn't a JPEG or PNG photo the size of a page, or it didn't open.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se omitió una foto: no es una foto JPEG o PNG del tamaño de una página, o no se pudo abrir."
           }
         }
       }
@@ -847,6 +869,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ocupada en el panel de control"
+          }
+        }
+      }
+    },
+    "Camera": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámara"
           }
         }
       }
@@ -3231,6 +3264,17 @@
         }
       }
     },
+    "No camera found. Plug in a webcam or document camera, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ninguna cámara. Conecta una cámara web o una cámara de documentos y vuelve a intentarlo."
+          }
+        }
+      }
+    },
     "No macOS printer to check.": {
       "extractionState": "manual",
       "localizations": {
@@ -4699,6 +4743,17 @@
         }
       }
     },
+    "Put a page under the camera, then Capture page. Each capture is a page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon una página bajo la cámara y luego Capturar página. Cada captura es una página."
+          }
+        }
+      }
+    },
     "Put the cartridge back in and close the door.": {
       "extractionState": "manual",
       "localizations": {
@@ -5954,6 +6009,17 @@
         }
       }
     },
+    "That's the most pages one scan takes: press Done, then start another.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es el máximo de páginas de un escaneo: pulsa Listo y luego empieza otro."
+          }
+        }
+      }
+    },
     "The authentication passphrase has at least {0} characters.": {
       "extractionState": "manual",
       "localizations": {
@@ -5961,6 +6027,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La frase de contraseña de autenticación tiene al menos {0} caracteres."
+          }
+        }
+      }
+    },
+    "The camera didn't start. Another app may be using it: close it, or choose another camera, and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La cámara no se inició. Puede que otra app la esté usando: ciérrala, o elige otra cámara, y vuelve a intentarlo."
           }
         }
       }
@@ -7208,6 +7285,17 @@
         }
       }
     },
+    "This camera sends no picture Inkvolt Print can use. Choose another camera.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta cámara no envía ninguna imagen que Inkvolt Print pueda usar. Elige otra cámara."
+          }
+        }
+      }
+    },
     "This document has {0} page": {
       "extractionState": "manual",
       "localizations": {
@@ -7969,6 +8057,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Versión {0}"
+          }
+        }
+      }
+    },
+    "Wait a moment: the Mac is making pages of the last captures.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera un momento: el Mac está creando las páginas de las últimas capturas."
           }
         }
       }
@@ -8798,6 +8897,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "macOS no deja que Inkvolt Print lea este archivo."
+          }
+        }
+      }
+    },
+    "macOS doesn't let Inkvolt Print use the camera. Turn it on in System Settings › Privacy & Security › Camera, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no deja que Inkvolt Print use la cámara. Actívala en Ajustes del Sistema › Privacidad y seguridad › Cámara y vuelve a intentarlo."
           }
         }
       }
@@ -10144,6 +10254,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} páginas"
+          }
+        }
+      }
+    },
+    "{0} pages captured. Put the next one under the camera, or Done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas capturadas. Pon la siguiente bajo la cámara, o Listo."
           }
         }
       }

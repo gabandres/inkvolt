@@ -953,6 +953,16 @@
         }
       }
     },
+    "A webcam, a document camera or your iPhone takes each page: its picture is made a flat page at these settings (or a preset's, from the menu)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una cámara web, una cámara de documentos o tu iPhone toma cada página: su imagen se convierte en una página plana con esta configuración (o la de un ajuste, desde el menú)"
+          }
+        }
+      }
+    },
     "A whole sheet of each photo": {
       "localizations": {
         "es": {
@@ -1460,6 +1470,16 @@
         }
       }
     },
+    "Camera": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámara"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "es": {
@@ -1546,6 +1566,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cancelando…"
+          }
+        }
+      }
+    },
+    "Capture Page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capturar página"
+          }
+        }
+      }
+    },
+    "Capturing pages with the camera: Capture Page in its window, then Done.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capturando páginas con la cámara: Capturar página en su ventana y luego Listo."
           }
         }
       }
@@ -5294,6 +5334,26 @@
         }
       }
     },
+    "Scan with a Camera": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con una cámara"
+          }
+        }
+      }
+    },
+    "Scan with a Camera — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con una cámara — Demo"
+          }
+        }
+      }
+    },
     "Scanned %lld pages…": {
       "localizations": {
         "es": {
@@ -5832,6 +5892,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quita la tapa alrededor de la hoja; una página de la que no está seguro se queda entera"
+          }
+        }
+      }
+    },
+    "Takes the camera's picture as the next page (Space)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toma la imagen de la cámara como la página siguiente (Espacio)"
           }
         }
       }
@@ -6950,6 +7020,16 @@
         }
       }
     },
+    "Use a Camera…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar una cámara…"
+          }
+        }
+      }
+    },
     "Use as a Separator Sheet": {
       "localizations": {
         "es": {
@@ -7056,6 +7136,16 @@
         }
       }
     },
+    "What the camera sees": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que ve la cámara"
+          }
+        }
+      }
+    },
     "Whiten the background": {
       "localizations": {
         "es": {
@@ -7082,6 +7172,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Foto entera"
+          }
+        }
+      }
+    },
+    "With %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con %@"
           }
         }
       }

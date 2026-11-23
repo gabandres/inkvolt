@@ -159,6 +159,7 @@ private struct ScanSettings: View {
                         .keyboardShortcut("r", modifiers: .command)
                         .buttonStyle(.borderedProminent)
                         .disabled(scan.caps == nil)
+                    CameraButton(scan: scan)
                 }
             }
         }
@@ -968,5 +969,21 @@ private struct PhotoCanvas: View {
         p.addLines(box.corners().map { CGPoint(x: $0.x * width, y: $0.y * width) })
         p.closeSubpath()
         return p
+    }
+}
+
+/// Use a Camera (roadmap 4.12): the settings here, or a preset's from its menu.
+private struct CameraButton: View {
+    @Bindable var scan: ScanModel
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Menu("Use a Camera…") {
+            ForEach(app.presets, id: \.id) { p in Button(String(localized: "With \(p.name)")) { scan.scanWithCamera(p) } }
+        } primaryAction: {
+            scan.scanWithCamera()
+        }
+        .fixedSize()
+        .help(String(localized: "A webcam, a document camera or your iPhone takes each page: its picture is made a flat page at these settings (or a preset's, from the menu)"))
     }
 }

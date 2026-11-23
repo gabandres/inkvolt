@@ -48,6 +48,7 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 | `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." |
 | `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing); the print log's read of CUPS's history of finished jobs (4.9) needs nothing more |
 | `com.apple.security.device.usb` | ImageCaptureCore with USB scanners (macOS 14+) |
+| `com.apple.security.device.camera` | A camera scan (roadmap 4.12, the owner approved it 2026-11-23): AVFoundation's capture session on a webcam, document camera or iPhone (Continuity Camera). Needs `NSCameraUsageDescription` (English and Spanish, `InfoPlist.xcstrings`); macOS asks once, and denied is said with where to turn it on |
 | `com.apple.security.files.bookmarks.app-scope` | A scan preset's folder, chosen once and written to again (app-scoped security bookmark) |
 | `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks; opening PDFs and photos to print |
 | `com.apple.security.application-groups` = [`AE6TTXW92K.com.bermudezsystems.inkvolt`] | The Inkvolt Pro key's file, shared with Inkvolt PDF (added 2026-11-04 for roadmap 1.6; Q6) |

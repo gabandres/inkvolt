@@ -98,6 +98,8 @@ final class AppModel {
     @ObservationIgnored let printLog: PrintLogKeeper
     @ObservationIgnored private let jobHistory: (any FinishedJobHistory)?
     @ObservationIgnored private var readingLog: Task<Void, Never>?
+    /// This Mac's cameras for a camera scan (roadmap 4.12): AVFoundation's, or demo mode's made-up document camera.
+    var cameras: any Cameras { isDemo ? DemoCameras() : AVCameras() }
     /// The print log's switch (on by default).
     private(set) var printLogOn = true
     /// Finished jobs read each minute; a read that finds them all new reads CUPS's whole history next.
