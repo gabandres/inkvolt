@@ -1,5 +1,17 @@
 # Releasing the Mac apps from a new Mac
 
+**Set up on 2026-11-22: `buildmac`**, a MacBook Air M5 (16 GB, macOS 27.2.1, Xcode 27.2 at `/Applications/Xcode.app`)
+that is the owner's wife's laptop, in her account (`stephaniecastillozambrana`); reached from the PC as `ssh buildmac`
+over Tailscale (`mac.sh`'s default). It serves the mobile apps too: access, staying awake and sudo are in
+inkvolt-mobile's `docs/build-mac.md`. Restored from the tarball below (checksum matched); `ASC_KEY_PATH` points into
+her home; Homebrew `node`, `python` (3.15, first on the login PATH), `gh` (**not logged in**: do `gh auth login` before
+the first release that publishes). Both release scripts now take the App Store Xcode (`INKVOLT_XCODE` names another).
+Dry check, all four passed: `build.sh` signed "Apple Development"; `release.sh 0.0.1` notarized (Accepted), stapled,
+Gatekeeper "Notarized Developer ID"; `sign_update` signed and verified; `asc-builds.mjs` listed Print's builds 1–8 and
+Print's `release.sh 9` (no upload) exported 1.3.1 (9), `PREFLIGHT OK`. `swift test` of InkvoltPdfKit: 2,003 of 2,004;
+`AiLoopbackTests.thePlainServerAnswersWhileThePoolIsBusy` goes over its 3 s local limit under the full suite (passes
+alone in 0.4 s). `/Applications/Inkvolt PDF.app` is that dev build.
+
 ignia-mac (MacBook Air M1, 16 GB) was sold in November 2026; the plan was an M6 Mac mini (24 GB, 512 GB) in its place.
 Until a Mac is set up, Mac work goes through the PC (PrintCore, `swift-dev.ps1`) and the `mac` CI job (push a branch for
 CI, delete it after). Everything the release scripts need that isn't in git was saved first; this says where each piece

@@ -55,7 +55,9 @@ OUT="${INKVOLT_OUT:-$HOME/build-artifacts/inkvolt-pdf-mac}"
 mkdir -p $OUT
 echo "RUNNING $(date -u +%FT%TZ) $ARGS" > $OUT/status
 trap 'code=$?; if [ $code -eq 0 ]; then echo "DONE 0 $(date -u +%FT%TZ)"; else echo "FAILED $code $(date -u +%FT%TZ)"; fi > $OUT/status' EXIT
-export DEVELOPER_DIR=/Applications/Xcode-27.1.0.app/Contents/Developer # a release Xcode, as Inkvolt Print's
+# A release Xcode (a beta's builds can't be submitted): the App Store's, or the Xcode.app INKVOLT_XCODE names.
+export DEVELOPER_DIR=${INKVOLT_XCODE:-/Applications/Xcode.app}/Contents/Developer
+case $DEVELOPER_DIR in *[Bb]eta*) echo "DEVELOPER_DIR is a beta Xcode: $DEVELOPER_DIR"; exit 89;; esac
 
 envfile="${INKVOLT_ENV:-../InkvoltPrint/.env.local}"
 [ -f "$envfile" ] || envfile="$HOME/Repos/inkvolt/mac/InkvoltPrint/.env.local" # a worktree has no .env.local

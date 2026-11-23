@@ -7,7 +7,7 @@ differences and what's left (P12's hardware items, PLAN's "Open"): `docs/PLAN.md
 
 - **Machines.** The Windows PC builds and tests PrintCore (Foundation only):
   `pwsh -NoProfile -File mac/tools/swift-dev.ps1 test --package-path mac/InkvoltPrintKit --build-system native`. Everything that
-  imports an Apple framework (PrintMac, both apps) builds only on the owner's Mac (none since `ignia-mac` was sold; `NEW-MAC` below) or in the `mac`
+  imports an Apple framework (PrintMac, both apps) builds only on the owner's Mac (`buildmac` since 2026-11-22; `NEW-MAC` below) or in the `mac`
   CI job (macos-15, warnings as errors); say which one checked a change. Xcode's Swift gives up on expressions that
   Windows' compiles fast: build with `-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150` and break up
   what it flags before pushing. Inkvolt PDF's `InkvoltPdfKit` needs MuPDF, so it builds and tests only on the Mac
@@ -18,14 +18,15 @@ differences and what's left (P12's hardware items, PLAN's "Open"): `docs/PLAN.md
   copying, LF as git stores it) into the worktree `~/Repos/inkvolt-pc`; `pdf-test [filter]`, `print-test`, `pdf-app`,
   `run '<cmd>'` sync first; long runs go through `bg <name> '<cmd>'`, then `wait <name>` as a background command (or `log <name>`). Only one session at a time
   uses `inkvolt-pc`. SSH multiplexing doesn't work from Git Bash, and isn't needed: a connection takes 0.3 s.
-- **The app on the Mac.** `ssh -o BatchMode=yes <mac host>` (`mac.sh`'s `INKVOLT_MAC_HOST`, default `ignia-mac`); the release clone is `~/Repos/inkvolt` (pull it; MuPDF's
+- **The app on the Mac.** `ssh -o BatchMode=yes <mac host>` (`mac.sh`'s `INKVOLT_MAC_HOST`, default `buildmac`); the release clone is `~/Repos/inkvolt` (pull it; MuPDF's
   XCFramework lives in its `mac/InkvoltPdfKit/Frameworks`, which `inkvolt-pc` links to).
   `sh mac/InkvoltPrint/build.sh` installs `/Applications/Inkvolt Print.app` (process `Inkvolt Print`); `open -n` it with
   `--report <name> [--wait s] [--stay] [--demo]` and read the report from its container (README). Start automatic work
   from the app delegate, never a view (a locked screen shows no window). `screencapture` doesn't work over SSH: ask the
   owner what the screen shows. New files in `Sources/InkvoltPrint` and `Resources` join the Xcode project by themselves
   (synchronized folders).
-- **A new Mac.** ignia-mac was sold in November 2026. Setting up the next one (where each signing secret goes, the
+- **A new Mac.** ignia-mac was sold in November 2026; `buildmac` (a MacBook Air M5 shared with the owner's wife, over
+  Tailscale) replaced it on 2026-11-22 (`docs/NEW-MAC.md`, its top). Setting up another one (where each signing secret goes, the
   tools, a dry check that signs, notarizes and runs `sign_update` without publishing): `docs/NEW-MAC.md`.
 - **App Store builds** go through `mac/InkvoltPrint/release.sh <build> --upload` only (README), run detached on the Mac;
   read its status file before running it again (a build number can't be uploaded twice), then check App Store Connect

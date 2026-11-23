@@ -18,7 +18,7 @@
 # SSH session waits on them and nobody polls with sleep.
 set -euo pipefail
 
-HOST=${INKVOLT_MAC_HOST:-ignia-mac}
+HOST=${INKVOLT_MAC_HOST:-buildmac}
 MAIN='~/Repos/inkvolt'
 WT='~/Repos/inkvolt-pc'
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=8 "$HOST")

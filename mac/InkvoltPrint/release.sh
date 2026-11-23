@@ -17,7 +17,9 @@ mkdir -p $OUT
 echo "RUNNING $(date -u +%FT%TZ) $*" > $OUT/status
 trap 'code=$?; if [ $code -eq 0 ]; then echo "DONE 0 $(date -u +%FT%TZ)"; else echo "FAILED $code $(date -u +%FT%TZ)"; fi > $OUT/status' EXIT
 rm -rf $OUT/InkvoltPrint.xcarchive $OUT/export
-export DEVELOPER_DIR=/Applications/Xcode-27.1.0.app/Contents/Developer # a release Xcode: a beta's builds can't be submitted
+# A release Xcode (a beta's builds can't be submitted): the App Store's, or the Xcode.app INKVOLT_XCODE names.
+export DEVELOPER_DIR=${INKVOLT_XCODE:-/Applications/Xcode.app}/Contents/Developer
+case $DEVELOPER_DIR in *[Bb]eta*) echo "DEVELOPER_DIR is a beta Xcode: $DEVELOPER_DIR"; exit 89;; esac
 
 xcodebuild -project InkvoltPrint.xcodeproj -scheme InkvoltPrint -configuration Release -destination generic/platform=macOS \
   -archivePath $OUT/InkvoltPrint.xcarchive archive CURRENT_PROJECT_VERSION=$BUILD \
