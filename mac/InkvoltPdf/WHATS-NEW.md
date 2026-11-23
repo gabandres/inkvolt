@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Two documents side by side: File › New Window (or the Dock icon's menu) opens the next document in a window of its own, or drag a tab out of the tab bar (Window › Move Tab to New Window does the same). A file that's open already comes forward in whichever window has it, and the documents you open join the window you used last.
 - Replace Pages… (Pages menu): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.
 - Resize Pages… (Pages menu): put pages on Letter, A4, Legal or a size you type, the content scaled to fit or kept at its size with margins added. Pages of mixed sizes become one size, and comments and form fields move with the content.
 - Bookmarks from Headings… (Pages menu, and the Bookmarks list's menu): bookmarks made from the document's headings, nested by level and shown before they're made. They replace the bookmarks or go after them.

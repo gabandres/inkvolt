@@ -242,6 +242,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func showWindow(_ sender: Any?) {
+        // The first time: into the group of tabs in use, or a window of its own after File › New Window (WindowHub).
+        WindowHub.shared.place(self)
         super.showWindow(sender)
         // Fit the width once the window has its size (pages narrower than the window stay at actual size).
         DispatchQueue.main.async {
@@ -311,9 +313,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.stop()
         organizer?.stop()
         NotificationCenter.default.removeObserver(self)
+        WindowHub.shared.closed(self)
     }
 
     func windowDidBecomeKey(_ notification: Notification) { checkDisk() }
+
+    /// Its group of tabs is the one in use: documents opened from elsewhere join it (WindowHub).
+    func windowDidBecomeMain(_ notification: Notification) { WindowHub.shared.activated(self) }
 
     /// Edit › Undo and Redo: the document's session steps.
     func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { pdf.undoBridge }

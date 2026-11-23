@@ -508,6 +508,7 @@ at under "What a person must look at" and in each section.
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
 | 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
+| 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 
 From the steps, besides the sections below:
@@ -568,6 +569,19 @@ From the steps, besides the sections below:
   shows no progress (one paragraph); Replace All shows it page by page with Cancel. `nextAfter` gives nil where Windows'
   gives -1. Not run here: `ReplacedTextReadsTheSameInPdfJs` (INKVOLTPDF_PDFJS, needs Node on the Mac). Not checked by a
   person: the sheet's look, VoiceOver on its list.
+- 4.9: a "window" of Windows' rules is a group of AppKit's window tabs, and a tab one document's window. AppKit draws,
+  drags, tears off and merges the tabs; `WindowHub` reads its groups (`tabbedWindows`) whenever it asks the rules, so
+  `DocumentWindows` follows what AppKit did. A tab carries its window whole (sheets, progress, a running job, the Reflow
+  view), so no move is refused as busy: `canMove` and `canTearOff` aren't asked, and `TabDrag` (ported with its tests)
+  isn't used, AppKit having its own drag. What is remembered for the next start stays macOS's window restoration
+  ("Mac differences"): after Quit it reopens every window with its tabs (unless macOS's "Close windows when quitting an
+  application" is on) and a window closed by hand is forgotten, as `remember` does, except the last one (Windows
+  remembers its files); `remember` is ported, unused. File › New Window shows the start page and the next document
+  opened gets a window of its own (Windows opens an empty window with its own start page); closing the start page
+  forgets it. The Dock menu's New Window is the jump list's; `WindowLaunch` (`--new-window`) is ported, unused (files
+  reach a running Mac app by Apple Events, not a second launch). A path is compared ignoring case with its links
+  followed (`WindowHub.fullPath`), where NSDocumentController compares URLs. Not checked by a person: a tab dragged out
+  and onto another window by hand, the tab bar with long names, VoiceOver on the tabs.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.
@@ -1767,9 +1781,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
-  `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
-  a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
   `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
   (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,

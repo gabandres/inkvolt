@@ -321,10 +321,19 @@ private final class BrowseButton: NSButton {
 /// Files Open would read itself go on as ever; Office files and saved web pages (from the Open panel, the Dock or Finder)
 /// are converted into a new document. Made first in `main.swift`: AppKit keeps the first document controller it sees.
 final class DocumentController: NSDocumentController {
+    /// A file is open once (WindowHub, roadmap 4.9): asked for again in any case or through a link, its tab comes
+    /// forward; asked for while it is still being read, nothing more happens.
     override func openDocument(withContentsOf url: URL, display displayDocument: Bool, completionHandler: @escaping (NSDocument?, Bool, Error?) -> Void) {
+        let once = MainActor.assumeIsolated { WindowHub.shared.alreadyOpen(url) }
+        if once.handled { return completionHandler(once.document, true, once.document == nil ? CocoaError(.userCancelled) : nil) }
+        let path = once.path
+        nonisolated(unsafe) let done = completionHandler
+        nonisolated(unsafe) let finish: (NSDocument?, Bool, Error?) -> Void = { document, wasOpen, error in
+            MainActor.assumeIsolated { WindowHub.shared.finishOpening(path) }
+            done(document, wasOpen, error)
+        }
         let isConverted = MainActor.assumeIsolated { Converting.handles(url) }
-        guard isConverted else { return super.openDocument(withContentsOf: url, display: displayDocument, completionHandler: completionHandler) }
-        nonisolated(unsafe) let finish = completionHandler
+        guard isConverted else { return super.openDocument(withContentsOf: url, display: displayDocument, completionHandler: finish) }
         Task { @MainActor in
             let document = await Converting.openConverted(url)
             // AppKit shows no error for a user's cancel; the reason, if any, was said already.
