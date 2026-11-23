@@ -1,25 +1,35 @@
 @testable import PrintCore
 
-/// The PC's tests' `SnmpCrypto`: SHA-256 (FIPS 180-4), HMAC (RFC 2104) and AES-128's forward cipher (FIPS 197) written out
-/// here, since PrintCore is Foundation only and CryptoKit isn't on the PC. Test-only: the app uses PrintMac's
-/// `AppleSnmpCrypto`, tested against the same vectors in PrintMacTests. Checked here against RFC 4231, NIST SP 800-38A and
-/// the SHA-256 key vector (`SnmpV3Tests`).
+/// The PC's tests' `SnmpCrypto`: MD5 (RFC 1321), SHA-1 and SHA-256 (FIPS 180-4), HMAC (RFC 2104), AES's forward cipher
+/// (FIPS 197, 128-, 192- and 256-bit keys) and DES (FIPS 46-3) written out here (`TestCryptoMore.swift` beside it), since
+/// PrintCore is Foundation only and CryptoKit isn't on the PC. Test-only: the app uses PrintMac's `AppleSnmpCrypto`, tested
+/// against the same vectors in PrintMacTests. Checked here against RFC 4231, RFC 2202, NIST SP 800-38A, the textbook DES
+/// block and the key vectors (`SnmpV3Tests`, `SnmpV3ProtocolTests`).
 struct TestSnmpCrypto: SnmpCrypto {
     /// Installs the stand-in for the SNMPv3 tests (the Mac's PrintMacTests may install the real one: both give the same bytes).
     static func install() {
         if Usm.crypto == nil { Usm.crypto = TestSnmpCrypto() }
     }
 
-    func sha256(_ data: [UInt8]) -> [UInt8] { Sha256.hash(data) }
-
-    func hmacSha256(key: [UInt8], _ data: [UInt8]) -> [UInt8] {
-        var k = key.count > 64 ? sha256(key) : key
-        k += [UInt8](repeating: 0, count: 64 - k.count)
-        let inner = sha256(k.map { $0 ^ 0x36 } + data)
-        return sha256(k.map { $0 ^ 0x5C } + inner)
+    func hash(_ algorithm: SnmpHash, _ data: [UInt8]) -> [UInt8] {
+        switch algorithm {
+        case .md5: Md5.hash(data)
+        case .sha1: Sha1.hash(data)
+        case .sha256: Sha256.hash(data)
+        }
     }
 
-    func aes128(key: [UInt8], block: [UInt8]) -> [UInt8] { Aes128.encrypt(block, key: key) }
+    /// RFC 2104 with a 64-byte block, as MD5, SHA-1 and SHA-256 all have.
+    func hmac(_ algorithm: SnmpHash, key: [UInt8], _ data: [UInt8]) -> [UInt8] {
+        var k = key.count > 64 ? hash(algorithm, key) : key
+        k += [UInt8](repeating: 0, count: 64 - k.count)
+        let inner = hash(algorithm, k.map { $0 ^ 0x36 } + data)
+        return hash(algorithm, k.map { $0 ^ 0x5C } + inner)
+    }
+
+    func aes(key: [UInt8], block: [UInt8]) -> [UInt8] { Aes.encrypt(block, key: key) }
+
+    func des(key: [UInt8], block: [UInt8], encrypt: Bool) -> [UInt8] { Des.crypt(block, key: key, encrypt: encrypt) }
 }
 
 enum Sha256 {
@@ -90,7 +100,7 @@ enum Sha256 {
     private static func rotr(_ x: UInt32, _ n: UInt32) -> UInt32 { (x >> n) | (x << (32 - n)) }
 }
 
-private enum Aes128 {
+private enum Aes {
     /// The S-box, made from its definition (the multiplicative inverse in GF(2⁸), then the affine map), not typed in.
     static let sbox: [UInt8] = {
         var s = [UInt8](repeating: 0, count: 256)
@@ -110,29 +120,34 @@ private enum Aes128 {
 
     private static func xtime(_ a: UInt8) -> UInt8 { (a << 1) ^ (a & 0x80 != 0 ? 0x1B : 0) }
 
+    /// FIPS 197 §5.2's key expansion for Nk = 4, 6 or 8 words (AES-128, -192, -256), then Nk + 6 rounds.
     static func encrypt(_ block: [UInt8], key: [UInt8]) -> [UInt8] {
-        precondition(block.count == 16 && key.count == 16)
+        precondition(block.count == 16 && [16, 24, 32].contains(key.count))
+        let nk = key.count / 4, rounds = nk + 6
         var w = key
         var rcon: UInt8 = 1
-        while w.count < 176 {
+        while w.count < 16 * (rounds + 1) {
             var t = Array(w[(w.count - 4)...])
-            if w.count % 16 == 0 {
+            let word = w.count / 4
+            if word % nk == 0 {
                 t = [sbox[Int(t[1])] ^ rcon, sbox[Int(t[2])], sbox[Int(t[3])], sbox[Int(t[0])]]
                 rcon = xtime(rcon)
+            } else if nk > 6 && word % nk == 4 {
+                t = t.map { sbox[Int($0)] }
             }
-            for j in 0..<4 { w.append(w[w.count - 16] ^ t[j]) }
+            for j in 0..<4 { w.append(w[w.count - 4 * nk] ^ t[j]) }
         }
         var s = block
         func addRoundKey(_ round: Int) { for i in 0..<16 { s[i] ^= w[round * 16 + i] } }
         addRoundKey(0)
-        for round in 1...10 {
+        for round in 1...rounds {
             for i in 0..<16 { s[i] = sbox[Int(s[i])] }
             let shifted = (0..<16).map { i -> UInt8 in
                 let r = i % 4, c = i / 4
                 return s[r + 4 * ((c + r) % 4)]
             }
             s = shifted
-            if round < 10 {
+            if round < rounds {
                 for c in 0..<4 {
                     let a0 = s[4 * c], a1 = s[4 * c + 1], a2 = s[4 * c + 2], a3 = s[4 * c + 3]
                     s[4 * c] = xtime(a0) ^ xtime(a1) ^ a1 ^ a2 ^ a3

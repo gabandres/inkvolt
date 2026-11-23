@@ -20,6 +20,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - PDF/A y contraseñas en los ajustes de escaneo: un ajuste en PDF puede guardar PDF/A, pensado para abrirse igual durante años, o poner una contraseña al PDF (AES-256, como protege los archivos Inkvolt PDF). La contraseña se pide la primera vez que el ajuste guarda, y se guarda en tu llavero si lo eliges.
 - Diseño en Imprimir un PDF, bajo la lista de archivos: varias páginas por hoja (2, 4, 6, 9 o 16), un folleto impreso a doble cara en el orden en que se lee la pila doblada, o un póster de 150 a 400 % en hojas que se solapan 6 mm, con marcas de corte para recortarlas.
 - Los consumibles muestran las páginas que quedan y cuántas páginas rinde un cartucho lleno en más impresoras: las impresoras HP más nuevas y las de otras marcas que cuentan su tóner en páginas. También se ven sus páginas impresas y las páginas desde que se puso cada cartucho.
+- Acceso SNMP… con un usuario SNMPv3 (Inkvolt Pro) funciona con más impresoras: elige el protocolo que usa la impresora junto a cada frase de contraseña, SHA-256, SHA-1 o MD5 para la autenticación y AES-128, AES-192, AES-256 o DES para la privacidad.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

@@ -3,8 +3,8 @@ import PrintCore
 import SwiftUI
 
 /// What the SNMP access fields hold (Add a Printer's and the printer's menu's; roadmap 3.2): the community a printer that
-/// answers only SNMP is read with (blank: public), or an SNMPv3 user and its two passphrases, which is an Inkvolt Pro
-/// feature (`Pro.allows`). The Windows app's `SnmpAccessFields`. Kept in the Keychain with the printer, never in the state
+/// answers only SNMP is read with (blank: public), or an SNMPv3 user, its two passphrases and the protocol beside each (as
+/// the printer's agent was set up), which is an Inkvolt Pro feature (`Pro.allows`). The Windows app's `SnmpAccessFields`. Kept in the Keychain with the printer, never in the state
 /// file.
 @MainActor @Observable
 final class SnmpAccessModel {
@@ -15,6 +15,8 @@ final class SnmpAccessModel {
     var userName = ""
     var authPassphrase = ""
     var privPassphrase = ""
+    var auth = SnmpAuth.sha256
+    var priv = SnmpPriv.aes128
     /// Why what was entered can't be used; nil when it can (or nothing was asked yet).
     private(set) var error: String?
 
@@ -24,6 +26,8 @@ final class SnmpAccessModel {
             userName = user.name
             authPassphrase = user.authPassphrase
             privPassphrase = user.privPassphrase
+            auth = user.auth
+            priv = user.priv
         } else {
             community = current.isDefault ? "" : current.community
         }
@@ -35,7 +39,8 @@ final class SnmpAccessModel {
     /// The login entered, or nil with the reason in `error` (and, for SNMPv3 without Inkvolt Pro, its window opened).
     func read() -> SnmpLogin? {
         do {
-            let login = kind == .v3 ? try SnmpLogin.forUser(userName, authPassphrase, privPassphrase) : try SnmpLogin.forCommunity(community)
+            let login = kind == .v3 ? try SnmpLogin.forUser(userName, authPassphrase, privPassphrase, auth: auth, priv: priv)
+                : try SnmpLogin.forCommunity(community)
             if login.user != nil && !Pro.allows(.snmpV3) {
                 error = Pro.locked(.snmpV3)
                 ProWindow.show(feature: .snmpV3)
@@ -50,6 +55,9 @@ final class SnmpAccessModel {
     }
 
     func edited() { error = nil }
+
+    /// MD5, SHA-1 or DES chosen: old and weak, said beside them.
+    var weakChosen: Bool { auth != .sha256 || priv == .des }
 
     /// Nothing typed for the kind chosen (shown or not): the printer is asked with public.
     var isBlank: Bool {
@@ -89,14 +97,33 @@ struct SnmpAccessFields: View {
     private var v3Fields: some View {
         VStack(alignment: .leading, spacing: 6) {
             TextField("User name", text: $model.userName).textFieldStyle(.roundedBorder)
-            SecureField("Authentication passphrase (SHA-256)", text: $model.authPassphrase).textFieldStyle(.roundedBorder)
-            SecureField("Privacy passphrase (AES-128)", text: $model.privPassphrase).textFieldStyle(.roundedBorder)
+            HStack {
+                SecureField("Authentication passphrase", text: $model.authPassphrase).textFieldStyle(.roundedBorder)
+                Picker("Authentication protocol", selection: $model.auth) {
+                    ForEach(SnmpAuth.allCases, id: \.self) { Text(verbatim: Usm.name($0)).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+            HStack {
+                SecureField("Privacy passphrase", text: $model.privPassphrase).textFieldStyle(.roundedBorder)
+                Picker("Privacy protocol", selection: $model.priv) {
+                    ForEach(SnmpPriv.allCases, id: \.self) { Text(verbatim: Usm.name($0)).tag($0) }
+                }
+                .labelsHidden()
+                .fixedSize()
+            }
+            if model.weakChosen {
+                caption(String(localized: "MD5, SHA-1 and DES are old and weak: choose them only for a printer that offers nothing better."))
+            }
             caption(String(localized: "The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads."))
             if let note = model.proNote { caption(note) }
         }
         .onChange(of: model.userName) { model.edited() }
         .onChange(of: model.authPassphrase) { model.edited() }
         .onChange(of: model.privPassphrase) { model.edited() }
+        .onChange(of: model.auth) { model.edited() }
+        .onChange(of: model.priv) { model.edited() }
     }
 
     private func caption(_ text: String) -> some View {

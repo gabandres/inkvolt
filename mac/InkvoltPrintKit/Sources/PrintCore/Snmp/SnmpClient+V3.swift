@@ -4,16 +4,20 @@ import Synchronization
 /// The agent's engine as discovered: its ID, boots and time (and when that was), and the user's keys localized to it.
 struct V3Engine: Sendable {
     let id: [UInt8]
-    let keys: Usm.Keys
+    private(set) var keys: Usm.Keys
+    /// The privacy key lengthened the other way (`Usm.KeyExtension`: AES-192 or AES-256 after MD5 or SHA-1), tried once when
+    /// the agent can't decrypt with the first; nil when there's no other, or it was taken.
+    private(set) var other: Usm.Keys?
     private(set) var boots: Int
     private var time: Int
     /// RFC 3414 §2.3's latestReceivedEngineTime.
     private var latest: Int
     private var at: ContinuousClock.Instant
 
-    init(id: [UInt8], boots: Int, time: Int, keys: Usm.Keys) {
+    init(id: [UInt8], boots: Int, time: Int, keys: Usm.Keys, other: Usm.Keys? = nil) {
         self.id = id
         self.keys = keys
+        self.other = other
         self.boots = boots
         self.time = time
         latest = time
@@ -39,6 +43,12 @@ struct V3Engine: Sendable {
     mutating func saw(boots: Int, time: Int) {
         guard boots > self.boots || (boots == self.boots && time > latest) else { return }
         reset(boots: boots, time: time)
+    }
+
+    /// The other privacy key from now on (the agent couldn't decrypt with the first).
+    mutating func takeOther() {
+        keys = other ?? keys
+        other = nil
     }
 
     /// The engine's own values (an authenticated notInTimeWindow report).
@@ -80,19 +90,20 @@ public protocol SnmpObserver: Sendable {
     func observe(_ reply: SnmpMessage)
 }
 
-/// SNMPv3 for `SnmpClient` (RFC 3412, RFC 3414, RFC 3826, RFC 7860): authPriv only, read only. The Windows Core's
-/// `SnmpClient.V3.cs`.
+/// SNMPv3 for `SnmpClient` (RFC 3412, RFC 3414, RFC 3826, RFC 7860, draft-blumenthal-aes-usm-04): authPriv only, read only,
+/// with the user's authentication and privacy protocols. The Windows Core's `SnmpClient.V3.cs`.
 extension SnmpClient {
-    /// One request over SNMPv3: the engine discovered first (once per session), the scoped PDU encrypted with AES-128 and the
-    /// message signed with HMAC-SHA-256-192. A signed notInTimeWindow report sets the clock and sends again (once); a refusal
-    /// from the engine is an `SnmpAccessError` saying which part; reports RFC 3414 doesn't let a manager act on are no
-    /// answer (`actedOn`).
+    /// One request over SNMPv3: the engine discovered first (once per session), the scoped PDU encrypted and the message
+    /// signed with the user's protocols. A signed notInTimeWindow report sets the clock and sends again (once); a decryption
+    /// error with AES-192 or AES-256 after MD5 or SHA-1 sends again once with the privacy key lengthened the other way
+    /// (agents differ); a refusal from the engine is an `SnmpAccessError` saying which part; reports RFC 3414 doesn't let a
+    /// manager act on are no answer (`actedOn`).
     func sendV3(_ request: SnmpMessage) async throws -> SnmpMessage {
         guard let user, let crypto else { throw SnmpFormatError("SNMPv3: no cryptography to sign and encrypt with.") }
         var pdu = request
         pdu.community = ""
         var resynchronized = false
-        for _ in 0..<3 {
+        for _ in 0..<4 {
             let engine: V3Engine
             if let known = v3.withLock({ $0.engine }) {
                 engine = known
@@ -101,24 +112,28 @@ extension SnmpClient {
                 v3.withLock { $0.engine = engine }
             }
             let messageId = nextId()
-            let salt = v3.withLock { state -> [UInt8] in
-                state.salt &+= 1
-                return withUnsafeBytes(of: state.salt.bigEndian) { Array($0) }
-            }
             let (boots, time) = (engine.boots, engine.timeNow)
+            let counter = v3.withLock { state -> UInt64 in
+                state.salt &+= 1
+                return state.salt
+            }
+            let salt = engine.keys.salt(boots: boots, counter: counter)
             let scoped = SnmpV3Message.encodeScoped(engine.id, "", pdu)
-            let iv = Usm.aesIv(boots: boots, time: time, salt: salt)
             let flags = SnmpV3Message.flagAuth | SnmpV3Message.flagPriv | SnmpV3Message.flagReportable
+            let encrypted = try engine.keys.encrypt(boots: boots, time: time, salt: salt, scoped, crypto)
             let message = SnmpV3Message(messageId: messageId, flags: flags, engineId: engine.id, engineBoots: boots, engineTime: time,
-                                        userName: user.name, privParameters: salt,
-                                        encrypted: Usm.aesCfb(key: engine.keys.priv, iv: iv, scoped, encrypt: true, crypto))
-            let (reply, answer) = try await exchange(message.sign(engine.keys.auth, crypto), messageId: messageId, engine: engine, crypto)
+                                        userName: user.name, privParameters: salt, encrypted: encrypted)
+            let (reply, answer) = try await exchange(message.sign(engine.keys, crypto), messageId: messageId, engine: engine, crypto)
             if answer.type == .response {
                 if answer.requestId != pdu.requestId { continue } // signed, but not this request's answer: ask again
                 v3.withLock { $0.engine?.saw(boots: reply.engineBoots, time: reply.engineTime) } // in its window (read)
                 return answer
             }
             let said = answer.varBinds.first?.name
+            if said == Usm.decryptionErrors && engine.other != nil {
+                v3.withLock { $0.engine?.takeOther() } // the agent may lengthen the privacy key the other way: ask again with that one
+                continue
+            }
             guard said == Usm.notInTimeWindows else { throw SnmpAccessError(Self.refusal(said)) }
             // Signed (read lets no other through): the engine's own clock, taken once a request; again, it's no answer.
             if resynchronized { break }
@@ -157,7 +172,8 @@ extension SnmpClient {
         // RFC 3411's SnmpEngineID is 5 to 32 octets.
         guard (5...Usm.maxEngineId).contains(reply.engineId.count) else { throw SnmpFormatError("SNMPv3: the agent reported no usable engine ID.") }
         return V3Engine(id: reply.engineId, boots: reply.engineBoots, time: reply.engineTime,
-                        keys: Usm.Keys.of(user, engineId: reply.engineId, crypto))
+                        keys: Usm.Keys.of(user, engineId: reply.engineId, crypto),
+                        other: Usm.Keys.otherwise(user, engineId: reply.engineId, crypto, .blumenthal))
     }
 
     /// Sends a v3 request and waits for its reply (same msgID). A signed reply is read only with this engine's ID and the
@@ -179,15 +195,15 @@ extension SnmpClient {
         -> (message: SnmpV3Message, pdu: SnmpMessage)? {
         guard let reply = try? SnmpV3Message.decode(bytes), reply.messageId == messageId else { return nil }
         if reply.authenticated {
-            guard let engine, reply.engineId == engine.id, reply.verify(bytes, engine.keys.auth, crypto) else { return nil }
+            guard let engine, reply.engineId == engine.id, reply.verify(bytes, engine.keys, crypto) else { return nil }
         }
         if reply.isPrivate && !reply.authenticated { return nil } // privacy without authentication isn't a USM level
         let pdu: SnmpMessage
         if reply.isPrivate {
             guard let engine, let encrypted = reply.encrypted, reply.privParameters.count == Usm.saltLength else { return nil }
-            let iv = Usm.aesIv(boots: reply.engineBoots, time: reply.engineTime, salt: reply.privParameters)
-            let clear = Usm.aesCfb(key: engine.keys.priv, iv: iv, encrypted, encrypt: false, crypto)
-            guard let scoped = try? SnmpV3Message.decodeScoped(clear) else { return nil }
+            let keys = engine.keys
+            guard let clear = try? keys.decrypt(boots: reply.engineBoots, time: reply.engineTime, salt: reply.privParameters, encrypted, crypto),
+                  let scoped = try? SnmpV3Message.decodeScoped(clear, padded: keys.privProtocol == .des) else { return nil }
             pdu = scoped.pdu
         } else {
             guard let clear = reply.pdu else { return nil }

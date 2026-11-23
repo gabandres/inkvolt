@@ -6350,13 +6350,13 @@
         }
       }
     },
-    "The printer couldn't read the request: check the SNMPv3 privacy passphrase.": {
+    "The printer couldn't read the request: check the SNMPv3 privacy passphrase and its protocol.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La impresora no pudo leer la solicitud: revisa la frase de contraseña de privacidad de SNMPv3."
+            "value": "La impresora no pudo leer la solicitud: revisa la frase de contraseña de privacidad de SNMPv3 y su protocolo."
           }
         }
       }
@@ -6449,13 +6449,13 @@
         }
       }
     },
-    "The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user.": {
+    "The printer doesn't take SNMPv3 with authentication and privacy for this user.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La impresora no acepta SNMPv3 con autenticación y privacidad (SHA-256, AES-128) para este usuario."
+            "value": "La impresora no acepta SNMPv3 con autenticación y privacidad para este usuario."
           }
         }
       }
@@ -6603,13 +6603,13 @@
         }
       }
     },
-    "The printer refused the SNMPv3 authentication passphrase.": {
+    "The printer refused the SNMPv3 authentication passphrase: check it and its protocol.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La impresora rechazó la frase de contraseña de autenticación de SNMPv3."
+            "value": "La impresora rechazó la frase de contraseña de autenticación de SNMPv3: revísala junto con su protocolo."
           }
         }
       }
