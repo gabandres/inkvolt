@@ -16,11 +16,18 @@
 #
 # Long runs (a full test pass, the app's --self-test) go through `bg`, then `wait` (as a background command) or `log`, so no
 # SSH session waits on them and nobody polls with sleep.
+#
+# Agents working at once each set INKVOLT_MAC_SLOT=<short name>: their own Mac worktree (~/Repos/inkvolt-<slot>), sync ref
+# and log names, so their trees and .build caches don't collide. Unset, the slot is `pc` (~/Repos/inkvolt-pc).
+# /Applications' installed apps stay shared: one slot at a time builds and drives an app.
 set -euo pipefail
 
 HOST=${INKVOLT_MAC_HOST:-buildmac}
 MAIN='~/Repos/inkvolt'
-WT='~/Repos/inkvolt-pc'
+SLOT=${INKVOLT_MAC_SLOT:-pc}
+case $SLOT in *[!a-z0-9-]*|'') echo "INKVOLT_MAC_SLOT: lowercase letters, digits and dashes only"; exit 2 ;; esac
+WT="~/Repos/inkvolt-$SLOT"
+if [ "$SLOT" = pc ]; then REF=refs/pc/sync; LOGP=; else REF=refs/pc/$SLOT; LOGP=$SLOT-; fi
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=8 "$HOST")
 ROOT=$(git rev-parse --show-toplevel)
 SLOW='-Xswiftc -Xfrontend -Xswiftc -warn-long-expression-type-checking=150'
@@ -37,12 +44,12 @@ sync() {
     rm -f "$index"
     commit=$(git commit-tree "$tree" -p HEAD -m "PC working tree $(date +%FT%T)")
     # The Mac's main clone receives the objects; its checked-out branch isn't touched.
-    git push -q "$HOST:Repos/inkvolt" "$commit:refs/pc/sync" -f
+    git push -q "$HOST:Repos/inkvolt" "$commit:$REF" -f
     remote "set -e
         cd $MAIN
-        if [ ! -d $WT ]; then git worktree add -q --detach $WT refs/pc/sync; fi
+        if [ ! -d $WT ]; then git worktree add -q --detach $WT $REF; fi
         cd $WT
-        git checkout -q -f --detach refs/pc/sync
+        git checkout -q -f --detach $REF
         git clean -q -fd -e .build -e Frameworks
         # MuPDF's XCFramework isn't in git: the release clone's build is shared.
         [ -e mac/InkvoltPdfKit/Frameworks ] || ln -s $MAIN/mac/InkvoltPdfKit/Frameworks mac/InkvoltPdfKit/Frameworks
@@ -77,7 +84,7 @@ case ${1:-} in
         remote "cd $WT && sh mac/InkvoltPdf/build.sh $* 2>&1 | tail -n 30"
         ;;
     bg)
-        name=$2
+        name=$LOGP$2
         shift 2
         sync
         printf 'cd %s
@@ -86,9 +93,11 @@ case ${1:-} in
         remote "rm -f ~/build-logs/$name.status; nohup zsh -l -c 'zsh ~/build-logs/$name.sh > ~/build-logs/$name.log 2>&1; echo \$? > ~/build-logs/$name.status' >/dev/null 2>&1 & echo started $name"
         ;;
     log)
+        set -- "$1" "$LOGP$2" "${@:3}"
         remote "tail -n ${3:-40} ~/build-logs/$2.log; echo; if [ -f ~/build-logs/$2.status ]; then echo \"exit \$(cat ~/build-logs/$2.status)\"; else echo running; fi"
         ;;
     wait)
+        set -- "$1" "$LOGP$2" "${@:3}"
         # Short SSH calls every 10 s (a dropped connection costs one try, not the run); exits with the run's own code.
         deadline=$((SECONDS + ${4:-1800}))
         until remote "test -f ~/build-logs/$2.status" 2>/dev/null; do
@@ -98,5 +107,5 @@ case ${1:-} in
         remote "tail -n ${3:-40} ~/build-logs/$2.log; echo; echo \"exit \$(cat ~/build-logs/$2.status)\""
         exit "$(remote "cat ~/build-logs/$2.status" | tr -dc 0-9)"
         ;;
-    *) sed -n '2,19p' "$0"; exit 2 ;;
+    *) sed -n '2,24p' "$0"; exit 2 ;;
 esac
