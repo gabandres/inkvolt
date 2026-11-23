@@ -5,6 +5,24 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## Current state
 
+- **Mac parity (2026-11-23, the owner: "full feature parity like Windows").** The owner's answers: merge and push
+  reviewed branches; release both Mac apps when parity is done (publish Inkvolt PDF through Sparkle, upload Inkvolt
+  Print to App Store Connect; submitting for review stays the owner's); Inkvolt Print may add the camera, network.server
+  and location entitlements (4.12, 4.6, 4.17); three agents may build on buildmac at once (`INKVOLT_MAC_SLOT`, `mac.sh`).
+  - Merged: master's Mac suites green again (IPP text's resolution and rangeOfInteger); Inkvolt PDF 4.3, 4.4, 4.5, 4.7,
+    4.13, 4.14 (paper commands); 4.1, 4.2, 4.6, 4.15, 4.18 (text tools). Each was reviewed and its findings fixed.
+    The text branch's .NET AddressLinks fix went in before its `tools/test.ps1` run finished: CI's run is its check.
+  - Stopped mid-task, unmerged, each ending in a WIP commit:
+    - `worktree-agent-aa84ff1c642dff326` (Inkvolt Print 4.1, 4.3, 4.4, 4.7, 4.8: five reviewed commits). Its WIP commit
+      fixes the review's findings, unchecked: oneBit kept by the crash restore, each Undo step keeping its own stack and
+      marks, Shift+arrow in the Join sheet, the preview's small copies made once, a found placement used even at
+      score ≤ 0. Mac slot `scan`.
+    - `worktree-agent-a03a36046ff7c05ba` (Inkvolt PDF 4.17 proofreading, begun; 4.12, 4.19, 4.22 not started). Mac
+      slot `layout`.
+  - Next waves: Inkvolt PDF 4.8 (G4 now in the scan branch's PrintCore), 4.9, 4.16, AI 4.10, 4.11, 4.20, 4.21, 4.23,
+    4.24; Inkvolt Print 4.2, 4.5, 4.6, 4.9, 4.10, 4.11, 4.12, 4.13, 4.14, 4.15, 4.16, 4.17, 4.18, then the older "Mac half
+    waits" (`print/ROADMAP.md`: SNMP's other protocols, LEDM, ICA buttons and sharing) and PLAN's "Open".
+
 - **Released:** Wave 4 (a market check of 2026-11-21; the owner: "do all of them", release them) is built, reviewed and
   in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0, all Published 2026-11-22 (the
   website's `softwareVersion` 1.9.0 and 1.18.0). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
