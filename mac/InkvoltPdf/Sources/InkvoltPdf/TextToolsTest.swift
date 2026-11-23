@@ -73,7 +73,8 @@ struct TextToolsTest {
     mutating func run() async {
         lines.append("== \(name): text tools (\(controller.engine.pageCount) pages)")
         await markAllMatches()
-        lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
+        await linksFromAddresses()
+        lines.append("RESULT:\(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
 
@@ -106,5 +107,37 @@ struct TextToolsTest {
         await settle(300)
         check(editor.comments.filter { $0.subtype == "Highlight" }.count == before, "one Undo takes every mark away")
         controller.find("")
+    }
+
+    // MARK: Links from Addresses (4.15)
+
+    private mutating func linksFromAddresses() async {
+        // The document has no address: the command says so and changes nothing.
+        let before = session?.data
+        check(choose(loc("Links from Addresses…")), "Tools › Annotate › Links from Addresses… is enabled")
+        await waitIdle()
+        check(session?.data == before && controller.noticeBar.message.hasPrefix(loc("No web or email address in the text needs a link")),
+              "a document without addresses: said, nothing changed")
+
+        // A line rewritten to hold two addresses (Edit Text & Images' run edit), then linked in one step.
+        guard let data = session?.data, let content = try? ContentEditor.read(data, session?.password, 0),
+              let run = content.runs.first(where: { $0.text.hasPrefix("Highlight these words") }) else {
+            lines.append("SKIP Links from Addresses: the line to rewrite wasn't found")
+            return
+        }
+        let links = editor.links.count
+        _ = await editor.replaceText(run, "Visit www.example.org or write to help@example.com today.")
+        choose(loc("Links from Addresses…"))
+        await waitIdle()
+        let added = editor.links.filter { $0.uri == "https://www.example.org/" || $0.uri == "mailto:help@example.com" }.count
+        check(added == 2 && editor.links.count == links + 2 && session?.undoLabel == loc("Add {0} links", CoreLanguage.number(2)),
+              "both addresses linked as one undo step: \(added) links, step \(session?.undoLabel ?? "none")")
+        choose(loc("Links from Addresses…"))
+        await waitIdle()
+        check(editor.links.count == links + 2, "run again, an address already linked isn't linked twice")
+        controller.window?.undoManager?.undo()
+        controller.window?.undoManager?.undo()
+        await settle(300)
+        check(session?.data == data && editor.links.count == links, "Undo takes the links and the rewrite away")
     }
 }

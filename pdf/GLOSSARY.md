@@ -242,7 +242,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   Copy Area as Table copy its words (the page's text there, else the box read by the recognizer).
 - **Found address** (`FoundAddress`, `Core/AddressLinks.cs`): a web or email address printed in a page's text that no
   link covers yet, with the address its link would open (`Links.Normalize`) and its box on each line; Links from Addresses
-  makes the ticked ones links in one edit.
+  makes the ticked ones links in one edit. On the Mac: `PdfCore/Annotations/AddressLinks.swift`, the app's
+  `LinkAddresses.swift`.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).
 - **Proofreading mark** (`Core/Annotations.Proofreading.cs`, `ProofMarkKind`): Insert Text (a /Caret at the **insertion

@@ -26103,6 +26103,17 @@
           }
         }
       }
+    },
+    "Links from Addresses…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vínculos a partir de las direcciones…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

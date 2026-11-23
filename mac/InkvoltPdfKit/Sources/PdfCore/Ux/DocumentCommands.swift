@@ -407,6 +407,8 @@ public enum DocumentCommands {
             c("Underline Selected Text", "underlineText:", "u", [.command, .control]),
             c("Strike Out Selected Text", "strikeOutText:", "x", [.command, .control]),
             c("Link Selected Text…", "linkSelectedText:", "k", needs: [.selectedText]),
+            // Roadmap 4.15 (Windows: Review › Links from Addresses…).
+            c("Links from Addresses…", "linkAddresses:", needs: longTask),
             sep,
             c("Reply to Comment…", "replyToSelected:", "r", [.command, .control], needs: [.selectedComment]),
             sep,

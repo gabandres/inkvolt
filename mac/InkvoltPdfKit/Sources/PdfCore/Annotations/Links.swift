@@ -81,44 +81,74 @@ public enum Links {
             try Annotations.checkPage(doc, pageIndex)
             let count = try doc.pageCount()
             if address == nil && (targetPage < 0 || targetPage >= count) { throw PdfEditError(loc("Choose a page from 1 to {0}.", CoreLanguage.number(count))) }
+            try write(doc, pageIndex, rect, address, targetPage, replaceId, lines)
+        }
+    }
 
-            let page = doc.page(pageIndex)
-            let annot: PObj
-            if let replaceId {
-                annot = try relocate(doc, replaceId, pageIndex)
-                for key in ["A", "Dest", "QuadPoints"] { annot.remove(key) }
-            } else {
-                annot = doc.add(doc.dict([
-                    ("Type", doc.name("Annot")), ("Subtype", doc.name("Link")), ("NM", doc.text(Annotations.newId())), ("F", doc.int(4)),
-                    ("Border", doc.array([doc.int(0), doc.int(0), doc.int(0)])), ("H", doc.name("I")), ("P", page),
-                ]))
-                doc.annots(page).append(annot)
-            }
-            let r = PageBoxes.fromPageSpace(page, rect)
-            annot.set("Rect", doc.realArray([r.x1, r.y1, r.x2, r.y2]))
-            annot.set("M", doc.now())
-            if let lines {
-                // Corners in the reading orientation of the page as shown, as for text markup: upper-left, upper-right,
-                // lower-left, lower-right.
-                var qp: [Double] = []
-                for l in lines {
-                    for (px, py) in [(l.x, l.y), (l.right, l.y), (l.x, l.bottom), (l.right, l.bottom)] {
-                        let q = PageBoxes.toPdf(page, px, py)
-                        qp += [q.x, q.y]
-                    }
+    /// Several texts made links to web or email addresses, as one change (Links from Addresses, roadmap 4.15): each with
+    /// its lines' boxes (page space) and its address. One on no page of the document, without a box, or whose address
+    /// isn't one `normalize` takes is passed over; none made, and the same bytes come back.
+    public static func putOnTexts(_ data: [UInt8], _ password: String?, _ links: [(page: Int, lines: [RectD], uri: String)]) throws -> [UInt8] {
+        struct NoneMade: Error {}
+        do {
+            return try PageEditor.edit(data, password) { doc in
+                let count = try doc.pageCount()
+                var written = 0
+                for (pageIndex, lineRects, address) in links {
+                    let lines = lineRects.filter { !$0.isEmpty && $0.x.isFinite && $0.y.isFinite && $0.width.isFinite && $0.height.isFinite }
+                    guard pageIndex >= 0 && pageIndex < count, !lines.isEmpty, let uri = normalize(address) else { continue }
+                    let all = RectD.fromEdges(lines.map(\.x).min()!, lines.map(\.y).min()!, lines.map(\.right).max()!, lines.map(\.bottom).max()!)
+                    if all.width < 1 || all.height < 1 { continue }
+                    try write(doc, pageIndex, all, uri, -1, nil, lines)
+                    written += 1
                 }
-                annot.set("QuadPoints", doc.realArray(qp))
+                if written == 0 { throw NoneMade() }
             }
-            if let address {
-                annot.set("A", doc.dict([("Type", doc.name("Action")), ("S", doc.name("URI")), ("URI", doc.string(Array(address.utf8)))]))
-            } else {
-                // The top of the target page as shown, keeping the zoom.
-                let target = doc.page(targetPage)
-                let u = PageBoxes.toPdf(target, 0, 0)
-                let sideways = [90, 270].contains(PageBoxes.rotate(target))
-                let ux = doc.real((u.x * 100).rounded() / 100), uy = doc.real((u.y * 100).rounded() / 100)
-                annot.set("Dest", doc.array([target, doc.name("XYZ"), sideways ? ux : doc.null, sideways ? doc.null : uy, doc.null]))
+        } catch is NoneMade {
+            return data
+        }
+    }
+
+    /// Writes one link (new, or `replaceId` moved) into a document open for editing: to `address` (normalized) when
+    /// given, else to page `targetPage`.
+    private static func write(_ doc: MuDoc, _ pageIndex: Int, _ rect: RectD, _ address: String?, _ targetPage: Int,
+                              _ replaceId: String?, _ lines: [RectD]?) throws {
+        let page = doc.page(pageIndex)
+        let annot: PObj
+        if let replaceId {
+            annot = try relocate(doc, replaceId, pageIndex)
+            for key in ["A", "Dest", "QuadPoints"] { annot.remove(key) }
+        } else {
+            annot = doc.add(doc.dict([
+                ("Type", doc.name("Annot")), ("Subtype", doc.name("Link")), ("NM", doc.text(Annotations.newId())), ("F", doc.int(4)),
+                ("Border", doc.array([doc.int(0), doc.int(0), doc.int(0)])), ("H", doc.name("I")), ("P", page),
+            ]))
+            doc.annots(page).append(annot)
+        }
+        let r = PageBoxes.fromPageSpace(page, rect)
+        annot.set("Rect", doc.realArray([r.x1, r.y1, r.x2, r.y2]))
+        annot.set("M", doc.now())
+        if let lines {
+            // Corners in the reading orientation of the page as shown, as for text markup: upper-left, upper-right,
+            // lower-left, lower-right.
+            var qp: [Double] = []
+            for l in lines {
+                for (px, py) in [(l.x, l.y), (l.right, l.y), (l.x, l.bottom), (l.right, l.bottom)] {
+                    let q = PageBoxes.toPdf(page, px, py)
+                    qp += [q.x, q.y]
+                }
             }
+            annot.set("QuadPoints", doc.realArray(qp))
+        }
+        if let address {
+            annot.set("A", doc.dict([("Type", doc.name("Action")), ("S", doc.name("URI")), ("URI", doc.string(Array(address.utf8)))]))
+        } else {
+            // The top of the target page as shown, keeping the zoom.
+            let target = doc.page(targetPage)
+            let u = PageBoxes.toPdf(target, 0, 0)
+            let sideways = [90, 270].contains(PageBoxes.rotate(target))
+            let ux = doc.real((u.x * 100).rounded() / 100), uy = doc.real((u.y * 100).rounded() / 100)
+            annot.set("Dest", doc.array([target, doc.name("XYZ"), sideways ? ux : doc.null, sideways ? doc.null : uy, doc.null]))
         }
     }
 

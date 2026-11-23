@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Vínculos a partir de las direcciones (Herramientas › Anotar): cada dirección web y de correo escrita en el documento se convierte en un vínculo en el que puedes hacer clic. Primero ves la lista y puedes desmarcar las que quieras; las direcciones que ya son vínculos se quedan como están. Deshacer las quita todas en un solo paso.
 - Marcar todas las coincidencias (Edición › Buscar): busca una palabra o frase y resalta, subraya o tacha todas las coincidencias a la vez, cada una como un comentario propio. Las coincidencias ya marcadas no se marcan dos veces, y Deshacer las quita todas en un solo paso.
 
 ## 1.12.1

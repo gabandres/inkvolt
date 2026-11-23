@@ -504,6 +504,7 @@ at under "What a person must look at" and in each section.
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
+| 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -532,6 +533,11 @@ From the steps, besides the sections below:
   first); the marks take the Highlight, Underline and Strike Out tools' colours from the markup toolbar, as Highlight
   Selected Text does on the Mac. `Annotations.read` now reads at most `Annotations.maxQuads` (20,000) + 1 lines of a text
   mark, as Windows' `QuadRectsOf` (the Mac read every line before). Not checked by a person: the marks on screen.
+- 4.15: Windows' pattern runs in ICU (`NSRegularExpression`, offsets in UTF-16 as `PageText`'s), which has no time limit
+  like .NET's 1 s: the pattern can't start inside a word (its look-behind) and its domain labels are bounded, so a page's
+  text is scanned in one pass. The command is in Tools › Annotate beside Link Selected Text… (Windows: Review, Edit on
+  the bar); with nothing ticked, the notice says to tick one (Windows keeps its dialog open). Not checked by a person: the
+  list's look with long addresses, VoiceOver on it.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.

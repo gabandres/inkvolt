@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Links from Addresses (Tools › Annotate): every web and email address written in the document becomes a link you can click. You see the list first and can untick any; addresses that are links already are left alone. Undo removes them all in one step.
 - Mark All Matches (Edit › Find): search for a word or phrase, then highlight, underline or strike out every match at once, each as a comment of its own. Matches marked already aren't marked twice, and Undo takes them all off in one step.
 
 ## 1.12.1

@@ -22297,6 +22297,160 @@
           }
         }
       }
+    },
+    "Looking for web and email addresses": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando direcciones web y de correo"
+          }
+        }
+      }
+    },
+    "No web or email address in the text needs a link: each one found is a link already. A scanned page needs Recognize Text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna dirección web o de correo del texto necesita un vínculo: todas las encontradas ya lo son. Una página escaneada necesita Reconocer texto primero."
+          }
+        }
+      }
+    },
+    "No addresses to link": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay direcciones que vincular"
+          }
+        }
+      }
+    },
+    "Add 1 link": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar 1 vínculo"
+          }
+        }
+      }
+    },
+    "Add {0} links": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar {0} vínculos"
+          }
+        }
+      }
+    },
+    "No link was added: none of the ticked addresses could be made a link.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se agregó ningún vínculo: ninguna de las direcciones marcadas se pudo convertir en vínculo."
+          }
+        }
+      }
+    },
+    "1 address in the text isn't a link yet. Untick it to leave it as it is.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 dirección del texto todavía no es un vínculo. Desmárcala para dejarla como está."
+          }
+        }
+      }
+    },
+    "{0} addresses in the text aren't links yet. Untick any you want left as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} direcciones del texto todavía no son vínculos. Desmarca las que quieras dejar como están."
+          }
+        }
+      }
+    },
+    "Only the first {0} are listed: run it again for the rest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se muestran las primeras {0}: vuelve a ejecutarlo para las demás."
+          }
+        }
+      }
+    },
+    "Opens {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre {0}"
+          }
+        }
+      }
+    },
+    "Add Links": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar vínculos"
+          }
+        }
+      }
+    },
+    "Tick at least one address.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos una dirección."
+          }
+        }
+      }
+    },
+    "Links from Addresses": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vínculos a partir de las direcciones"
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comenzando…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
