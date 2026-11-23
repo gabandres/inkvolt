@@ -18,6 +18,8 @@ public enum DemoScanPage {
             planHalf(right: page == DemoScan.rightHalf, context, w, h)
         } else if page == DemoScan.punchedForm {
             punchedForm(context, w, h)
+        } else if page == DemoScan.invoice {
+            invoice(context, w, h)
         } else if DemoScan.reportPages.contains(page) {
             reportPage(page - DemoScan.reportPage(0), upsideDown: DemoScan.isUpsideDown(page), context, w, h)
         } else if page == DemoScan.separatorSheet {
@@ -145,6 +147,27 @@ public enum DemoScanPage {
         context.setFillColor(CGColor(gray: 0.25, alpha: 1)) // the feeder's backing seen through each hole
         for y in [1.0, 5.5, 10.0] {
             context.fillEllipse(in: CGRect(x: 0.5 * inch - 0.14 * inch, y: top - CGFloat(y) * inch - 0.14 * inch, width: 0.28 * inch, height: 0.28 * inch))
+        }
+    }
+
+    /// A made-up invoice (roadmap 4.11, 4.14): the store's name large, the invoice's number and date, four items, a total and
+    /// a paragraph of terms over three lines. Made-up names only.
+    private static func invoice(_ context: CGContext, _ w: Int, _ h: Int) {
+        let inch = CGFloat(w) / 8.5
+        let top = CGFloat(h)
+        draw("Maple Street Hardware", size: 0.32 * inch, bold: true, at: CGPoint(x: inch, y: top - 1.1 * inch), context)
+        draw("Invoice INV-20931", size: 0.16 * inch, bold: false, at: CGPoint(x: inch, y: top - 1.6 * inch), context)
+        draw("Date: March 4, 2026", size: 0.16 * inch, bold: false, at: CGPoint(x: inch, y: top - 1.9 * inch), context)
+        let items = ["Garden hose, 50 ft   2   12.50", "Wood screws, box of 100   1   6.25", "Paint brush, 2 inch   3   4.10",
+                     "Work gloves, large   1   9.80", "Total   53.85"]
+        for (i, item) in items.enumerated() {
+            draw(item, size: 0.15 * inch, bold: false, at: CGPoint(x: inch, y: top - 2.6 * inch - CGFloat(i) * 0.32 * inch), context)
+        }
+        let terms = ["Payment is due within thirty days of the date above. Goods may be returned unused",
+                     "within two weeks with this invoice. Thank you for shopping with a neighbourhood store",
+                     "that has served the town since it opened its doors."]
+        for (i, line) in terms.enumerated() {
+            draw(line, size: 0.13 * inch, bold: false, at: CGPoint(x: inch, y: top - 4.8 * inch - CGFloat(i) * 0.22 * inch), context)
         }
     }
 

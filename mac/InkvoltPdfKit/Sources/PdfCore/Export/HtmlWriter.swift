@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Writes one self-contained HTML5 file from laid-out pages (the Windows app's `HtmlWriter`): real headings (never
 /// skipping a level), paragraphs, lists, tables and pictures embedded as data, in reading order, with nothing that fixes

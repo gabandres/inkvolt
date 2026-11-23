@@ -5,7 +5,8 @@ import PrintCore
 /// The self-test's scenario for E5 (`--edit`, on the synthetic text document before `SignTest` signs it;
 /// `--only-prepare-form` runs it alone): Prepare Form from its menu command, each field kind placed through the page view's
 /// own mouse handling, the panel's controls through their own actions, moving, resizing and nudging, the keys, undo and
-/// redo, suggestions, and the saved bytes read back by PdfCore and filled. It undoes everything at the end. A copy of the
+/// redo, suggestions, calculated fields, the calculation order and several fields arranged together (roadmap 4.12), and
+/// the saved bytes read back by PdfCore and filled. It undoes everything at the end. A copy of the
 /// form is kept in the temporary folder for checks in other apps. Only counts, names and values it made are written.
 @MainActor
 struct PrepareFormTest {
@@ -29,17 +30,31 @@ struct PrepareFormTest {
         if !ok { failures += 1 }
     }
 
-    private func mouse(_ type: NSEvent.EventType, _ p: PointD, clicks: Int = 1) -> NSEvent {
+    private func mouse(_ type: NSEvent.EventType, _ p: PointD, clicks: Int = 1, flags: NSEvent.ModifierFlags = []) -> NSEvent {
         let view = pages.viewPoint(p, pages.pageRects[0])
-        return NSEvent.mouseEvent(with: type, location: pages.convert(view, to: nil), modifierFlags: [],
+        return NSEvent.mouseEvent(with: type, location: pages.convert(view, to: nil), modifierFlags: flags,
                                   timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: controller.window?.windowNumber ?? 0,
                                   context: nil, eventNumber: 0, clickCount: clicks, pressure: 1)!
     }
 
-    private func click(_ p: PointD, clicks: Int = 1) async {
-        pages.mouseDown(with: mouse(.leftMouseDown, p, clicks: clicks))
-        pages.mouseUp(with: mouse(.leftMouseUp, p, clicks: clicks))
+    private func click(_ p: PointD, clicks: Int = 1, flags: NSEvent.ModifierFlags = []) async {
+        pages.mouseDown(with: mouse(.leftMouseDown, p, clicks: clicks, flags: flags))
+        pages.mouseUp(with: mouse(.leftMouseUp, p, clicks: clicks, flags: flags))
         await design.settle()
+    }
+
+    /// A menu command as a person chooses it: run only when the command table says it can.
+    private func choose(_ action: Selector) -> Bool {
+        guard let command = DocumentCommands.command(action: NSStringFromSelector(action)),
+              command.isEnabled(in: controller.commandState(for: command)) else { return false }
+        NSApp.sendAction(action, to: controller, from: nil)
+        return true
+    }
+
+    private func filled(_ values: [String: String]) -> [String: String] {
+        guard let s = controller.pdf.session, let out = try? FormEditor.setValues(s.data, s.password, values),
+              let read = try? FormEditor.read(out, s.password) else { return [:] }
+        return Dictionary(read.map { ($0.fieldName, $0.value) }, uniquingKeysWith: { a, _ in a })
     }
 
     private func drag(_ a: PointD, _ b: PointD) async {
@@ -109,6 +124,12 @@ struct PrepareFormTest {
     mutating func run() async {
         lines.append("== prepare form \(name)")
         guard let start = controller.pdf.session?.data else { return finish() }
+        // Drags and nudges land where the pointer takes them: no snapping (roadmap 4.19; LayoutTest checks it).
+        let snapping = (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects)
+        AppSettings.snapToGuides = false
+        AppSettings.snapToGrid = false
+        AppSettings.snapToObjects = false
+        defer { (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects) = snapping }
         let window = controller.window
 
         // In, through the menu's command.
@@ -319,6 +340,8 @@ struct PrepareFormTest {
         await design.settle()
         check(field("Gamma") != nil && field("Delta") != nil && design.model.suggestions.isEmpty && editor.finishedEdits == adds + 1 && design.allGroup.isHidden, "Add All takes the rest as one edit")
 
+        await calculationsAndSeveral()
+
         // The saved bytes, filled, and a copy kept for other apps.
         if let s = controller.pdf.session {
             let values = ["Full name": "Ada Lovelace", "Check Box1": "Agreed", "Dropdown1": "g"]
@@ -350,6 +373,66 @@ struct PrepareFormTest {
         }
         check(controller.pdf.session?.data == start, "\(steps) undo steps bring the document back")
         finish()
+    }
+
+    /// Roadmap 4.12 on the suggestions just added (text fields "Alpha two", "Gamma", "Delta", one above the other): a sum and
+    /// a notation picked in the panel, the form filled, the calculation order changed, then Gamma and Delta selected together
+    /// with ⌘-click, aligned, dragged and deleted together.
+    private mutating func calculationsAndSeveral() async {
+        guard field("Alpha two") != nil, field("Gamma") != nil, field("Delta") != nil else {
+            lines.append("SKIP calculations: the suggested fields weren't added")
+            return
+        }
+        await click(PointD(100, 430))
+        check(design.model.selectedField?.name == "Delta" && !design.calcGroup.isHidden && design.calcPopup.indexOfSelectedItem == 0,
+              "a text field shows its Calculate section, not calculated")
+        design.testSetCalculation(.sum, fields: ["Alpha two", "Gamma"])
+        await design.settle()
+        let sum = field("Delta")?.calculation
+        check(sum?.kind == .sum && Set(sum?.fields ?? []) == ["Alpha two", "Gamma"] && controller.pdf.session?.undoLabel == loc("Change calculation"),
+              "Sum of two ticked fields reaches the file as one undo step")
+        await click(PointD(100, 400))
+        design.testSetCalculation(.notation, notation: "Alpha\\ two * 2")
+        await design.settle()
+        check(field("Gamma")?.calculation == FieldCalc(.notation, ["Alpha two"], notation: "Alpha\\ two * 2"), "simplified field notation reaches the file")
+        let first = filled(["Alpha two": "3"])
+        check(first["Gamma"] == "6" && first["Delta"] == "3", "filling calculates in the order they were made (Delta before Gamma): \(first["Gamma"] ?? "-"), \(first["Delta"] ?? "-")")
+        design.testCalcOrder = ["Gamma", "Delta"]
+        let ordered = editor.finishedEdits
+        check(choose(#selector(DocumentWindowController.editCalculationOrder(_:))), "Tools › Forms › Calculation Order… can run")
+        // The menu's command runs its own task: wait for its edit to end.
+        for _ in 0..<500 where editor.finishedEdits == ordered { try? await Task.sleep(for: .milliseconds(10)) }
+        await design.settle()
+        let order = controller.pdf.session.flatMap { try? FormDesign.calculationOrder($0.data, $0.password) }
+        let second = filled(["Alpha two": "3"])
+        check(order == ["Gamma", "Delta"] && second["Delta"] == "9", "the calculation order changes, and Delta now adds Gamma's new value: \(second["Delta"] ?? "-")")
+
+        // Several fields: Delta nudged off, then lined up again with Gamma, the first one picked.
+        await click(PointD(100, 430))
+        await press(124, .shift)
+        design.flushNudge()
+        await design.settle()
+        let off = !choose(#selector(DocumentWindowController.alignFieldsLeft(_:))) // one selected: off
+        await click(PointD(100, 400))
+        await click(PointD(110, 430), flags: .command)
+        check(off && design.model.selectedIds.count == 2 && design.model.hasSeveral && !design.severalGroup.isHidden && design.fieldGroup.isHidden,
+              "⌘-click adds a field: the panel shows the arrange buttons")
+        let edits = editor.finishedEdits
+        check(choose(#selector(DocumentWindowController.alignFieldsLeft(_:))), "Align Left Edges can run with two selected")
+        await design.settle()
+        check(field("Delta")?.rect.x == field("Gamma")?.rect.x && editor.finishedEdits == edits + 1 && controller.pdf.session?.undoLabel == loc("Align fields")
+                && design.model.selectedIds.count == 2, "Delta lines up with Gamma in one edit, both still selected")
+        check(!choose(#selector(DocumentWindowController.spaceFieldsDown(_:))), "Space Evenly needs three")
+        let gx = field("Gamma")?.rect.x ?? 0
+        await drag(PointD(100, 405), PointD(120, 405))
+        check(abs((field("Gamma")?.rect.x ?? 0) - gx - 20) < 0.5 && field("Delta")?.rect.x == field("Gamma")?.rect.x && editor.finishedEdits == edits + 2,
+              "a drag of one moves both in one edit")
+        await press(51)
+        check(field("Gamma") == nil && field("Delta") == nil && controller.pdf.session?.undoLabel == loc("Delete {0} fields", CoreLanguage.number(2)),
+              "Delete removes both as one step")
+        controller.pdf.undo()
+        await design.settle()
+        check(field("Gamma") != nil && field("Delta") != nil, "and Undo puts both back")
     }
 
     private mutating func finish() {

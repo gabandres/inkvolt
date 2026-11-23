@@ -958,6 +958,17 @@
         }
       }
     },
+    "Align": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear"
+          }
+        }
+      }
+    },
     "Alignment": {
       "extractionState": "manual",
       "localizations": {
@@ -24230,6 +24241,611 @@
           "stringUnit": {
             "state": "translated",
             "value": "Marcando las coincidencias"
+          }
+        }
+      }
+    },
+    "A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un signo de intercalación azul marca el lugar en la página {0}; el texto que escribas es su comentario. Autor: {1}."
+          }
+        }
+      }
+    },
+    "Click in the text where the words go (Select Text tool), or select text, then choose Insert Text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en el texto donde van las palabras (herramienta Seleccionar texto), o selecciona texto, y elige Insertar texto."
+          }
+        }
+      }
+    },
+    "Select text on one page to replace it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona texto de una sola página para reemplazarlo."
+          }
+        }
+      }
+    },
+    "“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» en la página {1} queda tachado, con un signo de intercalación azul detrás que guarda el texto que escribas. Autor: {2}."
+          }
+        }
+      }
+    },
+    "Across": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En horizontal"
+          }
+        }
+      }
+    },
+    "Align fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear campos"
+          }
+        }
+      }
+    },
+    "Both": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambos"
+          }
+        }
+      }
+    },
+    "Calculate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calcular"
+          }
+        }
+      }
+    },
+    "Calculation (as Price * Quantity)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cálculo (como Precio * Cantidad)"
+          }
+        }
+      }
+    },
+    "Calculation order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo"
+          }
+        }
+      }
+    },
+    "Calculation order…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo…"
+          }
+        }
+      }
+    },
+    "Centers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Centros"
+          }
+        }
+      }
+    },
+    "Change calculation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar cálculo"
+          }
+        }
+      }
+    },
+    "Change calculation order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar orden de cálculo"
+          }
+        }
+      }
+    },
+    "Delete the selected fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar los campos seleccionados"
+          }
+        }
+      }
+    },
+    "Delete {0} fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar {0} campos"
+          }
+        }
+      }
+    },
+    "Fields calculate from the top down when the form is filled. Put a field after the fields it uses (⌥↑ and ⌥↓ move the selected one).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos se calculan de arriba abajo al llenar el formulario. Pon cada campo después de los que usa (⌥↑ y ⌥↓ mueven el seleccionado)."
+          }
+        }
+      }
+    },
+    "Middles": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medios"
+          }
+        }
+      }
+    },
+    "No field in this form is calculated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún campo de este formulario se calcula."
+          }
+        }
+      }
+    },
+    "Of these fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De estos campos"
+          }
+        }
+      }
+    },
+    "Only one field is calculated: there's no order to set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se calcula un campo: no hay orden que establecer."
+          }
+        }
+      }
+    },
+    "Price * Quantity": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precio * Cantidad"
+          }
+        }
+      }
+    },
+    "Same size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mismo tamaño"
+          }
+        }
+      }
+    },
+    "Size fields alike": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igualar tamaño de campos"
+          }
+        }
+      }
+    },
+    "Space evenly": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir"
+          }
+        }
+      }
+    },
+    "Space fields evenly": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir campos"
+          }
+        }
+      }
+    },
+    "The fields are already that way.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos ya están así."
+          }
+        }
+      }
+    },
+    "The first field you picked (the solid corner) stays put; the others line up with it. ⌘-click adds or removes a field.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El primer campo que elegiste (la esquina rellena) no se mueve; los demás se alinean con él. ⌘-clic agrega o quita un campo."
+          }
+        }
+      }
+    },
+    "The form's calculation order can't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede leer el orden de cálculo del formulario."
+          }
+        }
+      }
+    },
+    "Which calculated fields work out first": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué campos calculados se calculan primero"
+          }
+        }
+      }
+    },
+    "{0} fields · first: {1} {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} campos · primero: {1} {2}"
+          }
+        }
+      }
+    },
+    "1 cm": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 cm"
+          }
+        }
+      }
+    },
+    "1 inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 pulgada"
+          }
+        }
+      }
+    },
+    "10 points": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 puntos"
+          }
+        }
+      }
+    },
+    "5 mm": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 mm"
+          }
+        }
+      }
+    },
+    "A line every": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una línea cada"
+          }
+        }
+      }
+    },
+    "Grid spacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaciado de la cuadrícula"
+          }
+        }
+      }
+    },
+    "Horizontal ruler": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla horizontal"
+          }
+        }
+      }
+    },
+    "Rulers in {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reglas en {0}."
+          }
+        }
+      }
+    },
+    "Shapes, fields, stamps and measuring points snap to the grid while it shows and Snap to Grid is on. Hold ⌥ for no snapping.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las formas, los campos, los sellos y los puntos de medición se ajustan a la cuadrícula mientras se ve y Ajustar a la cuadrícula está activado. Mantén ⌥ para no ajustar."
+          }
+        }
+      }
+    },
+    "Vertical ruler": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla vertical"
+          }
+        }
+      }
+    },
+    "{0} guide cleared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borró {0} guía."
+          }
+        }
+      }
+    },
+    "{0} guides cleared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borraron {0} guías."
+          }
+        }
+      }
+    },
+    "{0}, the page's scale or your region's": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, la escala de la página o la de tu región"
+          }
+        }
+      }
+    },
+    "¼ inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¼ de pulgada"
+          }
+        }
+      }
+    },
+    "½ inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½ pulgada"
+          }
+        }
+      }
+    },
+    "Angle (degrees, clockwise)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo (grados, en el sentido de las agujas del reloj)"
+          }
+        }
+      }
+    },
+    "Angle of the selection, in degrees": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo de la selección, en grados"
+          }
+        }
+      }
+    },
+    "Press Return in the text to keep your change to it first, then turn it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulsa Retorno en el texto para conservar primero tu cambio y luego gíralo."
+          }
+        }
+      }
+    },
+    "Select a picture with Edit Text & Images, or click a paragraph, then choose Turn to Angle.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona una imagen con Editar texto e imágenes, o haz clic en un párrafo, y elige Girar a un ángulo."
+          }
+        }
+      }
+    },
+    "This picture can't be turned: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagen no se puede girar: {0}."
+          }
+        }
+      }
+    },
+    "Turn picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar imagen"
+          }
+        }
+      }
+    },
+    "Turn text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar texto"
+          }
+        }
+      }
+    },
+    "Turn this text to this angle (degrees, clockwise). Pictures turn with their round handle; Shift: 15° steps.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gira este texto a este ángulo (grados, en el sentido de las agujas del reloj). Las imágenes giran con su controlador redondo; Shift: pasos de 15°."
+          }
+        }
+      }
+    },
+    "Type an angle in degrees, as 30 or -12.5.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un ángulo en grados, como 30 o -12,5."
           }
         }
       }

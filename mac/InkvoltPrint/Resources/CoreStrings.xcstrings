@@ -5877,6 +5877,17 @@
         }
       }
     },
+    "Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto"
+          }
+        }
+      }
+    },
     "Text recognition isn't available on this Mac: the PDF won't be searchable.": {
       "extractionState": "manual",
       "localizations": {
@@ -7065,6 +7076,39 @@
         }
       }
     },
+    "This Mac can't read text, so the Word document holds the pages as pictures.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac no puede leer texto, así que el documento de Word tiene las páginas como imágenes."
+          }
+        }
+      }
+    },
+    "This Mac can't read text, so the parts of the file name taken from the page stay empty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac no puede leer texto, así que las partes del nombre del archivo que se toman de la página quedan vacías."
+          }
+        }
+      }
+    },
+    "This Mac can't read text, so the text file is empty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac no puede leer texto, así que el archivo de texto queda vacío."
+          }
+        }
+      }
+    },
     "This Mac isn't on a home or office network that can be searched.": {
       "extractionState": "manual",
       "localizations": {
@@ -7797,13 +7841,13 @@
         }
       }
     },
-    "Unknown token {0}. Use {1}.": {
+    "Unknown token {0}. Use {1} or {2}.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Marcador desconocido {0}. Usa {1}."
+            "value": "Marcador desconocido {0}. Usa {1} o {2}."
           }
         }
       }
@@ -8078,6 +8122,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Toda el área de escaneo"
+          }
+        }
+      }
+    },
+    "Word document": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento de Word"
           }
         }
       }

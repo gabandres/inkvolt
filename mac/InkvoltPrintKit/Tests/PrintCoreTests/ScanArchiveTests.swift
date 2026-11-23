@@ -152,7 +152,7 @@ struct ScanArchiveTests {
     }
 
     @Test func onlyAPdfGetsPdfAOrAPassword() {
-        for type in [PresetFileType.jpeg] {
+        for type in [PresetFileType.jpeg, .word, .text] {
             var p = ScanPreset()
             (p.fileType, p.pdfA) = (type, true)
             #expect(!ScanPresets.savesPdfA(p))

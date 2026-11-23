@@ -41,6 +41,8 @@ public enum Requirement: String, Sendable, CaseIterable {
     /// The AI assistant isn't answering.
     case aiIdle
     case selectedText
+    /// A place in the text for Insert Text: a selection's end, or where text was clicked.
+    case insertionPoint
     /// A comment is selected on the pages.
     case selectedComment
     /// The document was opened from (or saved to) a file.
@@ -62,6 +64,12 @@ public enum Requirement: String, Sendable, CaseIterable {
     case organizerHidden
     /// The view is split in two panes.
     case split
+    /// Prepare Form with two fields selected or more (Arrange Fields' Align and Same Size).
+    case fieldsToArrange
+    /// Prepare Form with three fields selected or more (Arrange Fields' Space Evenly).
+    case fieldsToSpace
+    /// The document has guides (roadmap 4.19's Clear Guides).
+    case guides
 }
 
 /// The small state of a document window that decides which commands can run.
@@ -73,6 +81,7 @@ public struct DocumentState: Sendable, Equatable {
     public var redactionRunning = false
     public var aiBusy = false
     public var hasSelectedText = false
+    public var hasInsertionPoint = false
     public var hasSelectedComment = false
     public var hasSavedFile = false
     public var hasFormFields = false
@@ -84,6 +93,9 @@ public struct DocumentState: Sendable, Equatable {
     public var passwordSheetOpen = false
     public var organizerShown = false
     public var splitShown = false
+    /// The fields selected in Prepare Form (0 outside it).
+    public var designSelected = 0
+    public var hasGuides = false
 
     public init() {}
 
@@ -96,6 +108,7 @@ public struct DocumentState: Sendable, Equatable {
         case .noRedactionRunning: !redactionRunning
         case .aiIdle: !aiBusy
         case .selectedText: hasSelectedText
+        case .insertionPoint: hasInsertionPoint
         case .selectedComment: hasSelectedComment
         case .savedFile: hasSavedFile
         case .formFields: hasFormFields
@@ -107,6 +120,9 @@ public struct DocumentState: Sendable, Equatable {
         case .noPasswordSheet: !passwordSheetOpen
         case .organizerHidden: !organizerShown
         case .split: splitShown
+        case .fieldsToArrange: designSelected >= 2
+        case .fieldsToSpace: designSelected >= 3
+        case .guides: hasGuides
         }
     }
 }
@@ -296,6 +312,9 @@ public enum DocumentCommands {
         c("Paste", "paste:", "v"),
         c("Delete", "delete:"),
         c("Select All", "selectAll:", "a"),
+        // Roadmap 4.22 (Windows: Edit › Turn to Angle…): Edit Text & Images' selected picture, or its paragraph editor's
+        // Angle box.
+        c("Turn to Angle…", "turnToAngle:", needs: [.pages, .organizerHidden]),
         sep,
         .submenu(CommandMenu("Find", [
             c("Find…", "showFind:", "f"),
@@ -331,6 +350,20 @@ public enum DocumentCommands {
         c("Rotate View Clockwise", "rotateViewClockwise:", "r", [.command, .shift], needs: [.pages]),
         c("Rotate View Counterclockwise", "rotateViewCounterclockwise:", "l", [.command, .shift], needs: [.pages]),
         c("Dark Pages (Night Reading)", "toggleDarkPages:"),
+        sep,
+        // Roadmap 4.19 (Windows: View › Rulers, Ctrl+R; Grid, Ctrl+U; Guides and Snapping). ⌘R turns pages here, ⌘'
+        // switches panes.
+        c("Rulers", "toggleRulers:", "r", [.command, .option, .shift]),
+        c("Grid", "toggleGrid:", "'", [.command, .option]),
+        .submenu(CommandMenu("Guides and Snapping", [
+            c("Snap to Guides", "toggleSnapToGuides:"),
+            c("Snap to Grid", "toggleSnapToGrid:"),
+            c("Snap to Objects", "toggleSnapToObjects:"),
+            sep,
+            c("Grid Spacing…", "chooseGridSpacing:"),
+            c("Ruler Units", "nextRulerUnit:"),
+            c("Clear Guides", "clearGuides:", needs: [.guides]),
+        ])),
         sep,
         c("Show Sidebar", "toggleSidebar:", "s", [.command, .control]),
         // Its title becomes Hide Markup Toolbar while the toolbar shows.
@@ -421,6 +454,9 @@ public enum DocumentCommands {
             c("Highlight Selected Text", "highlightText:", "h", [.command, .control]),
             c("Underline Selected Text", "underlineText:", "u", [.command, .control]),
             c("Strike Out Selected Text", "strikeOutText:", "x", [.command, .control]),
+            // Proofreading marks (roadmap 4.17; Windows: Review › Insert Text, Replace Text). Not insertText:, NSResponder's.
+            c("Insert Text…", "insertProofText:", needs: [.insertionPoint, .organizerHidden]),
+            c("Replace Text…", "replaceProofText:", needs: [.selectedText, .organizerHidden]),
             c("Link Selected Text…", "linkSelectedText:", "k", needs: [.selectedText]),
             // Roadmap 4.15 (Windows: Review › Links from Addresses…).
             c("Links from Addresses…", "linkAddresses:", needs: longTask),
@@ -466,6 +502,24 @@ public enum DocumentCommands {
         .submenu(CommandMenu("Forms", [
             c("Prepare Form", "togglePrepareForm:", "f", [.command, .option], needs: [.document]),
             c("Detect Form Fields", "detectFormFields:", needs: [.document, .idle]),
+            // Roadmap 4.12 (Windows: Edit › Forms › Calculation Order…, Arrange Fields).
+            c("Calculation Order…", "editCalculationOrder:", needs: [.document, .idle]),
+            .submenu(CommandMenu("Arrange Fields", [
+                c("Align Left Edges", "alignFieldsLeft:", needs: [.fieldsToArrange]),
+                c("Align Centers", "alignFieldsCenter:", needs: [.fieldsToArrange]),
+                c("Align Right Edges", "alignFieldsRight:", needs: [.fieldsToArrange]),
+                sep,
+                c("Align Top Edges", "alignFieldsTop:", needs: [.fieldsToArrange]),
+                c("Align Middles", "alignFieldsMiddle:", needs: [.fieldsToArrange]),
+                c("Align Bottom Edges", "alignFieldsBottom:", needs: [.fieldsToArrange]),
+                sep,
+                c("Same Width", "sameFieldWidth:", needs: [.fieldsToArrange]),
+                c("Same Height", "sameFieldHeight:", needs: [.fieldsToArrange]),
+                c("Same Size", "sameFieldSize:", needs: [.fieldsToArrange]),
+                sep,
+                c("Space Evenly Across", "spaceFieldsAcross:", needs: [.fieldsToSpace]),
+                c("Space Evenly Down", "spaceFieldsDown:", needs: [.fieldsToSpace]),
+            ])),
         ])),
         // Measure (Windows: Review › Measure): the measuring tools, then the scale.
         .submenu(CommandMenu("Measure", [

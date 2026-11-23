@@ -22,7 +22,9 @@ public struct PresetFileType: StoredChoice {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
     public static let pdf = PresetFileType(rawValue: 0), searchablePdf = PresetFileType(rawValue: 1), jpeg = PresetFileType(rawValue: 2)
-    public static let known = [pdf, searchablePdf, jpeg]
+    /// The text read from the pages as a Word document or plain text (roadmap 4.14).
+    public static let word = PresetFileType(rawValue: 3), text = PresetFileType(rawValue: 4)
+    public static let known = [pdf, searchablePdf, jpeg, word, text]
 }
 
 /// The folder a preset saves into; sync folders (iCloud Drive, OneDrive, Dropbox) are `custom` paths.
@@ -329,7 +331,20 @@ public enum ScanPresets {
     /// (glass when it says glass).
     public static func savesSmallerFile(_ p: ScanPreset, source: ScanSource? = nil) -> Bool {
         let onGlass = source.map { $0 == .platen } ?? (p.source == .glass)
-        return p.smallerFile && (p.fileType == .pdf || p.fileType == .searchablePdf) && !(p.findPhotos && onGlass)
+        return p.smallerFile && isPdf(p.fileType) && !(p.findPhotos && onGlass)
+    }
+
+    /// The file type is a PDF (searchable or not).
+    public static func isPdf(_ type: PresetFileType) -> Bool { type == .pdf || type == .searchablePdf }
+
+    /// The saved file's extension: ".pdf", ".jpg", ".docx" or ".txt" (Windows' `Extension`).
+    public static func fileExtension(_ type: PresetFileType) -> String {
+        switch type {
+        case .jpeg: ".jpg"
+        case .word: ".docx"
+        case .text: ".txt"
+        default: ".pdf"
+        }
     }
 
     /// The preset's PDF is PDF/A-2b: a PDF file type, and no password (PDF/A forbids encryption: the password wins).
@@ -371,9 +386,6 @@ public enum ScanPresets {
         }
         return savesPdfA(p) ? PdfWriteOptions(pdfA: true) : nil
     }
-
-    /// A PDF (searchable or not): what opens in Inkvolt PDF and can be saved in black and white, as PDF/A or with a password.
-    public static func isPdf(_ type: PresetFileType) -> Bool { type == .pdf || type == .searchablePdf }
 
     /// Ids go on a command line or into a URL unquoted: letters, digits and '-' only, at most 64.
     public static func isValidId(_ id: String?) -> Bool {
@@ -475,6 +487,8 @@ public enum ScanPresetText {
         switch t {
         case .searchablePdf: loc("Searchable PDF")
         case .jpeg: loc("JPEG images")
+        case .word: loc("Word document")
+        case .text: loc("Text")
         default: "PDF"
         }
     }

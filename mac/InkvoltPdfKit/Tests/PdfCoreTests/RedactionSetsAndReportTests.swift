@@ -128,7 +128,7 @@ extension ProGated {
 
     @Test func aCatastrophicPatternInASavedSetCanLoadButEndsInAnErrorWhenRun() throws {
         let set = try RedactionPatternSets.read(#"{"format":"Inkvolt PDF redaction patterns","version":1,"name":"x","expression":"(x+x+)+y"}"#, "x.json")
-        let text = PageText([Array(repeating: ("x", RectD(0, 0, 1, 1)), count: 40)])
+        let text = PdfCore.PageText([Array(repeating: ("x", RectD(0, 0, 1, 1)), count: 40)])
         var options = set.options
         options.patterns = []
         #expect(throws: RedactionSearchTimeout.self) { try RedactionPatterns.find(text, 0, options) }

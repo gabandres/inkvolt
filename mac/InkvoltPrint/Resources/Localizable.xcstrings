@@ -2766,6 +2766,16 @@
         }
       }
     },
+    "Inkvolt PDF opens PDFs: Word and text scans are only saved.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF abre archivos PDF: los escaneos de Word y de texto solo se guardan."
+          }
+        }
+      }
+    },
     "Inkvolt Print": {
       "localizations": {
         "es": {
@@ -5816,6 +5826,16 @@
         }
       }
     },
+    "Text (.txt): the text only": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto (.txt): solo el texto"
+          }
+        }
+      }
+    },
     "Text language": {
       "localizations": {
         "es": {
@@ -6012,6 +6032,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se guardó la lista: %@"
+          }
+        }
+      }
+    },
+    "The name the preset gives the file, read from the first page. Change it before saving.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nombre que el ajuste da al archivo, leído en la primera página. Cámbialo antes de guardar."
           }
         }
       }
@@ -6976,6 +7006,16 @@
         }
       }
     },
+    "Word document (.docx): the text, editable": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento de Word (.docx): el texto, editable"
+          }
+        }
+      }
+    },
     "Working…": {
       "localizations": {
         "es": {
@@ -7162,6 +7202,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} o {n:000}, {pages}"
+          }
+        }
+      }
+    },
+    "{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página."
           }
         }
       }

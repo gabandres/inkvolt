@@ -162,12 +162,14 @@ private struct PresetEditor: View {
                     Text("PDF").tag(PresetFileType.pdf)
                     Text("Searchable PDF").tag(PresetFileType.searchablePdf)
                     Text("JPEG images").tag(PresetFileType.jpeg)
+                    Text("Word document (.docx): the text, editable").tag(PresetFileType.word)
+                    Text("Text (.txt): the text only").tag(PresetFileType.text)
                 }
-                if preset.fileType != .jpeg {
+                if ScanPresets.isPdf(preset.fileType) {
                     Toggle("Smaller file (black and white)", isOn: $preset.smallerFile)
                         .help("PDF pages in black and white: a page of text takes a tenth of the space or less")
                 }
-                if preset.fileType == .searchablePdf { TextLanguagePicker(language: $preset.ocrLanguage) }
+                if [PresetFileType.searchablePdf, .word, .text].contains(preset.fileType) { TextLanguagePicker(language: $preset.ocrLanguage) }
                 if ScanPresets.isPdf(preset.fileType) {
                     // Roadmap 4.18: PDF/A-2b for archiving, or a password (AES-256); never both, the last ticked winning.
                     Toggle(isOn: Binding(get: { preset.pdfA }, set: { preset = ScanPresets.withPdfA(preset, $0) })) {
@@ -195,6 +197,8 @@ private struct PresetEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text("{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} or {n:000}, {pages}").font(.caption).foregroundStyle(.secondary)
+                Text("{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 // Open in Inkvolt PDF: offered when Inkvolt PDF is installed (or the preset already has it, from Windows or before
                 // Inkvolt PDF was removed).
                 Picker("Then", selection: $preset.after) {
@@ -207,6 +211,9 @@ private struct PresetEditor: View {
                 }
                 if preset.after == .openInInkvoltPdf && preset.fileType == .jpeg {
                     Text("Inkvolt PDF opens PDFs: JPEG scans are only saved.").font(.caption).foregroundStyle(.secondary)
+                }
+                if preset.after == .openInInkvoltPdf && !ScanPresets.isPdf(preset.fileType) && preset.fileType != .jpeg {
+                    Text("Inkvolt PDF opens PDFs: Word and text scans are only saved.").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }

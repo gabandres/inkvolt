@@ -180,6 +180,7 @@ final class ScanModel {
         dpi = plan.request.resolution
         sizeKey = ScanChoices.pageSizes.first { $0.width == plan.request.width && $0.height == plan.request.height }?.key ?? sizeKey
         format = p.fileType == .jpeg ? .jpeg : plan.ocr ? .searchablePdf : .pdf
+        if preset?.id != p.id { forgetSaveName() }
         preset = p
         let notes = plan.notes
         // The preset's checks are its own: the tab's settings stay as the user set them.
@@ -189,7 +190,61 @@ final class ScanModel {
         scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
+            if p.review { await self.fillSaveName() } // once its pages are checked
         }
+    }
+
+    // MARK: The file's name from the page's text (roadmap 4.11)
+
+    /// The review shows the name the preset's save will give (its template reads the page's text), to change before saving.
+    var showsSaveName: Bool { preset.map { $0.review && FileNameTemplate.readsText($0.fileName) } ?? false }
+
+    /// The first file's name (no extension): filled from the page's text (`fillSaveName`), or as typed in the review.
+    private(set) var saveName = ""
+    private(set) var saveNameEdited = false
+    @ObservationIgnored private var saveNameFills = 0
+    /// What the first page said, for the page as it was read (its id and edits): a fill or the save after it reads it once.
+    @ObservationIgnored private var foundFor: (page: String, edits: PageEdits, found: FoundInText)?
+
+    /// The name as typed in the review: the save gives the first file this name.
+    func editSaveName(_ name: String) {
+        saveName = name
+        saveNameEdited = true
+    }
+
+    private func forgetSaveName() {
+        saveName = ""
+        saveNameEdited = false
+        foundFor = nil
+    }
+
+    /// What the first page of `file` (not a page of photos) says for the preset's name, its text read by Vision as the page
+    /// will be saved; nil when the name doesn't ask, `FoundInText.none` when the page says nothing or can't be read.
+    private func found(in file: [ScannedPage], _ p: ScanPreset) async -> FoundInText? {
+        guard FileNameTemplate.readsText(p.fileName) || FileNameTemplate.readsText(p.subfolder) else { return nil }
+        guard let page = file.first(where: { !$0.hasPhotos }), let jpeg = images[page.id] else { return FoundInText.none }
+        if let cached = foundFor, cached.page == page.id, cached.edits == page.edits { return cached.found }
+        let (edits, dpi, language) = (page.edits, page.dpi, page.ocrLanguage)
+        let found: FoundInText = await offPool {
+            guard let shown = try? ScanImaging.jpeg(jpeg, edits, dpi: dpi), let size = try? PdfWriter.jpegInfo(shown),
+                  let words = ScanPdf.recognize(shown, language: language) else { return FoundInText.none }
+            return TextFinds.find(ScanPdf.pixelWords(words, width: size.width, height: size.height), locale: .current)
+        }
+        if self.pages.page(page.id)?.edits == edits { foundFor = (page.id, edits, found) }
+        return found
+    }
+
+    /// Fills `saveName` as the preset's save would name the first file (with the preset's next number), unless it was typed.
+    func fillSaveName() async {
+        guard showsSaveName, !saveNameEdited, let p = preset, let file = pages.files.first, !file.isEmpty else { return }
+        saveNameFills += 1
+        let fill = saveNameFills
+        let found = await found(in: file, p)
+        guard fill == saveNameFills, !saveNameEdited, preset?.id == p.id else { return }
+        let current = app.presets.first { $0.id == p.id } ?? p
+        let pages = imagesPerFile.first ?? file.count
+        saveName = FileNameTemplate.fileName(current.fileName, NameContext(now: Date(), preset: current.name, printer: printer.name,
+                                                                           number: current.nextNumber, pages: pages, found: found))
     }
 
     /// Scans with the tab's settings, or a preset's `check`, `keepSeparators` and `turnStack`. Batches come from the feeder
@@ -770,6 +825,7 @@ final class ScanModel {
     /// Drops every page (after saving them, or when the user starts over).
     func clear() {
         preset = nil
+        forgetSaveName()
         stack = nil
         savedParts.clear()
         pages = ScanPages()
@@ -816,6 +872,7 @@ final class ScanModel {
 
     /// The recovery folder gets the page list (and any page not written yet) each time it changes.
     private func keep() {
+        if showsSaveName && !saveNameEdited && !isScanning { Task { await fillSaveName() } } // the first page may have changed
         guard let store = app.scanStore else { return }
         if pages.isEmpty {
             store.forget(printer.id)
@@ -937,6 +994,35 @@ final class ScanModel {
                 let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
                 return [OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: false, ocrLanguage: job.ocrLanguage, oneBit: job.oneBit)]
             }
+        }
+    }
+
+    /// One file's pages as a Word document or text file (roadmap 4.14) at `url`: each page's text read by Vision as the page
+    /// is saved; a page of photos goes in as its photos, a page with no text read as the page itself (Windows' `DocPagesAsync`).
+    /// - Throws: `SaveStopped` (nothing written) when `stop` fires.
+    nonisolated private static func writeDocument(_ file: [PageJob], to url: URL, type: PresetFileType, title: String, stop: BatchStop?) throws -> [URL] {
+        do {
+            var pages: [ScanDocPage] = []
+            for job in file {
+                try stop?.check()
+                if let photos = job.photos {
+                    let jpegs = try photos.map { try ScanImaging.photo(job.jpeg, $0, filters: job.edits.filters, dpi: job.dpi, stop: stop) }
+                    pages.append(ScanDocPage(nil, dpi: job.dpi, pictures: jpegs))
+                    continue
+                }
+                let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
+                if let words = ScanPdf.recognize(jpeg, language: job.ocrLanguage), !words.isEmpty, let size = try? PdfWriter.jpegInfo(jpeg) {
+                    pages.append(ScanDocPage(ScanPdf.pixelWords(words, width: size.width, height: size.height), dpi: job.dpi))
+                } else {
+                    pages.append(ScanDocPage(nil, dpi: job.dpi, pictures: [jpeg]))
+                }
+            }
+            try stop?.check()
+            let bytes = type == .word ? try ScanDocx.write(pages, title: title) : ScanText.write(pages)
+            try Data(bytes).write(to: url, options: .atomic)
+            return [url]
+        } catch is CancellationError {
+            throw SaveStopped(written: [])
         }
     }
 
@@ -1072,7 +1158,9 @@ final class ScanModel {
         defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
         let files = pages.files
         let counts = imagesPerFile
-        let ext = format == .jpeg ? ".jpg" : ".pdf"
+        // A Word document or text file (roadmap 4.14): the text read from the pages, written by PrintCore.
+        let document: PresetFileType? = p.fileType == .word || p.fileType == .text ? p.fileType : nil
+        let ext = document.map(ScanPresets.fileExtension) ?? (format == .jpeg ? ".jpg" : ".pdf")
         var numbers = PartNumbers(1)
         var all: [URL] = []
         isSaving = true
@@ -1087,8 +1175,12 @@ final class ScanModel {
                 all += done.map { URL(fileURLWithPath: $0) }
                 continue
             }
-            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f])
-            let stem = FileNameTemplate.fileName(p.fileName, ctx)
+            let found = await found(in: file, p)
+            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f],
+                                  found: found)
+            // The first file's name as the review shows it, when it was changed there; else the template's.
+            let typed = saveName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let stem = f == 0 && saveNameEdited && !typed.isEmpty ? FileNameTemplate.sanitize(typed) : FileNameTemplate.fileName(p.fileName, ctx)
             let sub = FileNameTemplate.subfolder(p.subfolder, ctx)
             let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
             let format = format
@@ -1097,8 +1189,11 @@ final class ScanModel {
             let result: Result<[URL], any Error> = await offPool {
                 Result {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                    let count = format == .jpeg ? counts[f] : 1
+                    let count = format == .jpeg && document == nil ? counts[f] : 1
                     let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
+                    if let document {
+                        return try Self.writeDocument(job[0], to: URL(fileURLWithPath: paths[0]), type: document, title: stem, stop: stop)
+                    }
                     return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop, options: options)
                 }
             }
@@ -1124,15 +1219,20 @@ final class ScanModel {
         let note = options == nil ? asSentNote(files)
             : options?.pdfA == true ? " " + String(localized: "Saved as PDF/A.") : " " + String(localized: "It asks for its password to open.")
         await finishSaving(all, in: folder.lastPathComponent, note: note, reveal: reveal && p.after == .none, presetOpens: !reveal || p.after == .openInInkvoltPdf)
-        await after(p.after, all, password: options?.password)
+        await after(p.after, all, document: document != nil, password: options?.password)
     }
 
     /// The preset's step after saving: print a copy of what was saved on this printer, attach it to a new email in the
     /// user's mail app (Inkvolt Print has no mail account of its own), or open the saved PDFs in Inkvolt PDF (as on Windows,
     /// JPEG scans are only saved).
+    /// A Word or text scan (`document`) prints its pages, as Windows' copy does, and isn't opened in Inkvolt PDF (it opens PDFs).
     /// `password`: the one the preset put on its PDFs, which PDFKit opens them with to print the copy (Windows' engine can't).
-    private func after(_ step: PresetAfter, _ urls: [URL], password: String? = nil) async {
+    private func after(_ step: PresetAfter, _ urls: [URL], document: Bool = false, password: String? = nil) async {
         switch step {
+        case .print where document:
+            await printPages()
+        case .openInInkvoltPdf where document:
+            break
         case .print:
             let document = PDFDocument()
             for url in urls {

@@ -12,8 +12,11 @@ public struct NameContext: Sendable {
     /// For date and time formats: the clock (time zone) and the month and day names (locale).
     public var timeZone: TimeZone
     public var locale: Locale
+    /// What the first page's text says (`TextFinds`), for `{text-date}`, `{text-title}` and `{text-number}`; nil: nothing read.
+    public var found: FoundInText?
 
-    public init(now: Date, preset: String, printer: String, number: Int, pages: Int, timeZone: TimeZone = .current, locale: Locale = .current) {
+    public init(now: Date, preset: String, printer: String, number: Int, pages: Int, timeZone: TimeZone = .current, locale: Locale = .current,
+                found: FoundInText? = nil) {
         self.now = now
         self.preset = preset
         self.printer = printer
@@ -21,21 +24,26 @@ public struct NameContext: Sendable {
         self.pages = pages
         self.timeZone = timeZone
         self.locale = locale
+        self.found = found
     }
 }
 
 /// File-name and subfolder templates for scan presets: `{date}` / `{date:yyyy-MM}`, `{time}` / `{time:HH.mm}`, `{preset}`,
-/// `{printer}`, `{n}` / `{n:000}` (the preset's counter), `{pages}`; `{{` and `}}` are literal braces. Date and number
+/// `{printer}`, `{n}` / `{n:000}` (the preset's counter), `{pages}`; from the first page's text (roadmap 4.11) `{text-date}` /
+/// `{text-date:yyyy-MM}` (a date found on it), `{text-title}` (its first heading) and `{text-number}` (an invoice-like
+/// number), empty when the page doesn't say (the spaces and dashes they leave are tidied); `{{` and `}}` are literal braces. Date and number
 /// formats are .NET's custom ones, so presets mean the same on both apps. Names come out safe on Windows too (they may land
 /// in a synced folder): no reserved characters or device names, no trailing dots or spaces, never empty; subfolders never
 /// leave the chosen folder; and a name already taken gets `-2`, `-3`… so nothing is overwritten.
 public enum FileNameTemplate {
     /// Longest file name (without extension) a template makes.
     public static let maxNameLength = 120
+    /// The most UTF-8 bytes a name keeps (a Mac difference: Windows counts UTF-16 units, APFS bytes, 255 at most).
+    public static let maxNameBytes = 200
 
     private static let defaultDate = "yyyy-MM-dd", defaultTime = "HHmm"
     private static var fallback: String { loc("Scan", context: "file name") }
-    private static let tokenList = "{date}, {time}, {preset}, {printer}, {n} or {pages}"
+    private static let tokenList = "{date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title}", lastToken = "{text-number}"
 
     // Windows' reserved characters, whatever the OS (a Mac's names may sync to a PC).
     private static let reserved: Set<Character> = ["<", ">", ":", "\"", "/", "\\", "|", "?", "*"]
@@ -54,16 +62,16 @@ public enum FileNameTemplate {
         let (parts, error) = parse(template ?? "")
         for part in parts where part.kind == .token {
             switch part.text.lowercased() {
-            case "date", "time":
+            case "date", "time", "text-date":
                 if let f = part.format, DotNetFormat.date(f, Date(timeIntervalSince1970: 0), TimeZone(identifier: "UTC")!, Locale(identifier: "en_US_POSIX")) == nil {
                     return loc("{0} isn't a date or time format.", "{\(part.text):\(f)}")
                 }
             case "n":
                 break
-            case "preset", "printer", "pages":
+            case "preset", "printer", "pages", "text-title", "text-number":
                 if part.format != nil { return loc("{0} takes no format.", "{\(part.text)}") }
             default:
-                return loc("Unknown token {0}. Use {1}.", "{\(part.text)}", tokenList)
+                return loc("Unknown token {0}. Use {1} or {2}.", "{\(part.text)}", tokenList, lastToken)
             }
         }
         return error
@@ -71,7 +79,31 @@ public enum FileNameTemplate {
 
     /// The template as one safe file name (no extension). Unknown tokens stay as typed.
     public static func fileName(_ template: String?, _ ctx: NameContext) -> String {
-        sanitize(parse(template ?? "").parts.map { $0.kind == .token ? value($0, ctx) : $0.text }.joined())
+        var name = ""
+        var trimLead = false // after an empty {text-…} at the start: the next separator goes too
+        for part in parse(template ?? "").parts {
+            var value = part.kind == .token ? value(part, ctx) : part.text
+            if isTextToken(part) && value.isEmpty {
+                // What the page didn't say takes the separator before it with it ("Maple - {text-number} - 2026" → "Maple - 2026");
+                // at the start, the one after it. The name's other separators stay as typed.
+                while let last = name.last, joiners.contains(last) { name.removeLast() }
+                trimLead = name.isEmpty
+                continue
+            }
+            if trimLead { value = String(value.drop { joiners.contains($0) }) }
+            trimLead = trimLead && value.isEmpty
+            name += value
+        }
+        return sanitize(name)
+    }
+
+    private static let joiners: Set<Character> = [" ", "-", "_"]
+
+    /// The template names the file from the page's text (`{text-…}`): the scan is read (OCR) for it.
+    public static func readsText(_ template: String?) -> Bool { parse(template ?? "").parts.contains(where: isTextToken) }
+
+    private static func isTextToken(_ part: Part) -> Bool {
+        part.kind == .token && ["text-date", "text-title", "text-number"].contains(part.text.lowercased())
     }
 
     /// The template as a relative folder path ("" = none): `/` and `\` outside tokens separate folders; each folder name is
@@ -138,11 +170,15 @@ public enum FileNameTemplate {
     public static func sanitize(_ name: String) -> String { sanitize(name, fallback: fallback) }
 
     private static func sanitize(_ name: String, fallback: String?) -> String {
-        var s = String(name.map { c -> Character in
-            if let a = c.asciiValue, a < 32 { return "-" }
-            return reserved.contains(c) ? "-" : c
-        }).trimmingCharacters(in: .whitespacesAndNewlines)
+        // Scalar by scalar: a '/' with a combining mark after it is one Character that isn't "/", but still a separator.
+        var scalars = String.UnicodeScalarView()
+        for u in name.unicodeScalars {
+            scalars.append(u.value < 32 || (u.isASCII && reserved.contains(Character(u))) ? "-" : u)
+        }
+        var s = String(scalars).trimmingCharacters(in: .whitespacesAndNewlines)
         if s.count > maxNameLength { s = String(s.prefix(maxNameLength)) }
+        // APFS allows 255 bytes of UTF-8 in a name: room left for " - 2" and the extension.
+        while s.utf8.count > maxNameBytes { s.removeLast() }
         while let last = s.last, last == "." || last == " " { s.removeLast() }
         while s.first == " " { s.removeFirst() }
         if s.isEmpty { return fallback ?? "" }
@@ -163,6 +199,11 @@ public enum FileNameTemplate {
         case "preset" where token.format == nil: return ctx.preset
         case "printer" where token.format == nil: return ctx.printer
         case "pages" where token.format == nil: return String(ctx.pages)
+        case "text-date":
+            guard let found = ctx.found?.date else { return "" }
+            return DotNetFormat.date(token.format ?? defaultDate, found.date, TextDate.utc, ctx.locale) ?? literal(token)
+        case "text-title" where token.format == nil: return ctx.found?.title ?? ""
+        case "text-number" where token.format == nil: return ctx.found?.number ?? ""
         default: return literal(token)
         }
     }

@@ -10,6 +10,13 @@ enum AppSettings {
     static var defaults = UserDefaults.standard
 
     enum Key {
+        static let showRulers = "ShowRulers"
+        static let showGrid = "ShowGrid"
+        static let snapToGuides = "SnapToGuides"
+        static let snapToGrid = "SnapToGrid"
+        static let snapToObjects = "SnapToObjects"
+        static let gridStep = "GridStep"
+        static let rulerUnit = "RulerUnit"
         static let theme = "Theme"
         static let restorePosition = "RestorePosition"
         static let keepRecoveryCopies = "KeepRecoveryCopies"
@@ -38,6 +45,46 @@ enum AppSettings {
     static var spellCheck: Bool {
         get { bool(Key.spellCheck, true) }
         set { defaults.set(newValue, forKey: Key.spellCheck) }
+    }
+
+    // Rulers, guides, a grid and snapping (roadmap 4.19, Layout.swift): shown and on, the grid's step in points, the
+    // rulers' unit (one of `RulerUnit.choices`), as Windows' settings.
+    static var showRulers: Bool {
+        get { bool(Key.showRulers, false) }
+        set { defaults.set(newValue, forKey: Key.showRulers) }
+    }
+
+    static var showGrid: Bool {
+        get { bool(Key.showGrid, false) }
+        set { defaults.set(newValue, forKey: Key.showGrid) }
+    }
+
+    static var snapToGuides: Bool {
+        get { bool(Key.snapToGuides, true) }
+        set { defaults.set(newValue, forKey: Key.snapToGuides) }
+    }
+
+    static var snapToGrid: Bool {
+        get { bool(Key.snapToGrid, true) }
+        set { defaults.set(newValue, forKey: Key.snapToGrid) }
+    }
+
+    static var snapToObjects: Bool {
+        get { bool(Key.snapToObjects, true) }
+        set { defaults.set(newValue, forKey: Key.snapToObjects) }
+    }
+
+    static var gridStep: Double {
+        get {
+            let v = defaults.double(forKey: Key.gridStep)
+            return v >= 1 && v <= 720 ? v : 18
+        }
+        set { defaults.set(newValue, forKey: Key.gridStep) }
+    }
+
+    static var rulerUnit: String {
+        get { defaults.string(forKey: Key.rulerUnit).flatMap { RulerUnit.choices.contains($0) ? $0 : nil } ?? "auto" }
+        set { defaults.set(newValue, forKey: Key.rulerUnit) }
     }
 
     /// How many files' last pages are kept (the Windows app's MaxFiles).

@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PrintCore
 
 /// Writes a PowerPoint presentation (.pptx, Office Open XML) from laid-out pages, one slide per page (the Windows app's
 /// `PptxWriter`): each paragraph an editable text box where the page has it (a list one box with real bullets), the page's

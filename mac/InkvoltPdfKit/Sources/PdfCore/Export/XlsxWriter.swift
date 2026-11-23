@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Writes tables to an Excel workbook (.xlsx), one sheet per table: numbers ("1,234.50", "-7", "12.5%", "$5.00") become
 /// numbers shown as they were (decimal places, thousands separator, percent, currency sign); everything else stays text as
