@@ -110,7 +110,9 @@ mac/InkvoltPrintKit --build-system native`.
   `RenamePrinterId`) is there for parity but nothing calls it: the Mac's ids were normalised from the start. Not
   checked: the notice and button on screen, a real firmware change, a printer set to install automatically.
 - **1.1 Supply history.** A queue printer's CUPS levels feed the history without a page count, as Windows' queue
-  readings. Not checked: the card and chart on screen (light, dark, Increase Contrast, VoiceOver), the save panel, a
+  readings. Pages left and a full cartridge's yield come from LEDM, CDM's capacity, IPP's `printer-supply` and the
+  Printer MIB in impressions or sheets, and the page count from IPP's `printer-impressions-completed` and
+  prtMarkerLifeCount too (Windows' printer-data work of 2026-11-20, ported 2026-11-23: `IppSupply`, `SupplyPagesTests`). Not checked: the card and chart on screen (light, dark, Increase Contrast, VoiceOver), the save panel, a
   real printer's rows day after day, a cartridge change seen live.
 - **2.6 Fleet page, export, `status --all`.** **Mac differences:** a queue's state and levels come with cupsd's one list
   of destinations (bounded as a whole), so A_queue_windows_lost_mid_read_says_so has no Mac case and
@@ -143,7 +145,10 @@ mac/InkvoltPrintKit --build-system native`.
   `ZipArchive` stores files, not deflated as .NET's `ZipFile` (PrintCore can't use Apple's Compression); `record`'s
   folder is a plain name inside the app's recordings folder (the sandbox writes nowhere else), scanning is
   `--record-scan`, an option without its value is refused, and what it prints masks the address and this Mac's names;
-  Report a Problem has no log ("(no log yet)"). Not checked: a real printer's recording, the window on screen.
+  Report a Problem has no log ("(no log yet)"). Recordings keep IPP collections and dateTimes (IppText's nested form) and
+  SNMP Counter64 and Opaque (2026-11-23, as Windows' f405402a); the Mac's `IppCodec.decode` reads collections and dates
+  since then too (before, a collection's member names and values landed on the attribute before it). Not checked: a
+  real printer's recording, the window on screen.
 - **3.6 Supply levels for USB printers.** Route 1 only (route 2 is Windows' bidi); what differs is under "Mac
   differences" (a queue printer's own supply levels). Not seen: a real IPP-over-USB printer, how fresh cupsd's
   `marker-*` stay while idle.
@@ -177,8 +182,25 @@ mac/InkvoltPrintKit --build-system native`.
   `SnmpDevice` (`EngineId`), so another device that took the address reads offline and SNMP Access…'s check lets such a
   refusal be saved anyway (`SnmpLoginCheck.Refused.FromThisPrinter`); once an agent has answered signed, a client takes
   no refusal from it (`SnmpClient.SignedEngineId`); a refused snapshot keeps offline's hold running, so refusals spoofed
-  every other check can't silence offline. Not checked: a printer's SNMPv3 agent, net-snmp's agent, a printer with
-  `public` disabled.
+  every other check can't silence offline. **Other protocols (2026-11-23, Windows' dd508526):** SHA-1 and MD5
+  (HMAC-…-96), AES-192, AES-256 and CBC-DES, the protocol chosen beside each passphrase, kept with the login as Windows
+  keeps it; a short AES key lengthened as Blumenthal's draft, then once as Reeder's. `SnmpCrypto` gives hash and HMAC
+  (MD5, SHA-1, SHA-256), AES's block (16, 24, 32-byte keys) and DES's block; DES's weak keys are refused by PrintCore
+  (`Usm.isWeakDesKey`; Windows: .NET's DES throws); the PC's stand-ins are in TestSnmpCrypto and TestCryptoMore.
+  `--report`'s SNMP lines read the 12 pairs and a Reeder agent with the system's crypto. Not checked: a printer's SNMPv3
+  agent, net-snmp's agent, a printer with `public` disabled, any real agent with MD5, SHA-1, AES-192/256 or DES, the
+  protocol pickers and the weak note on screen.
+- **The printer's panel text, queue change notices (2026-11-23, Windows' 974bf8e5, 003a8648 and 58a35482's fixes).** The
+  status card shows "On the printer's panel: …" when the panel says more than the status (`PrinterStatus.panelText`,
+  `panelNote`; the Printer MIB's console lines, IPP's `printer-state-message`, LEDM's LocString; `PanelTextTests`).
+  Queue change notices: **Mac difference: polling.** macOS's cupsd has no subscriptions (Create-Printer-Subscriptions is
+  0x501, not supported, on the build Mac's macOS 27.1), so PrintMac's `CupsQueueNotices` reads the queue list with
+  CUPS-Get-Printers (names, device URIs, models only) every 2 s on a thread of its own, a change from the last read a
+  notice; it asks for CUPS's subscription first and would pull its events where a cupsd has them. A burst is read as one
+  (`QueueChangeNotices`, 750 ms quiet, 3 s at most, as Windows); the report's "Queue change notices" line says which way
+  and how many queues the last read found. Windows' spooler tests (which notice means a relist, the refresh after lost
+  notices) have no Mac counterpart. Not checked: the panel line on screen, a queue added,
+  renamed or deleted by hand while the app runs (no queue was changed on the build Mac).
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2168,6 +2190,10 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
   phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN
   to list and join networks, which needs location access and a check of what the sandbox allows).
+- Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
+  34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
+  through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).
+  Not started on the Mac. SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
 - Inkvolt Print Wave 4 (`print/ROADMAP.md`), done on Windows: 4.12 a camera as a scan source (`CameraSession`,

@@ -214,11 +214,19 @@ public actor SnmpPrinterClient {
             }
             colorants = found
         }
-        // Extras: the page count. A printer that times out or errs on it (an agent without the table, a slow one) still gives
-        // its status and supplies: it's just missing.
+        // Extras: the page count and the panel's lines. A printer that times out or errs on them (an agent without the tables,
+        // a slow one) still gives its status and supplies: they're just missing.
         let markers = (try? await client.walk([PrinterMib.markerCounterUnit.appending(i), PrinterMib.markerLifeCount.appending(i)]))
             .map(Self.rows) ?? []
         try Task.checkCancellation()
+        // The panel's lines, rows indexed by the console's line (one display: its first index; a printer with two shows the first).
+        let console = (try? await client.walk([PrinterMib.consoleDisplayText.appending(i)]))?.first ?? []
+        try Task.checkCancellation()
+        let panel = Array(console.filter { !$0.index.isEmpty }.prefix(256).compactMap { row -> String? in
+            guard let text = row.value.text else { return nil }
+            let line = text.components(separatedBy: .newlines).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return line.isEmpty ? nil : line
+        }.prefix(SnmpReading.maxPanelLines))
 
         func int(_ value: SnmpValue?, _ missing: Int = 0) -> Int { value?.int ?? missing }
         var reading = SnmpReading(
@@ -236,6 +244,7 @@ public actor SnmpPrinterClient {
             },
             colorants: colorants ?? [:])
         reading.pageCount = Self.pageCount(markers.first?.cells)
+        reading.panel = panel
         return reading
     }
 

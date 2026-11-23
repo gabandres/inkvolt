@@ -4029,6 +4029,17 @@
         }
       }
     },
+    "On the printer's panel: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En el panel de la impresora: %@"
+          }
+        }
+      }
+    },
     "On your network": {
       "localizations": {
         "es": {

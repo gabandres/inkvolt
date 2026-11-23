@@ -28,6 +28,10 @@ public enum PrinterMib {
 
     public static func countsPages(_ unit: Int) -> Bool { unit == unitImpressions || unit == unitSheets }
 
+    /// prtConsoleDisplayBufferEntry (1.3.6.1.2.1.43.16.5.1): 2 prtConsoleDisplayBufferText, one row a line of the control
+    /// panel's display.
+    public static let consoleDisplayText: Oid = "1.3.6.1.2.1.43.16.5.1.2"
+
     /// prtMarkerColorantEntry (1.3.6.1.2.1.43.12.1.1): 4 prtMarkerColorantValue ("black", "cyan"…).
     public static let colorantValue: Oid = "1.3.6.1.2.1.43.12.1.1.4"
 

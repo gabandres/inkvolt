@@ -31,7 +31,9 @@ public enum LedmParsers {
 
         let severity = alerts.map(\.severity).max() ?? LedmStatusText.severityOf(code)
         let detail = LedmStatusText.explain(alerts.first { $0.severity == .error }?.id ?? code)
-        return PrinterStatus(code: code, message: message, severity: severity, alerts: alerts, detail: detail)
+        // LocString is the printer's own line for its state, in the panel's language: the panel's text.
+        return PrinterStatus(code: code, message: message, severity: severity, alerts: alerts, detail: detail,
+                             panelText: status?.kidValue("LocString"))
     }
 
     public static func parseConsumables(_ root: XmlElement, usage: XmlElement? = nil) -> [Consumable] {

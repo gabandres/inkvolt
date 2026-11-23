@@ -21,6 +21,8 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Print a PDF's Layout, under the file list: several pages per sheet (2, 4, 6, 9 or 16), a booklet printed on both sides in the order a folded stack reads, or a poster from 150 to 400 % over sheets that overlap by ¼ in, with cut marks to trim them.
 - Supplies show the pages left and how many pages a full cartridge is rated for on more printers: newer HP printers, and other brands' printers that count their toner in pages. Their pages printed, and pages since each cartridge went in, show too.
 - SNMP Access… with an SNMPv3 user (Inkvolt Pro) works with more printers: choose the protocol the printer uses beside each passphrase, SHA-256, SHA-1 or MD5 for authentication and AES-128, AES-192, AES-256 or DES for privacy.
+- The printer's status shows what its control panel says, when that tells you more than the status does.
+- A printer added, removed or renamed in macOS shows on the printer list, goes or takes its new name within a second or two, instead of at the next check.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

@@ -225,6 +225,10 @@ struct StatusCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(v.statusMessage).font(.title3.weight(.semibold))
                     if let detail = v.statusDetail { Text(detail).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true) }
+                    if let panel = v.statusPanel {
+                        Text("On the printer's panel: \(panel)").font(.callout).foregroundStyle(.secondary).textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 if v.phase == .connecting { ProgressView().controlSize(.small) }
             }

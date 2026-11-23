@@ -178,6 +178,7 @@ struct SupplyPagesTests {
         let reading = try await printer.read()
         #expect(reading.supplies.count == 3)
         #expect(reading.pageCount == nil)
+        #expect(reading.panel.isEmpty)
         #expect(SnmpPrinterStatus.toStatus(reading).message == "Ready")
     }
 

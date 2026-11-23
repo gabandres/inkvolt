@@ -47,6 +47,13 @@ final class AppModel {
     /// "Set up in macOS": creates a CUPS queue (this Mac's cupsd, or demo mode's made-up one).
     @ObservationIgnored let queueSetup: any QueueSetupControl
     @ObservationIgnored private var readingQueues: Task<Void, Never>?
+    /// Queue change notices (Windows' spooler notices): CUPS's printer-added, -deleted and -modified events, a burst read
+    /// as one (`QueueChangeNotices`, as Windows waits: 750 ms quiet, 3 s at most). Nil in demo mode.
+    @ObservationIgnored private var queueNotices: (cups: CupsQueueNotices, burst: QueueChangeNotices)?
+    /// What the report says of them: CUPS's subscription taken, refused (the 10 s read alone), or nil in demo mode.
+    var queueNoticesState: CupsQueueNotices.Subscription? { queueNotices?.cups.subscription }
+    /// Polling: the queues the last read of the list found (the report).
+    var queueNoticesListed: Int? { queueNotices?.cups.listedQueues }
     /// Discovery's first sweep is over: network queues may be listed (a printer it finds would take their place).
     @ObservationIgnored private var sweepDone = false
     /// A queue printer selected last time, selected again once it's listed.
@@ -202,6 +209,13 @@ final class AppModel {
                 guard let self else { return }
                 await self.readQueues()
             } while (try? await Task.sleep(for: self?.windowOpen == false ? .seconds(60) : Self.queueRefresh)) != nil
+        }
+        if !isDemo {
+            // A queue added, deleted or renamed in macOS shows within a second or two instead of at the next read.
+            let burst = QueueChangeNotices(quiet: .milliseconds(750), longest: .seconds(3)) { [weak self] in
+                Task { @MainActor in await self?.readQueues() }
+            }
+            queueNotices = (CupsQueueNotices { burst.notice() }, burst)
         }
         if isDemo {
             isSearching = false

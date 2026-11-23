@@ -64,6 +64,11 @@ public struct SnmpReading: Equatable, Sendable {
     /// The printer's lifetime page count: the first marker's prtMarkerLifeCount when it counts impressions or sheets; nil when
     /// the printer has none (or counts something else, such as inches).
     public var pageCount: Int?
+    /// The control panel's display, a line each (prtConsoleDisplayBufferText, empty lines left out), at most `maxPanelLines`.
+    public var panel: [String] = []
+
+    /// Most panel lines kept (RFC 3805 lets a display have any number; a real one has 2 to 8).
+    public static let maxPanelLines = 8
 
     public init(deviceStatus: Int?, printerStatus: Int?, detectedErrorState: [UInt8], alerts: [SnmpAlert], supplies: [SnmpSupply],
                 colorants: [Int: String]) {
@@ -165,7 +170,8 @@ public enum SnmpPrinterStatus {
         let detail = alerts.filter { $0.severity == severityAll }.lazy.compactMap { IppStatusText.explain($0.id) }.first
         // A stopped printer is best named by what stops it ("Paper jam"), as the spooler's and LEDM's headlines do.
         let message = code == "stopped" && !offline ? top?.message ?? label : label
-        return PrinterStatus(code: code, message: message, severity: severityAll, alerts: alerts, detail: detail)
+        return PrinterStatus(code: code, message: message, severity: severityAll, alerts: alerts, detail: detail,
+                             panelText: r.panel.isEmpty ? nil : r.panel.joined(separator: " · "))
     }
 
     private static func overallState(_ device: Int?, _ printer: Int?, offline: Bool) -> (String, String) {

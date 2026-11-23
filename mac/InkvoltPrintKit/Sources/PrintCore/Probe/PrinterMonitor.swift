@@ -13,6 +13,8 @@ public struct PrinterView: Equatable, Sendable {
     public var phase: Phase
     public var statusMessage: String
     public var statusDetail: String?
+    /// What the printer's control panel says, when it says more than the status (`PrinterStatus.panelNote`); nil otherwise.
+    public var statusPanel: String? = nil
     public var severity: Severity
     public var alerts: [PrinterAlert]
     /// The last levels read: a read that couldn't get them keeps these.
@@ -223,6 +225,7 @@ public actor PrinterMonitor {
         v.phase = .connecting
         v.statusMessage = PrinterView.connecting.statusMessage
         v.statusDetail = nil
+        v.statusPanel = nil
         v.severity = .info
         publish(v)
         return true
@@ -282,6 +285,7 @@ public actor PrinterMonitor {
             // An unusable reply (printer waking up) keeps the last good status instead of flashing an error.
             v.statusMessage = status.message
             v.statusDetail = status.detail
+            v.statusPanel = status.panelNote
             v.severity = status.severity
             v.alerts = status.alerts
         }
@@ -308,6 +312,7 @@ public actor PrinterMonitor {
         v.phase = .refused
         v.statusMessage = loc("The printer refused its SNMP login")
         v.statusDetail = loc("{0} Choose SNMP Access… in the printer's menu to change it.", SnmpAccessError(why))
+        v.statusPanel = nil
         v.severity = .error
         v.alerts = []
         if let shown = history?.current() { v.supplyHistory = shown }
@@ -325,6 +330,7 @@ public actor PrinterMonitor {
         v.phase = phase
         v.statusMessage = message
         v.statusDetail = detail
+        v.statusPanel = nil
         v.severity = .error
         v.alerts = []
         // The card keeps its last levels; their days left count on while the printer doesn't answer.

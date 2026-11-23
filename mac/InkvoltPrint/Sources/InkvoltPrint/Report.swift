@@ -37,6 +37,16 @@ enum Report {
     /// The app was started by `--report`: windows open, nothing opens another app or the browser.
     static var isRunning: Bool { CommandLine.arguments.contains("--report") }
 
+    /// The report's line on queue change notices: CUPS's subscription, or the queue list polled and why.
+    private static func queueNotices(_ state: CupsQueueNotices.Subscription?) -> String {
+        switch state {
+        case nil: "off (demo)"
+        case .asking?: "asking cupsd"
+        case .taken?: "CUPS's (printer-added, -deleted, -modified, pulled every 2 s)"
+        case .polling(let why)?: "the queue list polled every 2 s (cupsd took no subscription: \(why))"
+        }
+    }
+
     static func runIfAsked(_ model: AppModel) {
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: "--report") else { return }
@@ -852,6 +862,8 @@ enum Report {
             "Menu bar: \(model.overall)",
             "Printers: \(model.printers.count)",
             "macOS queues: \(model.destinations.map { "\($0.count), \($0.filter(CupsQueues.isRealQueue).count) set up" } ?? "not read")",
+            "Queue change notices: " + Self.queueNotices(model.isDemo ? nil : model.queueNoticesState)
+                + (model.queueNoticesListed.map { ", \($0) queues in its last read" } ?? ""),
         ]
         for p in model.printers {
             let v = p.view
@@ -860,6 +872,7 @@ enum Report {
             lines.append("\(p.name) [\(reached)]\(p.id == model.selectedID ? " (selected)" : "")")
             lines.append("  \(v.phase): \(v.listLine)")
             if let detail = v.statusDetail { lines.append("  " + mask(detail, host: p.host)) }
+            if let panel = v.statusPanel { lines.append("  panel: " + mask(panel, host: p.host)) }
             if let origin = v.statusOrigin { lines.append("  status from: \(origin)") }
             if let source = v.suppliesSource { lines.append("  supplies source: \(source)") }
             if let m = v.model ?? p.model { lines.append("  model: \(m)") }

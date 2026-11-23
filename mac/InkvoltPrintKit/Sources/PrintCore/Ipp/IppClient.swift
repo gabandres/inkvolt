@@ -106,8 +106,9 @@ public final class IppClient: Sendable {
         }
         let severity = alerts.map(\.severity).max() ?? (code == "stopped" ? .error : .info)
         let detail = alerts.filter { $0.severity == severity }.lazy.compactMap { IppStatusText.explain($0.id) }.first
-        return PrinterStatus(code: code, message: headline(r.str("printer-state-message"), label), severity: severity, alerts: alerts,
-                             detail: detail)
+        let stateMessage = r.str("printer-state-message")
+        return PrinterStatus(code: code, message: headline(stateMessage, label), severity: severity, alerts: alerts, detail: detail,
+                             panelText: stateMessage)
     }
 
     /// The status line: the printer's `printer-state-message` when it says something, else the state in the app's words.

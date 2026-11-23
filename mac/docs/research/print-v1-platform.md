@@ -400,6 +400,14 @@ IPP-over-USB printer was at hand, so the device URI below is read from the syste
     stays idle and enabled, under `stop-printer` and `abort-job` alike; nothing became `aborted` in these runs. Job
     alerts read it as failed ("macOS stopped this job") after the minute's hold; `--report --jobs` raised two.
 
+### Queue change notices (checked on the Mac, 2026-11-23)
+
+macOS's cupsd takes no notification subscriptions: Create-Printer-Subscriptions (with `notify-pull-method` `ippget`) from
+the sandboxed Release build answers 0x501, "Create-Printer-Subscriptions not supported." (macOS 27.1), so there is no
+`ippget` pull and no push. CUPS-Get-Printers with only `printer-name`, `device-uri` and `printer-make-and-model` answers
+from the sandbox over libcups' per-thread connection: the app polls that every 2 s to notice a queue added, deleted or
+renamed (`CupsQueueNotices`).
+
 ### Conclusion: how far the App Store fixer goes
 
 **Can do:**
