@@ -394,7 +394,10 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   `associate(to:password:)` wasn't tried from the sandbox (on the build Mac it would take the Mac off the network its SSH
   comes over) and Apple documents no sandbox support for it (research file, Q7), so joining in steps is the design, not a
   fallback; `PrinterSetupGuide` is an actor whose call while another runs is ignored and whose wait stops with its task
-  (Windows serializes calls on a semaphore and takes a token); the menu item is in File (Windows: Add a printer's Set up a
+  (Windows serializes calls on a semaphore and takes a token); closing the window while away (`SetupClosing`, Windows'
+  `MayClose`) stops the wait and, since the app can't go back itself, says at once how to (`returnOnClose`): the window
+  stays open saying it, and the next Close closes; macOS's location alert gets a minute (then the guide says how to turn
+  location on) and the window's Cancel; the menu item is in File (Windows: Add a printer's Set up a
   new printer… and the palette). Seen on the build Mac: with location access not yet asked (no one at the screen), `scanForNetworks(withSSID: nil)` from the sandbox returned 23 networks, none with its name, and the current network's name came back nil, as the sources say; the Wi-Fi gateway was read (a private address); the installed app carries the entitlement and the usage text. Not checked: a new printer's setup network (no new
   printer there), the location prompt and the window on screen (no one was at the build Mac's screen to answer the
   prompt), VoiceOver.

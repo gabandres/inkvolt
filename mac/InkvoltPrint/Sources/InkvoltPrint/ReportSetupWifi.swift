@@ -4,9 +4,10 @@ import PrintMac
 
 extension Report {
     /// `--setup-wifi` (roadmap 4.17). With `--demo`: File › Set Up a New Printer's Wi-Fi… on the made-up Wi-Fi, driven
-    /// through each step (the networks found, the made-up person joining HP's in the Wi-Fi menu, the page, Done, back), the
-    /// window closed after. Without: this Mac's Wi-Fi as the guide would read it (location access, whether a scan works and
-    /// gives names, a gateway), with no network's name or address and nothing asked or joined.
+    /// through each step (the networks found, the made-up person joining HP's in the Wi-Fi menu, the page, a Close that stays
+    /// open saying how to go back, Done, back), the window closed after. Without: this Mac's Wi-Fi as the guide would read it
+    /// (location access, whether a scan works and gives names, a gateway), with no network's name or address and nothing
+    /// asked or joined.
     static func setupWifiCheck(_ model: AppModel) async -> [String] {
         guard model.isDemo else { return await CoreWifi.reportLines() }
         let setup = PrinterSetupWindow.show(model)
@@ -23,6 +24,8 @@ extension Report {
         setup.use(hp)
         await say("use \(hp.network.name)")
         lines.append("setup-wifi page: \(setup.state.page?.absoluteString ?? "none"), away \(setup.state.isAway)")
+        let closesNow = setup.mayClose { NSLog("setup-wifi: closed while on the printer's network") }
+        await say("close while away (closes at once: \(closesNow))")
         setup.done()
         await say("done")
         lines.append("setup-wifi home: \(setup.state.homeName ?? "none"), away \(setup.state.isAway)")

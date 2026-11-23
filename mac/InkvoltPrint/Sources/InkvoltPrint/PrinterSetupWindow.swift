@@ -41,8 +41,16 @@ enum PrinterSetupWindow {
     /// `--report … --setup-wifi` closes it when done.
     static func closeForReport() { window?.close() }
 
-    /// Closing the window stops a wait (the guide then says where the Mac is) and forgets the guide.
+    /// Closing the window while the Mac is on the printer's network says how to go back first (`PrinterSetupModel.mayClose`);
+    /// once closed, a wait stops and the guide is forgotten.
     private final class Closer: NSObject, NSWindowDelegate {
+        func windowShouldClose(_ sender: NSWindow) -> Bool {
+            MainActor.assumeIsolated {
+                guard let model = PrinterSetupWindow.model else { return true }
+                return model.mayClose { [weak sender] in sender?.close() }
+            }
+        }
+
         func windowWillClose(_ notification: Notification) {
             MainActor.assumeIsolated {
                 PrinterSetupWindow.model?.stop()
@@ -94,8 +102,39 @@ final class PrinterSetupModel {
     /// Look (again): asks for location access first when macOS never asked (its alert carries the usage text).
     func look() {
         run { [self] in
-            if locationUndetermined { _ = await WifiLocation.shared.request() }
+            if locationUndetermined {
+                askingLocation = true
+                _ = await WifiLocation.shared.request() // no answer in a minute, or Cancel: not allowed, so it says how
+                askingLocation = false
+            }
             await guide.look()
+        }
+    }
+
+    /// macOS's location alert is up (the window shows Cancel).
+    private(set) var askingLocation = false
+
+    @ObservationIgnored private var closing = SetupClosing()
+
+    /// The window is asked to close: true when it may now (Windows' `MayClose`). While the Mac is on the printer's network and
+    /// the person wasn't told how to go back, the wait under way stops and the guide says at once how to go back: the window
+    /// closes (`close`) when the Mac is back already, else stays open saying how, and the next Close closes it.
+    func mayClose(_ close: @escaping @MainActor () -> Void) -> Bool {
+        switch closing.asked(state) {
+        case .close: return true
+        case .wait: return false
+        case .goBackFirst:
+            let running = task
+            running?.cancel()
+            working = true
+            task = Task { @MainActor in
+                await running?.value
+                await self.guide.returnOnClose()
+                self.state = await self.guide.state
+                self.working = false
+                if self.closing.wentBack(self.state) { close() }
+            }
+            return false
         }
     }
 
@@ -156,12 +195,13 @@ struct PrinterSetupView: View {
             HStack {
                 ProgressView().controlSize(.small)
                 Text("Looking for printers' networks…")
+                if model.askingLocation { Button("Cancel") { model.stop() } }
             }
         case .noWifi:
             EmptyView()
         case .locationOff:
             HStack {
-                Button("Open Location Services") { NSWorkspace.shared.open(Self.locationServices) }
+                Button("Open Location Services") { NSWorkspace.shared.open(SystemSettings.locationServices) }
                 Button("Look Again") { model.look() }
             }
         case .choose:
@@ -222,7 +262,4 @@ struct PrinterSetupView: View {
         let lock = c.network.secured ? String(localized: "asks for a password") : String(localized: "open")
         return "\(c.maker), \(kind), \(lock), " + String(localized: "signal \(c.network.signal)") + " %"
     }
-
-    /// Privacy & Security › Location Services.
-    static let locationServices = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")!
 }

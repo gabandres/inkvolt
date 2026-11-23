@@ -85,6 +85,40 @@ public enum SetupText {
     public static var leavePrinter: String { loc("This Mac wasn't on Wi-Fi before. Leave the printer's network in the Wi-Fi menu, or turn Wi-Fi off there.") }
 }
 
+/// Whether the guide's window may close (Windows' `PrinterSetupViewModel.MayClose`): not while the Mac is on the printer's
+/// network and the person wasn't told how to go back. Then the guide stops its wait and goes back first (on the Mac: says
+/// how, `PrinterSetupGuide.returnOnClose`); the window closes once back, or stays open saying how, and the next Close closes.
+public struct SetupClosing: Equatable, Sendable {
+    public enum Answer: Equatable, Sendable {
+        /// Close now.
+        case close
+        /// Stay open: stop the wait, go back (`returnOnClose`), then ask `wentBack`.
+        case goBackFirst
+        /// Stay open: going back is under way.
+        case wait
+    }
+
+    public private(set) var returning = false
+    public private(set) var toldHow = false
+
+    public init() {}
+
+    /// The window is asked to close while the guide shows `state`.
+    public mutating func asked(_ state: SetupState) -> Answer {
+        if returning { return .wait }
+        if !state.isAway || toldHow { return .close }
+        returning = true
+        return .goBackFirst
+    }
+
+    /// The guide went back, or said how: true when the window closes now (back), false when it stays open saying how.
+    public mutating func wentBack(_ state: SetupState) -> Bool {
+        returning = false
+        toldHow = state.isAway || state.problem == SetupText.leavePrinter
+        return !toldHow
+    }
+}
+
 /// Setting up a new printer's Wi-Fi (roadmap 4.17, the owner's "middle option"; Windows' `PrinterSetupGuide`): find the
 /// printer's setup network nearby, have the person join it in macOS's Wi-Fi menu (a sandboxed app doesn't join networks:
 /// PLAN, "Mac differences"), open the printer's own setup page where the person enters the home Wi-Fi's details, then have
@@ -181,6 +215,15 @@ public actor PrinterSetupGuide {
         busy = true
         defer { busy = false }
         await returnCore(nil, wait: true)
+    }
+
+    /// The window is closing while the Mac may be away (`SetupClosing`): back already is fine, else the person is told at once
+    /// how to go back (`couldNotReturn`, or `leavePrinter` for a Mac that was on none), with no wait.
+    public func returnOnClose() async {
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        await returnCore(nil, wait: false)
     }
 
     /// Back by the person's hand after the guide gave up waiting: checked (and waited for) again.

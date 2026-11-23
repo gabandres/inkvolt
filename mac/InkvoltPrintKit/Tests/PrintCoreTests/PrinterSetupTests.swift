@@ -201,6 +201,71 @@ struct PrinterSetupTests {
         #expect(await empty.state.problem == SetupText.noneFound)
     }
 
+    /// Windows' PrinterSetupViewModel.MayClose (no Windows test): the window doesn't close while the Mac is on the printer's
+    /// network unsaid; it says how to go back, and the next Close closes. Mac only.
+    @Test func closingOnThePrintersNetworkSaysHowToGoBackThenTheNextCloseCloses() async {
+        let wifi = DemoWifi()
+        let guide = PrinterSetupGuide(wifi, pause: Self.instant)
+        await guide.look()
+        var home = SetupClosing()
+        let atHome = home.asked(await guide.state)
+        #expect(atHome == .close) // home: closes at once
+        let hp = await guide.state.candidates[0]
+        wifi.personJoins = hp.network
+        await guide.connect(hp)
+        let away = await guide.state
+        #expect(away.step == .onPrinter)
+        var closing = SetupClosing()
+        let first = closing.asked(away)
+        let again = closing.asked(away) // a second click while going back
+        #expect(first == .goBackFirst)
+        #expect(again == .wait)
+        await guide.returnOnClose() // no wait: says how at once
+        let state = await guide.state
+        #expect(state.step == .couldNotReturn)
+        #expect(state.problem == SetupText.couldNotReturn("Home Wi-Fi"))
+        let closesNow = closing.wentBack(state)
+        #expect(!closesNow) // stays open saying how
+        let next = closing.asked(state)
+        #expect(next == .close)
+    }
+
+    @Test func closingOnceBackOrAfterLeavingSaysNothingMoreOrHowToLeave() async {
+        let wifi = DemoWifi()
+        let guide = PrinterSetupGuide(wifi, pause: Self.instant)
+        await guide.look()
+        let hp = await guide.state.candidates[0]
+        wifi.personJoins = hp.network
+        await guide.connect(hp)
+        var closing = SetupClosing()
+        let first = closing.asked(await guide.state)
+        #expect(first == .goBackFirst)
+        wifi.current = WifiNow(hasAdapter: true, ssid: DemoWifi.home.ssid) // the person went back before closing
+        await guide.returnOnClose()
+        let back = await guide.state
+        #expect(back.step == .back)
+        let closesNow = closing.wentBack(back)
+        #expect(closesNow)
+
+        let none = DemoWifi()
+        none.current = WifiNow(hasAdapter: true, ssid: nil)
+        let off = PrinterSetupGuide(none, pause: Self.instant)
+        await off.look()
+        let printer = await off.state.candidates[0]
+        none.personJoins = printer.network
+        await off.connect(printer)
+        var leaving = SetupClosing()
+        let asked = leaving.asked(await off.state)
+        #expect(asked == .goBackFirst)
+        await off.returnOnClose()
+        let told = await off.state
+        #expect(told.problem == SetupText.leavePrinter)
+        let leftNow = leaving.wentBack(told)
+        #expect(!leftNow) // told how to leave the printer's network: stays open
+        let next = leaving.asked(told)
+        #expect(next == .close)
+    }
+
     @Test func theNewPrinterIsOneThatWasntListedBeforeTheMakersFirst() {
         let before: Set<String> = ["a", "b"]
         #expect(PrinterSetupGuide.foundPrinter([("a", "Old laser"), ("b", "Old inkjet")], before: before, maker: "HP") == nil)

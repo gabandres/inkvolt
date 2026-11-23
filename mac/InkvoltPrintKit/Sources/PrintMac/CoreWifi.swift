@@ -71,7 +71,8 @@ public struct CoreWifi: WifiReading {
 public final class WifiLocation: NSObject, CLLocationManagerDelegate {
     public static let shared = WifiLocation()
     private let manager = CLLocationManager()
-    private var waiting: [CheckedContinuation<Bool, Never>] = []
+    private var waiting: [UUID: CheckedContinuation<Bool, Never>] = [:]
+    private var timers: [UUID: Task<Void, Never>] = [:]
 
     override private init() {
         super.init()
@@ -99,21 +100,41 @@ public final class WifiLocation: NSObject, CLLocationManagerDelegate {
     }
 
     /// Asks macOS once (its alert shows the usage text) and answers when the person has chosen; at once when already decided.
+    /// No choice within `requestLimit`, or the asking task cancelled (Cancel, the window closing): not allowed, so the guide
+    /// says how to turn it on (`.locationOff`); a choice made later still counts at the next Look.
     public func request() async -> Bool {
         guard Self.undetermined else { return Self.allowed }
-        return await withCheckedContinuation { c in
-            waiting.append(c)
-            manager.requestWhenInUseAuthorization()
+        let id = UUID()
+        return await withTaskCancellationHandler {
+            await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
+                guard !Task.isCancelled else { return c.resume(returning: false) }
+                waiting[id] = c
+                timers[id] = Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: Self.requestLimit)
+                    self?.finish(id, false)
+                }
+                manager.requestWhenInUseAuthorization()
+            }
+        } onCancel: {
+            Task { @MainActor in WifiLocation.shared.finish(id, false) }
         }
+    }
+
+    /// How long `request` waits for the person to answer macOS's alert.
+    public static let requestLimit: Duration = .seconds(60)
+
+    /// Answers one waiting request (once: a second answer finds none) and stops its timer.
+    private func finish(_ id: UUID, _ allowed: Bool) {
+        timers.removeValue(forKey: id)?.cancel()
+        waiting.removeValue(forKey: id)?.resume(returning: allowed)
     }
 
     public nonisolated func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
         let status = manager.authorizationStatus
         guard status != .notDetermined else { return }
         Task { @MainActor in
-            let done = self.waiting
-            self.waiting = []
-            for c in done { c.resume(returning: Self.allowed) }
+            let allowed = Self.allowed
+            for id in Array(self.waiting.keys) { self.finish(id, allowed) }
         }
     }
 }

@@ -7,7 +7,8 @@
 #   folder), USB for USB scanners, location for Wi-Fi names in the new-printer Wi-Fi guide (roadmap 4.17), the app group
 #   shared with Inkvolt PDF for the Pro key; App Review
 #   refuses unused ones);
-# - Info.plist has the bundle ID, the build number, the category, the Local Network text, Bonjour types and the icon;
+# - Info.plist has the bundle ID, the build number, the category, the Local Network text, both location texts (English and
+#   Spanish), Bonjour types and the icon;
 # - the icon, the privacy manifest and demo mode's fixtures are in the bundle (App Review has no printer);
 # - it was built by the release Xcode at DEVELOPER_DIR (a beta's builds reach TestFlight but never review);
 # - no crash reporter or analytics SDK is linked (the app collects no data: privacy label "Data Not Collected").
@@ -46,7 +47,12 @@ groups=$(echo "$ents" | tr -d '\n\t' | sed -n 's#.*<key>com\.apple\.security\.ap
 [ "$(value CFBundleVersion)" = "$BUILD" ] || bad "build number is $(value CFBundleVersion), not $BUILD"
 [ "$(value LSApplicationCategoryType)" = "public.app-category.utilities" ] || bad "category missing"
 [ -n "$(value NSLocalNetworkUsageDescription)" ] || bad "NSLocalNetworkUsageDescription missing"
-[ -n "$(value NSLocationUsageDescription)" ] || bad "NSLocationUsageDescription missing (the location entitlement needs it)"
+# The location entitlement needs both usage texts (CLLocationManager's when-in-use request shows the second), in English and Spanish.
+es="$APP/Contents/Resources/es.lproj/InfoPlist.strings"
+for k in NSLocationUsageDescription NSLocationWhenInUseUsageDescription; do
+  [ -n "$(value $k)" ] || bad "$k missing (the location entitlement needs it)"
+  [ -n "$(plutil -extract $k raw -o - "$es" 2>/dev/null)" ] || bad "$k has no Spanish text in es.lproj/InfoPlist.strings"
+done
 [ "$(value NSBonjourServices | grep -c _tcp)" -eq 6 ] || bad "NSBonjourServices doesn't list the six types"
 [ "$(value NSAppTransportSecurity:NSAllowsLocalNetworking)" = "true" ] || bad "NSAllowsLocalNetworking missing"
 [ "$(value CFBundleIconName)" = "AppIcon" ] || bad "CFBundleIconName missing"
