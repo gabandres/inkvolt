@@ -85,7 +85,9 @@ struct HalvesJoinTests {
         #expect(joined.pixels[600 * 1550 + 1300] == original[600 * w + 1300])
     }
 
-    @Test func aHugePageIsSearchedOnASmallCopyAndStillFound() throws {
+    /// Minutes of every core on CI's three (it held the whole suite's timing tests up by 150 s): it runs on the Mac and the
+    /// PC, not on CI (`Timing.onCI`), as PageCleanupTests' huge page does.
+    @Test(.enabled(if: !Timing.onCI)) func aHugePageIsSearchedOnASmallCopyAndStillFound() throws {
         // Halves said to be at 12 pixels an inch, 1600 pixels long (133 inches): searched on copies that size, every placement
         // takes minutes; on copies of at most 400 pixels a side, a moment.
         let (w, h) = (2700, 200)
