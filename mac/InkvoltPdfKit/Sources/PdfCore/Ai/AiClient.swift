@@ -449,3 +449,34 @@ final class AiLineReader {
         return s
     }
 }
+
+extension AiClient {
+    /// The vectors of `inputs` (at most `AiEmbeddings.batchSize`) from the model this client was made for, by `api`
+    /// (roadmap 4.21; the Windows `EmbedAsync`). Sends the model's name and the texts only.
+    /// - Throws: `AiError` when the endpoint refused, failed, or answered something that isn't embeddings.
+    public func embed(_ inputs: [String], _ api: EmbedApi, cancel: CancelToken? = nil) async throws -> [[Float]] {
+        if inputs.isEmpty { return [] }
+        var headers: [(name: String, value: String)] = [("Content-Type", "application/json; charset=utf-8")]
+        headers += try authorization()
+        let json = AiEmbeddings.requestJson(model, inputs)
+        let request = AiHttpRequest(method: "POST", url: AiEmbeddings.urlFor(endpoint, api), headers: headers, body: Array(json.utf8))
+        let deadline = AiDeadline(cancel)
+        defer { deadline.finish() }
+        deadline.cancelAfter(timeouts.firstByte)
+        let response = try await send(request, deadline, cancel, timeouts.firstByte)
+        defer { response.body.close() }
+        let ok = (200..<300).contains(response.status)
+        let body = try await readBody(response, deadline, cancel, truncate: !ok)
+        if !ok {
+            let said = AiProtocol.errorMessageOf(body)
+            // A chat model asked for embeddings: say which kind of model it takes.
+            if said?.range(of: "embed", options: .caseInsensitive) != nil || response.status == 501 {
+                let server = said.map { " " + loc("The server said: \"{0}\"", $0) } ?? ""
+                throw AiError(loc("{0} on {1} doesn't make embeddings. Choose an embedding model for search by meaning, such as nomic-embed-text.{2}", model, endpoint.host, server),
+                              status: response.status)
+            }
+            throw AiError(AiProtocol.describeError(response.status, said, model, endpoint), status: response.status)
+        }
+        return try AiEmbeddings.parse(body, api, inputs.count)
+    }
+}

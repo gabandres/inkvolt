@@ -32,6 +32,19 @@ enum AppSettings {
         static let ocrClean = "OcrClean"
         static let ocrSuspects = "OcrSuspects"
         static let spellCheck = "SpellCheck"
+        static let meaningEnabled = "MeaningEnabled"
+        static let meaningModel = "MeaningModel"
+    }
+
+    /// Search by meaning (roadmap 4.21): off until turned on, and the embedding model's name.
+    static var meaningEnabled: Bool {
+        get { bool(Key.meaningEnabled, false) }
+        set { defaults.set(newValue, forKey: Key.meaningEnabled) }
+    }
+
+    static var meaningModel: String {
+        get { defaults.string(forKey: Key.meaningModel) ?? "" }
+        set { defaults.set(newValue, forKey: Key.meaningModel) }
     }
 
     /// Settings › "Check spelling as I type" (roadmap 4.1, `Spelling`): on unless turned off.

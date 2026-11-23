@@ -19,7 +19,7 @@ import PdfCore
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
 /// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `TranslateTest` (`--only-translate` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `WindowsTest` (`--only-windows` runs it alone), `ReflowTest` (`--only-reflow` runs it alone), `PaperTest` (`--only-paper` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
 /// `CompareTest` (`--only-compare` runs it alone), `FolderSearchTest` (`--only-folder-search` runs it alone) and
-/// `FolderAskTest` (`--only-folder-ask` runs it alone); with
+/// `FolderAskTest` (`--only-folder-ask` runs it alone), `MeaningTest` (`--only-meaning` runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
 /// Combine, new PDFs, opening from another app) on copies of the synthetic documents, then every document is closed
 /// through AppKit's close-all with unsaved changes. `--synthetic` opens
@@ -74,6 +74,8 @@ enum Report {
         Scenario(flag: "--only-folder-search", documents: .synthetic) { c, n in var t = FolderSearchTest(controller: c, name: n); await t.run() },
         // Edit › Find › Ask Across Folders… (roadmap 4.11): an index of its own, a stand-in model on loopback.
         Scenario(flag: "--only-folder-ask", documents: .synthetic) { _, _ in var t = FolderAskTest(); await t.run() },
+        // Search by meaning (roadmap 4.21): Search Folders' By meaning and Ask Across Folders', a stand-in embedding model.
+        Scenario(flag: "--only-meaning", documents: .synthetic) { _, _ in var t = MeaningTest(); await t.run() },
         // File › Compare Files on versions made here: text, formatting, a scanned page.
         Scenario(flag: "--only-compare", documents: .synthetic) { _, _ in var t = CompareTest(); await t.run() },
         Scenario(flag: "--only-measure", documents: .notForm) { c, n in var t = MeasureTest(controller: c, name: n); await t.run() },
@@ -173,7 +175,7 @@ enum Report {
         // The app, compare, attachments and page tests' own documents get only their checks.
         guard isRunning, !AppTest.isActive, !CompareTest.isActive, !AttachmentsLayersTest.isActive, !PagesTest.opensDocument,
               !FolderSearchTest.isActive, !FormFillTest.isActive, !ParagraphEditTest.isActive, !TranslateTest.isActive,
-              !WindowsTest.isActive, !FolderAskTest.isActive else { return }
+              !WindowsTest.isActive, !FolderAskTest.isActive, !MeaningTest.isActive else { return }
         if uxShots {
             // The synthetic text document only; the form opens, unseen, and is closed at the end.
             guard controller.pdf.fileURL?.path == syntheticPath else { return }
@@ -272,6 +274,8 @@ enum Report {
                     await folders.run()
                     var asking = FolderAskTest()
                     await asking.run()
+                    var meaning = MeaningTest()
+                    await meaning.run()
                 }
             }
             done()

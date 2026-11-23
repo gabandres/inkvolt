@@ -31,6 +31,15 @@ public struct FolderHit: Sendable, Equatable {
     public let matchStart: Int
     public let matchLength: Int
 
+    public init(relativePath: String, page: Int, hits: Int, excerpt: String, matchStart: Int, matchLength: Int) {
+        self.relativePath = relativePath
+        self.page = page
+        self.hits = hits
+        self.excerpt = excerpt
+        self.matchStart = matchStart
+        self.matchLength = matchLength
+    }
+
     /// The hit itself, as the excerpt has it.
     public var match: String {
         let units = Array(excerpt.utf16)

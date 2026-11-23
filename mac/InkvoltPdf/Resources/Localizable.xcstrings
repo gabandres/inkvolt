@@ -24607,6 +24607,303 @@
           }
         }
       }
+    },
+    "Turn on search by meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar la búsqueda por significado"
+          }
+        }
+      }
+    },
+    "Search by Meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por significado"
+          }
+        }
+      }
+    },
+    "Search by meaning finds pages by what they mean, not only the words they use. Your AI assistant's server turns each page's text into embeddings (lists of numbers) with an embedding model, and they're kept on this Mac beside each folder's index. Before any page goes, the send window shows every one. It stays off until you turn it on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por significado encuentra páginas por lo que significan, no solo por las palabras que usan. El servidor de tu asistente de IA convierte el texto de cada página en embeddings (listas de números) con un modelo de embeddings, y se guardan en este Mac junto al índice de cada carpeta. Antes de enviar ninguna página, la ventana de envío las muestra todas. Está desactivado hasta que lo actives."
+          }
+        }
+      }
+    },
+    "Embedding model": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelo de embeddings"
+          }
+        }
+      }
+    },
+    "A model that makes embeddings, not a chat model: nomic-embed-text, mxbai-embed-large or bge-m3 in Ollama (ollama pull nomic-embed-text), or text-embedding-3-small with OpenAI.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un modelo que genera embeddings, no un modelo de chat: nomic-embed-text, mxbai-embed-large o bge-m3 en Ollama (ollama pull nomic-embed-text), o text-embedding-3-small con OpenAI."
+          }
+        }
+      }
+    },
+    "Embeddings come from the AI assistant's server. {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los embeddings vienen del servidor del asistente de IA. {0}"
+          }
+        }
+      }
+    },
+    "Set up the AI assistant first (Tools › AI Assistant › AI Assistant Settings…): search by meaning uses its server.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero configura el asistente de IA (Herramientas › Asistente de IA › Configuración del asistente de IA…): la búsqueda por significado usa su servidor."
+          }
+        }
+      }
+    },
+    "Type the embedding model's name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el nombre del modelo de embeddings."
+          }
+        }
+      }
+    },
+    "Checking which pages are new…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando qué páginas son nuevas…"
+          }
+        }
+      }
+    },
+    "Your search words, to be turned into an embedding by {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tus palabras de búsqueda, para convertirlas en un embedding con {0}"
+          }
+        }
+      }
+    },
+    "The text of {0} from {1}, to be turned into embeddings by {2}, then your search words": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto de {0} de {1}, para convertirlo en embeddings con {2}, y después tus palabras de búsqueda"
+          }
+        }
+      }
+    },
+    "Past the limit of {0} pieces, the rest isn't searched by meaning.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por encima del límite de {0} fragmentos, el resto no se busca por significado."
+          }
+        }
+      }
+    },
+    "Send for search by meaning?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Enviar para buscar por significado?"
+          }
+        }
+      }
+    },
+    "Turning pages into embeddings: {0} of {1} pieces…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convirtiendo páginas en embeddings: {0} de {1} fragmentos…"
+          }
+        }
+      }
+    },
+    "Only this text and the model's name are sent: no file name, folder or other document. The embeddings stay on this Mac beside the folder's index, and next time only new or changed pages are sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían este texto y el nombre del modelo: ningún nombre de archivo, carpeta ni otro documento. Los embeddings se quedan en este Mac junto al índice de la carpeta, y la próxima vez solo se envían las páginas nuevas o cambiadas."
+          }
+        }
+      }
+    },
+    "By meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por significado"
+          }
+        }
+      }
+    },
+    "Find pages close in meaning to your words through your own AI assistant's embedding model (Inkvolt Pro). Nothing is sent until you press Search.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encuentra páginas cercanas en significado a tus palabras con el modelo de embeddings de tu propio asistente de IA (Inkvolt Pro). No se envía nada hasta que pulses Buscar."
+          }
+        }
+      }
+    },
+    "Meaning…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Significado…"
+          }
+        }
+      }
+    },
+    "Type what you're looking for and press Search. Nothing is sent before you see it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe lo que buscas y pulsa Buscar. No se envía nada antes de que lo veas."
+          }
+        }
+      }
+    },
+    "Nothing found by meaning: the folders' pages may have no text yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró nada por significado: puede que las páginas de las carpetas aún no tengan texto."
+          }
+        }
+      }
+    },
+    "{0} closest in meaning, best first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} más cercanas en significado, de mejor a peor."
+          }
+        }
+      }
+    },
+    "Stopped. The pages already turned into embeddings are kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detenido. Se conservan las páginas que ya se convirtieron en embeddings."
+          }
+        }
+      }
+    },
+    "A folder's index doesn't read back and is being built again. Search by meaning again once it's up to date.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El índice de una carpeta no se puede leer y se está creando de nuevo. Vuelve a buscar por significado cuando esté al día."
+          }
+        }
+      }
+    },
+    "page {0}, {1} close in meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "página {0}, cercanía de significado {1}"
+          }
+        }
+      }
+    },
+    "Also find pages by meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar también páginas por significado"
+          }
+        }
+      }
+    },
+    "Pages close in meaning to the question join those that share its words (search by meaning, through your own AI assistant's embedding model).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas cercanas en significado a la pregunta se suman a las que comparten sus palabras (buscar por significado, con el modelo de embeddings de tu propio asistente de IA)."
+          }
+        }
+      }
+    },
+    "Search by meaning works on indexed folders only.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La búsqueda por significado solo funciona en carpetas indexadas."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

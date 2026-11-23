@@ -1892,8 +1892,21 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the 
   a file's name cut at 120 UTF-16 units is cut between characters, never inside one (an emoji, a letter and its accent);
   a question over the folders that no page shares a word with says so (Windows says the pages have no text, since the
   index proposed none).
-- Not checked by a person: the window and the send window's listing by eye and with VoiceOver; a real model (Ollama or
-  LM Studio on this Mac).
+- **4.21 search by meaning** (Search Folders' By meaning and Meaning…, Ask Across Folders' Also find pages by meaning):
+  PdfCore `AiEmbeddings` (`requestJson`, `urlFor`, `parse`: one finite vector per text, all one length, or refused),
+  `AiClient.embed` (a chat model asked for embeddings said in words), `MeaningIndex` (FolderIndex/MeaningIndex.swift: the
+  Windows file byte for byte, `.meaning` beside the folder index; pieces, 8-bit vectors, bounds, a stop keeping whole
+  files), `MeaningIndexTests` under their names, `ProFeature.meaningSearch`. The app: FolderMeaning.swift
+  (`MeaningSettingsSheet`: on or off and the embedding model, kept in the settings as `MeaningEnabled`, `MeaningModel`;
+  `FolderMeaning.search`: what each folder lacks, the send window listing every page before it goes, shown always when
+  pages go, then the query), each folder's meaning index held by `FolderSearches.Folder` and deleted with it.
+  `--only-meaning` (`MeaningTest`): the settings asked first, the listing, the requests (the model and the texts, no file
+  name), the closest page first and opened at its page, a second search sending its words only, Ask Across Folders
+  bringing in a page sharing no word, Remove deleting the meaning index. Mac differences: a file's paths are compared as
+  written (the Mac's index keeps them so), where Windows ignores case; "busy just now" is a file this user can't read
+  (`MeaningIndexTests` makes it so with chmod), macOS having no FileShare.None; a boolean in a vector is refused.
+- Not checked by a person: the windows and the send window's listing by eye and with VoiceOver; a real model (Ollama or
+  LM Studio on this Mac), and a real embedding model (nomic-embed-text).
 
 ## Open decisions
 
@@ -1922,8 +1935,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
   `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
   guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
-  4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
-  format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
+  4.24 a summary read aloud to a file
   (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
   makes MP3; port `AiAnswerSpeechTests`); 4.23 Edit by Asking (`AskEdit`, `AiClient.AskEditAsync`, the steps window; port
   `AskEditTests`).

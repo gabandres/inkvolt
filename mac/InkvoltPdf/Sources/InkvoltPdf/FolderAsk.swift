@@ -19,6 +19,8 @@ final class FolderAskWindowController: NSWindowController, NSWindowDelegate, NST
     let inFolders = NSButton(radioButtonWithTitle: loc("In the indexed folders"), target: nil, action: nil)
     let inFiles = NSButton(radioButtonWithTitle: loc("In these PDFs:"), target: nil, action: nil)
     let chooseButton = NSButton(title: loc("Choose PDFs…"), target: nil, action: nil)
+    /// Search by meaning (roadmap 4.21): pages close in meaning join those sharing the question's words.
+    let alsoMeaning = NSButton(checkboxWithTitle: loc("Also find pages by meaning"), target: nil, action: nil)
     let filesText = NSTextField(wrappingLabelWithString: "")
     let whereText = NSTextField(wrappingLabelWithString: "")
     let question = NSTextField()
@@ -76,6 +78,10 @@ final class FolderAskWindowController: NSWindowController, NSWindowDelegate, NST
         chooseButton.target = self
         chooseButton.action = #selector(chooseClicked)
         let scope = NSStackView(views: [inFolders, inFiles, chooseButton])
+        alsoMeaning.toolTip = loc("Pages close in meaning to the question join those that share its words (search by meaning, through your own AI assistant's embedding model).")
+        alsoMeaning.state = FolderMeaning.model != nil ? .on : .off
+        alsoMeaning.target = self
+        alsoMeaning.action = #selector(alsoMeaningClicked)
         scope.spacing = 12
         scope.setAccessibilityLabel(loc("Ask in"))
         for t in [filesText, whereText, status] {
@@ -113,7 +119,7 @@ final class FolderAskWindowController: NSWindowController, NSWindowDelegate, NST
         list.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
         scroll.setContentHuggingPriority(.init(1), for: .vertical)
 
-        let stack = NSStackView(views: [intro, scope, filesText, whereText, row, status, scroll])
+        let stack = NSStackView(views: [intro, scope, alsoMeaning, filesText, whereText, row, status, scroll])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 8
@@ -175,6 +181,13 @@ final class FolderAskWindowController: NSWindowController, NSWindowDelegate, NST
         inFiles.state = sender === inFiles ? .on : .off
         if sender === inFiles && files.isEmpty { chooseClicked() }
         showFiles()
+    }
+
+    @objc func alsoMeaningClicked() {
+        guard alsoMeaning.state == .on, FolderMeaning.model == nil, let window else { return }
+        Task { @MainActor in
+            if !(await FolderMeaning.showSettings(on: window)) || FolderMeaning.model == nil { alsoMeaning.state = .off }
+        }
     }
 
     @objc func chooseClicked() {
@@ -257,9 +270,21 @@ final class FolderAskWindowController: NSWindowController, NSWindowDelegate, NST
             }
             say(asksFiles ? loc("Reading the PDFs…") : loc("Finding the pages most related to the question…"))
             let chosen = files
-            let found = try await Task.detached(priority: .userInitiated) {
+            var found = try await Task.detached(priority: .userInitiated) {
                 asksFiles ? try Self.fromFiles(chosen, token) : try Self.fromFolders(folders, typed, token)
             }.value
+            if alsoMeaning.state == .on && asksFiles {
+                found.notes.append(loc("Search by meaning works on indexed folders only."))
+            } else if alsoMeaning.state == .on {
+                // The pages closest in meaning join those sharing the question's words (their embeddings shown before they go).
+                let open = FolderSearches.shared.all.filter { $0.indexer?.currentIndex != nil }
+                guard await FolderMeaning.ready(on: window) != nil,
+                      let hits = try await FolderMeaning.search(on: window, config, open, typed, count: Self.meaningPages, say: { [weak self] in self?.say($0) }, cancel: token) else {
+                    return say(loc("Not sent."))
+                }
+                let byWords = found.pages
+                found.pages = try await Task.detached(priority: .userInitiated) { try Self.withMeaning(byWords, hits, folders, token) }.value
+            }
             let notes = found.notes
             guard let request = FolderAsk.build(typed, found.pages, inputTokens: config.inputTokens) else {
                 // In the folders, no page ranked means none shares a word (Windows says "no text" there too).
@@ -422,6 +447,25 @@ final class FolderAskWindowController: NSWindowController, NSWindowDelegate, NST
         }
         if folders.contains(where: { $0.indexer.status.phase != .upToDate }) { out.notes.append(loc("Still indexing: more may turn up.")) }
         return out
+    }
+
+    /// Pages closest in meaning brought to a question by search by meaning.
+    static let meaningPages = 30
+
+    /// The pages closest in meaning, read from their folders' indexes, joined to those sharing the question's words
+    /// (`FolderAsk.withMeaning`).
+    nonisolated static func withMeaning(_ pages: [FolderAskPage], _ hits: [(folder: String, hit: MeaningHit)],
+                                        _ folders: [(path: String, indexer: FolderIndexer)], _ cancel: CancelToken) throws -> [FolderAskPage] {
+        var close: [FolderAskPage] = []
+        for f in folders {
+            let mine = hits.filter { $0.folder == f.path }.map(\.hit)
+            guard !mine.isEmpty, let index = f.indexer.currentIndex else { continue }
+            let texts = try index.pageTexts(mine.map { ($0.relativePath, $0.page) }, cancel: cancel)
+            for (h, text) in zip(mine, texts) {
+                close.append(FolderAskPage((f.path as NSString).appendingPathComponent(h.relativePath), h.relativePath, h.page, text, meaning: h.score))
+            }
+        }
+        return FolderAsk.withMeaning(pages, close)
     }
 
     nonisolated static func fromFiles(_ files: [String], _ cancel: CancelToken) throws -> Found {

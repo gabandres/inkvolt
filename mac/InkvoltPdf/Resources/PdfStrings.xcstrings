@@ -26565,6 +26565,72 @@
           }
         }
       }
+    },
+    "Search by meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por significado"
+          }
+        }
+      }
+    },
+    "Find pages by what they mean, not only the words they use: your own AI endpoint turns the pages of your indexed folders into embeddings kept beside the folder index, and Search Folders and Ask Across Folders use them. Off until you turn it on, and the send window shows every page before it goes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encuentra páginas por lo que significan, no solo por las palabras que usan: tu propio servidor de IA convierte las páginas de tus carpetas indexadas en embeddings que se guardan junto al índice, y Buscar en carpetas y Preguntar en carpetas los usan. Está desactivado hasta que lo actives, y la ventana de envío muestra cada página antes de enviarla."
+          }
+        }
+      }
+    },
+    "Searching by meaning is part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por significado forma parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "The AI server's answer isn't a list of embeddings, one for each text sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta del servidor de IA no es una lista de embeddings, uno por cada texto enviado."
+          }
+        }
+      }
+    },
+    "{0} on {1} doesn't make embeddings. Choose an embedding model for search by meaning, such as nomic-embed-text.{2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} en {1} no genera embeddings. Elige un modelo de embeddings para buscar por significado, como nomic-embed-text.{2}"
+          }
+        }
+      }
+    },
+    "The embedding model now answers with vectors of another length. Search by meaning will build its index again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo de embeddings ahora responde con vectores de otra longitud. Buscar por significado volverá a crear su índice."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
