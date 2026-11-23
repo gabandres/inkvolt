@@ -32,6 +32,22 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
+    // MARK: Spell check (roadmap 4.1)
+
+    /// The document's language (its /Lang), for the dictionary `SpellCheck` picks.
+    private var spellingLanguage: String? { (editor.document.windowControllers.first as? DocumentWindowController)?.documentLanguage }
+
+    private func underlineSpelling() {
+        guard let textView else { return }
+        SpellCheck.underline(textView, SpellCheck.checker(spellingLanguage))
+    }
+
+    func textDidChange(_ notification: Notification) { underlineSpelling() }
+
+    func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
+        SpellCheck.menu(menu, view, at: charIndex, SpellCheck.checker(spellingLanguage)) { [weak self] in self?.underlineSpelling() }
+    }
+
     override func loadView() {
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -94,7 +110,10 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
             tv.isRichText = false
             tv.allowsUndo = true
             tv.setAccessibilityLabel(c.subtype == "FreeText" ? loc("Text") : loc("Comment text")) // English: a subtype compared
+            tv.isContinuousSpellCheckingEnabled = false // `SpellCheck` underlines, by PdfCore's rules
+            tv.delegate = self
             textView = tv
+            DispatchQueue.main.async { [weak self] in self?.underlineSpelling() }
             scroll.translatesAutoresizingMaskIntoConstraints = false
             scroll.widthAnchor.constraint(equalToConstant: 260).isActive = true
             scroll.heightAnchor.constraint(equalToConstant: 70).isActive = true
@@ -116,7 +135,8 @@ final class InspectorController: NSViewController, NSTextViewDelegate {
                 stack.addArrangedSubview(line)
             }
         }
-        let field = NSTextField(string: "")
+        let field = SpellingField(string: "")
+        field.documentLanguage = spellingLanguage
         field.placeholderString = loc("Reply")
         field.setAccessibilityLabel(loc("Reply"))
         field.target = self
@@ -344,10 +364,17 @@ final class AskController: NSViewController {
 
     enum Kind { case text(String), link }
 
-    init(_ kind: Kind, initial: String, pageCount: Int) {
+    /// `language`: the document's (its /Lang), for spell check as a note or text is typed (`SpellCheck`).
+    init(_ kind: Kind, initial: String, pageCount: Int, language: String? = nil) {
         self.kind = kind
         self.pageCount = pageCount
-        field = NSTextField(string: initial)
+        if case .text = kind {
+            let typed = SpellingField(string: initial)
+            typed.documentLanguage = language
+            field = typed
+        } else {
+            field = NSTextField(string: initial)
+        }
         super.init(nibName: nil, bundle: nil)
     }
 

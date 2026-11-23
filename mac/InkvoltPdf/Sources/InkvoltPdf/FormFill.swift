@@ -259,7 +259,10 @@ final class FormFiller: NSObject, NSTextFieldDelegate, NSComboBoxDelegate {
         } else if w.password {
             field = NSSecureTextField()
         } else {
-            field = NSTextField()
+            // Spell check as the value is typed (roadmap 4.1), in the document's language.
+            let typed = SpellingField()
+            typed.documentLanguage = controller?.documentLanguage
+            field = typed
         }
         let shown = w.kind == .choice ? (Self.labels(w).indices.first { w.options[$0] == w.value }.map { Self.labels(w)[$0] } ?? w.value) : w.value
         field.stringValue = shown

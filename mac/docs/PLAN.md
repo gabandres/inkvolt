@@ -504,6 +504,11 @@ at under "What a person must look at" and in each section.
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
+| 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
+| 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
+| 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
+| 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
+| 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -528,6 +533,41 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
+- 4.18: the commands are in Edit › Find and are off until Find has matches (Windows opens its Search pane and says to search
+  first); the marks take the Highlight, Underline and Strike Out tools' colours from the markup toolbar, as Highlight
+  Selected Text does on the Mac. `Annotations.read` now reads at most `Annotations.maxQuads` (20,000) + 1 lines of a text
+  mark, as Windows' `QuadRectsOf` (the Mac read every line before). Not checked by a person: the marks on screen.
+- 4.15: Windows' pattern runs in ICU (`NSRegularExpression`, offsets in UTF-16 as `PageText`'s), which has no time limit
+  like .NET's 1 s: the pattern can't start inside a word (its look-behind) and its domain labels are bounded, so a page's
+  text is scanned in one pass. The command is in Tools › Annotate beside Link Selected Text… (Windows: Review, Edit on
+  the bar); with nothing ticked, the notice says to tick one (Windows keeps its dialog open). Not checked by a person: the
+  list's look with long addresses, VoiceOver on it.
+- 4.6: the text's lines end with LF and a table's rows too (Windows' clipboard has CR LF); a table goes on the pasteboard
+  as tab-separated text and as HTML (`.html`, the fragment alone: Windows' CF_HTML header, `ClipboardHtml`, has no Mac
+  counterpart, so `TheClipboardsHtmlHeaderPointsAtTheFragment` keeps its HTML and tab checks only). The Snapshot box isn't
+  outlined after it's drawn (Windows outlines it); as there, it and a copy waiting for a box go when another tool is
+  chosen or the document changes (`clearSnapshotArea`). Copy Text from Area with no box picks Snapshot and the next box copies words instead of a
+  picture. The notice says Numbers, Excel or Pages where Windows says Excel or Word. Not checked by a person: pasting
+  into Numbers and Excel for Mac.
+- 4.1: the dictionary is `NSSpellChecker` (`MacSpelling`, the closest dictionary the Mac has for the language; Add to
+  Dictionary is macOS's Learn Spelling, the self-test's kept for its run only). The app draws the underlines itself (a
+  temporary spelling attribute on the editor's layout manager, from `SpellChecker.check`, the editors' own continuous
+  checking off) and puts its items at the top of the editor's menu (macOS's own spelling items taken out), so every editor
+  follows PdfCore's rules where Windows' plain text boxes use WPF's speller and then drop the words ignored: on the Mac one
+  path for all. A text field's field editor is shared by the window, so `SpellingField` clears its underlines when editing
+  ends. Ignore is "Ignore Spelling" (macOS's name), for the session in every editor. The document's /Lang is read off
+  the main thread once for each version of its bytes, and not at all with spell check off; an editor opened before it is
+  in uses the interface's language. `SpellChecker` never holds its lock while it asks the dictionary (NSSpellChecker
+  answers on the main thread). The third language tried is the Mac's
+  (`Locale.current`) where Windows tries Windows' display language. Not checked by a person: the red underline's look,
+  the menu by Control-click and from the keyboard, VoiceOver reading a misspelled word.
+- 4.2: matching is Foundation's (`NSString.range(of:options:)`, case-insensitive unless Match case) where Windows uses the
+  invariant culture's `CompareInfo`; offsets are UTF-16 as on Windows. `ContentEditor.replaceParagraph` now opens the
+  document and calls `replaceParagraphIn` (Replace All's per-paragraph path), as Windows' does. The command has no key
+  (Windows: Ctrl+H; ⌘H hides the app, ⌥⌘F is Prepare Form's) and is off while Organize Pages shows. Replace from the sheet
+  shows no progress (one paragraph); Replace All shows it page by page with Cancel. `nextAfter` gives nil where Windows'
+  gives -1. Not run here: `ReplacedTextReadsTheSameInPdfJs` (INKVOLTPDF_PDFJS, needs Node on the Mac). Not checked by a
+  person: the sheet's look, VoiceOver on its list.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.

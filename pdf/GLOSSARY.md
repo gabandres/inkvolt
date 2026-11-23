@@ -77,11 +77,14 @@ locality) are used in their usual sense: the interface is everything a caller mu
   what in typed text is a **word** to look up (letters, an apostrophe inside; not numbers, capitals or addresses) and asks
   an `ISpellingDictionary` (Windows' own in the app, a word list in tests); a word it doesn't know is a **misspelling**.
   **Ignore** lasts for the app's session; **Add to dictionary** writes Windows' user dictionary. Its language is the
-  document's (/Lang), else the interface's, else Windows'.
+  document's (/Lang), else the interface's, else Windows'. On the Mac: `PdfCore/Text/SpellChecker.swift` over a
+  `SpellingDictionary` (NSSpellChecker in the app's `SpellCheck`, Spelling.swift, which draws the underlines in every
+  editor and its `SpellingField`); Add to dictionary is macOS's Learn Spelling, and the third language is the Mac's.
 - **Find and Replace** (`Core/TextReplace.cs`; in the app `ReplaceDialog`, `DocumentTab.Replace.cs`): a **match** is found
   in a page's paragraphs as Edit Text & Images groups them, and **replaced** by rewriting its paragraph
   (`ContentEditor.ReplaceParagraphIn`), all of Replace All's in one pass and one save. A **note** says how a replacement went
-  other than as asked: made in a stand-in font or on a wider line, or left as it was (and why).
+  other than as asked: made in a stand-in font or on a wider line, or left as it was (and why). On the Mac:
+  `PdfCore/Content/TextReplace.swift`, the app's `ReplaceSheet.swift`.
 - **Edit transaction** (`DocumentSession.EditAsync`, `Core/DocumentSession.Edit.cs`): one edit from request to undo
   step: runs the edit off the UI thread keeping the document's protection and signatures where it can, asks for a
   missing password and retries, asks before breaking signatures, then commits. Outcomes: Done, NoChange, Busy,
@@ -240,10 +243,13 @@ locality) are used in their usual sense: the interface is everything a caller mu
   grey **scan of text** (ink and paper, few shades between: `LooksBlackAndWhite`) one only when asked.
 - **Snapshot area** (`PageViewer.SnapshotArea`, `Core/AreaCopy.cs`): the last box drawn with Snapshot, outlined on its
   page until another tool is chosen or the document changes. Its picture is copied as it is drawn; Copy Text from Area and
-  Copy Area as Table copy its words (the page's text there, else the box read by the recognizer).
+  Copy Area as Table copy its words (the page's text there, else the box read by the recognizer). On the Mac
+  (`PdfCore/Export/AreaCopy.swift`, the app's `AreaCopyActions.swift`) it isn't outlined; it goes as on Windows, when
+  another tool is chosen or the document changes.
 - **Found address** (`FoundAddress`, `Core/AddressLinks.cs`): a web or email address printed in a page's text that no
   link covers yet, with the address its link would open (`Links.Normalize`) and its box on each line; Links from Addresses
-  makes the ticked ones links in one edit.
+  makes the ticked ones links in one edit. On the Mac: `PdfCore/Annotations/AddressLinks.swift`, the app's
+  `LinkAddresses.swift`.
 - **Content-only edit**: an edit that leaves the pages as they were (form values, Fill & Sign): the open field editor
   stays (`ContentChange.ContentOnlyEdit`).
 - **Proofreading mark** (`Core/Annotations.Proofreading.cs`, `ProofMarkKind`): Insert Text (a /Caret at the **insertion

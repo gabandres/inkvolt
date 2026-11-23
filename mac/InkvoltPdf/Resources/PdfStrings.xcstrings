@@ -26433,6 +26433,83 @@
           }
         }
       }
+    },
+    "Highlight All Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar todas las coincidencias"
+          }
+        }
+      }
+    },
+    "Underline All Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar todas las coincidencias"
+          }
+        }
+      }
+    },
+    "Strike Out All Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar todas las coincidencias"
+          }
+        }
+      }
+    },
+    "Links from Addresses…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vínculos a partir de las direcciones…"
+          }
+        }
+      }
+    },
+    "Copy Text from Area": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar texto de un área"
+          }
+        }
+      }
+    },
+    "Copy Area as Table": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar área como tabla"
+          }
+        }
+      }
+    },
+    "Find and Replace…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar y reemplazar…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

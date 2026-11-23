@@ -290,6 +290,9 @@ public enum DocumentCommands {
         sep,
         c("Cut", "cut:", "x"),
         c("Copy", "copy:", "c"),
+        // Roadmap 4.6: the words in a Snapshot box (Windows: Edit › Copy Text from Area, Copy Area as Table).
+        c("Copy Text from Area", "copyTextFromArea:", needs: [.pages, .organizerHidden]),
+        c("Copy Area as Table", "copyAreaAsTable:", needs: [.pages, .organizerHidden]),
         c("Paste", "paste:", "v"),
         c("Delete", "delete:"),
         c("Select All", "selectAll:", "a"),
@@ -298,6 +301,13 @@ public enum DocumentCommands {
             c("Find…", "showFind:", "f"),
             c("Find Next", "findNext:", "g"),
             c("Find Previous", "findPrevious:", "g", [.command, .shift]),
+            // Roadmap 4.2 (Windows: Edit › Replace…, Ctrl+H; ⌘H hides the app here, and ⌥⌘F is Prepare Form's).
+            c("Find and Replace…", "showReplace:", needs: [.pages, .idle, .organizerHidden]),
+            sep,
+            // Mark All Matches (roadmap 4.18; Windows: the Find bar's and the Search pane's Highlight All Matches menu).
+            c("Highlight All Matches", "highlightAllMatches:", needs: [.searchMatches, .idle]),
+            c("Underline All Matches", "underlineAllMatches:", needs: [.searchMatches, .idle]),
+            c("Strike Out All Matches", "strikeOutAllMatches:", needs: [.searchMatches, .idle]),
             sep,
             // Every PDF of the indexed folders (roadmap 3.5; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F).
             c("Search Folders…", "showFolderSearch:", "f", [.command, .option, .shift]),
@@ -410,6 +420,8 @@ public enum DocumentCommands {
             c("Underline Selected Text", "underlineText:", "u", [.command, .control]),
             c("Strike Out Selected Text", "strikeOutText:", "x", [.command, .control]),
             c("Link Selected Text…", "linkSelectedText:", "k", needs: [.selectedText]),
+            // Roadmap 4.15 (Windows: Review › Links from Addresses…).
+            c("Links from Addresses…", "linkAddresses:", needs: longTask),
             sep,
             c("Reply to Comment…", "replyToSelected:", "r", [.command, .control], needs: [.selectedComment]),
             sep,
