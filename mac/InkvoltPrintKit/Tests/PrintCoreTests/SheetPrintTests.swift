@@ -58,7 +58,7 @@ struct SheetPrintTests {
     @Test func aCountThatIsntAChoiceStillPrintsEveryPage() {
         var three = Sheets.PrintSetup(handling: .pagesPerSheet)
         three.pagesPerSheet = 3
-        let plan = Sheets.PrintPlan(Array(0..<6), { _ in (612, 792) }, Placement(0, 0, 612, 792), three)
+        let plan = Sheets.PrintPlan(Array(0..<6), { _ in (612.0, 792.0) }, Placement(0.0, 0.0, 612.0, 792.0), three)
         #expect(plan.sheetCount == 3)
         #expect((0..<plan.sheetCount).flatMap { plan.sheet($0).pages.map(\.page) } == Array(0..<6))
     }
@@ -156,10 +156,11 @@ struct SheetPrintTests {
         #expect(SheetPrint.bounded(Self.letter) == (816.0, 1056.0)) // a normal page is left as it is
         // The poster's tiles cover the bounded page exactly: what the print path draws at that same size.
         let poster = Self.setup(SheetChoice(.poster, posterPercent: 150))
-        let plan = SheetPrint.plan([(400 * 96, 10 * 96)], Self.letter.0, Self.letter.1, poster)
-        let shown = (0..<plan.sheetCount).map { plan.sheet($0).pages[0].source! }
-        #expect(abs(shown.map(\.right).max()! - w) < 1e-3)
-        #expect(abs(shown.map(\.bottom).max()! - h) < 1e-3)
+        let plan = SheetPrint.plan([(400.0 * 96, 10.0 * 96)], Self.letter.0, Self.letter.1, poster)
+        let shown: [Placement] = (0..<plan.sheetCount).map { plan.sheet($0).pages[0].source! }
+        let right: Double = shown.map { $0.right }.max()!, bottom: Double = shown.map { $0.bottom }.max()!
+        #expect(abs(right - w) < 1e-3)
+        #expect(abs(bottom - h) < 1e-3)
     }
 
     @Test func aSideIsNamedByTheFirstDocumentPageOnIt() {
