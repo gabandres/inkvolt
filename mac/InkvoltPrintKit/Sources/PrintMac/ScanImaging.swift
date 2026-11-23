@@ -50,7 +50,7 @@ public enum ScanImaging {
             guard let cropped = image.cropping(to: rect) else { throw ImageError() } // CGImage's crop is top-left based, as CropBox is
             image = cropped
         }
-        image = try cleaned(image, edits.filters, dpi: copyDpi, grey: grey, stop: stop)
+        image = try cleaned(image, edits.filters, dpi: copyDpi, grey: grey, stop: stop, drop: edits.drop)
         let turns = ((edits.quarterTurns % 4) + 4) % 4
         if turns != 0 { image = try turned(image, turns) }
         return image
@@ -91,12 +91,12 @@ public enum ScanImaging {
 
     /// The picture through PrintCore's `PageCleanup` (grey as one channel, colour as three); the same picture when no filter
     /// changes pixels or it is too large to clean up.
-    static func cleaned(_ image: CGImage, _ filters: PageFilters, dpi: Int, grey: Bool, stop: BatchStop?) throws -> CGImage {
+    static func cleaned(_ image: CGImage, _ filters: PageFilters, dpi: Int, grey: Bool, stop: BatchStop?, drop: DropColor? = nil) throws -> CGImage {
         let (w, h) = (image.width, image.height)
         if filters.isDisjoint(with: .pixelFilters) || PageCleanup.tooLarge(w, h) { return image }
         let channels = grey ? 1 : 3
         let packed = try pixels(image, channels: channels)
-        let done = try PageCleanup.apply(packed, width: w, height: h, channels: channels, dpi: dpi, filters, stop: stop)
+        let done = try PageCleanup.apply(packed, width: w, height: h, channels: channels, dpi: dpi, filters, stop: stop, drop: drop)
         if done.done.isEmpty { return image }
         return try picture(done.pixels, width: w, height: h, channels: channels)
     }
@@ -137,6 +137,18 @@ public enum ScanImaging {
                                   space: space, bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue), provider: provider,
                                   decode: nil, shouldInterpolate: true, intent: .defaultIntent) else { throw ImageError() }
         return image
+    }
+
+    /// A page as saved (`jpeg`, its edits already in it) in black and white for a small file (roadmap 4.4, PrintCore's
+    /// `Bilevel`): decoded grey at full size, its paper evened out, cut at Otsu's level. A page too large to decode
+    /// (`decode`) or one past `BitImage.maxPixels` throws, and is saved as its JPEG.
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func bits(_ jpeg: [UInt8], dpi: Int, stop: BatchStop? = nil) throws -> BitImage {
+        let image = try decode(jpeg, maxPixels: nil)
+        let area = image.width.multipliedReportingOverflow(by: image.height)
+        guard !area.overflow, area.partialValue <= BitImage.maxPixels else { throw BitImage.SizeError.outOfRange }
+        try stop?.check()
+        return try Bilevel.fromScan(try pixels(image, channels: 1), image.width, image.height, dpi: dpi, stop: stop)
     }
 
     public static func jpeg(_ image: CGImage) throws -> [UInt8] {

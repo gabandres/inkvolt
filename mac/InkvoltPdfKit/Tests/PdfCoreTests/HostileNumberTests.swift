@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import PrintCore
 @testable import PdfCore
 
 /// Numbers from outside (a PDF's content and fonts, comment colors, a preset's values, a zoom) that are NaN, infinite or

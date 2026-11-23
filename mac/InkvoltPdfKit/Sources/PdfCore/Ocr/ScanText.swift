@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// How Recognize Text reads a page (the Windows app's `RecognizeOptions`). `clean`: straighten, turn upright, despeckle
 /// and whiten the page image first (`ScanCleanup`). `checkWords`: mark suspect words (`SuspectWords`), which reads the page

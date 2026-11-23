@@ -1,9 +1,9 @@
 import Foundation
 
 // The pieces `PageCleanup` builds on, from the Windows app's `ScanCleanup.cs` (`ToGray`, `Smooth`, `PaperLevel.Map`,
-// `Despeckle`). Public because Inkvolt PDF's PdfCore cleans pages for its recognizer with the same four
-// (Ocr/ScanCleanup.swift), as Windows' InkvoltPdf.Core uses this project's ScanCleanup.cs; their names don't clash with
-// PdfCore's. Colour pixels are RGB on the Mac.
+// `Despeckle`). Public because Inkvolt PDF's PdfCore cleans pages for its recognizer with the same four through
+// `ScanCleanup` (Imaging/ScanCleanup.swift), as Windows' InkvoltPdf.Core uses this project's ScanCleanup.cs. Colour pixels
+// are RGB on the Mac.
 
 /// Runs `body` for each of `count` rows, spread over the cores (.NET's `Parallel.For`). Rows left when `stop` fires are
 /// skipped, and it throws `CancellationError` once all have returned.

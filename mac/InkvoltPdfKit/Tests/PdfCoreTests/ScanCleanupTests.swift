@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import PrintCore
 @testable import PdfCore
 
 /// Ported from ScanCleanupTests.cs: cleaning a scanned page before text recognition (roadmap 2.2): straightening up to

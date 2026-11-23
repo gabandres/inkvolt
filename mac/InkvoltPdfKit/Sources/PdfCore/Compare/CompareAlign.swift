@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 
 /// Where the old page's points are on the new page: turned `angle` degrees clockwise about (`centerX`, `centerY`), then
 /// shifted by (`dx`, `dy`) points (the Windows app's `PageAlignment`).

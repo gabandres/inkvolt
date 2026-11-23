@@ -39,6 +39,11 @@ public enum ScanChoices {
         return list.isEmpty ? [.color] : list
     }
 
+    /// The feeder is chosen and scans one side: both sides can be had by turning the stack over (roadmap 4.1).
+    public static func offersTurnStack(_ caps: ScannerCapabilities, _ source: ScanSource) -> Bool {
+        source == .adf && caps.adf != nil && !caps.adfDuplex
+    }
+
     /// The `wanted` resolutions the source supports; when it lists resolutions but none of these, its closest one to each
     /// (distinct). A source that lists none accepts the wanted values as they are.
     public static func resolutions(_ caps: ScannerCapabilities, _ source: ScanSource, wanted: [Int] = documentResolutions) -> [Int] {
