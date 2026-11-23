@@ -110,6 +110,8 @@ private final class ParagraphRecorder: NSObject, AVSpeechSynthesizerDelegate {
 /// A summary read aloud to a file (roadmap 4.24; the Windows `SpeechFile`): the answer's paragraphs (`AiAnswerSpeech`)
 /// spoken by Read Aloud's macOS voice and speed, each synthesized on its own (`AVSpeechSynthesizer.write`) and joined
 /// (`WavParts`), written as an M4A (AAC, through `AVAudioFile`; Windows makes MP3) or, when the name ends in .wav, as a WAV.
+/// As Windows' `SaveAsync`: the voice speaks on the main thread, the joining (up to 2 GB), coding and writing run off it,
+/// and the cancel token is checked between paragraphs and on every chunk written, a stop leaving no file behind.
 @MainActor
 enum SpeechFile {
     static func save(_ paragraphs: [String], to path: String, voice: String?, speed: Double,
@@ -130,21 +132,48 @@ enum SpeechFile {
             progress(i + 1, paragraphs.count)
         }
         guard parts.count > 0 else { throw WavError("No samples.") }
+        let duration = try await Task.detached(priority: .userInitiated) {
+            try Self.write(parts, to: path, cancel: cancel)
+        }.value
+        return SpeechFileResult(path: path, duration: duration, parts: lengths)
+    }
+
+    /// The parts joined and written to `path` (off the main thread): to `path`.partial first, which a stop or a failure
+    /// deletes, then put in place. Its length (seconds).
+    nonisolated private static func write(_ parts: WavParts, to path: String, cancel: CancelToken) throws -> Double {
+        try cancel.check()
         let joined = try parts.join()
         let info = try WavFile.read(joined)
         let temp = path + ".partial"
         defer { unlink(temp) }
         if path.lowercased().hasSuffix(".wav") {
-            guard FileManager.default.createFile(atPath: temp, contents: Data(joined)) else { throw WavError("Couldn't write.") }
+            try writeWav(joined, to: temp, cancel: cancel)
         } else {
-            try Self.writeM4a(joined, info, to: temp)
+            try writeM4a(joined, info, to: temp, cancel: cancel)
         }
+        try cancel.check()
         _ = try FileManager.default.replaceItemAt(URL(fileURLWithPath: path), withItemAt: URL(fileURLWithPath: temp))
-        return SpeechFileResult(path: path, duration: info.duration, parts: lengths)
+        return info.duration
     }
 
-    /// The joined samples as AAC in an M4A file.
-    private static func writeM4a(_ wav: [UInt8], _ info: WavInfo, to path: String) throws {
+    /// The joined WAV written as it is, 4 MB at a time.
+    nonisolated private static func writeWav(_ wav: [UInt8], to path: String, cancel: CancelToken) throws {
+        guard FileManager.default.createFile(atPath: path, contents: nil), let file = FileHandle(forWritingAtPath: path) else {
+            throw WavError("Couldn't write.")
+        }
+        defer { try? file.close() }
+        let chunk = 4 << 20
+        var at = 0
+        while at < wav.count {
+            try cancel.check()
+            let end = min(at + chunk, wav.count)
+            try wav.withUnsafeBytes { raw in try file.write(contentsOf: UnsafeRawBufferPointer(rebasing: raw[at..<end])) }
+            at = end
+        }
+    }
+
+    /// The joined samples as AAC in an M4A file, 32,768 frames at a time.
+    nonisolated private static func writeM4a(_ wav: [UInt8], _ info: WavInfo, to path: String, cancel: CancelToken) throws {
         let settings: [String: Any] = [AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: info.sampleRate,
                                        AVNumberOfChannelsKey: info.channels, AVEncoderAudioQualityKey: AVAudioQuality.medium.rawValue]
         let file = try AVAudioFile(forWriting: URL(fileURLWithPath: path), settings: settings, commonFormat: .pcmFormatInt16, interleaved: true)
@@ -156,6 +185,7 @@ enum SpeechFile {
         var at = info.dataOffset
         let end = info.dataOffset + info.dataLength
         while at < end {
+            try cancel.check()
             let frames = min(chunk, (end - at) / frameBytes)
             if frames == 0 { break }
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let out = buffer.int16ChannelData else {
@@ -185,11 +215,11 @@ extension DocumentWindowController {
     /// Summarizes `chosen`, then saves the summary read aloud: to `path` when given (the self-test), else where the person
     /// picks.
     func summaryToAudio(_ chosen: [Int], path given: String? = nil) async {
-        let before = ai.turns.count
+        let before = pdf.session?.aiConversation.exchanges.last
         await summarize(chosen)
-        guard ai.turns.count > before, let turn = ai.turns.last, let window else { return }
-        let model = AiService.current(AppSettings.ai).config?.model ?? ""
-        let exchange = AiExchange(.summary, shown: turn.question, asked: turn.question, answer: turn.answer, model: model, when: Date())
+        // The summary as the conversation keeps it (roadmap 4.20): what the pane showed, and the model that answered.
+        guard let exchange = pdf.session?.aiConversation.exchanges.last, exchange != before, exchange.kind == .summary,
+              let window else { return }
         guard !AVSpeechSynthesisVoice.speechVoices().isEmpty else {
             return notify(loc("This Mac has no voices to read with. Add one in System Settings › Accessibility › Spoken Content."))
         }

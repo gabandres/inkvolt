@@ -645,7 +645,7 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
-- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24, not on the Mac yet). The
+- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24; the Mac's 4.24 is Summary to Audio… only). The
   conversation moved from the window's `AiState` to the session, as on Windows. The PDF's text past WinAnsi (Cyrillic,
   say) is drawn in Type 3 fonts (`TextPainter`), which MuPDF reads back as regular even where drawn bold (it takes bold
   from a FreeType font's style or name only); Latin text uses Helvetica and Helvetica-Bold and reads back bold, so
@@ -1946,9 +1946,11 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the 
   Redact by Pattern does on the Mac (marked for review, applied only by Apply Redactions), where Windows opens its review
   list.
 - **4.24 a summary read aloud to a file** (Tools › AI Assistant › Summary to Audio…; Windows also reads saved answers
-  aloud from Save AI Answer, 4.20, which the Mac waits for): PdfCore AiAnswerSpeech.swift (`AiAnswerSpeech.paragraphs`,
-  `spoken`; `WavFile.read`, `join`; `WavParts`; and the parts of 4.20 it needs: `AiExchange`, `AiAnswerKind`,
-  `AiAnswerExport.blocks`, `runs`, `note`), `AiAnswerSpeechTests` under their names. The app: SpeechFile.swift (each
+  aloud from Save AI Answer, which the Mac's doesn't offer): PdfCore AiAnswerSpeech.swift (`AiAnswerSpeech.paragraphs`,
+  `spoken`; `WavFile.read`, `join`; `WavParts`; the answer's lines from 4.20's `AiAnswerExport.blocks`, `plain`, `note`),
+  `AiAnswerSpeechTests` under their names. The summary read is the conversation's last exchange (`DocumentSession.aiConversation`,
+  so the model named is the one that answered); the joining, coding and writing run off the main thread, Stop checked
+  between paragraphs and on each chunk written, its partial file deleted (Windows' `SaveAsync`). The app: SpeechFile.swift (each
   paragraph through `AVSpeechSynthesizer.write(_:toBufferCallback:)` with Read Aloud's voice and speed, its buffers as
   16-bit samples, joined with 0.35 s between paragraphs, then an M4A (AAC, `AVAudioFile`) or a WAV; the summary first,
   with its send window, as Summarize with AI). `--only-summary-audio` (`SummaryAudioTest`): an M4A and a WAV, each as long
