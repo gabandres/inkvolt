@@ -214,6 +214,11 @@ public enum ScanDocx {
 /// byte order mark and Windows line ends, so Notepad and older tools read it alike (the same file on both apps). Pages with
 /// no text add nothing. Windows' `ScanText`.
 public enum ScanText {
+    /// The line ends .NET's ReplaceLineEndings replaces: CR, LF, CRLF, NEL, FF, LS and PS.
+    static func isLineEnd(_ c: Character) -> Bool {
+        ["\n", "\r\n", "\r", "\u{85}", "\u{0C}", "\u{2028}", "\u{2029}"].contains(c)
+    }
+
     public static func text(_ pages: [ScanDocPage]) -> String {
         var s = ""
         for page in pages {
@@ -221,7 +226,7 @@ public enum ScanText {
             if paragraphs.isEmpty { continue }
             if !s.isEmpty { s += "\r\n" }
             for p in paragraphs {
-                let one = p.text.split(omittingEmptySubsequences: false, whereSeparator: { $0 == "\n" || $0 == "\r\n" || $0 == "\r" }).joined(separator: " ")
+                let one = p.text.split(omittingEmptySubsequences: false, whereSeparator: ScanText.isLineEnd).joined(separator: " ")
                 s += one + "\r\n\r\n"
             }
         }

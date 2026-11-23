@@ -109,6 +109,12 @@ struct ScanToDocumentTests {
         #expect(String(decoding: bytes.dropFirst(3), as: UTF8.self) == "Año nuevo\r\n")
     }
 
+    /// Mac only (the review): every line end .NET's ReplaceLineEndings knows becomes a space, as in Windows' file.
+    @Test func everyKindOfLineEndInAParagraphIsASpace() {
+        let text = ScanText.text([ScanDocPage(Self.line("one\u{2028}two\u{85}three\u{0C}four\u{2029}five", 100), dpi: 300)])
+        #expect(text == "one two three four five\r\n")
+    }
+
     @Test func wordAndTextPresetsReadThePagesAndSaveTheirKindOfFile() {
         let input = InputCaps(minWidth: 0, maxWidth: 2550, minHeight: 0, maxHeight: 3508, colorModes: ["RGB24", "Grayscale8"],
                               documentFormats: ["image/jpeg"], resolutions: [300], intents: ["Document"])

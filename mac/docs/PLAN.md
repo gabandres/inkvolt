@@ -277,7 +277,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   editor's caption for the tokens; the demo glass's made-up invoice (`DemoScan.invoice`); `--report … --name-from-text`.
   **Mac differences:** a locale where Windows has a culture (`Locale.current`; day or month first from its short date as ICU
   writes it, the month names from `DateFormatter`'s lists); a found date is a `TextDate` (a day, no clock) written with UTC's;
-  lengths count characters where .NET counts UTF-16 units; the field shows for a preset that stops on the review, as on
+  lengths count characters where .NET counts UTF-16 units, and a name is also cut to 200 UTF-8 bytes
+  (`FileNameTemplate.maxNameBytes`: APFS allows 255 bytes, so a long Chinese or Japanese title would not save); a name's
+  reserved characters are found scalar by scalar (a '/' with a combining mark after it is still a separator); the field shows for a preset that stops on the review, as on
   Windows, beside Save rather than above the pages. Not checked: real invoices and receipts, the field on screen (VoiceOver).
 - **4.14 Scan straight to Word or text.** PrintCore `PageText.paragraphs` (`TextParagraph`), `ScanDocPage`, `ScanDocx`,
   `ScanText`, `PresetFileType.word` (3) and `.text` (4) (Windows' numbers), `ScanPresets.isPdf`/`fileExtension`, the

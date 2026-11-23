@@ -141,6 +141,12 @@ struct NameFromTextTests {
         #expect(FileNameTemplate.fileName("Bills_{text-number}_{date}", Self.context(nil)) == "Bills_2026-11-22")
         #expect(FileNameTemplate.fileName("{text-title} - {text-number}", Self.context(maple)) == "Maple")
         #expect(FileNameTemplate.fileName("{text-title}", Self.context(FoundInText.none)) == FileNameTemplate.sanitize(""))
+        // The review (Mac only): a separator with a combining mark after it is still a separator; a long title in a script
+        // of 3-byte characters fits APFS's 255 bytes.
+        #expect(!FileNameTemplate.fileName("{text-title}", Self.context(FoundInText(title: "Acme/\u{301}Invoice"))).contains("/"))
+        #expect(!FileNameTemplate.sanitize("a\\\u{FE0F}b:\u{200D}c").unicodeScalars.contains { "\\:".unicodeScalars.contains($0) })
+        let long = FileNameTemplate.fileName("{preset} - {text-title}", Self.context(FoundInText(title: String(repeating: "請求書", count: 40))))
+        #expect(long.utf8.count <= FileNameTemplate.maxNameBytes && long.hasPrefix("Bills - 請求書"))
         // Separators typed in the name are kept, wherever the page's text goes in it.
         #expect(FileNameTemplate.fileName("{preset} -- {text-title} -- {n}", Self.context(maple)) == "Bills -- Maple -- 7")
         #expect(FileNameTemplate.fileName("{preset}  {n}", Self.context(nil)) == "Bills  7")

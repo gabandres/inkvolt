@@ -38,6 +38,8 @@ public struct NameContext: Sendable {
 public enum FileNameTemplate {
     /// Longest file name (without extension) a template makes.
     public static let maxNameLength = 120
+    /// The most UTF-8 bytes a name keeps (a Mac difference: Windows counts UTF-16 units, APFS bytes, 255 at most).
+    public static let maxNameBytes = 200
 
     private static let defaultDate = "yyyy-MM-dd", defaultTime = "HHmm"
     private static var fallback: String { loc("Scan", context: "file name") }
@@ -168,11 +170,15 @@ public enum FileNameTemplate {
     public static func sanitize(_ name: String) -> String { sanitize(name, fallback: fallback) }
 
     private static func sanitize(_ name: String, fallback: String?) -> String {
-        var s = String(name.map { c -> Character in
-            if let a = c.asciiValue, a < 32 { return "-" }
-            return reserved.contains(c) ? "-" : c
-        }).trimmingCharacters(in: .whitespacesAndNewlines)
+        // Scalar by scalar: a '/' with a combining mark after it is one Character that isn't "/", but still a separator.
+        var scalars = String.UnicodeScalarView()
+        for u in name.unicodeScalars {
+            scalars.append(u.value < 32 || (u.isASCII && reserved.contains(Character(u))) ? "-" : u)
+        }
+        var s = String(scalars).trimmingCharacters(in: .whitespacesAndNewlines)
         if s.count > maxNameLength { s = String(s.prefix(maxNameLength)) }
+        // APFS allows 255 bytes of UTF-8 in a name: room left for " - 2" and the extension.
+        while s.utf8.count > maxNameBytes { s.removeLast() }
         while let last = s.last, last == "." || last == " " { s.removeLast() }
         while s.first == " " { s.removeFirst() }
         if s.isEmpty { return fallback ?? "" }

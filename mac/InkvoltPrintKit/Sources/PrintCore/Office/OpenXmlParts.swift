@@ -134,7 +134,8 @@ public enum OpenXmlParts {
             ("xmlns:dcterms", "http://purl.org/dc/terms/"),
             ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance"),
         ])
-        if let title, !title.allSatisfy(\.isWhitespace) { w.element("dc:title", clean(title)) }
+        // Scalar by scalar, as before the move (a space and a combining mark is a title).
+        if let title, !title.unicodeScalars.allSatisfy(\.properties.isWhitespace) { w.element("dc:title", clean(title)) }
         w.start("dcterms:created", [("xsi:type", "dcterms:W3CDTF")])
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
