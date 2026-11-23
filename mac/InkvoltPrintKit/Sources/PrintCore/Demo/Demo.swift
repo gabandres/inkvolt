@@ -185,6 +185,10 @@ public enum DemoScan {
     /// The two halves of a 14-inch-wide plan scanned on a letter glass (roadmap 4.8): its left 8.5 inches, then its right 8.5
     /// inches, three inches of it on both.
     public static let leftHalf = 8, rightHalf = 9
+
+    /// A made-up hardware store's invoice (roadmap 4.11 and 4.14): its name as the heading, an invoice number, a date, its items
+    /// and a paragraph of terms, so a name can be read from the page and the page saved as Word or text.
+    public static let invoice = 20
 }
 
 /// Which pass of a turned stack (`TurnedStack`) the demo feeder's next scan is (the Windows demo's `StackSide`).

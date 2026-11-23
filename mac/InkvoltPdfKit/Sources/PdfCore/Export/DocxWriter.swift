@@ -1,5 +1,6 @@
 import CryptoKit
 import Foundation
+import PrintCore
 
 /// Writes a Word document (.docx, Office Open XML) from laid-out pages: paragraphs with their fonts, sizes, bold, italic
 /// and colors; headings as Heading 1-6 (so they show in Word's navigation pane); bullets as Word bullets; tables;

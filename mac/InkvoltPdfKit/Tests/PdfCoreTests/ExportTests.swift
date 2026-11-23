@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 import Testing
 @testable import PdfCore
 

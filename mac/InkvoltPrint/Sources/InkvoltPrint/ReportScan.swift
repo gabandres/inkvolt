@@ -190,6 +190,69 @@ extension Report {
         return lines
     }
 
+    /// `--name-from-text` (roadmap 4.11): the demo inkjet's glass holds a made-up invoice; scanned with a preset named
+    /// "{text-date} {text-title} {text-number}" that stops on the review, the name the review shows (read by Vision from the
+    /// page), then the name typed over it.
+    static func nameFromTextCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["name from text: no demo inkjet"] }
+        defer { Demo.scanSetup.hold(nil) }
+        Demo.scanSetup.hold(DemoScan.invoice)
+        var p = ScanPresets.builtIns()[0]
+        p.id = "name-from-text-check"
+        p.name = "Bills"
+        (p.source, p.fileType, p.review, p.skipBlank) = (.glass, .pdf, true, false)
+        p.fileName = "{text-date} {text-title} {text-number}"
+        await scan.scan(with: p)
+        for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
+        for _ in 0..<100 where scan.saveName.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        var lines = ["name from text: \(scan.status) \(scan.problem ?? "")",
+                     "  shown in the review \(scan.showsSaveName), format \(scan.format), name \"\(scan.saveName)\""]
+        scan.editSaveName("Maple invoice")
+        await scan.fillSaveName() // a name typed stays
+        lines.append("  typed over: \"\(scan.saveName)\" (edited \(scan.saveNameEdited))")
+        scan.clear()
+        lines.append("  after Clear: \"\(scan.saveName)\" shown \(scan.showsSaveName)")
+        return lines
+    }
+
+    /// `--word-text` (roadmap 4.14): the demo glass's made-up invoice scanned with a Word preset and a text preset, each saved
+    /// by itself into a folder in the container: the files, the document's paragraphs (Heading 1 first) and the text file's
+    /// first lines.
+    static func wordTextCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["word and text: no demo inkjet"] }
+        defer { Demo.scanSetup.hold(nil) }
+        Demo.scanSetup.hold(DemoScan.invoice)
+        let folder = AppModel.dataFolder.appendingPathComponent("word-text-check", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var lines = ["word and text:"]
+        for type in [PresetFileType.word, .text] {
+            var p = ScanPresets.builtIns()[0]
+            p.id = type == .word ? "word-check" : "text-check"
+            p.name = ScanPresetText.fileType(type)
+            (p.source, p.fileType, p.review, p.skipBlank, p.after) = (.glass, type, false, false, .none)
+            p.fileName = "{text-title}"
+            model.setPresetFolder(p.id, folder)
+            await scan.scan(with: p)
+            for _ in 0..<150 where scan.isScanning || scan.isSaving || !scan.pages.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+            lines.append("  \(p.name) (\(ScanPresetText.summary(p))): \(scan.status) \(scan.problem ?? "")")
+        }
+        let saved = ((try? FileManager.default.subpathsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".docx") || $0.hasSuffix(".txt") }
+        for name in saved.sorted() {
+            let bytes = [UInt8]((try? Data(contentsOf: folder.appendingPathComponent(name))) ?? Data())
+            if name.hasSuffix(".docx") {
+                let parts = (try? ZipArchive.entries(bytes)) ?? []
+                let xml = parts.first { $0.name == "word/document.xml" }.map { String(decoding: $0.bytes, as: UTF8.self) } ?? ""
+                let texts = xml.components(separatedBy: "<w:t xml:space=\"preserve\">").dropFirst().map { String($0.prefix { $0 != "<" }) }
+                lines.append("  \(name): \(bytes.count) bytes, \(parts.count) parts, Heading 1 \(xml.contains("w:val=\"Heading1\"")), paragraphs \(texts.count): \(texts.prefix(4).joined(separator: " | "))")
+            } else {
+                let text = String(decoding: bytes.dropFirst(3), as: UTF8.self)
+                lines.append("  \(name): \(bytes.count) bytes, BOM \(bytes.starts(with: [0xEF, 0xBB, 0xBF])), CRLF \(text.contains("\r\n")): \(text.split(whereSeparator: \.isNewline).prefix(3).joined(separator: " | "))")
+            }
+        }
+        return lines
+    }
+
     /// Pixels darker than mid-grey in `image` drawn grey (-1 when it can't be drawn).
     private static func darkPixels(_ image: NSImage) -> Int {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }
