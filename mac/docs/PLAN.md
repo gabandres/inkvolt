@@ -337,7 +337,11 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   starting from the face chosen last for the queue, else the printer's, else face down; the steps follow it; Print the Backs
   or Stop); Batch Print's Two-sided always on offer, a file two-sided on a one-sided queue printed by hand; the Print menu's
   Print a PDF on Both Sides by Hand… where the queue can't print both sides (copies asked, then straight to the queue as Batch
-  sends a file); `--report … --hand-duplex`. **Mac differences:** Print a PDF by hand goes straight to the queue at its
+  sends a file); Print a PDF's booklet on a one-sided queue printed by hand as Windows' `SheetPrinting.PrintAsync` does
+  (`HandDuplexPrinting.printSheets`: copies asked, the sides drawn by `SheetPrintView` into a PDF of their own at the queue's
+  default paper with two-sided on the long edge, so each turned back is half-turned, then the runner's by-hand path, the
+  prompt naming a set-aside sheet by the document's page, `BatchPrintLine.pageNumbers` from `SheetPrint.sideNumbers`);
+  `--report … --hand-duplex`. **Mac differences:** Print a PDF by hand and a booklet by hand go straight to the queue at its
   default paper (Windows' Print tab keeps its own options), not through macOS's print panel, which runs one job; a PDF that
   needs a password isn't asked for one there (it's said and left out; Batch asks); no Copy (the Mac's Copy is the ID card's,
   one side); the printer's face is cupsd's copy of the printer's attributes. Not checked: paper on a real one-sided printer,
@@ -397,16 +401,15 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   per sheet as before, several pages per sheet with 2 to 16, a booklet, a poster with its size and cut marks); a layout other
   than one page per sheet prints `SheetPrintView` through the print panel: the plan laid out for the panel's paper as it
   changes, each page drawn by PDFKit (vectors, annotations included) into its place, a poster's part clipped to its box, cut
-  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words, a booklet on a queue that
-  says it prints one side only too. `--report … --pdf-layout` prints the sample to PDFs in the container and says where
+  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words; a booklet on a queue that
+  says it prints one side only goes by hand (4.2). `--report … --pdf-layout` prints the sample to PDFs in the container and says where
   PDFKit finds each page's words. **Mac differences:** Inkvolt PDF for Mac's PdfCore keeps its own `PrintLayout` (Windows
   moved Inkvolt PDF's into the shared core), so PrintCore's are nested in `Sheets` (PdfCore imports PrintCore, and two
   `PrintSetup`s at the top level would collide in every file that imports both); `grid` takes a count that isn't a choice
   as 2 (Windows throws); lengths are in DIPs as on Windows and drawn in points (`SheetPrint.pointsPerUnit`); copies and two
   sides are the print panel's (macOS makes the copies, so `SheetPrint.order`'s blank back between copies isn't used); a
   booklet asks the panel for two-sided on the long edge, and a back is drawn half-turned only while the job prints on the
-  long edge (on the short edge it needs no turn); no two-sided by hand, so a booklet on a one-sided queue is refused rather
-  than printed by hand; pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
+  long edge (on the short edge it needs no turn); pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
   its Print a PDF view, with a count of the sheets). Not checked: a booklet and a poster on paper (fold, trim), the open
   panel's Layout row on screen (VoiceOver), a printer with no queue picked in the panel for a booklet.
 

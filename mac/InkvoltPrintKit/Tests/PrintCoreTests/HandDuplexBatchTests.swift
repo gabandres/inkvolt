@@ -69,6 +69,22 @@ struct HandDuplexBatchTests {
         #expect(summary.items[0].sheetsSent == 3)
     }
 
+    // Mac only: a laid-out job's file (a booklet's or pages per sheet's sides) names its set-aside sheet by the document's page.
+    @Test func aLaidOutFileNamesTheSetAsideSheetByTheDocumentsPage() async throws {
+        let folder = BatchFolder()
+        let lastPages = Mutex<[Int?]>([])
+        let options = Self.options { _, plan, _ in
+            lastPages.withLock { $0.append(plan.reload(.down).lastPage) }
+            return .down
+        }
+        let plain = try await Self.line(folder, "sides.pdf", 3)
+        let named = BatchPrintLine(plain.path, plain.settings, plain.measure, Self.oneSided, byHand: true, pageNumbers: [1, 5, 9])
+        let queue = Queue()
+        _ = await BatchPrintRunner.run([plain, named], queue, FakeDocuments(), options: options)
+        #expect(lastPages.withLock { $0 } == [3, 9])
+        #expect(queue.sent.map(\.pages) == [[1, 3], [2], [1, 3], [2]]) // the same sides either way
+    }
+
     @Test func copiesOfAnOddFileSendABlankSideBetweenThemFaceUpInOrder() async throws {
         let folder = BatchFolder()
         let queue = Queue()

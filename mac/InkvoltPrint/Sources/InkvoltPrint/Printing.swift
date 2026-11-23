@@ -44,10 +44,18 @@ enum Printing {
             print(document, name: name, on: printer, app: app)
             return
         }
-        var bothSides: Bool? // the queue's say, when it has one; else the panel's printer decides
-        if SheetPrint.twoSided(setup, asked: false), let queue = printer.queueName { bothSides = await LibCups().printsBothSides(queue) }
-        if let problem = sheetProblem(setup, document, bothSides: bothSides) {
+        var bothSides: Bool? // the queue's say (demo mode's made-up ones too), when it has one; else the panel's printer decides
+        if SheetPrint.twoSided(setup, asked: false) { bothSides = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
+        let byHand = HandDuplex.offered(bothSides)
+        if let problem = sheetProblem(setup, document, bothSides: bothSides, byHand: byHand) {
             alert(problem)
+            return
+        }
+        // A booklet on a queue that prints one side: by hand, as Windows' SheetPrinting.PrintAsync (roadmap 4.2).
+        if SheetPrint.route(setup, asked: false, printerTwoSided: bothSides ?? true, byHand: byHand) == .byHand {
+            if let message = await HandDuplexPrinting.printSheets(document, choice: choice, name: name, on: printer, app: app)?.items.first?.message {
+                alert(message)
+            }
             return
         }
         printSheets(document, choice: choice, name: name, on: printer, app: app)

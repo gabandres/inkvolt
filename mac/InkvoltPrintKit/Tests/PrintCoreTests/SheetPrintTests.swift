@@ -174,6 +174,25 @@ struct SheetPrintTests {
         #expect(SheetPrint.pageOnSide(booklet, 1, printed) == 5)
     }
 
+    // Mac only (Windows builds the same plan in SheetPrinting.PrintAsync): a booklet on a one-sided printer goes by hand, its
+    // sides as the plan's pages, each named by the document's page on it, the backs half-turned as on a duplexer.
+    @Test func aLayoutPrintedByHandNamesItsSidesByTheDocumentsPages() {
+        let booklet = SheetPrint.plan(Self.pages(8), Self.letter.0, Self.letter.1, Self.setup(SheetChoice(.booklet)))
+        let even = Array(stride(from: 2, through: 16, by: 2))
+        let names = SheetPrint.sideNumbers(booklet, even)
+        #expect(names == [2, 4, 6, 8])
+        let byHand = HandDuplexPlan.plan(Array(0..<booklet.sheetCount), pageNumber: { names[$0] })
+        #expect(byHand.fronts == [0, 2] && byHand.backs(.down) == [3, 1] && byHand.backs(.up) == [1, 3])
+        #expect(!byHand.setAside && byHand.sheets == 2)
+        #expect((0..<booklet.sheetCount).map { SheetPrint.halfTurned(booklet.sheet($0), $0, twoSided: true) } == [false, true, false, true])
+        // An odd count of sides: the last sheet is set aside and named by its first page, not its side's number.
+        let four = SheetPrint.plan(Self.pages(9), Self.letter.0, Self.letter.1, Self.setup(SheetChoice(.pagesPerSheet, pagesPerSheet: 4)))
+        let fourNames = SheetPrint.sideNumbers(four, Array(1...9))
+        #expect(fourNames == [1, 5, 9])
+        let odd = HandDuplexPlan.plan(Array(0..<four.sheetCount), pageNumber: { fourNames[$0] })
+        #expect(odd.setAside && odd.reload(.down).lastPage == 9)
+    }
+
     @Test func theAreaKeepsAQuarterInchClear() {
         let a = SheetPrint.area(816, 1056)
         #expect(a == Placement(24, 24, 768, 1008))

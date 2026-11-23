@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import PDFKit
 import PrintCore
 import PrintMac
 
@@ -47,6 +48,20 @@ extension Report {
             lines.append("  Print a PDF by hand: \(single.items.first?.message ?? "?"); prompt: \(HandDuplexPrinting.lastPrompt ?? "none")")
         } else {
             lines.append("  Print a PDF by hand: no laser printer in the list")
+        }
+
+        // A booklet on the one-sided laser (roadmap 4.18 with 4.2): its sides drawn into a PDF, then by hand, answered face down.
+        HandDuplexPrinting.answer = .down
+        let booklet = SheetChoice(.booklet)
+        if let laser = model.printers.first(where: { $0.queueName == laserName }), let setup = SheetPrint.setup(booklet),
+           let ten = pdf(10, folder.appendingPathComponent("ten pages.pdf")), let document = PDFDocument(url: ten) {
+            let twoSided = await HandDuplexPrinting.queueTwoSided(laser, app: model)
+            let route = SheetPrint.route(setup, asked: false, printerTwoSided: twoSided ?? true, byHand: HandDuplex.offered(twoSided))
+            let sent = await HandDuplexPrinting.printSheets(document, choice: booklet, name: "ten pages", on: laser, app: model, copies: 1)
+            lines.append("  booklet on the laser: route \(route), \(HandDuplexPrinting.lastSides ?? "no sides"); \(sent?.items.first?.message ?? "not sent")")
+            lines.append("  booklet prompt: \(HandDuplexPrinting.lastPrompt ?? "none")")
+        } else {
+            lines.append("  booklet on the laser: no laser printer in the list")
         }
         return lines
     }

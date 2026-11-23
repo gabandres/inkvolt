@@ -563,11 +563,17 @@ public struct BatchPrintLine: Sendable, CustomStringConvertible {
     public let sheets: Int
     /// Two-sided by hand: the fronts, the stack put back, the backs (`HandDuplexPlan`).
     public let byHand: Bool
+    /// The document's page each of the file's pages shows (1-based, in the file's order), for the prompt's words ("page 7"):
+    /// a laid-out job's sides (`SheetPrint.sideNumbers`); nil: the file's own page numbers.
+    public let pageNumbers: [Int]?
 
     /// - Parameter byHand: two-sided on a printer that can't print both sides is printed by hand (roadmap 4.2): someone is
     ///   there to put the stack back (`BatchPrintOptions.turnStack`).
-    public init(_ path: String, _ settings: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?, byHand: Bool = false) {
+    /// - Parameter pageNumbers: what each page of the file shows of the document, for two-sided by hand's words.
+    public init(_ path: String, _ settings: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?, byHand: Bool = false,
+                pageNumbers: [Int]? = nil) {
         self.path = path
+        self.pageNumbers = pageNumbers
         self.settings = settings
         self.measure = measure
         self.byHand = byHand && settings.twoSided && queue?.canTwoSided == false
@@ -788,7 +794,12 @@ public enum BatchPrintRunner {
                                _ turnStack: @Sendable (String, HandDuplexPlan, BatchStop) async -> OutputFace?,
                                _ progress: (@Sendable (BatchPrintProgress) -> Void)?, _ index: Int, _ stop: BatchStop) async throws -> Outcome {
         let pages = line.pages
-        let plan = HandDuplexPlan.plan(Array(pages.indices), copies: line.settings.copies, pageNumber: { pages[$0] })
+        let numbers = line.pageNumbers
+        // The prompt names a set-aside sheet by the document's page on it (a laid-out side's first), never the side's number.
+        let plan = HandDuplexPlan.plan(Array(pages.indices), copies: line.settings.copies, pageNumber: { i in
+            guard let numbers, pages[i] >= 1, pages[i] <= numbers.count else { return pages[i] }
+            return numbers[pages[i] - 1]
+        })
         func page(_ side: Int) -> Int { side < 0 ? 0 : pages[side] }
         let fronts = BatchPrintJob(name: line.name, pages: plan.fronts.map(page), copies: 1, twoSided: false, paper: line.settings.paper, sheets: plan.sheets)
         let receipt: BatchReceipt

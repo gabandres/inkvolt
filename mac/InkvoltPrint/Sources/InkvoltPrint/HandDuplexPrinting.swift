@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 import PrintCore
 import PrintMac
 import UniformTypeIdentifiers
@@ -14,6 +15,8 @@ enum HandDuplexPrinting {
     static var answer: OutputFace?
     /// What the last prompt said, for `--report`.
     private(set) static var lastPrompt: String?
+    /// The last booklet by hand's sides file (its sides, paper and the pages they're named by), for `--report`.
+    private(set) static var lastSides: String?
 
     /// The face to start the prompt on: the one chosen last for `queue`, else the printer's, else face down (the usual).
     static func startingFace(_ queue: String, printer: OutputFace?) -> OutputFace {
@@ -129,10 +132,47 @@ enum HandDuplexPrinting {
         return max(1, min(field.integerValue, BatchPrintLimits.maxCopies))
     }
 
-    /// `url` printed by hand on `printer`'s queue; the summary, or nil when there's no queue (said).
-    static func run(_ url: URL, copies: Int, on printer: PrinterModel, app: AppModel) async -> BatchPrintSummary? {
-        let found = printer.queueName.flatMap { (n: String) -> (any BatchQueue)? in app.isDemo ? DemoBatchQueue.named(n) : CupsBatchQueue(queue: n) }
-        guard let name = printer.queueName, let queue = found else {
+    /// Print a PDF's booklet on a printer whose queue can't print both sides (roadmap 4.18 with 4.2; Windows'
+    /// `SheetPrinting.PrintAsync` with a `HandDuplexPrinter`): the copies asked (`copies` given: not asked), the booklet's sides
+    /// drawn by `SheetPrintView` into a PDF of their own at the queue's default paper as a duplexer would get them (two-sided
+    /// on the long edge, so each turned back is drawn half-turned: `SheetPrint.halfTurned`), then sent by hand as `run` sends a
+    /// file, the prompt naming a set-aside sheet by the document's page on it (`SheetPrint.sideNumbers`), never its side's
+    /// number. The sides' file is deleted once the backs are sent or stopped. The summary, or nil when nothing was sent (said).
+    static func printSheets(_ document: PDFDocument, choice: SheetChoice, name: String, on printer: PrinterModel, app: AppModel,
+                            copies given: Int? = nil) async -> BatchPrintSummary? {
+        guard let copies = given ?? askCopies(name) else { return nil }
+        guard let queue = batchQueue(printer, app: app), let info = try? await queue.read() else {
+            Printing.alert(String(localized: "This printer has no macOS print queue to print through."))
+            return nil
+        }
+        let guess = SheetPrint.guessPaper(metric: Locale.current.measurementSystem == .metric)
+        var points = (width: guess.width * SheetPrint.pointsPerUnit, height: guess.height * SheetPrint.pointsPerUnit)
+        if let size = info.defaultPaper.flatMap(BatchQueueReading.size) { points = size }
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("Inkvolt Print by hand", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent(name + ".pdf")
+        guard (try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
+              let view = Printing.printSheets(document, choice: choice, name: name, on: nil, app: nil, save: url,
+                                              paper: NSSize(width: points.width, height: points.height)),
+              let sides = PDFDocument(url: url), sides.pageCount == view.plan.sheetCount else {
+            Printing.alert(String(localized: "macOS couldn't prepare the pages for printing."))
+            return nil
+        }
+        let names = SheetPrint.sideNumbers(view.plan, Array(1...max(1, document.pageCount)))
+        lastSides = "\(sides.pageCount) sides at \(Int(points.width)) × \(Int(points.height)) pt, named by pages \(names)"
+        return await run(url, copies: copies, on: printer, app: app, pageNumbers: names)
+    }
+
+    /// `printer`'s queue as Batch Print sends to it (demo mode's made-up ones), or nil when it has none.
+    private static func batchQueue(_ printer: PrinterModel, app: AppModel) -> (any BatchQueue)? {
+        printer.queueName.flatMap { (n: String) -> (any BatchQueue)? in app.isDemo ? DemoBatchQueue.named(n) : CupsBatchQueue(queue: n) }
+    }
+
+    /// `url` printed by hand on `printer`'s queue; the summary, or nil when there's no queue (said). `pageNumbers`: the
+    /// document's page each of the file's pages shows, for the prompt (`BatchPrintLine.pageNumbers`).
+    static func run(_ url: URL, copies: Int, on printer: PrinterModel, app: AppModel, pageNumbers: [Int]? = nil) async -> BatchPrintSummary? {
+        guard let name = printer.queueName, let queue = batchQueue(printer, app: app) else {
             Printing.alert(String(localized: "This printer has no macOS print queue to print through."))
             return nil
         }
@@ -144,7 +184,7 @@ enum HandDuplexPrinting {
             Printing.alert(String(localized: "This printer has no macOS print queue to print through."))
             return nil
         }
-        let line = BatchPrintLine(path, BatchPrintSettings(copies: copies, twoSided: true), measure, info, byHand: true)
+        let line = BatchPrintLine(path, BatchPrintSettings(copies: copies, twoSided: true), measure, info, byHand: true, pageNumbers: pageNumbers)
         if let problem = line.problem {
             Printing.alert(problem)
             return nil
