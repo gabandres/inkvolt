@@ -1673,10 +1673,15 @@ disk filling up.
 Windows' 3.3 on the Mac's E3 Compare: CompareChangesTests, CompareAlignTests and CompareContractTests ported with their
 names (camelCase), then `CompareLooks`, `CompareMoves`, `CompareScan` and `CompareAlign`.
 
-**Windows ahead, to port:** `CompareAlign` lines up a scan at another size or a quarter turn off
-(`PageAlignment.Scale`, the frames tried per quarter turn, the sizing at 2 pixels; CompareAlignTests'
-`AScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp`, `WhatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
-`AScaledAlignmentGoesThereAndBack`), and Compare reads scans with the language's dictionary. E15's exports carry links
+Windows' scans at another size or a quarter turn off (0950dc5a) are ported: `PageAlignment.scale`, and `CompareAlign`
+tries each quarter turn whose ink box has the old one's proportions on 4-pixel cells, sizes the best at 2 pixels (±5 %,
+then ±0.6 %), then finds skew and shift in that frame as before, kept only when the ink agrees better (CompareAlignTests'
+`aScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp` with Windows' 7 cases, `whatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
+`aScaledAlignmentGoesThereAndBack`; a zero scale stands for .NET's default value). `--only-compare` compares a scan with
+the same scan fed sideways.
+
+**Windows ahead, to port:** Compare reads scans with the language's dictionary (which way up, when the cleanup isn't
+sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). E15's exports carry links
 (`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests). Folder search's phrase reading: a file's
 pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
 `SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
@@ -2324,8 +2329,8 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
-- "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
-  phrase reading.
+- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary, E15's links, folder
+  search's phrase reading.
 - Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
   34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
   through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).

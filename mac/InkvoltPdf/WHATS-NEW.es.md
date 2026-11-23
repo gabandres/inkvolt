@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Comparar archivos alinea una página escaneada a otro tamaño o girada un cuarto de vuelta (de lado o boca abajo) con la otra versión antes de mostrar lo que se ve distinto, así que la misma página ya no parece distinta por todas partes.
 
 ## 1.13.0
 - Un PDF abierto con su contraseña mostraba las páginas en blanco (su texto se podía buscar y copiar). Ahora sus páginas se ven.

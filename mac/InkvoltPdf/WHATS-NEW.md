@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.
 
 ## 1.13.0
 - A PDF opened with its password showed blank white pages (its text could still be searched and copied). Its pages now show.
