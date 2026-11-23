@@ -1362,12 +1362,24 @@
         }
       }
     },
-    "Authentication passphrase (SHA-256)": {
+    "Authentication passphrase": {
+      "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Frase de contraseña de autenticación (SHA-256)"
+            "value": "Frase de contraseña de autenticación"
+          }
+        }
+      }
+    },
+    "Authentication protocol": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protocolo de autenticación"
           }
         }
       }
@@ -3656,6 +3668,17 @@
         }
       }
     },
+    "MD5, SHA-1 and DES are old and weak: choose them only for a printer that offers nothing better.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "MD5, SHA-1 y DES son antiguos y débiles: elígelos solo para una impresora que no ofrezca nada mejor."
+          }
+        }
+      }
+    },
     "Maintenance": {
       "localizations": {
         "es": {
@@ -4112,6 +4135,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "En un alimentador de una cara, dar la vuelta a la pila para los reversos"
+          }
+        }
+      }
+    },
+    "On the printer's panel: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En el panel de la impresora: %@"
           }
         }
       }
@@ -5008,12 +5042,24 @@
         }
       }
     },
-    "Privacy passphrase (AES-128)": {
+    "Privacy passphrase": {
+      "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Frase de contraseña de privacidad (AES-128)"
+            "value": "Frase de contraseña de privacidad"
+          }
+        }
+      }
+    },
+    "Privacy protocol": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protocolo de privacidad"
           }
         }
       }

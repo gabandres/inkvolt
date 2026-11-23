@@ -25,13 +25,45 @@ public struct PrinterStatus: Equatable, Sendable {
     public var severity: Severity
     public var alerts: [PrinterAlert]
     public var detail: String?
+    /// What the printer's control panel says now, as the printer sends it (the Printer MIB's prtConsoleDisplayBufferText
+    /// lines, IPP's `printer-state-message`, LEDM's status text); nil when it says nothing or wasn't read. CDM has no such
+    /// text that we know of.
+    public var panelText: String?
 
-    public init(code: String, message: String, severity: Severity, alerts: [PrinterAlert], detail: String? = nil) {
+    public init(code: String, message: String, severity: Severity, alerts: [PrinterAlert], detail: String? = nil, panelText: String? = nil) {
         self.code = code
         self.message = message
         self.severity = severity
         self.alerts = alerts
         self.detail = detail
+        self.panelText = panelText
+    }
+
+    /// The longest panel text shown (a panel's few lines; a printer may send pages).
+    public static let maxPanelText = 160
+
+    /// The panel's text to show with the status: one clean line of at most `maxPanelText` characters (`FleetText.clean`),
+    /// only when it says more than the status line does (not the same words, ignoring case and a final period, nor a plain
+    /// "Idle" or "Ready" under the app's own word for it). A ready or idle printer's panel saying one short line of a word or
+    /// two is its state in the panel's language ("Prêt", "Bereit", "Lista"): not shown either. Nil otherwise.
+    public var panelNote: String? {
+        guard let text = FleetText.clean(panelText, Self.maxPanelText) else { return nil }
+        let said = IppClient.headline(text, message)
+        if Self.trimmedEnd(said).caseInsensitiveCompare(Self.trimmedEnd(message.trimmingCharacters(in: .whitespaces))) == .orderedSame { return nil }
+        if (code == "ready" || code == "idle") && Self.isStateWord(said) { return nil }
+        return said
+    }
+
+    private static func trimmedEnd(_ text: String) -> String {
+        var t = Substring(text)
+        while t.last == "." || t.last == "!" { t.removeLast() }
+        return String(t)
+    }
+
+    /// One short line of one or two words, no figures: how a panel names its state, in whatever language.
+    private static func isStateWord(_ text: String) -> Bool {
+        text.count <= 20 && !text.contains(" · ") && !text.contains(where: \.isNumber)
+            && text.split(separator: " ", omittingEmptySubsequences: true).count <= 2
     }
 
     public static func offline(_ why: String) -> PrinterStatus { PrinterStatus(code: "offline", message: why, severity: .error, alerts: []) }
@@ -76,10 +108,14 @@ public struct Consumable: Equatable, Sendable {
     public var lowThreshold: Int?
     public var estimatedPagesRemaining: Int?
     public var installed: DateComponents?
+    /// The pages a full cartridge is rated for, when the printer says (CDM's `capacity` in pages, IPP's `printer-supply` and
+    /// the Printer MIB's prtMarkerSuppliesMaxCapacity counted in impressions or sheets); nil otherwise. Beside
+    /// `estimatedPagesRemaining`, the pages left in it now.
+    public var pageYield: Int?
 
     public init(name: String, kind: String, colorCode: String?, percentRemaining: Int?, state: String,
                 productNumber: String? = nil, selectibilityNumber: String? = nil, lowThreshold: Int? = nil,
-                estimatedPagesRemaining: Int? = nil, installed: DateComponents? = nil) {
+                estimatedPagesRemaining: Int? = nil, installed: DateComponents? = nil, pageYield: Int? = nil) {
         self.name = name
         self.kind = kind
         self.colorCode = colorCode
@@ -90,6 +126,7 @@ public struct Consumable: Equatable, Sendable {
         self.lowThreshold = lowThreshold
         self.estimatedPagesRemaining = estimatedPagesRemaining
         self.installed = installed
+        self.pageYield = pageYield
     }
 
     /// Needs attention soon: low, empty, or (a waste box) almost full or full.

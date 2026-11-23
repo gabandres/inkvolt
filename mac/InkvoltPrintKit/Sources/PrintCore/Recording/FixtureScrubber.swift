@@ -315,7 +315,8 @@ public final class FixtureScrubber {
     // An element with text only: <dd:SerialNumber attr="…">CN…</dd:SerialNumber>.
     private static let xmlField = regex(#"<(?<p>(?:[\w.-]+:)?(?<n>[A-Za-z][\w.-]*))(?:\s[^>]*)?>(?<v>[^<]*)</\k<p>\s*>"#)
     private static let jsonField = regex(#""(?<n>[A-Za-z][\w-]*)"\s*:\s*"(?<v>(?:[^"\\]|\\.)*)""#)
-    private static let ippLine = regex(#"^(?<n>[a-z][a-z0-9-]*) (?<s>[A-Za-z]+) (?<v>.*?)\r?$"#, .anchorsMatchLines)
+    // A collection's members are indented under it (IppText): read as the attribute lines they are.
+    private static let ippLine = regex(#"^[ \t]*(?<n>[a-z][a-z0-9-]*) (?<s>[A-Za-z]+) (?<v>.*?)\r?$"#, .anchorsMatchLines)
     private static let snmpString = regex(#"^\.(?<oid>[\d.]+) = STRING: "(?<v>.*)"\r?$"#, .anchorsMatchLines)
     // IEEE 1284 device ID: SN:CN123…; or SERN:…;
     private static let deviceIdSerial = regex(#"(?:^|;)\s*(?:SN|SERN|SERIALNUMBER):(?<v>[^;]{3,})"#, .caseInsensitive)

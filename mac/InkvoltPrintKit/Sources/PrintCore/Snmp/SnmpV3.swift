@@ -1,10 +1,29 @@
 import Foundation
 import Synchronization
 
-/// An SNMPv3 user (RFC 3414's User-based Security Model) as Inkvolt Print signs in with it: authPriv only, authentication
-/// HMAC-SHA-256 truncated to 192 bits (usmHMAC192SHA256AuthProtocol, RFC 7860), privacy AES-128 in CFB mode
-/// (usmAesCfb128Protocol, RFC 3826). The passphrases are secrets: kept with the `SnmpLogin` in the Keychain; neither the
-/// description nor the mirror shows them. The Windows Core's `SnmpV3User`.
+/// The USM authentication protocols spoken: HMAC-SHA-256 cut to 192 bits (usmHMAC192SHA256AuthProtocol, RFC 7860, the
+/// default), and RFC 3414's HMAC-SHA-1-96 and HMAC-MD5-96 (usmHMACSHAAuthProtocol, usmHMACMD5AuthProtocol) for agents that
+/// offer no better. The raw values are Windows' names, kept with the login.
+public enum SnmpAuth: String, CaseIterable, Sendable {
+    case sha256 = "Sha256", sha1 = "Sha1", md5 = "Md5"
+}
+
+/// The USM privacy protocols spoken: AES-128 in CFB mode (usmAesCfb128Protocol, RFC 3826, the default), AES-192 and AES-256
+/// in CFB mode (draft-blumenthal-aes-usm-04: the same IV, the key lengthened as `Usm.extend` says), and RFC 3414 §8's CBC-DES
+/// (usmDESPrivProtocol) for agents that offer no better. The raw values are Windows' names, kept with the login.
+public enum SnmpPriv: String, CaseIterable, Sendable {
+    case aes128 = "Aes128", aes192 = "Aes192", aes256 = "Aes256", des = "Des"
+}
+
+/// The hashes the protocols key and sign with.
+public enum SnmpHash: Sendable {
+    case md5, sha1, sha256
+}
+
+/// An SNMPv3 user (RFC 3414's User-based Security Model) as Inkvolt Print signs in with it: authPriv only, with the
+/// authentication and privacy protocols the printer's agent was set up with (`auth`, `priv`; SHA-256 and AES-128 unless
+/// chosen). The passphrases are secrets: kept with the `SnmpLogin` in the Keychain; neither the description nor the mirror
+/// shows them. The Windows Core's `SnmpV3User`.
 public struct SnmpV3User: Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
     /// RFC 3414 §11.2: shorter passphrases make weak keys; net-snmp refuses them too.
     public static let minPassphrase = 8
@@ -18,14 +37,18 @@ public struct SnmpV3User: Hashable, Sendable, CustomStringConvertible, CustomDeb
     public let name: String
     public let authPassphrase: String
     public let privPassphrase: String
+    public let auth: SnmpAuth
+    public let priv: SnmpPriv
 
-    init(name: String, authPassphrase: String, privPassphrase: String) {
+    init(name: String, authPassphrase: String, privPassphrase: String, auth: SnmpAuth = .sha256, priv: SnmpPriv = .aes128) {
         self.name = name
         self.authPassphrase = authPassphrase
         self.privPassphrase = privPassphrase
+        self.auth = auth
+        self.priv = priv
     }
 
-    public var description: String { "SNMPv3 user \(name) (SHA-256, AES-128; keys kept)" }
+    public var description: String { "SNMPv3 user \(name) (\(Usm.name(auth)), \(Usm.name(priv)); keys kept)" }
 
     public var debugDescription: String { description }
 
@@ -37,24 +60,81 @@ public struct SnmpV3User: Hashable, Sendable, CustomStringConvertible, CustomDeb
 /// The protocol's logic (keys from passphrases, localization, the digest's place, CFB over the block cipher, the message
 /// flow) is PrintCore's, in `Usm`.
 public protocol SnmpCrypto: Sendable {
-    /// SHA-256 of `data` (32 bytes).
-    func sha256(_ data: [UInt8]) -> [UInt8]
+    /// MD5 (RFC 1321, 16 bytes), SHA-1 (20) or SHA-256 (32; FIPS 180-4) of `data`.
+    func hash(_ algorithm: SnmpHash, _ data: [UInt8]) -> [UInt8]
 
-    /// HMAC-SHA-256 of `data` with `key` (all 32 bytes; `Usm.authenticate` keeps the first 24).
-    func hmacSha256(key: [UInt8], _ data: [UInt8]) -> [UInt8]
+    /// HMAC (RFC 2104) of `data` with `key` and that hash, all of it (`Usm.authenticate` cuts it to the protocol's length).
+    func hmac(_ algorithm: SnmpHash, key: [UInt8], _ data: [UInt8]) -> [UInt8]
 
-    /// AES-128's forward cipher on one 16-byte block with a 16-byte key (FIPS 197): CFB is built on it (`Usm.aesCfb`).
-    func aes128(key: [UInt8], block: [UInt8]) -> [UInt8]
+    /// AES's forward cipher on one 16-byte block with a 16-, 24- or 32-byte key (FIPS 197): CFB is built on it (`Usm.aesCfb`).
+    func aes(key: [UInt8], block: [UInt8]) -> [UInt8]
+
+    /// DES on one 8-byte block with an 8-byte key (FIPS 46-3), either way: CBC is built on it (`Usm.desCbc`, which refuses
+    /// DES's weak keys before asking).
+    func des(key: [UInt8], block: [UInt8], encrypt: Bool) -> [UInt8]
 }
 
-/// The User-based Security Model (RFC 3414 §2.6 and A.2, RFC 7860, RFC 3826) over an `SnmpCrypto`. Keys are localized to
-/// one agent's engine ID, so a key read off one printer is no use on another. The Windows Core's `Usm`.
+extension SnmpCrypto {
+    /// SHA-256 of `data` (32 bytes).
+    public func sha256(_ data: [UInt8]) -> [UInt8] { hash(.sha256, data) }
+
+    /// HMAC-SHA-256 of `data` with `key` (all 32 bytes).
+    public func hmacSha256(key: [UInt8], _ data: [UInt8]) -> [UInt8] { hmac(.sha256, key: key, data) }
+
+    /// AES-128's forward cipher on one block.
+    public func aes128(key: [UInt8], block: [UInt8]) -> [UInt8] { aes(key: key, block: block) }
+}
+
+/// The User-based Security Model (RFC 3414 §2.6, §6 to §8 and A.2, RFC 7860, RFC 3826, draft-blumenthal-aes-usm-04) over an
+/// `SnmpCrypto`. Keys are localized to one agent's engine ID, so a key read off one printer is no use on another. The Windows
+/// Core's `Usm`.
 public enum Usm {
     /// usmHMAC192SHA256AuthProtocol's msgAuthenticationParameters: the first 24 bytes of HMAC-SHA-256 (RFC 7860 §4.2.1).
     public static let authLength = 24
 
-    /// usmAesCfb128Protocol's msgPrivacyParameters: the 64-bit salt (RFC 3826 §3.1.2.1).
+    /// usmAesCfb128Protocol's msgPrivacyParameters: the 64-bit salt (RFC 3826 §3.1.2.1); CBC-DES's is 8 bytes too (RFC 3414
+    /// §8.1.1.1).
     public static let saltLength = 8
+
+    /// A protocol's msgAuthenticationParameters: 24 bytes for HMAC-SHA-256-192, 12 for HMAC-SHA-1-96 and HMAC-MD5-96
+    /// (RFC 3414 §6.3.1, §7.3.1).
+    public static func digestLength(_ auth: SnmpAuth) -> Int { auth == .sha256 ? authLength : 12 }
+
+    /// The hash a protocol keys and signs with.
+    public static func hash(_ auth: SnmpAuth) -> SnmpHash {
+        switch auth {
+        case .md5: .md5
+        case .sha1: .sha1
+        case .sha256: .sha256
+        }
+    }
+
+    /// A privacy protocol's key: AES-128 16 bytes, AES-192 24, AES-256 32; CBC-DES 16 (its key, then its pre-IV).
+    public static func privKeyLength(_ priv: SnmpPriv) -> Int {
+        switch priv {
+        case .aes192: 24
+        case .aes256: 32
+        case .aes128, .des: 16
+        }
+    }
+
+    /// The protocols' names as agents' settings show them.
+    public static func name(_ auth: SnmpAuth) -> String {
+        switch auth {
+        case .md5: "MD5"
+        case .sha1: "SHA-1"
+        case .sha256: "SHA-256"
+        }
+    }
+
+    public static func name(_ priv: SnmpPriv) -> String {
+        switch priv {
+        case .aes128: "AES-128"
+        case .aes192: "AES-192"
+        case .aes256: "AES-256"
+        case .des: "DES"
+        }
+    }
 
     /// RFC 3414 §2.2.3: a message's time may differ from the engine's by this much (seconds).
     public static let timeWindow = 150
@@ -74,7 +154,11 @@ public enum Usm {
     /// RFC 3414 A.2.1 (A.2.2 for SHA-1; RFC 7860 §4.2.2 the same with SHA-2): the passphrase repeated to 1 MiB, hashed.
     /// `hash` is any of them (the tests check RFC 3414 A.3's MD5 and SHA-1 vectors with it).
     public static func passwordToKey(_ passphrase: String, hash: ([UInt8]) -> [UInt8]) -> [UInt8] {
-        let password = Array(passphrase.utf8)
+        passwordToKey(Array(passphrase.utf8), hash: hash)
+    }
+
+    /// The same over bytes (Reeder's key extension runs it over a localized key).
+    public static func passwordToKey(_ password: [UInt8], hash: ([UInt8]) -> [UInt8]) -> [UInt8] {
         precondition(!password.isEmpty, "An empty passphrase makes no key.")
         let count = 1_048_576
         let expanded = [UInt8](unsafeUninitializedCapacity: count) { buffer, initialized in
@@ -91,7 +175,85 @@ public enum Usm {
 
     /// usmHMAC192SHA256AuthProtocol over a whole message whose msgAuthenticationParameters are 24 zero bytes.
     public static func authenticate(key: [UInt8], _ message: [UInt8], _ crypto: any SnmpCrypto) -> [UInt8] {
-        Array(crypto.hmacSha256(key: key, message).prefix(authLength))
+        authenticate(.sha256, key: key, message, crypto)
+    }
+
+    /// A protocol's digest over a whole message whose msgAuthenticationParameters are zeros: the HMAC cut to
+    /// `digestLength` (RFC 3414 §6.3.1 HMAC-MD5-96, §7.3.1 HMAC-SHA-96, RFC 7860 §4.2.1).
+    public static func authenticate(_ auth: SnmpAuth, key: [UInt8], _ message: [UInt8], _ crypto: any SnmpCrypto) -> [UInt8] {
+        Array(crypto.hmac(hash(auth), key: key, message).prefix(digestLength(auth)))
+    }
+
+    /// How a localized key too short for its cipher (SHA-1's 20 bytes or MD5's 16 for AES-192 or AES-256) is lengthened.
+    /// Blumenthal's (draft-blumenthal-aes-usm-04 §3.1.2.1, net-snmp's default): the hash of all of it so far appended, until
+    /// long enough. Reeder's (draft-reeder-snmpv3-usm-3desede-00 §2.1, Cisco's and pysnmp's usmAesCfb192/256): the key so
+    /// far run through password-to-key and localized again, appended. SHA-256's 32 bytes need neither.
+    public enum KeyExtension: Sendable {
+        case blumenthal, reeder
+    }
+
+    /// A localized key lengthened to `length` bytes (`KeyExtension`), or cut to it.
+    public static func extend(_ kul: [UInt8], to length: Int, _ auth: SnmpAuth, engineId: [UInt8], _ how: KeyExtension,
+                              _ crypto: any SnmpCrypto) -> [UInt8] {
+        let algorithm = hash(auth)
+        let hashing: ([UInt8]) -> [UInt8] = { crypto.hash(algorithm, $0) }
+        var key = kul
+        while key.count < length {
+            key += how == .reeder ? localize(passwordToKey(key, hash: hashing), engineId: engineId, hash: hashing) : hashing(key)
+        }
+        return Array(key.prefix(length))
+    }
+
+    /// RFC 3414 §8.1.1.1: CBC-DES's salt is the engine's boots (4 bytes) then a number this sender changes every message
+    /// (4 bytes); AES's is a 64-bit number that changes every message (RFC 3826 §3.1.2.1).
+    public static func salt(_ priv: SnmpPriv, boots: Int, counter: UInt64) -> [UInt8] {
+        var salt = withUnsafeBytes(of: counter.bigEndian) { Array($0) }
+        if priv == .des { salt.replaceSubrange(0..<4, with: bigEndian32(boots)) }
+        return salt
+    }
+
+    /// RFC 3414 §8.1.1: CBC-DES with the privacy key's first 8 bytes and, as IV, its last 8 (the pre-IV) XORed with the salt.
+    /// Sent padded to whole 8-byte blocks (the scoped PDU's BER says where it ends); what comes in must be whole blocks
+    /// (§8.3.2: else a decryption error, here an `SnmpFormatError`). One of DES's weak or semi-weak keys is refused too (no
+    /// message can be read with it), as .NET's DES refuses one on Windows.
+    public static func desCbc(_ privKey: [UInt8], salt: [UInt8], _ data: [UInt8], encrypt: Bool, _ crypto: any SnmpCrypto) throws -> [UInt8] {
+        precondition(salt.count == saltLength && privKey.count >= 16, "CBC-DES takes a 16-byte privacy key and an 8-byte salt.")
+        let key = Array(privKey.prefix(8))
+        if isWeakDesKey(key) { throw SnmpFormatError("CBC-DES: the key can't be used.") }
+        var feedback = (0..<8).map { privKey[8 + $0] ^ salt[$0] }
+        var input = data
+        if encrypt {
+            input += [UInt8](repeating: 0, count: (8 - data.count % 8) % 8)
+        } else if data.count % 8 != 0 {
+            throw SnmpFormatError("CBC-DES: not whole blocks.")
+        }
+        var out = [UInt8]()
+        out.reserveCapacity(input.count)
+        for start in stride(from: 0, to: input.count, by: 8) {
+            let block = Array(input[start..<start + 8])
+            if encrypt {
+                let cipher = crypto.des(key: key, block: zip(block, feedback).map { $0 ^ $1 }, encrypt: true)
+                out += cipher
+                feedback = cipher
+            } else {
+                out += zip(crypto.des(key: key, block: block, encrypt: false), feedback).map { $0 ^ $1 }
+                feedback = block
+            }
+        }
+        return out
+    }
+
+    /// DES's 4 weak and 12 semi-weak keys (FIPS 74), compared without their parity bits.
+    private static let weakDesKeys: Set<UInt64> = [
+        0x0101010101010101, 0xFEFEFEFEFEFEFEFE, 0xE0E0E0E0F1F1F1F1, 0x1F1F1F1F0E0E0E0E,
+        0x01FE01FE01FE01FE, 0xFE01FE01FE01FE01, 0x1FE01FE00EF10EF1, 0xE01FE01FF10EF10E, 0x01E001E001F101F1, 0xE001E001F101F101,
+        0x1FFE1FFE0EFE0EFE, 0xFE1FFE1FFE0EFE0E, 0x011F011F010E010E, 0x1F011F010E010E01, 0xE0FEE0FEF1FEF1FE, 0xFEE0FEE0FEF1FEF1,
+    ]
+
+    static func isWeakDesKey(_ key: [UInt8]) -> Bool {
+        func bits(_ k: UInt64) -> UInt64 { k & 0xFEFE_FEFE_FEFE_FEFE }
+        let value = key.reduce(UInt64(0)) { $0 << 8 | UInt64($1) }
+        return weakDesKeys.contains { bits($0) == bits(value) }
     }
 
     /// RFC 3826 §3.1.2.1: the IV is engine boots (4 bytes), engine time (4 bytes) and the salt, each big-endian.
@@ -105,17 +267,18 @@ public enum Usm {
         return [UInt8(v >> 24), UInt8(truncatingIfNeeded: v >> 16), UInt8(truncatingIfNeeded: v >> 8), UInt8(truncatingIfNeeded: v)]
     }
 
-    /// AES-128 in CFB mode with 128-bit feedback (RFC 3826 §3.1.3, NIST SP 800-38A §6.3), any length: no padding is sent, so
-    /// a short last block takes only as many bytes of its key stream as it has. The key is the privacy key's first 16 bytes.
-    public static func aesCfb(key: [UInt8], iv: [UInt8], _ data: [UInt8], encrypt: Bool, _ crypto: any SnmpCrypto) -> [UInt8] {
-        precondition(key.count >= 16 && iv.count == 16, "AES-128 takes a 16-byte key and IV.")
-        let aesKey = Array(key.prefix(16))
+    /// AES in CFB mode with 128-bit feedback (RFC 3826 §3.1.3, NIST SP 800-38A §6.3), any length: no padding is sent, so a
+    /// short last block takes only as many bytes of its key stream as it has. The key is the privacy key's first `keyLength`
+    /// bytes: 16 (AES-128), 24 or 32.
+    public static func aesCfb(key: [UInt8], iv: [UInt8], _ data: [UInt8], encrypt: Bool, keyLength: Int = 16, _ crypto: any SnmpCrypto) -> [UInt8] {
+        precondition([16, 24, 32].contains(keyLength) && key.count >= keyLength && iv.count == 16, "AES takes a 16-, 24- or 32-byte key and a 16-byte IV.")
+        let aesKey = Array(key.prefix(keyLength))
         var feedback = iv
         var out = [UInt8]()
         out.reserveCapacity(data.count)
         var start = 0
         while start < data.count {
-            let stream = crypto.aes128(key: aesKey, block: feedback)
+            let stream = crypto.aes(key: aesKey, block: feedback)
             let end = min(start + 16, data.count)
             let block = data[start..<end]
             let result = zip(block, stream).map { $0 ^ $1 }
@@ -126,30 +289,75 @@ public enum Usm {
         return out
     }
 
-    /// A user's two keys localized to one engine (the privacy key from the same hash, RFC 3826 §1.2), worked out once.
+    /// A user's two keys localized to one engine, with the protocols they're for, worked out once. The privacy key comes from
+    /// the privacy passphrase with the authentication protocol's hash (RFC 3414 §2.6, RFC 3826 §1.2), lengthened for AES-192
+    /// or AES-256 when that hash is too short (`KeyExtension`).
     public struct Keys: Sendable {
         public let auth: [UInt8]
         public let priv: [UInt8]
+        public let authProtocol: SnmpAuth
+        public let privProtocol: SnmpPriv
 
-        public static func of(_ user: SnmpV3User, engineId: [UInt8], _ crypto: any SnmpCrypto) -> Keys {
-            let hash: ([UInt8]) -> [UInt8] = { crypto.sha256($0) }
-            return Keys(auth: localize(stretch(user.authPassphrase, crypto), engineId: engineId, hash: hash),
-                        priv: localize(stretch(user.privPassphrase, crypto), engineId: engineId, hash: hash))
+        public init(auth: [UInt8], priv: [UInt8], authProtocol: SnmpAuth = .sha256, privProtocol: SnmpPriv = .aes128) {
+            self.auth = auth
+            self.priv = priv
+            self.authProtocol = authProtocol
+            self.privProtocol = privProtocol
         }
+
+        /// The digest's length in a message signed with these keys.
+        public var digestLength: Int { Usm.digestLength(authProtocol) }
+
+        public func sign(_ message: [UInt8], _ crypto: any SnmpCrypto) -> [UInt8] { authenticate(authProtocol, key: auth, message, crypto) }
+
+        public static func of(_ user: SnmpV3User, engineId: [UInt8], _ crypto: any SnmpCrypto, extension how: KeyExtension = .blumenthal) -> Keys {
+            let algorithm = hash(user.auth)
+            let hashing: ([UInt8]) -> [UInt8] = { crypto.hash(algorithm, $0) }
+            let priv = localize(stretch(user.privPassphrase, algorithm, crypto), engineId: engineId, hash: hashing)
+            return Keys(auth: localize(stretch(user.authPassphrase, algorithm, crypto), engineId: engineId, hash: hashing),
+                        priv: extend(priv, to: max(priv.count, privKeyLength(user.priv)), user.auth, engineId: engineId, how, crypto),
+                        authProtocol: user.auth, privProtocol: user.priv)
+        }
+
+        /// The keys with the other way of lengthening the privacy key (`KeyExtension`), when it gives another key (AES-192 or
+        /// AES-256 after MD5 or SHA-1); nil when it makes no difference.
+        public static func otherwise(_ user: SnmpV3User, engineId: [UInt8], _ crypto: any SnmpCrypto, _ how: KeyExtension) -> Keys? {
+            guard user.priv == .aes192 || user.priv == .aes256, user.auth != .sha256 else { return nil }
+            return of(user, engineId: engineId, crypto, extension: how == .blumenthal ? .reeder : .blumenthal)
+        }
+
+        /// A scoped PDU encrypted as the privacy protocol says, with the message's boots, time and salt. `SnmpFormatError`
+        /// for a DES key that can't be used.
+        public func encrypt(boots: Int, time: Int, salt: [UInt8], _ scoped: [UInt8], _ crypto: any SnmpCrypto) throws -> [UInt8] {
+            privProtocol == .des
+                ? try desCbc(priv, salt: salt, scoped, encrypt: true, crypto)
+                : aesCfb(key: priv, iv: aesIv(boots: boots, time: time, salt: salt), scoped, encrypt: true, keyLength: privKeyLength(privProtocol), crypto)
+        }
+
+        /// The other way; `SnmpFormatError` when it can't be (CBC-DES's blocks not whole).
+        public func decrypt(boots: Int, time: Int, salt: [UInt8], _ encrypted: [UInt8], _ crypto: any SnmpCrypto) throws -> [UInt8] {
+            privProtocol == .des
+                ? try desCbc(priv, salt: salt, encrypted, encrypt: false, crypto)
+                : aesCfb(key: priv, iv: aesIv(boots: boots, time: time, salt: salt), encrypted, encrypt: false, keyLength: privKeyLength(privProtocol), crypto)
+        }
+
+        /// A fresh salt for a message (`Usm.salt`).
+        public func salt(boots: Int, counter: UInt64) -> [UInt8] { Usm.salt(privProtocol, boots: boots, counter: counter) }
     }
 
-    /// Each passphrase's Ku (passwordToKey with SHA-256), by passphrase, not user or engine (Ku depends on the passphrase
-    /// alone): stretching one hashes 1 MiB, so it's done once a run; only the localization is per engine. A few at most (the
-    /// printers' logins); emptied when full. Kept in memory only, as the logins themselves are.
+    /// Each passphrase's Ku (passwordToKey with the protocol's hash), by passphrase and hash, not user or engine (Ku depends on
+    /// those alone): stretching one hashes 1 MiB, so it's done once a run; only the localization is per engine. A few at most
+    /// (the printers' logins); emptied when full. Kept in memory only, as the logins themselves are.
     private static let stretched = Mutex<[String: [UInt8]]>([:])
     private static let maxStretched = 32
 
-    private static func stretch(_ passphrase: String, _ crypto: any SnmpCrypto) -> [UInt8] {
-        if let kept = stretched.withLock({ $0[passphrase] }) { return kept }
-        let ku = passwordToKey(passphrase, hash: { crypto.sha256($0) })
+    private static func stretch(_ passphrase: String, _ algorithm: SnmpHash, _ crypto: any SnmpCrypto) -> [UInt8] {
+        let key = "\(algorithm)\u{0}\(passphrase)"
+        if let kept = stretched.withLock({ $0[key] }) { return kept }
+        let ku = passwordToKey(passphrase, hash: { crypto.hash(algorithm, $0) })
         stretched.withLock { kept in
             if kept.count >= maxStretched { kept.removeAll() }
-            kept[passphrase] = ku
+            kept[key] = ku
         }
         return ku
     }
@@ -185,9 +393,9 @@ public struct SnmpAccessError: Error, Equatable, CustomStringConvertible {
     public var description: String {
         switch reason {
         case .unknownUser: loc("The printer doesn't know this SNMPv3 user name.")
-        case .wrongAuthKey: loc("The printer refused the SNMPv3 authentication passphrase.")
-        case .wrongPrivKey: loc("The printer couldn't read the request: check the SNMPv3 privacy passphrase.")
-        case .securityLevel: loc("The printer doesn't take SNMPv3 with authentication and privacy (SHA-256, AES-128) for this user.")
+        case .wrongAuthKey: loc("The printer refused the SNMPv3 authentication passphrase: check it and its protocol.")
+        case .wrongPrivKey: loc("The printer couldn't read the request: check the SNMPv3 privacy passphrase and its protocol.")
+        case .securityLevel: loc("The printer doesn't take SNMPv3 with authentication and privacy for this user.")
         }
     }
 }
@@ -213,17 +421,17 @@ public struct SnmpV3Message: Sendable, CustomStringConvertible {
     public var engineBoots: Int
     public var engineTime: Int
     public var userName: String
-    /// The digest; `Usm.authLength` zero bytes before `sign`, empty without authentication.
+    /// The digest; zero bytes of the protocol's length (`Usm.digestLength`) before `sign`, empty without authentication.
     public var authParameters: [UInt8]
-    /// The AES salt; empty without privacy.
+    /// The salt (AES's or DES's); empty without privacy.
     public var privParameters: [UInt8]
     /// The scoped PDU in clear: contextEngineID, contextName, PDU (nil when `encrypted`).
     public var contextEngineId: [UInt8]?
     public var contextName: String
     public var pdu: SnmpMessage?
-    /// The scoped PDU encrypted (privacy): its BER, AES-CFB encrypted.
+    /// The scoped PDU encrypted (privacy): its BER, AES-CFB or CBC-DES encrypted.
     public var encrypted: [UInt8]?
-    /// Where the digest's 24 bytes are in the bytes `decode` read (-1: no digest).
+    /// Where the digest is in the bytes `decode` read (-1: no digest).
     public private(set) var authOffset = -1
 
     public init(messageId: Int, maxMessageSize: Int = SnmpV3Message.maxSize, flags: UInt8, engineId: [UInt8] = [], engineBoots: Int = 0,
@@ -253,11 +461,12 @@ public struct SnmpV3Message: Sendable, CustomStringConvertible {
         Ber.constructed(Ber.sequence, Ber.octets(contextEngineId), Ber.octets(Array(contextName.utf8)), pdu.encodePdu())
     }
 
-    /// A scoped PDU as `encodeScoped` writes it. `SnmpFormatError` for anything else (a wrong privacy key's output).
-    public static func decodeScoped(_ data: [UInt8]) throws -> (contextEngineId: [UInt8], contextName: String, pdu: SnmpMessage) {
+    /// A scoped PDU as `encodeScoped` writes it. `SnmpFormatError` for anything else (a wrong privacy key's output). `padded`:
+    /// decrypted CBC-DES, whose last block may carry up to 7 bytes of padding after it.
+    public static func decodeScoped(_ data: [UInt8], padded: Bool = false) throws -> (contextEngineId: [UInt8], contextName: String, pdu: SnmpMessage) {
         var reader = Ber.Reader(data)
         var scoped = try reader.enter(Ber.sequence)
-        if reader.hasMore { throw SnmpFormatError("SNMPv3: data after the scoped PDU.") }
+        if reader.hasMore && (!padded || reader.remaining > 7) { throw SnmpFormatError("SNMPv3: data after the scoped PDU.") }
         return try readScoped(data, &scoped)
     }
 
@@ -303,22 +512,32 @@ public struct SnmpV3Message: Sendable, CustomStringConvertible {
 
     public func encode() -> [UInt8] { encodeWithOffset().bytes }
 
-    /// The message signed with `authKey`: its digest over the bytes with 24 zero bytes in its place.
-    public func sign(_ authKey: [UInt8], _ crypto: any SnmpCrypto) -> [UInt8] {
+    /// The message signed with `authKey` (HMAC-SHA-256-192): its digest over the bytes with 24 zero bytes in its place.
+    public func sign(_ authKey: [UInt8], _ crypto: any SnmpCrypto) -> [UInt8] { sign(Usm.Keys(auth: authKey, priv: []), crypto) }
+
+    /// The message signed with the keys' protocol: its digest over the bytes with zeros of the digest's length in its place.
+    public func sign(_ keys: Usm.Keys, _ crypto: any SnmpCrypto) -> [UInt8] {
+        let length = keys.digestLength
         var zeroed = self
-        zeroed.authParameters = [UInt8](repeating: 0, count: Usm.authLength)
+        zeroed.authParameters = [UInt8](repeating: 0, count: length)
         var (bytes, offset) = zeroed.encodeWithOffset()
-        let digest = Usm.authenticate(key: authKey, bytes, crypto)
-        bytes.replaceSubrange(offset..<offset + Usm.authLength, with: digest)
+        let digest = keys.sign(bytes, crypto)
+        bytes.replaceSubrange(offset..<offset + length, with: digest)
         return bytes
     }
 
-    /// True when `bytes` (as `decode` read them) carry the right digest for `authKey`.
+    /// True when `bytes` (as `decode` read them) carry the right digest for `authKey` (HMAC-SHA-256-192).
     public func verify(_ bytes: [UInt8], _ authKey: [UInt8], _ crypto: any SnmpCrypto) -> Bool {
-        guard authenticated, authOffset >= 0, authParameters.count == Usm.authLength, authOffset + Usm.authLength <= bytes.count else { return false }
+        verify(bytes, Usm.Keys(auth: authKey, priv: []), crypto)
+    }
+
+    /// The same with the keys' protocol: a digest of another length is no digest of it.
+    public func verify(_ bytes: [UInt8], _ keys: Usm.Keys, _ crypto: any SnmpCrypto) -> Bool {
+        let length = keys.digestLength
+        guard authenticated, authOffset >= 0, authParameters.count == length, authOffset + length <= bytes.count else { return false }
         var zeroed = bytes
-        zeroed.replaceSubrange(authOffset..<authOffset + Usm.authLength, with: [UInt8](repeating: 0, count: Usm.authLength))
-        return Usm.constantTimeEqual(Usm.authenticate(key: authKey, zeroed, crypto), authParameters)
+        zeroed.replaceSubrange(authOffset..<authOffset + length, with: [UInt8](repeating: 0, count: length))
+        return Usm.constantTimeEqual(keys.sign(zeroed, crypto), authParameters)
     }
 
     /// True when `data` is an SNMPv3 message (its version says 3), without reading the rest.

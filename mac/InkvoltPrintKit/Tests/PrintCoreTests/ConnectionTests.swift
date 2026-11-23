@@ -17,7 +17,7 @@ struct PrinterReadingTests {
 
         #expect(reading.status.alerts.map(\.message) == ["Yellow ink is low."])
         #expect(reading.supplies?.count == 5)
-        #expect(reading.usage == nil) // page counts are LEDM's
+        #expect(reading.usage?.totalImpressions == 1873) // printer-impressions-completed, from the same request
         #expect(network.count(\.isIpp) == 1)
     }
 

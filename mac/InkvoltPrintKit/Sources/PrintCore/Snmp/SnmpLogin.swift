@@ -2,7 +2,8 @@ import Foundation
 import Synchronization
 
 /// How Inkvolt Print signs in to one printer's SNMP agent: a read community (v1, v2c), or (Inkvolt Pro) an SNMPv3 user with
-/// its two passphrases (`SnmpV3User`: SHA-256 authentication, AES-128 privacy). A secret: kept by an `SnmpLogins` store
+/// its two passphrases and protocols (`SnmpV3User`: SHA-256, SHA-1 or MD5 authentication; AES-128, AES-192, AES-256 or DES
+/// privacy). A secret: kept by an `SnmpLogins` store
 /// (the Keychain in the app), never in `state.json`, a recording or the log; its description and mirror name no secret. A
 /// printer with nothing kept is asked with `public`. The Windows Core's `SnmpLogin`.
 public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible, CustomDebugStringConvertible, CustomReflectable {
@@ -28,8 +29,9 @@ public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible,
 
     /// An SNMPv3 user as typed: a name (1 to 32 bytes of UTF-8, RFC 3414's limit, so an accented one is measured as the
     /// agent does) and two passphrases of `SnmpV3User.minPassphrase` to `maxPassphrase` characters (RFC 3414 §11.2), none
-    /// with control characters. Throws, saying why, otherwise.
-    public static func forUser(_ name: String?, _ authPassphrase: String?, _ privPassphrase: String?) throws -> SnmpLogin {
+    /// with control characters, with the protocols the printer's agent was set up with. Throws, saying why, otherwise.
+    public static func forUser(_ name: String?, _ authPassphrase: String?, _ privPassphrase: String?, auth authProtocol: SnmpAuth = .sha256,
+                               priv privProtocol: SnmpPriv = .aes128) throws -> SnmpLogin {
         let name = name ?? "", auth = authPassphrase ?? "", priv = privPassphrase ?? ""
         let min = SnmpV3User.minPassphrase, max = SnmpV3User.maxPassphrase
         if name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { throw SnmpLoginError(loc("Enter the SNMPv3 user name.")) }
@@ -42,7 +44,8 @@ public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible,
         if (auth + priv).unicodeScalars.contains(where: SnmpValue.isControl) {
             throw SnmpLoginError(loc("The passphrases can't have tabs, line breaks or other control characters."))
         }
-        return SnmpLogin(community: "", user: SnmpV3User(name: name, authPassphrase: auth, privPassphrase: priv))
+        return SnmpLogin(community: "", user: SnmpV3User(name: name, authPassphrase: auth, privPassphrase: priv, auth: authProtocol,
+                                                         priv: privProtocol))
     }
 
     /// A community as typed: blank is `public`; otherwise as it is (spaces count: an agent compares bytes). Throws, saying
@@ -57,11 +60,13 @@ public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible,
     }
 
     /// The login as one string, for an `SnmpLogins` store to keep (and only for that): `community:` and the community, or
-    /// `usm:` and the user's name and passphrases in base64, separated by colons (Windows' form).
+    /// `usm:` and the user's name and passphrases in base64, separated by colons (Windows' form). A user with SHA-256 and
+    /// AES-128 is kept as before the other protocols came; another's protocols follow its passphrases (`usm:…:Sha1:Aes256`).
     public func toSecret() -> String {
         guard let user else { return "community:" + community }
         let parts = [user.name, user.authPassphrase, user.privPassphrase].map { Data($0.utf8).base64EncodedString() }
-        return "usm:" + parts.joined(separator: ":")
+        let protocols = user.auth == .sha256 && user.priv == .aes128 ? "" : ":\(user.auth.rawValue):\(user.priv.rawValue)"
+        return "usm:" + parts.joined(separator: ":") + protocols
     }
 
     /// A login kept by `toSecret`; nil for anything else (a damaged or unknown entry: asked with public).
@@ -70,13 +75,19 @@ public struct SnmpLogin: Equatable, Hashable, Sendable, CustomStringConvertible,
         if secret.hasPrefix("community:") { return try? forCommunity(String(secret.dropFirst("community:".count))) }
         guard secret.hasPrefix("usm:") else { return nil }
         let parts = secret.dropFirst(4).split(separator: ":", omittingEmptySubsequences: false)
-        guard parts.count == 3 else { return nil }
+        guard parts.count == 3 || parts.count == 5 else { return nil }
+        var auth = SnmpAuth.sha256, priv = SnmpPriv.aes128
+        if parts.count == 5 {
+            // Names only, as written: an entry this version didn't write is no login.
+            guard let a = SnmpAuth(rawValue: String(parts[3])), let p = SnmpPriv(rawValue: String(parts[4])) else { return nil }
+            (auth, priv) = (a, p)
+        }
         var texts: [String] = []
-        for part in parts {
+        for part in parts.prefix(3) {
             guard let data = Data(base64Encoded: String(part)), let text = String(data: data, encoding: .utf8) else { return nil }
             texts.append(text)
         }
-        return try? forUser(texts[0], texts[1], texts[2])
+        return try? forUser(texts[0], texts[1], texts[2], auth: auth, priv: priv)
     }
 
     /// For logs: never the community, a user name or a passphrase.

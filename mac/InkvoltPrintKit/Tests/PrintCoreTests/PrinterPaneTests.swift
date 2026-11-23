@@ -137,6 +137,14 @@ struct PrinterPaneTests {
         #expect(box.accessibleText == "Black toner, OK")
         #expect(Self.supply("almostFull", kind: "wasteToner").headline == "Replace soon")
         #expect(Self.supply("weird", kind: "wasteToner").percentText == "—")
+
+        // What a full one is rated for, from the printer (CDM, IPP's printer-supply, the Printer MIB in pages).
+        var rated = Self.supply("ok", percent: 35, pages: 1050).supply
+        rated.pageYield = 3000
+        #expect(SupplyText(rated).cartridge == "Replacement: HP 136A  ·  W1360A  ·  Rated for about 3,000 pages")
+        rated.productNumber = nil
+        rated.selectibilityNumber = nil
+        #expect(SupplyText(rated).cartridge == "Rated for about 3,000 pages")
     }
 
     // MARK: Menu bar

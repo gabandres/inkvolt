@@ -98,6 +98,9 @@ enum Ber {
 
         var hasMore: Bool { position < end }
 
+        /// The bytes left before the end.
+        var remaining: Int { end - position }
+
         /// The next TLV: its tag and where its content is. Moves past it.
         mutating func next() throws -> (tag: UInt8, start: Int, length: Int) {
             guard position < end else { throw SnmpFormatError("BER: value expected, end of data.") }

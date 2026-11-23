@@ -48,10 +48,9 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   Diagnosing mDNS: `pktmon` (elevated) shows each query's questions; a Python listener on 5353 joined to the group shows
   multicast answers. iOS answers a browse from its cache, so it often sends no query when the print sheet opens.
 - **The Mac waits** (owner, 2026-11-17: no Mac any more; all work is Windows). Every Mac half in both roadmaps waits for
-  a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. PrintCore has none of Inkvolt Print's printer-data work
-  of 2026-11-20 (pages left and yield from CDM, IPP and the Printer MIB; recordings keeping IPP collections and SNMP
-  Counter64/Opaque; SNMPv3's other protocols, which need `SnmpCrypto` to give MD5, SHA-1, DES and longer AES keys; the
-  web server on its own port; the panel text; SNMP for WSD queues; queue change notices): the .NET code is its spec.
+  a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. Of Inkvolt Print's printer-data work of 2026-11-20,
+  the Mac still lacks the web server on its own port (`mac/docs/PLAN.md`, "Open"): the .NET code is its spec. SNMP for
+  WSD queues has no Mac counterpart.
 
 ## For the owner: hardware
 

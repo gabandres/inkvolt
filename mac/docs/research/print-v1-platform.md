@@ -419,6 +419,14 @@ IPP-over-USB printer was at hand, so the device URI below is read from the syste
     stays idle and enabled, under `stop-printer` and `abort-job` alike; nothing became `aborted` in these runs. Job
     alerts read it as failed ("macOS stopped this job") after the minute's hold; `--report --jobs` raised two.
 
+### Queue change notices (checked on the Mac, 2026-11-23)
+
+macOS's cupsd takes no notification subscriptions: Create-Printer-Subscriptions (with `notify-pull-method` `ippget`) from
+the sandboxed Release build answers 0x501, "Create-Printer-Subscriptions not supported." (macOS 27.1), so there is no
+`ippget` pull and no push. CUPS-Get-Printers with only `printer-name`, `device-uri` and `printer-make-and-model` answers
+from the sandbox over libcups' per-thread connection: the app polls that (every 2 s while its window shows, 6 s on battery or in Low Power Mode, not while it's closed) to notice a queue added, deleted or
+renamed (`CupsQueueNotices`).
+
 ### The print log's read of CUPS's history (roadmap 4.9), checked on the Mac (2026-11-23)
 
 buildmac, macOS 27.2, Inkvolt Print's Release build (sandboxed, the entitlements above: **no new entitlement**;

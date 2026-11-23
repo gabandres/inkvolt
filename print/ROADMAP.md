@@ -127,9 +127,9 @@ What each is: the README's feature table. What waits for real hardware: the READ
   Public). **Mac half waits** (an ICA scanner shared the same way).
 - **3.2 SNMPv3 and a community per printer.** Done on Windows (a community per printer; SNMPv3 with SHA-256/SHA-1/MD5
   and AES-128/192/256/DES; SNMP access… asks the printer first; a refused login is its own state) and on the Mac (the
-  community, SNMPv3 with SHA-256 and AES-128, the refused state). Which key extension a maker's agent uses for
-  AES-192/256 after MD5 or SHA-1 isn't published: Blumenthal's is tried, then Reeder's once; a real printer confirms it.
-  **Mac follow-up waits:** the other protocols need `SnmpCrypto` to give MD5, SHA-1, DES and longer AES keys.
+  community, SNMPv3 with the same protocols since 2026-11-23, the refused state). Which key extension a maker's agent
+  uses for AES-192/256 after MD5 or SHA-1 isn't published: Blumenthal's is tried, then Reeder's once; a real printer
+  confirms it.
 - **3.3 The printer's own copier, copy extras.** Done on Windows. The copier writes only the start, because
   `CopyConfigDyn` holds the panel's walk-up defaults and nothing captured shows when a copy has finished to put them back;
   the start's names (`LedmCopy.StartNames`, `StartValues`) are an assumption until a recording confirms them, so *Through

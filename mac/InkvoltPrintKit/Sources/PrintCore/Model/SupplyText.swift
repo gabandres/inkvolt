@@ -26,11 +26,15 @@ public struct SupplyText: Equatable, Sendable {
         }
     }
 
-    /// "Replacement: HP 136A · W1360A"; nil when the printer names no cartridge.
+    /// "Replacement: HP 136A · W1360A · Rated for about 1,150 pages": what to buy and what a full one gives, as known; nil
+    /// when the printer says neither.
     public var cartridge: String? {
         // The selectability number is LEDM's (HP) only.
         let parts = [supply.selectibilityNumber.map { "HP \($0)" }, supply.productNumber].compactMap { $0 }
-        return parts.isEmpty ? nil : loc("Replacement: {0}", parts.joined(separator: "  ·  "))
+        let replacement = parts.isEmpty ? nil : loc("Replacement: {0}", parts.joined(separator: "  ·  "))
+        let rated = supply.pageYield.flatMap { supply.isWaste ? nil : loc("Rated for about {0} pages", CoreLanguage.number($0)) }
+        let line = [replacement, rated].compactMap { $0 }
+        return line.isEmpty ? nil : line.joined(separator: "  ·  ")
     }
 
     public var level: Level { ["out", "full", "missing"].contains(supply.state) ? .empty : supply.isLow ? .low : .ok }

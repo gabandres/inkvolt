@@ -7,6 +7,7 @@ public final class IppClient: Sendable {
         "printer-info", "marker-names", "marker-levels", "marker-low-levels", "marker-high-levels", "marker-types", "marker-colors",
         "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
         "printer-alert", "printer-alert-description", "printer-location", "printer-more-info", "printer-icons",
+        "printer-supply", "printer-impressions-completed",
         "mopria-certified", "mopria-certified-scan",
     ]
 
@@ -106,8 +107,9 @@ public final class IppClient: Sendable {
         }
         let severity = alerts.map(\.severity).max() ?? (code == "stopped" ? .error : .info)
         let detail = alerts.filter { $0.severity == severity }.lazy.compactMap { IppStatusText.explain($0.id) }.first
-        return PrinterStatus(code: code, message: headline(r.str("printer-state-message"), label), severity: severity, alerts: alerts,
-                             detail: detail)
+        let stateMessage = r.str("printer-state-message")
+        return PrinterStatus(code: code, message: headline(stateMessage, label), severity: severity, alerts: alerts, detail: detail,
+                             panelText: stateMessage)
     }
 
     /// The status line: the printer's `printer-state-message` when it says something, else the state in the app's words.
@@ -147,7 +149,12 @@ public final class IppClient: Sendable {
         let waste = r.strs("printer-state-reasons").map { splitReason($0).id }.filter { $0.hasPrefix("marker-waste") }
         let wasteState = waste.contains { !$0.hasSuffix("almost-full") && $0.hasSuffix("-full") } ? "full"
             : waste.contains { $0.hasSuffix("almost-full") } ? "almostFull" : "ok"
-        return r.strs("marker-names").prefix(maxSupplies).enumerated().map { i, name in
+        let names = Array(r.strs("marker-names").prefix(maxSupplies))
+        // printer-supply describes the same supplies in the same order (CUPS makes the marker-* lists from it): only a list as
+        // long as the markers is taken, so a page count never lands on another supply.
+        var supplies = r.strs("printer-supply").prefix(maxSupplies + 1).map(IppSupply.parse)
+        if supplies.count != names.count { supplies = [] }
+        return names.enumerated().map { i, name in
             let kind = i < types.count ? types[i] : "supply"
             let color = i < colors.count ? colorCode(colors[i]) : nil
             if Consumable.isWasteKind(kind) {
@@ -164,8 +171,17 @@ public final class IppClient: Sendable {
             } else {
                 state = "unknown"
             }
-            return Consumable(name: name, kind: kind, colorCode: color, percentRemaining: level, state: state, lowThreshold: low)
+            let pages: IppSupply? = i < supplies.count ? supplies[i] : nil
+            return Consumable(name: name, kind: kind, colorCode: color, percentRemaining: level, state: state, lowThreshold: low,
+                              estimatedPagesRemaining: pages?.pagesLeft, pageYield: pages?.pageYield)
         }
+    }
+
+    /// The lifetime page count: `printer-impressions-completed` (PWG 5100.22), what the supply history counts pages per
+    /// cartridge with. Nil when the printer doesn't say.
+    public static func toUsage(_ r: IppResponse) -> UsageCounters? {
+        guard let pages = r.int("printer-impressions-completed"), pages >= 0 else { return nil }
+        return UsageCounters(totalImpressions: pages, duplexSheets: nil, jamEvents: nil, mispickEvents: nil, scanImages: nil)
     }
 
     /// `marker-colors` value (`#RRGGBB`, several for a multi-color cartridge, or `none`) → K/C/M/Y for the process colors,

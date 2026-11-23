@@ -3,8 +3,9 @@ import IOKit.ps
 import Network
 import Synchronization
 
-/// What the window-closed checks slow down for (`AlertPolling.interval`): running on battery, and a constrained network
-/// (Low Data Mode, macOS's counterpart of Windows' metered connection). Any thread.
+/// What polling slows down for: running on battery, and a constrained network (Low Data Mode, macOS's counterpart of
+/// Windows' metered connection) for the window-closed checks (`AlertPolling.interval`); battery and Low Power Mode for the
+/// queue list (`QueueNoticePolling`). Any thread.
 public final class PollingConditions: Sendable {
     private let monitor = NWPathMonitor()
     private let constrainedNow = Flag()
@@ -29,4 +30,7 @@ public final class PollingConditions: Sendable {
               let type = IOPSGetProvidingPowerSourceType(info)?.takeUnretainedValue() else { return false }
         return (type as String) == kIOPMBatteryPowerKey
     }
+
+    /// Low Power Mode is on.
+    public var lowPower: Bool { ProcessInfo.processInfo.isLowPowerModeEnabled }
 }

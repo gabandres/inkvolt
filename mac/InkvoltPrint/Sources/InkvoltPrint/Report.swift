@@ -37,6 +37,35 @@ enum Report {
     /// The app was started by `--report`: windows open, nothing opens another app or the browser.
     static var isRunning: Bool { CommandLine.arguments.contains("--report") }
 
+    /// `--window-closed [s]`: the window closed for `s` seconds (a locked screen shows none, so this stands in for closing
+    /// it): how often the queue notices asked cupsd meanwhile (never, by `QueueNoticePolling`), and again once it reopens.
+    private static func windowClosedCheck(_ model: AppModel, seconds: Int) async -> [String] {
+        guard !model.isDemo else { return ["Window closed: no queue notices in demo mode"] }
+        try? await Task.sleep(for: .seconds(3))
+        let open: Int = model.queueNoticesAsked ?? 0
+        model.windowChanged(open: false)
+        try? await Task.sleep(for: .seconds(seconds))
+        let closed: Int = (model.queueNoticesAsked ?? 0) - open
+        model.windowChanged(open: true)
+        try? await Task.sleep(for: .seconds(1))
+        let reopened: Int = (model.queueNoticesAsked ?? 0) - open - closed
+        return ["Window closed: the queue notices asked cupsd \(open) times in the first 3 s open, \(closed) in \(seconds) s closed, "
+            + "\(reopened) in the 1 s after it reopened"]
+    }
+
+    /// The report's line on queue change notices: CUPS's subscription, or the queue list polled and why.
+    private static func queueNotices(_ state: CupsQueueNotices.Subscription?) -> String {
+        let live: Int64 = QueueNoticePolling.live.components.seconds
+        let saving: Int64 = QueueNoticePolling.saving.components.seconds
+        let pace = "every \(live) s while the window shows, \(saving) s on battery or in Low Power Mode, not while it's closed"
+        return switch state {
+        case nil: "off (demo)"
+        case .asking?: "asking cupsd"
+        case .taken?: "CUPS's (printer-added, -deleted, -modified, pulled \(pace))"
+        case .polling(let why)?: "the queue list polled \(pace) (cupsd took no subscription: \(why))"
+        }
+    }
+
     static func runIfAsked(_ model: AppModel) {
         let args = CommandLine.arguments
         guard let i = args.firstIndex(of: "--report") else { return }
@@ -83,6 +112,10 @@ enum Report {
             if args.contains("--pdf-layout") { cancelled += pdfLayoutCheck() }
             if args.contains("--jobs") { cancelled += await jobsCheck(model) }
             if args.contains("--snmp") { cancelled += await snmpCheck(model) }
+            if let i = args.firstIndex(of: "--window-closed") {
+                let seconds = i + 1 < args.count ? Int(args[i + 1]) ?? 20 : 20
+                cancelled += await windowClosedCheck(model, seconds: seconds)
+            }
             if args.contains("--device") { cancelled += await deviceCheck(model) }
             if args.contains("--setup-probe") { cancelled += await CupsSetupProbe.run() }
             if model.isDemo && args.contains("--setup") { cancelled += await setupCheck(model) }
@@ -903,6 +936,8 @@ enum Report {
             "Menu bar: \(model.overall)",
             "Printers: \(model.printers.count)",
             "macOS queues: \(model.destinations.map { "\($0.count), \($0.filter(CupsQueues.isRealQueue).count) set up" } ?? "not read")",
+            "Queue change notices: " + Self.queueNotices(model.isDemo ? nil : model.queueNoticesState)
+                + (model.queueNoticesListed.map { ", \($0) queues in its last read" } ?? ""),
         ]
         for p in model.printers {
             let v = p.view
@@ -911,6 +946,7 @@ enum Report {
             lines.append("\(p.name) [\(reached)]\(p.id == model.selectedID ? " (selected)" : "")")
             lines.append("  \(v.phase): \(v.listLine)")
             if let detail = v.statusDetail { lines.append("  " + mask(detail, host: p.host)) }
+            if let panel = v.statusPanel { lines.append("  panel: " + mask(panel, host: p.host)) }
             if let origin = v.statusOrigin { lines.append("  status from: \(origin)") }
             if let source = v.suppliesSource { lines.append("  supplies source: \(source)") }
             if let m = v.model ?? p.model { lines.append("  model: \(m)") }

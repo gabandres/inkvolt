@@ -9,6 +9,8 @@ public struct SnmpSupply: Equatable, Sendable {
     public var maxCapacity: Int
     public var level: Int
     public var colorantIndex: Int
+    /// prtMarkerSuppliesSupplyUnit (PrtMarkerSuppliesSupplyUnitTC): what the level and maximum count; 0 when not read.
+    public var unit = 0
 
     public init(_ index: Int, supplyClass: Int, type: Int, description: String?, maxCapacity: Int, level: Int, colorantIndex: Int) {
         self.index = index
@@ -22,6 +24,14 @@ public struct SnmpSupply: Equatable, Sendable {
 
     /// A receptacle that fills up (waste toner or ink), whose level is the room left in it (RFC 3805 prtMarkerSuppliesLevel).
     public var isReceptacle: Bool { supplyClass == PrinterMib.classReceptacle || PrinterMib.supplyKind(type).hasPrefix("waste") }
+
+    /// The pages left, for a supply counted in impressions or sheets with a real level (not −1, −2, −3).
+    public var pagesLeft: Int? {
+        PrinterMib.countsPages(unit) && level >= 0 && (maxCapacity <= 0 || level <= maxCapacity) ? level : nil
+    }
+
+    /// The pages a full one is rated for: the maximum of a supply counted in impressions or sheets.
+    public var pageYield: Int? { PrinterMib.countsPages(unit) && maxCapacity > 0 ? maxCapacity : nil }
 }
 
 /// One row of prtAlertTable (RFC 3805): severity, which sub-unit (group and its row), the code and the printer's words.
@@ -51,6 +61,14 @@ public struct SnmpReading: Equatable, Sendable {
     public var alerts: [SnmpAlert]
     public var supplies: [SnmpSupply]
     public var colorants: [Int: String]
+    /// The printer's lifetime page count: the first marker's prtMarkerLifeCount when it counts impressions or sheets; nil when
+    /// the printer has none (or counts something else, such as inches).
+    public var pageCount: Int?
+    /// The control panel's display, a line each (prtConsoleDisplayBufferText, empty lines left out), at most `maxPanelLines`.
+    public var panel: [String] = []
+
+    /// Most panel lines kept (RFC 3805 lets a display have any number; a real one has 2 to 8).
+    public static let maxPanelLines = 8
 
     public init(deviceStatus: Int?, printerStatus: Int?, detectedErrorState: [UInt8], alerts: [SnmpAlert], supplies: [SnmpSupply],
                 colorants: [Int: String]) {
@@ -152,7 +170,8 @@ public enum SnmpPrinterStatus {
         let detail = alerts.filter { $0.severity == severityAll }.lazy.compactMap { IppStatusText.explain($0.id) }.first
         // A stopped printer is best named by what stops it ("Paper jam"), as the spooler's and LEDM's headlines do.
         let message = code == "stopped" && !offline ? top?.message ?? label : label
-        return PrinterStatus(code: code, message: message, severity: severityAll, alerts: alerts, detail: detail)
+        return PrinterStatus(code: code, message: message, severity: severityAll, alerts: alerts, detail: detail,
+                             panelText: r.panel.isEmpty ? nil : r.panel.joined(separator: " · "))
     }
 
     private static func overallState(_ device: Int?, _ printer: Int?, offline: Bool) -> (String, String) {
@@ -203,9 +222,15 @@ public enum SnmpPrinterStatus {
                 state = "unknown"
             }
             let color = r.colorants[s.colorantIndex].flatMap(colorCode)
-            list.append(Consumable(name: name, kind: kind, colorCode: color, percentRemaining: percent, state: state))
+            list.append(Consumable(name: name, kind: kind, colorCode: color, percentRemaining: percent, state: state,
+                                   estimatedPagesRemaining: s.pagesLeft, pageYield: s.pageYield))
         }
         return list
+    }
+
+    /// The lifetime page count (`SnmpReading.pageCount`) as usage counters; nil when the printer has none.
+    public static func toUsage(_ r: SnmpReading) -> UsageCounters? {
+        r.pageCount.map { UsageCounters(totalImpressions: $0, duplexSheets: nil, jamEvents: nil, mispickEvents: nil, scanImages: nil) }
     }
 
     /// prtMarkerColorantValue ("black", "cyan"…: RFC 3805 names them in lowercase English) → K, C, M, Y; nil for other colors.

@@ -346,4 +346,181 @@ struct RecordingTests {
         let objects = try SnmpAgent.parseWalk(Fixtures.text("snmp-demo/color-mfp.txt"))
         #expect(objects.sorted { $0.name < $1.name } == (try SnmpAgent.parseWalk(SnmpAgent.formatWalk(objects))))
     }
+
+    // MARK: Collections, dateTime, Counter64 and Opaque
+
+    /// Collections (one nested, a member with two values, two of one attribute, an empty one) and a dateTime.
+    private static let collections = """
+        media-col-ready collection {
+          media-size collection {
+            x-dimension integer 21590
+            y-dimension integer 27940
+          }
+          media-source keyword main
+          media-type keyword stationery
+          media-type keyword plain
+        }
+        media-col-ready collection {
+          media-size collection {
+            x-dimension integer 21000
+            y-dimension integer 29700
+          }
+          media-source keyword by-pass-tray
+        }
+        printer-xri-supported collection {
+          xri-uri uri ipp://192.0.2.11/ipp/print
+          xri-security keyword none
+          xri-authentication keyword none
+        }
+        job-presets-supported collection {}
+        printer-current-time dateTime 2026-11-20T09:30:15.4-04:00
+        printer-config-change-date-time dateTime 2016-12-31T23:59:60.0+14:00
+        """
+
+    @Test func ippTextKeepsCollectionsAndDatesAsThePrinterSentThem() throws {
+        let values = try IppText.parse(Self.collections)
+        let wire = IppCodec.encodeResponse(status: 0, requestId: 7, values)
+        let text = try IppText.fromResponse(wire)
+        #expect(!text.contains("Not kept"))
+        #expect(values == (try IppText.parse(text)))
+        #expect(wire == IppCodec.encodeResponse(status: 0, requestId: 7, try IppText.parse(text))) // byte for byte
+
+        let r = try IppCodec.decode(wire)
+        let ready = r.collections("media-col-ready")
+        try #require(ready.count == 2)
+        #expect(ready[0].collection("media-size")?.int("y-dimension") == 27940)
+        #expect(ready[0].members["media-type"] == [.text("stationery"), .text("plain")])
+        #expect(ready[1].str("media-source") == "by-pass-tray")
+        #expect(r.collections("job-presets-supported").map(\.members.count) == [0])
+        var when = DateComponents(calendar: Calendar(identifier: .gregorian), timeZone: TimeZone(secondsFromGMT: -4 * 3600),
+                                  year: 2026, month: 11, day: 20, hour: 9, minute: 30, second: 15)
+        when.nanosecond = 0
+        #expect(r.attributes["printer-current-time"]?.first == .date(try #require(when.date)))
+    }
+
+    @Test(arguments: [
+        "media-col collection {\nmedia-source keyword main", // not closed
+        "}", // closes nothing
+        "media-col collection main",
+        "printer-current-time dateTime 2026-11-20T09:30:15-04:00", // no deciseconds
+        "printer-current-time dateTime 2026-13-20T09:30:15.0-04:00",
+        "printer-current-time dateTime 2026-11-20T09:30:15.0*04:00",
+        "printer-current-time dateTime 2026-11-20T09:30:15.0+15:00",
+        "printer-current-time dateTime ２026-11-20T09:30:15.0+01:00", // a digit that isn't ASCII
+    ])
+    func ippTextRefusesBrokenCollectionsAndDates(_ text: String) {
+        #expect(throws: IppFormatError.self) { try IppText.parse(text) }
+    }
+
+    @Test func ippTextRefusesCollectionsNestedPastTheCodecsLimit() throws {
+        let n = IppCodec.maxCollectionDepth
+        let deep = String(repeating: "c collection {\n", count: n + 1) + String(repeating: "}\n", count: n + 1)
+        #expect(throws: IppFormatError.self) { try IppText.parse(deep) }
+        let deepest = String(repeating: "c collection {\n", count: n) + String(repeating: "}\n", count: n)
+        let back = try IppText.fromResponse(IppCodec.encodeResponse(status: 0, requestId: 1, try IppText.parse(deepest)))
+        func squeezed(_ s: String) -> String { s.replacingOccurrences(of: "\n", with: "").replacingOccurrences(of: " ", with: "") }
+        #expect(squeezed(deepest) == squeezed(back))
+    }
+
+    @Test func whatIppTextCantHoldIsNamedAndTheRestOfACollectionKept() throws {
+        // A dateTime no DateAndTime is (month 13), a member value of an unknown type (0x35, textWithLanguage), and a value with no member name.
+        var b: [UInt8] = [1, 1, 0, 0, 0, 0, 0, 7, 0x01, 0x04]
+        func attr(_ tag: UInt8, _ name: String, _ value: [UInt8]) {
+            let n = Array(name.utf8)
+            b.append(tag)
+            b += [UInt8(n.count >> 8), UInt8(n.count & 0xFF)] + n
+            b += [UInt8(value.count >> 8), UInt8(value.count & 0xFF)] + value
+        }
+        attr(0x31, "printer-current-time", [0x07, 0xEA, 13, 20, 9, 30, 15, 0, UInt8(ascii: "+"), 0, 0])
+        attr(0x34, "media-col-ready", [])
+        attr(0x34, "", []) // a nested collection before any member name: left out whole
+        attr(0x21, "", [0, 0, 0, 1])
+        attr(0x37, "", [])
+        attr(0x4A, "", Array("media-source".utf8))
+        attr(0x44, "", Array("main".utf8))
+        attr(0x4A, "", Array("media-info".utf8))
+        attr(0x35, "", [0, 2, UInt8(ascii: "e"), UInt8(ascii: "n"), 0, 1, UInt8(ascii: "x")])
+        attr(0x37, "", [])
+        b.append(0x03)
+
+        let text = try IppText.fromResponse(b)
+        #expect(text.hasPrefix("# Not kept (no IppText form): media-col-ready (part), printer-current-time\n"))
+        #expect(text.contains("media-col-ready collection {\n  media-source keyword main\n}\n"))
+        #expect(try IppText.parse(text).count == 1)
+    }
+
+    @Test func aRecordingKeepsThePrintersCollectionsAndDates() async throws {
+        let dir = Self.folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let host = "192.0.2.11"
+        let inkjet = Self.fixtureDir("inkjet-demo")
+        let withCollections: @Sendable (String, String) -> String = { name, text in
+            name == "ipp_print.ipp.txt" ? "\(text)\n\(RecordingTests.collections)\n" : text
+        }
+        _ = try await PrinterRecorder.record(host, to: dir, Self.options(Self.at(host, Self.serve(inkjet, withCollections)), placeholder: host))
+
+        let recorded = try String(contentsOf: dir.appendingPathComponent("ipp_print.ipp.txt"), encoding: .utf8)
+        #expect(!recorded.contains("Not kept"))
+        #expect(recorded.contains("printer-current-time dateTime 2026-11-20T09:30:15.4-04:00"))
+        #expect(recorded.contains("  xri-security keyword none"))
+        #expect(try await Self.seen(host, Self.at(host, Self.serve(inkjet, withCollections))) == Self.seen(host, Self.at(host, Self.serve(dir))))
+    }
+
+    @Test func anAddressInsideACollectionIsScrubbedLikeAnyOther() async throws {
+        let dir = Self.folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let host = "192.0.2.11"
+        let planted: @Sendable (String, String) -> String = { name, text in
+            name == "ipp_print.ipp.txt"
+                ? "\(text)\n\(RecordingTests.collections.replacingOccurrences(of: "ipp://192.0.2.11/", with: "ipp://\(RecordingTests.plantedHost)/"))\n"
+                : text
+        }
+        _ = try await PrinterRecorder.record(host, to: dir, Self.options(Self.at(host, Self.serve(Self.fixtureDir("inkjet-demo"), planted)), placeholder: host))
+
+        let recorded = try String(contentsOf: dir.appendingPathComponent("ipp_print.ipp.txt"), encoding: .utf8)
+        #expect(!recorded.contains(Self.plantedHost))
+        #expect(recorded.contains(try Regex(#"\n  xri-uri uri ipp://[^/]+/ipp/print\n"#)))
+    }
+
+    @Test func aWalkKeepsCounter64AndOpaqueValues() throws {
+        let walk = """
+            .1.3.6.1.2.1.31.1.1.1.6.1 = Counter64: 18446744073709551615
+            .1.3.6.1.2.1.31.1.1.1.10.1 = Counter64: 48213
+            .1.3.6.1.4.1.2021.10.1.6.1 = Opaque: 9F78043FC00000
+            .1.3.6.1.4.1.2021.10.1.6.2 = OPAQUE: 9F 78 04 00 00 00 00
+            .1.3.6.1.4.1.2021.10.1.6.3 = Opaque:
+            """
+        let objects = try SnmpAgent.parseWalk(walk)
+        #expect(UInt64(bitPattern: objects[0].value.number) == UInt64.max)
+        #expect(objects[1].value.tag == Ber.counter64 && objects[1].value.int == 48213)
+        #expect(objects[2].value.tag == Ber.opaque && SnmpValue.hexString(objects[2].value.bytes ?? []) == "9F78043FC00000")
+        #expect(objects[4].value.bytes == [])
+
+        let written = SnmpAgent.formatWalk(objects)
+        #expect(!written.contains("not kept"))
+        #expect(written.contains(".1.3.6.1.2.1.31.1.1.1.6.1 = Counter64: 18446744073709551615"))
+        #expect(objects.sorted { $0.name < $1.name } == (try SnmpAgent.parseWalk(written)))
+    }
+
+    @Test func theMadeUpAgentServesCounter64AndOpaqueAsThePrinterDid() async throws {
+        let agent = try Self.agent(".1.3.6.1.2.1.31.1.1.1.6.1 = Counter64: 18446744073709551615\n.1.3.6.1.4.1.2021.10.1.6.1 = Opaque: 9F78043FC00000\n")
+        let client = SnmpClient(transport: agent, host: "192.0.2.14", version: .v2c)
+        let got = try await client.get(["1.3.6.1.2.1.31.1.1.1.6.1", "1.3.6.1.4.1.2021.10.1.6.1"])
+        #expect(got[0].value.tag == Ber.counter64 && UInt64(bitPattern: got[0].value.number) == UInt64.max)
+        #expect(got[0].value.description == "Counter64: 18446744073709551615")
+        #expect(got[1].value.tag == Ber.opaque && SnmpValue.hexString(got[1].value.bytes ?? []) == "9F78043FC00000")
+    }
+
+    @Test func recordingAnSnmpPrinterKeepsItsCounter64AndOpaqueObjects() async throws {
+        let dir = Self.folder()
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let host = "192.0.2.14"
+        let walk = try Fixtures.text("snmp-demo/workgroup-laser.txt")
+            + ".1.3.6.1.2.1.43.10.2.1.5.1.1 = Counter64: 9223372036854775808\n.1.3.6.1.2.1.43.5.1.1.99.1 = Opaque: 9F78043FC00000\n"
+        _ = try await PrinterRecorder.record(host, to: dir, Self.options(HostRouter([:]), snmp: try Self.agent(walk), placeholder: host))
+        let recorded = try String(contentsOf: dir.appendingPathComponent(PrinterRecorder.snmpFile), encoding: .utf8)
+        #expect(recorded.contains(".1.3.6.1.2.1.43.10.2.1.5.1.1 = Counter64: 9223372036854775808"))
+        #expect(recorded.contains(".1.3.6.1.2.1.43.5.1.1.99.1 = Opaque: 9F78043FC00000"))
+        #expect(!recorded.contains("not kept"))
+    }
 }

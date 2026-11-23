@@ -55,6 +55,9 @@ public struct SnmpValue: Equatable, Sendable, CustomStringConvertible {
     public static func string(_ value: String) -> SnmpValue { SnmpValue(tag: Ber.octetString, bytes: Array(value.utf8)) }
     public static func id(_ value: Oid) -> SnmpValue { SnmpValue(tag: Ber.objectIdentifier, objectId: value) }
 
+    /// An Opaque (RFC 2578 §7.1.9): any BER value wrapped as octets, kept as they came.
+    public static func opaque(_ value: [UInt8]) -> SnmpValue { SnmpValue(tag: Ber.opaque, bytes: value) }
+
     /// Counter32, Gauge32, TimeTicks or Counter64.
     public static func unsigned(_ tag: UInt8, _ value: UInt64) -> SnmpValue {
         precondition([Ber.counter32, Ber.gauge32, Ber.timeTicks, Ber.counter64].contains(tag), "Not an unsigned type.")
@@ -124,7 +127,8 @@ public struct SnmpValue: Equatable, Sendable, CustomStringConvertible {
         case Ber.counter32: return "Counter32: \(number)"
         case Ber.gauge32: return "Gauge32: \(number)"
         case Ber.timeTicks: return "Timeticks: (\(number))"
-        case Ber.counter64: return "Counter64: \(number)"
+        case Ber.counter64: return "Counter64: \(UInt64(bitPattern: number))"
+        case Ber.opaque: return "Opaque: \(SnmpValue.hexString(bytes ?? []))"
         case Ber.octetString:
             if let t = text, !t.unicodeScalars.contains(where: SnmpValue.isControl) { return "STRING: \"\(t)\"" }
             return "Hex-STRING: \(SnmpValue.hexString(bytes ?? []))"

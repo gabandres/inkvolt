@@ -86,4 +86,37 @@ import Testing
         #expect(agent.v3Log.filter { $0 == "discovery" }.count == 1) // the reader goes on with the probe's engine
         #expect(agent.v3Log.allSatisfy { $0 == "discovery" || $0 == "answered" })
     }
+
+    // SnmpV3ProtocolTests' primitives with the system's crypto (the PC runs them with its stand-in).
+
+    @Test func hmacMd596AndHmacSha196AreRfc2202sFirstCaseCutTo12Bytes() {
+        let message = Array("Hi There".utf8)
+        #expect(Usm.authenticate(.md5, key: [UInt8](repeating: 0x0b, count: 16), message, Self.crypto) == Self.bytes("9294727a3638bb1c13f48ef8"))
+        #expect(Usm.authenticate(.sha1, key: [UInt8](repeating: 0x0b, count: 20), message, Self.crypto) == Self.bytes("b617318655057264e28bc0b6"))
+    }
+
+    @Test func aes192And256CfbMatchNistSp80038A() {
+        let iv = Self.bytes("000102030405060708090a0b0c0d0e0f")
+        let plain = Self.bytes("6bc1bee22e409f96e93d7e117393172aae2d8a571e03ac9c9eb76fac45af8e51")
+        let cases: [(String, String)] = [
+            ("8e73b0f7da0e6452c810f32b809079e562f8ead2522c6b7b", "cdc80d6fddf18cab34c25909c99a417467ce7f7f81173621961a2b70171d3d7a"),
+            ("603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4", "dc7e84bfda79164b7ecd8486985d386039ffed143b28b1c832113c6331e5407b"),
+        ]
+        for (key, cipher) in cases {
+            let k = Self.bytes(key)
+            #expect(Usm.aesCfb(key: k, iv: iv, plain, encrypt: true, keyLength: k.count, Self.crypto) == Self.bytes(cipher))
+        }
+    }
+
+    @Test func desMatchesTheTextbookExampleAndRfc3414sFraming() throws {
+        let key = Self.bytes("133457799BBCDFF1 0000000000000000")
+        #expect(try Usm.desCbc(key, salt: [UInt8](repeating: 0, count: 8), Self.bytes("0123456789ABCDEF"), encrypt: true, Self.crypto)
+            == Self.bytes("85e813540f0ab405"))
+        let kul = Self.bytes("526f5eed9fcce26f8964c2930787d82b")
+        let salt = Usm.salt(.des, boots: 3, counter: 1)
+        let plain = (0..<20).map { UInt8($0) }
+        let cipher = try Usm.desCbc(kul, salt: salt, plain, encrypt: true, Self.crypto)
+        #expect(cipher == Self.bytes("009824bac70e3bdf7ab2bc947a02bd83c129148f14e64170"))
+        #expect(Array(try Usm.desCbc(kul, salt: salt, cipher, encrypt: false, Self.crypto).prefix(20)) == plain)
+    }
 }

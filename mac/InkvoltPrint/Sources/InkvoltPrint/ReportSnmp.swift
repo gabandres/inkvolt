@@ -82,6 +82,7 @@ extension Report {
             checks.append("\(check)")
         }
         lines.append("  SNMP Access… check (right, wrong auth, public): \(checks.joined(separator: ", "))")
+        lines.append("  SNMPv3 protocols: " + (await protocolsCheck(walk, engine)))
         lines.append("  SNMPv3 Keychain: " + keychainV3Check(login))
         let store = MemorySnmpLogins()
         store.save(login, for: "v3")
@@ -92,6 +93,32 @@ extension Report {
         lines.append("  SNMPv3 gate: with the Pro check on and \(Pro.licence == nil ? "no key, the kept user unused" : "a key, the kept user used"): "
             + yes(gated))
         return lines
+    }
+
+    /// SNMPv3's other protocols with the system's cryptography: a made-up agent read with each pair (SHA-256, SHA-1 or MD5;
+    /// AES-128, AES-192, AES-256 or DES), and one that lengthens its key as Reeder does read after one decryption error.
+    private static func protocolsCheck(_ walk: [SnmpVarBind], _ engine: [UInt8]) async -> String {
+        var read = 0, pairs = 0
+        for auth in SnmpAuth.allCases {
+            for priv in SnmpPriv.allCases {
+                pairs += 1
+                guard let login = try? SnmpLogin.forUser("made-up-reader", "made-up auth 2026", "made-up priv 2026", auth: auth, priv: priv),
+                      let user = login.user else { continue }
+                let agent = SnmpAgent(walk, user: user, engineId: engine, engineBoots: 2, engineTime: 600)
+                guard let client = try? SnmpClient(transport: agent, host: Demo.snmpHost, version: .v3, login: login) else { continue }
+                if (try? await client.get([PrinterMib.sysName.appending(0)]))?.first?.value.text != nil { read += 1 }
+            }
+        }
+        var reeder = "NO"
+        if let login = try? SnmpLogin.forUser("made-up-reader", "made-up auth 2026", "made-up priv 2026", auth: .sha1, priv: .aes256),
+           let user = login.user {
+            let agent = SnmpAgent(walk, user: user, engineId: engine, engineBoots: 2, engineTime: 600, extension: .reeder)
+            if let client = try? SnmpClient(transport: agent, host: Demo.snmpHost, version: .v3, login: login),
+               (try? await client.get([PrinterMib.sysName.appending(0)])) != nil {
+                reeder = agent.v3Log == ["discovery", "decryptionErrors", "answered"] ? "yes" : "read, but \(agent.v3Log)"
+            }
+        }
+        return "\(read) of \(pairs) pairs read; a Reeder agent (SHA-1, AES-256) read after one decryption error: \(reeder)"
     }
 
     private static func keychainV3Check(_ login: SnmpLogin) -> String {

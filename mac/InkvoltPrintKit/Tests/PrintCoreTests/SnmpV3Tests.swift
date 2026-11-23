@@ -386,14 +386,16 @@ struct SnmpV3Tests {
         private let count = Mutex(0)
         var stretched: Int { count.withLock { $0 } }
 
-        func sha256(_ data: [UInt8]) -> [UInt8] {
+        func hash(_ algorithm: SnmpHash, _ data: [UInt8]) -> [UInt8] {
             if data.count >= 1_048_576 { count.withLock { $0 += 1 } }
-            return SnmpV3Tests.crypto.sha256(data)
+            return SnmpV3Tests.crypto.hash(algorithm, data)
         }
 
-        func hmacSha256(key: [UInt8], _ data: [UInt8]) -> [UInt8] { SnmpV3Tests.crypto.hmacSha256(key: key, data) }
+        func hmac(_ algorithm: SnmpHash, key: [UInt8], _ data: [UInt8]) -> [UInt8] { SnmpV3Tests.crypto.hmac(algorithm, key: key, data) }
 
-        func aes128(key: [UInt8], block: [UInt8]) -> [UInt8] { SnmpV3Tests.crypto.aes128(key: key, block: block) }
+        func aes(key: [UInt8], block: [UInt8]) -> [UInt8] { SnmpV3Tests.crypto.aes(key: key, block: block) }
+
+        func des(key: [UInt8], block: [UInt8], encrypt: Bool) -> [UInt8] { SnmpV3Tests.crypto.des(key: key, block: block, encrypt: encrypt) }
     }
 
     /// Flips a byte in the encrypted answer, as someone on the way could.

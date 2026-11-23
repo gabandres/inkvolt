@@ -30,17 +30,18 @@ public final class SnmpAgent: SnmpTransport {
         engine = Mutex((0, 0, 0))
     }
 
-    /// An SNMPv3-only agent (`respondV3`) for `user` at authPriv (SHA-256, AES-128), with engine `engineId`; v1 and v2c
-    /// requests get no reply. Made without `crypto` (none passed, `Usm.crypto` unset) it answers nothing.
+    /// An SNMPv3-only agent (`respondV3`) for `user` at authPriv (with the user's protocols), with engine `engineId`,
+    /// lengthening a short privacy key as `extension` says; v1 and v2c requests get no reply. Made without `crypto` (none
+    /// passed, `Usm.crypto` unset) it answers nothing.
     public init(_ objects: [SnmpVarBind], user: SnmpV3User, engineId: [UInt8], engineBoots: Int = 1, engineTime: Int = 1000,
-                crypto: (any SnmpCrypto)? = Usm.crypto) {
+                crypto: (any SnmpCrypto)? = Usm.crypto, extension how: Usm.KeyExtension = .blumenthal) {
         self.objects = objects.sorted { $0.name < $1.name }
         community = SnmpClient.defaultCommunity
         v1Only = false
         v3User = user
         self.engineId = engineId
         self.crypto = crypto
-        keys = crypto.map { Usm.Keys.of(user, engineId: engineId, $0) }
+        keys = crypto.map { Usm.Keys.of(user, engineId: engineId, $0, extension: how) }
         engine = Mutex((engineBoots, engineTime, 0x5A17_0000_0000_0000))
     }
 
@@ -109,6 +110,19 @@ public final class SnmpAgent: SnmpTransport {
         case "Gauge32", "Counter32":
             guard let n = UInt64(value) else { throw bad }
             return .unsigned(type == "Gauge32" ? Ber.gauge32 : Ber.counter32, n)
+        case "Counter64":
+            guard let n = UInt64(value) else { throw bad }
+            return .unsigned(Ber.counter64, n)
+        case "Opaque", "OPAQUE":
+            // Its octets in hex, as "Opaque: 9F 78 04 3F C0 00 00"; net-snmp's decoded "Opaque: Float: …" isn't read.
+            let digits = Array(value.filter { $0 != " " })
+            guard digits.count % 2 == 0 else { throw bad }
+            var bytes: [UInt8] = []
+            for i in stride(from: 0, to: digits.count, by: 2) {
+                guard let b = UInt8(String(digits[i...i + 1]), radix: 16) else { throw bad }
+                bytes.append(b)
+            }
+            return .opaque(bytes)
         case "Timeticks":
             guard let n = firstNumber(in: value, signed: false) else { throw bad }
             return .unsigned(Ber.timeTicks, UInt64(n))
@@ -133,7 +147,8 @@ public final class SnmpAgent: SnmpTransport {
 
     /// The other way: objects as `parseWalk` reads them, one per line in OID order, each name once. A string that wouldn't
     /// read back byte for byte (invalid UTF-8, control characters, surrounding spaces, a trailing backslash) is written as
-    /// Hex-STRING; a type the walk form has no word for is a comment line.
+    /// Hex-STRING; a Counter64 keeps its full unsigned value and an Opaque its octets as they came. A type the walk form has
+    /// no word for (NULL, the v2c exceptions, a vendor's type) is a comment line.
     public static func formatWalk(_ objects: [SnmpVarBind]) -> String {
         var seen = Set<Oid>()
         var lines = ""
@@ -144,6 +159,8 @@ public final class SnmpAgent: SnmpTransport {
             case Ber.integer: value = "INTEGER: \(v.number)"
             case Ber.gauge32: value = "Gauge32: \(v.number)"
             case Ber.counter32: value = "Counter32: \(v.number)"
+            case Ber.counter64: value = "Counter64: \(UInt64(bitPattern: v.number))"
+            case Ber.opaque: value = "Opaque: \(SnmpValue.hexString(v.bytes ?? []))"
             case Ber.timeTicks: value = "Timeticks: (\(v.number))"
             case Ber.objectIdentifier: value = v.objectId.map { "OID: .\($0)" }
             case Ber.ipAddress: value = v.bytes?.count == 4 ? "IpAddress: \(v.bytes!.map(String.init).joined(separator: "."))" : nil
@@ -276,15 +293,15 @@ public final class SnmpAgent: SnmpTransport {
         }
         if m.userName != user.name { return report(m, Usm.unknownUserNames, "unknownUserNames", keys, crypto) }
         if !m.authenticated || !m.isPrivate { return report(m, Usm.unsupportedSecLevels, "unsupportedSecLevels", keys, crypto) }
-        if !m.verify(request, keys.auth, crypto) { return report(m, Usm.wrongDigests, "wrongDigests", keys, crypto) }
+        if !m.verify(request, keys, crypto) { return report(m, Usm.wrongDigests, "wrongDigests", keys, crypto) }
         if m.engineBoots != boots || abs(m.engineTime - time) > Usm.timeWindow {
             return report(m, Usm.notInTimeWindows, "notInTimeWindows", keys, crypto, signed: true)
         }
         guard let encrypted = m.encrypted, m.privParameters.count == Usm.saltLength else {
             return report(m, Usm.decryptionErrors, "decryptionErrors", keys, crypto)
         }
-        let iv = Usm.aesIv(boots: m.engineBoots, time: m.engineTime, salt: m.privParameters)
-        guard let scoped = try? SnmpV3Message.decodeScoped(Usm.aesCfb(key: keys.priv, iv: iv, encrypted, encrypt: false, crypto)) else {
+        guard let clear = try? keys.decrypt(boots: m.engineBoots, time: m.engineTime, salt: m.privParameters, encrypted, crypto),
+              let scoped = try? SnmpV3Message.decodeScoped(clear, padded: keys.privProtocol == .des) else {
             return report(m, Usm.decryptionErrors, "decryptionErrors", keys, crypto)
         }
         log.withLock { $0.received.append(scoped.pdu) }
@@ -303,20 +320,20 @@ public final class SnmpAgent: SnmpTransport {
                               varBinds: [SnmpVarBind(counter, .unsigned(Ber.counter32, 1))])
         let reply = SnmpV3Message(messageId: to.messageId, flags: signed ? SnmpV3Message.flagAuth : 0, engineId: engineId, engineBoots: boots,
                                   engineTime: time, userName: to.userName, contextEngineId: engineId, pdu: pdu)
-        return signed ? reply.sign(keys.auth, crypto) : reply.encode()
+        return signed ? reply.sign(keys, crypto) : reply.encode()
     }
 
-    /// A Response, encrypted with a fresh salt and signed.
-    private func wrap(_ to: SnmpV3Message, _ answer: SnmpMessage, _ keys: Usm.Keys, _ crypto: any SnmpCrypto) -> [UInt8] {
-        let (boots, time, salt) = engine.withLock { state -> (Int, Int, [UInt8]) in
+    /// A Response, encrypted with a fresh salt and signed; nil when its key can't encrypt (one of DES's weak keys).
+    private func wrap(_ to: SnmpV3Message, _ answer: SnmpMessage, _ keys: Usm.Keys, _ crypto: any SnmpCrypto) -> [UInt8]? {
+        let (boots, time, counter) = engine.withLock { state -> (Int, Int, UInt64) in
             state.salt &+= 1
-            return (state.boots, state.time, withUnsafeBytes(of: state.salt.bigEndian) { Array($0) })
+            return (state.boots, state.time, state.salt)
         }
+        let salt = keys.salt(boots: boots, counter: counter)
         let scoped = SnmpV3Message.encodeScoped(engineId, "", answer)
-        let iv = Usm.aesIv(boots: boots, time: time, salt: salt)
+        guard let encrypted = try? keys.encrypt(boots: boots, time: time, salt: salt, scoped, crypto) else { return nil }
         let reply = SnmpV3Message(messageId: to.messageId, flags: SnmpV3Message.flagAuth | SnmpV3Message.flagPriv, engineId: engineId,
-                                  engineBoots: boots, engineTime: time, userName: to.userName, privParameters: salt,
-                                  encrypted: Usm.aesCfb(key: keys.priv, iv: iv, scoped, encrypt: true, crypto))
-        return reply.sign(keys.auth, crypto)
+                                  engineBoots: boots, engineTime: time, userName: to.userName, privParameters: salt, encrypted: encrypted)
+        return reply.sign(keys, crypto)
     }
 }

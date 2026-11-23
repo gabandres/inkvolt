@@ -17,7 +17,20 @@ public enum PrinterMib {
 
     /// prtMarkerSuppliesEntry (1.3.6.1.2.1.43.11.1.1) columns.
     public static let suppliesColorantIndex = supplies(3), suppliesClass = supplies(4), suppliesType = supplies(5),
-        suppliesDescription = supplies(6), suppliesMaxCapacity = supplies(8), suppliesLevel = supplies(9)
+        suppliesDescription = supplies(6), suppliesUnit = supplies(7), suppliesMaxCapacity = supplies(8), suppliesLevel = supplies(9)
+
+    /// prtMarkerEntry (1.3.6.1.2.1.43.10.2.1): 3 prtMarkerCounterUnit, 4 prtMarkerLifeCount (the marker's lifetime count).
+    public static let markerCounterUnit: Oid = "1.3.6.1.2.1.43.10.2.1.3", markerLifeCount: Oid = "1.3.6.1.2.1.43.10.2.1.4"
+
+    /// PrtMarkerSuppliesSupplyUnitTC and PrtMarkerCounterUnitTC (RFC 3805) units that count pages: impressions(7) and sheets(8).
+    /// A supply counted in them has its level in pages left; a marker counting in them has its life count in pages.
+    public static let unitImpressions = 7, unitSheets = 8
+
+    public static func countsPages(_ unit: Int) -> Bool { unit == unitImpressions || unit == unitSheets }
+
+    /// prtConsoleDisplayBufferEntry (1.3.6.1.2.1.43.16.5.1): 2 prtConsoleDisplayBufferText, one row a line of the control
+    /// panel's display.
+    public static let consoleDisplayText: Oid = "1.3.6.1.2.1.43.16.5.1.2"
 
     /// prtMarkerColorantEntry (1.3.6.1.2.1.43.12.1.1): 4 prtMarkerColorantValue ("black", "cyan"…).
     public static let colorantValue: Oid = "1.3.6.1.2.1.43.12.1.1.4"
