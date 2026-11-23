@@ -243,7 +243,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   generic region, every pixel coded as it is: never symbol matching, which can swap one digit for another), CCITT G4 or
   Flate. File › Scan saves a page scanned in black and white this way; Recognize Text's cleaned page of a black-and-white
   scan stays one; Reduce File Size codes one again when smaller, proving the new coding draws the same pixels, and makes a
-  grey **scan of text** (ink and paper, few shades between: `LooksBlackAndWhite`) one only when asked.
+  grey **scan of text** (ink and paper, few shades between: `LooksBlackAndWhite`) one only when asked. On the Mac: PdfCore's
+  `OneBitImages` over PrintCore's `Jbig2Generic`, `CcittG4` and `PdfWriter.oneBitData`; its File › Scan has no
+  black-and-white mode.
 - **Snapshot area** (`PageViewer.SnapshotArea`, `Core/AreaCopy.cs`): the last box drawn with Snapshot, outlined on its
   page until another tool is chosen or the document changes. Its picture is copied as it is drawn; Copy Text from Area and
   Copy Area as Table copy its words (the page's text there, else the box read by the recognizer). On the Mac
@@ -268,9 +270,11 @@ locality) are used in their usual sense: the interface is everything a caller mu
   **kept** only when the text its request carried holds it word for word (`Verify`), else **dropped** and counted. Kept
   proposals are searched for as phrases (`SearchOptions`, `RedactionSearch.Find`), each hit **labelled** by its kind
   (`RedactionMatch.Label`), and go the Redact Patterns run's way: the review list, apply, read-back with the same phrases,
-  the check and the report.
+  the check and the report. On the Mac: PdfCore's `RedactionSuggestions` and `RedactionTerms` (the list in Application
+  Support's `Inkvolt PDF/redaction-terms.txt`), the app's `RedactSuggest.swift`.
 - **AI conversation** (`Core/AiAnswers.cs`: `AiConversation`, `AiExchange`; `DocumentSession.AiConversation`): the AI
   assistant's answers about one document (each an **exchange**: what the pane showed as asked, what a follow-up sends as
   that turn, the answer, the model, when), kept with its document session until cleared or closed. Follow-up questions
   send it again (`Turns`); **Save an AI answer** (`AiAnswerExport`) writes one exchange or all of them to Word or a PDF,
-  or one as a note on the first page it cites, always naming the model and saying it may be wrong.
+  or one as a note on the first page it cites, always naming the model and saying it may be wrong. On the Mac: PdfCore's
+  `Ai/AiAnswers.swift`, `DocumentSession.aiConversation`, the app's `AiSave.swift`.

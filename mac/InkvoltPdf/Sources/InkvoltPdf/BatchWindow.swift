@@ -351,6 +351,7 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         switch step {
         case .watermark(let o): "\(step.title): \(o.text ?? loc("a picture"))"
         case .headerFooter(let o, let c): "\(step.title): \(headerFooterTexts(o, continues: c))"
+        case .optimize(let o) where o.blackAndWhiteScans: step.title + ": " + loc("scans in black and white")
         case .rotate(let d): step.title + ": \(d)°"
         case .removeBlankPages: step.title + ": " + loc("Pages that are almost all paper go; a file of blank pages only is kept")
         case .splitAtBlankPages: step.title + ": " + loc("A PDF for each part between blank separator pages")
@@ -822,13 +823,15 @@ enum ActionSheet {
             alert.informativeText = loc("Pictures shown larger than the chosen resolution are downsampled and stored as JPEG; identical streams merged, uncompressed ones compressed.")
             let qualities = [loc("High quality (200 dpi)"), loc("Medium (150 dpi)"), loc("Low (96 dpi)"), loc("Keep pictures as they are")]
             let quality = popup(qualities, o.maxImageDpi == 200 ? 0 : o.maxImageDpi == 96 ? 2 : o.maxImageDpi == nil ? 3 : 1)
+            let blackAndWhite = check(loc("Make scanned pages of text black and white (much smaller; their shades of grey go)"), o.blackAndWhiteScans)
             let thumbs = check(loc("Remove embedded page thumbnails"), o.removeThumbnails)
             let piece = check(loc("Remove other apps' private data"), o.removePieceInfo)
             let meta = check(loc("Remove XMP metadata (the title and author stay)"), o.removeMetadata)
-            alert.accessoryView = column([quality, thumbs, piece, meta], width: 360)
+            alert.accessoryView = column([quality, blackAndWhite, thumbs, piece, meta], width: 360)
             read = {
                 var n = o
                 n.maxImageDpi = [200.0, 150, 96, nil][max(quality.indexOfSelectedItem, 0)]
+                n.blackAndWhiteScans = blackAndWhite.state == .on
                 n.removeThumbnails = thumbs.state == .on
                 n.removePieceInfo = piece.state == .on
                 n.removeMetadata = meta.state == .on

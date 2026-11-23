@@ -81,6 +81,10 @@ struct AiTest {
                 return stalled
             }
             if received.body.contains("REFUSE") { return .json(404, #"{"error":{"message":"model not found"}}"#) }
+            // Suggest Redactions (roadmap 4.10): one quote the page holds, one it doesn't.
+            if received.body.contains("You find text to redact") {
+                return .sse([#"{"redact":[{"text":"brown fox","kind":"person"},"#, #"{"text":"Nobody Invented","kind":"name"}]}"#])
+            }
             if received.body.contains("These are summaries") { return .sse(["<think>let me see</think>", "The whole ", "summary [p. 1]."]) }
             return .sse(["The ", "answer ", "**says** it ", "[p. 1] and [p. 2]."], pause: 0.01)
         }) else {
@@ -333,6 +337,9 @@ struct AiTest {
         cloudSettings.customUrl = url
         AppSettings.ai = cloudSettings
 
+        await suggestRedactions(chats)
+        await saveAnswers(pane)
+
         // The app's Settings says how it stands, and has the way in.
         SettingsWindowController.show(updates: nil)
         let general = SettingsWindowController.shared
@@ -343,7 +350,7 @@ struct AiTest {
 
         // Clear, close, off again.
         pane.clearClicked()
-        check(pane.answers.isEmpty && controller.ai.turns.isEmpty && pane.statusLabel.stringValue == loc("Conversation cleared"), "Clear empties the conversation")
+        check(pane.answers.isEmpty && controller.pdf.session?.aiConversation.exchanges.isEmpty == true && pane.statusLabel.stringValue == loc("Conversation cleared"), "Clear empties the conversation")
         controller.closeAiPane()
         _ = await waitFor(2) { !controller.isAiPaneOpen }
         check(!controller.isAiPaneOpen, "Close hides the pane")
@@ -360,6 +367,95 @@ struct AiTest {
         controller.pages.clearSelection()
         lines.append("note: \(pane.stateReport().prefix(160))")
         finish()
+    }
+
+    /// Suggest Redactions (roadmap 4.10): the sheet with the assistant on, then a run with the names and terms list (a file
+    /// of the test's own): the send window always shown, the quote the page doesn't hold left out, the suggestions and the
+    /// list's term in Redact by Pattern's review list under their own names; cancelled there, so nothing is redacted.
+    private mutating func suggestRedactions(_ chats: () -> [AiLoopbackServer.Received]) async {
+        let keptTerms = DocumentWindowController.termsUrl
+        let terms = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-selftest-terms-\(UUID().uuidString).txt")
+        DocumentWindowController.termsUrl = terms
+        defer {
+            try? FileManager.default.removeItem(at: terms)
+            DocumentWindowController.termsUrl = keptTerms
+        }
+        try? RedactionTerms.saveText(terms, "# the test's list\nliquor jugs\n")
+
+        controller.suggestRedactions(nil)
+        _ = await waitFor { controller.redaction.suggestAlert != nil }
+        let alert = controller.redaction.suggestAlert
+        let assistantNote = loc("Your AI assistant ({0} · {1}) reads the pages' text and suggests what to redact. You see exactly what is sent, and where, before it goes.",
+                                "test-model", loc("Stays on this Mac"))
+        check(alert?.messageText == loc("Suggest Redactions") && alert?.informativeText == assistantNote,
+              "Suggest Redactions… opens its sheet, naming the assistant and where text goes")
+        snapshot(alert?.window, "ai-suggest-redactions.png")
+        if let sheet = alert?.window { sheet.sheetParent?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }
+        _ = await waitFor { controller.redaction.suggestAlert == nil }
+
+        let before = chats().count
+        let owner = controller
+        let run = Task { @MainActor in
+            await owner.runSuggestRedactions(RedactSuggestPlan(kinds: .names, description: nil, useTerms: true, pages: [0]))
+        }
+        let send = await confirm()
+        let shown = send?.preview.string ?? ""
+        check(send != nil && chats().count == before, "the send window shows before the page's text goes")
+        send?.disclosure.performClick(nil)
+        check((send?.preview.string ?? shown).contains("You find text to redact"), "and shows the instructions that go with it")
+        send?.sendClicked()
+        _ = await waitFor(15) { controller.redaction.reviewSheet != nil || !(controller.pdf.session != nil) }
+        let review = controller.redaction.reviewSheet
+        let kinds = Set(review?.list.rows.map(\.kind) ?? [])
+        let suggestion = controller.redaction.lastSuggestion
+        check(chats().count == before + 1 && suggestion?.kept.map(\.text) == ["brown fox"] && suggestion?.dropped == 1,
+              "one request; the quote the page holds kept, the invented one left out (\(suggestion?.kept.count ?? -1) kept, \(suggestion?.dropped ?? -1) left out)")
+        check(kinds.contains(loc("Suggested: name")) && kinds.contains(loc("From your list")),
+              "the review list names each by where it came from: \(kinds.sorted().joined(separator: ", "))")
+        snapshot(review?.window, "ai-suggest-review.png")
+        review?.cancelClicked()
+        let applied = await run.value
+        check(!applied && controller.pages.redactions.isEmpty, "cancelled in the list: nothing redacted")
+    }
+
+    /// Save AI Answer (roadmap 4.20): the answers kept with the document's session, each card's Save, the sheet's three
+    /// choices; the conversation saved to Word and an answer to a PDF (files of the test's own, read back), and an answer as
+    /// a note on the page it cites, one undo step, undone.
+    private mutating func saveAnswers(_ pane: AiPane) async {
+        let kept = controller.pdf.session?.aiConversation.exchanges ?? []
+        let saving = pane.answers.filter { $0.saveButton.isEnabled }.count
+        check(kept.count >= 2 && kept.allSatisfy { $0.model == "test-model" } && saving == kept.count && pane.answers.last?.saveButton.isEnabled == false,
+              "the answers are kept with the document (\(kept.count)), each card with Save, the refused one without (\(saving) of \(pane.answers.count))")
+        guard let last = kept.last else { return }
+        controller.saveAiAnswer(last)
+        _ = await waitFor { controller.ai.saveAlert != nil }
+        let choices = controller.ai.saveAlert?.choice.itemTitles ?? []
+        check(choices.count == 3 && choices.last?.hasPrefix(Shown.head(loc("A comment on page {0} of this document", Shown.gap))) == true,
+              "Save on an answer offers Word, a PDF and a comment: \(choices.count) choices")
+        snapshot(controller.ai.saveAlert?.alert.window, "ai-save-answer.png")
+        if let sheet = controller.ai.saveAlert?.alert.window { sheet.sheetParent?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }
+        await controller.ai.job?.value
+
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-selftest-ai-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let docx = folder.appendingPathComponent("answers.docx"), pdf = folder.appendingPathComponent("answer.pdf")
+        let wrote = await controller.saveAiAnswers(nil, target: .word, url: docx)
+        let zip = (try? Data(contentsOf: docx)) ?? Data()
+        check(wrote && zip.starts(with: [0x50, 0x4B]), "the conversation saved as a Word document (\(zip.count) bytes)")
+        let wrotePdf = await controller.saveAiAnswers([last], target: .pdf, url: pdf)
+        let text = ((try? PdfEngine.open(Array((try? Data(contentsOf: pdf)) ?? Data()))).flatMap { try? $0.text(0).text }) ?? ""
+        check(wrotePdf && text.contains("test-model") && text.contains(last.shown.prefix(12)), "an answer saved as a PDF, naming the model and what was asked")
+
+        let before = controller.pdf.session?.undoLabel
+        let notes = (try? Annotations.read(controller.pdf.session?.data ?? [], controller.pdf.session?.password).count) ?? -1
+        let commented = await controller.saveAiAnswers([last], target: .comment)
+        let after = (try? Annotations.read(controller.pdf.session?.data ?? [], controller.pdf.session?.password)) ?? []
+        check(commented && after.count == notes + 1 && after.contains { $0.contents.contains(last.shown) && $0.contents.contains("test-model") }
+              && controller.pdf.session?.undoLabel == loc("Add AI answer as comment"), "an answer as a note in the document, one undo step")
+        controller.pdf.undo()
+        _ = await waitFor { controller.pdf.session?.undoLabel == before }
+        check(controller.pdf.session?.undoLabel == before, "and undone")
     }
 
     private static func rightClick(_ controller: DocumentWindowController) -> NSEvent {

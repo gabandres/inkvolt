@@ -138,14 +138,33 @@ public enum PdfWriter {
 
     /// A black-and-white image's stream for a /DeviceGray image at 1 bit: the filter entries (with their parameters) and the
     /// data, CCITT G4 (`CcittG4`) or Flate of the rows (0 black, `Deflate`), whichever is smaller. G4 wins on text; Flate can on
-    /// a page of fine, even patterns (a halftone), where G4's runs are short.
+    /// a page of fine, even patterns (a halftone), where G4's runs are short. With `jbig2`, lossless JBIG2 (`Jbig2Generic`)
+    /// too, a quarter or so smaller than G4 on text (Inkvolt PDF's roadmap 4.8).
     /// - Throws: `CancellationError` when `stop` fires.
-    public static func oneBit(_ image: BitImage, stop: BatchStop? = nil) throws -> (filter: String, data: [UInt8]) {
-        let g4 = try CcittG4.encode(image, stop: stop)
+    public static func oneBit(_ image: BitImage, jbig2: Bool = false, stop: BatchStop? = nil) throws -> (filter: String, data: [UInt8]) {
+        let (coding, data) = try oneBitData(image, jbig2: jbig2, stop: stop)
+        switch coding {
+        case .ccittG4: return ("/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns \(image.width) /Rows \(image.height) >>", data)
+        case .jbig2: return ("/Filter /JBIG2Decode", data)
+        case .flate: return ("/Filter /FlateDecode", data)
+        }
+    }
+
+    /// How a black-and-white image's samples are stored (`oneBitData`).
+    public enum OneBitCoding: Sendable { case ccittG4, jbig2, flate }
+
+    /// `oneBit`'s choice and data. Each decodes to the same samples: 0 where the image is black (a set bit), as /DeviceGray
+    /// reads 1 bit.
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func oneBitData(_ image: BitImage, jbig2: Bool = false, stop: BatchStop? = nil) throws -> (coding: OneBitCoding, data: [UInt8]) {
+        var best = (coding: OneBitCoding.ccittG4, data: try CcittG4.encode(image, stop: stop))
+        if jbig2 {
+            let j = try Jbig2Generic.encode(image, stop: stop)
+            if j.count < best.data.count { best = (.jbig2, j) }
+        }
+        try stop?.check()
         let flate = Deflate.zlib(image.inverted())
-        return g4.count <= flate.count
-            ? ("/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns \(image.width) /Rows \(image.height) >>", g4)
-            : ("/Filter /FlateDecode", flate)
+        return flate.count < best.data.count ? (.flate, flate) : best
     }
 
     /// A page's words as invisible text; empty when none can be written. Each is stretched to fill its box in its own text

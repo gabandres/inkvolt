@@ -32,6 +32,11 @@ final class RedactionState {
     var lastRemoval: RedactionFileReport?
     /// The last choices of Redact by Pattern, offered again (until the app quits).
     static var lastPatterns = RedactionPatternOptions()
+    /// Suggest Redactions' sheet and the list's editor while they are open, and what the last suggestions kept and left out
+    /// (roadmap 4.10; the self-test drives and reads them).
+    var suggestAlert: NSAlert?
+    var termsAlert: (alert: NSAlert, box: NSTextView)?
+    var lastSuggestion: RedactionSuggestResult?
 }
 
 /// The bar over the pages while areas are marked or the Redact tool is on: how many areas on how many pages, and
