@@ -204,7 +204,7 @@ public actor SnmpPrinterClient {
                             PrinterMib.alertDescription]
         let alerts = Self.rows(try await client.walk(alertColumns.map { $0.appending(i) }))
         let supplyColumns = [PrinterMib.suppliesClass, PrinterMib.suppliesType, PrinterMib.suppliesDescription,
-                             PrinterMib.suppliesMaxCapacity, PrinterMib.suppliesLevel, PrinterMib.suppliesColorantIndex]
+                             PrinterMib.suppliesMaxCapacity, PrinterMib.suppliesLevel, PrinterMib.suppliesColorantIndex, PrinterMib.suppliesUnit]
         let supplies = Self.rows(try await client.walk(supplyColumns.map { $0.appending(i) }))
         // Colorants belong to the marker, not the cartridge in it: read once.
         if colorants == nil {
@@ -214,9 +214,14 @@ public actor SnmpPrinterClient {
             }
             colorants = found
         }
+        // Extras: the page count. A printer that times out or errs on it (an agent without the table, a slow one) still gives
+        // its status and supplies: it's just missing.
+        let markers = (try? await client.walk([PrinterMib.markerCounterUnit.appending(i), PrinterMib.markerLifeCount.appending(i)]))
+            .map(Self.rows) ?? []
+        try Task.checkCancellation()
 
         func int(_ value: SnmpValue?, _ missing: Int = 0) -> Int { value?.int ?? missing }
-        return SnmpReading(
+        var reading = SnmpReading(
             deviceStatus: state[0].value.int,
             printerStatus: state[1].value.int,
             detectedErrorState: state[2].value.bytes ?? [],
@@ -224,10 +229,22 @@ public actor SnmpPrinterClient {
                 SnmpAlert(row, severity: int(v[0]), group: int(v[1]), groupIndex: int(v[2], -1), code: int(v[3]), description: v[4]?.text)
             },
             supplies: supplies.map { row, v in
-                SnmpSupply(row, supplyClass: int(v[0]), type: int(v[1]), description: v[2]?.text, maxCapacity: int(v[3], -2),
-                           level: int(v[4], -2), colorantIndex: int(v[5]))
+                var supply = SnmpSupply(row, supplyClass: int(v[0]), type: int(v[1]), description: v[2]?.text, maxCapacity: int(v[3], -2),
+                                        level: int(v[4], -2), colorantIndex: int(v[5]))
+                supply.unit = int(v[6])
+                return supply
             },
             colorants: colorants ?? [:])
+        reading.pageCount = Self.pageCount(markers.first?.cells)
+        return reading
+    }
+
+    /// The first marker (a printer has one; a color one may count per marker, the first being the engine's): its life count
+    /// when it counts pages and is a number (a Counter32 past Int32's range isn't a page count).
+    private static func pageCount(_ marker: [SnmpValue?]?) -> Int? {
+        guard let marker, marker.count == 2, let unit = marker[0]?.int, PrinterMib.countsPages(unit),
+              let count = marker[1], count.isNumber, let pages = count.int, pages >= 0 else { return nil }
+        return pages
     }
 
     /// Columns walked side by side → rows by their (single-arc) index, in order, each with its value per column (nil where

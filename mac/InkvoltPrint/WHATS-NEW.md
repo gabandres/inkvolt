@@ -19,6 +19,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Cards, calendars and collages in Print Photos: a folded card (two to a sheet, the photo on the front, your message inside), a month or year calendar under each photo in the app's language, and a collage of 2 to 9 photos in rows, columns or one large. Save as PDF… saves any layout as it prints.
 - PDF/A and passwords in scan presets: a PDF preset can save PDF/A, meant to open the same way for years, or put a password on the PDF (AES-256, as Inkvolt PDF protects files). The password is asked the first time the preset saves, and kept in your keychain if you choose.
 - Print a PDF's Layout, under the file list: several pages per sheet (2, 4, 6, 9 or 16), a booklet printed on both sides in the order a folded stack reads, or a poster from 150 to 400 % over sheets that overlap by ¼ in, with cut marks to trim them.
+- Supplies show the pages left and how many pages a full cartridge is rated for on more printers: newer HP printers, and other brands' printers that count their toner in pages. Their pages printed, and pages since each cartridge went in, show too.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

@@ -79,9 +79,16 @@ public enum CdmParsers {
                 productNumber: str(e, "orderPartNumber") ?? str(e, "productNumber") ?? str(e, "orderSelectabilityNumber")
                     ?? str(e, "selectabilityNumber"),
                 selectibilityNumber: str(e, "selectabilityNumber") ?? str(e, "orderSelectabilityNumber"),
-                estimatedPagesRemaining: pages.flatMap { $0 >= 0 ? $0 : nil }), kind == "printhead"))
+                estimatedPagesRemaining: pages.flatMap { $0 >= 0 ? $0 : nil },
+                pageYield: pageYield(e)), kind == "printhead"))
         }
         return supplies.filter { !$0.printhead }.map(\.supply) + supplies.filter(\.printhead).map(\.supply)
+    }
+
+    /// CDM's `capacity` when it counts pages (`capacityUnit` pages, impressions or sheets): what a full one is rated for.
+    private static func pageYield(_ e: [String: Json]) -> Int? {
+        guard let capacity = int(e, "capacity"), capacity > 0, ["pages", "impressions", "sheets"].contains(str(e, "capacityUnit") ?? "") else { return nil }
+        return capacity
     }
 
     private static func state(_ supply: String?, _ level: String?) -> String {

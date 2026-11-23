@@ -203,7 +203,8 @@ struct CdmSource: ReadingSource {
     }
 }
 
-/// IPP: status and supplies both from one Get-Printer-Attributes request.
+/// IPP: status, supplies and the page count all from one Get-Printer-Attributes request. The page count alone asks nothing
+/// (an interface before this one gave the rest: no request just for it).
 struct IppSource: ReadingSource {
     let client: IppClient
 
@@ -211,7 +212,8 @@ struct IppSource: ReadingSource {
         guard !parts.isDisjoint(with: [.status, .supplies]) else { return SourceRead() }
         let attributes = try await Outcome.of { try await client.printerAttributes() }
         return SourceRead(status: parts.contains(.status) ? attributes.map(IppClient.toStatus) : nil,
-                          supplies: parts.contains(.supplies) ? attributes.map(IppClient.toConsumables) : nil)
+                          supplies: parts.contains(.supplies) ? attributes.map(IppClient.toConsumables) : nil,
+                          usage: parts.contains(.usage) ? attributes.map(IppClient.toUsage) : nil)
     }
 
     var uuidRead: (@Sendable () async throws -> String?)? {
@@ -220,7 +222,8 @@ struct IppSource: ReadingSource {
     }
 }
 
-/// SNMP (Printer MIB): status and supplies from one walk (the client shares a read made moments ago). No UUID.
+/// SNMP (Printer MIB): status, supplies and the page count from one walk (the client shares a read made moments ago). No
+/// UUID. The page count alone asks nothing, as with IPP.
 struct SnmpSource: ReadingSource {
     let client: SnmpPrinterClient
 
@@ -228,7 +231,8 @@ struct SnmpSource: ReadingSource {
         guard !parts.isDisjoint(with: [.status, .supplies]) else { return SourceRead() }
         let reading = try await Outcome.of { try await client.read() }
         return SourceRead(status: parts.contains(.status) ? reading.map(SnmpPrinterStatus.toStatus) : nil,
-                          supplies: parts.contains(.supplies) ? reading.map(SnmpPrinterStatus.toConsumables) : nil)
+                          supplies: parts.contains(.supplies) ? reading.map(SnmpPrinterStatus.toConsumables) : nil,
+                          usage: parts.contains(.usage) ? reading.map(SnmpPrinterStatus.toUsage) : nil)
     }
 }
 

@@ -76,10 +76,14 @@ public struct Consumable: Equatable, Sendable {
     public var lowThreshold: Int?
     public var estimatedPagesRemaining: Int?
     public var installed: DateComponents?
+    /// The pages a full cartridge is rated for, when the printer says (CDM's `capacity` in pages, IPP's `printer-supply` and
+    /// the Printer MIB's prtMarkerSuppliesMaxCapacity counted in impressions or sheets); nil otherwise. Beside
+    /// `estimatedPagesRemaining`, the pages left in it now.
+    public var pageYield: Int?
 
     public init(name: String, kind: String, colorCode: String?, percentRemaining: Int?, state: String,
                 productNumber: String? = nil, selectibilityNumber: String? = nil, lowThreshold: Int? = nil,
-                estimatedPagesRemaining: Int? = nil, installed: DateComponents? = nil) {
+                estimatedPagesRemaining: Int? = nil, installed: DateComponents? = nil, pageYield: Int? = nil) {
         self.name = name
         self.kind = kind
         self.colorCode = colorCode
@@ -90,6 +94,7 @@ public struct Consumable: Equatable, Sendable {
         self.lowThreshold = lowThreshold
         self.estimatedPagesRemaining = estimatedPagesRemaining
         self.installed = installed
+        self.pageYield = pageYield
     }
 
     /// Needs attention soon: low, empty, or (a waste box) almost full or full.

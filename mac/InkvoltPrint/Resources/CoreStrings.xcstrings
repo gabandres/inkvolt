@@ -4721,6 +4721,17 @@
         }
       }
     },
+    "Rated for about {0} pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rinde unas {0} páginas"
+          }
+        }
+      }
+    },
     "Read just now": {
       "extractionState": "manual",
       "localizations": {
