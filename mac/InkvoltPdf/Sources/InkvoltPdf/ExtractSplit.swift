@@ -225,7 +225,7 @@ extension DocumentWindowController {
     // MARK: Shared
 
     /// Writes the files off the main thread with a progress sheet; false (and the error shown) when it stopped.
-    private func writeFiles(_ files: [(path: String, bytes: @Sendable () throws -> [UInt8])], busy: String, failed: String) async -> Bool {
+    func writeFiles(_ files: [(path: String, bytes: @Sendable () throws -> [UInt8])], busy: String, failed: String) async -> Bool {
         let sheet = ProgressSheet(title: busy, text: files.count == 1 ? loc("1 file") : loc("{0} files", CoreLanguage.number(files.count)))
         sheet.begin(on: window)
         defer { sheet.end() }
@@ -255,7 +255,7 @@ extension DocumentWindowController {
         return false
     }
 
-    private func chooseFolder(_ message: String, _ window: NSWindow) async -> String? {
+    func chooseFolder(_ message: String, _ window: NSWindow) async -> String? {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false

@@ -5,8 +5,8 @@ import PrintCore
 /// The self-test's scenario for Wave 4's paper commands (roadmap Batch A; `--edit`, on the synthetic text document;
 /// `--only-paper` runs it alone): each through the menu bar's item (enabled, its sheet's edit run as the sheet runs it)
 /// and the edit the sheet makes, checked on the document, then undone so the next starts from the document as opened.
-/// Page Labels (4.14), Interleave Pages (4.3; Scan the Backs in `AppTest`, with the demo scanner). Only counts, labels
-/// and states are written.
+/// Page Labels (4.14), Interleave Pages (4.3; Scan the Backs in `AppTest`, with the demo scanner), Remove Blank Pages and
+/// Split at Blank Pages (4.4). Only counts, labels and states are written.
 @MainActor
 struct PaperTest {
     let controller: DocumentWindowController
@@ -67,6 +67,7 @@ struct PaperTest {
         }
         await pageLabels()
         await interleave()
+        await blankPages()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         Report.note("paper commands took \(Int(Date().timeIntervalSince(started))) s")
@@ -117,5 +118,35 @@ struct PaperTest {
         let undoneWith = await undo(n)
         check(with && pairs && undoneWith && texts() == before,
               "Interleave Pages… with another PDF: \(n) fronts and \(n) backs, each back after its front (\(doubled.count) pages), undone")
+    }
+
+    /// Remove Blank Pages… and Split at Blank Pages…: a blank page inserted after page 1 is found (with the progress sheet),
+    /// removed as one step and undone, then the document split at it into a temporary folder; the insert undone.
+    private mutating func blankPages() async {
+        let n = count
+        let menu = offered("Remove Blank Pages…", "removeBlankPages:") && offered("Split at Blank Pages…", "splitAtBlankPages:")
+        let g = controller.engine.page(0)
+        guard await controller.insertBlank(at: 1, count: 1, size: (g.width, g.height)) else { return check(false, "a blank page inserted to find") }
+        let found = await controller.findBlankPages()
+        let pictured = found?.pictures.first ?? nil
+        let removed = await controller.removeBlank([1])
+        let named = session?.undoLabel == loc("Remove 1 blank page")
+        let afterRemove = count
+        let undone = await undo(n + 1)
+        let folder = (NSTemporaryDirectory() as NSString).appendingPathComponent("inkvolt-paper-\(UUID().uuidString.prefix(8))")
+        try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(atPath: folder) }
+        let parts = await controller.splitAtBlanks([1], to: folder) ?? []
+        let partPages = parts.map { path in
+            (try? PdfEngine.open(Array((try? Data(contentsOf: URL(fileURLWithPath: path))) ?? Data()))).map { e in
+                defer { e.close() }
+                return e.pageCount
+            } ?? 0
+        }
+        let undoneInsert = await undo(n)
+        check(menu && found?.pages.contains(1) == true && pictured != nil && removed && named && afterRemove == n && undone && partPages == [1, n - 1]
+              && undoneInsert,
+              "Remove Blank Pages… and Split at Blank Pages… (Pages menu): the blank page found (\(found?.pages ?? [])) and shown, removed as one step "
+              + "and undone; split into \(parts.count) files of \(partPages) pages")
     }
 }

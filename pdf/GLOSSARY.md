@@ -223,7 +223,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
   window's **document state** (`DocumentState`: pages, selection, busy, signing…); the command palette lists the menus so
   built. Windows keeps its commands in the main window's menus (`MainWindow.xaml`) and each command's CanExecute; the
   command bar's groups are `CommandBarLayout` (Core).
-- **Blank page** (`Core/BlankPages.cs`, on the shared `BlankPage` in `InkvoltPrint.Core/Imaging/PageImage.cs`): a page whose
+- **Blank page** (`Core/BlankPages.cs`, on the shared `BlankPage` in `InkvoltPrint.Core/Imaging/PageImage.cs`; Mac: PdfCore
+  `Pages/BlankPages.swift` on PrintCore's `BlankPage`): a page whose
   picture, drawn with its comments at about 1,100 pixels, is almost all paper by the test File › Scan skips blank scans
   with (a short line of text is not blank; specks and show-through are). Remove Blank Pages deletes them; Split at Blank
   Pages and its Batch action take them as **separator pages** between documents.

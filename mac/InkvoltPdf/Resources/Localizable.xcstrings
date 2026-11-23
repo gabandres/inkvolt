@@ -22539,6 +22539,281 @@
           }
         }
       }
+    },
+    "Pages that are almost all paper go; a file of blank pages only is kept": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se quitan las páginas que son casi solo papel; un archivo solo de páginas en blanco se conserva"
+          }
+        }
+      }
+    },
+    "A PDF for each part between blank separator pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un PDF por cada parte entre páginas separadoras en blanco"
+          }
+        }
+      }
+    },
+    "Looking for blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando páginas en blanco"
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezando…"
+          }
+        }
+      }
+    },
+    "The pages couldn't be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer las páginas"
+          }
+        }
+      }
+    },
+    "Something in this document stopped Inkvolt PDF from reading its pages. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo en este documento impidió que Inkvolt PDF leyera sus páginas. No se cambió nada."
+          }
+        }
+      }
+    },
+    "No blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay páginas en blanco"
+          }
+        }
+      }
+    },
+    "No page of this document looks blank. A page with as little as a short word on it is kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna página de este documento parece estar en blanco. Una página con aunque sea una palabra corta se conserva."
+          }
+        }
+      }
+    },
+    "1 page looks blank. Untick it to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 página parece estar en blanco. Desmárcala para conservarla."
+          }
+        }
+      }
+    },
+    "{0} pages look blank. Untick any you want to keep.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas parecen estar en blanco. Desmarca las que quieras conservar."
+          }
+        }
+      }
+    },
+    "Delete them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminarlas"
+          }
+        }
+      }
+    },
+    "Split the document at them into separate PDFs (they're left out)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir el documento por ellas en varios PDF (no se incluyen)"
+          }
+        }
+      }
+    },
+    "What to do with them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer con ellas"
+          }
+        }
+      }
+    },
+    "What to do with them:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer con ellas:"
+          }
+        }
+      }
+    },
+    "Split at Blank Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir en las páginas en blanco"
+          }
+        }
+      }
+    },
+    "Remove Blank Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar páginas en blanco"
+          }
+        }
+      }
+    },
+    "Tick at least one page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos una página."
+          }
+        }
+      }
+    },
+    "Every page is ticked, and a document keeps at least one page. Untick one to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Están marcadas todas las páginas y un documento conserva al menos una. Desmarca una para conservarla."
+          }
+        }
+      }
+    },
+    "Nothing is left between the blank pages to save.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No queda nada entre las páginas en blanco para guardar."
+          }
+        }
+      }
+    },
+    "Choose where to save the parts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige dónde guardar las partes"
+          }
+        }
+      }
+    },
+    "Remove 1 blank page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar 1 página en blanco"
+          }
+        }
+      }
+    },
+    "Remove {0} blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar {0} páginas en blanco"
+          }
+        }
+      }
+    },
+    "Saving {0} parts…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardando {0} partes…"
+          }
+        }
+      }
+    },
+    "Split at Blank Pages didn't work": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo dividir en las páginas en blanco"
+          }
+        }
+      }
+    },
+    "Saved {0} parts to “{1}”.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardaron {0} partes en “{1}”."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

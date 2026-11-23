@@ -193,6 +193,12 @@ public enum BatchStep: Equatable, Sendable {
     case headerFooter(HeaderFooterOptions, continueBates: Bool)
     /// A multiple of 90, positive clockwise.
     case rotate(Int)
+    /// Remove Blank Pages (`BlankPages`): pages that are almost all paper go, with the bookmarks and links to them. A file
+    /// whose pages are all blank keeps them (a document keeps a page), and the notes say so.
+    case removeBlankPages
+    /// Split at Blank Pages (`BlankPages.splitAt`): a PDF for each run of pages between blank separator sheets, named
+    /// "name - part 1.pdf" and on, the blank pages left out. The file itself isn't changed.
+    case splitAtBlankPages
     case flatten(FlattenOptions)
     /// Text recognition of pages without text, added as an invisible text layer (the recognizer comes from `BatchHost.recognize`).
     case ocr
@@ -215,7 +221,7 @@ public enum BatchStep: Equatable, Sendable {
     /// The action changes the PDF (an export only reads it).
     public var changesPdf: Bool {
         switch self {
-        case .checkRedaction, .checkAccessibility, .reportContents, .export: false
+        case .checkRedaction, .checkAccessibility, .reportContents, .export, .splitAtBlankPages: false
         default: true
         }
     }
@@ -234,6 +240,8 @@ public enum BatchStep: Equatable, Sendable {
         case .watermark: loc("Add watermark")
         case .headerFooter(let o, _): o.bates != nil ? loc("Add header, footer & Bates numbers") : loc("Add header & footer")
         case .rotate: loc("Rotate pages")
+        case .removeBlankPages: loc("Remove blank pages")
+        case .splitAtBlankPages: loc("Split at blank pages")
         case .flatten: loc("Flatten")
         case .ocr: loc("Recognize text (OCR)")
         case .makeAccessible: loc("Make accessible")
@@ -344,7 +352,7 @@ public struct BatchPlan: Sendable {
     public var rendersPages: Bool {
         steps.contains {
             switch $0 {
-            case .ocr, .redactPatterns, .checkRedaction: true
+            case .ocr, .redactPatterns, .checkRedaction, .removeBlankPages, .splitAtBlankPages: true
             default: $0.isImageExport
             }
         }
@@ -598,7 +606,7 @@ public enum BatchRunner {
                 }
                 if plan.isSequential {
                     await group.next()
-                    bates += job.pageCount
+                    bates += job.batesPages ?? job.pageCount
                 }
             }
         }
@@ -697,6 +705,9 @@ public enum BatchRunner {
         let batesOffset: Int
         let longTermClient: LtvClient?
         private(set) var pageCount = 0
+        /// How many pages Bates numbers that continue were stamped on (nil: none were): what the next file goes on from, even
+        /// when a later action (Remove Blank Pages) removed some of them.
+        private(set) var batesPages: Int?
         /// The file already held all the long-term data there was to add: no copy of it is saved.
         private var alreadyLongTerm = false
         /// The file was damaged and is worked on as its repaired copy.
@@ -800,6 +811,17 @@ public enum BatchRunner {
                         if !words.isEmpty { data = try await edit(data) { d, pw in try TextLayer.addInvisibleText(d, pw, words, language: language) } }
                     case .addLongTerm(let url):
                         data = try await addLongTerm(data, url)
+                    case .removeBlankPages:
+                        let blanks = try findBlank(data)
+                        if blanks.count >= pageCount {
+                            notes.append(loc("Every page looks blank: the pages were kept."))
+                        } else if !blanks.isEmpty {
+                            data = try await edit(data) { d, pw in try BlankPages.remove(d, pw, blanks) }
+                            pageCount = try pages(data)
+                            notes.append(blanks.count == 1 ? loc("1 blank page removed.") : loc("{0} blank pages removed.", CoreLanguage.number(blanks.count)))
+                        }
+                    case .splitAtBlankPages:
+                        try splitAtBlanks(data)
                     default:
                         data = try await edit(data) { d, pw in try self.apply(step, d, pw) }
                         afterStep(step)
@@ -939,6 +961,7 @@ public enum BatchRunner {
                 var options = h
                 options.fileName = (file.namedAs as NSString).lastPathComponent
                 options.batesOffset = continueBates ? batesOffset : 0
+                if continueBates && h.bates != nil { batesPages = pageCount }
                 return try HeaderFooter.apply(d, pw, all, options)
             case .rotate(let degrees):
                 return try PageEditor.rotate(d, pw, all, degrees)
@@ -1125,6 +1148,34 @@ public enum BatchRunner {
             let engine = try PdfEngine.open(data, password: password)
             defer { engine.close() }
             return engine.pageCount
+        }
+
+        private func findBlank(_ data: [UInt8]) throws -> [Int] {
+            let engine = try PdfEngine.open(data, password: password)
+            defer { engine.close() }
+            return try BlankPages.find(engine, progress: { [self] done, total in
+                self.report(loc("Looking for blank pages ({0} of {1})…", CoreLanguage.number(min(done + 1, total)), CoreLanguage.number(total)),
+                            Double(done) / Double(max(1, total)))
+            }, cancel: cancel)
+        }
+
+        /// A PDF beside the result for each run of pages between blank ones; a file without a blank page gets a note, no parts.
+        private func splitAtBlanks(_ data: [UInt8]) throws {
+            let blanks = try findBlank(data)
+            let parts = BlankPages.splitAt(pageCount, blanks)
+            if blanks.isEmpty || parts.isEmpty {
+                notes.append(blanks.isEmpty ? loc("No blank page found: nothing was split.") : loc("Every page looks blank: the pages were kept."))
+                return
+            }
+            let pw = password
+            for (i, part) in parts.enumerated() {
+                try cancel.check()
+                let bytes = try PageEditor.extract(data, pw, part)
+                outputs.append(try names.place(folder, loc("{0} - part {1}", baseName, i + 1) + ".pdf") {
+                    try Data(bytes).write(to: URL(fileURLWithPath: $0))
+                })
+            }
+            notes.append(parts.count == 1 ? loc("1 part saved.") : loc("{0} parts saved.", CoreLanguage.number(parts.count)))
         }
 
         private func recognize(_ data: [UInt8]) throws -> [Int: [OcrWord]] {

@@ -503,7 +503,7 @@ at under "What a person must look at" and in each section.
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
-| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs | PageLabelEditTests, InterleaveTests |
+| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions) | PageLabelEditTests, InterleaveTests, BlankPagesTests; BatchAutomationTests' preset round trip |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1669,7 +1669,14 @@ and undoes it.
   review fix); with "Make the text searchable", only the backs are read afterwards (the Mac reads scans after they
   become pages; Windows reads them in its dialog). `AppTest` drives it with the demo scanner. The signed-file test uses
   `IncrSignatureTests.signedForm(twoPages:)`, signed for real, so its status is verified as on Windows.
-- Not checked by a person: the sheets by eye and with VoiceOver; a real scanner's backs.
+- **4.4 Remove Blank Pages… and Split at Blank Pages…** (Pages menu, the bar's Organize; Batch's Remove blank pages and
+  Split at blank pages, presets `removeBlankPages` and `splitAtBlankPages`, no longer refused): `BlankPages` judges each
+  page drawn at 1,100 px by PrintCore's `BlankPage` (the Mac's picture is RGB, so the grey weights are Windows' in RGB
+  order); a page out of range is checked before it is drawn (Windows catches the engine's exception; Swift would trap).
+  The search runs off the main thread with the progress sheet (Cancel stops it); the found pages are a grid of pictures,
+  each with a "Page N" checkbox, in an alert with Delete them / Split the document at them. Batch's Bates numbers that
+  continue go on from the pages stamped when blank pages are removed after (`batesPages`, Windows' `BatesPages`). The
+  UX review's dialog shots don't open these two (the search comes first).
 
 ## Open decisions
 
@@ -1683,8 +1690,7 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.4, 4.5, 4.7, 4.13), done on Windows. Until 4.4 is
-  ported, a Batch preset with `removeBlankPages` or `splitAtBlankPages` is refused on the Mac as an unknown action.
+- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.5, 4.7, 4.13), done on Windows.
 - Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
   `PunchHoles`), done on Windows.
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,

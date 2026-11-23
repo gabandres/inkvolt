@@ -26180,6 +26180,149 @@
           }
         }
       }
+    },
+    "Remove blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar páginas en blanco"
+          }
+        }
+      }
+    },
+    "Split at blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir en las páginas en blanco"
+          }
+        }
+      }
+    },
+    "Every page looks blank: the pages were kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las páginas parecen estar en blanco: se conservaron."
+          }
+        }
+      }
+    },
+    "1 blank page removed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se quitó 1 página en blanco."
+          }
+        }
+      }
+    },
+    "{0} blank pages removed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se quitaron {0} páginas en blanco."
+          }
+        }
+      }
+    },
+    "Looking for blank pages ({0} of {1})…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando páginas en blanco ({0} de {1})…"
+          }
+        }
+      }
+    },
+    "No blank page found: nothing was split.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ninguna página en blanco: no se dividió nada."
+          }
+        }
+      }
+    },
+    "{0} - part {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - parte {1}"
+          }
+        }
+      }
+    },
+    "1 part saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó 1 parte."
+          }
+        }
+      }
+    },
+    "{0} parts saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardaron {0} partes."
+          }
+        }
+      }
+    },
+    "Remove Blank Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar páginas en blanco…"
+          }
+        }
+      }
+    },
+    "Split at Blank Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir en las páginas en blanco…"
+          }
+        }
+      }
+    },
+    "Find blank pages and delete them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca las páginas en blanco y elimínalas"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
