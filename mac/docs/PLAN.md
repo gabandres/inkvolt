@@ -1833,6 +1833,19 @@ Tests that must run while the pool is busy (a Cancel, a deadline's timer) run on
 suites held it, so a Cancel came after the render had ended. Endless test streams sleep 1 ms a read rather than spin, and
 a timer must not be re-armed per streamed line (millions queued once killed the runner through jetsam).
 
+### Gotcha: MuPDF's key after a wrong password
+
+MuPDF keeps one key per document, and every failed `fz_authenticate_password` overwrites it; `fz_needs_password` itself
+tries "". `PdfEngine` asked it again after the password had opened the document (`isEncrypted`), so its main instance read
+every stream with a wrong key and drew each page white, while text (its own instance) and Remove Protection worked. In
+every release up to 1.12.1, for any file opened with its open password (RC4, AES-128, AES-256, Inkvolt PDF's own Protect
+output). **Fixed 2026-11-23 in `MuPDFShim`:** whether a document needs a password is asked once, at open
+(`inkv_needs_password` returns that), and a failed try after a good one authenticates the good password again (kept,
+zeroed when the document goes), so a wrong guess in `authBits` (Sanitizer, PdfRepair) can't do the same. Tests:
+`EncryptedRenderTests` (each method, Protect's output, the engine's sibling, text and saved pictures, the print copy, a
+wrong try after the right one); the self-test's Protect step draws page 1 as before, in the window and reopened (`--only-passwords` with `--edit
+--synthetic` runs it alone).
+
 ### Redaction by pattern, Windows' additions (roadmap 1.1)
 
 Windows' redaction by pattern additions (named sets, scans searched through OCR, Check What Was Found, the read-back,
@@ -2083,9 +2096,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
-- Inkvolt PDF for Mac: `PdfEngine.render` draws every page of a document opened with its open password white (AES-128 and
-  AES-256, Inkvolt PDF's own Protect output too; an owner-only file draws; its text reads, and Remove Protection's copy
-  draws). Found by Print 4.18's `PrintScanArchiveTests.aProtectedScanDrawsAsThePlainOne`, off until it's fixed.
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

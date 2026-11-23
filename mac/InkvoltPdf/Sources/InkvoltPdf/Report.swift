@@ -15,7 +15,7 @@ import PdfCore
 /// temporary folder, never over the file opened, the "changed on disk" bar, Revert, recovery copies), then `FeatureTest`
 /// (forms, Fill & Sign, Edit Text & Images, Recognize Text, export, each with its file read back), `PdfATest` on the synthetic
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
-/// selection across pages, organize pages, bookmarks, passwords, printing to PDF files, the close question), then
+/// selection across pages, organize pages, bookmarks, passwords (`--only-passwords` runs them alone), printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
 /// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `TranslateTest` (`--only-translate` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `WindowsTest` (`--only-windows` runs it alone), `ReflowTest` (`--only-reflow` runs it alone), `PaperTest` (`--only-paper` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
 /// `CompareTest` (`--only-compare` runs it alone), `FolderSearchTest` (`--only-folder-search` runs it alone) and
@@ -95,6 +95,11 @@ enum Report {
         Scenario(flag: "--only-print", documents: .notForm) { c, n in
             var t = PagesTest(controller: c, name: n, openedFrom: c.pdf.fileURL?.path)
             await t.runPrinting()
+        },
+        // Password protection through its sheet: the saved file asks for its password and draws as before; then removed.
+        Scenario(flag: "--only-passwords", documents: .synthetic) { c, n in
+            var t = PagesTest(controller: c, name: n, openedFrom: c.pdf.fileURL?.path)
+            await t.runPasswords()
         },
         Scenario(flag: "--only-redaction", documents: .all) { c, n in
             var t = RedactTest(controller: c, name: n, openedFrom: c.pdf.fileURL?.path)
