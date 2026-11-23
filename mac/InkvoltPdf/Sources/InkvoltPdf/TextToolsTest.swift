@@ -2,9 +2,11 @@ import AppKit
 import PdfCore
 import PrintCore
 
-/// The self-test's scenario for Wave 4's text tools (`--edit --only-text-tools`, on the synthetic text document): Edit ›
-/// Find's Highlight All Matches (roadmap 4.18) chosen from the menu bar after a search, as one undo step, then again with
-/// nothing left to mark. Only counts and states are written.
+/// The self-test's scenario for Wave 4's text tools (`--edit --only-text-tools`, on the synthetic text document), each from
+/// the menu bar: Edit › Find's Highlight All Matches (roadmap 4.18) after a search, as one undo step, then again with
+/// nothing left to mark; Links from Addresses (4.15) on a line rewritten to hold two; Copy Text from Area and Copy Area as
+/// Table (4.6) on a Snapshot box, and a scan's box read with Vision; spell check's underlines, menu and Ignore (4.1);
+/// Find and Replace's Replace All of the ticked matches and Replace of one (4.2). Only counts and states are written.
 @MainActor
 struct TextToolsTest {
     let controller: DocumentWindowController
@@ -74,7 +76,8 @@ struct TextToolsTest {
         lines.append("== \(name): text tools (\(controller.engine.pageCount) pages)")
         await markAllMatches()
         await linksFromAddresses()
-        lines.append("RESULT:\(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
+        await copyFromArea()
+        lines.append("RESULT: " + "\(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
 
@@ -116,7 +119,7 @@ struct TextToolsTest {
         let before = session?.data
         check(choose(loc("Links from Addresses…")), "Tools › Annotate › Links from Addresses… is enabled")
         await waitIdle()
-        check(session?.data == before && controller.noticeBar.message.hasPrefix(loc("No web or email address in the text needs a link")),
+        check(session?.data == before && controller.noticeBar.message == loc("No web or email address in the text needs a link: each one found is a link already. A scanned page needs Recognize Text first."),
               "a document without addresses: said, nothing changed")
 
         // A line rewritten to hold two addresses (Edit Text & Images' run edit), then linked in one step.
@@ -140,4 +143,56 @@ struct TextToolsTest {
         await settle(300)
         check(session?.data == data && editor.links.count == links, "Undo takes the links and the rewrite away")
     }
+
+    // MARK: Copy Text from Area, Copy Area as Table (4.6)
+
+    /// Waits for the next notice that starts with one of `starts`, at most `seconds`; the notice, or nil.
+    private func nextNotice(_ starts: [String], after count: Int, _ seconds: Double = 120) async -> String? {
+        let end = Date().addingTimeInterval(seconds)
+        while Date() < end {
+            if let hit = controller.noticeBar.history.dropFirst(count).first(where: { m in starts.contains { m.hasPrefix($0) } }) { return hit }
+            await settle(100)
+        }
+        return nil
+    }
+
+    private mutating func copyFromArea() async {
+        let board = NSPasteboard(name: NSPasteboard.Name("InkvoltSelfTestAreaCopy"))
+        let kept = SnapshotBoard.board
+        SnapshotBoard.board = board
+        defer { SnapshotBoard.board = kept }
+        let copied = [loc("Text copied (1 word)").replacingOccurrences(of: "(1 word)", with: ""),
+                      loc("Text read from the scan and copied (1 word)").replacingOccurrences(of: "(1 word)", with: ""),
+                      loc("No text found in that box."), loc("Couldn't read that part of the page.")]
+
+        // No box yet: the command picks Snapshot and the next box copies its words, not its picture.
+        controller.snapshotArea = nil
+        var seen = controller.noticeBar.history.count
+        check(choose(loc("Copy Text from Area")) && pages.tool == .snapshot && controller.pendingAreaCopy == .text,
+              "Edit › Copy Text from Area with no box picks Snapshot to draw one")
+        // Page 1's title and first line, as a box drawn with Snapshot hands them over.
+        controller.copySnapshot(controller.engine, page: 0, region: RectD(60, 82, 420, 33), viewScale: 1, rotation: 0)
+        var said = await nextNotice(copied, after: seen)
+        var text = board.string(forType: .string) ?? ""
+        check(said?.hasPrefix(copied[0]) == true && text.contains("self-test document") && text.contains("Highlight these words") && !text.contains("\r"),
+              "the box's words copied in reading order: \(text.split(separator: "\n").count) lines (\(said ?? "no notice"))")
+
+        // The same box as a table: the clipboard has tab-separated rows and an HTML table.
+        seen = controller.noticeBar.history.count
+        check(choose(loc("Copy Area as Table")), "Edit › Copy Area as Table copies the last box")
+        said = await nextNotice(copied + [loc("Table copied ({0} × {1}): paste it into Numbers, Excel or Pages").components(separatedBy: "(")[0]], after: seen)
+        let html = board.string(forType: .html) ?? ""
+        text = board.string(forType: .string) ?? ""
+        check(html.hasPrefix("<table>") && text.split(separator: "\n").count == 2, "as a table: \(text.split(separator: "\n").count) rows, HTML \(html.count) characters (\(said ?? "no notice"))")
+
+        // Page 3 is a picture of words with no text: read with Vision.
+        guard controller.engine.pageCount >= 3 else { return }
+        seen = controller.noticeBar.history.count
+        controller.copyArea(.text, controller.engine, page: 2, area: RectD(60, 80, 430, 125))
+        said = await nextNotice(copied, after: seen)
+        text = board.string(forType: .string) ?? ""
+        check(said?.hasPrefix(copied[1]) == true && !text.isEmpty, "a scan's box read with Vision: \(text.split(separator: " ").count) words (\(said ?? "no notice"))")
+    }
+
+    // MARK: Spell check (4.1)
 }

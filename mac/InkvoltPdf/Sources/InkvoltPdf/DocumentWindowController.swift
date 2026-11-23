@@ -81,6 +81,11 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var lastProblem: String?
     /// The snapshot being made (SnapshotTool.swift): a newer one cancels it, so only the latest reaches the clipboard.
     var snapshotCancel: CancelToken?
+    /// The last box drawn with Snapshot, while the document is as it was then (Copy Text from Area copies its words).
+    var snapshotArea: SnapshotArea?
+    /// Copy Text from Area or Copy Area as Table chosen with no box: the next Snapshot box copies that instead of a picture.
+    var pendingAreaCopy: AreaCopyKind?
+
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
     // pane while the view is split, how, and which pane navigation acts on.
     let paneSplit = PaneSplitView()

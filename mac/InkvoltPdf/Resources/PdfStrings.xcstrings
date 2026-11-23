@@ -26114,6 +26114,28 @@
           }
         }
       }
+    },
+    "Copy Text from Area": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar texto de un área"
+          }
+        }
+      }
+    },
+    "Copy Area as Table": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar área como tabla"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

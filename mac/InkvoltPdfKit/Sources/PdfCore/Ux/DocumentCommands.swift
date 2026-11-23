@@ -289,6 +289,9 @@ public enum DocumentCommands {
         sep,
         c("Cut", "cut:", "x"),
         c("Copy", "copy:", "c"),
+        // Roadmap 4.6: the words in a Snapshot box (Windows: Edit › Copy Text from Area, Copy Area as Table).
+        c("Copy Text from Area", "copyTextFromArea:", needs: [.pages, .organizerHidden]),
+        c("Copy Area as Table", "copyAreaAsTable:", needs: [.pages, .organizerHidden]),
         c("Paste", "paste:", "v"),
         c("Delete", "delete:"),
         c("Select All", "selectAll:", "a"),

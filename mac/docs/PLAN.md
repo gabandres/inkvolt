@@ -505,6 +505,7 @@ at under "What a person must look at" and in each section.
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
+| 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -538,6 +539,13 @@ From the steps, besides the sections below:
   text is scanned in one pass. The command is in Tools › Annotate beside Link Selected Text… (Windows: Review, Edit on
   the bar); with nothing ticked, the notice says to tick one (Windows keeps its dialog open). Not checked by a person: the
   list's look with long addresses, VoiceOver on it.
+- 4.6: the text's lines end with LF and a table's rows too (Windows' clipboard has CR LF); a table goes on the pasteboard
+  as tab-separated text and as HTML (`.html`, the fragment alone: Windows' CF_HTML header, `ClipboardHtml`, has no Mac
+  counterpart, so `TheClipboardsHtmlHeaderPointsAtTheFragment` keeps its HTML and tab checks only). The Snapshot box isn't
+  outlined after it's drawn (Windows outlines it until another tool is chosen): it stays the area to copy while the
+  document is unchanged. Copy Text from Area with no box picks Snapshot and the next box copies words instead of a
+  picture. The notice says Numbers, Excel or Pages where Windows says Excel or Word. Not checked by a person: pasting
+  into Numbers and Excel for Mac.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.

@@ -22451,6 +22451,138 @@
           }
         }
       }
+    },
+    "Copy text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar texto"
+          }
+        }
+      }
+    },
+    "Drag a box around the table to copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra un recuadro alrededor de la tabla que quieras copiar."
+          }
+        }
+      }
+    },
+    "Drag a box around the text to copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra un recuadro alrededor del texto que quieras copiar."
+          }
+        }
+      }
+    },
+    "Reading the text in the box…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo el texto del recuadro…"
+          }
+        }
+      }
+    },
+    "Couldn't read that part of the page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer esa parte de la página."
+          }
+        }
+      }
+    },
+    "Table copied ({0} × {1}): paste it into Numbers, Excel or Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tabla copiada ({0} × {1}): pégala en Numbers, Excel o Pages"
+          }
+        }
+      }
+    },
+    "No text found in that box.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró texto en ese recuadro."
+          }
+        }
+      }
+    },
+    "Text read from the scan and copied (1 word)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto leído del escaneo y copiado (1 palabra)"
+          }
+        }
+      }
+    },
+    "Text read from the scan and copied ({0} words)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto leído del escaneo y copiado ({0} palabras)"
+          }
+        }
+      }
+    },
+    "Text copied (1 word)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto copiado (1 palabra)"
+          }
+        }
+      }
+    },
+    "Text copied ({0} words)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto copiado ({0} palabras)"
+          }
+        }
+      }
+    },
+    "More than {0} cells for a table: copied as text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más de {0} celdas para una tabla: se copió como texto."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

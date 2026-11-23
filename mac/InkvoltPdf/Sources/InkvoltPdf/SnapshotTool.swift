@@ -14,6 +14,13 @@ extension DocumentWindowController {
     /// Renders and encodes the picture off the main thread, then puts it on the clipboard. A newer snapshot cancels this
     /// one: only the latest reaches the clipboard, whichever is rendered first.
     func copySnapshot(_ engine: PdfEngine, page: Int, region: RectD, viewScale: Double, rotation: Int) {
+        snapshotArea = SnapshotArea(engine: engine, page: page, region: region)
+        if let kind = pendingAreaCopy {
+            // Copy Text from Area (or as Table) asked for this box: its words, not its picture.
+            pendingAreaCopy = nil
+            copyArea(kind, engine, page: page, area: region)
+            return
+        }
         let shown = Snapshot.shownSize(region, rotation: rotation)
         let points = NSSize(width: shown.width, height: shown.height)
         snapshotCancel?.cancel()
@@ -31,7 +38,13 @@ extension DocumentWindowController {
             switch made {
             case .success(let picture):
                 if let picture, SnapshotBoard.write(picture, to: SnapshotBoard.board) {
-                    notify(loc("Snapshot copied ({0} × {1} px)", CoreLanguage.number(picture.width), CoreLanguage.number(picture.height)))
+                    let text = loc("Snapshot copied ({0} × {1} px)", CoreLanguage.number(picture.width), CoreLanguage.number(picture.height))
+                    Report.progress("notice: \(text)")
+                    // Its words instead, from the notice (Windows' Copy text button on the snapshot's message).
+                    noticeBar.show(text, links: [(loc("Copy text"), { [weak self] in
+                        guard let self, let area = self.snapshotArea, area.engine === engine else { return }
+                        self.copyArea(.text, engine, page: area.page, area: area.region)
+                    })])
                 } else {
                     notify(loc("Couldn't copy the snapshot: the clipboard didn't take it."))
                 }
