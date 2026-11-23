@@ -581,6 +581,7 @@ at under "What a person must look at" and in each section.
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
+| 4.8 | Smaller black-and-white scans (roadmap 4.8): Reduce File Size codes 1-bit pictures again as lossless JBIG2, CCITT G4 or Flate when smaller, and makes grey scans of text black and white when asked (the sheet's and Batch's check box, the preset's `blackAndWhiteScans`); Recognize Text's cleaned page of a black-and-white scan stays 1 bit (PrintCore's `Jbig2Generic`, `PdfWriter.oneBitData`; PdfCore's `OneBitImages`, `Optimizer`, `ScanPage`) | Jbig2RenderTests, OneBitImagesTests |
 | 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
@@ -610,6 +611,16 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
+- 4.8: PrintCore's `Jbig2Generic` (ported as is, the same bytes as Windows') sits beside `CcittG4` and `Bilevel`, which
+  Inkvolt Print's 4.4 brought, and `PdfWriter.oneBitData(_:jbig2:)` chooses among the three as Windows' `OneBitData`;
+  PdfCore uses them, nothing duplicated. MuPDF's objects belong to the document's thread, so `OneBitImages` works in three
+  steps where Windows has two: `recodeJob`/`thresholdJob` read a picture on the document's thread, `run` draws and codes
+  it (several at once, each in an engine of its own), `apply` makes the change back on the document's thread. File ›
+  Scan has no black-and-white mode on the Mac (2.3 above: color or grey only; Print for Mac's 4.4 made a preset's smaller
+  file instead), so it saves no page at 1 bit and `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg` isn't
+  ported; Recognize Text and Reduce File Size are as Windows. `Jbig2IsClearlySmallerThanG4OnTextPages` has no "as
+  typeset" case (the Mac's corpus has no clean page). Not checked by a person: a real black-and-white scan reduced, the
+  sheet's new check box by eye and with VoiceOver.
 - 4.18: the commands are in Edit › Find and are off until Find has matches (Windows opens its Search pane and says to search
   first); the marks take the Highlight, Underline and Strike Out tools' colours from the markup toolbar, as Highlight
   Selected Text does on the Mac. `Annotations.read` now reads at most `Annotations.maxQuads` (20,000) + 1 lines of a text

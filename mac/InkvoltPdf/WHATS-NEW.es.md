@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Escaneos en blanco y negro más pequeños: Reducir tamaño del archivo guarda más pequeñas las imágenes en blanco y negro (JBIG2 o CCITT G4, sin perder un solo píxel) y, si se lo pides, puede pasar a blanco y negro las páginas escaneadas de texto. Un escaneo en blanco y negro que Reconocer texto limpia sigue en blanco y negro en lugar de pasar a gris y ocupar diez veces más.
 - Reemplazar páginas… (menú Páginas): cambia páginas por páginas de otro PDF. Los marcadores y los vínculos que llevaban a una página reemplazada llevan ahora a la página que ocupa su lugar.
 - Cambiar el tamaño de las páginas… (menú Páginas): pon las páginas en Carta, A4, Legal o un tamaño que escribas, con el contenido ajustado al papel o con su tamaño y márgenes agregados. Las páginas de distintos tamaños quedan de un solo tamaño, y los comentarios y los campos de formulario se mueven con el contenido.
 - Marcadores a partir de los títulos… (menú Páginas, y el menú de la lista Marcadores): marcadores creados a partir de los títulos del documento, anidados por nivel y mostrados antes de crearlos. Reemplazan los marcadores o se agregan después.

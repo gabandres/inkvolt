@@ -24233,6 +24233,28 @@
           }
         }
       }
+    },
+    "Make scanned pages of text black and white (much smaller; their shades of grey go)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasar a blanco y negro las páginas escaneadas de texto (mucho más pequeñas; se pierden sus tonos de gris)"
+          }
+        }
+      }
+    },
+    "scans in black and white": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "escaneos en blanco y negro"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

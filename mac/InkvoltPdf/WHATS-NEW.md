@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Smaller black-and-white scans: Reduce File Size packs black-and-white pictures smaller (JBIG2 or CCITT G4, not a pixel lost), and can make scanned pages of text black and white if you ask. A black-and-white scan that Recognize Text cleans up stays black and white instead of turning grey and ten times larger.
 - Replace Pages… (Pages menu): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.
 - Resize Pages… (Pages menu): put pages on Letter, A4, Legal or a size you type, the content scaled to fit or kept at its size with margins added. Pages of mixed sizes become one size, and comments and form fields move with the content.
 - Bookmarks from Headings… (Pages menu, and the Bookmarks list's menu): bookmarks made from the document's headings, nested by level and shown before they're made. They replace the bookmarks or go after them.
