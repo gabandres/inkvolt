@@ -46,6 +46,8 @@ public enum PhoneHttp {
     public static let maxRequestLine = 2 * 1024, maxHead = 16 * 1024, maxHeaders = 40
     public static let headTimeout: Duration = .seconds(15), idleTimeout: Duration = .seconds(60), bodyTimeout: Duration = .seconds(10)
     static let chunk = 64 * 1024
+    /// Bytes a second a body must keep up after its grace (Windows' Kestrel MinRequestBodyDataRate).
+    static let minBodyRate = 1024
 
     /// What a head said is wrong, as the status it's answered with.
     public struct Refusal: Error, Equatable {
@@ -96,7 +98,10 @@ public enum PhoneHttp {
 
     /// The next request's head (what follows it stays in `buffer`).
     static func readHead(_ io: any PhoneConnectionIO, _ buffer: inout [UInt8], timeout: Duration) async -> HeadRead {
-        let deadline = ContinuousClock.now + timeout
+        // As Kestrel: `timeout` for the first byte, then `headTimeout` from it for the whole head (a head trickled in a byte
+        // at a time no longer holds a connection for the idle minute).
+        var deadline = ContinuousClock.now + timeout
+        if !buffer.isEmpty { deadline = min(deadline, ContinuousClock.now + headTimeout) }
         while true {
             if let end = headEnd(buffer) {
                 let bytes = Array(buffer[..<end])
@@ -115,6 +120,7 @@ public enum PhoneHttp {
             guard left > .zero, let more = await io.receive(max: maxHead + 4 - buffer.count, timeout: left), !more.isEmpty else {
                 return buffer.isEmpty ? .closed : .refused(408)
             }
+            if buffer.isEmpty { deadline = min(deadline, ContinuousClock.now + headTimeout) }
             buffer += more
         }
     }
@@ -186,8 +192,13 @@ public enum PhoneHttp {
         let now = min(count, buffer.count)
         body += buffer[..<now]
         buffer.removeFirst(now)
+        // Windows' MinRequestBodyDataRate (1,024 bytes a second after a 10-second grace): the whole body has that long,
+        // and each part `bodyTimeout`, so a trickle can't hold the upload (and every later photo's 429) forever.
+        let seconds: Int64 = 10 + Int64(count / minBodyRate)
+        let deadline = ContinuousClock.now + .seconds(seconds)
         while body.count < count {
-            guard let more = await io.receive(max: min(chunk, count - body.count), timeout: bodyTimeout), !more.isEmpty else { return nil }
+            let left: Duration = min(bodyTimeout, deadline - ContinuousClock.now)
+            guard left > .zero, let more = await io.receive(max: min(chunk, count - body.count), timeout: left), !more.isEmpty else { return nil }
             body += more
         }
         return body

@@ -425,6 +425,32 @@ struct PhoneScanTests {
         #expect(counted.open == PhoneConnections.maxConnections)
     }
 
+    /// Mac only (the review): as Kestrel, the idle minute is for a head's first byte; from it, the whole head has
+    /// `headTimeout`, so a head trickled a byte at a time can't hold a connection for the minute.
+    @Test func aTrickledHeadHasFifteenSecondsFromItsFirstByte() async {
+        final class Trickle: PhoneConnectionIO, @unchecked Sendable {
+            private let lock = NSLock()
+            private var left: [UInt8] = Array("GET /x HTTP/1.1\r\nHost: a\r\n\r\n".utf8)
+            private(set) var timeouts: [Duration] = []
+            func receive(max: Int, timeout: Duration) async -> [UInt8]? {
+                lock.withLock {
+                    timeouts.append(timeout)
+                    return left.isEmpty ? nil : [left.removeFirst()]
+                }
+            }
+            func send(_ bytes: [UInt8]) async -> Bool { true }
+        }
+        let io = Trickle()
+        var buffer: [UInt8] = []
+        guard case .head = await PhoneHttp.readHead(io, &buffer, timeout: PhoneHttp.idleTimeout) else {
+            Issue.record("the head wasn't read")
+            return
+        }
+        let seen: [Duration] = io.timeouts
+        #expect(seen.first! > PhoneHttp.headTimeout)
+        #expect(seen.dropFirst().allSatisfy { (t: Duration) -> Bool in t <= PhoneHttp.headTimeout })
+    }
+
     /// A connection fed from a script: what the phone sends, in the pieces given, and what the server wrote.
     private final class FakeConnection: PhoneConnectionIO, @unchecked Sendable {
         private let lock = NSLock()
