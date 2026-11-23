@@ -49,7 +49,7 @@ struct PrinterPane: View {
         .toolbar {
             if !printer.isScannerOnly { ToolbarItem {
                 Menu {
-                    Button("Print a PDF…") { Printing.printPdf(on: printer, app: app) }
+                    Button("Print a PDF…") { Task { await Printing.printPdf(on: printer, app: app) } }
                     if HandDuplex.offered(twoSided) {
                         Button("Print a PDF on Both Sides by Hand…") { HandDuplexPrinting.printPdf(on: printer, app: app) }
                             .help("This printer prints one side: the fronts print, you put the stack back as shown, then the backs print")

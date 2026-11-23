@@ -40,7 +40,8 @@ enum ClipboardPrinting {
         let name = ClipboardPrint.name(Date(), String(localized: "Clipboard"))
         switch plan.what {
         case .pdf:
-            Printing.printPdf(URL(fileURLWithPath: plan.files[0]), on: printer, app: app)
+            let url = URL(fileURLWithPath: plan.files[0])
+            Task { await Printing.printPdf(url, on: printer, app: app) }
         case .batch:
             let model = BatchPrintWindow.show(app)
             let urls = plan.files.map { URL(fileURLWithPath: $0) }

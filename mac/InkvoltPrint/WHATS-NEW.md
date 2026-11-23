@@ -17,6 +17,8 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Print the Clipboard (⇧⌘V, in the Print menu): copied text is laid out on pages and printed, a copied picture opens in Print Photos, and PDFs and pictures copied in Finder print as they are.
 - Both sides by hand on a printer that prints one side: Print a PDF on Both Sides by Hand… and Batch Print's Two-sided print the fronts, show how to put the stack back (printed side down or up, an odd last sheet set aside), then print the backs in the order the stack feeds them.
 - Cards, calendars and collages in Print Photos: a folded card (two to a sheet, the photo on the front, your message inside), a month or year calendar under each photo in the app's language, and a collage of 2 to 9 photos in rows, columns or one large. Save as PDF… saves any layout as it prints.
+- PDF/A and passwords in scan presets: a PDF preset can save PDF/A, meant to open the same way for years, or put a password on the PDF (AES-256, as Inkvolt PDF protects files). The password is asked the first time the preset saves, and kept in your keychain if you choose.
+- Print a PDF's Layout, under the file list: several pages per sheet (2, 4, 6, 9 or 16), a booklet printed on both sides in the order a folded stack reads, or a poster from 150 to 400 % over sheets that overlap by ¼ in, with cut marks to trim them.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

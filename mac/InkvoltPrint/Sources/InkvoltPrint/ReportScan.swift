@@ -114,6 +114,61 @@ extension Report {
         return lines
     }
 
+    /// `--scan-archive` (roadmap 4.18): the USB demo laser's feeder scanned with a preset that saves PDF/A-2b, then with one that
+    /// puts a password on its PDF (kept for it in demo mode's memory, as a person's "use it from now on" keeps it in the
+    /// keychain), each saved through the preset's own save into the container: what the file says it is, and whether PDFKit
+    /// (Preview's engine) opens the protected one only with its password; then which passwords PDFKit takes (ASCII only).
+    static func scanArchiveCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoLaserScanner(model) else { return ["scan archive: no demo USB laser scanner with a feeder"] }
+        let kept = scan.turnStack
+        defer { scan.turnStack = kept }
+        scan.turnStack = false
+        let folder = AppModel.dataFolder.appendingPathComponent("scan-archive", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let password = "Contraseña 2026"
+        var lines = ["scan archive: crypto installed \(PdfEncryption.crypto is ApplePdfCrypto)"]
+        for locked in [false, true] {
+            var p = ScanPresets.builtIns()[0]
+            p.id = locked ? "scan-archive-password" : "scan-archive-pdfa"
+            p.name = locked ? "Protected" : "Archive"
+            (p.source, p.fileType, p.review, p.skipBlank, p.color, p.after) = (.feeder, .pdf, true, false, true, .none)
+            p = locked ? ScanPresets.withPassword(p, true) : ScanPresets.withPdfA(p, true)
+            if locked { model.presetPasswords.set(password, for: p.id) }
+            model.setPresetFolder(p.id, folder)
+            await scan.scan(with: p)
+            for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
+            await scan.saveWithPreset(reveal: false)
+            lines.append("  \(p.name) (\(ScanPresetText.summary(p))): \(scan.status) \(scan.problem ?? "")")
+            guard let url = scan.savedPdfs.first, let data = try? Data(contentsOf: url) else {
+                lines.append("    no file saved (folder kept: \(model.presetFolder(p.id) != nil))")
+                continue
+            }
+            let text = String(decoding: data, as: UTF8.self)
+            let pdf = PDFDocument(url: url)
+            var line = "    \(data.count) bytes, \(text.prefix(8).trimmingCharacters(in: .whitespacesAndNewlines)), PDF/A \(text.contains("<pdfaid:part>2</pdfaid:part>")), "
+                + "output intent \(text.contains("/GTS_PDFA1")), AES-256 \(text.contains("/V 5 /R 6")), PDFKit locked \(pdf?.isLocked ?? false)"
+            if locked, let pdf {
+                let wrong = pdf.unlock(withPassword: "wrong")
+                let right = pdf.unlock(withPassword: password)
+                line += ", wrong password opens it \(wrong), its password opens it \(right), pages \(pdf.pageCount)"
+            } else {
+                line += ", pages \(pdf?.pageCount ?? 0)"
+            }
+            lines.append(line)
+            model.presetPasswords.remove(for: p.id)
+        }
+        scan.clear()
+        // Which passwords PDFKit takes for the writer's AES-256 (MuPDF takes any: PdfCoreTests' PrintScanArchiveTests).
+        for pw in ["Secret 2026", password] {
+            let page = PdfWriter.Page(BatchPrintSamples.jpeg(100, 100), dpi: 100)
+            let data = (try? PdfWriter.write([page], options: PdfWriteOptions(password: pw))).map { Data($0) }
+            let pdf = data.flatMap { PDFDocument(data: $0) }
+            lines.append("  PDFKit, \(pw.allSatisfy(\.isASCII) ? "an ASCII" : "a Spanish") password: locked \(pdf?.isLocked ?? false), opens with it \(pdf?.unlock(withPassword: pw) ?? false)")
+        }
+        return lines
+    }
+
     /// `--cleanup-marks` (roadmap 4.7): the demo inkjet's glass holds the punched order form; scanned with Drop a color (red)
     /// and Remove punch holes, the page's red and the holes' dark pixels before and after, the note and Undo; then blue picked
     /// in the Clean up view's way (`applyClean` with a color) on the same page.

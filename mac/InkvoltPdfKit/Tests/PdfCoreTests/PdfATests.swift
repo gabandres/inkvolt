@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreText
 import Foundation
+import PrintCore
 import Testing
 @testable import PdfCore
 

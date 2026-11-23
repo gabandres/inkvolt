@@ -10,6 +10,22 @@ public struct Placement: Equatable, Sendable {
         self.width = width
         self.height = height
     }
+
+    public var right: Double { x + width }
+    public var bottom: Double { y + height }
+    public var centerX: Double { x + width / 2 }
+    public var centerY: Double { y + height / 2 }
+    public var isEmpty: Bool { width <= 0 || height <= 0 }
+
+    /// The part both cover; empty (all zero) when they don't overlap.
+    public func intersect(_ other: Placement) -> Placement {
+        let l = max(x, other.x), t = max(y, other.y)
+        let r = min(right, other.right), b = min(bottom, other.bottom)
+        return r > l && b > t ? Placement(l, t, r - l, b - t) : Placement(0, 0, 0, 0)
+    }
+
+    /// Grown by `d` on every side (shrunk when negative).
+    public func inflate(_ d: Double) -> Placement { Placement(x - d, y - d, width + 2 * d, height + 2 * d) }
 }
 
 /// Copying (scan, then print what was scanned): page placement at actual size, and the ID card copy layout, front on the

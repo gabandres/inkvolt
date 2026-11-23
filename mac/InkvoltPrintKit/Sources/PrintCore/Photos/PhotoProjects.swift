@@ -30,21 +30,6 @@ public struct PhotoText: Equatable, Sendable {
 /// A collage's arrangement: rows as even as can be, columns as even as can be, or the first photo large above the rest.
 public enum CollageArrangement: Sendable, CaseIterable { case rows, columns, oneLarge }
 
-extension Placement {
-    public var right: Double { x + width }
-    public var bottom: Double { y + height }
-    public var centerX: Double { x + width / 2 }
-    public var centerY: Double { y + height / 2 }
-    public var isEmpty: Bool { width <= 0 || height <= 0 }
-
-    /// The part both cover; empty (all zero) when they don't overlap.
-    public func intersect(_ other: Placement) -> Placement {
-        let (l, t) = (max(x, other.x), max(y, other.y))
-        let (r, b) = (min(right, other.right), min(bottom, other.bottom))
-        return r > l && b > t ? Placement(l, t, r - l, b - t) : Placement(0, 0, 0, 0)
-    }
-}
-
 /// Cards, calendars and collages (roadmap 4.16; Windows' `PhotoProjects`): sheets made from the photos with words and marks on
 /// them, laid out here in inches (pure arithmetic and the interface language's calendar), drawn by the app exactly as photo
 /// sheets are (preview, print, PDF). Photos are never turned to suit a cell here: a sideways picture in a card or a calendar
@@ -165,7 +150,7 @@ public enum PhotoProjects {
     public static func dayNames(_ locale: Locale) -> [String] {
         let formatter = DateFormatter()
         formatter.locale = locale
-        let names = formatter.shortWeekdaySymbols ?? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+        let names = symbols(formatter.shortWeekdaySymbols, 7) ?? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
         let first = firstDay(locale)
         return (0..<7).map { capital(trimmedPeriod(names[(first + $0) % 7]), locale) }
     }
@@ -174,9 +159,16 @@ public enum PhotoProjects {
     public static func monthName(_ month: Int, _ locale: Locale) -> String {
         let formatter = DateFormatter()
         formatter.locale = locale
-        let names = formatter.standaloneMonthSymbols ?? formatter.monthSymbols ?? []
+        let names = symbols(formatter.standaloneMonthSymbols, 12) ?? symbols(formatter.monthSymbols, 12) ?? []
         let m = max(1, min(month, 12))
         return m - 1 < names.count ? capital(names[m - 1], locale) : String(m)
+    }
+
+    /// A formatter's list when it has `count` names (Darwin's Foundation types the lists as implicitly unwrapped, the
+    /// Windows one's as plain arrays: taken as optional here for both).
+    private static func symbols(_ list: [String]?, _ count: Int) -> [String]? {
+        guard let list, list.count == count else { return nil }
+        return list
     }
 
     private static func trimmedPeriod(_ s: String) -> String {
@@ -296,7 +288,7 @@ public enum PhotoProjects {
     /// How many photos go in each row (or column) for `count`: as even as can be, the fuller lines last (5: 2, 3).
     public static func lines(_ count: Int) -> [Int] {
         if count <= 0 { return [] }
-        let lines = max(1, Int(Double(count).squareRoot().rounded(.toNearestOrEven)))
+        let lines = max(1, Int(Double(count).squareRoot().rounded(.toNearestOrEven))) // bounded: the square root of a positive Int
         return (0..<lines).map { count / lines + ($0 >= lines - count % lines ? 1 : 0) }
     }
 

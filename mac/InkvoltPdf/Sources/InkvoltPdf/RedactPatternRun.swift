@@ -15,12 +15,20 @@ extension DocumentWindowController {
     /// The whole command; true when anything was applied.
     @discardableResult
     func runPatternRedaction(_ options: RedactionPatternOptions) async -> Bool {
-        guard let window, let session = pdf.session, let found = await searchPatterns(options) else { return false }
-        let unsearched = SkippedPages.note(found.skipped).map { " " + $0 } ?? ""
+        guard let found = await searchPatterns(options) else { return false }
         if found.hits.isEmpty && found.looks.isEmpty && found.skipped.isEmpty {
             notify(loc("Nothing matching was found on the pages searched."))
             return false
         }
+        return await reviewAndRedact(options, found)
+    }
+
+    /// What was found listed to accept or skip, then redacted, read back, checked and reported (Redact by Pattern's and
+    /// Suggest Redactions' second half, the Windows `ReviewAndRedact`). `note`: a word on where the hits came from
+    /// (suggestions left out), shown above the list. True when anything was applied.
+    func reviewAndRedact(_ options: RedactionPatternOptions, _ found: RedactionSearchResult, note: String? = nil) async -> Bool {
+        guard let window, let session = pdf.session else { return false }
+        let unsearched = (SkippedPages.note(found.skipped).map { " " + $0 } ?? "") + (note.map { " " + $0 } ?? "")
         let earlierMarks = pages.redactions
         let sheet = RedactReviewSheet(found, earlier: earlierMarks.map { (page: $0.page, rect: $0.rect) }, engine: engine, unsearched: unsearched)
         redaction.reviewSheet = sheet

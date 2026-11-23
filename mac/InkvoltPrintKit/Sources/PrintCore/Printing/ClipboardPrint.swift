@@ -122,8 +122,8 @@ public enum ClipboardPrint {
         var points = 10.0
         let usable = width - 2 * margin
         while points > 6 && usable / (points * charWidth / 72) < 40 { points -= 0.5 }
-        let columns = max(1, Int((usable / (points * charWidth / 72) + 1e-9).rounded(.down)))
-        let lines = max(1, Int(((height - 2 * margin) / (points * lineSpacing / 72) + 1e-9).rounded(.down)))
+        let columns = max(1, Int((usable / (points * charWidth / 72) + 1e-9).rounded(.down))) // bounded: paper 2 to 50 in, type 6 to 10 pt
+        let lines = max(1, Int(((height - 2 * margin) / (points * lineSpacing / 72) + 1e-9).rounded(.down))) // bounded: paper 2 to 50 in, type 6 to 10 pt
         return ClipboardTextLayout(paperWidthInches: width, paperHeightInches: height, marginInches: margin, fontPoints: points,
                                    columns: columns, lines: lines)
     }
