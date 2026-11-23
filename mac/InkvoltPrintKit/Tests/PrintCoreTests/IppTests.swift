@@ -145,6 +145,25 @@ struct IppTests {
         #expect(throws: IppFormatError.self) { try IppText.parse(line) }
     }
 
+    /// The IppText half of .NET's Resolution_range_and_date_values_decode: resolutions and ranges as ipptool writes them,
+    /// and the wire octets they encode to (x, y, units; lower, upper).
+    @Test func ippTextReadsResolutionsAndRanges() throws {
+        #expect(IppText.parseResolution("300dpi").map { [$0.x, $0.y, Int32($0.units)] } == [300, 300, 3])
+        #expect(IppText.parseResolution("600x300dpi").map { [$0.x, $0.y, Int32($0.units)] } == [600, 300, 3])
+        #expect(IppText.parseResolution("118dpcm").map { [$0.x, $0.y, Int32($0.units)] } == [118, 118, 4])
+        for bad in ["300", "dpi", "x300dpi", "300x300x300dpi", "-300dpi", "99999999999dpi"] { #expect(IppText.parseResolution(bad) == nil, "\(bad)") }
+        #expect(throws: IppFormatError.self) { try IppText.parse("printer-resolution-default resolution 300") }
+        let r = try Self.ipp("printer-resolution-default resolution 600x300dpi")
+        #expect(r.attributes["printer-resolution-default"] == [.bytes([0, 0, 2, 88, 0, 0, 1, 44, 3])])
+
+        #expect(IppText.parseRange("1-99").map { [$0.lower, $0.upper] } == [1, 99])
+        #expect(IppText.parseRange("-5--1").map { [$0.lower, $0.upper] } == [-5, -1])
+        for bad in ["9-1", "1-", "-1", "1", "a-9", "1-99999999999", "1--"] { #expect(IppText.parseRange(bad) == nil, "\(bad)") }
+        #expect(throws: IppFormatError.self) { try IppText.parse("copies-supported rangeOfInteger 99-1") }
+        let c = try Self.ipp("copies-supported rangeOfInteger 1-99")
+        #expect(c.attributes["copies-supported"] == [.bytes([0, 0, 0, 1, 0, 0, 0, 99])])
+    }
+
     @Test func ippRequestHeaderIsReadForTheFixtureServer() throws {
         let request = IppCodec.encodeGetPrinterAttributes("ipp://192.0.2.11:631/ipp/print", ["printer-state"], requestId: 7)
         let header = try IppCodec.readRequestHeader(request)
