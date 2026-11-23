@@ -15,12 +15,20 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   Each release ran a hostile-input review of the diff since the last tag before packing; keep doing it. The bench needs an
   idle PC; on-screen fps on 2026-11-22 was below 1.16's run for the 1.16 app too (this PC, not the app).
 - **Flaky under load (timing):** `EditableTextTests.MakingPagesEditable…`, `PipedChildTests.AChildWithPipes…`,
-  `TranslationLooksTests.Thousands_of_rules…`, the two new `Release118HostileTests` linear-time tests; `tools/test.ps1`
-  names them.
-- **Next session (owner turned on T3 Agent device access, 2026-11-22):** the phone tests. Phone scanning (TCP 9781) and
-  printer sharing (TCP 9782, mDNS on UDP 5353) start only on a Private network: this PC's Ethernet was Public (the owner
-  switches it). adb isn't installed (the owner decides). Then: the OnePlus scans the QR code (Chrome's certificate warning
-  is expected; the PC explains it), takes pages, Done; Android printing to a shared printer (print to a file queue first).
+  `TranslationLooksTests.Thousands_of_rules…`, the two new `Release118HostileTests` linear-time tests,
+  `DriverDownloadTests.A_finished_childs_pid_taken…` (TimedOut once under load, 2026-11-22); `tools/test.ps1` names them.
+- **Phone tests (2026-11-22, Store 1.9.0.0, Ethernet now Private):** an iPhone passed both. Scan with your phone: QR,
+  Safari's warning, a photo, the page straightened, Done (the first upload was slow; the PC replies as soon as the body is
+  read, so it's the phone's shrink or the Wi-Fi: not yet timed). Share a printer: the iPhone printed a PDF through
+  "Inkvolt Share Test" (a queue on the local port `C:\InkvoltShareTest\job.out`, HP PCLmS class driver: `CanShare` passes a
+  file port not ending .prn/.pdf) and the queue wrote a 6-page PCLm. Three bugs found and fixed on master, in `## Next`:
+  an iPhone's browse asks 18+ questions in one packet (every printer it knows) and `MdnsSubtype.MaxQuestions` was 16, so
+  it was never answered and saw the printer only from the turn-on announcement (now 256); `TurnOnAsync` made a new UUID
+  each time, so phones listed one printer per turn-on (now `PrinterShare.UuidFor`, name-based v5); the phone scan said
+  "Scanning…" while waiting for the next photo (`Capture_GotPage`). Still to do: the OnePlus (it couldn't read the QR
+  code; Android printing untested; its wireless debugging is on, adb runs here), and timing the iPhone's upload.
+  Diagnosing mDNS: `pktmon` (elevated) shows each query's questions; a Python listener on 5353 joined to the group shows
+  multicast answers. iOS answers a browse from its cache, so it often sends no query when the print sheet opens.
 - **The Mac waits** (owner, 2026-11-17: no Mac any more; all work is Windows). Every Mac half in both roadmaps waits for
   a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. PrintCore has none of Inkvolt Print's printer-data work
   of 2026-11-20 (pages left and yield from CDM, IPP and the Printer MIB; recordings keeping IPP collections and SNMP

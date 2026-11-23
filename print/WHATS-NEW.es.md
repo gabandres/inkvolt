@@ -6,6 +6,9 @@ one line for each English line, every version (`WhatsNewSpanishTests` checks it)
 Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Una impresora compartida aparece enseguida en iPhone y iPad, aunque ya conozcan varias impresoras; antes, a veces solo aparecía tras desactivar y volver a activar el uso compartido.
+- Desactivar y volver a activar el uso compartido de una impresora la mantiene como la misma impresora, así que los teléfonos ya no la muestran una vez por cada vez.
+- Al escanear con el teléfono o una cámara, se indica que cada página llegó y que se espera la siguiente, en lugar de "Escaneando…".
 
 ## 1.9.0
 - Registro de impresión: Registro de impresión, en la barra lateral, muestra cada trabajo que este PC imprimió mientras Inkvolt Print estaba abierto, desde cualquier aplicación, con las páginas de cada mes por impresora y por persona. Se queda en este PC, y puedes desactivarlo o borrarlo. Guardarlo como archivo CSV es parte de Inkvolt Pro.

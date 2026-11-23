@@ -4428,6 +4428,9 @@ Los archivos se quedan donde están.</value>
   <data name="Capture_Waiting" xml:space="preserve">
     <value>Esperando fotos…</value>
   </data>
+  <data name="Capture_GotPage" xml:space="preserve">
+    <value>Ya está la página {0}. Esperando la siguiente, o Terminar…</value>
+  </data>
   <data name="Capture_NoPhotos" xml:space="preserve">
     <value>No llegó ninguna foto.</value>
   </data>

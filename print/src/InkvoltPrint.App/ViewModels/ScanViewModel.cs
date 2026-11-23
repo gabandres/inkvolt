@@ -834,7 +834,8 @@ public sealed partial class ScanViewModel : ObservableObject
                     added.Add(page);
                     into.Add(page);
                     checks.Add(page.AnalyseAsync(job.SkipBlank, job.Straighten, job.Split, findPhotos, job.Cleanup, upright, job.Drop)); // while the next page scans
-                    Message = string.Format(Strings.Scan_ScannedPage, Pages.Count);
+                    // A phone or camera sends pages as they're taken: "Scanning…" there would read as stuck.
+                    Message = string.Format(client is CaptureScanner ? Strings.Capture_GotPage : Strings.Scan_ScannedPage, Pages.Count);
                 }
             }
             var fronts = new List<ScanPageViewModel>();

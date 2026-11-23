@@ -5335,6 +5335,9 @@ The files stay where they are.</value>
   <data name="Capture_Waiting" xml:space="preserve">
     <value>Waiting for photos…</value>
   </data>
+  <data name="Capture_GotPage" xml:space="preserve">
+    <value>Page {0} is in. Waiting for the next one, or for Done…</value>
+  </data>
   <data name="Capture_NoPhotos" xml:space="preserve">
     <value>No photos came in.</value>
   </data>

@@ -22,7 +22,12 @@ public sealed record MdnsInstance(string Subtype, ShareAdvert Advert, IPAddress 
 /// </summary>
 public static class MdnsSubtype
 {
-    public const int MaxPacket = 9000, MaxQuestions = 16, Port = 5353;
+    /// <remarks>
+    /// <see cref="MaxQuestions"/> is generous: an iPhone's printer browse asks after every printer it has met in the same packet (18
+    /// questions with five, seen 2026-11-22), and a query past the limit is dropped unanswered. Each question takes at least 5 bytes, so
+    /// <see cref="MaxPacket"/> bounds the work anyway; the limit only refuses a header that claims more than any query asks.
+    /// </remarks>
+    public const int MaxPacket = 9000, MaxQuestions = 256, Port = 5353;
     public static readonly IPAddress Group = IPAddress.Parse("224.0.0.251");
 
     private const ushort Ptr = 12, Txt = 16, Srv = 33, A = 1, Any = 255, In = 1;

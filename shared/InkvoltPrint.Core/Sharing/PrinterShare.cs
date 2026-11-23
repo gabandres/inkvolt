@@ -5,7 +5,7 @@ using InkvoltPrint.Core.Queues;
 
 namespace InkvoltPrint.Core.Sharing;
 
-/// <summary>One Windows queue chosen to be shared with phones (the app keeps the list with its settings), and the UUID it's announced with, made once and kept.</summary>
+/// <summary>One Windows queue chosen to be shared with phones (the app keeps the list with its settings), and the UUID it's announced with (<see cref="PrinterShare.UuidFor"/>; kept as saved).</summary>
 public sealed record PrinterShareChoice(string Queue, Guid Uuid);
 
 /// <summary>Where the shared printers stand (one server for all of them).</summary>
@@ -181,6 +181,22 @@ public sealed class PrinterShare : IAsyncDisposable
         };
     }
 
+    private static readonly Guid UuidNamespace = new("5b0f6a51-3c47-4b8e-9d0a-6c2f1e7d4a90");
+
+    /// <summary>
+    /// The UUID a queue is announced and served with (its <c>printer-uuid</c>, TXT <c>UUID</c> and <c>/ipp/print/</c> path): a name-based
+    /// one (RFC 9562 version 5) of this PC's name and the queue's, both case-folded as Windows treats them, so turning sharing off and on
+    /// again gives the same printer, not another one each time that phones list beside the old. Not a secret: it's announced to the network.
+    /// </summary>
+    public static Guid UuidFor(string computerName, string queue)
+    {
+        var name = Encoding.UTF8.GetBytes($"{computerName.ToUpperInvariant()}\n{queue.ToUpperInvariant()}");
+        var hash = System.Security.Cryptography.SHA1.HashData([.. UuidNamespace.ToByteArray(bigEndian: true), .. name]);
+        hash[6] = (byte)((hash[6] & 0x0F) | 0x50); // version 5
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // RFC variant
+        return new Guid(hash.AsSpan(0, 16), bigEndian: true);
+    }
+
     /// <summary>Shares <paramref name="queue"/> (kept on across restarts); refused for one that can't be shared or past <see cref="MaxShared"/>.</summary>
     public async Task<bool> TurnOnAsync(SpoolerQueue queue)
     {
@@ -194,7 +210,7 @@ public sealed class PrinterShare : IAsyncDisposable
             {
                 if (_choices.Any(c => string.Equals(c.Queue, queue.Name, StringComparison.OrdinalIgnoreCase))) return true;
                 if (_choices.Count >= MaxShared) return false;
-                _choices.Add(new PrinterShareChoice(queue.Name, Guid.NewGuid()));
+                _choices.Add(new PrinterShareChoice(queue.Name, UuidFor(_computerName, queue.Name)));
                 _present.Add(queue.Name);
                 choices = [.. _choices];
             }

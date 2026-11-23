@@ -558,6 +558,24 @@ public class PrinterSharingTests
     }
 
     [Fact]
+    public async Task Turned_off_and_on_again_a_printer_keeps_its_uuid_and_address()
+    {
+        // A new UUID each time made an iPhone list the printer once per turn-on (three "Office laser on DESK"), the old ones going nowhere.
+        var env = new PrinterShareEnvironment(new Host(), new Networks(), new Adverts(), (name, _) => Task.FromResult<SharedQueue?>(Laser with { Name = name }), new Sink());
+        await using var share = new PrinterShare(env, "DESK", null, _ => { });
+        Assert.True(await share.TurnOnAsync(Queue("Office laser")));
+        var (uuid, path) = (share.Served[0].Uuid, share.Served[0].Path);
+        await share.TurnOffAsync("Office laser");
+        Assert.True(await share.TurnOnAsync(Queue("Office laser")));
+        Assert.Equal((uuid, path), (share.Served[0].Uuid, share.Served[0].Path));
+        Assert.True(await share.TurnOnAsync(Queue("Inkjet")));
+        Assert.NotEqual(uuid, share.Served.Single(p => p.Queue.Name == "Inkjet").Uuid);
+        Assert.NotEqual(PrinterShare.UuidFor("DESK", "Office laser"), PrinterShare.UuidFor("STUDY", "Office laser"));
+        Assert.Equal(PrinterShare.UuidFor("DESK", "Office laser"), PrinterShare.UuidFor("desk", "OFFICE LASER")); // Windows ignores case in both
+        Assert.Equal(5, PrinterShare.UuidFor("DESK", "Office laser").Version);
+    }
+
+    [Fact]
     public async Task Kept_choices_start_once_their_queue_is_listed_and_closing_stops_everything()
     {
         var (host, adverts) = (new Host(), new Adverts());
@@ -643,6 +661,35 @@ public class PrinterSharingTests
         Assert.True(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local", unicast: true))![0].Unicast);
     }
 
+    /// <summary>A query of several questions, the way an iPhone asks: <paramref name="names"/> in order, each a PTR or A, QM.</summary>
+    private static byte[] Query(params (string Name, ushort Type)[] names)
+    {
+        var q = new List<byte> { 0, 0, 0, 0, (byte)(names.Length >> 8), (byte)names.Length, 0, 0, 0, 0, 0, 0 };
+        foreach (var (name, type) in names)
+        {
+            q.AddRange(MdnsSubtype.Name(name));
+            q.AddRange([(byte)(type >> 8), (byte)type, 0, 1]);
+        }
+        return [.. q];
+    }
+
+    [Fact]
+    public void An_iphone_query_that_also_asks_after_the_printers_it_knows_is_answered()
+    {
+        // An iPhone's printer browse, seen on the network (2026-11-22): the two AirPrint subtypes, the browse domain, and each printer it
+        // has met asked after again (A, AAAA, and a third), 18 questions in one packet, or the subtypes after the hosts' 9.
+        string[] hosts = ["dev3b8069.local", "npibd5f99.local", "hpa8b13bb93438.local", "brwc03896656762.local", "npi63799f.local"];
+        var asked = new List<(string, ushort)> { ("lb._dns-sd._udp.local", 12), ("_universal._sub._ipps._tcp.local", 12), ("_universal._sub._ipp._tcp.local", 12) };
+        foreach (var host in hosts) asked.AddRange([(host, 1), (host, 28), (host, 47)]);
+        Assert.Equal(18, asked.Count);
+        var questions = MdnsSubtype.Questions(Query([.. asked]));
+        Assert.NotNull(questions);
+        Assert.Equal(18, questions.Count);
+        Assert.NotNull(MdnsSubtype.Answer(questions, [Instance()]));
+        var subtypesLast = asked.Skip(3).Concat(asked.Take(3)).ToArray();
+        Assert.NotNull(MdnsSubtype.Answer(MdnsSubtype.Questions(Query(subtypesLast)), [Instance()]));
+    }
+
     [Fact]
     public void Hostile_mdns_packets_are_dropped()
     {
@@ -651,7 +698,9 @@ public class PrinterSharingTests
         Assert.Null(MdnsSubtype.Questions(Query("_universal._sub._ipp._tcp.local")[..20])); // cut short
         Assert.Null(MdnsSubtype.Questions(new byte[MdnsSubtype.MaxPacket + 1]));
         var many = Query("a.local");
-        many[5] = 200; // says 200 questions
+        many[5] = 200; // says 200 questions, holds one
+        Assert.Null(MdnsSubtype.Questions(many));
+        many[4] = 1; // says 456: past MaxQuestions
         Assert.Null(MdnsSubtype.Questions(many));
         byte[] loop = [0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0xC0, 12, 0, 12, 0, 1]; // a name pointing at itself
         Assert.Null(MdnsSubtype.Questions(loop));
