@@ -450,6 +450,8 @@ public enum DocumentCommands {
             c("Redact Selected Text", "redactSelectedText:", needs: [.selectedText]),
             c("Redact Search Matches", "redactSearchMatches:", needs: [.searchMatches]),
             c("Redact by Pattern…", "redactByPattern:", needs: longTask),
+            // Roadmap 4.10 (Pro; Windows: Review › Suggest Redactions…): the user's AI assistant or names and terms list.
+            c("Suggest Redactions…", "suggestRedactions:", needs: longTask),
             sep,
             c("Apply Redactions…", "applyRedactions:", needs: [.redactionMarks, .idle]),
             c("Clear Redaction Marks", "clearRedactionMarks:", needs: [.redactionMarks, .idle]),

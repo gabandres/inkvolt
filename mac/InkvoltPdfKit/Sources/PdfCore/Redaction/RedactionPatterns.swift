@@ -79,9 +79,15 @@ public struct RedactionMatch: Equatable, Sendable {
     public var after: String
     /// Found in what text recognition read on the page, not in the page's own text.
     public var fromOcr: Bool
+    /// What the hit is called instead of its pattern's name (a suggestion's kind: `RedactionSuggestions.label`); nil: the
+    /// pattern's (roadmap 4.10).
+    public var label: String?
+
+    /// What the review list and the report call it.
+    public var kindName: String { label ?? RedactionPatterns.name(pattern) }
 
     public init(page: Int, pattern: RedactionPattern, start: Int, end: Int, text: String, rects: [RectD], normalized: String? = nil,
-                before: String = "", after: String = "", fromOcr: Bool = false) {
+                before: String = "", after: String = "", fromOcr: Bool = false, label: String? = nil) {
         self.page = page
         self.pattern = pattern
         self.start = start
@@ -92,6 +98,7 @@ public struct RedactionMatch: Equatable, Sendable {
         self.before = before
         self.after = after
         self.fromOcr = fromOcr
+        self.label = label
     }
 }
 

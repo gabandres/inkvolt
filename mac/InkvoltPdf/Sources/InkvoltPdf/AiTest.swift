@@ -81,6 +81,10 @@ struct AiTest {
                 return stalled
             }
             if received.body.contains("REFUSE") { return .json(404, #"{"error":{"message":"model not found"}}"#) }
+            // Suggest Redactions (roadmap 4.10): one quote the page holds, one it doesn't.
+            if received.body.contains("You find text to redact") {
+                return .sse([#"{"redact":[{"text":"brown fox","kind":"person"},"#, #"{"text":"Nobody Invented","kind":"name"}]}"#])
+            }
             if received.body.contains("These are summaries") { return .sse(["<think>let me see</think>", "The whole ", "summary [p. 1]."]) }
             return .sse(["The ", "answer ", "**says** it ", "[p. 1] and [p. 2]."], pause: 0.01)
         }) else {
@@ -333,6 +337,8 @@ struct AiTest {
         cloudSettings.customUrl = url
         AppSettings.ai = cloudSettings
 
+        await suggestRedactions(chats)
+
         // The app's Settings says how it stands, and has the way in.
         SettingsWindowController.show(updates: nil)
         let general = SettingsWindowController.shared
@@ -360,6 +366,55 @@ struct AiTest {
         controller.pages.clearSelection()
         lines.append("note: \(pane.stateReport().prefix(160))")
         finish()
+    }
+
+    /// Suggest Redactions (roadmap 4.10): the sheet with the assistant on, then a run with the names and terms list (a file
+    /// of the test's own): the send window always shown, the quote the page doesn't hold left out, the suggestions and the
+    /// list's term in Redact by Pattern's review list under their own names; cancelled there, so nothing is redacted.
+    private mutating func suggestRedactions(_ chats: () -> [AiLoopbackServer.Received]) async {
+        let keptTerms = DocumentWindowController.termsUrl
+        let terms = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-selftest-terms-\(UUID().uuidString).txt")
+        DocumentWindowController.termsUrl = terms
+        defer {
+            try? FileManager.default.removeItem(at: terms)
+            DocumentWindowController.termsUrl = keptTerms
+        }
+        try? RedactionTerms.saveText(terms, "# the test's list\nliquor jugs\n")
+
+        controller.suggestRedactions(nil)
+        _ = await waitFor { controller.redaction.suggestAlert != nil }
+        let alert = controller.redaction.suggestAlert
+        let assistantNote = loc("Your AI assistant ({0} · {1}) reads the pages' text and suggests what to redact. You see exactly what is sent, and where, before it goes.",
+                                "test-model", loc("Stays on this Mac"))
+        check(alert?.messageText == loc("Suggest Redactions") && alert?.informativeText == assistantNote,
+              "Suggest Redactions… opens its sheet, naming the assistant and where text goes")
+        snapshot(alert?.window, "ai-suggest-redactions.png")
+        if let sheet = alert?.window { sheet.sheetParent?.endSheet(sheet, returnCode: .alertSecondButtonReturn) }
+        _ = await waitFor { controller.redaction.suggestAlert == nil }
+
+        let before = chats().count
+        let owner = controller
+        let run = Task { @MainActor in
+            await owner.runSuggestRedactions(RedactSuggestPlan(kinds: .names, description: nil, useTerms: true, pages: [0]))
+        }
+        let send = await confirm()
+        let shown = send?.preview.string ?? ""
+        check(send != nil && chats().count == before, "the send window shows before the page's text goes")
+        send?.disclosure.performClick(nil)
+        check((send?.preview.string ?? shown).contains("You find text to redact"), "and shows the instructions that go with it")
+        send?.sendClicked()
+        _ = await waitFor(15) { controller.redaction.reviewSheet != nil || !(controller.pdf.session != nil) }
+        let review = controller.redaction.reviewSheet
+        let kinds = Set(review?.list.rows.map(\.kind) ?? [])
+        let suggestion = controller.redaction.lastSuggestion
+        check(chats().count == before + 1 && suggestion?.kept.map(\.text) == ["brown fox"] && suggestion?.dropped == 1,
+              "one request; the quote the page holds kept, the invented one left out (\(suggestion?.kept.count ?? -1) kept, \(suggestion?.dropped ?? -1) left out)")
+        check(kinds.contains(loc("Suggested: name")) && kinds.contains(loc("From your list")),
+              "the review list names each by where it came from: \(kinds.sorted().joined(separator: ", "))")
+        snapshot(review?.window, "ai-suggest-review.png")
+        review?.cancelClicked()
+        let applied = await run.value
+        check(!applied && controller.pages.redactions.isEmpty, "cancelled in the list: nothing redacted")
     }
 
     private static func rightClick(_ controller: DocumentWindowController) -> NSEvent {

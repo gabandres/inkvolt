@@ -138,6 +138,8 @@ public enum CommandBar {
                      action: "applyRedactions:", tint: .applyRedactions),
                 Item("RedactPatterns", loc("Redact by Pattern…"), loc("Find and remove numbers, phones, emails"), "text.magnifyingglass",
                      action: "redactByPattern:"),
+                Item("SuggestRedactions", loc("Suggest Redactions…"), loc("Names and more, found by your AI or your list"), "sparkle.magnifyingglass",
+                     action: "suggestRedactions:"),
                 Item("CheckRedaction", loc("Check Redaction…"), loc("Make sure nothing removed can be read"), "checkmark.shield", action: "checkRedaction:"),
                 Item("Sanitize", loc("Sanitize Document…"), loc("Remove hidden data, metadata and scripts"), "eraser", action: "sanitizeDocument:"),
                 Item("Sign", loc("Sign Digitally…"), loc("Sign with a digital ID (certificate)"), "checkmark.seal", action: "signDigitally:",

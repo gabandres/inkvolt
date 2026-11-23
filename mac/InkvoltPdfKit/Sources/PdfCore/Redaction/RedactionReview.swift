@@ -27,7 +27,7 @@ public struct RedactionReviewRow: Sendable {
     /// What it is: the kind (read by OCR, when it was), an area marked earlier, or a page to look at.
     public var kind: String {
         switch item {
-        case .hit(let h): h.fromOcr ? loc("{0} (read by OCR)", RedactionPatterns.name(h.pattern)) : RedactionPatterns.name(h.pattern)
+        case .hit(let h): h.fromOcr ? loc("{0} (read by OCR)", h.kindName) : h.kindName
         case .look: loc("Look at this page by hand")
         case .earlier: loc("An area you marked earlier")
         }

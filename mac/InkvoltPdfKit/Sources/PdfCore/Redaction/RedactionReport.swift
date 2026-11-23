@@ -20,16 +20,19 @@ public struct RedactionRemoval: Equatable, Sendable {
     public var pattern: RedactionPattern
     public var masked: String
     public var outcome: RedactionOutcome
+    /// The hit's own name (`RedactionMatch.label`: a suggestion's kind), shown instead of its pattern's.
+    public var label: String?
 
-    public init(_ page: Int, _ pattern: RedactionPattern, _ masked: String, _ outcome: RedactionOutcome) {
+    public init(_ page: Int, _ pattern: RedactionPattern, _ masked: String, _ outcome: RedactionOutcome, label: String? = nil) {
         self.page = page
         self.pattern = pattern
         self.masked = masked
         self.outcome = outcome
+        self.label = label
     }
 
     public var outcomeText: String { RedactionReport.outcomeText(outcome) }
-    public var patternName: String { RedactionPatterns.name(pattern) }
+    public var patternName: String { label ?? RedactionPatterns.name(pattern) }
 }
 
 /// What was done to one file. It holds no unmasked value at any point: it is built only from `RedactionReport.mask`.
@@ -130,7 +133,7 @@ public struct RedactionReport: Equatable, Sendable {
 
     /// What a match looks like in a report.
     public static func row(_ match: RedactionMatch, _ outcome: RedactionOutcome) -> RedactionRemoval {
-        RedactionRemoval(match.page, match.pattern, mask(match.pattern, match.normalized), outcome)
+        RedactionRemoval(match.page, match.pattern, mask(match.pattern, match.normalized), outcome, label: match.label)
     }
 
     public static func outcomeText(_ outcome: RedactionOutcome) -> String {

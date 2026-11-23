@@ -26510,6 +26510,171 @@
           }
         }
       }
+    },
+    "Finding what to redact on {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando qué eliminar en {0}"
+          }
+        }
+      }
+    },
+    "Suggested: name": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerido: nombre"
+          }
+        }
+      }
+    },
+    "Suggested: organization": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerido: organización"
+          }
+        }
+      }
+    },
+    "Suggested: address": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerido: dirección"
+          }
+        }
+      }
+    },
+    "Suggested: account or ID number": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerido: número de cuenta o de identificación"
+          }
+        }
+      }
+    },
+    "Suggested": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerido"
+          }
+        }
+      }
+    },
+    "From your list": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De tu lista"
+          }
+        }
+      }
+    },
+    "Redaction suggestions": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerencias de eliminación"
+          }
+        }
+      }
+    },
+    "Your own AI assistant reads the pages and suggests the names, organizations, addresses and account numbers to redact, or what you describe; or keep your own list of names and terms. Every suggestion goes into the review list before anything is removed, and the result is checked as for patterns.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu propio asistente de IA lee las páginas y sugiere los nombres, organizaciones, direcciones y números de cuenta que eliminar, o lo que describas; o guarda tu propia lista de nombres y términos. Cada sugerencia pasa por la lista de revisión antes de quitar nada, y el resultado se comprueba igual que con los patrones."
+          }
+        }
+      }
+    },
+    "Redaction suggestions are part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las sugerencias de eliminación forman parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "There are {0} different names and terms to look for, more than the {1} one search takes, so nothing was searched. Choose fewer pages or shorten your list, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay {0} nombres y términos distintos que buscar, más de los {1} que admite una búsqueda, así que no se buscó nada. Elige menos páginas o acorta tu lista, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Line {0} is longer than {1} characters, so it couldn't be searched. Shorten it or split it, then save again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La línea {0} tiene más de {1} caracteres, así que no se podría buscar. Acórtala o divídela y vuelve a guardar."
+          }
+        }
+      }
+    },
+    "The list has {0} names and terms; it can hold {1}. Remove some, then save again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La lista tiene {0} nombres y términos; caben {1}. Quita algunos y vuelve a guardar."
+          }
+        }
+      }
+    },
+    "Suggest Redactions…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerir qué eliminar…"
+          }
+        }
+      }
+    },
+    "Names and more, found by your AI or your list": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombres y más, hallados por tu IA o tu lista"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
