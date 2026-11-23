@@ -42,7 +42,11 @@ public enum SheetPrint {
     public static let pointsPerUnit = 72.0 / 96.0
 
     /// Letter (or A4 where the region is metric), for counting sheets before the printer's paper is known.
-    public static func guessPaper(metric: Bool) -> (width: Double, height: Double) { metric ? (8.27 * 96, 11.69 * 96) : (8.5 * 96, 11 * 96) }
+    public static func guessPaper(metric: Bool) -> (width: Double, height: Double) {
+        // Inches, then DIPs: spelled out, as CI's Swift gave up type-checking the literals in one tuple expression.
+        let inches: (Double, Double) = metric ? (8.27, 11.69) : (8.5, 11)
+        return (inches.0 * 96, inches.1 * 96)
+    }
 
     /// The shared layout's setup for a choice; nil for the normal one page per sheet (the print path as before).
     public static func setup(_ choice: SheetChoice) -> Sheets.PrintSetup? {
