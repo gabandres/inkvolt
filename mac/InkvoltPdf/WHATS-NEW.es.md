@@ -5,6 +5,8 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Redistribuir (menú Visualización, ⌘3): el texto del documento en una columna que se ajusta a la ventana, para leer en una pantalla pequeña o con letra grande. Acercar agranda el texto, Páginas oscuras lo pone claro sobre oscuro, y la página en la que estabas se conserva al volver a las páginas. Los vínculos web y de correo se abren en tu navegador o tu app de correo.
+- Dos documentos uno al lado del otro: Archivo › Nueva ventana (o el menú del icono del Dock) abre el siguiente documento en una ventana propia, o arrastra una pestaña fuera de la barra de pestañas (Ventana › Mover pestaña a una ventana nueva hace lo mismo). Un archivo que ya está abierto pasa al frente en la ventana que lo tenga, y los documentos que abres se unen a la última ventana que usaste.
 - Reemplazar páginas… (menú Páginas): cambia páginas por páginas de otro PDF. Los marcadores y los vínculos que llevaban a una página reemplazada llevan ahora a la página que ocupa su lugar.
 - Cambiar el tamaño de las páginas… (menú Páginas): pon las páginas en Carta, A4, Legal o un tamaño que escribas, con el contenido ajustado al papel o con su tamaño y márgenes agregados. Las páginas de distintos tamaños quedan de un solo tamaño, y los comentarios y los campos de formulario se mueven con el contenido.
 - Marcadores a partir de los títulos… (menú Páginas, y el menú de la lista Marcadores): marcadores creados a partir de los títulos del documento, anidados por nivel y mostrados antes de crearlos. Reemplazan los marcadores o se agregan después.

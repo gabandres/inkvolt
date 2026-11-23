@@ -325,6 +325,8 @@ public enum DocumentCommands {
         c("Continuous", "continuousMode:", "5", needs: [.pages]),
         c("Two Pages", "twoPagesMode:", "6", needs: [.pages]),
         c("Two Pages with Cover", "coverMode:", "7", needs: [.pages]),
+        // Roadmap 4.16: the text as one readable column (Windows: View › Reflow, Ctrl+3).
+        c("Reflow", "toggleReflow:", "3", needs: [.pages]),
         sep,
         c("Rotate View Clockwise", "rotateViewClockwise:", "r", [.command, .shift], needs: [.pages]),
         c("Rotate View Counterclockwise", "rotateViewCounterclockwise:", "l", [.command, .shift], needs: [.pages]),

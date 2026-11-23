@@ -194,6 +194,8 @@ extension DocumentWindowController {
 
     /// Whether `entry` can run now: a menu bar command's own rule (`DocumentCommands`), a tool's as the Tools menu's.
     func barEnabled(_ entry: CommandBar.Item) -> Bool {
+        // Read-only while Reflow shows (roadmap 4.16): only its commands.
+        if reflow.isShown { return entry.action.map(Reflow.runsAction) ?? false }
         if let action = entry.action, let command = DocumentCommands.command(action: action) {
             return command.isEnabled(in: commandState(for: command))
         }
