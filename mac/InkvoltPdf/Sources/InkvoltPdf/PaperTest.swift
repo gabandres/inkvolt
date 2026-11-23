@@ -118,7 +118,11 @@ struct PaperTest {
         let copy = PdfSource(s.data, s.password, "backs.pdf")
         let with = await controller.interleaveWith(copy, reversed: false, label: loc("Interleave pages"))
         let doubled = texts()
-        let pairs = doubled.count == 2 * n && (0..<n).allSatisfy { doubled[2 * $0] == before[$0] && doubled[2 * $0 + 1] == before[$0] }
+        let pairedRight: (Int) -> Bool = { i in
+            let page: String = before[i]
+            return doubled[2 * i] == page && doubled[2 * i + 1] == page
+        }
+        let pairs = doubled.count == 2 * n && (0..<n).allSatisfy(pairedRight)
         let undoneWith = await undo(n)
         check(with && pairs && undoneWith && texts() == before,
               "Interleave Pages… with another PDF: \(n) fronts and \(n) backs, each back after its front (\(doubled.count) pages), undone")
