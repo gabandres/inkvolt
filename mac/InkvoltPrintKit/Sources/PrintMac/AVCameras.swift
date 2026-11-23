@@ -129,7 +129,7 @@ public final class AVCameraFeed: NSObject, CameraFeed, AVCaptureVideoDataOutputS
         guard !wanted.isEmpty else { return }
         CVPixelBufferLockBaseAddress(pixels, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixels, .readOnly) }
-        var picture: Picture?
+        var picture: PrintCore.Picture?
         if CVPixelBufferGetPixelFormatType(pixels) == kCVPixelFormatType_32BGRA, let base = CVPixelBufferGetBaseAddress(pixels) {
             let row = CVPixelBufferGetBytesPerRow(pixels)
             let bytes = UnsafeBufferPointer(start: base.assumingMemoryBound(to: UInt8.self), count: row * h)

@@ -12,18 +12,18 @@ public struct ImageIOPhotoCodec: PhotoCodec {
 
     public struct NotDecoded: Error {}
 
-    public func decode(_ data: [UInt8], _ header: PhotoHeader) throws -> Picture {
+    public func decode(_ data: [UInt8], _ header: PhotoHeader) throws -> PrintCore.Picture {
         guard let source = CGImageSourceCreateWithData(Data(data) as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
               CGImageSourceGetCount(source) >= 1, let size = ScanImaging.size(of: source),
               size.width == header.width, size.height == header.height,
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw NotDecoded() }
-        return Picture(try ScanImaging.pixels(image, channels: 3), image.width, image.height, 3)
+        return PrintCore.Picture(try ScanImaging.pixels(image, channels: 3), image.width, image.height, 3)
     }
 
     /// A picture as an image (the camera window's still frame in demo mode).
-    public static func image(_ p: Picture) -> CGImage? { try? ScanImaging.picture(p.pixels, width: p.width, height: p.height, channels: p.channels) }
+    public static func image(_ p: PrintCore.Picture) -> CGImage? { try? ScanImaging.picture(p.pixels, width: p.width, height: p.height, channels: p.channels) }
 
-    public func encodeJpeg(_ page: Picture, dpi: Int) throws -> [UInt8] {
+    public func encodeJpeg(_ page: PrintCore.Picture, dpi: Int) throws -> [UInt8] {
         let image = try ScanImaging.picture(page.pixels, width: page.width, height: page.height, channels: page.channels)
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { throw NotDecoded() }
