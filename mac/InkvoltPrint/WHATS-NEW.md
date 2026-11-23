@@ -14,6 +14,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - A scan named from its first page: {text-date}, {text-title} and {text-number} in a scan preset's file name take a date, the heading and an invoice or order number from the page's text. With Stop on the pages to review them before saving, the name shows beside Save, to change before saving.
 - Scan straight to Word or text: a scan preset saves the text read from the pages as a Word document (.docx), headings and paragraphs ready to edit and photos as pictures, or as a plain text file (.txt).
 - Recent Scans… in the Scan tab lists the last 20 scans saved on this Mac, from every scanner: open one, show it in Finder, email it again, print it again or remove it from the list. Files deleted or moved drop out by themselves.
+- Print the Clipboard (⇧⌘V, in the Print menu): copied text is laid out on pages and printed, a copied picture opens in Print Photos, and PDFs and pictures copied in Finder print as they are.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

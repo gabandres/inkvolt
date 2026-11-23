@@ -16,6 +16,12 @@ enum Printing {
         panel.message = String(localized: "Choose a PDF to print on \(printer.name).")
         panel.prompt = String(localized: "Print…")
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        printPdf(url, on: printer, app: app)
+    }
+
+    /// A PDF file printed as Print a PDF prints it (its password asked when it has one): the picked one, or one copied in
+    /// Finder (Print the Clipboard, roadmap 4.13).
+    static func printPdf(_ url: URL, on printer: PrinterModel, app: AppModel) {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let document = PDFDocument(url: url) else {

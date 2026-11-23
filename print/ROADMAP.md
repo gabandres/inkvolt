@@ -178,9 +178,9 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
   - **4.15 Recent scans.** Done on Windows and Mac: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
     from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`; the Mac's in `mac/docs/PLAN.md`,
     "Wave 4"). **Next:** a person to open, email and print a scan from the list on a Mac.
-  - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
-    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
-    half waits.
+  - **4.13 Print the clipboard.** Done on Windows and Mac: text laid out on pages and printed as a PDF, a picture through Print photos,
+    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`; the Mac's in
+    `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person to print copied text, a picture and Finder files on a Mac.
   - **4.2 Two-sided printing by hand.** Done on Windows: Print a PDF, Batch and Copy, through the queue or straight to the
     printer; the fronts, a prompt for face down or face up (the printer's answer first, the person's kept) and an odd last sheet,
     the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).

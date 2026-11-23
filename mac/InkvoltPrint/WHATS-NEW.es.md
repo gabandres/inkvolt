@@ -14,6 +14,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - Un escaneo con el nombre de su primera página: {text-date}, {text-title} y {text-number} en el nombre de archivo de un ajuste de escaneo toman una fecha, el título y un número de factura o de pedido del texto de la página. Con Detenerse en las páginas para revisarlas antes de guardar, el nombre aparece junto a Guardar, para cambiarlo antes de guardar.
 - Escanear directo a Word o a texto: un ajuste de escaneo guarda el texto leído en las páginas como documento de Word (.docx), con títulos y párrafos listos para editar y las fotos como imágenes, o como archivo de texto (.txt).
 - Escaneos recientes… en la pestaña Escanear muestra los últimos 20 escaneos guardados en este Mac, de todos los escáneres: abre uno, muéstralo en el Finder, envíalo de nuevo por correo, imprímelo de nuevo o quítalo de la lista. Los archivos eliminados o movidos salen solos de la lista.
+- Imprimir el portapapeles (⇧⌘V, en el menú Imprimir): el texto copiado se coloca en páginas y se imprime, una imagen copiada se abre en Imprimir fotos, y los PDF e imágenes copiados en el Finder se imprimen tal como están.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

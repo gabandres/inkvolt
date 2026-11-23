@@ -312,6 +312,20 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   until the next. The list is reached from the Scan tab only (Windows also from the sidebar, without Print). The demo has
   no stand-in for Open or Email (Windows' demo says what would happen). Not checked: the sheet on screen, Open, Email
   Again and Print with a real mail app and printer, a network volume's files, VoiceOver.
+- **4.13 Print the clipboard.** PrintCore `ClipboardPrint` (`choose`, `prefersPicture`, `layout`, `pages`, `expand`, `wrap`,
+  `width`, `name`), `ClipboardContent`, `ClipboardWhat`, `ClipboardPlan`, `ClipboardTextLayout`, `PixelSize`;
+  `ClipboardPrintTests` (PC). The app: the Print menu's Print the Clipboard (⇧⌘V; `ClipboardPrinting.swift`): files copied in
+  Finder as they are (one PDF through `Printing.printPdf(_:on:app:)`, split from Print a PDF's panel; pictures to Print
+  Photos; several to Batch Print), a picture (its size read from the PNG or TIFF's header before it is decoded) saved as an
+  opaque PNG for Print Photos, text laid out on Letter, or A4 where the region is metric, and printed through the print panel
+  at its own size; what can't print said in an alert. `--report … --clipboard` (on a pasteboard of its own).
+  **Mac differences:** the text PDF is vector text (Menlo drawn at the size whose advance is the layout's column, Windows'
+  Consolas measure) where Windows draws 1-bit pages at 300 dpi; lengths and columns count Unicode scalars (.NET UTF-16
+  units; a character past the BMP is two columns on both); a Swift string holds no lone surrogate (that test line has no
+  counterpart); the text is laid out on the main thread with no Cancel (300 pages take well under a second); a text cut
+  past 300 pages is said in an alert before the print panel (Windows' message line); the made files go in the app's
+  temporary folder, cleared of anything a day old. Not checked: Finder's copied files read from the clipboard in the sandbox
+  (macOS grants a pasted file), Word's and Excel's text-and-picture copies, the print panel's preview, VoiceOver.
 
 ## Mac differences
 

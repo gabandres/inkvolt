@@ -1770,6 +1770,16 @@
         }
       }
     },
+    "Clipboard": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portapapeles"
+          }
+        }
+      }
+    },
     "Close": {
       "localizations": {
         "es": {
@@ -4346,12 +4356,32 @@
         }
       }
     },
+    "Print the Clipboard": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir el portapapeles"
+          }
+        }
+      }
+    },
     "Print the pages: a copy": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Imprimir las páginas: una copia"
+          }
+        }
+      }
+    },
+    "Print what you copied: text laid out on pages, a picture in Print Photos, PDFs and pictures copied in Finder as they are": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprime lo que copiaste: el texto colocado en páginas, una imagen en Imprimir fotos, y los PDF e imágenes copiados en el Finder tal como están"
           }
         }
       }
@@ -5926,6 +5956,22 @@
         }
       }
     },
+    "The copied text is longer than %lld pages: only the first %lld print.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The copied text is longer than %1$lld pages: only the first %2$lld print."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto copiado ocupa más de %1$lld páginas: solo se imprimen las primeras %2$lld."
+          }
+        }
+      }
+    },
     "The copy couldn't be prepared for printing.": {
       "localizations": {
         "es": {
@@ -5952,6 +5998,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "El alimentador no envió reversos, así que solo hay %lld anversos."
+          }
+        }
+      }
+    },
+    "The files on the clipboard aren't PDFs or pictures. Open them in their own app to print them.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos del portapapeles no son PDF ni imágenes. Ábrelos en su propia aplicación para imprimirlos."
           }
         }
       }
@@ -6354,6 +6410,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hay demasiados escaneos con ese nombre en %@. Elige otra carpeta."
+          }
+        }
+      }
+    },
+    "There's nothing to print on the clipboard. Copy some text, a picture, or a PDF in Finder, then try again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay nada que imprimir en el portapapeles. Copia texto, una imagen o un PDF en el Finder y vuelve a intentarlo."
           }
         }
       }
@@ -6972,6 +7038,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vigilando %@"
+          }
+        }
+      }
+    },
+    "What's on the clipboard couldn't be made ready to print. Copy it again and try once more.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que está en el portapapeles no se pudo preparar para imprimir. Cópialo de nuevo y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "What's on the clipboard is too big to print from here. Save it as a file and print that.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que está en el portapapeles es demasiado grande para imprimirlo desde aquí. Guárdalo como archivo e imprime ese archivo."
           }
         }
       }

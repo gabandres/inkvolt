@@ -48,6 +48,9 @@ struct PrinterPane: View {
                 Menu {
                     Button("Print a PDF…") { Printing.printPdf(on: printer, app: app) }
                     Button("Print Photos…") { printingPhotos = true }
+                    Button("Print the Clipboard") { ClipboardPrinting.print(on: printer, app: app) }
+                        .keyboardShortcut("v", modifiers: [.command, .shift])
+                        .help("Print what you copied: text laid out on pages, a picture in Print Photos, PDFs and pictures copied in Finder as they are")
                     if printer.canScan {
                         Divider()
                         Button("Copy an ID Card…") { copyingCard = true }
