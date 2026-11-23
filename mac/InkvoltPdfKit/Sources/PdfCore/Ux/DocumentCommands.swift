@@ -483,6 +483,8 @@ public enum DocumentCommands {
         // AI Assistant (Windows: Review › AI Assistant): bring your own, off by default.
         .submenu(CommandMenu("AI Assistant", [
             c("Summarize with AI…", "aiSummarize:", needs: [.pages, .aiIdle]),
+            // Roadmap 4.24: the summary read aloud to an audio file (Windows: Review › AI Assistant › Summary to Audio…).
+            c("Summary to Audio…", "aiSummaryToAudio:", needs: [.pages, .aiIdle]),
             c("Ask AI about This Document", "aiAsk:", needs: [.pages]),
             c("Explain Selection with AI", "aiExplain:", needs: [.selectedText, .aiIdle]),
             c("Translate with AI…", "aiTranslate:", needs: [.pages, .aiIdle]),

@@ -1917,7 +1917,19 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the 
   the deletion), four Undos, a model that can't call tools. Mac difference: redaction's step marks the matches as
   Redact by Pattern does on the Mac (marked for review, applied only by Apply Redactions), where Windows opens its review
   list.
-- Not checked by a person: the windows and the send window's listing by eye and with VoiceOver; a real model (Ollama or
+- **4.24 a summary read aloud to a file** (Tools › AI Assistant › Summary to Audio…; Windows also reads saved answers
+  aloud from Save AI Answer, 4.20, which the Mac waits for): PdfCore AiAnswerSpeech.swift (`AiAnswerSpeech.paragraphs`,
+  `spoken`; `WavFile.read`, `join`; `WavParts`; and the parts of 4.20 it needs: `AiExchange`, `AiAnswerKind`,
+  `AiAnswerExport.blocks`, `runs`, `note`), `AiAnswerSpeechTests` under their names. The app: SpeechFile.swift (each
+  paragraph through `AVSpeechSynthesizer.write(_:toBufferCallback:)` with Read Aloud's voice and speed, its buffers as
+  16-bit samples, joined with 0.35 s between paragraphs, then an M4A (AAC, `AVAudioFile`) or a WAV; the summary first,
+  with its send window, as Summarize with AI). `--only-summary-audio` (`SummaryAudioTest`): an M4A and a WAV, each as long
+  as the speech. Mac differences: M4A where Windows makes MP3 (macOS has no MP3 encoder; no fallback note is needed);
+  the WAV's rate is the voice's own (22,050 Hz for the English voice here, 16,000 Hz for the Spanish one), and the AAC
+  encoder picks its own bit rate (a set 64 kbit/s is refused at 16 kHz). A paragraph ends at the synthesizer's empty last
+  buffer, not at `didFinish` (which came before the last buffers and cut recordings short), with a watchdog for a voice
+  that never sends it (5 s without a buffer, 30 s before the first).
+- Not checked by a person: listening to a recording; the windows and the send window's listing by eye and with VoiceOver; a real model (Ollama or
   LM Studio on this Mac), and a real embedding model (nomic-embed-text); Edit by Asking with a real model that calls tools
   (qwen3).
 
@@ -1947,10 +1959,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
   `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
   `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
-  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
-  4.24 a summary read aloud to a file
-  (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
-  makes MP3; port `AiAnswerSpeechTests`).
+  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

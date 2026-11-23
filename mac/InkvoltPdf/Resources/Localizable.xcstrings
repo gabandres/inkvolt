@@ -25113,6 +25113,94 @@
           }
         }
       }
+    },
+    "This Mac has no voices to read with. Add one in System Settings › Accessibility › Spoken Content.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac no tiene voces para leer. Agrega una en Configuración del Sistema › Accesibilidad › Contenido leído."
+          }
+        }
+      }
+    },
+    "Save as Audio": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como audio"
+          }
+        }
+      }
+    },
+    "{0} - summary": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - resumen"
+          }
+        }
+      }
+    },
+    "Reading the answer aloud…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo la respuesta en voz alta…"
+          }
+        }
+      }
+    },
+    "Reading aloud: paragraph {0} of {1}…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo en voz alta: párrafo {0} de {1}…"
+          }
+        }
+      }
+    },
+    "Saved {0} ({1}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó {0} ({1})."
+          }
+        }
+      }
+    },
+    "Stopped. No recording was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detenido. No se guardó ninguna grabación."
+          }
+        }
+      }
+    },
+    "The recording couldn't be made or saved. Check that the folder exists and the file isn't open in another app, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo crear o guardar la grabación. Comprueba que la carpeta existe y que el archivo no está abierto en otra app, y vuelve a intentarlo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

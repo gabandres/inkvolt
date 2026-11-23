@@ -23,6 +23,9 @@ final class AiState {
     weak var lastTranslationCopy: DocumentWindowController?
     /// What the last Edit by Asking proposed and did (the self-test reads it).
     var lastAskEdit = "none"
+    /// The last summary read aloud to a file (the self-test reads it).
+    var lastAudio: SpeechFileResult?
+    var lastAudioError: String?
 
     /// True while a request of this document's AI assistant runs.
     var isBusy: Bool { cancel != nil }
@@ -67,7 +70,7 @@ extension DocumentWindowController {
     }
 
     /// True when the AI assistant is set up; else offers its settings (saying why) and tells whether it is now.
-    private func aiReady() async -> Bool {
+    func aiReady() async -> Bool {
         let now = AiService.current(AppSettings.ai)
         if now.config != nil { return true }
         guard let window, await AiSettingsSheet.show(on: window, why: loc("{0} Set it up here, or Cancel.", now.problem ?? "")) else { return false }
@@ -76,7 +79,7 @@ extension DocumentWindowController {
     }
 
     /// Which pages to summarize; nil when cancelled. The pages chosen in the sidebar, if several.
-    private func askSummaryPages() async -> [Int]? {
+    func askSummaryPages() async -> [Int]? {
         guard let window else { return nil }
         let alert = NSAlert()
         alert.messageText = loc("Summarize with AI")
