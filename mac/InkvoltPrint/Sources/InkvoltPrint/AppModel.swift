@@ -299,7 +299,11 @@ final class AppModel {
         guard let history = await jobHistory.finishedJobs(limit: limit) else { return true }
         let names = Dictionary((destinations ?? []).map { ($0.name, $0.displayName) }, uniquingKeysWith: { a, _ in a })
         let keeper = printLog
-        let added = await Task.detached { keeper.read(history) { names[$0] ?? $0.replacingOccurrences(of: "_", with: " ") } }.value
+        // Fewer than asked for: that's all CUPS keeps (and a full read is the most the recorder remembers).
+        let whole = full || history.count < limit
+        let added = await Task.detached {
+            keeper.read(history, whole: whole) { names[$0] ?? $0.replacingOccurrences(of: "_", with: " ") }
+        }.value
         if added > 0 { PrintLogWindow.model?.load() }
         return !full && history.count >= limit && added >= history.count
     }

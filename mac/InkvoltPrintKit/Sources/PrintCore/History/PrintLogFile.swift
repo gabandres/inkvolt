@@ -24,6 +24,15 @@ public final class PrintLogFile: @unchecked Sendable {
     /// The log, oldest first.
     public func read(_ now: Date) -> [PrintLogEntry] { lock.withLock { load(now).list } }
 
+    /// The keys of the jobs the log holds (`PrintLogEntry.job`); nil while the file can't be read, so a reader doesn't take
+    /// its jobs for none and log them again.
+    public func jobs(_ now: Date) -> Set<String>? {
+        lock.withLock {
+            let (list, loaded) = load(now)
+            return loaded ? Set(list.compactMap(\.job)) : nil
+        }
+    }
+
     /// Adds the jobs and saves.
     public func add(_ added: [PrintLogEntry], _ now: Date) {
         guard !added.isEmpty else { return }

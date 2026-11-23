@@ -120,12 +120,13 @@ public final class PrintLogRecorder {
     /// Jobs remembered as logged now (for tests).
     public var open: Int { logged?.count ?? 0 }
 
-    /// The history read now: the entries for the jobs not logged yet that finished at or after `since`. `known`: the keys of
-    /// the jobs the log already holds, asked only the first time (or after `reset`). `printerName`: a queue's name as the
-    /// Mac shows it.
-    public func read(_ history: [FinishedJob], since: Date, now: Date, known: () -> Set<String>,
+    /// The history read now: the entries for the jobs not logged yet that finished at or after `since`. `whole`: the read
+    /// holds all CUPS keeps (not just its newest few), so the jobs it doesn't list are gone for good. `known`: the keys of
+    /// the jobs the log already holds, asked only the first time (or after `reset`); nil while the log can't be read, and
+    /// then nothing is read now (it's asked again next time). `printerName`: a queue's name as the Mac shows it.
+    public func read(_ history: [FinishedJob], since: Date, now: Date, whole: Bool = true, known: () -> Set<String>?,
                      printerName: (String) -> String = { $0 }) -> [PrintLogEntry] {
-        var logged = logged ?? known()
+        guard var logged = logged ?? known() else { return [] }
         var seen = Set<String>()
         var done: [PrintLogEntry] = []
         for job in history.prefix(Self.maxOpen) {
@@ -138,8 +139,15 @@ public final class PrintLogRecorder {
                 logged.insert(key)
             }
         }
-        // Jobs CUPS no longer lists can't come back: only those it lists stay remembered.
-        logged = logged.intersection(seen)
+        if whole {
+            // Jobs CUPS no longer lists can't come back: only those it lists stay remembered.
+            logged = logged.intersection(seen)
+        } else if logged.count > Self.maxOpen * 2 {
+            // A read of the newest few says nothing of the older jobs; past twice the bound, what was logged is asked of the
+            // log again at the next read (it holds every job it logged).
+            self.logged = nil
+            return done.sorted { $0.at < $1.at }
+        }
         self.logged = logged
         return done.sorted { $0.at < $1.at }
     }
@@ -194,13 +202,14 @@ public final class PrintLogKeeper: @unchecked Sendable {
         }
     }
 
-    /// One read of CUPS's history: the jobs it adds (0 while off).
+    /// One read of CUPS's history: the jobs it adds (0 while off, and while the log's file can't be read: its jobs would be
+    /// taken for none and logged again). `whole`: the read holds all CUPS keeps (`PrintLogRecorder.read`).
     @discardableResult
-    public func read(_ history: [FinishedJob], printerName: (String) -> String = { $0 }) -> Int {
+    public func read(_ history: [FinishedJob], whole: Bool = true, printerName: (String) -> String = { $0 }) -> Int {
         let now = clock()
         let count: Int = lock.withLock {
             guard let since = sinceDate else { return 0 }
-            let done = recorder.read(history, since: since, now: now, known: { Set(file.read(now).compactMap(\.job)) },
+            let done = recorder.read(history, since: since, now: now, whole: whole, known: { file.jobs(now) },
                                      printerName: printerName)
             if !done.isEmpty { file.add(done, now) }
             return done.count

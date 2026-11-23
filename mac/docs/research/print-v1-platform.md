@@ -21,6 +21,12 @@ Apple doc pages render with JavaScript. They were read through their JSON form
 - Menu bar item (`MenuBarExtra`).
 - Opt-in launch at login (`SMAppService.mainApp`).
 - macOS needs **no** multicast entitlement.
+- The print log (roadmap 4.9) needs **no new** entitlement: CUPS's history of finished jobs (IPP Get-Jobs,
+  `which-jobs=completed`) comes over cupsd's socket with `com.apple.security.print`, checked from the sandbox (Q2).
+- A camera scan (roadmap 4.12) needs `com.apple.security.device.camera` (owner-approved 2026-11-23) and
+  `NSCameraUsageDescription`. macOS asks once, at the first capture session, with the app's sentence ("Inkvolt Print
+  uses the camera only while you scan with it: each page you capture becomes a scanned page on this Mac. Nothing is
+  recorded or sent.", in Spanish too); denied is said with where to turn it on (Privacy & Security › Camera).
 
 **Local Network privacy gates almost all of it.** The probe, SNMP, Bonjour, IPP, LEDM and eSCL all need the
 Local Network privilege. Design for three states:

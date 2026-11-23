@@ -363,6 +363,40 @@ struct PrintLogTests {
 
     // ---------------------------------------------------------------- Mac only
 
+    /// The app reads CUPS's newest jobs each minute and all it keeps now and then: a read of the newest few forgets none of
+    /// the older jobs, so the next whole read doesn't log them again.
+    @Test func aReadOfTheNewestJobsForgetsNoneOfTheOlderOnes() {
+        let recorder = PrintLogRecorder()
+        let jobs = (1...5).map { FinishedJob(id: $0, queue: "Laser", submitted: Self.now.addingTimeInterval(-Double(600 - $0))) }
+        #expect(Self.read(recorder, jobs).count == 5)
+        let newer = FinishedJob(id: 6, queue: "Laser", submitted: Self.now.addingTimeInterval(-60))
+        #expect(recorder.read([newer, jobs[4]], since: Self.since, now: Self.now, whole: false, known: { [] }).map(\.job) == [newer.key])
+        #expect(recorder.open == 6)
+        #expect(Self.read(recorder, [newer] + jobs.reversed()).isEmpty) // each job logged once
+        #expect(Self.read(recorder, [newer]).isEmpty)
+        #expect(recorder.open == 1) // a whole read forgets the jobs CUPS no longer keeps
+    }
+
+    /// The file made unreadable for the while, as `aFileThatCouldntBeReadIsNeverWrittenOver`.
+    @Test(.enabled(if: Self.posixPermissions)) func theKeeperReadsNoJobsWhileItsFileCantBeRead() throws {
+        let folder = Self.folder()
+        defer { try? FileManager.default.removeItem(atPath: folder) }
+        try FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true)
+        let path = (folder as NSString).appendingPathComponent("print-log.jsonl")
+        let logged = FinishedJob(id: 8, queue: "Laser", submitted: Self.now.addingTimeInterval(-120), completed: Self.now.addingTimeInterval(-60))
+        let entry = try #require(PrintLogRecorder.entry(logged, now: Self.now, printerName: { $0 }))
+        try Data((PrintLogFile.line(entry) + "\n").utf8).write(to: URL(fileURLWithPath: path))
+        let file = PrintLogFile(path)
+        let keeper = PrintLogKeeper(file, since: Self.since, clock: { Self.now })
+        try FileManager.default.setAttributes([.posixPermissions: 0o200], ofItemAtPath: path) // can't be read now
+        #expect(file.jobs(Self.now) == nil)
+        let later = FinishedJob(id: 9, queue: "Laser", submitted: Self.now.addingTimeInterval(-30), completed: Self.now.addingTimeInterval(-10))
+        #expect(keeper.read([later, logged]) == 0) // not taken for an empty log
+        try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: path)
+        #expect(keeper.read([later, logged]) == 1) // read now: only the job it didn't hold
+        #expect(Self.fileLines(path).count == 2)
+    }
+
     @Test func aLineIsWrittenAndReadBackWithItsJob() {
         let e = PrintLogEntry(at: Self.submitted, printer: "Front \"desk\"", document: "a\\b", user: "ana", pages: 3, copies: 2, color: false,
                               twoSided: true, outcome: .cancelled, machine: "pc", printed: 0, job: "41@1795331327")
