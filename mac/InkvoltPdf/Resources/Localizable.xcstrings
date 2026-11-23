@@ -24739,6 +24739,105 @@
           }
         }
       }
+    },
+    "Angle (degrees, clockwise)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo (grados, en el sentido de las agujas del reloj)"
+          }
+        }
+      }
+    },
+    "Angle of the selection, in degrees": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo de la selección, en grados"
+          }
+        }
+      }
+    },
+    "Press Return in the text to keep your change to it first, then turn it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulsa Retorno en el texto para conservar primero tu cambio y luego gíralo."
+          }
+        }
+      }
+    },
+    "Select a picture with Edit Text & Images, or click a paragraph, then choose Turn to Angle.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona una imagen con Editar texto e imágenes, o haz clic en un párrafo, y elige Girar a un ángulo."
+          }
+        }
+      }
+    },
+    "This picture can't be turned: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagen no se puede girar: {0}."
+          }
+        }
+      }
+    },
+    "Turn picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar imagen"
+          }
+        }
+      }
+    },
+    "Turn text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar texto"
+          }
+        }
+      }
+    },
+    "Turn this text to this angle (degrees, clockwise). Pictures turn with their round handle; Shift: 15° steps.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gira este texto a este ángulo (grados, en el sentido de las agujas del reloj). Las imágenes giran con su controlador redondo; Shift: pasos de 15°."
+          }
+        }
+      }
+    },
+    "Type an angle in degrees, as 30 or -12.5.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un ángulo en grados, como 30 o -12,5."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

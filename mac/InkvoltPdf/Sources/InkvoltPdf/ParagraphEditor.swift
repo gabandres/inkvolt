@@ -14,6 +14,10 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
     let paragraph: TextParagraph
     /// The text and looks to write; nil when cancelled.
     var done: ((String, [TextSpan]) -> Void)?
+    /// The angle typed in the Angle box (roadmap 4.22; degrees clockwise): the paragraph is turned to it.
+    var turn: ((Double) -> Void)?
+    /// The Angle box: the paragraph's direction; Return in it turns the paragraph to what it says.
+    private(set) var angleField = NSTextField()
     weak var popover: NSPopover?
 
     private(set) var textView = NSTextView()
@@ -77,6 +81,17 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         bar.addArrangedSubview(italic)
         bar.addArrangedSubview(swatch(Self.nsColor(lead.color), loc("Color: {0}", loc("the paragraph's own")), tag: -1))
         for (i, c) in Self.colors.enumerated() { bar.addArrangedSubview(swatch(Self.nsColor(c.rgb), loc("Color: {0}", c.name), tag: i)) }
+        // Roadmap 4.22: the paragraph's angle, typed to turn it (Windows' bar Angle box).
+        let angleLabel = NSTextField(labelWithString: loc("Angle"))
+        angleLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
+        angleField.stringValue = ContentTurn.format(paragraph.angle)
+        angleField.toolTip = loc("Turn this text to this angle (degrees, clockwise). Pictures turn with their round handle; Shift: 15° steps.")
+        angleField.setAccessibilityLabel(loc("Angle of the selection, in degrees"))
+        angleField.target = self
+        angleField.action = #selector(angleEntered(_:))
+        angleField.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        bar.addArrangedSubview(angleLabel)
+        bar.addArrangedSubview(angleField)
 
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -410,6 +425,33 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         popover?.close()
         done?(text, spans)
         done = nil
+    }
+
+    /// Return in the Angle box: the paragraph turned to it (a change to its text is kept first, or said).
+    @objc func angleEntered(_ sender: Any?) {
+        guard !finished else { return }
+        guard let wanted = ContentTurn.parse(angleField.stringValue) else {
+            note.stringValue = loc("Type an angle in degrees, as 30 or -12.5.")
+            return
+        }
+        if ContentTurn.turnBy(paragraph.angle, wanted) == nil { return }
+        let (text, spans) = content()
+        if text != paragraph.text || spans != paragraph.spans {
+            note.stringValue = loc("Press Return in the text to keep your change to it first, then turn it.")
+            return
+        }
+        finished = true
+        noteTask?.cancel()
+        done = nil
+        popover?.close()
+        turn?(wanted)
+        turn = nil
+    }
+
+    /// Edit › Turn to Angle… while the editor is open: the Angle box, ready to type.
+    func focusAngle() {
+        view.window?.makeFirstResponder(angleField)
+        angleField.selectText(nil)
     }
 
     @objc func cancelEdit(_ sender: Any?) {

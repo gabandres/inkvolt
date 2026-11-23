@@ -528,6 +528,17 @@ extension DocumentEditor {
         }
     }
 
+    /// Roadmap 4.22: a picture or a paragraph turned `degrees` clockwise about its middle.
+    @discardableResult
+    func rotateImage(_ image: PageImage, _ degrees: Double) async -> Bool {
+        await run(loc("Turn picture")) { data, pw in try ContentEditor.rotateImage(data, pw, image, degrees) }
+    }
+
+    @discardableResult
+    func rotateParagraph(_ paragraph: TextParagraph, _ degrees: Double) async -> Bool {
+        await run(loc("Turn text")) { data, pw in try ContentEditor.rotateParagraph(data, pw, paragraph, degrees) }
+    }
+
     @discardableResult
     func moveImage(_ image: PageImage, to box: RectD) async -> Bool {
         await run(loc("Move picture")) { data, pw in try ContentEditor.moveImage(data, pw, image, box) }

@@ -10,7 +10,9 @@ import UniformTypeIdentifiers
 /// on other text asks for its new wording (characters its font lacks drawn from the closest font on this Mac, and said),
 /// a picture is selected with a click, dragged to move it, its handles resize it (Shift keeps its proportions), the arrow
 /// keys nudge it (Shift: 10 pt; written once the keys rest for 0.45 s, as Windows), Delete removes it and Replace
-/// Picture… swaps it. Each change is one undo step. Not yet: Tab through the runs.
+/// Picture… swaps it; the round handle out from its top-right corner turns it (Shift: 15° steps), and the paragraph
+/// editor's Angle box and Edit › Turn to Angle… turn a paragraph or a picture to an angle typed (roadmap 4.22,
+/// `ContentTurn`). Each change is one undo step. Not yet: Tab through the runs.
 @MainActor
 final class ContentEditing: NSObject, NSPopoverDelegate {
     private weak var controller: DocumentWindowController?
@@ -41,8 +43,9 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
     private var pages: PagesView? { controller?.pages }
     private var editor: DocumentEditor? { controller?.editor }
 
-    /// The content changed: everything is read again (a selected picture is found again by its place).
-    func invalidate(keeping box: RectD? = nil, page kept: Int? = nil) {
+    /// The content changed: everything is read again (a selected picture is found again by its place, or by its middle
+    /// after a turn: `center`).
+    func invalidate(keeping box: RectD? = nil, page kept: Int? = nil, center: PointD? = nil) {
         for t in loading.values { t.cancel() }
         loading = [:]
         content = [:]
@@ -58,7 +61,11 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
                 let c = await self.ensure(page)
                 // A later reading (the moved picture found where it went) wins over this one.
                 guard reading == self.readings else { return }
-                self.selectedImage = c.images.first { abs($0.box.x - keep.x) < 1 && abs($0.box.y - keep.y) < 1 }
+                if let center {
+                    self.selectedImage = c.images.first { abs($0.box.centerX - center.x) < 1.5 && abs($0.box.centerY - center.y) < 1.5 }
+                } else {
+                    self.selectedImage = c.images.first { abs($0.box.x - keep.x) < 1 && abs($0.box.y - keep.y) < 1 }
+                }
                 self.refinding = false
                 self.pages?.needsDisplay = true
             }
@@ -124,6 +131,20 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
             (selected ? NSColor.controlAccentColor : image.blocked == nil ? NSColor.systemOrange : NSColor.systemGray).setStroke()
             path.stroke()
             if selected && image.blocked == nil {
+                // The round turn handle (roadmap 4.22), out from the top-right corner as shown, on a stalk.
+                let v = pages.viewRect(box, r)
+                let h = turnHandlePoint(v, px)
+                let stalk = NSBezierPath()
+                stalk.move(to: NSPoint(x: v.maxX, y: v.minY))
+                stalk.line(to: h)
+                stalk.lineWidth = px
+                NSColor.controlAccentColor.setStroke()
+                stalk.stroke()
+                let knob = NSBezierPath(ovalIn: NSRect(x: h.x - 5 * px, y: h.y - 5 * px, width: 10 * px, height: 10 * px))
+                NSColor.white.setFill()
+                knob.fill()
+                knob.lineWidth = 1.5 * px
+                knob.stroke()
                 for h in 0...7 {
                     let p = pages.viewPoint(DrawingGeometry.handlePoint(box, h), r)
                     let size = 6 * px
@@ -135,6 +156,21 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
                 }
             }
         }
+    }
+
+    /// The turn handle's place for a box shown at `v` (the page view's coordinates): `ContentTurn.handleGap` screen points
+    /// out from its top-right corner.
+    func turnHandlePoint(_ v: NSRect, _ px: CGFloat) -> NSPoint {
+        let gap = CGFloat(ContentTurn.handleGap) * px
+        return NSPoint(x: v.maxX + gap, y: v.minY - gap)
+    }
+
+    /// The page whose selected picture's turn handle is under `point` (the page view's coordinates), if any.
+    func turnHandle(at point: NSPoint) -> Int? {
+        guard let pages, let image = selectedImage, image.blocked == nil, image.pageIndex < pages.pageRects.count else { return nil }
+        let px = pages.onePixel
+        let h = turnHandlePoint(pages.viewRect(shownBox(image), pages.pageRects[image.pageIndex]), px)
+        return abs(point.x - h.x) <= 7 * px && abs(point.y - h.y) <= 7 * px ? image.pageIndex : nil
     }
 
     /// Where the selected picture shows: its box moved by the arrow keys so far.
@@ -291,6 +327,10 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
             self?.paragraphEditor = nil
             self?.replace(p, text, spans)
         }
+        editor.turn = { [weak self] wanted in
+            self?.paragraphEditor = nil
+            if let by = ContentTurn.turnBy(p.angle, wanted) { self?.rotate(p, by: by) }
+        }
         let popover = NSPopover()
         popover.behavior = .semitransient
         popover.contentViewController = editor
@@ -363,6 +403,62 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
         }
     }
 
+    // MARK: Turning (roadmap 4.22)
+
+    /// Turns a picture `degrees` clockwise about its middle; it stays selected.
+    func rotate(_ image: PageImage, by degrees: Double) {
+        guard let editor else { return }
+        if let why = image.blocked {
+            controller?.notify(loc("This picture can't be turned: {0}.", why))
+            return
+        }
+        flushNudge()
+        let center = PointD(image.box.centerX, image.box.centerY)
+        pendingEdit = Task {
+            if await editor.rotateImage(image, degrees) { self.invalidate(page: image.pageIndex, center: center) }
+            self.pendingEdit = nil
+        }
+    }
+
+    /// Turns a paragraph `degrees` clockwise about its middle.
+    func rotate(_ p: TextParagraph, by degrees: Double) {
+        guard let editor else { return }
+        pendingEdit = Task {
+            await editor.rotateParagraph(p, degrees)
+            self.pendingEdit = nil
+        }
+    }
+
+    /// The self-test's answer to Turn to Angle… (nil: ask).
+    var testAngle: String?
+
+    /// Edit › Turn to Angle…: the selected picture to an angle typed; with a paragraph's editor open, its Angle box.
+    func turnToAngle() {
+        if let paragraphEditor {
+            paragraphEditor.focusAngle()
+            return
+        }
+        guard let image = selectedImage, let pages, let controller, image.pageIndex < pages.pageRects.count else {
+            controller?.notify(loc("Select a picture with Edit Text & Images, or click a paragraph, then choose Turn to Angle."))
+            return
+        }
+        func apply(_ typed: String?) {
+            guard let typed else { return }
+            guard let wanted = ContentTurn.parse(typed) else {
+                controller.notify(loc("Type an angle in degrees, as 30 or -12.5."))
+                return
+            }
+            if let by = ContentTurn.turnBy(image.angle, wanted) { rotate(image, by: by) }
+        }
+        if let test = testAngle {
+            testAngle = nil
+            apply(test)
+            return
+        }
+        let anchor = pages.viewRect(shownBox(image), pages.pageRects[image.pageIndex])
+        controller.askText(loc("Angle (degrees, clockwise)"), initial: ContentTurn.format(image.angle), at: anchor) { apply($0) }
+    }
+
     /// The selected picture moved to `box`.
     func move(_ image: PageImage, to box: RectD) {
         guard let editor else { return }
@@ -426,4 +522,9 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
             try? await Task.sleep(for: .milliseconds(50))
         }
     }
+}
+
+extension DocumentWindowController {
+    /// Edit › Turn to Angle… (roadmap 4.22): Edit Text & Images' selected picture, or the open paragraph editor's Angle box.
+    @objc func turnToAngle(_ sender: Any?) { content.turnToAngle() }
 }

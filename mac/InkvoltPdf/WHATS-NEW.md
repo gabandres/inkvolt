@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Turn a picture or a block of text to any angle (Edit Text & Images): drag a picture's round handle by its corner (hold Shift for 15° steps), type the angle in the paragraph editor's Angle box, or choose Edit › Turn to Angle…. Text stays text you can edit and search, and the rest of the page stays put.
 - Rulers, guides and a grid (View menu, ⌥⇧⌘R and ⌥⌘'): drag a guide from a ruler, and form fields, shapes, stamps and measuring points snap to guides, the grid and the edges and middles of what's already on the page. The rulers count in the page's drawing scale when it has one. Hold ⌥ to place something without snapping.
 - Calculated form fields (Prepare Form): a text field or dropdown can add up, multiply, average, or take the lowest or highest of the fields you tick, or work out a formula like Price * Quantity. They update as the form is filled, here and in Acrobat, which reads them back as its own. Tools › Forms › Calculation Order… sets which ones work out first. New number formats: negatives in brackets, 1.234,56 and euros.
 - Several fields at once (Prepare Form): ⌘-click fields to select them together, then move them, delete them, line them up with the first one you picked, give them its width or height, or space them evenly across or down (the panel, or Tools › Forms › Arrange Fields).

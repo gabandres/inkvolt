@@ -27082,6 +27082,28 @@
           }
         }
       }
+    },
+    "That angle can't be used.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese ángulo no se puede usar."
+          }
+        }
+      }
+    },
+    "Turn to Angle…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar a un ángulo…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1228,7 +1228,7 @@ extension ContentEditor {
     }
 
     /// Back where a run's operator left things: the line matrix after it, the text position moved along its baseline.
-    private static func backAfter(_ run: TextRun) -> String {
+    static func backAfter(_ run: TextRun) -> String {
         let info = run.info!
         let tlm = info.tlmAfter
         var along = 0.0

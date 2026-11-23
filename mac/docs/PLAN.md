@@ -1784,6 +1784,19 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
   differences: the keys (⌘R turns pages here, ⌘' switches panes); a guide dragged from a ruler shows as a line where the
   pointer is until it is let go over a page. Not checked by a person: the rulers' look and their labels at every zoom
   and turn, dragging guides by hand, VoiceOver on the rulers.
+- **4.22 a picture or paragraph turned to any angle** (Edit Text & Images): PdfCore `ContentEditor.rotateImage`,
+  `rotateParagraph` (`ContentEditor+Rotate.swift`: about the middle of its box, one undo step; a paragraph's show
+  operators drawn again from a turned text matrix, the text position put back after each, so what follows stays),
+  `PageImage.angle`, `ContentTurn` (the handle, a drag's angle, Shift's 15° steps, the box's parsing and format). The
+  app: the selected picture's round handle out from its top-right corner (a drag shows the turned outline), the
+  paragraph editor's Angle box (Return turns it; a change to the text must be applied first, as Windows), Edit › Turn
+  to Angle… (the selected picture, asked in a popover; the open editor's Angle box). The tests of
+  `ParagraphEditTests.Rotate.cs` ported (`ParagraphEditTests+Rotate.swift`; the pdf.js one opt-in as the other);
+  `ParagraphEditTest` (`--edit --only-paragraph-edit`) turns the paragraph 5° from the Angle box and back through the
+  menu. Mac differences: a paragraph has no on-page handle (its editor is a popover over the page, so the Angle box
+  turns it), and the Mac's paragraphs have no pictures in their flow yet (Windows' `InlinePicture`), so none turn with
+  them. As on Windows, a paragraph turned so far that its box takes in other text (a heading above) can't be edited or
+  turned again until Undo takes the turn back. Not checked by a person: the handle and the turned outline by eye, dragging it by hand.
 
 ## Open decisions
 
@@ -1815,9 +1828,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
   a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
   `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
-  `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`);
-  4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
   `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
   format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
   (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows

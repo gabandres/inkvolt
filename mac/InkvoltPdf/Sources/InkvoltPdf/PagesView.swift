@@ -171,12 +171,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case link(PageLink, page: Int, start: NSPoint)
         /// A guide picked up with the hand or select tool (roadmap 4.19), `at` where it is now (off the page: it goes).
         case guide(Guide, page: Int, at: Double)
+        /// The selected picture's round turn handle dragged (roadmap 4.22): from where the press was to `now` (this view's
+        /// coordinates).
+        case contentTurn(page: Int, from: NSPoint, now: NSPoint)
 
         var page: Int? {
             switch self {
             case .text, .pan, .link: nil
             case .move(_, let p, _, _, _), .resize(_, let p, _, _, _), .lineEnd(_, let p, _, _), .box(let p, _, _),
-                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _), .contentResize(let p, _, _, _), .guide(_, let p, _): p
+                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _), .contentResize(let p, _, _, _), .guide(_, let p, _),
+                 .contentTurn(let p, _, _): p
             }
         }
     }
@@ -817,6 +821,19 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             outline(viewRect(RectD(box.x + by.x, box.y + by.y, box.width, box.height), r), px)
         case .contentResize(_, _, _, let now):
             outline(viewRect(now, r), px)
+        case .contentTurn(_, let from, let now):
+            // The picture's outline turned by how far the pointer went round its middle.
+            guard let content, let image = content.selectedImage else { return }
+            let v = viewRect(content.shownBox(image), r)
+            let angle = turnAngle(v, from, now)
+            let corners = ContentTurn.corners(RectD(Double(v.minX), Double(v.minY), Double(v.width), Double(v.height)), angle)
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: corners[0].x, y: corners[0].y))
+            for c in corners.dropFirst() { path.line(to: NSPoint(x: c.x, y: c.y)) }
+            path.close()
+            path.lineWidth = px
+            NSColor.controlAccentColor.setStroke()
+            path.stroke()
         case .move(let id, _, _, let frame, let by):
             let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
             outline(viewRect(moved, r), px)
@@ -1130,6 +1147,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             designDown(event, point)
             return
         }
+        // The selected picture's turn handle, which sits out past its corner (maybe off the page).
+        if tool == .editContent, let content, let page = content.turnHandle(at: point) {
+            content.flushNudge()
+            drag = .contentTurn(page: page, from: point, now: point)
+            return
+        }
         if let h = handle(at: point), let id = selectedId {
             startHandleDrag(id, h.page, h.handle)
             return
@@ -1214,6 +1237,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
             drag = .box(page: hit.page, start: p, now: p)
         }
+    }
+
+    /// How far a drag of the turn handle from `from` to `now` turns a box shown at `v` (Shift: 15° steps).
+    private func turnAngle(_ v: NSRect, _ from: NSPoint, _ now: NSPoint) -> Double {
+        ContentTurn.dragged(PointD(Double(v.midX), Double(v.midY)), PointD(Double(from.x), Double(from.y)), PointD(Double(now.x), Double(now.y)),
+                            0, steps: shiftDown)
     }
 
     /// Edit Text & Images: a picture is selected (and dragged), text is changed.
@@ -1326,6 +1355,8 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case .guide(let g, let page, _):
             let q = pageSpace(point, pageRects[page])
             drag = .guide(g, page: page, at: g.axis == .x ? q.x : q.y)
+        case .contentTurn(let page, let from, _):
+            drag = .contentTurn(page: page, from: from, now: point)
         case .resize(let id, let page, let handle, let frame, _):
             let p = pagePoint(point, on: page)
             let keep = editor?.comment(id)?.subtype == "Stamp" || shiftDown
@@ -1425,6 +1456,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch finished {
         case .text, .pan, .link, .guide:
             return
+        case .contentTurn(let page, let from, let now):
+            guard let content, let image = content.selectedImage, page < pageRects.count else { return }
+            let angle = turnAngle(viewRect(content.shownBox(image), pageRects[page]), from, now)
+            if abs(angle) >= 0.01 { content.rotate(image, by: angle) }
         case .contentMove(_, _, let box, let by):
             guard abs(by.x) + abs(by.y) >= 0.5, let image = content?.selectedImage else { return }
             ghost = finished

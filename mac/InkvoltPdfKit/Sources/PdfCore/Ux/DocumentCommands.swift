@@ -312,6 +312,9 @@ public enum DocumentCommands {
         c("Paste", "paste:", "v"),
         c("Delete", "delete:"),
         c("Select All", "selectAll:", "a"),
+        // Roadmap 4.22 (Windows: Edit › Turn to Angle…): Edit Text & Images' selected picture, or its paragraph editor's
+        // Angle box.
+        c("Turn to Angle…", "turnToAngle:", needs: [.pages, .organizerHidden]),
         sep,
         .submenu(CommandMenu("Find", [
             c("Find…", "showFind:", "f"),
