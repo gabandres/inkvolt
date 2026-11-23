@@ -32,6 +32,12 @@ extension Report {
             lines.append("  text PDF: not made")
         }
 
+        // Text whose bytes can't fit in maxChars: said too big without being read into a String.
+        board.clearContents()
+        board.setData(Data(repeating: 0x78, count: ClipboardPrint.maxChars * 4 + 1), forType: .string)
+        let huge = ClipboardPrinting.read(board)
+        lines.append("  huge text: too big \(huge.tooBig), text read \(huge.content.text != nil)")
+
         board.clearContents()
         guard let png = clearPicture(width: 300, height: 200) else { return lines + ["  picture: not drawn"] }
         board.setData(png, forType: .png)

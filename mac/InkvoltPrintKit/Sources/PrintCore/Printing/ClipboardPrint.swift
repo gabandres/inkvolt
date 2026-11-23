@@ -100,6 +100,10 @@ public enum ClipboardPrint {
         return ClipboardPlan(text.unicodeScalars.count > maxChars ? .tooBig : .text)
     }
 
+    /// Text whose UTF-8 is `bytes` long is past `maxChars` whatever it says (a scalar is at most 4 bytes): asked before the
+    /// clipboard's text is read into a String and walked, so a huge copy is said too big without being read.
+    public static func textTooBig(utf8Bytes bytes: Int) -> Bool { bytes > maxChars * 4 }
+
     /// Text beside a picture that's only its address or file name: one line with no space in it.
     public static func prefersPicture(_ text: String) -> Bool {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

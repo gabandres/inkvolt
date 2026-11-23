@@ -8,14 +8,15 @@ import PrintMac
 /// collage of ten photos laid out and drawn by `PhotoSheets` as Print Photos draws them, the PDFs read back (pages, text) and
 /// saved in the app's folder (`photo-projects-*.pdf`) for a person to look at; each sheet's preview drawn.
 extension Report {
-    static func photoProjectsCheck() async -> [String] {
+    static func photoProjectsCheck(_ model: AppModel) async -> [String] {
         var lines = ["photo projects:"]
         let photos = (0..<10).compactMap { photo(i: $0) }
         guard photos.count == 10 else { return lines + ["  the photos couldn't be drawn"] }
         let inputs = photos.map { PhotoInput(Double($0.width), Double($0.height), 1, .none) }
         let names = (1...10).map { "Photo \($0).jpg" }
         let letter = SheetPaper(8.5, 11, 0.25, 0.25, 0.25, 0.25), a4 = SheetPaper(8.27, 11.69, 0.12, 0.12, 0.12, 0.12)
-        func run(_ name: String, _ kind: PhotoLayoutKind, _ count: Int, _ paper: SheetPaper, _ set: (inout PhotoLayoutOptions) -> Void) {
+        @discardableResult
+        func run(_ name: String, _ kind: PhotoLayoutKind, _ count: Int, _ paper: SheetPaper, _ set: (inout PhotoLayoutOptions) -> Void) -> [PhotoSheet] {
             var options = PhotoLayoutOptions(kind: kind)
             options.locale = Locale(identifier: "en")
             options.calendarYear = 2026
@@ -25,15 +26,23 @@ extension Report {
             let previews = sheets.compactMap { PhotoSheets.preview($0, photos: photos, names: names, paper: paper, width: 360) }.count
             guard let data = try? PhotoSheets.pdf(sheets, photos: photos, names: names, paper: paper), let pdf = PDFDocument(data: data) else {
                 lines.append("  \(name): no PDF")
-                return
+                return sheets
             }
             let url = AppModel.dataFolder.appendingPathComponent("photo-projects-\(name).pdf")
             try? data.write(to: url)
             let text = (0..<pdf.pageCount).compactMap { pdf.page(at: $0)?.string }.joined(separator: " ").split(whereSeparator: \.isWhitespace).prefix(12).joined(separator: " ")
             lines.append("  \(name): \(sheets.count) sheets (\(previews) previews, \(pdf.pageCount) PDF pages), cells \(sheets.map(\.cells.count)), lines \(sheets.map(\.lines.count)), "
                          + "texts \(sheets.map(\.texts.count)), two-sided \(PhotoProjects.needsTwoSided(sheets)); text: \(text)")
+            return sheets
         }
-        run("card", .card, 3, letter) { $0.cardMessage = "Happy birthday!\nLove, Ana" }
+        let card = run("card", .card, 3, letter) { $0.cardMessage = "Happy birthday!\nLove, Ana" }
+        // Sent two-sided only where the queue prints both sides: what the card would go as on each of the demo's queues.
+        for _ in 0..<50 where model.isDemo && !model.printers.contains(where: { $0.queueName != nil }) { try? await Task.sleep(for: .milliseconds(200)) }
+        for printer in model.printers {
+            guard let queue = printer.queueName else { continue }
+            let sides = PhotosModel.cardTwoSided(card, queueTwoSided: await HandDuplexPrinting.queueTwoSided(printer, app: model))
+            lines.append("  card on \(queue): " + (sides == true ? "sides=two-sided-long-edge" : "one-sided; " + PhotosModel.cardOneSidedNote))
+        }
         run("month-en", .monthCalendar, 2, letter) { _ in }
         run("month-es", .monthCalendar, 1, a4) { $0.locale = Locale(identifier: "es") }
         run("year", .yearCalendar, 1, letter) { $0.calendarYear = 2027 }

@@ -322,7 +322,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   **Mac differences:** the text PDF is vector text (Menlo drawn at the size whose advance is the layout's column, Windows'
   Consolas measure) where Windows draws 1-bit pages at 300 dpi; lengths and columns count Unicode scalars (.NET UTF-16
   units; a character past the BMP is two columns on both); a Swift string holds no lone surrogate (that test line has no
-  counterpart); the text is laid out on the main thread with no Cancel (300 pages take well under a second); a text cut
+  counterpart); text whose UTF-8 is past 4 × `maxChars` bytes is said too big before it's read (`ClipboardPrint.textTooBig`);
+  the choice, the text's pages and a picture's PNG are made off the main thread, with no Cancel (300 pages take well under a
+  second); a text cut
   past 300 pages is said in an alert before the print panel (Windows' message line); the made files go in the app's
   temporary folder, cleared of anything a day old. Not checked: Finder's copied files read from the clipboard in the sandbox
   (macOS grants a pasted file), Word's and Excel's text-and-picture copies, the print panel's preview, VoiceOver.
@@ -349,7 +351,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   PrintMac `PhotoSheets.draw` draws a sheet's lines (hairline grey, dashed fold marks) and text (Helvetica, wrapped from the
   top of its box, bold titles, grey day names). The app: Print Photos' Layout gains Folded card (Message inside), Month and
   Year calendar (Year, First month), Collage (Arrangement, Spacing, Border), Save as PDF… for every layout; a card with a
-  message is sent with `sides=two-sided-long-edge`; `--report … --photo-projects`. **Mac differences:** Windows'
+  message is sent with `sides=two-sided-long-edge` only to a queue that says it prints both sides, else one-sided with
+  Windows' note (each inside a sheet of its own; `PhotosModel.cardTwoSided`); `--report … --photo-projects`. **Mac differences:** Windows'
   `SheetText` is `PhotoText` (PrintCore's `SheetText` is the separator sheet's); a culture is a `Locale` (the interface
   language's, `AppLanguage.current`, without a region; Foundation's `Calendar` gives the first weekday), a week day .NET's
   `DayOfWeek` number; with no locale the names are English (Windows: the invariant culture's, also English); a month's

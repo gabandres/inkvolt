@@ -925,12 +925,12 @@
         }
       }
     },
-    "1. Take the top sheet (page %lld) off the output tray and set it aside: nothing prints on its back. It goes on the bottom of the finished stack.": {
+    "1. Take the top sheet (page %lld) off the output tray and set it aside: nothing prints on its back. Once the backs are done, put it last.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "1. Quita la hoja de arriba (página %lld) de la bandeja de salida y apártala: en su reverso no se imprime nada. Va al final de la pila terminada."
+            "value": "1. Quita la hoja de arriba (página %lld) de la bandeja de salida y apártala: en su reverso no se imprime nada. Cuando terminen los reversos, ponla al final."
           }
         }
       }
@@ -7158,6 +7158,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta impresora no tiene una cola de impresión de macOS por la que imprimir."
+          }
+        }
+      }
+    },
+    "This printer prints one side: each card's inside came out on a sheet of its own.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora imprime por un solo lado: el interior de cada tarjeta salió en una hoja aparte."
           }
         }
       }

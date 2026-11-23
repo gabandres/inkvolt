@@ -25,9 +25,12 @@ enum HandDuplexPrinting {
     /// The words for putting the stack back, for `reload`.
     static func instructions(_ file: String, _ reload: HandDuplexReload) -> String {
         var lines: [String] = []
-        let sheets = reload.sheets == 1 ? String(localized: "the printed sheet") : String(localized: "the \(reload.sheets) printed sheets")
+        // The stack that goes back: the set-aside sheet isn't in it (Windows' HandDuplexDialog counts the same).
+        let back = reload.sheets - (reload.setAside ? 1 : 0)
+        let sheets = back == 1 ? String(localized: "the printed sheet") : String(localized: "the \(back) printed sheets")
         if reload.setAside, let page = reload.lastPage {
-            lines.append(String(localized: "1. Take the top sheet (page \(page)) off the output tray and set it aside: nothing prints on its back. It goes on the bottom of the finished stack."))
+            // Where it ends up depends on how the finished stack comes out (face down or face up), so it's said as Windows says it.
+            lines.append(String(localized: "1. Take the top sheet (page \(page)) off the output tray and set it aside: nothing prints on its back. Once the backs are done, put it last."))
         }
         let step = reload.setAside ? 2 : 1
         lines.append(reload.turnOver

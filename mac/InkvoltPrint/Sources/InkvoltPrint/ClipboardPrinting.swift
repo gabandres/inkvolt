@@ -15,10 +15,14 @@ enum ClipboardPrinting {
     nonisolated static var folder: URL { FileManager.default.temporaryDirectory.appendingPathComponent("Inkvolt Print clipboard", isDirectory: true) }
 
     /// What `pasteboard` holds, and its picture's file data (PNG or TIFF) when the picture can be what prints: no files, and no
-    /// text or text that's only its name. The picture's size is read from its header; it isn't decoded here.
-    static func read(_ pasteboard: NSPasteboard = .general) -> (content: ClipboardContent, picture: Data?) {
+    /// text or text that's only its name. The picture's size is read from its header; it isn't decoded here. Text whose bytes
+    /// can't fit in `ClipboardPrint.maxChars` isn't read at all: `tooBig`.
+    static func read(_ pasteboard: NSPasteboard = .general) -> (content: ClipboardContent, picture: Data?, tooBig: Bool) {
         let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
         let files = urls.prefix(ClipboardPrint.maxFiles + 1).map(\.path)
+        if files.isEmpty, ClipboardPrint.textTooBig(utf8Bytes: pasteboard.data(forType: .string)?.count ?? 0) {
+            return (ClipboardContent(text: nil, picture: nil, files: []), nil, true)
+        }
         let text = files.isEmpty ? pasteboard.string(forType: .string) : nil
         let wantsPicture = files.isEmpty && (text.map { $0.allSatisfy(\.isWhitespace) || ClipboardPrint.prefersPicture($0) } ?? true)
         var picture: Data?
@@ -30,14 +34,23 @@ enum ClipboardPrinting {
             picture = data
             size = PixelSize(w, h)
         }
-        return (ClipboardContent(text: text, picture: size, files: files), picture)
+        return (ClipboardContent(text: text, picture: size, files: files), picture, false)
     }
 
-    /// The menu's Print the Clipboard on `printer`.
+    /// The menu's Print the Clipboard on `printer`: the pasteboard read here, the choice, the picture's PNG and the text's
+    /// pages made off the main thread.
     static func print(on printer: PrinterModel, app: AppModel, pasteboard: NSPasteboard = .general) {
-        let (content, picture) = read(pasteboard)
-        let plan = ClipboardPrint.choose(content)
+        let (content, picture, tooBig) = read(pasteboard)
         let name = ClipboardPrint.name(Date(), String(localized: "Clipboard"))
+        let metric = Locale.current.measurementSystem == .metric
+        Task { @MainActor in
+            let plan = tooBig ? ClipboardPlan(.tooBig) : await Task.detached { ClipboardPrint.choose(content) }.value
+            await printPlan(plan, content, picture, name: name, metric: metric, on: printer, app: app)
+        }
+    }
+
+    private static func printPlan(_ plan: ClipboardPlan, _ content: ClipboardContent, _ picture: Data?, name: String, metric: Bool,
+                                  on printer: PrinterModel, app: AppModel) async {
         switch plan.what {
         case .pdf:
             let url = URL(fileURLWithPath: plan.files[0])
@@ -49,16 +62,13 @@ enum ClipboardPrinting {
         case .pictures:
             printPhotos(plan.files.map { URL(fileURLWithPath: $0) }, app: app)
         case .picture:
-            guard let picture, let url = try? savePicture(picture, name: name) else { return Printing.alert(failed) }
+            let saved = await Task.detached { picture.flatMap { try? savePicture($0, name: name) } }.value
+            guard let url = saved else { return Printing.alert(failed) }
             printPhotos([url], app: app)
         case .text:
-            let metric = Locale.current.measurementSystem == .metric
-            let made: (url: URL?, pages: Int, cut: Bool)
-            do {
-                made = try textPdf(content.text ?? "", name: name, metric: metric)
-            } catch {
-                return Printing.alert(failed)
-            }
+            let text = content.text ?? ""
+            let result = await Task.detached { Result { try textPdf(text, name: name, metric: metric) } }.value
+            guard case .success(let made) = result else { return Printing.alert(failed) }
             guard let url = made.url, let data = try? Data(contentsOf: url), let document = PDFDocument(data: data) else {
                 return Printing.alert(String(localized: "There's nothing to print on the clipboard. Copy some text, a picture, or a PDF in Finder, then try again."))
             }

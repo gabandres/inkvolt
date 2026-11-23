@@ -38,6 +38,16 @@ struct ClipboardPrintTests {
         #expect(Self.choose(String(repeating: "x", count: ClipboardPrint.maxChars + 1)).what == .tooBig)
     }
 
+    // Mac only: the clipboard's text is measured in bytes before it's read; only what can't fit in maxChars is refused there.
+    @Test func textTooManyBytesToFitIsRefusedBeforeItIsRead() {
+        #expect(!ClipboardPrint.textTooBig(utf8Bytes: 0))
+        #expect(!ClipboardPrint.textTooBig(utf8Bytes: ClipboardPrint.maxChars * 4))
+        #expect(ClipboardPrint.textTooBig(utf8Bytes: ClipboardPrint.maxChars * 4 + 1))
+        let emoji = String(repeating: "😀", count: ClipboardPrint.maxChars)
+        #expect(!ClipboardPrint.textTooBig(utf8Bytes: emoji.utf8.count))
+        #expect(Self.choose(emoji).what == .text)
+    }
+
     @Test func letterAndA4HoldAboutNinetyColumnsAndFiftySevenLines() {
         let letter = ClipboardPrint.layout(8.5, 11)
         #expect(letter.columns == 91 && letter.lines == 57)

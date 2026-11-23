@@ -278,15 +278,28 @@ final class PhotosModel {
         var options = QueueJobChoices.jobOptions(mediaType: mediaTypes.count > 1 ? mediaType : nil,
                                                  quality: qualities.count > 1 ? quality : nil,
                                                  color: colors.count > 1 ? color : nil)
-        // A card with a message: each inside on the back of its outside, flipped on the long edge (roadmap 4.16).
-        if PhotoProjects.needsTwoSided(self.sheets) { options.append(("sides", "two-sided-long-edge")) }
+        let card = PhotosModel.cardTwoSided(self.sheets, queueTwoSided: await HandDuplexPrinting.queueTwoSided(printer, app: app))
+        if card == true { options.append(("sides", "two-sided-long-edge")) }
         do {
             _ = try await LibCups().printPdf(queue, pdf, title: title, media: media, options: options)
-            sent = sheets == 1 ? String(localized: "Sent 1 sheet to \(printer.name).") : String(localized: "Sent \(sheets) sheets to \(printer.name).")
+            sent = (sheets == 1 ? String(localized: "Sent 1 sheet to \(printer.name).") : String(localized: "Sent \(sheets) sheets to \(printer.name)."))
+                + (card == false ? " " + PhotosModel.cardOneSidedNote : "")
         } catch {
             let why = (error as? PrintJobSendError)?.message ?? error.localizedDescription
             problem = String(localized: "The photos couldn't be sent to \(printer.name): \(why)")
         }
+    }
+
+    /// A card with a message (roadmap 4.16, Windows' PhotosViewModel): true, each inside on the back of its outside, flipped on
+    /// the long edge, only where the queue says it prints both sides (a job asking for it elsewhere may be refused); false,
+    /// sent one-sided, each inside a sheet of its own (`cardOneSidedNote` said), also when the queue doesn't say; nil, not a
+    /// card with a message.
+    static func cardTwoSided(_ sheets: [PhotoSheet], queueTwoSided: Bool?) -> Bool? {
+        PhotoProjects.needsTwoSided(sheets) ? queueTwoSided == true : nil
+    }
+
+    static var cardOneSidedNote: String {
+        String(localized: "This printer prints one side: each card's inside came out on a sheet of its own.")
     }
 }
 
