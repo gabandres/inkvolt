@@ -29,6 +29,9 @@ public enum ProFeature: CaseIterable, Sendable {
     case longTermValidation
     /// Certifying a form with a choice of fields to lock (a field's own /Lock is always honored).
     case fieldLocking
+    /// Redaction suggestions: what to redact proposed by the user's own AI endpoint, or found from their names and terms
+    /// list (roadmap 4.10).
+    case redactionSuggestions
 }
 
 /// The Pro entitlement check for Inkvolt PDF (the Windows Core's `Pro`): the one place that decides whether a Pro feature
@@ -96,6 +99,7 @@ public enum Pro {
         case .compareOfficeAndScans: loc("Compare Office files and scans")
         case .longTermValidation: loc("Long-term validation")
         case .fieldLocking: loc("Field locking")
+        case .redactionSuggestions: loc("Redaction suggestions")
         }
     }
 
@@ -124,6 +128,8 @@ public enum Pro {
             loc("Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.")
         case .fieldLocking:
             loc("When you certify a form, lock the fields you filled in, or all but the ones others still have to fill in: a later change to a locked field shows as not allowed when the signatures are checked.")
+        case .redactionSuggestions:
+            loc("Your own AI assistant reads the pages and suggests the names, organizations, addresses and account numbers to redact, or what you describe; or keep your own list of names and terms. Every suggestion goes into the review list before anything is removed, and the result is checked as for patterns.")
         }
     }
 
@@ -141,6 +147,7 @@ public enum Pro {
         case .compareOfficeAndScans: loc("Comparing Office files, scans and formatting is part of Inkvolt Pro.")
         case .longTermValidation: loc("Adding long-term validation data is part of Inkvolt Pro.")
         case .fieldLocking: loc("Choosing fields to lock is part of Inkvolt Pro.")
+        case .redactionSuggestions: loc("Redaction suggestions are part of Inkvolt Pro.")
         }
     }
 

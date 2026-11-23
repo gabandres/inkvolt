@@ -70,6 +70,9 @@ public final class DocumentSession: @unchecked Sendable {
     /// The document's open (user) password when known.
     public private(set) var openPassword: String?
     public private(set) var engine: PdfEngine
+    /// The AI assistant's conversation about this document, kept through edits until cleared or the document closes
+    /// (roadmap 4.20): what Save AI Answer saves and what a follow-up question sends again.
+    public let aiConversation = AiConversation()
     /// The repaired copy's length (0 when the file wasn't repaired): signatures over no more than this predate the repair.
     public private(set) var repairedLength = 0
     /// True when the file was damaged and the content is the repaired copy made as it opened (`PdfRepair.normalize`): the

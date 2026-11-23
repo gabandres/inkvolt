@@ -147,6 +147,7 @@ public enum BatchPresets {
             case .optimize(let o):
                 w.number("maxImageDpi", o.maxImageDpi)
                 w.number("jpegQuality", Double(o.jpegQuality))
+                w.bool("blackAndWhiteScans", o.blackAndWhiteScans)
                 w.bool("compressStreams", o.compressStreams)
                 w.bool("deduplicateStreams", o.deduplicateStreams)
                 w.bool("removeMetadata", o.removeMetadata)
@@ -466,7 +467,8 @@ public enum BatchPresets {
                 removeThumbnails: try f.bool("removeThumbnails", true),
                 removePieceInfo: try f.bool("removePieceInfo", true),
                 maxImageDpi: try f.nullableNumber("maxImageDpi", OptimizeOptions().maxImageDpi, 36, 2400),
-                jpegQuality: try f.int("jpegQuality", 75, 1, 100)))
+                jpegQuality: try f.int("jpegQuality", 75, 1, 100),
+                blackAndWhiteScans: try f.bool("blackAndWhiteScans", false)))
         case "protect":
             step = try readProtect(f)
         case "unprotect":
