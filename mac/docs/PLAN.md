@@ -297,6 +297,76 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
   file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
   (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
+- **4.9 A print log.** PrintCore `PrintLog` (`PrintLogEntry`, `PrintLogMonth`, `PrintLogTotal`, the month totals, the CSV,
+  `demo`), `PrintLogFile` (`print-log.jsonl` beside the state file, Windows' JSON lines and rules: appended, written again a
+  fifth past 10,000, a file it couldn't read never written over), `PrintLogRecorder` and `PrintLogKeeper`, `FinishedJob` and
+  `FinishedJobAttributes` (the Get-Jobs attributes as hostile input), `FinishedJobHistory`; `ProFeature.printLogExport`;
+  `PrintState.printLogOff`/`printLogSince`; `PrintLogTests` (PC). PrintMac `LibCups.finishedJobs` (IPP Get-Jobs over cupsd's
+  socket for every queue, `which-jobs=completed`, the newest 100 each minute, all it keeps at launch; `jobGroups` shared with
+  job alerts' read). The app: Window › Print Log (⌥⌘L; `PrintLogWindow`: the switch, the month, By printer, By person, the
+  month's jobs, Export… behind Inkvolt Pro, Clear the Log…); `--report … --print-log`. **Mac differences:** the Mac reads
+  CUPS's own history of finished jobs where Windows watches the spooler's notices, so no job is followed while it prints: a
+  job is logged once it has finished, by its id and creation time (`FinishedJob.key`, kept in the file as `Job`), and jobs
+  printed while Inkvolt Print was closed are logged at the next read while CUPS still lists them (Windows logs only while it
+  runs). The switch is a moment (`since`): jobs that finished before the log was turned on (the first launch that keeps one,
+  the switch, Clear) aren't logged, as Windows doesn't log jobs printed before it watched. How it ended: a completed job, or
+  one cancelled or aborted after a page printed, printed; cancelled before, cancelled; aborted before (CUPS gave up), left.
+  Pages are `job-impressions` when CUPS knows them, else the pages printed over the copies; printed is
+  `job-impressions-completed` (copies included), else `job-media-sheets-completed`; color and two-sided come from the job's
+  `print-color-mode` and `sides` (not known when the printing app set them in its driver's own options). The printer is the
+  queue's name as macOS shows it; a job from this Mac (`localhost`) names no computer. cupsd leaves out other users' names
+  and documents: they total under "(not known)". There is no command palette, so the menu item is the way in. The demo's
+  three months come from a generator of its own (Windows' `System.Random` can't be reproduced). The file tests that make a
+  file unreadable or its folder read-only (Windows holds it open) run on the Mac only. Not checked: a person watching a week
+  of real jobs against the printers' own counts, the window by eye and with VoiceOver.
+- **4.12 A camera as a scan source.** PrintCore `Capture/`: `CameraSession`, `CameraFormats` (`choose`, `rgb`), `Cameras`,
+  `CameraFeed`, `CameraFrame`, `DemoCameras`; the photo-to-page step 4.6 shares: `CapturedPhotoInput` (Windows' `PhotoInput`, renamed beside Print Photos' own; a photo's header read as
+  hostile input), `PhotoPage` (EXIF orientation, the page found and warped, its paper, `captureResolution`), `PhotoCodec`,
+  `CaptureScanner` (a `ScanDevice` over a `PhotoChannel`); `Imaging/Trapezoid` (`Homography`, `Perspective`, the page on a
+  desk, ported from Windows' `PageWarp.cs`; its book-curve half isn't). PrintMac `AVCameras`/`AVCameraFeed` (a discovery
+  session over the built-in, external, Continuity and Desk View cameras; the format `choose` picks; 32BGRA frames, one
+  copied only when Capture asks, a capture with no frame in 5 s none), `ImageIOPhotoCodec`. The app: Use a Camera… beside
+  Scan (its menu: with a preset), the camera window (`CameraWindow`: the camera picker, AVFoundation's live picture,
+  Capture Page with Space, Done; closing it ends the scan), `ScanModel.scanWithCamera`/`CaptureScan` (the capture's pages
+  through the scan's own checks, review and preset save); the entitlement `com.apple.security.device.camera` and
+  `NSCameraUsageDescription` (English and Spanish), in `pkg-preflight.sh` too; `--report … --demo --camera`. Tests:
+  `CameraScanTests` and `PhoneScanTests`' photo half (PC). **Mac differences:** pixels are RGB (Windows BGR), AVFoundation's
+  BGRA rows read with their own stride; the live picture is AVFoundation's preview layer, so the feed sends no preview
+  frames (Windows copies one ten times a second); a capture that gets no frame in 5 s gives up; the window's Capture Page
+  is Space as on Windows; the capture is a button beside Scan on a printer's Scan tab (Windows also has a page with no
+  scanner, the sidebar's), and it adds to the pages there as Scan More does, a preset's too (Windows starts a preset's
+  afresh after asking); demo mode's document camera is a made-up page lying at an angle on a desk, its window shows that
+  still frame. Not checked: a real camera's picture and a page captured through the window (the build Mac is used over
+  SSH, so the camera permission's alert and the live picture need a person), a document camera, an iPhone as Continuity
+  Camera, VoiceOver on the window.
+- **4.6 Phone as a scanner.** PrintCore `Capture/`: `PhoneSession` (the token, pairing, the cookie bound to the phone's
+  address, photos bounded and checked before they're decoded, into a `PhotoChannel`), `PhonePage` (Windows' page and script),
+  `PhoneScan` (`open`, `statusText`, the address and URL), `PhonePeers` and `PhoneConnections` (scanner sharing's rules and
+  limits), `PhoneHttp` (HTTP/1.1 over a connection whose TLS is done: Kestrel's limits, read as hostile input),
+  `PhoneCertificateDer` (the self-signed X.509 for an ECDSA P-256 key, .NET's `CertificateRequest` output, through SNMP's BER
+  encoder). PrintMac `NetworkPhoneHost` (Network framework's TLS listener on 9781, `acceptLocalOnly`; refused devices
+  cancelled before TLS), `PhoneCertificateKeychain` (the key and certificate in the app's keychain, made anew 30 days before
+  the end), `KeychainFile` (a keychain file of its own for a run), `SystemPhoneNetworks`, `PhoneQrCode` (CoreImage's
+  generator), `LoopbackPhone` (a phone on this Mac, for checks). The app: Use Your Phone… beside Use a Camera… (its menu: with
+  a preset), the phone window (`PhoneWindow`: the code, the address, the certificate's first bytes, the phone's state, Done;
+  closing it ends the scan), `ScanModel.scanWithPhone` through the camera's `CaptureScan`; `--report … --demo --phone`.
+  Tests: `PhoneScanTests` (all of PhoneScanTests.cs, PC) and `PhoneServerTests` (over HTTPS on loopback, Mac).
+  **Mac differences:** macOS has no Private/Public network setting, so a served network is an Ethernet or Wi-Fi IPv4 one
+  (Search my network's interfaces: no VPN tunnel, bridge or AirDrop) whose address is private (RFC 1918) with a /8 to /30
+  subnet; IPv6 devices aren't served (the code holds the IPv4 address) and the "set it to Private" advice is "join your
+  home or office network". Network framework serves TLS, PrintCore speaks HTTP/1.1 itself (no Kestrel): a body sent with a
+  transfer coding is refused (411; the page's `fetch` always gives a length). The certificate is the phone scan's own
+  ("Inkvolt Print phone scan"; Windows' is scanner sharing's, which the Mac doesn't have), in the sandboxed app's keychain;
+  demo mode and the tests make theirs in a keychain file of their own in a temporary folder (never the login keychain or the
+  search list), deleted after (owner's decision, 2026-11-23). The port is open only while the window is; a refused device's
+  connection is cut before TLS, and checked again once it's up for the address of this Mac it reached. macOS's firewall:
+  off by default; when on, "Automatically allow downloaded signed software" (on by default, and on on the build Mac) lets
+  the signed app listen with no question; with that off, macOS asks once "Do you want the application "Inkvolt Print.app"
+  to accept incoming network connections?", and Deny leaves the phone unable to reach the page (it says the Mac can't be
+  reached). Listening and accepting don't need Local Network access (TN3179). Not checked: a real phone on Wi-Fi (Safari
+  past the certificate warning, several pages, Done; an Android phone's Chrome), the app's own keychain on a user's Mac
+  (the build Mac's account isn't touched: only keychain files of the test's own), the firewall's question with automatic
+  allowing off, VoiceOver on the window.
 - **4.15 Recent scans.** PrintCore `RecentScan`, `RecentScans` (`add`, `clean`, `present`, `remove`, `day`, `usable`),
   `RecentScanDay`, `PrintState.recentScans`; `RecentScansTests` (PC). The app: every save (Save…, a preset's) goes on the list
   with the scanner's and preset's names (`ScanModel.finishSaving`, `AppModel.noteRecentScan`); the save bar's Recent Scans…
@@ -2220,14 +2290,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.
-- Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
-  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
-- Inkvolt Print Wave 4 (`print/ROADMAP.md`), done on Windows: 4.12 a camera as a scan source (`CameraSession`,
-  `CameraFormats`, `CameraScanTests`; AVFoundation's capture session on the Mac); 4.6 phone as a scanner (`Core/Capture`: `PhoneSession`,
-  `PhonePage`, `PhotoPage`, `CaptureScanner` and `PhoneScanTests`; on the Mac the server would be Network.framework's with
-  scanner sharing's rules, and the firewall asks there too).
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).

@@ -11076,6 +11076,534 @@
           }
         }
       }
+    },
+    "(not known)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(desconocido)"
+          }
+        }
+      }
+    },
+    "1 page captured. Put the next one under the camera, or Done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 página capturada. Pon la siguiente bajo la cámara, o Listo."
+          }
+        }
+      }
+    },
+    "A photo was left out: it isn't a JPEG or PNG photo the size of a page, or it didn't open.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se omitió una foto: no es una foto JPEG o PNG del tamaño de una página, o no se pudo abrir."
+          }
+        }
+      }
+    },
+    "Another app uses port {0}, which scanning with your phone needs. Quit it and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otra app usa el puerto {0}, que necesita el escaneo con tu teléfono. Ciérrala y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Another phone already used this code. On the Mac, scan with your phone again for a new code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otro teléfono ya usó este código. En el Mac, vuelve a escanear con tu teléfono para obtener un código nuevo."
+          }
+        }
+      }
+    },
+    "Camera": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámara"
+          }
+        }
+      }
+    },
+    "Choose photos": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir fotos"
+          }
+        }
+      }
+    },
+    "Done [phone page]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terminar"
+          }
+        }
+      }
+    },
+    "Done: 1 page came from the phone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listo: llegó 1 página del teléfono."
+          }
+        }
+      }
+    },
+    "Done: 1 page sent. You can close this page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listo: se envió 1 página. Puedes cerrar esta página."
+          }
+        }
+      }
+    },
+    "Done: {0} pages came from the phone.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listo: llegaron {0} páginas del teléfono."
+          }
+        }
+      }
+    },
+    "Done: {0} pages sent. You can close this page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Listo: se enviaron {0} páginas. Puedes cerrar esta página."
+          }
+        }
+      }
+    },
+    "It isn't a JPEG or PNG photo.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No es una foto JPEG o PNG."
+          }
+        }
+      }
+    },
+    "Lay the page on a darker table and hold the phone above it so the page fills most of the screen. One photo per page: each shows up on the Mac as you go.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon la página sobre una mesa más oscura y sostén el teléfono encima para que la página ocupe casi toda la pantalla. Una foto por página: cada una aparece en el Mac a medida que avanzas."
+          }
+        }
+      }
+    },
+    "No camera found. Plug in a webcam or document camera, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró ninguna cámara. Conecta una cámara web o una cámara de documentos y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Page {0} didn't arrive. {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} no llegó. {1}"
+          }
+        }
+      }
+    },
+    "Page {0} is on the Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} ya está en el Mac."
+          }
+        }
+      }
+    },
+    "Phone connected. Take a photo of each page; tap Done on the phone, or Done here, when you've finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono conectado. Toma una foto de cada página; toca Terminar en el teléfono, o Listo aquí, cuando acabes."
+          }
+        }
+      }
+    },
+    "Phone connected: 1 page in. Tap Done on the phone, or Done here, when you've finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono conectado: llegó 1 página. Toca Terminar en el teléfono, o Listo aquí, cuando acabes."
+          }
+        }
+      }
+    },
+    "Phone connected: {0} pages in. Tap Done on the phone, or Done here, when you've finished.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono conectado: llegaron {0} páginas. Toca Terminar en el teléfono, o Listo aquí, cuando acabes."
+          }
+        }
+      }
+    },
+    "Print log as CSV": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión como CSV"
+          }
+        }
+      }
+    },
+    "Print log {0}.csv": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión {0}.csv"
+          }
+        }
+      }
+    },
+    "Put a page under the camera, then Capture page. Each capture is a page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon una página bajo la cámara y luego Capturar página. Cada captura es una página."
+          }
+        }
+      }
+    },
+    "Save the print log, every job with its time, printer, person, pages, color and two-sided, as a CSV file for a spreadsheet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda el registro de impresión, cada trabajo con su hora, impresora, persona, páginas, color y doble cara, como un archivo CSV para una hoja de cálculo."
+          }
+        }
+      }
+    },
+    "Saving the print log as CSV is part of Inkvolt Pro. The log and its month totals stay free.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar el registro de impresión como CSV es parte de Inkvolt Pro. El registro y sus totales del mes siguen siendo gratis."
+          }
+        }
+      }
+    },
+    "Scan to {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear a {0}"
+          }
+        }
+      }
+    },
+    "Scanning with your phone couldn't start. Try again; if it still doesn't start, restart Inkvolt Print.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo empezar a escanear con tu teléfono. Vuelve a intentarlo; si sigue sin empezar, reinicia Inkvolt Print."
+          }
+        }
+      }
+    },
+    "Sending page {0}…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviando la página {0}…"
+          }
+        }
+      }
+    },
+    "Take a photo of a page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tomar una foto de una página"
+          }
+        }
+      }
+    },
+    "That's the most pages one scan takes: press Done, then start another.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es el máximo de páginas de un escaneo: pulsa Listo y luego empieza otro."
+          }
+        }
+      }
+    },
+    "That's the most pages one scan takes: tap Done, then start a new scan on the Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Es el máximo de páginas de un escaneo: toca Terminar y empieza un escaneo nuevo en el Mac."
+          }
+        }
+      }
+    },
+    "The Mac can't be reached. Check that the phone is on the same Wi-Fi as the Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede conectar con el Mac. Comprueba que el teléfono está en la misma red Wi-Fi que el Mac."
+          }
+        }
+      }
+    },
+    "The camera didn't start. Another app may be using it: close it, or choose another camera, and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La cámara no se inició. Puede que otra app la esté usando: ciérrala, o elige otra cámara, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "The photo is too large.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La foto es demasiado grande."
+          }
+        }
+      }
+    },
+    "The warning before this page was expected: {0} made its own certificate for it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El aviso antes de esta página era normal: {0} creó su propio certificado para ella."
+          }
+        }
+      }
+    },
+    "This camera sends no picture Inkvolt Print can use. Choose another camera.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta cámara no envía ninguna imagen que Inkvolt Print pueda usar. Elige otra cámara."
+          }
+        }
+      }
+    },
+    "This page needs JavaScript to send photos.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta página necesita JavaScript para enviar fotos."
+          }
+        }
+      }
+    },
+    "This scan has ended on the Mac. Start a new one there for a new code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este escaneo terminó en el Mac. Empieza uno nuevo allí para obtener un código nuevo."
+          }
+        }
+      }
+    },
+    "Wait a moment: the Mac is making pages of the last captures.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espera un momento: el Mac está creando las páginas de las últimas capturas."
+          }
+        }
+      }
+    },
+    "Waiting for your phone: point its camera at the code and open the link it shows.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando tu teléfono: apunta su cámara al código y abre el enlace que muestra."
+          }
+        }
+      }
+    },
+    "Your phone can send pages only over a private network, and this Mac isn't on one. Join your home or office Wi-Fi or Ethernet, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu teléfono solo puede enviar páginas por una red privada, y este Mac no está en una. Conéctate a la Wi-Fi o la Ethernet de tu casa u oficina y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "black and white": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blanco y negro"
+          }
+        }
+      }
+    },
+    "cancelled": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cancelado"
+          }
+        }
+      }
+    },
+    "color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "color"
+          }
+        }
+      }
+    },
+    "macOS doesn't let Inkvolt Print use the camera. Turn it on in System Settings › Privacy & Security › Camera, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no deja que Inkvolt Print use la cámara. Actívala en Ajustes del Sistema › Privacidad y seguridad › Cámara y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "one-sided": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una cara"
+          }
+        }
+      }
+    },
+    "two-sided": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "doble cara"
+          }
+        }
+      }
+    },
+    "{0} pages captured. Put the next one under the camera, or Done.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas capturadas. Pon la siguiente bajo la cámara, o Listo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

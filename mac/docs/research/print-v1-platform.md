@@ -21,6 +21,21 @@ Apple doc pages render with JavaScript. They were read through their JSON form
 - Menu bar item (`MenuBarExtra`).
 - Opt-in launch at login (`SMAppService.mainApp`).
 - macOS needs **no** multicast entitlement.
+- The print log (roadmap 4.9) needs **no new** entitlement: CUPS's history of finished jobs (IPP Get-Jobs,
+  `which-jobs=completed`) comes over cupsd's socket with `com.apple.security.print`, checked from the sandbox (Q2).
+- A camera scan (roadmap 4.12) needs `com.apple.security.device.camera` (owner-approved 2026-11-23) and
+  `NSCameraUsageDescription`. macOS asks once, at the first capture session, with the app's sentence ("Inkvolt Print
+  uses the camera only while you scan with it: each page you capture becomes a scanned page on this Mac. Nothing is
+  recorded or sent.", in Spanish too); denied is said with where to turn it on (Privacy & Security › Camera).
+- A phone scan (roadmap 4.6) listens on TCP 9781 (HTTPS, Network framework's `NWListener` with TLS) only while its window
+  is open: `com.apple.security.network.server`, already there for SNMP replies (the owner approved it for this too,
+  2026-11-23); no Info.plist key. Listening and accepting TCP don't trigger Local Network privacy (TN3179, below). The TLS
+  identity is a self-signed certificate the app makes with `SecKeyCreateRandomKey` and keeps in its own keychain items
+  (`SecItemAdd`, `SecIdentityCreateWithCertificate`, `sec_identity_create`). macOS's application firewall is off by
+  default; when on, its default "Automatically allow downloaded signed software to receive incoming connections" lets a
+  signed app listen with no question (on, on the build Mac); with that off, macOS asks once whether "Inkvolt Print.app"
+  may accept incoming network connections. Checked on the build Mac (2026-11-23) on loopback only: the server, its TLS and
+  a phone client, with the certificate in a keychain file of the test's own (`KeychainFile`), never the login keychain.
 
 **Local Network privacy gates almost all of it.** The probe, SNMP, Bonjour, IPP, LEDM and eSCL all need the
 Local Network privilege. Design for three states:
@@ -45,9 +60,10 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 |---|---|
 | `com.apple.security.app-sandbox` | Required for the Mac App Store |
 | `com.apple.security.network.client` | Outgoing TCP (IPP, LEDM/CDM, eSCL, the 631/9100/515 probe) and sending UDP (SNMP) |
-| `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." |
-| `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing) |
+| `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." Also the phone scan's HTTPS listener on TCP 9781 (roadmap 4.6, owner-approved 2026-11-23), open only while a phone scan is |
+| `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing); the print log's read of CUPS's history of finished jobs (4.9) needs nothing more |
 | `com.apple.security.device.usb` | ImageCaptureCore with USB scanners (macOS 14+) |
+| `com.apple.security.device.camera` | A camera scan (roadmap 4.12, the owner approved it 2026-11-23): AVFoundation's capture session on a webcam, document camera or iPhone (Continuity Camera). Needs `NSCameraUsageDescription` (English and Spanish, `InfoPlist.xcstrings`); macOS asks once, and denied is said with where to turn it on |
 | `com.apple.security.files.bookmarks.app-scope` | A scan preset's folder, chosen once and written to again (app-scoped security bookmark) |
 | `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks; opening PDFs and photos to print |
 | `com.apple.security.application-groups` = [`AE6TTXW92K.com.bermudezsystems.inkvolt`] | The Inkvolt Pro key's file, shared with Inkvolt PDF (added 2026-11-04 for roadmap 1.6; Q6) |
@@ -402,6 +418,26 @@ IPP-over-USB printer was at hand, so the device URI below is read from the syste
   - A filter failure (a broken PDF): the job goes to `processing-stopped` with `job-completed-with-errors` and the queue
     stays idle and enabled, under `stop-printer` and `abort-job` alike; nothing became `aborted` in these runs. Job
     alerts read it as failed ("macOS stopped this job") after the minute's hold; `--report --jobs` raised two.
+
+### The print log's read of CUPS's history (roadmap 4.9), checked on the Mac (2026-11-23)
+
+buildmac, macOS 27.2, Inkvolt Print's Release build (sandboxed, the entitlements above: **no new entitlement**;
+`com.apple.security.print` opens cupsd's socket as for everything else here).
+
+- **IPP Get-Jobs with `printer-uri` `ipp://localhost/` and `which-jobs=completed` answers from the sandbox** with every
+  queue's finished jobs (cancelled, aborted and completed), newest first, `limit` honoured. Not `cupsGetJobs2`: it gives no
+  pages, copies or options. Asked for `job-printer-uri`, `job-name`, `job-originating-user-name`,
+  `job-originating-host-name`, `time-at-creation`, `time-at-completed`, `job-impressions`, `job-impressions-completed`,
+  `job-media-sheets-completed`, `copies`, `print-color-mode` and `sides`. On that Mac's history (46 jobs, 12 cancelled and
+  34 completed; counts only were read): `job-impressions` for 44, a printed count for 35, copies for 44, `sides` for 40, but
+  `print-color-mode` for 6 only (most apps set color through the driver's own options, which the log can't read), all
+  named, none from another computer.
+- **A job is in the history the moment it ends**, with what was asked: a job held (`lp -H hold -n 2 -o
+  sides=two-sided-long-edge -o print-color-mode=monochrome`) on a made-up queue (Generic PPD, `ipp://192.0.2.1/…`) and
+  cancelled came back as cancelled with 2 copies, two-sided and black and white, no pages (`job-impressions` is unknown
+  for a job that never ran), and was logged once; the queue was deleted after.
+- macOS's cupsd keeps finished jobs' history (`PreserveJobHistory` on, at most `MaxJobs` jobs), so jobs printed while the
+  app is closed are still there at its next read; how long it keeps them on a busy Mac: UNVERIFIED.
 
 ### Conclusion: how far the App Store fixer goes
 

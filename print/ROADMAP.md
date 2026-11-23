@@ -213,8 +213,8 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     recognized text as paragraphs (headings in Heading 1), photos as pictures; written in the shared core with the Office parts
     moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`; the Mac's in `mac/docs/PLAN.md`, "Wave 4").
     Word opens them (checked on Windows). **Next:** Word and Pages on the Mac opening one.
-  - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone; the Mac half waits.
-  - **4.12 A camera as a scan source.** Done on Windows: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window; the Mac half waits (AVFoundation).
+  - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone. On the Mac too (Use Your Phone… beside Use a Camera…: Network framework's TLS server, the app's own certificate in its keychain; `mac/docs/PLAN.md` 4.6); a real phone there is the same check.
+  - **4.12 A camera as a scan source.** Done on Windows and Mac: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`; the Mac's AVFoundation and an iPhone as Continuity Camera: `mac/docs/PLAN.md`, "Wave 4"). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window, on both.
   - **4.18 From Inkvolt PDF into Print's presets and Print a PDF.** Done on Windows and Mac: a PDF preset saves PDF/A-2b or puts a
     password on the PDF (AES-256 as Inkvolt PDF writes it; the password asked once and kept in Credential Manager if wanted,
     never in the presets); Print a PDF's Layout prints several pages per sheet (2, 4, 6, 9, 16), a booklet (saddle-stitch order,
@@ -231,12 +231,13 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
     (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
     paper; on a Mac too (the Mac's in `mac/docs/PLAN.md`, "Wave 4").
-  - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
+  - **4.9 A print log on this PC.** Done on Windows and Mac: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
     and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the
     CSV Pro (README, "Print log"; `PrintLog`, `PrintLogRecorder`). Checked on this PC with a job to Microsoft Print to PDF.
-    **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared printer) against the printers' own counts;
-    the Mac half waits (CUPS keeps a page log of its own).
+    The Mac reads CUPS's own history of finished jobs instead (Window › Print Log; jobs printed while the app was closed are
+    logged too; `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared
+    printer) against the printers' own counts, on both.
   - **4.10 Share a USB printer with phones.** Done on Windows and Mac. On Windows, free (the owner, 2026-11-22): a switch per queue printer, off by
     default, private networks only; announced as `_ipp._tcp` with Mopria's and AirPrint's keys, IPP on TCP 9782 (Get-Printer-Attributes,
     Validate-Job, Print-Job with PDF, JPEG, PWG Raster, Apple Raster), printed on the Windows queue (README, "Share a printer with

@@ -12,6 +12,8 @@ public enum ProFeature: CaseIterable, Sendable {
     case scannerSharing
     /// 3.2: SNMPv3 (a community per printer stays free).
     case snmpV3
+    /// 4.9: the print log as CSV (the log and its month totals stay free).
+    case printLogExport
 }
 
 /// The Pro entitlement check for Inkvolt Print: the one place a Pro feature asks whether it may run (`allows`), nowhere
@@ -65,6 +67,7 @@ public enum Pro {
         case .fleetExport: loc("Fleet export and command line")
         case .scannerSharing: loc("Scanner sharing")
         case .snmpV3: "SNMPv3"
+        case .printLogExport: loc("Print log as CSV")
         }
     }
 
@@ -76,6 +79,7 @@ public enum Pro {
         case .fleetExport: loc("Export the fleet page as CSV or JSON, read every printer from a script with status --all, and fix every queue at once.")
         case .scannerSharing: loc("Share a USB or driver-only scanner on the network, so phones, Macs and PCs scan from it.")
         case .snmpV3: loc("Read printers whose SNMP needs a user name and keys (SNMPv3) instead of a community.")
+        case .printLogExport: loc("Save the print log, every job with its time, printer, person, pages, color and two-sided, as a CSV file for a spreadsheet.")
         }
     }
 
@@ -87,6 +91,7 @@ public enum Pro {
         case .fleetExport: loc("Fleet export, status --all and Fix all are part of Inkvolt Pro.")
         case .scannerSharing: loc("Scanner sharing is part of Inkvolt Pro.")
         case .snmpV3: loc("SNMPv3 is part of Inkvolt Pro.")
+        case .printLogExport: loc("Saving the print log as CSV is part of Inkvolt Pro. The log and its month totals stay free.")
         }
     }
 

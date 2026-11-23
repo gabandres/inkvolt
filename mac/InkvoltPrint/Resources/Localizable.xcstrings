@@ -8403,6 +8403,506 @@
           }
         }
       }
+    },
+    "%@ on %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ en %@"
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
+          }
+        }
+      }
+    },
+    "%lld job": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld trabajo"
+          }
+        }
+      }
+    },
+    "%lld jobs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld trabajos"
+          }
+        }
+      }
+    },
+    "%lld page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld página"
+          }
+        }
+      }
+    },
+    "(%lld in color)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(%lld a color)"
+          }
+        }
+      }
+    },
+    "(no name)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(sin nombre)"
+          }
+        }
+      }
+    },
+    "A webcam, a document camera or your iPhone takes each page: its picture is made a flat page at these settings (or a preset's, from the menu)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una cámara web, una cámara de documentos o tu iPhone toma cada página: su imagen se convierte en una página plana con esta configuración (o la de un ajuste, desde el menú)"
+          }
+        }
+      }
+    },
+    "Any phone's camera takes each page, through its browser over this Wi-Fi: scan the code this Mac shows, and each photo is made a flat page at these settings (or a preset's, from the menu)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La cámara de cualquier teléfono toma cada página, desde su navegador por esta red Wi-Fi: escanea el código que muestra este Mac, y cada foto se convierte en una página plana con estos ajustes (o los de un ajuste predefinido, desde el menú)"
+          }
+        }
+      }
+    },
+    "By person": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por persona"
+          }
+        }
+      }
+    },
+    "By printer": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por impresora"
+          }
+        }
+      }
+    },
+    "Camera": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cámara"
+          }
+        }
+      }
+    },
+    "Capture Page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capturar página"
+          }
+        }
+      }
+    },
+    "Capturing pages with the camera: Capture Page in its window, then Done.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Capturando páginas con la cámara: Capturar página en su ventana y luego Listo."
+          }
+        }
+      }
+    },
+    "Certificate %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certificado %@"
+          }
+        }
+      }
+    },
+    "Clear the Log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar el registro"
+          }
+        }
+      }
+    },
+    "Clear the Log…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar el registro…"
+          }
+        }
+      }
+    },
+    "Clear the print log?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Borrar el registro de impresión?"
+          }
+        }
+      }
+    },
+    "Every job in it is forgotten, on this Mac. This can't be undone.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se olvidan todos sus trabajos en este Mac. No se puede deshacer."
+          }
+        }
+      }
+    },
+    "Every job this Mac printed, from macOS's own list of finished jobs, with month totals. Kept on this Mac only, for 13 months; nothing is sent.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada trabajo que imprimió este Mac, de la propia lista de trabajos terminados de macOS, con totales del mes. Se guarda solo en este Mac, durante 13 meses; no se envía nada."
+          }
+        }
+      }
+    },
+    "Export the print log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportar el registro de impresión"
+          }
+        }
+      }
+    },
+    "Forget every job in the print log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olvida todos los trabajos del registro de impresión"
+          }
+        }
+      }
+    },
+    "Jobs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trabajos"
+          }
+        }
+      }
+    },
+    "Keep a log of print jobs on this Mac": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Llevar un registro de los trabajos de impresión en este Mac"
+          }
+        }
+      }
+    },
+    "Month": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mes"
+          }
+        }
+      }
+    },
+    "No print jobs logged yet. Jobs show here once they've printed, also those printed while Inkvolt Print was closed (macOS keeps a list of finished jobs for a while).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay trabajos registrados. Aparecen aquí una vez impresos, también los que se imprimieron con Inkvolt Print cerrado (macOS guarda una lista de los trabajos terminados durante un tiempo)."
+          }
+        }
+      }
+    },
+    "Or open this address on the phone:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O abre esta dirección en el teléfono:"
+          }
+        }
+      }
+    },
+    "Phone": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono"
+          }
+        }
+      }
+    },
+    "Point your phone's camera at the code, then open the link it shows. Your phone must be on the same Wi-Fi as this Mac.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apunta la cámara de tu teléfono al código y abre el enlace que muestra. Tu teléfono debe estar en la misma red Wi-Fi que este Mac."
+          }
+        }
+      }
+    },
+    "Print Log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión"
+          }
+        }
+      }
+    },
+    "Print Log — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión — Demo"
+          }
+        }
+      }
+    },
+    "QR code of the scan's address": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código QR de la dirección del escaneo"
+          }
+        }
+      }
+    },
+    "Save the whole log as a CSV file for a spreadsheet (Inkvolt Pro)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda todo el registro como un archivo CSV para una hoja de cálculo (Inkvolt Pro)"
+          }
+        }
+      }
+    },
+    "Scan with Your Phone": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con tu teléfono"
+          }
+        }
+      }
+    },
+    "Scan with Your Phone — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con tu teléfono — Demo"
+          }
+        }
+      }
+    },
+    "Scan with a Camera": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con una cámara"
+          }
+        }
+      }
+    },
+    "Scan with a Camera — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con una cámara — Demo"
+          }
+        }
+      }
+    },
+    "Scanning with your phone: take a photo of each page on it, then Done.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneando con tu teléfono: toma en él una foto de cada página y luego toca Terminar."
+          }
+        }
+      }
+    },
+    "Takes the camera's picture as the next page (Space)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toma la imagen de la cámara como la página siguiente (Espacio)"
+          }
+        }
+      }
+    },
+    "The latest %lld of this month's %lld jobs are listed; the totals and Export count them all.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se muestran los últimos %lld de los %lld trabajos de este mes; los totales y Exportar los cuentan todos."
+          }
+        }
+      }
+    },
+    "The phone's browser warns about this certificate the first time: this Mac made it for the scan. Its fingerprint begins like this.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El navegador del teléfono avisa de este certificado la primera vez: este Mac lo creó para el escaneo. Su huella digital empieza así."
+          }
+        }
+      }
+    },
+    "The print log couldn't be cleared. Nothing was removed; try again in a moment.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo borrar el registro de impresión. No se quitó nada; vuelve a intentarlo en un momento."
+          }
+        }
+      }
+    },
+    "The print log couldn't be saved: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar el registro de impresión: %@"
+          }
+        }
+      }
+    },
+    "The print log is empty.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de impresión está vacío."
+          }
+        }
+      }
+    },
+    "The print log is off: no more jobs are logged. What's already in it stays until you clear it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de impresión está desactivado: ya no se registran trabajos. Lo que ya tiene se queda hasta que lo borres."
+          }
+        }
+      }
+    },
+    "The print log is on: jobs are logged from now on.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de impresión está activado: los trabajos se registran desde ahora."
+          }
+        }
+      }
+    },
+    "Use Your Phone…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar tu teléfono…"
+          }
+        }
+      }
+    },
+    "Use a Camera…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar una cámara…"
+          }
+        }
+      }
+    },
+    "What the camera sees": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que ve la cámara"
+          }
+        }
+      }
+    },
+    "With %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Con %@"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

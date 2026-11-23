@@ -18,6 +18,23 @@
         }
       }
     },
+    "NSCameraUsageDescription": {
+      "comment": "Privacy - Camera Usage Description",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print uses the camera only while you scan with it: each page you capture becomes a scanned page on this Mac. Nothing is recorded or sent."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print usa la cámara solo mientras escaneas con ella: cada página que capturas se convierte en una página escaneada en este Mac. No se graba ni se envía nada."
+          }
+        }
+      }
+    },
     "NSHumanReadableCopyright": {
       "comment": "Copyright (human-readable)",
       "localizations": {

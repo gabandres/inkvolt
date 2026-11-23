@@ -65,6 +65,8 @@ enum Report {
             if model.isDemo && args.contains("--join") { cancelled += await joinCheck(model) }
             if model.isDemo && args.contains("--name-from-text") { cancelled += await nameFromTextCheck(model) }
             if model.isDemo && args.contains("--word-text") { cancelled += await wordTextCheck(model) }
+            if model.isDemo && args.contains("--camera") { cancelled += await cameraCheck(model) }
+            if model.isDemo && args.contains("--phone") { cancelled += await phoneCheck(model) }
             if model.isDemo && args.contains("--recent-scans") { cancelled += await recentScansCheck(model) }
             if args.contains("--clipboard") { cancelled += clipboardCheck() }
             if model.isDemo && args.contains("--hand-duplex") { cancelled += await handDuplexCheck(model) }
@@ -73,6 +75,7 @@ enum Report {
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
             if args.contains("--history") { cancelled += await historyCheck(model) }
+            if args.contains("--print-log") { cancelled += await printLogCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
@@ -570,6 +573,49 @@ enum Report {
         p.dismissFirmwareNotice()
         try? await Task.sleep(for: .milliseconds(300))
         lines.append("  dismissed: notice \(p.view.firmwareNotice?.text ?? "none"), record dismissed: \(model.store.firmware(p.id)?.dismissed == true)")
+        return lines
+    }
+
+    /// The print log (roadmap 4.9): CUPS's history as read from the sandbox (counts only: no document, person or printer is
+    /// written), what the log holds, the window's months and totals, the CSV. Demo mode's made-up log stays in memory.
+    private static func printLogCheck(_ model: AppModel) async -> [String] {
+        var lines: [String] = []
+        if !model.isDemo {
+            let history = await LibCups().finishedJobs(limit: PrintLogRecorder.maxOpen)
+            if let history {
+                func count(_ test: (FinishedJob) -> Bool) -> Int { history.filter(test).count }
+                let states = Dictionary(grouping: history, by: \.state).map { "\($0.key): \($0.value.count)" }.sorted().joined(separator: ", ")
+                let known = [
+                    "with pages \(count { $0.pages != nil })", "printed counted \(count { ($0.printed ?? 0) > 0 })",
+                    "copies \(count { $0.copies != nil })", "color known \(count { $0.color != nil })",
+                    "sides known \(count { $0.twoSided != nil })", "named \(count { !($0.document ?? "").isEmpty })",
+                    "from another computer \(count { $0.machine != nil })",
+                ]
+                lines.append("print log: CUPS's history \(history.count) finished jobs (\(states)); " + known.joined(separator: ", "))
+            } else {
+                lines.append("print log: CUPS's history couldn't be read")
+            }
+            await model.readPrintLog(full: true)
+        }
+        let window = PrintLogWindow.show(model)
+        for _ in 0..<40 where !window.isLoaded { try? await Task.sleep(for: .milliseconds(100)) }
+        let log = model.printLog.file.read(Date())
+        let since = model.printLog.since.map { " since " + $0.formatted(.iso8601) } ?? ""
+        let place = model.isDemo ? "in memory" : "in print-log.jsonl"
+        let size = PrintLogWindow.size.map { "\(Int($0.width)) × \(Int($0.height))" } ?? "not shown"
+        lines.append("print log: " + (model.printLogOn ? "on" : "off") + since + ", \(log.count) jobs kept \(place), \(window.months.count) months; window " + size)
+        if let month = window.selectedMonth {
+            let more = window.moreText != nil ? " (more)" : ""
+            lines.append("  " + window.name(month) + ": \(window.byPrinter.count) printers, \(window.byUser.count) people, \(window.jobs.count) jobs listed" + more)
+            if model.isDemo {
+                for row in window.byPrinter { lines.append("    \(row.name): \(row.pages) · \(row.jobs)") }
+                if let job = window.jobs.first { lines.append("    newest: \(job.title) · \(job.detail)") }
+            }
+        }
+        let csv = PrintLog.csv(log)
+        let rows = csv.components(separatedBy: "\r\n").filter { !$0.isEmpty }
+        lines.append("  CSV: \(rows.count - 1) rows, columns " + (rows.first ?? "-") + "; Export allowed by Pro: \(Pro.allows(.printLogExport))")
+        PrintLogWindow.close()
         return lines
     }
 
