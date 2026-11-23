@@ -26521,6 +26521,50 @@
           }
         }
       }
+    },
+    "Ask across folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en carpetas"
+          }
+        }
+      }
+    },
+    "Ask a question over your indexed folders or a set of PDFs: the folder index picks the pages, your own AI assistant answers, and each answer cites the file and page, which open on a click. The send window lists every page that goes, from which files.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz una pregunta sobre tus carpetas indexadas o un grupo de archivos PDF: el índice elige las páginas, tu propio asistente de IA responde, y cada respuesta cita el archivo y la página, que se abren con un clic. La ventana de envío muestra cada página que se envía y de qué archivo."
+          }
+        }
+      }
+    },
+    "Asking across folders is part of Inkvolt Pro.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en carpetas forma parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "Ask Across Folders…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en carpetas…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Ask Across Folders… (Edit › Find, Inkvolt Pro): ask a question about the PDFs in your indexed folders, or PDFs you choose, and your own AI assistant answers from the pages most related to it. Each point cites its file and page, which open on a click, and the send window lists every page that goes, from which files.
 - Reflow (View menu, ⌘3): the document's text as one column that fits the window, for reading on a small screen or in large type. Zoom In makes the text bigger, Dark Pages makes it light on dark, and the page you were on is kept when you go back to the pages. Web and email links open in your browser or mail app.
 - Two documents side by side: File › New Window (or the Dock icon's menu) opens the next document in a window of its own, or drag a tab out of the tab bar (Window › Move Tab to New Window does the same). A file that's open already comes forward in whichever window has it, and the documents you open join the window you used last.
 - Replace Pages… (Pages menu): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.

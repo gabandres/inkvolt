@@ -1876,6 +1876,25 @@ and undoes it.
   The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
   file to choose.
 
+### Wave 4's AI items (roadmap Batch C, Pro)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the Mac's AI client and its send window
+(`AiConfirmSheet`, E11's), against stand-in models on loopback in the self-test (`AiLoopbackServer`, as `--only-translate`).
+- **4.11 Ask Across Folders** (Edit › Find, after Search Folders; Windows also lists it under Review › AI Assistant):
+  PdfCore `FolderAsk` (`build`, `withMeaning`, `citations`, `sentList`, `safeName`, `copyRestricted`, `readFiles`) and
+  `FolderIndex.rank` and `pageTexts` (FolderIndexPages.swift), `FolderAskTests` under their names. The window is
+  `FolderAskWindowController` (FolderAsk.swift): the indexed folders or chosen PDFs, the question, the answers as the AI
+  pane's cards, whose citations of a page sent open that file at the page (`AiAnswerCard`'s `links`: `AiAnswerMarkup.runs`
+  takes the citations a caller finds). The send window lists each file and its pages (`AiOutgoing.listing`) and says what
+  only goes (`onlyNote`). `--only-folder-ask` (`FolderAskTest`): an index of its own, the assistant off then on, the
+  listing, the request (files named within their folder, pages sharing no word left out), the link opening the file,
+  chosen PDFs declined, a question sharing no word. Mac differences: paths are "/"-separated as the Mac's index keeps them;
+  a file's name cut at 120 UTF-16 units is cut between characters, never inside one (an emoji, a letter and its accent);
+  a question over the folders that no page shares a word with says so (Windows says the pages have no text, since the
+  index proposed none).
+- Not checked by a person: the window and the send window's listing by eye and with VoiceOver; a real model (Ollama or
+  LM Studio on this Mac).
+
 ## Open decisions
 
 None.
@@ -1903,8 +1922,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
   `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
   guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
-  4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
-  `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
+  4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
   format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
   (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
   makes MP3; port `AiAnswerSpeechTests`); 4.23 Edit by Asking (`AskEdit`, `AiClient.AskEditAsync`, the steps window; port

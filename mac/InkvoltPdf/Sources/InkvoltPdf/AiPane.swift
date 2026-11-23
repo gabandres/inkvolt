@@ -41,6 +41,16 @@ private final class AiAnswerText: NSTextView {
 @MainActor
 final class AiAnswerCard: NSView, NSTextViewDelegate {
     private static let pageScheme = "inkvolt-page"
+    private static let linkScheme = "inkvolt-link"
+
+    /// A citation of another file's page (Ask Across Folders): where it is in a piece of the answer, its tooltip and what
+    /// a click does.
+    struct Link {
+        let start: Int
+        let length: Int
+        let tip: String
+        let open: () -> Void
+    }
 
     private let body = AiAnswerText()
     let noteLabel = NSTextField(wrappingLabelWithString: "")
@@ -51,16 +61,20 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
     private let pageCount: Int
     private let goTo: (Int) -> Void
     private let scrolled: () -> Void
+    /// The citations of each piece of plain text, in place of "[p. N]" pages (nil: this document's pages).
+    private let linker: ((String) -> [Link])?
+    private var shownLinks: [Link] = []
     private var raw = ""
     private var dirty = false
     private(set) var finished = false
     private var timer: Timer?
 
-    init(model: String, pageCount: Int, goTo: @escaping (Int) -> Void, scrolled: @escaping () -> Void) {
+    init(model: String, pageCount: Int, goTo: @escaping (Int) -> Void, scrolled: @escaping () -> Void, links: ((String) -> [Link])? = nil) {
         self.model = model
         self.pageCount = pageCount
         self.goTo = goTo
         self.scrolled = scrolled
+        linker = links
         label = NSTextField(labelWithString: "\(AiAnswerMarkup.aiNote) · \(model)")
         super.init(frame: .zero)
         label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
@@ -136,14 +150,25 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
     var note: String? { noteLabel.isHidden ? nil : noteLabel.stringValue }
     var isCopyEnabled: Bool { copyButton.isEnabled }
 
-    /// The page each citation links to, in order.
+    /// The page each citation links to, in order (with a linker: each link's number).
     var links: [Int] {
         var pages: [Int] = []
         let whole = NSRange(location: 0, length: body.attributedString().length)
         body.attributedString().enumerateAttribute(.link, in: whole) { value, _, _ in
-            if let url = value as? URL, url.scheme == Self.pageScheme, let page = Int(url.host ?? "") { pages.append(page) }
+            if let url = value as? URL, url.scheme == Self.pageScheme || url.scheme == Self.linkScheme, let page = Int(url.host ?? "") { pages.append(page) }
         }
         return pages
+    }
+
+    /// The tooltips of the links to other files, in order (the self-test reads them).
+    var linkTips: [String] { links.compactMap { linker == nil || $0 >= shownLinks.count ? nil : shownLinks[$0].tip } }
+
+    /// As a click on link `i` does (the self-test).
+    func followLink(_ i: Int) -> Bool {
+        let all = links
+        guard i < all.count else { return false }
+        if linker == nil { goTo(all[i]) } else if all[i] < shownLinks.count { shownLinks[all[i]].open() }
+        return true
     }
 
     /// Adds streamed text.
@@ -197,9 +222,25 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
         let plain = NSFont.systemFont(ofSize: NSFont.systemFontSize)
         let bold = NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
         let out = NSMutableAttributedString()
-        for run in AiAnswerMarkup.runs(shown, pageCount: pageCount) {
+        var found: [Link] = []
+        let runs: [AiRun]
+        if let linker {
+            runs = AiAnswerMarkup.runs(shown) { piece in
+                linker(piece).map { link in
+                    found.append(link)
+                    return AiCitation(start: link.start, length: link.length, page: found.count - 1)
+                }
+            }
+        } else {
+            runs = AiAnswerMarkup.runs(shown, pageCount: pageCount)
+        }
+        shownLinks = found
+        for run in runs {
             var attributes: [NSAttributedString.Key: Any] = [.font: run.bold ? bold : plain, .foregroundColor: NSColor.labelColor]
-            if let page = run.page, let url = URL(string: "\(Self.pageScheme)://\(page)") {
+            if let page = run.page, linker != nil, page < found.count, let url = URL(string: "\(Self.linkScheme)://\(page)") {
+                attributes[.link] = url
+                attributes[.toolTip] = found[page].tip
+            } else if let page = run.page, let url = URL(string: "\(Self.pageScheme)://\(page)") {
                 attributes[.link] = url
                 attributes[.toolTip] = loc("Go to page {0}", CoreLanguage.number(page + 1))
             }
@@ -211,8 +252,8 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
     }
 
     func textView(_ textView: NSTextView, clickedOnLink link: Any, at charIndex: Int) -> Bool {
-        guard let url = link as? URL, url.scheme == Self.pageScheme, let page = Int(url.host ?? "") else { return true } // an answer's text opens nothing else
-        goTo(page)
+        guard let url = link as? URL, let n = Int(url.host ?? "") else { return true } // an answer's text opens nothing else
+        if url.scheme == Self.linkScheme, n < shownLinks.count { shownLinks[n].open() } else if url.scheme == Self.pageScheme { goTo(n) }
         return true
     }
 

@@ -24299,6 +24299,314 @@
           }
         }
       }
+    },
+    "In the indexed folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En las carpetas indexadas"
+          }
+        }
+      }
+    },
+    "In these PDFs:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En estos archivos PDF:"
+          }
+        }
+      }
+    },
+    "Choose PDFs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir archivos PDF…"
+          }
+        }
+      }
+    },
+    "Ask Across Folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en carpetas"
+          }
+        }
+      }
+    },
+    "Ask a question about the PDFs in your indexed folders, or about PDFs you choose. The folder index picks the pages most related to it, and your own AI assistant answers from them, citing the file and page. Nothing is sent before you see exactly what goes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz una pregunta sobre los archivos PDF de tus carpetas indexadas, o sobre los que elijas. El índice elige las páginas más relacionadas con ella, y tu propio asistente de IA responde a partir de ellas, citando el archivo y la página. No se envía nada antes de que veas exactamente qué se envía."
+          }
+        }
+      }
+    },
+    "Ask in": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en"
+          }
+        }
+      }
+    },
+    "Ask a question about these documents": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz una pregunta sobre estos documentos"
+          }
+        }
+      }
+    },
+    "Question": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregunta"
+          }
+        }
+      }
+    },
+    "Questions and answers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntas y respuestas"
+          }
+        }
+      }
+    },
+    "No PDFs chosen yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no has elegido archivos PDF."
+          }
+        }
+      }
+    },
+    "{0} PDF: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} archivo PDF: {1}"
+          }
+        }
+      }
+    },
+    "{0} PDFs: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} archivos PDF: {1}"
+          }
+        }
+      }
+    },
+    "Choose the PDFs to ask about first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero elige los archivos PDF sobre los que preguntar."
+          }
+        }
+      }
+    },
+    "Reading the PDFs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo los archivos PDF…"
+          }
+        }
+      }
+    },
+    "Finding the pages most related to the question…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando las páginas más relacionadas con la pregunta…"
+          }
+        }
+      }
+    },
+    "None of the pages has text to send. Scans need Recognize Text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna página tiene texto que enviar. Los escaneos necesitan antes Reconocer texto."
+          }
+        }
+      }
+    },
+    "No page shares a word with the question. Try other words.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna página comparte una palabra con la pregunta. Prueba con otras palabras."
+          }
+        }
+      }
+    },
+    "Checking the files' permissions…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando los permisos de los archivos…"
+          }
+        }
+      }
+    },
+    "These PDFs don't allow copying their text: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos archivos PDF no permiten copiar su texto: {0}"
+          }
+        }
+      }
+    },
+    "Your question and the parts most related to it, from {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu pregunta y las partes más relacionadas con ella, de {0} de {1}"
+          }
+        }
+      }
+    },
+    "Your question and the text of {0} from {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu pregunta y el texto de {0} de {1}"
+          }
+        }
+      }
+    },
+    "A folder's index or a file couldn't be read. Check that the folder is still there and the files aren't open in another app, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el índice de una carpeta o un archivo. Comprueba que la carpeta sigue ahí y que los archivos no están abiertos en otra app, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Only this text, the instructions shown below and the model's name are sent, with each file's name within its folder as listed: not where the files are on this Mac, their properties or any other page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían este texto, las instrucciones que se muestran abajo y el nombre del modelo, con el nombre de cada archivo dentro de su carpeta tal como aparece en la lista: no dónde están los archivos en este Mac, sus propiedades ni ninguna otra página."
+          }
+        }
+      }
+    },
+    "Open {0} at page {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir {0} en la página {1}"
+          }
+        }
+      }
+    },
+    "Not read (they need a password): {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se leyeron (necesitan una contraseña): {0}."
+          }
+        }
+      }
+    },
+    "Couldn't be read: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer: {0}."
+          }
+        }
+      }
+    },
+    "Only the first {0} pages of the PDFs were read; not all of: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se leyeron las primeras {0} páginas de los archivos PDF; no todas de: {1}."
+          }
+        }
+      }
+    },
+    "Pages sent, by file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas enviadas, por archivo"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

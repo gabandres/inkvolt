@@ -191,11 +191,17 @@ public struct AiOutgoing: Sendable, Equatable {
     public let what: String
     /// More requests the job makes later from the model's own answers (map-reduce), or nil.
     public let followUp: String?
+    /// Lines the window lists under "What": the pages that go from each file (Ask Across Folders), or none.
+    public var listing: [String] = []
+    /// The window's "only this is sent" note in place of the usual one, or nil.
+    public var onlyNote: String?
 
-    public init(_ requests: [[AiMessage]], what: String, followUp: String? = nil) {
+    public init(_ requests: [[AiMessage]], what: String, followUp: String? = nil, listing: [String] = [], onlyNote: String? = nil) {
         self.requests = requests
         self.what = what
         self.followUp = followUp
+        self.listing = listing
+        self.onlyNote = onlyNote
     }
 
     public var characters: Int { requests.reduce(0) { $0 + $1.reduce(0) { $0 + $1.content.utf16.count } } }
@@ -549,23 +555,28 @@ public enum AiAnswerMarkup {
 
     /// The runs of an answer already without its reasoning (lines end in a "\n" run).
     public static func runs(_ shown: String, pageCount: Int) -> [AiRun] {
+        runs(shown) { AiText.citations($0, pageCount) }
+    }
+
+    /// The same with the citations `cite` finds in each piece of plain text (a run's `page` is then the citation's).
+    public static func runs(_ shown: String, cite: (String) -> [AiCitation]) -> [AiRun] {
         var out: [AiRun] = []
         let lines = shown.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n")
         for (i, raw) in lines.enumerated() {
             if i > 0 { out.append(AiRun("\n")) }
             if let h = match(heading, raw) {
-                out += inline(h[0], allBold: true, pageCount)
+                out += inline(h[0], allBold: true, cite)
                 continue
             }
             var line = raw
             if let b = match(bullet, raw) { line = b[0] + "•  " + b[1] }
-            out += inline(line, allBold: false, pageCount)
+            out += inline(line, allBold: false, cite)
         }
         return out
     }
 
     /// A line's text with **bold** spans and page citations as links. An unclosed ** stays as text.
-    private static func inline(_ line: String, allBold: Bool, _ pageCount: Int) -> [AiRun] {
+    private static func inline(_ line: String, allBold: Bool, _ cite: (String) -> [AiCitation]) -> [AiRun] {
         var out: [AiRun] = []
         let parts = line.components(separatedBy: "**")
         for (i, part) in parts.enumerated() {
@@ -574,7 +585,7 @@ public enum AiAnswerMarkup {
             let isBold = bold || allBold
             let ns = text as NSString
             var at = 0
-            for c in AiText.citations(text, pageCount) {
+            for c in cite(text) {
                 if c.start > at { out.append(AiRun(ns.substring(with: NSRange(location: at, length: c.start - at)), bold: isBold)) }
                 out.append(AiRun(ns.substring(with: NSRange(location: c.start, length: c.length)), bold: isBold, page: c.page))
                 at = c.start + c.length

@@ -29,6 +29,9 @@ public enum ProFeature: CaseIterable, Sendable {
     case longTermValidation
     /// Certifying a form with a choice of fields to lock (a field's own /Lock is always honored).
     case fieldLocking
+    /// Edit › Find › Ask Across Folders: a question over the indexed folders or a set of PDFs, answered by the user's own
+    /// AI endpoint with each point citing its file and page (roadmap 4.11).
+    case folderAsk
 }
 
 /// The Pro entitlement check for Inkvolt PDF (the Windows Core's `Pro`): the one place that decides whether a Pro feature
@@ -96,6 +99,7 @@ public enum Pro {
         case .compareOfficeAndScans: loc("Compare Office files and scans")
         case .longTermValidation: loc("Long-term validation")
         case .fieldLocking: loc("Field locking")
+        case .folderAsk: loc("Ask across folders")
         }
     }
 
@@ -124,6 +128,8 @@ public enum Pro {
             loc("Keep signatures checkable for decades: store in the file the proof that each certificate was good when it signed (PAdES B-LT), add a document timestamp over it (B-LTA), and do the same for files signed earlier. You see which addresses are asked before anything goes online.")
         case .fieldLocking:
             loc("When you certify a form, lock the fields you filled in, or all but the ones others still have to fill in: a later change to a locked field shows as not allowed when the signatures are checked.")
+        case .folderAsk:
+            loc("Ask a question over your indexed folders or a set of PDFs: the folder index picks the pages, your own AI assistant answers, and each answer cites the file and page, which open on a click. The send window lists every page that goes, from which files.")
         }
     }
 
@@ -141,6 +147,7 @@ public enum Pro {
         case .compareOfficeAndScans: loc("Comparing Office files, scans and formatting is part of Inkvolt Pro.")
         case .longTermValidation: loc("Adding long-term validation data is part of Inkvolt Pro.")
         case .fieldLocking: loc("Choosing fields to lock is part of Inkvolt Pro.")
+        case .folderAsk: loc("Asking across folders is part of Inkvolt Pro.")
         }
     }
 

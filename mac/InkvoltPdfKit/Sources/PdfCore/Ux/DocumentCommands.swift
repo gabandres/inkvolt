@@ -311,6 +311,8 @@ public enum DocumentCommands {
             sep,
             // Every PDF of the indexed folders (roadmap 3.5; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F).
             c("Search Folders…", "showFolderSearch:", "f", [.command, .option, .shift]),
+            // A question over the indexed folders or chosen PDFs (roadmap 4.11, Pro; Windows: Edit › Ask Across Folders…).
+            c("Ask Across Folders…", "showFolderAsk:"),
         ])),
     ])
 
