@@ -50,7 +50,7 @@ public enum ScanImaging {
             guard let cropped = image.cropping(to: rect) else { throw ImageError() } // CGImage's crop is top-left based, as CropBox is
             image = cropped
         }
-        image = try cleaned(image, edits.filters, dpi: copyDpi, grey: grey, stop: stop)
+        image = try cleaned(image, edits.filters, dpi: copyDpi, grey: grey, stop: stop, drop: edits.drop)
         let turns = ((edits.quarterTurns % 4) + 4) % 4
         if turns != 0 { image = try turned(image, turns) }
         return image
@@ -91,12 +91,12 @@ public enum ScanImaging {
 
     /// The picture through PrintCore's `PageCleanup` (grey as one channel, colour as three); the same picture when no filter
     /// changes pixels or it is too large to clean up.
-    static func cleaned(_ image: CGImage, _ filters: PageFilters, dpi: Int, grey: Bool, stop: BatchStop?) throws -> CGImage {
+    static func cleaned(_ image: CGImage, _ filters: PageFilters, dpi: Int, grey: Bool, stop: BatchStop?, drop: DropColor? = nil) throws -> CGImage {
         let (w, h) = (image.width, image.height)
         if filters.isDisjoint(with: .pixelFilters) || PageCleanup.tooLarge(w, h) { return image }
         let channels = grey ? 1 : 3
         let packed = try pixels(image, channels: channels)
-        let done = try PageCleanup.apply(packed, width: w, height: h, channels: channels, dpi: dpi, filters, stop: stop)
+        let done = try PageCleanup.apply(packed, width: w, height: h, channels: channels, dpi: dpi, filters, stop: stop, drop: drop)
         if done.done.isEmpty { return image }
         return try picture(done.pixels, width: w, height: h, channels: channels)
     }

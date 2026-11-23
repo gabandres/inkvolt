@@ -14,7 +14,9 @@ public enum DemoScanPage {
                                       bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return [] }
         context.setFillColor(CGColor(red: 0.985, green: 0.98, blue: 0.97, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: w, height: h))
-        if DemoScan.reportPages.contains(page) {
+        if page == DemoScan.punchedForm {
+            punchedForm(context, w, h)
+        } else if DemoScan.reportPages.contains(page) {
             reportPage(page - DemoScan.reportPage(0), upsideDown: DemoScan.isUpsideDown(page), context, w, h)
         } else if page == DemoScan.separatorSheet {
             separatorSheet(context, w, h)
@@ -117,6 +119,31 @@ public enum DemoScanPage {
                  at: CGPoint(x: 120 * scale, y: top - y - 17 * scale), context)
         }
         draw("\(number)", size: 150 * scale, bold: true, at: CGPoint(x: CGFloat(w) - 260 * scale, y: top - 1440 * scale), context)
+    }
+
+    /// An order form (roadmap 4.7): red rules every third of an inch with black print over them, a blue pen's line and three
+    /// punch holes' dark shadows half an inch in from the left edge, so Drop a color and Remove punch holes can be tried.
+    private static func punchedForm(_ context: CGContext, _ w: Int, _ h: Int) {
+        let inch = CGFloat(w) / 8.5
+        let top = CGFloat(h)
+        draw("ORDER FORM", size: 0.25 * inch, bold: true, at: CGPoint(x: inch, y: top - 0.9 * inch), context)
+        context.setFillColor(CGColor(red: 0.84, green: 0.18, blue: 0.2, alpha: 1)) // the form's red rules
+        var y = 1.4 * inch
+        while y < top - inch {
+            context.fill(CGRect(x: 0.9 * inch, y: top - y, width: CGFloat(w) - 1.8 * inch, height: 0.02 * inch))
+            y += inch / 3
+        }
+        let items = ["Toner cartridge, black", "Paper, letter, 500 sheets", "Staples, box of 5000", "Envelopes, #10"]
+        for (i, item) in (0..<18).map({ items[$0 % items.count] }).enumerated() {
+            draw("\(i + 1).  \(item)   qty \(i % 4 + 1)", size: 0.13 * inch, bold: false, at: CGPoint(x: inch, y: top - 1.4 * inch - CGFloat(i) * inch / 3 + 0.02 * inch), context)
+        }
+        context.setStrokeColor(CGColor(red: 0.16, green: 0.27, blue: 0.75, alpha: 1)) // a blue pen's line under the total
+        context.setLineWidth(0.03 * inch)
+        context.strokeLineSegments(between: [CGPoint(x: 4.5 * inch, y: 1.6 * inch), CGPoint(x: 7.2 * inch, y: 1.75 * inch)])
+        context.setFillColor(CGColor(gray: 0.25, alpha: 1)) // the feeder's backing seen through each hole
+        for y in [1.0, 5.5, 10.0] {
+            context.fillEllipse(in: CGRect(x: 0.5 * inch - 0.14 * inch, y: top - CGFloat(y) * inch - 0.14 * inch, width: 0.28 * inch, height: 0.28 * inch))
+        }
     }
 
     /// The demo lid's grey.

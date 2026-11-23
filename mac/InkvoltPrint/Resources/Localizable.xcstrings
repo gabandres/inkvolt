@@ -853,6 +853,16 @@
         }
       }
     },
+    "A pen's or a form's color becomes white; black print stays": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El color de un bolígrafo o de un formulario se vuelve blanco; lo impreso en negro se queda"
+          }
+        }
+      }
+    },
     "A printer that answers only SNMP may need its community or SNMPv3 user: open SNMP access below.": {
       "localizations": {
         "es": {
@@ -1300,6 +1310,16 @@
         }
       }
     },
+    "Blue": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Azul"
+          }
+        }
+      }
+    },
     "Borderless": {
       "localizations": {
         "es": {
@@ -1650,6 +1670,16 @@
         }
       }
     },
+    "Click a mark on the page in the color to drop.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en una marca de la página del color que quieres quitar."
+          }
+        }
+      }
+    },
     "Close": {
       "localizations": {
         "es": {
@@ -1666,6 +1696,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Color"
+          }
+        }
+      }
+    },
+    "Color to drop": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color que quitar"
           }
         }
       }
@@ -2006,6 +2046,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrastra sobre la parte de la página que quieres conservar."
+          }
+        }
+      }
+    },
+    "Drop a color": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar un color"
           }
         }
       }
@@ -2542,6 +2592,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escala de grises"
+          }
+        }
+      }
+    },
+    "Green": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verde"
           }
         }
       }
@@ -3796,6 +3856,26 @@
         }
       }
     },
+    "Pick from the Page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir en la página"
+          }
+        }
+      }
+    },
+    "Picked color": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color elegido"
+          }
+        }
+      }
+    },
     "Plug it in and turn it on, then add it in Printers & Scanners in System Settings.": {
       "localizations": {
         "es": {
@@ -4166,6 +4246,16 @@
         }
       }
     },
+    "Red": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rojo"
+          }
+        }
+      }
+    },
     "Remove": {
       "localizations": {
         "es": {
@@ -4212,6 +4302,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitar de Inkvolt Print…"
+          }
+        }
+      }
+    },
+    "Remove punch holes": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar perforaciones"
           }
         }
       }
@@ -4342,6 +4442,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revertir"
+          }
+        }
+      }
+    },
+    "Round hole marks near the edges are filled with the paper's color": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las marcas redondas de las perforaciones cerca de los bordes se rellenan con el color del papel"
           }
         }
       }
@@ -5376,6 +5486,16 @@
         }
       }
     },
+    "That spot has no color to drop (it's grey, black or the paper): click a colored mark.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese punto no tiene un color que quitar (es gris, negro o el papel): haz clic en una marca de color."
+          }
+        }
+      }
+    },
     "The backs are matched from the last sheet again.": {
       "localizations": {
         "es": {
@@ -5748,6 +5868,16 @@
         }
       }
     },
+    "Then click a mark on the page in the color to drop": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luego haz clic en una marca de la página del color que quieres quitar"
+          }
+        }
+      }
+    },
     "There are too many scans with that name in %@. Choose another folder.": {
       "localizations": {
         "es": {
@@ -5860,6 +5990,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta página es demasiado grande para limpiarla, enderezarla, recortarla o girarla (%lld millones de píxeles): se guarda tal como se escaneó."
+          }
+        }
+      }
+    },
+    "This page was scanned in grey: it has no colors to drop.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta página se escaneó en gris: no tiene colores que quitar."
           }
         }
       }

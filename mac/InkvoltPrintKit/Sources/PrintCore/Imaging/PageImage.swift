@@ -224,12 +224,24 @@ public struct PageEdits: Equatable, Sendable {
     public var deskew = 0.0
     public var crop: CropBox?
     public var filters: PageFilters = []
+    /// The color `.dropColor` drops (roadmap 4.7); set only with that filter (`withFilters(_:drop:)`).
+    public var drop: DropColor?
 
-    public init(quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, filters: PageFilters = []) {
+    /// `drop`: the color a `.dropColor` drops (red when nil); none without that filter.
+    public init(quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, filters: PageFilters = [], drop: DropColor? = nil) {
         self.quarterTurns = quarterTurns
         self.deskew = deskew
         self.crop = crop
         self.filters = filters
+        self.drop = filters.contains(.dropColor) ? drop ?? .red : nil
+    }
+
+    /// These edits with `filters` in place of the filters, dropping `drop` (red when nil) when they drop a color.
+    public func withFilters(_ filters: PageFilters, drop: DropColor?) -> PageEdits {
+        var e = self
+        e.filters = filters
+        e.drop = filters.contains(.dropColor) ? drop ?? .red : nil
+        return e
     }
 
     public static let none = PageEdits()
@@ -275,43 +287,41 @@ public struct PageEdits: Equatable, Sendable {
     /// These edits with `filters` in place of their filters (the review's Clean up view). The paper's edge is looked for
     /// (`paperEdge`, `PaperEdge.find` on the page's analysis copy) only when the crop to it is asked for and not there yet;
     /// none found, what was there stays. A page of photos is never cropped to the paper. Dropping the crop to the paper drops
-    /// its crop.
-    public func withFilters(_ filters: PageFilters, photos: Bool, paperEdge: () throws -> CropBox?) rethrows -> PageEdits {
+    /// its crop. `drop`: the color a `.dropColor` drops (nil: the one it dropped, else red; roadmap 4.7).
+    public func withFilters(_ filters: PageFilters, photos: Bool, drop: DropColor? = nil, paperEdge: () throws -> CropBox?) rethrows -> PageEdits {
         var e = self
         let pixels = filters.intersection(.pixelFilters)
         let wantsCrop = filters.contains(.cropToPaper) && !photos
         if wantsCrop == self.filters.contains(.cropToPaper) {
             e.filters = wantsCrop ? pixels.union(.cropToPaper) : pixels
-            return e
-        }
-        if !wantsCrop {
+        } else if !wantsCrop {
             e.crop = nil
             e.filters = pixels
-            return e
-        }
-        if let found = try paperEdge() {
+        } else if let found = try paperEdge() {
             e.crop = found
             e.filters = pixels.union(.cropToPaper)
         } else {
             e.filters = pixels
         }
-        return e
+        return e.withFilters(e.filters, drop: drop ?? self.drop)
     }
 
     /// These edits after a scan's clean up by its settings (`cleanup`), on a page the check kept (not blank or a separator):
     /// all of it on a page, on a page of photos only what suits a print (descreen, restore colors). Only a page with no
     /// filters or crop yet gets it. `paperEdge` (`PaperEdge.find`, measured on the page straightened by `measuredAt` degrees)
     /// crops only a page straightened by that much: one edited during the check, or not straightened, stays whole. Nil when
-    /// nothing changes. The Windows app's `PageEdits.CleanedUp`.
-    public func cleanedUp(_ cleanup: PageFilters, photos: Bool, paperEdge: CropBox?, measuredAt: Double) -> PageEdits? {
+    /// nothing changes. The Windows app's `PageEdits.CleanedUp`. A page scanned in grey (`grey`) has no color to drop; `drop`
+    /// is the color a `.dropColor` drops (red when nil).
+    public func cleanedUp(_ cleanup: PageFilters, photos: Bool, paperEdge: CropBox?, measuredAt: Double, drop: DropColor? = nil,
+                          grey: Bool = false) -> PageEdits? {
         guard !cleanup.isEmpty, filters.isEmpty, crop == nil else { return nil }
         var e = self
-        e.filters = cleanup.intersection(photos ? [.descreen, .restoreColors] : .pixelFilters)
+        var chosen = PageCleanup.for(cleanup, grey: grey).intersection(photos ? [.descreen, .restoreColors] : .pixelFilters)
         if cleanup.contains(.cropToPaper), !photos, deskew == measuredAt, let paperEdge {
             e.crop = paperEdge
-            e.filters.insert(.cropToPaper)
+            chosen.insert(.cropToPaper)
         }
-        return e.filters.isEmpty ? nil : e
+        return chosen.isEmpty ? nil : e.withFilters(chosen, drop: drop)
     }
 }
 

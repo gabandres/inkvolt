@@ -74,6 +74,10 @@ final class ScanModel {
     }
     /// The tab's clean up (Scan settings › Clean up): what each scanned page gets (a preset has its own), each to be changed
     /// on a page in the review. Stored as Windows' number.
+    /// The color the tab's Drop a color drops (roadmap 4.7), kept as "#RRGGBB"; red until another is chosen.
+    var dropColor: DropColor {
+        didSet { UserDefaults.standard.set(dropColor.hex, forKey: "scanDropColor") }
+    }
     var cleanup: PageFilters {
         didSet { UserDefaults.standard.set(cleanup.rawValue, forKey: "scanCleanup") }
     }
@@ -122,6 +126,7 @@ final class ScanModel {
         findPhotos = d.bool(forKey: "scanFindPhotos")
         turnStack = d.bool(forKey: "scanTurnStack")
         cleanup = PageFilters(rawValue: d.integer(forKey: "scanCleanup")).intersection(.all)
+        dropColor = DropColor.parse(d.string(forKey: "scanDropColor")) ?? .red
         ocrLanguage = d.string(forKey: "scanOcrLanguage")
         sizeKey = Locale.current.measurementSystem == .metric ? "a4" : "letter"
     }
@@ -180,7 +185,7 @@ final class ScanModel {
         // The preset's checks are its own: the tab's settings stay as the user set them.
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
                               findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage,
-                              upright: p.turnUpright, oneBit: plan.oneBit)
+                              upright: p.turnUpright, oneBit: plan.oneBit, drop: DropColor.parse(p.dropColor) ?? .red)
         scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
@@ -198,7 +203,7 @@ final class ScanModel {
         status = source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…")
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
-                                   ocrLanguage: ocrLanguage, upright: upright)
+                                   ocrLanguage: ocrLanguage, upright: upright, drop: dropColor)
         if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
         // Which way up is told by Latin-like letters only: a page in Hebrew, Arabic or Chinese isn't turned.
         c.upright = c.upright && PageUpright.suitsLanguage(c.ocrLanguage ?? Locale.preferredLanguages.first)
@@ -208,7 +213,7 @@ final class ScanModel {
         if pages.isEmpty || split != .none { pages.keepSeparators = keepGiven ?? keepSeparators } // the batch's setting when it was scanned
         if app.isDemo {
             Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper),
-                                   turnedStack: turning ? .fronts : nil)
+                                   turnedStack: turning ? .fronts : nil, markedForm: !c.cleanup.isDisjoint(with: [.dropColor, .punchHoles]))
         }
         let widthIn300ths = request.width ?? caps?.input(for: source)?.maxWidth
         scanning = Task {
@@ -332,6 +337,8 @@ final class ScanModel {
         var upright = false
         /// Save the pages in a PDF in black and white (a preset's smaller file, roadmap 4.4).
         var oneBit = false
+        /// The color the clean up's Drop a color drops (roadmap 4.7).
+        var drop: DropColor = .red
     }
 
     /// What the page check found.
@@ -393,7 +400,7 @@ final class ScanModel {
             }
             pages.analysed(id, looksBlank: result.looksBlank, skew: result.skew, skipBlank: c.skipBlank, straighten: c.straighten,
                            separator: result.separator, photos: result.photos, cleanup: c.cleanup, paperEdge: result.paperEdge,
-                           quarterTurns: result.turns)
+                           quarterTurns: result.turns, drop: c.drop, grey: Self.isGrey(jpeg))
             keep()
             refreshThumbnail(id)
             if !isScanning { status = pages.summary }
@@ -633,15 +640,15 @@ final class ScanModel {
 
     /// The page's edits with `filters` in place of its own (`PageEdits.withFilters`): the paper's edge is looked for on the
     /// analysis copy only when a crop to it is new, once per page and straightening. Nil when the page isn't there.
-    func edits(_ id: String, with filters: PageFilters) async -> PageEdits? {
+    func edits(_ id: String, with filters: PageFilters, drop: DropColor? = nil) async -> PageEdits? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         let (edits, photos, dpi) = (page.edits, page.hasPhotos, page.dpi)
         if let known = paperEdges[id], known.deskew == edits.deskew {
-            return edits.withFilters(filters, photos: photos) { known.edge }
+            return edits.withFilters(filters, photos: photos, drop: drop) { known.edge }
         }
         let (result, looked): (PageEdits, CropBox??) = await offPool {
             var looked: CropBox?? = nil
-            let result = edits.withFilters(filters, photos: photos) { () -> CropBox? in
+            let result = edits.withFilters(filters, photos: photos, drop: drop) { () -> CropBox? in
                 let edge = ScanImaging.paperEdge(jpeg, dpi: dpi, deskew: edits.deskew)
                 looked = .some(edge)
                 return edge
@@ -654,8 +661,8 @@ final class ScanModel {
 
     /// What the Clean up view shows: the page (or a scan's first photo) with `filters`, at most 1600 pixels on its longest
     /// side, and what it says about them; nil when `stop` fired (a newer choice) or the page is gone.
-    func cleanPreview(_ id: String, _ filters: PageFilters, stop: BatchStop) async -> (image: NSImage?, note: String)? {
-        guard let jpeg = images[id], let page = pages.page(id), let edits = await edits(id, with: filters), !stop.isStopped else { return nil }
+    func cleanPreview(_ id: String, _ filters: PageFilters, drop: DropColor? = nil, stop: BatchStop) async -> (image: NSImage?, note: String)? {
+        guard let jpeg = images[id], let page = pages.page(id), let edits = await edits(id, with: filters, drop: drop), !stop.isStopped else { return nil }
         let (dpi, photo) = (page.dpi, page.photos?.first)
         let result: Result<CGImage, any Error> = await offPool {
             Result {
@@ -679,12 +686,18 @@ final class ScanModel {
         if wanted.contains(.cropToPaper) && !edits.filters.contains(.cropToPaper) && !photos {
             return String(localized: "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.")
         }
-        return wanted.isEmpty ? String(localized: "As scanned.") : String(localized: "Shown \(PageCleanup.describe(wanted)).")
+        if wanted.contains(.dropColor), let jpeg = images[id], Self.isGrey(jpeg) {
+            return String(localized: "This page was scanned in grey: it has no colors to drop.")
+        }
+        return wanted.isEmpty ? String(localized: "As scanned.") : String(localized: "Shown \(PageCleanup.describe(wanted, drop: edits.drop)).")
     }
 
+    /// The scanner's JPEG is grey (one component): it has no color to drop.
+    nonisolated static func isGrey(_ jpeg: [UInt8]) -> Bool { (try? PdfWriter.jpegInfo(jpeg))?.components == 1 }
+
     /// The Clean up view's Done: the page gets `filters`, one step of Undo.
-    func applyClean(_ id: String, _ filters: PageFilters) async {
-        guard let edits = await edits(id, with: filters), let page = pages.page(id), edits != page.edits else { return }
+    func applyClean(_ id: String, _ filters: PageFilters, drop: DropColor? = nil) async {
+        guard let edits = await edits(id, with: filters, drop: drop), let page = pages.page(id), edits != page.edits else { return }
         recordUndo(String(localized: "Clean up page \(pages.number(id) ?? 1)"), [id: page.edits], after: [id: edits])
         change(id) { $0.setEdits(id, edits) }
     }
@@ -695,7 +708,7 @@ final class ScanModel {
     /// The Clean up view's All Pages: the switches it shows (`shown`; a page of photos has no crop or whiten) set as
     /// `chosen` has them on every page that is saved (not a separator, not left out), the others' own left alone; one step
     /// of Undo. The pages are looked at a few at a time (`cleanProgress`); `stop` (the view's Cancel) changes none.
-    func applyCleanToAll(_ chosen: PageFilters, shown: PageFilters = .all, stop: BatchStop = BatchStop()) async {
+    func applyCleanToAll(_ chosen: PageFilters, shown: PageFilters = .all, drop: DropColor? = nil, stop: BatchStop = BatchStop()) async {
         let targets = pages.pages.filter { !$0.isSeparator && !$0.skipped }.map { ($0.id, $0.edits.filters.setting(shown, as: chosen)) }
         var found: [String: PageEdits] = [:]
         cleanProgress = (0, targets.count)
@@ -707,7 +720,7 @@ final class ScanModel {
                 guard next < targets.count, !stop.isStopped else { return }
                 let (id, filters) = targets[next]
                 next += 1
-                group.addTask { (id, await self.edits(id, with: filters)) }
+                group.addTask { (id, await self.edits(id, with: filters, drop: drop)) }
             }
             for _ in 0..<width { start() }
             for await (id, edits) in group {

@@ -192,9 +192,10 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
     queues are driverless already).
 - **Batch C:**
-  - **4.7 Drop a color, remove punch holes.** Done on Windows: Clean up's Drop a color (red, green, blue or picked off the page)
+  - **4.7 Drop a color, remove punch holes.** Done on Windows and Mac: Clean up's Drop a color (red, green, blue or picked off the page)
     and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
-    `ColorDropout`, `PunchHoles`). **Next:** real punched sheets from a feeder and a flatbed; the Mac half waits.
+    `ColorDropout`, `PunchHoles`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** real punched sheets from a feeder and a
+    flatbed, on both.
   - **4.8 Join two halves.** Done on Windows: a page's Join with the next page… finds the overlap of two scans of an original
     too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
     one Undo step (README, "Join two halves"; `HalvesJoin`). **Next:** a real A3 drawing on a letter or A4 glass; the Mac half waits.

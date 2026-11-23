@@ -8250,6 +8250,17 @@
         }
       }
     },
+    "blue": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "azul"
+          }
+        }
+      }
+    },
     "check, don't install": {
       "extractionState": "manual",
       "localizations": {
@@ -8436,6 +8447,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "cristal"
+          }
+        }
+      }
+    },
+    "green": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "verde"
           }
         }
       }
@@ -8963,6 +8985,17 @@
         }
       }
     },
+    "picked color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "color elegido"
+          }
+        }
+      }
+    },
     "port {0}": {
       "extractionState": "manual",
       "localizations": {
@@ -9003,6 +9036,17 @@
         }
       }
     },
+    "punch holes removed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "perforaciones quitadas"
+          }
+        }
+      }
+    },
     "raw printing (HP Jetdirect - Socket) to {0}": {
       "extractionState": "manual",
       "localizations": {
@@ -9021,6 +9065,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "impresión directa (puerto 9100)"
+          }
+        }
+      }
+    },
+    "red": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "rojo"
           }
         }
       }
@@ -9422,6 +9477,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} ya no ofrece ese papel."
+          }
+        }
+      }
+    },
+    "{0} dropped": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} quitado"
           }
         }
       }

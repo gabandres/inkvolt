@@ -65,13 +65,13 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
         if hasPhotos {
             let n = photos!.count
             if edits.filters.isEmpty { return n == 1 ? loc("{0} photo", n) : loc("{0} photos", n) }
-            let done = PageCleanup.describe(edits.filters)
+            let done = PageCleanup.describe(edits.filters, drop: edits.drop)
             return n == 1 ? loc("{0} photo, {1}", n, done) : loc("{0} photos, {1}", n, done)
         }
         if skipped { return looksBlank ? loc("Blank, not saved") : loc("Not saved") }
         if tooLargeToEdit { return loc("Saved as scanned: too large to straighten, crop or turn") }
         if !edits.filters.isEmpty {
-            let done = PageCleanup.describe(edits.filters)
+            let done = PageCleanup.describe(edits.filters, drop: edits.drop)
             return done.prefix(1).uppercased() + done.dropFirst()
         }
         if turnedUpright && edits.crop == nil { return loc("Turned upright") }
@@ -149,7 +149,7 @@ public struct ScanPages: Equatable, Sendable {
     @discardableResult
     public mutating func analysed(_ id: String, looksBlank: Bool, skew: Double, skipBlank: Bool, straighten: Bool,
                                   separator: SeparatorFound = .none, photos: [PhotoBox]? = nil, cleanup: PageFilters = [],
-                                  paperEdge: CropBox? = nil, quarterTurns: Int = 0) -> PageEdits? {
+                                  paperEdge: CropBox? = nil, quarterTurns: Int = 0, drop: DropColor? = nil, grey: Bool = false) -> PageEdits? {
         update(id) { p in
             p.analysed = true
             p.beforeCleanup = nil
@@ -167,7 +167,8 @@ public struct ScanPages: Equatable, Sendable {
             guard !cleanup.isEmpty, !p.looksBlank, !separator.isSeparator else { return }
             // Tried only on a page with no filters or crop yet (`cleanedUp`) whose photos weren't looked for.
             p.noPaperEdge = cleanup.contains(.cropToPaper) && photos == nil && paperEdge == nil && p.edits.filters.isEmpty && p.edits.crop == nil
-            guard let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew) else { return }
+            guard let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew, drop: drop,
+                                                  grey: grey) else { return }
             p.beforeCleanup = p.edits
             p.edits = cleaned
         }
@@ -328,8 +329,9 @@ public struct ScanPages: Equatable, Sendable {
                     p.edits.crop = edits.crop
                     p.edits.filters = p.edits.filters.setting(.cropToPaper, as: edits.filters)
                 }
-                if p.edits.filters.intersection(.pixelFilters) == left.filters.intersection(.pixelFilters) {
+                if p.edits.filters.intersection(.pixelFilters) == left.filters.intersection(.pixelFilters) && p.edits.drop == left.drop {
                     p.edits.filters = p.edits.filters.setting(.pixelFilters, as: edits.filters)
+                    p.edits.drop = edits.drop
                 }
             }
         }
@@ -390,6 +392,7 @@ public struct ScanPages: Equatable, Sendable {
             k.separator = p.isSeparator ? p.separator : nil
             k.looksBlank = p.looksBlank
             k.filters = p.edits.filters.isEmpty ? nil : p.edits.filters
+            k.drop = p.edits.drop?.hex
             k.ocrLanguage = p.ocrLanguage
             return k
         })

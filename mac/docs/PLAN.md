@@ -233,6 +233,19 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   black and white (past `BitImage.maxPixels`) is saved as its JPEG. `--report … --smaller-file` saves the demo feeder's pages
   both ways and has PDFKit draw the 1-bit page. Not checked: a real scanner's pages, Preview and other readers on screen, a
   printed copy.
+- **4.7 Drop a color, remove punch holes.** PrintCore `DropColor`/`ColorDropout`, `PunchHoles`, `PageFilters.dropColor` (16)
+  and `.punchHoles` (32) among the pixel filters (Windows' numbers, so presets read alike), `PageCleanup.apply(…drop:)`,
+  `for(_:grey:)`, `describe(_:drop:)`, `CleanedPage.holes`, `PageEdits.drop` (`withFilters(_:drop:)`, `cleanedUp(…drop:grey:)`;
+  the init sets red with the filter, so a color is never without it), `KeptPage.drop`, the preset's `dropColor` (Windows'
+  `DropColor`, "#RRGGBB"); `CleanUpMarksTests` (PC). The app: the four clean up switches become six (Scan settings, each preset,
+  the review's Clean Up… view) with Color to drop (Red, Green, Blue, a picked color with its swatch); the Clean up view's Pick
+  from the Page shows the page as scanned and takes the colour of the 5 × 5 pixels clicked (grey, black or paper is said and
+  the next click tried); a grey scan is never said to have a colour dropped; the demo glass holds a punched order form
+  when a scan drops a color or removes holes (`DemoScan.punchedForm`); `--report … --cleanup-marks`. **Mac differences:** RGB
+  where Windows has BGR (the tests build their pages as RGB); a page is grey when its JPEG has one component (Windows asks
+  its decoder); the Mac's 2.3 tests that ran `.pixelFilters` on a grey page now name the three 2.3 filters (a grey page has
+  no colour to drop and no holes). Not checked: real punched sheets from a feeder and a flatbed, a real pen's and a form's
+  colours, picking a colour on screen (the crosshair, VoiceOver).
 
 ## Mac differences
 
@@ -1707,8 +1720,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.3, 4.4, 4.5, 4.7, 4.13, 4.14), done on Windows. Until 4.4 is
   ported, a Batch preset with `removeBlankPages` or `splitAtBlankPages` is refused on the Mac as an unknown action.
-- Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
-  `PunchHoles`), done on Windows.
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
   `{text-number}`), done on Windows.
 - Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.

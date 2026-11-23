@@ -114,6 +114,53 @@ extension Report {
         return lines
     }
 
+    /// `--cleanup-marks` (roadmap 4.7): the demo inkjet's glass holds the punched order form; scanned with Drop a color (red)
+    /// and Remove punch holes, the page's red and the holes' dark pixels before and after, the note and Undo; then blue picked
+    /// in the Clean up view's way (`applyClean` with a color) on the same page.
+    static func cleanupMarksCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["cleanup marks: no demo inkjet"] }
+        let kept = (scan.cleanup, scan.dropColor, scan.source, scan.format)
+        defer { (scan.cleanup, scan.dropColor, scan.source, scan.format) = kept }
+        scan.source = .platen
+        scan.format = .pdf
+        scan.cleanup = [.dropColor, .punchHoles]
+        scan.dropColor = .red
+        await scanAndWait(scan)
+        guard let page = scan.pages.pages.first, let before = scan.scannedJpeg(page.id), let after = await scan.savedJpeg(page.id) else {
+            return ["cleanup marks: no page (\(scan.status) \(scan.problem ?? ""))"]
+        }
+        var lines = ["cleanup marks: \(scan.status)", "  note: \(page.note); undo: \(scan.undoName ?? "none")"]
+        lines.append("  red pixels \(marks(before).red) → \(marks(after).red); dark pixels in the left inch \(marks(before).holes) → \(marks(after).holes)")
+        await scan.applyClean(page.id, [.dropColor], drop: .blue)
+        let blue = scan.pages.page(page.id)
+        lines.append("  blue instead: note \(blue?.note ?? "-"), color \(blue?.edits.drop?.hex ?? "-"); undo: \(scan.undoName ?? "none")")
+        scan.clear()
+        return lines
+    }
+
+    /// A page's strongly red pixels, and its dark pixels in the left inch (where the form's holes are), on a copy 1/4 the size.
+    private static func marks(_ jpeg: [UInt8]) -> (red: Int, holes: Int) {
+        guard let image = NSImage(data: Data(jpeg))?.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return (-1, -1) }
+        let (w, h) = (image.width / 4, image.height / 4)
+        var px = [UInt8](repeating: 255, count: w * h * 4)
+        let drawn: Bool = px.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard drawn else { return (-1, -1) }
+        var (red, holes) = (0, 0)
+        for y in 0..<h {
+            for x in 0..<w {
+                let (r, g, b) = (Int(px[(y * w + x) * 4]), Int(px[(y * w + x) * 4 + 1]), Int(px[(y * w + x) * 4 + 2]))
+                if r > g + 60 && r > b + 60 { red += 1 }
+                if x < w * 2 / 17 && r < 100 && g < 100 && b < 100 { holes += 1 } // the left inch of 8.5
+            }
+        }
+        return (red, holes)
+    }
+
     /// Pixels darker than mid-grey in `image` drawn grey (-1 when it can't be drawn).
     private static func darkPixels(_ image: NSImage) -> Int {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }

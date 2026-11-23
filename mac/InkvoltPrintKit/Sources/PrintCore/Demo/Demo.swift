@@ -36,7 +36,7 @@ public enum Demo {
         var feeder: (@Sendable () -> [[UInt8]]?)?
         if let scanPage {
             area = { w, h in
-                scanPage(scanSetup.photosOnGlass ? DemoScan.photos : scanSetup.paperOnLid ? DemoScan.onLid : DemoScan.letter, w, h)
+                scanPage(scanSetup.glassPage, w, h)
             }
             feeder = { scanSetup.feederPages.map { scanPage($0, 2550, 3300) } }
         }
@@ -177,6 +177,10 @@ public enum DemoScan {
     /// then turned over, the backs last sheet first (6, 4, 2).
     public static let stackFronts = [reportPage(1), reportPage(3), reportPage(5)]
     public static let stackBacks = [reportPage(6), reportPage(4), reportPage(2)]
+
+    /// An order form on the glass (roadmap 4.7, the Windows demo's punched form): red rules with black print over them, a blue
+    /// pen's line, and three punch holes down its left edge.
+    public static let punchedForm = 7
 }
 
 /// Which pass of a turned stack (`TurnedStack`) the demo feeder's next scan is (the Windows demo's `StackSide`).
@@ -186,7 +190,13 @@ public enum DemoStackSide: Sendable { case fronts, backs }
 /// batch in the feeder when the scan splits into files, photos on the glass when it looks for them, a sheet on the lid
 /// (`DemoScan.onLid`) when it crops to the paper, a turned stack's fronts or backs.
 public final class DemoScanSetup: Sendable {
-    private let state = Shared((batch: false, photos: false, lid: false, stack: DemoStackSide?.none))
+    private let state = Shared((batch: false, photos: false, lid: false, stack: DemoStackSide?.none, form: false))
+
+    /// The glass's page now: photos, the punched form (a scan that drops a color or removes holes), the sheet on the lid, or
+    /// the letter.
+    public var glassPage: Int {
+        state.withLock { $0.photos ? DemoScan.photos : $0.form ? DemoScan.punchedForm : $0.lid ? DemoScan.onLid : DemoScan.letter }
+    }
 
     public init() {}
 
@@ -204,8 +214,8 @@ public final class DemoScanSetup: Sendable {
         }
     }
 
-    public func prepare(feederBatch: Bool, photosOnGlass: Bool, paperOnLid: Bool = false, turnedStack: DemoStackSide? = nil) {
-        state.withLock { $0 = (feederBatch && turnedStack == nil, photosOnGlass, paperOnLid, turnedStack) }
+    public func prepare(feederBatch: Bool, photosOnGlass: Bool, paperOnLid: Bool = false, turnedStack: DemoStackSide? = nil, markedForm: Bool = false) {
+        state.withLock { $0 = (feederBatch && turnedStack == nil, photosOnGlass, paperOnLid, turnedStack, markedForm) }
     }
 }
 

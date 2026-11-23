@@ -153,7 +153,10 @@ private struct PresetEditor: View {
                 }
                 if preset.source != .feeder { Toggle("Several photos on the glass", isOn: $preset.findPhotos) }
             }
-            Section("Clean up") { CleanupToggles(filters: $preset.cleanup) }
+            Section("Clean up") {
+                CleanupToggles(filters: $preset.cleanup, drop: Binding(get: { DropColor.parse(preset.dropColor) ?? .red },
+                                                                       set: { (color: DropColor) in preset.dropColor = color.hex }))
+            }
             Section("Save") {
                 Picker("As", selection: $preset.fileType) {
                     Text("PDF").tag(PresetFileType.pdf)

@@ -23,7 +23,7 @@ public struct DemoScanDevice: ScanDevice {
     public func scan(_ request: ScanRequest) -> AsyncThrowingStream<[UInt8], any Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
-                let pages = request.source == .platen ? [DemoScan.letter] : Demo.scanSetup.feederPages
+                let pages = request.source == .platen ? [Demo.scanSetup.glassPage] : Demo.scanSetup.feederPages
                 for page in pages {
                     try? await Task.sleep(for: .milliseconds(600))
                     if Task.isCancelled { break }
