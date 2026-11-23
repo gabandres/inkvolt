@@ -1754,6 +1754,20 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
   strike-out selected on the page selects its group's row. `TextToolsTest` (`--edit --only-text-tools`) drives both
   from the menu bar, the list's rows, Delete of the strike-out and Undo. Not checked by a person: the popover and the
   blue chevron by eye.
+- **4.12 calculated fields and several fields together** (Prepare Form): `FormCalculations` (`CalcKind`, `FieldCalc`;
+  .NET's `CalcKind.None` is `notCalculated`, as `.none` would read as an Optional's), `DesignField.calculation` read from
+  and written to the field's or its widget's own /AA /C, `FormDesign.calculationOrder`/`setCalculationOrder` (/CO),
+  `FormDesignRules.withCalculation`, `calcSources`, `calcIndex`, `movedInOrder`, `aligned`, `sizedAlike`, `spread`,
+  three more number formats; `FormDesigner`'s anchor, `toggle`, `selectAll`, a group drag (`.movedAll`) and nudge
+  (`flushNudgeAll`), `canDelete`. The panel's Calculate section (text fields and dropdowns: the kind, the fields to tick,
+  the notation, Calculation order…), and with several selected the arrange buttons and Delete; Tools › Forms ›
+  Calculation Order… (a sheet: the list, Move Up and Move Down, ⌥↑ ⌥↓) and Arrange Fields (eleven commands, on with two
+  or three selected). `FormCalculationTests` and the 4.12 half of `Wave4CReviewTests` ported; `PrepareFormTest`
+  (`--edit --only-prepare-form`) picks a sum and a notation in the panel, fills, changes the order, then ⌘-clicks, aligns,
+  drags and deletes two fields. Mac differences: ⌘-click where Windows has Ctrl+click (the Mac's add-to-selection); the
+  menu is under Tools › Forms, where the Mac's Prepare Form lives (Windows: Edit › Forms). The arrangements follow the
+  view's turn, as Windows' (`DesignPage.rotation`).
+  Not checked by a person: the panel's new rows and the sheet by eye and with VoiceOver.
 
 ## Open decisions
 
@@ -1785,10 +1799,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
   a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
   `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
-  (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
-  `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
-  `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
   `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
   guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
   4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port

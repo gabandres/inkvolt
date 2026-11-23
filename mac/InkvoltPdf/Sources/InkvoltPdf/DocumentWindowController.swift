@@ -841,6 +841,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         s.passwordSheetOpen = protectSheet != nil
         s.organizerShown = organizerShown
         s.splitShown = secondPages != nil
+        // Not `design`: asking would make Prepare Form's panel for a menu check.
+        if let made = madeDesign, made.isDesigning { s.designSelected = made.model.selectedIds.count }
         let needs = command?.needs ?? Requirement.allCases
         if needs.contains(.selectedText) { s.hasSelectedText = pages.selectedText != nil }
         if needs.contains(.insertionPoint) { s.hasInsertionPoint = pages.insertionPoint != nil }

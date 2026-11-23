@@ -24277,6 +24277,303 @@
           }
         }
       }
+    },
+    "Across": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En horizontal"
+          }
+        }
+      }
+    },
+    "Align fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear campos"
+          }
+        }
+      }
+    },
+    "Both": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambos"
+          }
+        }
+      }
+    },
+    "Calculate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calcular"
+          }
+        }
+      }
+    },
+    "Calculation (as Price * Quantity)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cálculo (como Precio * Cantidad)"
+          }
+        }
+      }
+    },
+    "Calculation order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo"
+          }
+        }
+      }
+    },
+    "Calculation order…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo…"
+          }
+        }
+      }
+    },
+    "Centers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Centros"
+          }
+        }
+      }
+    },
+    "Change calculation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar cálculo"
+          }
+        }
+      }
+    },
+    "Change calculation order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar orden de cálculo"
+          }
+        }
+      }
+    },
+    "Delete the selected fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar los campos seleccionados"
+          }
+        }
+      }
+    },
+    "Delete {0} fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar {0} campos"
+          }
+        }
+      }
+    },
+    "Fields calculate from the top down when the form is filled. Put a field after the fields it uses (⌥↑ and ⌥↓ move the selected one).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos se calculan de arriba abajo al llenar el formulario. Pon cada campo después de los que usa (⌥↑ y ⌥↓ mueven el seleccionado)."
+          }
+        }
+      }
+    },
+    "Middles": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medios"
+          }
+        }
+      }
+    },
+    "No field in this form is calculated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún campo de este formulario se calcula."
+          }
+        }
+      }
+    },
+    "Of these fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De estos campos"
+          }
+        }
+      }
+    },
+    "Only one field is calculated: there's no order to set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se calcula un campo: no hay orden que establecer."
+          }
+        }
+      }
+    },
+    "Price * Quantity": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precio * Cantidad"
+          }
+        }
+      }
+    },
+    "Same size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mismo tamaño"
+          }
+        }
+      }
+    },
+    "Size fields alike": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igualar tamaño de campos"
+          }
+        }
+      }
+    },
+    "Space evenly": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir"
+          }
+        }
+      }
+    },
+    "Space fields evenly": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir campos"
+          }
+        }
+      }
+    },
+    "The fields are already that way.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos ya están así."
+          }
+        }
+      }
+    },
+    "The first field you picked (the solid corner) stays put; the others line up with it. ⌘-click adds or removes a field.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El primer campo que elegiste (la esquina rellena) no se mueve; los demás se alinean con él. ⌘-clic agrega o quita un campo."
+          }
+        }
+      }
+    },
+    "The form's calculation order can't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede leer el orden de cálculo del formulario."
+          }
+        }
+      }
+    },
+    "Which calculated fields work out first": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué campos calculados se calculan primero"
+          }
+        }
+      }
+    },
+    "{0} fields · first: {1} {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} campos · primero: {1} {2}"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

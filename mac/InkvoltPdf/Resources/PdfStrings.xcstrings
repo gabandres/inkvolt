@@ -26620,6 +26620,369 @@
           }
         }
       }
+    },
+    "A field can't use its own value in its calculation.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un campo no puede usar su propio valor en su cálculo."
+          }
+        }
+      }
+    },
+    "Align Bottom Edges": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear bordes inferiores"
+          }
+        }
+      }
+    },
+    "Align Centers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear centros"
+          }
+        }
+      }
+    },
+    "Align Left Edges": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear bordes izquierdos"
+          }
+        }
+      }
+    },
+    "Align Middles": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear medios"
+          }
+        }
+      }
+    },
+    "Align Right Edges": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear bordes derechos"
+          }
+        }
+      }
+    },
+    "Align Top Edges": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear bordes superiores"
+          }
+        }
+      }
+    },
+    "Arrange Fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Organizar campos"
+          }
+        }
+      }
+    },
+    "Average": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Promedio"
+          }
+        }
+      }
+    },
+    "Calculation Order…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo…"
+          }
+        }
+      }
+    },
+    "Euro (1.234,56 €)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Euro (1.234,56 €)"
+          }
+        }
+      }
+    },
+    "Maximum": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Máximo"
+          }
+        }
+      }
+    },
+    "Minimum": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mínimo"
+          }
+        }
+      }
+    },
+    "Not calculated": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin cálculo"
+          }
+        }
+      }
+    },
+    "Number (1.234,56)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Número (1.234,56)"
+          }
+        }
+      }
+    },
+    "Number, negatives in brackets ((1,234.56))": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Número, negativos entre paréntesis ((1,234.56))"
+          }
+        }
+      }
+    },
+    "Product (×)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Producto (×)"
+          }
+        }
+      }
+    },
+    "Same Height": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mismo alto"
+          }
+        }
+      }
+    },
+    "Same Size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mismo tamaño"
+          }
+        }
+      }
+    },
+    "Same Width": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mismo ancho"
+          }
+        }
+      }
+    },
+    "Select three fields or more to space them evenly (⌘-click adds one).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona tres campos o más para distribuirlos (⌘-clic agrega uno)."
+          }
+        }
+      }
+    },
+    "Select two fields or more (⌘-click adds one); the first one picked stays put.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona dos campos o más (⌘-clic agrega uno); el primero que elijas no se mueve."
+          }
+        }
+      }
+    },
+    "Simplified field notation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notación de campos simplificada"
+          }
+        }
+      }
+    },
+    "Space Evenly Across": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir en horizontal"
+          }
+        }
+      }
+    },
+    "Space Evenly Down": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir en vertical"
+          }
+        }
+      }
+    },
+    "Sum (+)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suma (+)"
+          }
+        }
+      }
+    },
+    "The brackets don't match: each ( needs a ).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los paréntesis no coinciden: cada ( necesita un )."
+          }
+        }
+      }
+    },
+    "The calculation can't be read: use field names, numbers, + - * / and brackets, as Price * Quantity.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede leer el cálculo: usa nombres de campos, números, + - * / y paréntesis, como Precio * Cantidad."
+          }
+        }
+      }
+    },
+    "The calculation can't use \"{0}\". Put a backslash before it in a field's name (Unit\\ price).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cálculo no puede usar «{0}». Pon una barra invertida delante en el nombre de un campo (Precio\\ unitario)."
+          }
+        }
+      }
+    },
+    "The calculation is too long.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cálculo es demasiado largo."
+          }
+        }
+      }
+    },
+    "The form has no field named \"{0}\".": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El formulario no tiene ningún campo llamado «{0}»."
+          }
+        }
+      }
+    },
+    "This field's calculation is a script of the form's own: it stays as it is.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El cálculo de este campo es un script propio del formulario: se queda como está."
+          }
+        }
+      }
+    },
+    "Type the calculation, as Price * Quantity.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el cálculo, como Precio * Cantidad."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

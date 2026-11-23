@@ -64,6 +64,10 @@ public enum Requirement: String, Sendable, CaseIterable {
     case organizerHidden
     /// The view is split in two panes.
     case split
+    /// Prepare Form with two fields selected or more (Arrange Fields' Align and Same Size).
+    case fieldsToArrange
+    /// Prepare Form with three fields selected or more (Arrange Fields' Space Evenly).
+    case fieldsToSpace
 }
 
 /// The small state of a document window that decides which commands can run.
@@ -87,6 +91,8 @@ public struct DocumentState: Sendable, Equatable {
     public var passwordSheetOpen = false
     public var organizerShown = false
     public var splitShown = false
+    /// The fields selected in Prepare Form (0 outside it).
+    public var designSelected = 0
 
     public init() {}
 
@@ -111,6 +117,8 @@ public struct DocumentState: Sendable, Equatable {
         case .noPasswordSheet: !passwordSheetOpen
         case .organizerHidden: !organizerShown
         case .split: splitShown
+        case .fieldsToArrange: designSelected >= 2
+        case .fieldsToSpace: designSelected >= 3
         }
     }
 }
@@ -471,6 +479,24 @@ public enum DocumentCommands {
         .submenu(CommandMenu("Forms", [
             c("Prepare Form", "togglePrepareForm:", "f", [.command, .option], needs: [.document]),
             c("Detect Form Fields", "detectFormFields:", needs: [.document, .idle]),
+            // Roadmap 4.12 (Windows: Edit › Forms › Calculation Order…, Arrange Fields).
+            c("Calculation Order…", "editCalculationOrder:", needs: [.document, .idle]),
+            .submenu(CommandMenu("Arrange Fields", [
+                c("Align Left Edges", "alignFieldsLeft:", needs: [.fieldsToArrange]),
+                c("Align Centers", "alignFieldsCenter:", needs: [.fieldsToArrange]),
+                c("Align Right Edges", "alignFieldsRight:", needs: [.fieldsToArrange]),
+                sep,
+                c("Align Top Edges", "alignFieldsTop:", needs: [.fieldsToArrange]),
+                c("Align Middles", "alignFieldsMiddle:", needs: [.fieldsToArrange]),
+                c("Align Bottom Edges", "alignFieldsBottom:", needs: [.fieldsToArrange]),
+                sep,
+                c("Same Width", "sameFieldWidth:", needs: [.fieldsToArrange]),
+                c("Same Height", "sameFieldHeight:", needs: [.fieldsToArrange]),
+                c("Same Size", "sameFieldSize:", needs: [.fieldsToArrange]),
+                sep,
+                c("Space Evenly Across", "spaceFieldsAcross:", needs: [.fieldsToSpace]),
+                c("Space Evenly Down", "spaceFieldsDown:", needs: [.fieldsToSpace]),
+            ])),
         ])),
         // Measure (Windows: Review › Measure): the measuring tools, then the scale.
         .submenu(CommandMenu("Measure", [

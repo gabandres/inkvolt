@@ -1356,7 +1356,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// the hand tool.
     private func designDown(_ event: NSEvent, _ point: NSPoint) {
         guard let design, let hit = page(at: point) else { return }
-        if design.press(hit.page, pagePoint(point, on: hit.page), clicks: event.clickCount) == .pan, let clip = enclosingScrollView?.contentView {
+        if design.press(hit.page, pagePoint(point, on: hit.page), clicks: event.clickCount, toggle: event.modifierFlags.contains(.command)) == .pan, let clip = enclosingScrollView?.contentView {
             drag = .pan(start: event.locationInWindow, origin: clip.bounds.origin)
             NSCursor.closedHand.push()
         }

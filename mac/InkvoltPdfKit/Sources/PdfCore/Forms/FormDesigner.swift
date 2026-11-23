@@ -30,6 +30,8 @@ public enum DesignPress: Equatable, Sendable {
 public enum DesignRelease: Equatable, Sendable {
     case placed(DesignPlacement)
     case moved(DesignField)
+    /// Several selected fields dragged together: each with its new rect (the one pressed first).
+    case movedAll([DesignField])
 }
 
 /// What the pointer shows.
@@ -47,7 +49,13 @@ public enum DesignEscape: Equatable, Sendable { case droppedTool, deselected, le
 /// with a field tool (`kind`) a drag (or a click, for the kind's usual size) places a new field; with none, a click selects
 /// a field, a drag moves it, its handles resize it, arrow keys nudge it (written once the keys rest), Tab goes through the
 /// fields and suggestions. Suggested fields show dashed until accepted. The window turns each gesture into an edit.
+/// ⌘-click (Windows' Ctrl+click, roadmap 4.12) adds a field to the selection or takes it out: the first one picked is the
+/// anchor that Align, Same Size and Space Evenly (`FormDesignRules.aligned`) go by; a drag of any of them, or the arrow
+/// keys, move them all. Several fields are selected on one page only, and show no resize handles.
 public struct FormDesigner: Equatable, Sendable {
+    /// The smallest side a resize leaves, and a drawn box must have to be kept (else the kind's usual size).
+    public static let minSize = 6.0
+
     private struct Drag: Equatable, Sendable {
         var field: DesignField
         var handle: Int
@@ -57,6 +65,9 @@ public struct FormDesigner: Equatable, Sendable {
         var dragged = false
         var pageWidth: Double
         var pageHeight: Double
+        /// The other selected fields moved along with `field`, and how far they all went.
+        var group: [DesignField] = []
+        var shift = PointD(0, 0)
     }
 
     private struct NewBox: Equatable, Sendable {
@@ -84,10 +95,26 @@ public struct FormDesigner: Equatable, Sendable {
     private var nudged = PointD(0, 0)
     private var drag: Drag?
     private var box: NewBox?
+    /// The other selected fields, in the order picked (`selectedId` is the anchor).
+    private var also: [String] = []
 
     public init() {}
 
     public var selectedField: DesignField? { selectedId.flatMap { id in fields.first { $0.id == id } } }
+
+    /// The selected fields, the anchor first (empty: none).
+    public var selectedIds: [String] { selectedId.map { [$0] + also } ?? [] }
+
+    /// The selected fields as read, the anchor first.
+    public var selectedFields: [DesignField] { selectedIds.compactMap { id in fields.first { $0.id == id } } }
+
+    /// More than one field is selected.
+    public var hasSeveral: Bool { selectedId != nil && !also.isEmpty }
+
+    public func isSelected(_ id: String) -> Bool { id == selectedId || also.contains(id) }
+
+    /// Delete has something to take: a selected field that isn't signed (a signed anchor among several doesn't stop it).
+    public var canDelete: Bool { selectedFields.contains { !$0.signed } }
     public var selectedSuggestion: FieldSuggestion? { suggestions.indices.contains(suggestionIndex) ? suggestions[suggestionIndex] : nil }
     public var selectedSuggestionIndex: Int { selectedSuggestion == nil ? -1 : suggestionIndex }
     public var isDragging: Bool { drag != nil || box != nil }
@@ -109,7 +136,19 @@ public struct FormDesigner: Equatable, Sendable {
             return ka < kb
         }.map(\.element)
         pending.removeAll()
-        if let id = selectedId, !list.contains(where: { $0.id == id }) { selectedId = nil }
+        also.removeAll { a in !list.contains { $0.id == a } }
+        if let id = selectedId, !list.contains(where: { $0.id == id }) { selectedId = also.isEmpty ? nil : also.removeFirst() }
+        // A move under way goes on from the fields as now read (the document caught up with an earlier move); when the
+        // pressed field is gone, the press ends.
+        if var d = drag {
+            if let now = list.first(where: { $0.id == d.field.id }) {
+                d.field = now
+                d.group = d.group.compactMap { g in list.first { $0.id == g.id } }
+                drag = d
+            } else {
+                drag = nil
+            }
+        }
     }
 
     public mutating func setSuggestions(_ list: [FieldSuggestion]) {
@@ -121,12 +160,41 @@ public struct FormDesigner: Equatable, Sendable {
     /// Selects a field (nil: none); the caller flushes any nudge first.
     public mutating func select(_ id: String?) {
         selectedId = id
+        also.removeAll()
+        suggestionIndex = -1
+    }
+
+    /// Selects these fields (the first the anchor; only those on its page); the caller flushes any nudge first.
+    public mutating func selectAll(_ ids: [String]) {
+        select(ids.first { id in fields.contains { $0.id == id } })
+        guard let anchor = selectedField else { return }
+        for id in ids where id != anchor.id && !also.contains(id) {
+            if let f = fields.first(where: { $0.id == id }), f.pageIndex == anchor.pageIndex { also.append(id) }
+        }
+    }
+
+    /// ⌘-click: adds the field to the selection, or takes it out (the anchor's place goes to the next one picked). A field
+    /// on another page than the selection starts a new one. The caller flushes any nudge first.
+    public mutating func toggle(_ id: String) {
+        guard let f = fields.first(where: { $0.id == id }) else { return }
+        if id == selectedId {
+            selectedId = also.isEmpty ? nil : also.removeFirst()
+        } else if let i = also.firstIndex(of: id) {
+            also.remove(at: i)
+        } else if let anchor = selectedField, anchor.pageIndex == f.pageIndex {
+            also.append(id)
+        } else {
+            select(id)
+        }
         suggestionIndex = -1
     }
 
     public mutating func selectSuggestion(_ index: Int) {
         suggestionIndex = suggestions.indices.contains(index) ? index : -1
-        if suggestionIndex >= 0 { selectedId = nil }
+        if suggestionIndex >= 0 {
+            selectedId = nil
+            also.removeAll()
+        }
     }
 
     /// Leaving Prepare Form: nothing stays selected, no tool, no suggestions, no numbers.
@@ -136,6 +204,7 @@ public struct FormDesigner: Equatable, Sendable {
         nudged = PointD(0, 0)
         kind = nil
         selectedId = nil
+        also.removeAll()
         suggestionIndex = -1
         suggestions = []
         showTabOrder = false
@@ -143,13 +212,32 @@ public struct FormDesigner: Equatable, Sendable {
 
     /// Where a field shows: its rect, or the one it was just moved to (until the document catches up).
     public func shownRect(_ f: DesignField) -> RectD {
-        var r = pending[f.id] ?? f.rect
-        if let d = drag, d.field.id == f.id { r = d.rect }
-        if selectedId == f.id, hasNudge {
+        var r = startRect(f)
+        if let d = drag, d.field.id == f.id {
+            r = d.rect
+        } else if let d = drag, d.group.contains(where: { $0.id == f.id }) {
+            r.x += d.shift.x
+            r.y += d.shift.y
+        }
+        // A signed field never shows moved (it doesn't move with the others).
+        if isSelected(f.id), hasNudge, !f.signed {
             r.x += nudged.x
             r.y += nudged.y
         }
         return r
+    }
+
+    /// A field's rect as last written (or being written).
+    private func startRect(_ f: DesignField) -> RectD { pending[f.id] ?? f.rect }
+
+    /// The selected fields that can move (unsigned), as read.
+    private var movableSelection: [DesignField] { selectedFields.filter { !$0.signed } }
+
+    /// A move of every field in `group` by (dx, dy), cut short so all of them stay on a `width` × `height` page.
+    private func clampGroup(_ group: [DesignField], _ dx: Double, _ dy: Double, _ width: Double, _ height: Double) -> (dx: Double, dy: Double) {
+        guard let first = group.first else { return (0, 0) }
+        let union = group.dropFirst().reduce(startRect(first)) { $0.union(startRect($1)) }
+        return DrawingGeometry.clampMove(union, dx, dy, width, height)
     }
 
     /// The smallest field under a point of a page.
@@ -170,7 +258,7 @@ public struct FormDesigner: Equatable, Sendable {
     /// The resize handle of the selected field under a point (0-7, `DrawingGeometry`), or -1. `reach`: how near counts, in
     /// page points (what a handle's size is at the zoom shown).
     public func handleAt(_ page: Int, _ p: PointD, reach: Double) -> Int {
-        guard let f = selectedField, f.pageIndex == page, !f.signed else { return -1 }
+        guard let f = selectedField, f.pageIndex == page, !f.signed, !hasSeveral else { return -1 }
         let frame = shownRect(f)
         for i in 0..<8 {
             let h = DrawingGeometry.handlePoint(frame, i)
@@ -189,15 +277,25 @@ public struct FormDesigner: Equatable, Sendable {
 
     // MARK: Mouse
 
-    /// A press at `p` of a `pageWidth` × `pageHeight` page: selects, starts moving or resizing, or starts a new field. The
-    /// caller flushes any nudge first.
-    public mutating func press(_ page: Int, _ p: PointD, clicks: Int, reach: Double, pageWidth: Double, pageHeight: Double) -> DesignPress {
+    /// A press at `p` of a `pageWidth` × `pageHeight` page: selects, starts moving or resizing, or starts a new field.
+    /// `toggle` (⌘): a field joins the selection or leaves it, and nothing moves. A press on one of several selected fields
+    /// keeps them selected and moves them together. The caller flushes any nudge first.
+    public mutating func press(_ page: Int, _ p: PointD, clicks: Int, reach: Double, pageWidth: Double, pageHeight: Double,
+                               toggle: Bool = false) -> DesignPress {
         let h = handleAt(page, p, reach: reach)
         if h >= 0, let f = selectedField {
             startDrag(f, h, p, pageWidth, pageHeight)
             return .none
         }
         if kind == nil, let hit = fieldAt(page, p) {
+            if toggle {
+                self.toggle(hit.id)
+                return .none
+            }
+            if hasSeveral && isSelected(hit.id) && clicks < 2 {
+                if !hit.signed { startDrag(hit, -1, p, pageWidth, pageHeight) }
+                return .none
+            }
             select(hit.id)
             if clicks >= 2 { return .properties }
             if !hit.signed { startDrag(hit, -1, p, pageWidth, pageHeight) }
@@ -226,7 +324,9 @@ public struct FormDesigner: Equatable, Sendable {
             let h = DrawingGeometry.handlePoint(shownRect(f), handle)
             offset = PointD(h.x - p.x, h.y - p.y)
         }
-        drag = Drag(field: f, handle: handle, press: p, offset: offset, rect: shownRect(f), pageWidth: pageWidth, pageHeight: pageHeight)
+        var d = Drag(field: f, handle: handle, press: p, offset: offset, rect: shownRect(f), pageWidth: pageWidth, pageHeight: pageHeight)
+        if handle < 0 && hasSeveral && isSelected(f.id) { d.group = movableSelection.filter { $0.id != f.id } }
+        drag = d
     }
 
     /// The pointer dragged to `p` (`threshold`: how far it must go, in page points, to count as a drag). True when it was
@@ -242,10 +342,13 @@ public struct FormDesigner: Equatable, Sendable {
         guard var d = drag else { return false }
         if !d.dragged && abs(p.x - d.press.x) + abs(p.y - d.press.y) <= threshold { return true }
         d.dragged = true
-        let start = pending[d.field.id] ?? d.field.rect
+        let start = startRect(d.field)
         if d.handle < 0 {
-            let move = DrawingGeometry.clampMove(start, p.x - d.press.x, p.y - d.press.y, d.pageWidth, d.pageHeight)
+            let move = d.group.isEmpty
+                ? DrawingGeometry.clampMove(start, p.x - d.press.x, p.y - d.press.y, d.pageWidth, d.pageHeight)
+                : clampGroup([d.field] + d.group, p.x - d.press.x, p.y - d.press.y, d.pageWidth, d.pageHeight)
             d.rect = RectD(start.x + move.dx, start.y + move.dy, start.width, start.height)
+            d.shift = PointD(move.dx, move.dy)
         } else {
             let to = PointD(min(max(p.x + d.offset.x, 0), d.pageWidth), min(max(p.y + d.offset.y, 0), d.pageHeight))
             let toggle = d.field.kind == .checkBox || d.field.kind == .radio
@@ -273,8 +376,17 @@ public struct FormDesigner: Equatable, Sendable {
         }
         guard let d = drag else { return nil }
         drag = nil
-        let before = pending[d.field.id] ?? d.field.rect
+        let before = startRect(d.field)
         guard d.dragged, d.rect != before else { return nil }
+        if !d.group.isEmpty {
+            var all = [d.field.with { $0.rect = d.rect }]
+            for other in d.group {
+                let r = startRect(other)
+                all.append(other.with { $0.rect = RectD(r.x + d.shift.x, r.y + d.shift.y, r.width, r.height) })
+            }
+            for f in all { pending[f.id] = f.rect }
+            return .movedAll(all)
+        }
         pending[d.field.id] = d.rect
         return .moved(d.field.with { $0.rect = d.rect })
     }
@@ -329,23 +441,30 @@ public struct FormDesigner: Equatable, Sendable {
         }
     }
 
-    /// Arrow keys move the selected field, kept on the page; the move is written once the keys rest (`flushNudge`).
+    /// Arrow keys move the selected fields (the unsigned ones), kept on the page; the move is written once the keys rest
+    /// (`flushNudgeAll`).
     public mutating func nudge(_ dx: Double, _ dy: Double, pageWidth: Double, pageHeight: Double) {
-        guard let f = selectedField, !f.signed else { return }
-        let start = pending[f.id] ?? f.rect
-        let move = DrawingGeometry.clampMove(start, nudged.x + dx, nudged.y + dy, pageWidth, pageHeight)
+        let group = movableSelection
+        if group.isEmpty { return }
+        let move = clampGroup(group, nudged.x + dx, nudged.y + dy, pageWidth, pageHeight)
         nudged = PointD(move.dx, move.dy)
     }
 
-    /// The arrow-key moves made so far, as the field to write (called before anything else acts on the selection).
-    public mutating func flushNudge() -> DesignField? {
+    /// The arrow-key moves made so far, as the field to write (called before anything else acts on the selection); with
+    /// several selected, the first moved (`flushNudgeAll` gives them all).
+    public mutating func flushNudge() -> DesignField? { flushNudgeAll().first }
+
+    /// The arrow-key moves made so far, as the fields to write, the anchor first (empty: none).
+    public mutating func flushNudgeAll() -> [DesignField] {
         let moved = nudged
         nudged = PointD(0, 0)
-        guard moved != PointD(0, 0), let f = selectedField else { return nil }
-        let start = pending[f.id] ?? f.rect
-        let r = RectD(start.x + moved.x, start.y + moved.y, start.width, start.height)
-        pending[f.id] = r
-        return f.with { $0.rect = r }
+        guard moved != PointD(0, 0), selectedField != nil else { return [] }
+        return movableSelection.map { f in
+            let start = startRect(f)
+            let r = RectD(start.x + moved.x, start.y + moved.y, start.width, start.height)
+            pending[f.id] = r
+            return f.with { $0.rect = r }
+        }
     }
 
     public mutating func escape() -> DesignEscape {
@@ -380,6 +499,10 @@ public enum FormDesignRules {
             (loc("Number (1,234.56)"), FieldFormat(.number, decimals: 2)),
             (loc("Whole number (1,234)"), FieldFormat(.number, decimals: 0)),
             (loc("Currency ($1,234.56)"), FieldFormat(.number, decimals: 2, currency: "$", currencyPrepend: true)),
+            // Roadmap 4.12: Windows' three more AFNumber_Format choices.
+            (loc("Number, negatives in brackets ((1,234.56))"), FieldFormat(.number, decimals: 2, negativeStyle: 2)),
+            (loc("Number (1.234,56)"), FieldFormat(.number, decimals: 2, separatorStyle: 2)),
+            (loc("Euro (1.234,56 €)"), FieldFormat(.number, decimals: 2, separatorStyle: 2, currency: " €", currencyPrepend: false)),
             (loc("Percent (12.50%)"), FieldFormat(.percent, decimals: 2)),
             (loc("Date (mm/dd/yyyy)"), FieldFormat(.date, datePattern: "mm/dd/yyyy")),
             (loc("Date (dd/mm/yyyy)"), FieldFormat(.date, datePattern: "dd/mm/yyyy")),

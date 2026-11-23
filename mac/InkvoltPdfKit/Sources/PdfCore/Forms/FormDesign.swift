@@ -40,6 +40,8 @@ public struct DesignField: Equatable, Sendable {
     public var format: FieldFormat?
     /// The field has a format script that isn't one of the Acrobat built-ins: `format` can't change it.
     public var customFormat = false
+    /// Text fields and combo boxes: what the value is calculated as (/AA /C), or nil when it isn't.
+    public var calculation: FieldCalc?
     /// Combo and list boxes: the choices (export values).
     public var options: [String] = []
     /// Combo and list boxes: the text shown for each choice, parallel to `options` (empty: the export values themselves).
@@ -183,6 +185,7 @@ public enum FormDesign {
         d.maxLength = kind == .text ? max(0, FormEditor.inherited(f.dict, "MaxLen")?.int ?? 0) : 0
         d.format = format
         d.customFormat = format == nil && !(formatScript ?? "").allSatisfy(\.isWhitespace)
+        d.calculation = kind == .text || kind == .comboBox ? FormCalculations.read(script(f, w, "C")) : nil
         d.options = choice ? exports : []
         d.optionLabels = choice && labels != exports ? labels : []
         d.editable = kind == .comboBox && f.flags & FormEditor.ffEdit != 0
@@ -756,6 +759,7 @@ public enum FormDesign {
         var captionChanged = false
         if spec.kind == .text {
             setFormat(doc, field, w, spec)
+            try setCalculation(doc, acro, field, w, spec)
             setDefault(doc, field, spec.defaultValue.isEmpty ? nil : spec.defaultValue, isNew: isNew)
         } else if choice {
             let (exports, labels) = FormEditor.readOptions(FormEditor.inherited(field, "Opt"))
@@ -776,6 +780,7 @@ public enum FormDesign {
                     if let dv, let at = spec.options.firstIndex(of: dv) { field.set("I", doc.array([doc.int(at)])) } else { field.remove("I") }
                 }
             }
+            if spec.kind == .comboBox { try setCalculation(doc, acro, field, w, spec) }
         } else if spec.kind == .button {
             captionChanged = (mk.text("CA") ?? "") != spec.caption
             if spec.caption.isEmpty { mk.remove("CA") } else { mk.set("CA", doc.text(spec.caption)) }
@@ -867,6 +872,91 @@ public enum FormDesign {
         let scripts = formatScripts(fmt)
         target.set("F", javaScript(doc, scripts.format))
         target.set("K", javaScript(doc, scripts.keystroke))
+    }
+
+    // MARK: Calculations (roadmap 4.12)
+
+    /// Writes `spec`'s calculation as the field's /AA /C, and keeps the field in the form's calculation order (/CO: added
+    /// at its end when it starts calculating, removed when it stops). A custom script stays as it is. The script is read
+    /// and written where it is: a widget's own /AA /C (as some forms keep it), else the field's.
+    private static func setCalculation(_ doc: MuDoc, _ acro: PObj, _ field: PObj, _ w: PObj, _ spec: DesignField) throws {
+        let holder = field.identity != w.identity && w.dict("AA")?.dict("C") != nil ? w : field
+        let aa = holder.dict("AA")
+        let current = FormCalculations.read(FormEditor.scriptText(aa?.dict("C")?["JS"]))
+        let wanted = spec.calculation?.kind == .notCalculated ? nil : spec.calculation
+        if current == wanted || wanted?.kind == .custom { return } // unchanged, or a script that can't be written here
+        guard let wanted else {
+            aa?.remove("C")
+            if aa?.count == 0 { holder.remove("AA") }
+            removeFromCalculationOrder(acro, field)
+            return
+        }
+        let script: String
+        do {
+            script = try FormCalculations.scriptOf(wanted)
+        } catch let r as DesignRefusal {
+            throw PdfEditError(r.message)
+        }
+        if aa == nil { holder.set("AA", doc.dict()) }
+        holder.dict("AA")?.set("C", javaScript(doc, script))
+        guard field.isRef else { return } // a direct object can't be named in /CO
+        if acro.array("CO") == nil { acro.set("CO", doc.array()) }
+        guard let co = acro.array("CO") else { return }
+        if !co.elements.contains(where: { $0.identity == field.identity }) { co.append(field) }
+    }
+
+    /// The form's calculated fields in the order they calculate: the form's /CO, then any field with a calculation it
+    /// leaves out (which doesn't calculate until it is put in the order).
+    public static func calculationOrder(_ data: [UInt8], _ password: String?) throws -> [String] {
+        let doc = try PdfEdit.openToRead(data, password)
+        guard let acro = doc.catalog.dict("AcroForm") else { return [] }
+        var seen = Set<String>(), names: [String] = []
+        for f in orderedCalculations(try FormEditor.collect(doc, acro), acro) where seen.insert(f.name).inserted { names.append(f.name) }
+        return names
+    }
+
+    private static func orderedCalculations(_ fields: [FormField], _ acro: PObj) -> [FormField] {
+        var byDict: [UInt: FormField] = [:]
+        for f in fields where byDict[f.dict.identity] == nil { byDict[f.dict.identity] = f }
+        var order: [FormField] = []
+        var listed = Set<UInt>() // a form of thousands of fields: never a list searched once a field
+        for item in acro.array("CO")?.elements ?? [] where item.isDict {
+            if let f = byDict[item.identity], listed.insert(f.dict.identity).inserted { order.append(f) }
+        }
+        for f in fields where !listed.contains(f.dict.identity) && (f.type == "Tx" || f.type == "Ch") {
+            guard calculateScript(f.dict) ?? f.widgets.lazy.compactMap(calculateScript).first != nil else { continue }
+            if listed.insert(f.dict.identity).inserted { order.append(f) }
+        }
+        return order
+    }
+
+    private static func calculateScript(_ holder: PObj) -> String? {
+        guard let js = FormEditor.scriptText(holder.dict("AA")?.dict("C")?["JS"]), !js.allSatisfy(\.isWhitespace) else { return nil }
+        return js
+    }
+
+    /// Sets the form's calculation order (/CO) to the calculated fields named in `names`, in that order; calculated fields
+    /// it doesn't name follow in their old order. The same bytes when that is the order already.
+    public static func setCalculationOrder(_ data: [UInt8], _ password: String?, _ names: [String]) throws -> [UInt8] {
+        func ordered(_ doc: MuDoc, _ acro: PObj) throws -> [FormField] {
+            let old = orderedCalculations(try FormEditor.collect(doc, acro), acro).filter { $0.dict.isRef }
+            var byName: [String: [FormField]] = [:]
+            for f in old { byName[f.name, default: []].append(f) }
+            var seenNames = Set<String>(), seen = Set<UInt>(), list: [FormField] = []
+            for n in names where seenNames.insert(n).inserted {
+                for f in byName[n] ?? [] where seen.insert(f.dict.identity).inserted { list.append(f) }
+            }
+            for f in old where seen.insert(f.dict.identity).inserted { list.append(f) }
+            return list
+        }
+        let check = try PdfEdit.openToRead(data, password)
+        guard let acro = check.catalog.dict("AcroForm") else { return data }
+        let wanted = try ordered(check, acro)
+        if let co = acro.array("CO"), co.elements.map(\.identity) == wanted.map(\.dict.identity) { return data }
+        return try PageEditor.edit(data, password) { doc in
+            guard let acro = doc.catalog.dict("AcroForm") else { return }
+            acro.set("CO", doc.array(try ordered(doc, acro).map(\.dict)))
+        }
     }
 
     private static func javaScript(_ doc: MuDoc, _ js: String) -> PObj {
