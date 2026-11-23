@@ -87,7 +87,7 @@ extension DocumentWindowController {
             what = loc("replaced; {0} drawn in {1}, the closest font on this Mac (the paragraph's font lacks them).", chars(n.chars), n.fonts.joined(separator: ", "))
         case .wider:
             what = loc("replaced; text on one line doesn't wrap, and this line is {0} pt wider: check it doesn't run into what's beside it.",
-                       CoreLanguage.number(Int(n.wider.rounded())))
+                       CoreLanguage.number(Int(exactly: min(max(n.wider, 0), 1e6).rounded()) ?? 0))
         case .missing:
             what = loc("left as it was: no font on this Mac has {0}.", chars(n.chars))
         case .wouldOverlap:

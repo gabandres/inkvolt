@@ -49,7 +49,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: App commands (the start page, new PDFs, scanning, settings, help)
 
-    @objc func newWindow(_ sender: Any?) { StartWindowController.show() }
+    /// File › New Window: the start page, and the next document opened gets a window of its own (roadmap 4.9).
+    @objc func newWindow(_ sender: Any?) { WindowHub.shared.newWindow() }
+
+    /// The Dock icon's menu: New Window, as Windows' jump list has it.
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        let menu = NSMenu()
+        let title = DocumentCommands.command(action: "newWindow:")?.shownTitle ?? "New Window"
+        menu.addItem(NSMenuItem(title: title, action: #selector(newWindow(_:)), keyEquivalent: ""))
+        return menu
+    }
     @objc func newFromImages(_ sender: Any?) { NewDocuments.chooseImages() }
     @objc func newFromClipboard(_ sender: Any?) { NewDocuments.fromClipboard() }
     @objc func newFromOfficeFile(_ sender: Any?) { Converting.fromOfficeFile() }

@@ -26510,6 +26510,17 @@
           }
         }
       }
+    },
+    "Reflow": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redistribuir"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
