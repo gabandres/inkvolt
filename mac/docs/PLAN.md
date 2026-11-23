@@ -503,7 +503,7 @@ at under "What a person must look at" and in each section.
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
-| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels | PageLabelEditTests |
+| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs | PageLabelEditTests, InterleaveTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1661,7 +1661,15 @@ and undoes it.
   2, 3…" and a live preview; Use Plain Numbers is its third button, shown only when the document has labels (Windows
   disables its button instead). Mac difference, from before: the Mac shows labels in Go to Page only, not in a page box
   or the thumbnails, so What's New says Go to Page takes them.
-- Not checked by a person: the sheets by eye and with VoiceOver.
+- **4.3 Interleave Pages…** (Pages menu, the command bar's Organize) **and Scan the Backs…** (File menu, the bar's Scan &
+  OCR): `PageEditor.interleaveOrder`, `interleave`, `interleaveWith` (the backs grafted as Insert grafts pages, their
+  annotations copied, as the Mac's Insert does where PDFsharp's import brings them). Scan the Backs is the Scan window in
+  a backs mode: "Leave out blank pages" off and unavailable (a back left out would put every later back beside the
+  wrong front), not remembered as the scan choice, and a preset saved there keeps the remembered choice (Windows'
+  review fix); with "Make the text searchable", only the backs are read afterwards (the Mac reads scans after they
+  become pages; Windows reads them in its dialog). `AppTest` drives it with the demo scanner. The signed-file test uses
+  `IncrSignatureTests.signedForm(twoPages:)`, signed for real, so its status is verified as on Windows.
+- Not checked by a person: the sheets by eye and with VoiceOver; a real scanner's backs.
 
 ## Open decisions
 
@@ -1675,7 +1683,7 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.3, 4.4, 4.5, 4.7, 4.13), done on Windows. Until 4.4 is
+- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.4, 4.5, 4.7, 4.13), done on Windows. Until 4.4 is
   ported, a Batch preset with `removeBlankPages` or `splitAtBlankPages` is refused on the Mac as an unknown action.
 - Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
   `PunchHoles`), done on Windows.

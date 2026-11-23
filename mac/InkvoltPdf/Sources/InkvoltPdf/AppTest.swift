@@ -577,6 +577,27 @@ struct AppTest {
                   "Export to text with OCR: the scanned page recognized, its suspect word counted (“\(note.prefix(110))”)")
             c.window?.undoManager?.undo()
             _ = await wait(5) { document?.engine?.pageCount == 3 }
+
+            // File › Scan the Backs… (roadmap 4.3): one back from the glass, put after the first front; blank pages kept.
+            c.scanBacks(nil)
+            let backs = ScanWindowController.shared
+            let backsReady = await wait(5) { backs?.caps != nil && backs?.scanButton.isEnabled == true }
+            let backsTitled = backs?.window?.title == loc("Scan the Backs") && backs?.createButton.title == loc("Interleave Pages")
+                && backs?.placePopup.isHidden == true && backs?.backsReversed.isHidden == false && backs?.skipBlank.state == .off
+                && backs?.skipBlank.isEnabled == false
+            backs?.ocr.state = .off
+            backs?.scanButton.performClick(nil)
+            _ = await wait(1) { backs?.isScanning == true }
+            _ = await wait(20) { backs?.isScanning == false }
+            let backsScanned = backs?.pages.count ?? 0
+            backs?.createButton.performClick(nil)
+            let interleaved = await wait(10) { backs?.lastBacks != nil }
+            let backsLabel = document?.session?.undoLabel ?? ""
+            check(backsReady && backsTitled && backsScanned == 1 && interleaved && document?.engine?.pageCount == 4
+                  && backsLabel == loc("Interleave {0} scanned back", 1),
+                  "Scan the Backs: blank pages kept, 1 back scanned and put after its front (\(document?.engine?.pageCount ?? 0) pages, “\(backsLabel)”)")
+            c.window?.undoManager?.undo()
+            _ = await wait(5) { document?.engine?.pageCount == 3 }
             ScanWindowController.show()
             check(document?.engine?.pageCount == 3 && insert?.window?.title == loc("Scan") && insert?.createButton.title == loc("Create PDF"),
                   "undone; File › Scan… is a new PDF's scan again")

@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Interleave Pages… (Pages menu): two-sided sheets scanned one side at a time come back in order, front 1, back 1, front 2… The backs can be pages of the same file or another PDF, in reverse order (a stack turned over) or not. File › Scan the Backs… scans the backs straight into place.
 - Page Labels… (Pages menu): number pages i, ii, iii or I, II, A, B, a, b, 1, 2, 3, with a prefix (A-1) and a first number, for any range: a preface in Roman numerals and the body from 1 in one step. Go to Page takes them.
 
 ## 1.12.1

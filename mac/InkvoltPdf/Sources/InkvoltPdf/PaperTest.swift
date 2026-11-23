@@ -5,7 +5,8 @@ import PrintCore
 /// The self-test's scenario for Wave 4's paper commands (roadmap Batch A; `--edit`, on the synthetic text document;
 /// `--only-paper` runs it alone): each through the menu bar's item (enabled, its sheet's edit run as the sheet runs it)
 /// and the edit the sheet makes, checked on the document, then undone so the next starts from the document as opened.
-/// Page Labels (4.14). Only counts, labels and states are written.
+/// Page Labels (4.14), Interleave Pages (4.3; Scan the Backs in `AppTest`, with the demo scanner). Only counts, labels
+/// and states are written.
 @MainActor
 struct PaperTest {
     let controller: DocumentWindowController
@@ -65,6 +66,7 @@ struct PaperTest {
             return
         }
         await pageLabels()
+        await interleave()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         Report.note("paper commands took \(Int(Date().timeIntervalSince(started))) s")
@@ -86,5 +88,34 @@ struct PaperTest {
         let undoneAgain = await undo(n)
         check(menu && set && shown == expected && named && removed && plain && undone && back && undoneAgain && labels() == original,
               "Page Labels… (Pages menu): page 1 as i, the rest from 1 (\(shown.prefix(3).joined(separator: ", "))…), Use Plain Numbers, both undone")
+    }
+
+    /// Each page's text, to tell the pages apart after a reorder.
+    private func texts() -> [String] { (0..<count).map { (try? controller.engine.text($0))?.text ?? "" } }
+
+    /// Interleave Pages…: the first half as fronts, the second as backs in reverse order; then this document's pages as the
+    /// fronts of a copy of itself (the backs from another PDF). Each undone.
+    private mutating func interleave() async {
+        let n = count
+        let before = texts()
+        let menu = offered("Interleave Pages…", "interleavePages:") && offered("Scan the Backs…", "scanBacks:")
+        let half = (n + 1) / 2
+        let fronts = Array(0..<half), backs = Array(half..<n)
+        let order = (try? PageEditor.interleaveOrder(n, fronts, backs, reverseBacks: true)) ?? []
+        let done = await controller.interleave(fronts: fronts, backs: backs, reversed: true)
+        let after = texts()
+        let named = session?.undoLabel == loc("Interleave pages")
+        let undone = await undo(n)
+        check(menu && done && named && order.count == n && after == order.map { before[$0] } && undone && texts() == before,
+              "Interleave Pages… (Pages menu, Scan the Backs… in File): \(fronts.count) fronts and \(backs.count) backs reversed, in the order \(order), undone")
+
+        guard let s = session else { return }
+        let copy = PdfSource(s.data, s.password, "backs.pdf")
+        let with = await controller.interleaveWith(copy, reversed: false, label: loc("Interleave pages"))
+        let doubled = texts()
+        let pairs = doubled.count == 2 * n && (0..<n).allSatisfy { doubled[2 * $0] == before[$0] && doubled[2 * $0 + 1] == before[$0] }
+        let undoneWith = await undo(n)
+        check(with && pairs && undoneWith && texts() == before,
+              "Interleave Pages… with another PDF: \(n) fronts and \(n) backs, each back after its front (\(doubled.count) pages), undone")
     }
 }

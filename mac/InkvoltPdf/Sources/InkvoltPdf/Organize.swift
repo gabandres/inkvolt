@@ -63,7 +63,9 @@ extension DocumentWindowController {
         let entries: [(String, Selector)] = [
             (loc("Rotate Left"), #selector(rotatePagesLeft(_:))), (loc("Rotate Right"), #selector(rotatePagesRight(_:))), ("", Selector(("separator"))),
             (loc("Duplicate"), #selector(duplicatePages(_:))), (loc("Extract Pages…"), #selector(extractPages(_:))),
-            (loc("Crop Pages…"), #selector(cropPages(_:))), (loc("Page Labels…"), #selector(editPageLabels(_:))), ("", Selector(("separator"))),
+            (loc("Crop Pages…"), #selector(cropPages(_:))), ("", Selector(("separator"))),
+            (loc("Interleave Pages…"), #selector(interleavePages(_:))), (loc("Page Labels…"), #selector(editPageLabels(_:))),
+            ("", Selector(("separator"))),
             (loc("Insert Pages from File…"), #selector(insertPagesFromFile(_:))), (loc("Insert Blank Page"), #selector(insertBlankPage(_:))),
             ("", Selector(("separator"))), (loc("Delete"), #selector(deletePages(_:))),
         ]

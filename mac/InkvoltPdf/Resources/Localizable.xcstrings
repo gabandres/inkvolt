@@ -22308,6 +22308,237 @@
           }
         }
       }
+    },
+    "Pages of this document": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En páginas de este documento"
+          }
+        }
+      }
+    },
+    "In another PDF (this document has the fronts)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En otro PDF (este documento tiene los anversos)"
+          }
+        }
+      }
+    },
+    "The backs are": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos están"
+          }
+        }
+      }
+    },
+    "The backs are:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos están:"
+          }
+        }
+      }
+    },
+    "Fronts (pages)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos (páginas)"
+          }
+        }
+      }
+    },
+    "Backs (pages)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversos (páginas)"
+          }
+        }
+      }
+    },
+    "Fronts (pages):": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos (páginas):"
+          }
+        }
+      }
+    },
+    "Backs (pages):": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversos (páginas):"
+          }
+        }
+      }
+    },
+    "The backs are in reverse order (the stack was turned over to scan them)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos están en orden inverso (se le dio la vuelta a la pila para escanearlos)"
+          }
+        }
+      }
+    },
+    "For two-sided sheets scanned one side at a time: the fronts, then the backs. The pages become front 1, back 1, front 2, back 2, and so on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para hojas a doble cara escaneadas primero por un lado y luego por el otro: los anversos y después los reversos. Las páginas quedan anverso 1, reverso 1, anverso 2, reverso 2, y así sucesivamente."
+          }
+        }
+      }
+    },
+    "Interleave Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar páginas"
+          }
+        }
+      }
+    },
+    "Interleave": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar"
+          }
+        }
+      }
+    },
+    "Choose the PDF with the backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el PDF con los reversos"
+          }
+        }
+      }
+    },
+    "The two sides don't match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las dos caras no coinciden"
+          }
+        }
+      }
+    },
+    "There are {0} fronts and {1} backs. The pages left over go after the others.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay {0} anversos y {1} reversos. Las páginas que sobran van después de las demás."
+          }
+        }
+      }
+    },
+    "Interleave Anyway": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar de todos modos"
+          }
+        }
+      }
+    },
+    "Interleave pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar páginas"
+          }
+        }
+      }
+    },
+    "Scan the Backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear los reversos"
+          }
+        }
+      }
+    },
+    "Put the stack in again to scan the backs of this document's pages. Each back goes after its front. Blank backs are kept, so each lands next to its front.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a poner la pila para escanear los reversos de las páginas de este documento. Cada reverso va después de su anverso. Los reversos en blanco se conservan para que cada uno quede junto a su anverso."
+          }
+        }
+      }
+    },
+    "Interleave {0} scanned back": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar {0} reverso escaneado"
+          }
+        }
+      }
+    },
+    "Interleave {0} scanned backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar {0} reversos escaneados"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -26114,6 +26114,72 @@
           }
         }
       }
+    },
+    "Choose pages for both the fronts and the backs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige páginas para los anversos y para los reversos."
+          }
+        }
+      }
+    },
+    "A page can't be both a front and a back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página no puede ser anverso y reverso a la vez."
+          }
+        }
+      }
+    },
+    "Interleave Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar páginas…"
+          }
+        }
+      }
+    },
+    "Scan the Backs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear los reversos…"
+          }
+        }
+      }
+    },
+    "Fronts and backs scanned apart, in order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos y reversos escaneados aparte, en orden"
+          }
+        }
+      }
+    },
+    "Scan the backs, put after their fronts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanea los reversos y ponlos tras sus anversos"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

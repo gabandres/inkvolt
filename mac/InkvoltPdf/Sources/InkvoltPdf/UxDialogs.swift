@@ -155,6 +155,8 @@ extension UxShots {
         await dialog(Step.more("header-footer", look), audits: audits, send(NSSelectorFromString("addHeaderFooter:")))
         await dialog(Step.more("watermark", look), audits: audits, send(NSSelectorFromString("addWatermark:")))
         await one("crop", NSSelectorFromString("cropPages:"))
+        await one("interleave", NSSelectorFromString("interleavePages:"))
+        await one("page-labels", NSSelectorFromString("editPageLabels:"))
         await one("extract", NSSelectorFromString("extractPages:"))
         await dialog(Step.more("split", look), audits: audits, send(NSSelectorFromString("splitDocument:")))
         await dialog(Step.more("redact-pattern", look), audits: audits, send(NSSelectorFromString("redactByPattern:")))
