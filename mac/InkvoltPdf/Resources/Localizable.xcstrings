@@ -23056,6 +23056,160 @@
           }
         }
       }
+    },
+    "Custom size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamaño personalizado"
+          }
+        }
+      }
+    },
+    "Units": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unidades"
+          }
+        }
+      }
+    },
+    "Height": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alto"
+          }
+        }
+      }
+    },
+    "Scale it to fit the paper": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustarlo al papel"
+          }
+        }
+      }
+    },
+    "Keep its size and add margins (shrunk only if it doesn't fit)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantener su tamaño y agregar márgenes (se reduce solo si no cabe)"
+          }
+        }
+      }
+    },
+    "The content": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El contenido"
+          }
+        }
+      }
+    },
+    "The content:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El contenido:"
+          }
+        }
+      }
+    },
+    "A page that shows landscape gets the paper sideways. Comments and form fields move with the content.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página horizontal recibe el papel de lado. Los comentarios y los campos de formulario se mueven con el contenido."
+          }
+        }
+      }
+    },
+    "Width:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ancho:"
+          }
+        }
+      }
+    },
+    "Height:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alto:"
+          }
+        }
+      }
+    },
+    "Resize Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de las páginas"
+          }
+        }
+      }
+    },
+    "Enter a width and a height between 1 and 200 inches (25 and 5080 mm).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un ancho y un alto entre 1 y 200 pulgadas (25 y 5080 mm)."
+          }
+        }
+      }
+    },
+    "Resize 1 page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de 1 página"
+          }
+        }
+      }
+    },
+    "Resize {0} pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de {0} páginas"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

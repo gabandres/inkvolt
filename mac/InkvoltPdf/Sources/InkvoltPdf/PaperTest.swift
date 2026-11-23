@@ -6,7 +6,7 @@ import PrintCore
 /// `--only-paper` runs it alone): each through the menu bar's item (enabled, its sheet's edit run as the sheet runs it)
 /// and the edit the sheet makes, checked on the document, then undone so the next starts from the document as opened.
 /// Page Labels (4.14), Interleave Pages (4.3; Scan the Backs in `AppTest`, with the demo scanner), Remove Blank Pages and
-/// Split at Blank Pages (4.4), Bookmarks from Headings (4.5). Only counts, labels and states are written.
+/// Split at Blank Pages (4.4), Bookmarks from Headings (4.5), Resize Pages (4.7). Only counts, labels and states are written.
 @MainActor
 struct PaperTest {
     let controller: DocumentWindowController
@@ -69,6 +69,7 @@ struct PaperTest {
         await interleave()
         await blankPages()
         await headings()
+        await resize()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         Report.note("paper commands took \(Int(Date().timeIntervalSince(started))) s")
@@ -172,5 +173,28 @@ struct PaperTest {
         let undone = await undo(n)
         check(menu && made && named && after == found.headings.count && undone && bookmarkCount() == before,
               "Bookmarks from Headings… (Pages menu): \(found.headings.count) headings made the bookmarks (\(before) before), undone")
+    }
+
+    /// Resize Pages…: every page on A4, the content scaled; each page A4 (sideways when it shows landscape), its text kept;
+    /// undone.
+    private mutating func resize() async {
+        let n = count
+        let menu = offered("Resize Pages…", "resizePages:")
+        let before = texts()
+        let a4 = Self.paperSizesA4
+        let done = await controller.resize(Array(0..<n), width: a4.width, height: a4.height, fit: .scale)
+        let sizes = (0..<n).map { (controller.engine.page($0).width.rounded(), controller.engine.page($0).height.rounded()) }
+        let onA4 = sizes.allSatisfy { ($0 == (a4.width, a4.height)) || ($0 == (a4.height, a4.width)) }
+        let named = session?.undoLabel == (n == 1 ? loc("Resize 1 page") : loc("Resize {0} pages", CoreLanguage.number(n)))
+        let sameText = texts().map { $0.filter { !$0.isWhitespace } } == before.map { $0.filter { !$0.isWhitespace } }
+        let undone = await undo(n)
+        check(menu && done && onA4 && named && sameText && undone && texts() == before,
+              "Resize Pages… (Pages menu): \(n) pages on A4, the content scaled (\(sizes.map { "\(Int($0.0))×\(Int($0.1))" }.joined(separator: ", "))), text kept, undone")
+    }
+
+    /// A4 from Resize Pages' list.
+    private static var paperSizesA4: (width: Double, height: Double) {
+        let a4 = DocumentWindowController.paperSizes.first { $0.name.hasPrefix("A4") }
+        return (a4?.width ?? 595, a4?.height ?? 842)
     }
 }

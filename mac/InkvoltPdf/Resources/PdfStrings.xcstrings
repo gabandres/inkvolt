@@ -26334,6 +26334,50 @@
           }
         }
       }
+    },
+    "A side of the paper must be between {0} and {1} inches.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un lado del papel debe medir entre {0} y {1} pulgadas."
+          }
+        }
+      }
+    },
+    "Page {0} has a size in the file that can't be right, so no page was resized.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página {0} tiene en el archivo un tamaño que no puede ser correcto, así que no se cambió el tamaño de ninguna página."
+          }
+        }
+      }
+    },
+    "Resize Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de las páginas…"
+          }
+        }
+      }
+    },
+    "Put pages on Letter, A4 or any size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon las páginas en Carta, A4 u otro tamaño"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

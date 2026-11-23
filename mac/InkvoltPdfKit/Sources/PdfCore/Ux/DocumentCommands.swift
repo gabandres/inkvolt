@@ -373,6 +373,7 @@ public enum DocumentCommands {
         c("Interleave Pages…", "interleavePages:", needs: [.pages]),
         c("Remove Blank Pages…", "removeBlankPages:", needs: [.pages] + longTask),
         c("Split at Blank Pages…", "splitAtBlankPages:", needs: [.pages] + longTask),
+        c("Resize Pages…", "resizePages:", needs: [.pages]),
         c("Page Labels…", "editPageLabels:"),
         sep,
         c("Add Header & Footer…", "addHeaderFooter:", needs: longTask),

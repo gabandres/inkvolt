@@ -156,6 +156,7 @@ extension UxShots {
         await dialog(Step.more("watermark", look), audits: audits, send(NSSelectorFromString("addWatermark:")))
         await one("crop", NSSelectorFromString("cropPages:"))
         await one("interleave", NSSelectorFromString("interleavePages:"))
+        await one("resize", NSSelectorFromString("resizePages:"))
         await one("page-labels", NSSelectorFromString("editPageLabels:"))
         await one("extract", NSSelectorFromString("extractPages:"))
         await dialog(Step.more("split", look), audits: audits, send(NSSelectorFromString("splitDocument:")))
