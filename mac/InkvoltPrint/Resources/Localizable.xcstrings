@@ -1220,6 +1220,16 @@
         }
       }
     },
+    "Any phone's camera takes each page, through its browser over this Wi-Fi: scan the code this Mac shows, and each photo is made a flat page at these settings (or a preset's, from the menu)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La cámara de cualquier teléfono toma cada página, desde su navegador por esta red Wi-Fi: escanea el código que muestra este Mac, y cada foto se convierte en una página plana con estos ajustes (o los de un ajuste predefinido, desde el menú)"
+          }
+        }
+      }
+    },
     "As": {
       "localizations": {
         "es": {
@@ -1586,6 +1596,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Capturando páginas con la cámara: Capturar página en su ventana y luego Listo."
+          }
+        }
+      }
+    },
+    "Certificate %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Certificado %@"
           }
         }
       }
@@ -4054,6 +4074,16 @@
         }
       }
     },
+    "Or open this address on the phone:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O abre esta dirección en el teléfono:"
+          }
+        }
+      }
+    },
     "Other Side": {
       "localizations": {
         "es": {
@@ -4256,6 +4286,16 @@
         }
       }
     },
+    "Phone": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Teléfono"
+          }
+        }
+      }
+    },
     "Photos": {
       "localizations": {
         "es": {
@@ -4312,6 +4352,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conéctala y enciéndela; luego agrégala en Impresoras y escáneres de Configuración del Sistema."
+          }
+        }
+      }
+    },
+    "Point your phone's camera at the code, then open the link it shows. Your phone must be on the same Wi-Fi as this Mac.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apunta la cámara de tu teléfono al código y abre el enlace que muestra. Tu teléfono debe estar en la misma red Wi-Fi que este Mac."
           }
         }
       }
@@ -4602,6 +4652,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pone la segunda mitad debajo, a la izquierda, encima o a la derecha de la primera"
+          }
+        }
+      }
+    },
+    "QR code of the scan's address": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Código QR de la dirección del escaneo"
           }
         }
       }
@@ -5334,6 +5394,26 @@
         }
       }
     },
+    "Scan with Your Phone": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con tu teléfono"
+          }
+        }
+      }
+    },
+    "Scan with Your Phone — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con tu teléfono — Demo"
+          }
+        }
+      }
+    },
     "Scan with a Camera": {
       "localizations": {
         "es": {
@@ -5410,6 +5490,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escaneando los reversos…"
+          }
+        }
+      }
+    },
+    "Scanning with your phone: take a photo of each page on it, then Done.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneando con tu teléfono: toma en él una foto de cada página y luego toca Terminar."
           }
         }
       }
@@ -6236,6 +6326,16 @@
         }
       }
     },
+    "The phone's browser warns about this certificate the first time: this Mac made it for the scan. Its fingerprint begins like this.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El navegador del teléfono avisa de este certificado la primera vez: este Mac lo creó para el escaneo. Su huella digital empieza así."
+          }
+        }
+      }
+    },
     "The photos couldn't be sent to %@: %@": {
       "localizations": {
         "en": {
@@ -7016,6 +7116,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Usar esta carpeta"
+          }
+        }
+      }
+    },
+    "Use Your Phone…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar tu teléfono…"
           }
         }
       }

@@ -339,6 +339,34 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   still frame. Not checked: a real camera's picture and a page captured through the window (the build Mac is used over
   SSH, so the camera permission's alert and the live picture need a person), a document camera, an iPhone as Continuity
   Camera, VoiceOver on the window.
+- **4.6 Phone as a scanner.** PrintCore `Capture/`: `PhoneSession` (the token, pairing, the cookie bound to the phone's
+  address, photos bounded and checked before they're decoded, into a `PhotoChannel`), `PhonePage` (Windows' page and script),
+  `PhoneScan` (`open`, `statusText`, the address and URL), `PhonePeers` and `PhoneConnections` (scanner sharing's rules and
+  limits), `PhoneHttp` (HTTP/1.1 over a connection whose TLS is done: Kestrel's limits, read as hostile input),
+  `PhoneCertificateDer` (the self-signed X.509 for an ECDSA P-256 key, .NET's `CertificateRequest` output, through SNMP's BER
+  encoder). PrintMac `NetworkPhoneHost` (Network framework's TLS listener on 9781, `acceptLocalOnly`; refused devices
+  cancelled before TLS), `PhoneCertificateKeychain` (the key and certificate in the app's keychain, made anew 30 days before
+  the end), `KeychainFile` (a keychain file of its own for a run), `SystemPhoneNetworks`, `PhoneQrCode` (CoreImage's
+  generator), `LoopbackPhone` (a phone on this Mac, for checks). The app: Use Your Phone… beside Use a Camera… (its menu: with
+  a preset), the phone window (`PhoneWindow`: the code, the address, the certificate's first bytes, the phone's state, Done;
+  closing it ends the scan), `ScanModel.scanWithPhone` through the camera's `CaptureScan`; `--report … --demo --phone`.
+  Tests: `PhoneScanTests` (all of PhoneScanTests.cs, PC) and `PhoneServerTests` (over HTTPS on loopback, Mac).
+  **Mac differences:** macOS has no Private/Public network setting, so a served network is an Ethernet or Wi-Fi IPv4 one
+  (Search my network's interfaces: no VPN tunnel, bridge or AirDrop) whose address is private (RFC 1918) with a /8 to /30
+  subnet; IPv6 devices aren't served (the code holds the IPv4 address) and the "set it to Private" advice is "join your
+  home or office network". Network framework serves TLS, PrintCore speaks HTTP/1.1 itself (no Kestrel): a body sent with a
+  transfer coding is refused (411; the page's `fetch` always gives a length). The certificate is the phone scan's own
+  ("Inkvolt Print phone scan"; Windows' is scanner sharing's, which the Mac doesn't have), in the sandboxed app's keychain;
+  demo mode and the tests make theirs in a keychain file of their own in a temporary folder (never the login keychain or the
+  search list), deleted after (owner's decision, 2026-11-23). The port is open only while the window is; a refused device's
+  connection is cut before TLS, and checked again once it's up for the address of this Mac it reached. macOS's firewall:
+  off by default; when on, "Automatically allow downloaded signed software" (on by default, and on on the build Mac) lets
+  the signed app listen with no question; with that off, macOS asks once "Do you want the application "Inkvolt Print.app"
+  to accept incoming network connections?", and Deny leaves the phone unable to reach the page (it says the Mac can't be
+  reached). Listening and accepting don't need Local Network access (TN3179). Not checked: a real phone on Wi-Fi (Safari
+  past the certificate warning, several pages, Done; an Android phone's Chrome), the app's own keychain on a user's Mac
+  (the build Mac's account isn't touched: only keychain files of the test's own), the firewall's question with automatic
+  allowing off, VoiceOver on the window.
 
 ## Mac differences
 
@@ -2035,9 +2063,6 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   to list and join networks, which needs location access and a check of what the sandbox allows).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
-- Inkvolt Print Wave 4 (`print/ROADMAP.md`), done on Windows: 4.6 phone as a scanner (`Core/Capture`: `PhoneSession`,
-  `PhonePage`, `PhotoPage`, `CaptureScanner` and `PhoneScanTests`; on the Mac the server would be Network.framework's with
-  scanner sharing's rules, and the firewall asks there too).
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).

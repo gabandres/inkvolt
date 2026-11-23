@@ -15,6 +15,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Scan straight to Word or text: a scan preset saves the text read from the pages as a Word document (.docx), headings and paragraphs ready to edit and photos as pictures, or as a plain text file (.txt).
 - Print log: Window › Print Log lists every job this Mac printed, from macOS's own list of finished jobs, with each month's pages per printer and per person. Kept on this Mac only, for 13 months; turn it off or clear it there. Export… saves it as CSV (an Inkvolt Pro feature).
 - Scan with a camera: Use a Camera… beside Scan opens your webcam's, document camera's or iPhone's live picture; each Capture Page (or Space) takes the page in view, found on the desk, straightened flat and sized as its paper, into the review with the scan settings or a scan preset's.
+- Scan with your phone: Use Your Phone… beside Use a Camera… shows a code; point any phone's camera at it, open the page it shows (its browser warns once about the Mac's own certificate), and take a photo of each page. They come straight into the review, found on the table, straightened flat and sized as their paper. Only the first phone to open the page can send, over your own Wi-Fi only, and only while the window is open.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

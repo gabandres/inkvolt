@@ -171,9 +171,11 @@ final class ScanModel {
 
     /// One click: the preset matched to this scanner (said in the status line where it had to give), scanned, and saved
     /// by itself unless the preset stops on the pages for a review.
-    func scan(with p: ScanPreset, camera: Bool = false) async {
+    func scan(with p: ScanPreset, from origin: CaptureSource? = nil) async {
+        let camera = origin != nil // a camera's or a phone's photos: the same capture settings
         if caps == nil && !camera { await load() }
-        guard let caps = camera ? CaptureScanner.capabilities(String(localized: "Camera")) : caps, !isScanning else { return }
+        guard let caps = camera ? CaptureScanner.capabilities(origin == .phone ? String(localized: "Phone") : String(localized: "Camera")) : caps,
+              !isScanning else { return }
         let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric,
                                    turnsStacks: !camera)
         if !camera { // a camera's scan leaves the scanner's settings as they are
@@ -190,7 +192,12 @@ final class ScanModel {
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
                               findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage,
                               upright: p.turnUpright, oneBit: plan.oneBit, drop: DropColor.parse(p.dropColor) ?? .red)
-        let capture = camera ? cameraCapture(ScanRequest(source: .platen, color: plan.request.color, resolution: plan.request.resolution)) : nil
+        let captured = ScanRequest(source: .platen, color: plan.request.color, resolution: plan.request.resolution)
+        let capture: CaptureScan? = switch origin {
+        case .camera?: cameraCapture(captured)
+        case .phone?: await phoneCapture(captured)
+        case nil: nil
+        }
         if camera && capture == nil { return }
         scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack, capture: capture) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
@@ -411,7 +418,7 @@ final class ScanModel {
     func scanWithCamera(_ preset: ScanPreset? = nil) {
         guard !isScanning else { return }
         if let preset {
-            Task { await scan(with: preset, camera: true) }
+            Task { await scan(with: preset, from: .camera) }
             return
         }
         guard let capture = cameraCapture(ScanRequest(source: .platen, color: color, resolution: PhotoPage.captureResolution(dpi))) else { return }
@@ -427,6 +434,64 @@ final class ScanModel {
         return CaptureScan(device: device, request: request, status: String(localized: "Capturing pages with the camera: Capture Page in its window, then Done.")) {
             session.finish()
             CameraWindow.close()
+        }
+    }
+
+    enum CaptureSource { case camera, phone }
+
+    /// A phone scan being opened (its server starting): another click waits for it.
+    private(set) var openingPhone = false
+
+    /// Use Your Phone (roadmap 4.6): a QR code in a window of its own opens a page this Mac serves on the private network
+    /// while the scan is open; each photo the phone sends is made a flat page, at the settings here (`preset` nil) or the
+    /// preset's, until the phone's Done, the window's Done or the window closes. Why it can't open is said as the scan's
+    /// problem.
+    func scanWithPhone(_ preset: ScanPreset? = nil) {
+        guard !isScanning, !openingPhone else { return }
+        openingPhone = true
+        Task {
+            defer { openingPhone = false }
+            if let preset {
+                await scan(with: preset, from: .phone)
+                return
+            }
+            guard let capture = await phoneCapture(ScanRequest(source: .platen, color: color, resolution: dpi)) else { return }
+            scan(capture: capture)
+        }
+    }
+
+    /// The phone scan opened (its server started, its window shown), and the scan's capture source over it; nil, with the
+    /// problem said, when it couldn't open. Demo mode serves 127.0.0.1 only, with a certificate made for the run in a
+    /// keychain file of its own.
+    private func phoneCapture(_ request: ScanRequest) async -> CaptureScan? {
+        problem = nil
+        let runKeychain: KeychainFile? = app.isDemo ? try? KeychainFile() : nil
+        let env: PhoneEnvironment
+        if let runKeychain {
+            env = .thisMacOnly(NetworkPhoneHost(), certificates: PhoneCertificateKeychain(keychain: runKeychain.keychain))
+        } else if app.isDemo {
+            problem = loc("Scanning with your phone couldn't start. Try again; if it still doesn't start, restart Inkvolt Print.")
+            return nil
+        } else {
+            env = PhoneEnvironment(host: NetworkPhoneHost(), networks: SystemPhoneNetworks(), certificates: PhoneCertificateKeychain())
+        }
+        let macName = Host.current().localizedName ?? "Mac"
+        let opening = await PhoneScan.open(env, macName: macName)
+        guard let link = opening.link else {
+            runKeychain?.delete()
+            problem = opening.problem
+            return nil
+        }
+        PhoneWindow.show(link, demo: app.isDemo)
+        let request = ScanRequest(source: .platen, color: request.color, resolution: PhotoPage.captureResolution(request.resolution))
+        let device = CaptureScanner(link.session.photos, codec: ImageIOPhotoCodec(), name: String(localized: "Phone"))
+        return CaptureScan(device: device, request: request,
+                           status: String(localized: "Scanning with your phone: take a photo of each page on it, then Done.")) {
+            PhoneWindow.close()
+            Task {
+                await link.close() // the port closes
+                runKeychain?.delete()
+            }
         }
     }
 

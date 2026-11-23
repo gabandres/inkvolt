@@ -199,4 +199,367 @@ struct PhoneScanTests {
         #expect(none.isEmpty)
         #expect(CaptureScanner.capabilities("Phone").platen?.resolutions == PhotoPage.resolutions)
     }
+
+    // ---------------------------------------------------------------- the phone session
+
+    private static let phone = "192.0.2.20", other = "192.0.2.21"
+
+    /// Counts the bodies read.
+    private final class Reads: @unchecked Sendable {
+        private let lock = NSLock()
+        private var n = 0
+        func bump() { lock.withLock { n += 1 } }
+        var count: Int { lock.withLock { n } }
+    }
+
+    private static func ask(_ s: PhoneSession, _ method: String, _ path: String, peer: String = phone, cookie: String? = nil, fromPage: Bool = true,
+                            body: [UInt8] = [], reads: Reads? = nil) async -> PhoneReply {
+        await s.handle(PhoneRequest(method, path, peer: peer, cookie: cookie, fromPage: fromPage)) { max in
+            reads?.bump()
+            return body.count > max ? nil : body
+        }
+    }
+
+    private static func cookie(of reply: PhoneReply) -> String {
+        String(reply.setCookie!.split(separator: ";")[0].split(separator: "=", maxSplits: 1)[1])
+    }
+
+    private static func text(_ reply: PhoneReply) -> String { String(decoding: reply.body ?? [], as: UTF8.self) }
+
+    @Test func onlyTheTokenReachesThePageAndNothingElseIsThere() async {
+        let s = PhoneSession("<OFFICE-MAC>")
+        #expect(s.token.count == 43)
+        #expect(s.token != PhoneSession("x").token)
+        let page = await Self.ask(s, "GET", s.pagePath, fromPage: false)
+        #expect(page.status == 200)
+        let html = Self.text(page)
+        #expect(html.contains("&lt;OFFICE-MAC&gt;"))
+        #expect(!html.contains("<OFFICE-MAC>"))
+        #expect(html.contains("capture=\"environment\""))
+        let csp = page.contentSecurityPolicy ?? ""
+        let nonce = csp.components(separatedBy: "'nonce-")[1].components(separatedBy: "'")[0]
+        #expect(html.contains("<script nonce=\"\(nonce)\">"))
+        #expect(csp.contains("default-src 'none'"))
+        let again = await Self.ask(s, "GET", s.pagePath).contentSecurityPolicy ?? ""
+        #expect(nonce != again.components(separatedBy: "'nonce-")[1].components(separatedBy: "'")[0])
+
+        let paths = ["/", "/p/", "/p", "/p/" + String(s.token.dropLast()), "/p/" + s.token + "x", "/p/" + s.token.uppercased(), s.pagePath + "/other",
+                     s.pagePath + "/../", "/favicon.ico", "/p/" + String(repeating: "a", count: 500)]
+        for path in paths { #expect(await Self.ask(s, "GET", path).status == 404, "\(path)") }
+        #expect(await Self.ask(s, "POST", s.pagePath).status == 405)
+        #expect(await Self.ask(s, "GET", s.pagePath + "/photo").status == 405)
+        #expect(s.state == .waiting)
+    }
+
+    @Test func theFirstPhoneToPairIsTheOnlyOneThatCanSend() async {
+        let s = PhoneSession("Mac")
+        // Not the page's script (a form from elsewhere): refused, and nothing paired.
+        #expect(await Self.ask(s, "POST", s.pagePath + "/pair", fromPage: false).status == 403)
+        let paired = await Self.ask(s, "POST", s.pagePath + "/pair")
+        #expect(paired.status == 200)
+        let set = paired.setCookie ?? ""
+        #expect(set.contains("HttpOnly") && set.contains("Secure") && set.contains("SameSite=Strict") && set.contains("Path=\(s.pagePath)"))
+        let cookie = Self.cookie(of: paired)
+        #expect(s.state == .paired)
+
+        // Another device that scanned the same code: told it's used, can't send; nor can the phone's cookie from another address.
+        #expect(await Self.ask(s, "POST", s.pagePath + "/pair", peer: Self.other).status == 403)
+        let reads = Reads()
+        let photo = Self.jpegHeader(800, 600)
+        let wrong = String(cookie.dropLast()) + (cookie.last == "A" ? "B" : "A")
+        #expect(await Self.ask(s, "POST", s.pagePath + "/photo", peer: Self.other, cookie: cookie, body: photo, reads: reads).status == 403)
+        #expect(await Self.ask(s, "POST", s.pagePath + "/photo", cookie: wrong, body: photo, reads: reads).status == 403)
+        #expect(await Self.ask(s, "POST", s.pagePath + "/photo", cookie: nil, body: photo, reads: reads).status == 403)
+        #expect(await Self.ask(s, "POST", s.pagePath + "/photo", cookie: cookie, fromPage: false, body: photo, reads: reads).status == 403)
+        #expect(await Self.ask(s, "POST", s.pagePath + "/done", peer: Self.other, cookie: cookie).status == 403)
+        #expect(reads.count == 0) // none of their bodies was read
+        #expect(s.received == 0)
+
+        // The phone pairs again on a reload, and sends.
+        #expect(await Self.ask(s, "POST", s.pagePath + "/pair", cookie: cookie).status == 200)
+        let sent = await Self.ask(s, "POST", s.pagePath + "/photo", cookie: cookie, body: photo)
+        #expect(sent.status == 200)
+        #expect(Self.text(sent).contains("\"pages\":1"))
+        #expect(s.photos.tryRead()?.data == photo)
+    }
+
+    @Test func photosAreBoundedInSizeKindAndCountAndDoneEndsTheScan() async {
+        let s = PhoneSession("Mac", limits: PhoneLimits(maxPhotos: 2, maxPhotoBytes: 1000, waiting: 4))
+        let cookie = Self.cookie(of: await Self.ask(s, "POST", s.pagePath + "/pair"))
+        func send(_ body: [UInt8]) async -> Int { await Self.ask(s, "POST", s.pagePath + "/photo", cookie: cookie, body: body).status }
+        #expect(await send(Self.jpegHeader(800, 600) + [UInt8](repeating: 0, count: 1000)) == 413)
+        #expect(await send(Array("<html>not a photo</html>..........".utf8)) == 415)
+        #expect(await send(Self.jpegHeader(20_000, 600)) == 415)
+        #expect(await send(Self.jpegHeader(800, 600)) == 200)
+        #expect(await send(Self.pngHeader(600, 800)) == 200)
+        #expect(await send(Self.jpegHeader(800, 600)) == 429)
+        #expect(s.received == 2)
+
+        let changed = Reads()
+        s.onChange { changed.bump() }
+        let done = await Self.ask(s, "POST", s.pagePath + "/done", cookie: cookie)
+        #expect(done.status == 200)
+        #expect(s.state == .finished)
+        #expect(changed.count == 1)
+        // The photos sent before Done are still read, then the scan ends.
+        var left = 0
+        while await s.photos.read() != nil { left += 1 }
+        #expect(left == 2)
+        #expect(await Self.ask(s, "POST", s.pagePath + "/pair", cookie: cookie).status == 410)
+    }
+
+    @Test func endingTheScanOnTheMacRefusesWhatThePhoneSendsNext() async {
+        let s = PhoneSession("Mac")
+        let cookie = Self.cookie(of: await Self.ask(s, "POST", s.pagePath + "/pair"))
+        s.finish()
+        s.finish()
+        #expect(await Self.ask(s, "POST", s.pagePath + "/photo", cookie: cookie, body: Self.jpegHeader(800, 600)).status == 410)
+        #expect(s.photos.isFinished)
+        // A code no phone paired with, once ended, pairs nobody.
+        let unpaired = PhoneSession("Mac")
+        unpaired.finish()
+        #expect(await Self.ask(unpaired, "POST", unpaired.pagePath + "/pair").status == 410)
+    }
+
+    @Test func theMacSaysWhereThePhoneStands() {
+        #expect(PhoneScan.statusText(.waiting, 0) == "Waiting for your phone: point its camera at the code and open the link it shows.")
+        #expect(PhoneScan.statusText(.paired, 0) == "Phone connected. Take a photo of each page; tap Done on the phone, or Done here, when you've finished.")
+        #expect(PhoneScan.statusText(.paired, 1) == "Phone connected: 1 page in. Tap Done on the phone, or Done here, when you've finished.")
+        #expect(PhoneScan.statusText(.paired, 3) == "Phone connected: 3 pages in. Tap Done on the phone, or Done here, when you've finished.")
+        #expect(PhoneScan.statusText(.finished, 0) == "Done: 0 pages came from the phone.")
+    }
+
+    /// Adapted: macOS has no Private/Public network setting, so a served network is a private (RFC 1918) IPv4 one with a
+    /// real subnet; the address is the first macOS lists (Ethernet and Wi-Fi first).
+    @Test func theAddressIsThePrivateNetworksIPv4One() {
+        let all = [LocalNetwork("203.0.113.5", 24), LocalNetwork("10.0.0.4", 24), LocalNetwork("192.168.1.30", 24), LocalNetwork("10.9.9.9", 32)]
+        let served = PhonePeers.served(all)
+        #expect(served.map(\.address) == ["10.0.0.4", "192.168.1.30"])
+        #expect(PhoneScan.address(for: served) == "10.0.0.4")
+        #expect(PhoneScan.address(for: []) == nil)
+        let s = PhoneSession("Mac")
+        #expect(PhoneScan.url("10.0.0.4", PhoneScan.defaultPort, s) == "https://10.0.0.4:9781/p/\(s.token)")
+    }
+
+    // ---------------------------------------------------------------- opening a scan
+
+    private struct FakeNetworks: PhoneNetworks {
+        let networks: [LocalNetwork]
+        func read() -> [LocalNetwork] { networks }
+    }
+
+    private struct FakeCertificate: PhoneCertificate {
+        var fingerprint: String { "AB:CD" }
+    }
+
+    private struct FakeCertificates: PhoneCertificates {
+        func get(hostName: String, now: Date) throws -> any PhoneCertificate { FakeCertificate() }
+    }
+
+    /// A host whose listener can't say its port, and says whether it was closed.
+    private final class BrokenHost: PhoneHost, @unchecked Sendable {
+        private let lock = NSLock()
+        private var wasClosed = false
+        var closed: Bool { lock.withLock { wasClosed } }
+
+        func start(_ listen: PhoneListen) async throws -> any PhoneListener { Listener(host: self) }
+
+        func close() { lock.withLock { wasClosed = true } }
+
+        struct Listener: PhoneListener {
+            let host: BrokenHost
+            var port: Int? { nil }
+            func close() async { host.close() }
+        }
+    }
+
+    /// A host that starts on the port asked, or says it's taken.
+    private struct TakenHost: PhoneHost {
+        func start(_ listen: PhoneListen) async throws -> any PhoneListener { throw PhoneHostError.portInUse }
+    }
+
+    @Test func aFailureAfterTheServerStartedLeavesNothingListening() async {
+        let host = BrokenHost()
+        let opening = await PhoneScan.open(.thisMacOnly(host, certificates: FakeCertificates()), macName: "Mac")
+        #expect(opening.link == nil)
+        #expect(opening.problem == "Scanning with your phone couldn't start. Try again; if it still doesn't start, restart Inkvolt Print.")
+        #expect(host.closed)
+        let taken = await PhoneScan.open(PhoneEnvironment(host: TakenHost(), networks: FakeNetworks(networks: [LocalNetwork("192.168.1.30", 24)]),
+                                                          certificates: FakeCertificates()), macName: "Mac")
+        #expect(taken.problem == "Another app uses port 9781, which scanning with your phone needs. Quit it and try again.")
+    }
+
+    @Test func thePageSaysTheCertificateWarningWasExpected() async {
+        let s = PhoneSession("OFFICE-MAC")
+        let html = Self.text(await Self.ask(s, "GET", s.pagePath))
+        #expect(html.contains(PhonePage.html("The warning before this page was expected: OFFICE-MAC made its own certificate for it.")))
+    }
+
+    @Test func noPrivateNetworkOpensNothing() async {
+        let env = PhoneEnvironment(host: BrokenHost(), networks: FakeNetworks(networks: [LocalNetwork("203.0.113.5", 24)]), certificates: FakeCertificates())
+        let opening = await PhoneScan.open(env, macName: "Mac")
+        #expect(opening.link == nil)
+        #expect(opening.problem == "Your phone can send pages only over a private network, and this Mac isn't on one. Join your home or office Wi-Fi or Ethernet, then try again.")
+    }
+
+    // ---------------------------------------------------------------- Mac only: who may connect, HTTP, the certificate
+
+    @Test func onlyDevicesOnAServedSubnetOrThisMacMayConnect() {
+        let served = [LocalNetwork("192.168.1.30", 24)]
+        #expect(PhonePeers.allows("192.168.1.20", local: nil, served))
+        #expect(PhonePeers.allows("::ffff:192.168.1.20", local: "192.168.1.30", served))
+        #expect(!PhonePeers.allows("192.168.1.20", local: "10.0.0.4", served)) // came in on another address
+        #expect(!PhonePeers.allows("192.168.2.20", local: nil, served))
+        #expect(!PhonePeers.allows("192.168.1.30", local: nil, served)) // this Mac's own address isn't a phone
+        #expect(!PhonePeers.allows("fe80::1%en0", local: nil, served))
+        #expect(!PhonePeers.allows("not an address", local: nil, served))
+        #expect(PhonePeers.allows("127.0.0.1", local: "127.0.0.1", []))
+        #expect(!PhonePeers.allows("127.0.0.1", local: "192.168.1.30", served))
+        let counted = PhoneConnections()
+        for _ in 0..<PhoneConnections.maxPerPeer { #expect(counted.enter("192.168.1.20")) }
+        #expect(!counted.enter("::ffff:192.168.1.20"))
+        counted.leave("192.168.1.20")
+        #expect(counted.enter("192.168.1.20"))
+        for i in 0..<(PhoneConnections.maxConnections - PhoneConnections.maxPerPeer) { #expect(counted.enter("192.168.1.\(40 + i)")) }
+        #expect(!counted.enter("192.168.1.99"))
+        #expect(counted.open == PhoneConnections.maxConnections)
+    }
+
+    /// A connection fed from a script: what the phone sends, in the pieces given, and what the server wrote.
+    private final class FakeConnection: PhoneConnectionIO, @unchecked Sendable {
+        private let lock = NSLock()
+        private var incoming: [[UInt8]]
+        private var out: [UInt8] = []
+        init(_ pieces: [[UInt8]]) { incoming = pieces }
+
+        func receive(max: Int, timeout: Duration) async -> [UInt8]? {
+            lock.withLock {
+                guard !incoming.isEmpty else { return nil }
+                var piece = incoming.removeFirst()
+                if piece.count > max {
+                    incoming.insert(Array(piece[max...]), at: 0)
+                    piece = Array(piece[..<max])
+                }
+                return piece
+            }
+        }
+
+        func send(_ bytes: [UInt8]) async -> Bool {
+            lock.withLock { out += bytes }
+            return true
+        }
+
+        var written: String { lock.withLock { String(decoding: out, as: UTF8.self) } }
+        var statuses: [Int] {
+            written.components(separatedBy: "HTTP/1.1 ").dropFirst().compactMap { Int($0.prefix(3)) }
+        }
+    }
+
+    private static func request(_ method: String, _ path: String, _ headers: [String] = [], body: [UInt8] = []) -> [UInt8] {
+        let lines = ["\(method) \(path) HTTP/1.1", "Host: 192.168.1.30:9781"] + headers + (body.isEmpty ? [] : ["Content-Length: \(body.count)"])
+        return Array((lines.joined(separator: "\r\n") + "\r\n\r\n").utf8) + body
+    }
+
+    @Test func aPhoneWalksThroughPairPhotoAndDoneOverOneConnection() async {
+        let s = PhoneSession("Mac")
+        let pairing = FakeConnection([Self.request("GET", s.pagePath + "?x=1"), Self.request("POST", s.pagePath + "/pair", ["X-Inkvolt-Phone: 1"])])
+        await PhoneHttp.serve(pairing, peer: Self.phone, session: s)
+        #expect(pairing.statuses == [200, 200])
+        #expect(pairing.written.contains("Content-Security-Policy: default-src 'none'"))
+        #expect(pairing.written.contains("X-Content-Type-Options: nosniff") && pairing.written.contains("Referrer-Policy: no-referrer"))
+        let setCookie = pairing.written.components(separatedBy: "Set-Cookie: \(PhoneSession.cookieName)=")[1]
+        let cookie = String(setCookie.prefix { $0 != ";" })
+        // The photo in pieces, a head split across reads; then Done.
+        let photo = Self.jpegHeader(1600, 1200)
+        let send = Self.request("POST", s.pagePath + "/photo", ["X-Inkvolt-Phone: 1", "Cookie: other=1; \(PhoneSession.cookieName)=\(cookie)"], body: photo)
+        let done = Self.request("POST", s.pagePath + "/done", ["x-inkvolt-phone: 1", "Cookie: \(PhoneSession.cookieName)=\(cookie)"])
+        let sending = FakeConnection([Array(send[..<10]), Array(send[10..<60]), Array(send[60...]), done])
+        await PhoneHttp.serve(sending, peer: Self.phone, session: s)
+        #expect(sending.statuses == [200, 200])
+        #expect(s.received == 1)
+        #expect(s.state == .finished)
+        #expect(s.photos.tryRead()?.data == photo)
+    }
+
+    @Test func aHeadThatIsntHttpIsRefusedAndTheConnectionClosed() async throws {
+        let s = PhoneSession("Mac")
+        let cases: [([UInt8], Int)] = [
+            (Array("GET http://evil.example/p/x HTTP/1.1\r\n\r\n".utf8), 400),
+            (Array("GET /p/x HTTP/2.0\r\n\r\n".utf8), 505),
+            (Array("get /p/x HTTP/1.1\r\n\r\n".utf8), 400),
+            (Array("GET /p/x HTTP/1.1\r\nHost: a\r\n folded\r\n\r\n".utf8), 400),
+            (Array("GET /p/x HTTP/1.1\r\nNo colon\r\n\r\n".utf8), 400),
+            (Array("GET /p/\u{7F}x HTTP/1.1\r\n\r\n".utf8), 400),
+            ([0x47, 0x45, 0x54, 0x20, 0x2F, 0x00, 0x20] + Array("HTTP/1.1\r\n\r\n".utf8), 400),
+            (Array("POST /p/x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n".utf8), 411),
+            (Array("POST /p/x HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\n".utf8), 400),
+            (Array("POST /p/x HTTP/1.1\r\nContent-Length: -5\r\n\r\n".utf8), 400),
+            (Array(("GET /" + String(repeating: "a", count: PhoneHttp.maxRequestLine) + " HTTP/1.1\r\n\r\n").utf8), 414),
+            (Array(("GET /p/x HTTP/1.1\r\n" + String(repeating: "A: b\r\n", count: PhoneHttp.maxHeaders + 1) + "\r\n").utf8), 431),
+            (Array(("GET /p/x HTTP/1.1\r\nA: " + String(repeating: "b", count: PhoneHttp.maxHead) + "\r\n\r\n").utf8), 431),
+        ]
+        for (bytes, status) in cases {
+            let c = FakeConnection([bytes, Self.request("GET", s.pagePath)])
+            await PhoneHttp.serve(c, peer: Self.phone, session: s)
+            #expect(c.statuses == [status], "\(String(decoding: bytes.prefix(60), as: UTF8.self))")
+            #expect(c.written.contains("Connection: close"))
+        }
+        // A head that never ends: the connection closes once nothing more comes.
+        let cut = FakeConnection([Array("GET /p/x HTTP/1.1\r\nHost:".utf8)])
+        await PhoneHttp.serve(cut, peer: Self.phone, session: s)
+        #expect(cut.statuses == [408])
+        let head = try PhoneHttp.parse(Array("GET /p/a?b HTTP/1.1\r\nCookie: a=1; inkvolt-phone=xyz\r\nCookie: c=2".utf8))
+        #expect(head.path == "/p/a" && head.cookie("inkvolt-phone") == "xyz" && head.cookie("c") == "2" && head.cookie("d") == nil)
+    }
+
+    @Test func aBodyRefusedOrTooLongIsNeverReadAndClosesTheConnection() async {
+        let s = PhoneSession("Mac", limits: PhoneLimits(maxPhotoBytes: 1000))
+        let pair = FakeConnection([Self.request("POST", s.pagePath + "/pair", ["X-Inkvolt-Phone: 1"])])
+        await PhoneHttp.serve(pair, peer: Self.phone, session: s)
+        let cookie = String(pair.written.components(separatedBy: "\(PhoneSession.cookieName)=")[1].prefix { $0 != ";" })
+        // Declared past the limit: 413 before a byte is read, and the next request on the connection isn't taken.
+        let big = Array("POST \(s.pagePath)/photo HTTP/1.1\r\nX-Inkvolt-Phone: 1\r\nCookie: \(PhoneSession.cookieName)=\(cookie)\r\nContent-Length: 5000\r\n\r\n".utf8)
+        let tooLong = FakeConnection([big, Self.request("GET", s.pagePath)])
+        await PhoneHttp.serve(tooLong, peer: Self.phone, session: s)
+        #expect(tooLong.statuses == [413])
+        // From another device: refused unread, and closed (its body isn't taken for a request).
+        let stranger = FakeConnection([Self.request("POST", s.pagePath + "/photo", ["X-Inkvolt-Phone: 1"], body: Self.jpegHeader(800, 600)),
+                                       Self.request("GET", s.pagePath)])
+        await PhoneHttp.serve(stranger, peer: Self.other, session: s)
+        #expect(stranger.statuses == [403])
+        #expect(stranger.written.contains("Connection: close"))
+        // A body cut off: nothing is answered, nothing is taken.
+        let cut = FakeConnection([Array(Self.request("POST", s.pagePath + "/photo", ["X-Inkvolt-Phone: 1", "Cookie: \(PhoneSession.cookieName)=\(cookie)"],
+                                                     body: Self.jpegHeader(800, 600)).dropLast(5))])
+        await PhoneHttp.serve(cut, peer: Self.phone, session: s)
+        #expect(cut.statuses.isEmpty)
+        #expect(s.received == 0)
+        // HEAD: the headers, no body.
+        let head = FakeConnection([Self.request("HEAD", s.pagePath)])
+        await PhoneHttp.serve(head, peer: Self.phone, session: s)
+        #expect(head.statuses == [200] && head.written.hasSuffix("Content-Length: 0\r\n\r\n"))
+    }
+
+    @Test func theCertificateIsAnX509ServerCertificateForThisMacsName() {
+        let point: [UInt8] = [4] + [UInt8](repeating: 0x11, count: 64)
+        let now = Date(timeIntervalSince1970: 1_795_000_000) // 2026-11
+        let tbs = PhoneCertificateDer.tbs(publicKey: point, hostName: PhoneScan.hostName("Ana's MacBook Air"), serial: [0xFF, 1, 2], now: now)
+        let cert = PhoneCertificateDer.certificate(tbs: tbs, signature: [0x30, 0x06, 0x02, 0x01, 0x01, 0x02, 0x01, 0x01])
+        #expect(cert.first == 0x30 && tbs.first == 0x30)
+        func has(_ needle: [UInt8], _ hay: [UInt8]) -> Bool {
+            guard hay.count >= needle.count else { return false }
+            return (0...(hay.count - needle.count)).contains { Array(hay[$0..<($0 + needle.count)]) == needle }
+        }
+        #expect(has([0xA0, 0x03, 0x02, 0x01, 0x02], tbs)) // v3
+        #expect(has([0x02, 0x03, 0x7F, 0x01, 0x02], tbs)) // the serial, made positive
+        #expect(has(Array("Ana-s-MacBook-Air.local".utf8), tbs))
+        #expect(has([0x17, 0x0D] + Array("261117".utf8), tbs) && has([0x17, 0x0D] + Array("290220".utf8), tbs)) // a day before, 825 days after
+        #expect(has([0x03, 0x42, 0x00] + point, tbs))
+        #expect(has([0x06, 0x08, 0x2B, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01], tbs)) // serverAuth
+        #expect(has(tbs, cert))
+        #expect(PhoneCertificateDer.usable(notBefore: now.addingTimeInterval(-86_400), notAfter: now.addingTimeInterval(PhoneCertificateDer.life), now: now))
+        #expect(!PhoneCertificateDer.usable(notBefore: now, notAfter: now.addingTimeInterval(20 * 86_400), now: now))
+        #expect(PhoneCertificateDer.fingerprint([0xAB, 0x01]) == "AB:01")
+        #expect(PhoneScan.hostName("") == "mac.local")
+    }
 }

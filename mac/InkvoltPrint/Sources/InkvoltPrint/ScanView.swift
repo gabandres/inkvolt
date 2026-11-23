@@ -160,6 +160,7 @@ private struct ScanSettings: View {
                         .buttonStyle(.borderedProminent)
                         .disabled(scan.caps == nil)
                     CameraButton(scan: scan)
+                    PhoneButton(scan: scan)
                 }
             }
         }
@@ -985,5 +986,22 @@ private struct CameraButton: View {
         }
         .fixedSize()
         .help(String(localized: "A webcam, a document camera or your iPhone takes each page: its picture is made a flat page at these settings (or a preset's, from the menu)"))
+    }
+}
+
+/// Use Your Phone (roadmap 4.6): the settings here, or a preset's from its menu.
+private struct PhoneButton: View {
+    @Bindable var scan: ScanModel
+    @Environment(AppModel.self) private var app
+
+    var body: some View {
+        Menu("Use Your Phone…") {
+            ForEach(app.presets, id: \.id) { p in Button(String(localized: "With \(p.name)")) { scan.scanWithPhone(p) } }
+        } primaryAction: {
+            scan.scanWithPhone()
+        }
+        .fixedSize()
+        .disabled(scan.openingPhone)
+        .help(String(localized: "Any phone's camera takes each page, through its browser over this Wi-Fi: scan the code this Mac shows, and each photo is made a flat page at these settings (or a preset's, from the menu)"))
     }
 }
