@@ -16,6 +16,10 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     private let deleteButton = NSButton(title: loc("Delete"), target: nil, action: nil)
     private var top: [CommentItem] = []
     private var all: [AnnotationInfo] = []
+    /// Every comment as read, a group's members too (for the group a selected member is part of).
+    private var read: [AnnotationInfo] = []
+    /// The carets a strike-out is grouped with: Replace Text marks (`Annotations.replacedCarets`).
+    private var replaced: Set<String> = []
     private var following = false
 
     var onSelect: ((String) -> Void)?
@@ -90,10 +94,14 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
 
     /// Shows `comments` (keeping the filters, the selection and what is expanded where they still apply).
     func show(_ comments: [AnnotationInfo], selected: String?) {
-        all = comments
+        // A group's members (Replace Text's strike-out) are part of its head: one row; a loop of groups or replies,
+        // rows of their own (`Annotations.asListed`, as Windows' Comments pane).
+        read = comments
+        all = Annotations.asListed(comments)
+        replaced = Annotations.replacedCarets(comments)
         // In the person's language's order ("Línea" before "Nota", "émile" beside "emma"), as Finder sorts names.
         let byName = { (a: String, b: String) in a.localizedStandardCompare(b) == .orderedAscending }
-        let kinds = [loc("All Kinds")] + Set(comments.filter { $0.replyTo == nil }.map(DocumentEditor.kindName)).sorted(by: byName)
+        let kinds = [loc("All Kinds")] + Set(all.filter { $0.replyTo == nil }.map(kindName)).sorted(by: byName)
         let authors = [loc("All Authors")] + Set(comments.compactMap { $0.author }.filter { !$0.isEmpty }).sorted(by: byName)
         refill(kindFilter, kinds)
         refill(authorFilter, authors)
@@ -122,14 +130,14 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         let author = authorFilter.indexOfSelectedItem > 0 ? authorFilter.titleOfSelectedItem : nil
         let ids = Set(all.map(\.id))
         func item(_ c: AnnotationInfo) -> CommentItem {
-            CommentItem(c, all.filter { $0.replyTo == c.id }.map(item))
+            CommentItem(c, all.filter { $0.replyTo == c.id }.map(item), kind: kindName(c))
         }
         // Top level: comments that reply to nothing still in the document.
         func isTop(_ c: AnnotationInfo) -> Bool {
             guard let parent = c.replyTo else { return true }
             return !ids.contains(parent)
         }
-        func matchesKind(_ c: AnnotationInfo) -> Bool { kind == nil || DocumentEditor.kindName(c) == kind }
+        func matchesKind(_ c: AnnotationInfo) -> Bool { kind == nil || kindName(c) == kind }
         func matchesAuthor(_ c: AnnotationInfo) -> Bool {
             guard let author else { return true }
             if c.author == author { return true }
@@ -144,6 +152,11 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         updateButtons()
     }
 
+    /// What a comment is called here: a caret by its proofreading mark (Insert text, Replace text).
+    private func kindName(_ c: AnnotationInfo) -> String {
+        DocumentEditor.kindName(c, proof: Annotations.proofKindOf(c, replaced))
+    }
+
     private static func inPageOrder(_ a: AnnotationInfo, _ b: AnnotationInfo) -> Bool {
         if a.pageIndex != b.pageIndex { return a.pageIndex < b.pageIndex }
         if a.rect.y != b.rect.y { return a.rect.y < b.rect.y }
@@ -153,11 +166,15 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
     /// Rows shown (comments and replies), for the self-test.
     var rowCount: Int { outline.numberOfRows }
     var topCount: Int { top.count }
+    /// What the top rows call their comments, for the self-test.
+    var topKinds: [String] { top.map(\.kind) }
 
     /// Selects the row of `id` without going anywhere.
     func showSelected(_ id: String?) {
         following = true
         defer { following = false }
+        // A group's member selected on the page (Replace Text's strike-out): its group's row.
+        let id = id.map { id in read.first { $0.id == id }.map { Annotations.groupHead($0, read).id } ?? id }
         guard let id, let item = find(id, in: top) else {
             outline.deselectAll(nil)
             updateButtons()
@@ -222,7 +239,7 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
         guard let c = (item as? CommentItem)?.info else { return nil }
         let cell = outlineView.makeView(withIdentifier: CommentCell.id, owner: nil) as? CommentCell ?? CommentCell()
         cell.size(outlineView.effectiveRowSizeStyle)
-        cell.show(c)
+        cell.show(c, kind: (item as? CommentItem)?.kind ?? DocumentEditor.kindName(c))
         return cell
     }
 
@@ -237,10 +254,13 @@ final class CommentsList: NSView, NSOutlineViewDataSource, NSOutlineViewDelegate
 final class CommentItem: NSObject {
     let info: AnnotationInfo
     let children: [CommentItem]
+    /// What the row calls it (`DocumentEditor.kindName`, a caret by its proofreading mark).
+    let kind: String
 
-    init(_ info: AnnotationInfo, _ children: [CommentItem]) {
+    init(_ info: AnnotationInfo, _ children: [CommentItem], kind: String) {
         self.info = info
         self.children = children
+        self.kind = kind
     }
 }
 
@@ -306,16 +326,16 @@ final class CommentCell: NSTableCellView {
         icon.symbolConfiguration = .init(pointSize: points.title + 1, weight: .regular)
     }
 
-    func show(_ c: AnnotationInfo) {
+    func show(_ c: AnnotationInfo, kind: String) {
         icon.image = NSImage(systemSymbolName: DocumentEditor.symbol(c), accessibilityDescription: nil)
         icon.contentTintColor = c.color.map(Palette.ns) ?? .secondaryLabelColor
-        var parts = [DocumentEditor.kindName(c)]
+        var parts = [kind]
         if let a = c.author, !a.isEmpty { parts.append(a) }
         parts.append(loc("p. {0}", CoreLanguage.number(c.pageIndex + 1)))
         title.stringValue = parts.joined(separator: " · ")
         let text = c.contents.trimmingCharacters(in: .whitespacesAndNewlines)
         detail.stringValue = text
         detail.isHidden = text.isEmpty
-        setAccessibilityLabel(DocumentEditor.spoken(c))
+        setAccessibilityLabel(DocumentEditor.spoken(c, kind: kind))
     }
 }

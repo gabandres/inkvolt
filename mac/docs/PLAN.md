@@ -1740,6 +1740,21 @@ and undoes it.
   The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
   file to choose.
 
+### Wave 4: proofreading, forms and layout (roadmap Batch B and C)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
+- **4.17 Insert Text… and Replace Text…** (Tools › Annotate, the command bar's Comment, the pages' context menu):
+  `Annotations.addInsertText`, `addReplaceText`, `caretAt`, `asListed`, `groupHead`, `replacedCarets`
+  (`AnnotationsProofreading.swift`), `AnnotationInfo.grouped`; a group's member deleted takes the whole group
+  (`groupHeadIn`), an imported caret gets its chevron from its rectangle, and Summarize Comments lists each mark once by
+  what it asks. Insert Text goes at the selection's end or where text was clicked (a click on text, as Windows' last
+  click), or where the context menu opened over text (`insertProofTextHere:`, its place on the item, so the menu bar's
+  command keeps its own rule); its words are asked in the popover the notes use, with Windows' line saying what they
+  become. The Comments list shows a group as its head, a caret by its mark ("Insert text", "Replace text"), and a
+  strike-out selected on the page selects its group's row. `TextToolsTest` (`--edit --only-text-tools`) drives both
+  from the menu bar, the list's rows, Delete of the strike-out and Undo. Not checked by a person: the popover and the
+  blue chevron by eye.
+
 ## Open decisions
 
 None.
@@ -1763,8 +1778,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
   the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
   Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
-- Wave 4 Batch B, done on Windows, the Mac's waits: 4.17 proofreading marks (`Annotations.Proofreading.cs`: Insert Text,
-  Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
+- Wave 4 Batch B, done on Windows, the Mac's waits: 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port

@@ -41,6 +41,8 @@ public enum Requirement: String, Sendable, CaseIterable {
     /// The AI assistant isn't answering.
     case aiIdle
     case selectedText
+    /// A place in the text for Insert Text: a selection's end, or where text was clicked.
+    case insertionPoint
     /// A comment is selected on the pages.
     case selectedComment
     /// The document was opened from (or saved to) a file.
@@ -73,6 +75,7 @@ public struct DocumentState: Sendable, Equatable {
     public var redactionRunning = false
     public var aiBusy = false
     public var hasSelectedText = false
+    public var hasInsertionPoint = false
     public var hasSelectedComment = false
     public var hasSavedFile = false
     public var hasFormFields = false
@@ -96,6 +99,7 @@ public struct DocumentState: Sendable, Equatable {
         case .noRedactionRunning: !redactionRunning
         case .aiIdle: !aiBusy
         case .selectedText: hasSelectedText
+        case .insertionPoint: hasInsertionPoint
         case .selectedComment: hasSelectedComment
         case .savedFile: hasSavedFile
         case .formFields: hasFormFields
@@ -419,6 +423,9 @@ public enum DocumentCommands {
             c("Highlight Selected Text", "highlightText:", "h", [.command, .control]),
             c("Underline Selected Text", "underlineText:", "u", [.command, .control]),
             c("Strike Out Selected Text", "strikeOutText:", "x", [.command, .control]),
+            // Proofreading marks (roadmap 4.17; Windows: Review › Insert Text, Replace Text). Not insertText:, NSResponder's.
+            c("Insert Text…", "insertProofText:", needs: [.insertionPoint, .organizerHidden]),
+            c("Replace Text…", "replaceProofText:", needs: [.selectedText, .organizerHidden]),
             c("Link Selected Text…", "linkSelectedText:", "k", needs: [.selectedText]),
             // Roadmap 4.15 (Windows: Review › Links from Addresses…).
             c("Links from Addresses…", "linkAddresses:", needs: longTask),

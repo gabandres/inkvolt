@@ -262,6 +262,24 @@ final class DocumentEditor {
         await run(loc("Edit Comment")) { data, pw in try Annotations.setContents(data, pw, id, text) }
     }
 
+    /// Insert Text (roadmap 4.17): a blue caret at `at` (page space, as `Annotations.caretAt` gives) holding `text`.
+    @discardableResult
+    func insertText(page: Int, at: RectD, _ text: String) async -> Bool {
+        let author = author
+        return await run(loc("Insert text"), contentOnly: true) { data, pw in
+            try Annotations.addInsertText(data, pw, page, at, text, author: author)
+        }
+    }
+
+    /// Replace Text (roadmap 4.17): the words on `rects` struck out, grouped with a caret after them holding `text`.
+    @discardableResult
+    func replaceText(page: Int, rects: [RectD], _ text: String) async -> Bool {
+        let author = author
+        return await run(loc("Replace text"), contentOnly: true) { data, pw in
+            try Annotations.addReplaceText(data, pw, page, rects, text, author: author)
+        }
+    }
+
     @discardableResult
     func reply(to id: String, _ text: String) async -> Bool {
         let author = author
@@ -282,9 +300,12 @@ final class DocumentEditor {
     // MARK: Describing
 
     /// What a comment is called in lists, VoiceOver and the inspector.
-    static func kindName(_ c: AnnotationInfo) -> String {
-        if c.replyTo != nil { return loc("Reply") }
+    static func kindName(_ c: AnnotationInfo, proof: ProofMarkKind? = nil) -> String {
+        // A group's member (Replace Text's strike-out) is part of its head, not a reply.
+        if c.replyTo != nil && !c.grouped { return loc("Reply") }
+        if proof == .replaceText { return loc("Replace text") }
         switch c.subtype {
+        case "Caret": return loc("Insert text")
         case "Highlight": return loc("Highlight", context: "comment kind")
         case "Underline": return loc("Underline", context: "comment kind")
         case "StrikeOut": return loc("Strike-out")
@@ -312,6 +333,7 @@ final class DocumentEditor {
         case "Highlight": "highlighter"
         case "Underline", "Squiggly": "underline"
         case "StrikeOut": "strikethrough"
+        case "Caret": "text.insert"
         case "Text": c.replyTo != nil ? "arrowshape.turn.up.left" : "note.text"
         case "FreeText": "character.textbox"
         case "Ink": "scribble"
@@ -330,9 +352,11 @@ final class DocumentEditor {
     }
 
     /// One line for VoiceOver: kind, page, author, text.
-    static func spoken(_ c: AnnotationInfo) -> String {
-        var s = loc("{0}, page {1}", kindName(c), CoreLanguage.number(c.pageIndex + 1))
-        if let a = c.author, !a.isEmpty { s = loc("{0}, page {1}, by {2}", kindName(c), CoreLanguage.number(c.pageIndex + 1), a) }
+    /// `kind`: what it is called where the caller knows better (a caret's proofreading mark).
+    static func spoken(_ c: AnnotationInfo, kind: String? = nil) -> String {
+        let kind = kind ?? kindName(c)
+        var s = loc("{0}, page {1}", kind, CoreLanguage.number(c.pageIndex + 1))
+        if let a = c.author, !a.isEmpty { s = loc("{0}, page {1}, by {2}", kind, CoreLanguage.number(c.pageIndex + 1), a) }
         let text = c.contents.trimmingCharacters(in: .whitespacesAndNewlines)
         if !text.isEmpty { s += ": \(text.prefix(200))" } // English: no words of its own (the comment's text after a colon)
         return s

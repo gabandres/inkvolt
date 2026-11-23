@@ -26510,6 +26510,116 @@
           }
         }
       }
+    },
+    "Insert text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insertar texto"
+          }
+        }
+      }
+    },
+    "Replace text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar texto"
+          }
+        }
+      }
+    },
+    "Insert Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insertar texto"
+          }
+        }
+      }
+    },
+    "Replace Text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar texto"
+          }
+        }
+      }
+    },
+    "Insert Text…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insertar texto…"
+          }
+        }
+      }
+    },
+    "Replace Text…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar texto…"
+          }
+        }
+      }
+    },
+    "Mark where words go in": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca dónde van palabras nuevas"
+          }
+        }
+      }
+    },
+    "Cross out the selection and say what replaces it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tacha la selección y di qué va en su lugar"
+          }
+        }
+      }
+    },
+    "The text is too long (more than {0} characters).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto es demasiado largo (más de {0} caracteres)."
+          }
+        }
+      }
+    },
+    "There's no text to insert.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay texto que insertar."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

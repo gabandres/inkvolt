@@ -15,17 +15,23 @@ public enum CommentSummary {
     private static let textX = listX + 2 * disc + 6
 
     /// One comment as the summary lists it. `number`: its number (replies carry their comment's); `depth`: 0 for a
-    /// comment, 1 and more for replies.
+    /// comment, 1 and more for replies; `proof`: a caret's proofreading mark (Insert Text, Replace Text), whose
+    /// strike-out is part of it, not listed.
     public struct Entry: Sendable {
         public var number: Int
         public var depth: Int
         public var comment: AnnotationInfo
+        public var proof: ProofMarkKind? = nil
     }
 
     /// The comments of each page in the order the summary lists them, numbered from 1 through the document.
     public static func plan(_ comments: [AnnotationInfo]) -> [(page: Int, entries: [Entry])] {
-        let listed = comments.filter { !$0.isInkvoltPdfStamp && $0.kind != .redact }
+        let all = comments.filter { !$0.isInkvoltPdfStamp && $0.kind != .redact }
+        // A group (Replace Text's strike-out with its caret) is one comment: its head is listed, its members aren't; a loop
+        // of groups or replies is listed as comments of their own.
+        let listed = Annotations.asListed(all)
         let ids = Set(listed.map(\.id))
+        let replaced = Annotations.replacedCarets(all)
         func isReply(_ c: AnnotationInfo) -> Bool { c.replyTo.map { ids.contains($0) && $0 != c.id } ?? false }
         var replies: [String: [AnnotationInfo]] = [:]
         for c in listed where isReply(c) { replies[c.replyTo!, default: []].append(c) }
@@ -45,7 +51,7 @@ public enum CommentSummary {
             var entries: [Entry] = []
             for top in tops {
                 number += 1
-                entries.append(Entry(number: number, depth: 0, comment: top))
+                entries.append(Entry(number: number, depth: 0, comment: top, proof: Annotations.proofKindOf(top, replaced)))
                 var seen: Set<String> = [top.id]
                 func add(_ id: String, _ depth: Int) {
                     guard depth <= 16, let list = replies[id] else { return }
@@ -195,7 +201,13 @@ public enum CommentSummary {
     private static func meta(_ e: Entry, _ locale: Locale) -> String {
         let c = e.comment
         let kind = CommentFiles.kindName(c.subtype)
-        var parts = [e.depth > 0 ? loc("Reply", context: "comment kind") : kind.prefix(1).uppercased() + kind.dropFirst()]
+        var parts: [String]
+        switch (e.depth > 0, e.proof) {
+        case (true, _): parts = [loc("Reply", context: "comment kind")]
+        case (false, .replaceText?): parts = [loc("Replace text")]
+        case (false, .insertText?): parts = [loc("Insert text")]
+        case (false, nil): parts = [kind.prefix(1).uppercased() + kind.dropFirst()]
+        }
         if let author = c.author?.trimmingCharacters(in: .whitespaces), !author.isEmpty { parts.append(author) }
         if let m = c.modified {
             let f = DateFormatter()

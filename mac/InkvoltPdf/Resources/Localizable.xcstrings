@@ -24233,6 +24233,50 @@
           }
         }
       }
+    },
+    "A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un signo de intercalación azul marca el lugar en la página {0}; el texto que escribas es su comentario. Autor: {1}."
+          }
+        }
+      }
+    },
+    "Click in the text where the words go (Select Text tool), or select text, then choose Insert Text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en el texto donde van las palabras (herramienta Seleccionar texto), o selecciona texto, y elige Insertar texto."
+          }
+        }
+      }
+    },
+    "Select text on one page to replace it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona texto de una sola página para reemplazarlo."
+          }
+        }
+      }
+    },
+    "“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» en la página {1} queda tachado, con un signo de intercalación azul detrás que guarda el texto que escribas. Autor: {2}."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

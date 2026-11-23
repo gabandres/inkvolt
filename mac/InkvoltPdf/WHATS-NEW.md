@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Proofreading marks (Tools › Annotate, Comment on the bar, and Control-click): Insert Text puts a blue caret where words should go in, with the words as its comment; Replace Text crosses out the selected words and puts a caret after them with what replaces them. They're the marks Acrobat makes, so Acrobat and other viewers show them the same way, and Replace Text is one comment in the Comments list, in Summarize Comments and in exported comments.
 - Replace Pages… (Pages menu): swap pages for pages of another PDF. Bookmarks and links that led to a replaced page now lead to the page that took its place.
 - Resize Pages… (Pages menu): put pages on Letter, A4, Legal or a size you type, the content scaled to fit or kept at its size with margins added. Pages of mixed sizes become one size, and comments and form fields move with the content.
 - Bookmarks from Headings… (Pages menu, and the Bookmarks list's menu): bookmarks made from the document's headings, nested by level and shown before they're made. They replace the bookmarks or go after them.

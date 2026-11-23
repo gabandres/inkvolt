@@ -1235,6 +1235,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     private func startTextSelection(_ event: NSEvent, _ hit: (page: Int, x: Double, y: Double)) {
         guard let text = try? engine.text(hit.page), !text.isEmpty else {
             selection = nil
+            clickedOnText = false
             return
         }
         let caret = text.hitTest(hit.x, hit.y)
@@ -1242,7 +1243,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch event.clickCount {
         case 2: select(hit.page, text.wordAt(caret))
         case 3: select(hit.page, text.lineAt(caret))
-        default: selection = TextSelection(page: hit.page, anchor: caret, head: caret)
+        default:
+            selection = TextSelection(page: hit.page, anchor: caret, head: caret)
+            // Where Insert Text goes without a selection: a click on text only (Windows' last click).
+            clickedOnText = text.isOverText(hit.x, hit.y)
         }
     }
 
@@ -1265,6 +1269,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 let at = pageSpace(start, pageRects[page])
                 let caret = text.hitTest(at.x, at.y)
                 selection = TextSelection(page: page, anchor: caret, head: caret)
+                clickedOnText = false
                 drag = .text
             } else {
                 drag = nil
@@ -1635,6 +1640,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     func select(_ page: Int, _ range: (start: Int, end: Int)) {
         selection = TextSelection(page: page, anchor: range.start, head: range.end)
+        clickedOnText = false
         if selectedId != nil { select(nil) }
     }
 
@@ -1734,6 +1740,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             menu.addItem(withTitle: loc("Delete"), action: #selector(delete(_:)), keyEquivalent: "")
             return menu
         }
+        let caret = editor == nil ? nil : caretUnder(point)
         if selectedText != nil {
             menu.addItem(withTitle: loc("Copy"), action: #selector(copy(_:)), keyEquivalent: "")
             if AppSettings.ai.enabled {
@@ -1743,9 +1750,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             menu.addItem(withTitle: loc("Highlight"), action: #selector(DocumentWindowController.highlightText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: loc("Underline"), action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: loc("Strike Out"), action: #selector(DocumentWindowController.strikeOutText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Replace Text…"), action: #selector(DocumentWindowController.replaceProofText(_:)), keyEquivalent: "")
+            if let caret { menu.addItem(insertTextItem(caret)) }
             menu.addItem(withTitle: loc("Link Selected Text…"), action: #selector(DocumentWindowController.linkSelectedText(_:)), keyEquivalent: "")
             menu.addItem(.separator())
             menu.addItem(withTitle: loc("Redact"), action: #selector(DocumentWindowController.redactSelectedText(_:)), keyEquivalent: "")
+            return menu
+        }
+        if let caret {
+            menu.addItem(insertTextItem(caret))
             return menu
         }
         return nil
@@ -1753,6 +1766,33 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     private func linkAt(_ page: Int, _ p: PointD) -> String? {
         editor?.links.last { $0.pageIndex == page && $0.rect.contains(p.x, p.y) }?.id
+    }
+
+    // MARK: Proofreading marks (roadmap 4.17)
+
+    /// The last press on the page view was a click on text (no word or line chosen): Insert Text goes where it left the
+    /// caret.
+    private var clickedOnText = false
+
+    /// Where Insert Text goes: the selection's end, or where text was clicked (Windows' `PageViewer.InsertionPoint`); nil
+    /// otherwise.
+    var insertionPoint: (page: Int, caret: Int)? {
+        guard let s = selection, !s.isEmpty || clickedOnText, s.last.page < engine.pageCount else { return nil }
+        return s.last
+    }
+
+    /// The place in the text under `point` (this view's coordinates), nil off the text (the context menu's Insert Text).
+    private func caretUnder(_ point: NSPoint) -> (page: Int, caret: Int)? {
+        guard let spot = page(at: point), let text = try? engine.text(spot.page), !text.isEmpty,
+              text.isOverText(spot.x, spot.y) else { return nil }
+        return (spot.page, text.hitTest(spot.x, spot.y))
+    }
+
+    /// Insert Text… for the context menu at `at` (its place given to the action, `insertProofTextHere:`).
+    private func insertTextItem(_ at: (page: Int, caret: Int)) -> NSMenuItem {
+        let item = NSMenuItem(title: loc("Insert Text…"), action: #selector(DocumentWindowController.insertProofTextHere(_:)), keyEquivalent: "")
+        item.representedObject = [at.page, at.caret]
+        return item
     }
 
     /// The selected text's line boxes (for Link Selected Text).
