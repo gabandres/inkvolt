@@ -4,9 +4,11 @@ import Testing
 
 /// Ported from ResizePagesTests.cs (roadmap 4.7), all 9 tests, same names: Letter, A4 or any size, the content scaled to
 /// fit or given margins. Refusals are `PdfEditError`s (.NET's ArgumentOutOfRangeException and InvalidOperationException);
-/// PDFsharp's object reads become MuPDF's (`PObj`). MuPDF reads the ±1e308 written out (whole numbers too large for it) as
-/// 0, a media box of no size, which reaches the same refusal as on Windows (`PageEditor.shownBox`), and the cropped page
-/// the same resize. EveryKindOfDestinationMovesWithTheContent builds its arrays in a document of its own.
+/// PDFsharp's object reads become MuPDF's (`PObj`). MuPDF reads ±1e308 written out as 0 (and any real past about 1e10
+/// wrongly), so APageSizeNoPageCanHave… uses ±1e17, a whole number it reads exactly and past any page, refused as on
+/// Windows; ±1e308 itself becomes a box of no size, skipped as Windows skips one (Mac only:
+/// aMediaBoxOfNoSizeIsSkipped_TheOtherPagesResized).
+/// EveryKindOfDestinationMovesWithTheContent builds its arrays in a document of its own.
 struct ResizePagesTests {
     private static let a4w = 595.0, a4h = 842.0
 
@@ -38,7 +40,8 @@ struct ResizePagesTests {
 
     @Test func aPageSizeNoPageCanHave_IsRefusedWithAMessage_NeverWrittenAsNaN() throws {
         // ±1e308: the width is infinite, the scale nothing, the place NaN.
-        let huge = "1" + String(repeating: "0", count: 308)
+        // MuPDF reads numbers past its integer range as nothing (`aMediaBoxOfNoSize…`): ±1e17, past any page, in their place.
+        let huge = "1" + String(repeating: "0", count: 17)
         func doc(_ mediaBox: String, _ pageExtra: String = "") -> [UInt8] {
             Core2Pdf.build([
                 "<< /Type /Catalog /Pages 2 0 R >>",
@@ -69,6 +72,26 @@ struct ResizePagesTests {
         let doc2 = try Core2Pdf.open(cropped)
         let m2 = PageBoxes.mediaBox(doc2.page(1))
         #expect([(m2.x2 - m2.x1).rounded(), (m2.y2 - m2.y1).rounded()] == [Self.a4w, Self.a4h])
+    }
+
+    /// Mac only: as Windows' `VisibleBox`, `IsUsableBox` and `ResizeTransform` treat it, a MediaBox of no size (with or
+    /// without a CropBox, and ±1e308 written as whole numbers, which MuPDF reads as 0) is left as it is and the other pages
+    /// are resized.
+    @Test func aMediaBoxOfNoSizeIsSkipped_TheOtherPagesResized() throws {
+        let whole = "1" + String(repeating: "0", count: 308)
+        for (box, extra) in [("0 0 0 0", ""), ("0 0 0 0", "/CropBox [0 0 612 792]"), ("-\(whole) -\(whole) \(whole) \(whole)", "")] {
+            let pdf = Core2Pdf.build([
+                "<< /Type /Catalog /Pages 2 0 R >>",
+                "<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>",
+                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>",
+                Core2Pdf.stream("0 0 1 rg 100 100 200 200 re f"),
+                "<< /Type /Page /Parent 2 0 R /MediaBox [\(box)] \(extra) /Contents 4 0 R >>",
+            ])
+            let doc = try Core2Pdf.open(PageEditor.resize(pdf, nil, [0, 1], Self.a4w, Self.a4h, .scale))
+            let first = PageBoxes.mediaBox(doc.page(0)), second = PageBoxes.mediaBox(doc.page(1))
+            #expect([(first.x2 - first.x1).rounded(), (first.y2 - first.y1).rounded()] == [Self.a4w, Self.a4h], "\(box) \(extra)")
+            #expect(second.x2 - second.x1 == 0 && second.y2 - second.y1 == 0, "\(box) \(extra)") // left as it was
+        }
     }
 
     @Test func aPageKeepsTheWayItIsTurned() throws {

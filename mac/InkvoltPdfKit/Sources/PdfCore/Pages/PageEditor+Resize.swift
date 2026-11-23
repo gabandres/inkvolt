@@ -32,7 +32,8 @@ extension PageEditor {
             for i in Array(Set(pages)).sorted() where i >= 0 && i < count {
                 let page = doc.page(i)
                 // A size no page can have (±1e308 makes the scale nothing and the place NaN): refused, nothing resized.
-                guard let box = shownBox(page), isUsableBox(box) else {
+                // A box of no size (a MediaBox of [0 0 0 0]) is usable and has nothing to resize: skipped, as on Windows.
+                if !isUsableBox(PageBoxes.visibleBox(page)) {
                     throw PdfEditError(loc("Page {0} has a size in the file that can't be right, so no page was resized.", CoreLanguage.number(i + 1)))
                 }
                 if let t = resizePage(doc, page, width, height, fit) { moved[page.id] = t }
@@ -73,15 +74,6 @@ extension PageEditor {
     /// The farthest a page box's corner is taken to be from the origin (points): about 140 miles, far past any paper.
     static let maxBoxCoordinate = 10_000_000.0
 
-    /// What the page shows, as Resize Pages works from it: its visible box; when its media box has no size (MuPDF reads a
-    /// whole number too large for it, as ±1e308 written out, as 0) the crop box alone, if it has one of a size; else nil.
-    static func shownBox(_ page: PObj) -> (x1: Double, y1: Double, x2: Double, y2: Double)? {
-        let m = PageBoxes.mediaBox(page)
-        if m.x2 - m.x1 >= 1 && m.y2 - m.y1 >= 1 { return PageBoxes.visibleBox(page) }
-        if let c = PageBoxes.rect(PageBoxes.inherited(page, "CropBox")), c.x2 - c.x1 >= 1, c.y2 - c.y1 >= 1 { return c }
-        return nil
-    }
-
     /// A page box Resize Pages can work from: its corners numbers within `maxBoxCoordinate`.
     static func isUsableBox(_ box: (x1: Double, y1: Double, x2: Double, y2: Double)) -> Bool {
         [box.x1, box.y1, box.x2, box.y2].allSatisfy { $0.isFinite && abs($0) <= maxBoxCoordinate }
@@ -107,7 +99,7 @@ extension PageEditor {
 
     /// How the page's content was scaled and moved, or nil when it was left as it was.
     private static func resizePage(_ doc: MuDoc, _ page: PObj, _ width: Double, _ height: Double, _ fit: ResizeFit) -> (s: Double, e: Double, f: Double)? {
-        guard let box = shownBox(page) else { return nil }
+        let box = PageBoxes.visibleBox(page)
         guard let t = resizeTransform(box, PageBoxes.rotate(page), width, height, fit) else { return nil }
         let (s, e, f, tw, th) = t
 

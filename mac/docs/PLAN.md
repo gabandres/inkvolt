@@ -1686,10 +1686,10 @@ and undoes it.
   is verified (modified after signing) as on Windows. PaperTest makes them only if the synthetic document has headings.
 - **4.7 Resize Pages…** (Pages menu, the bar's Organize): `PageEditor.resize`, `resizeTransform`, `moveDestination` over
   `forEachDestination` (the walk Replace Pages shares), as on Windows; the content wrapped in a `q … cm … re W n` / `Q`
-  pair of streams around the page's own. Mac difference: MuPDF reads a whole number too large for it (±1e308 written
-  out) as 0, where PDFsharp reads it as 1e308, so such a media box has no size; `PageEditor.shownBox` then takes the crop
-  box alone when it has one of a size (MuPDF itself shows such a page through its crop), else the page is refused as
-  on Windows. Moved points are kept within a float's range, the largest number MuPDF writes. The sheet: the six paper
+  pair of streams around the page's own. A box of no size (MediaBox [0 0 0 0], with or without a CropBox) is left as it
+  is and the other pages resized, as on Windows. Mac difference: MuPDF reads ±1e308 written out as 0 (and reals past
+  about 1e10 wrongly), where PDFsharp reads 1e308, so such a box is skipped as one of no size rather than refused; a
+  box past any page that MuPDF does read (±1e17) is refused as on Windows. Moved points are kept within a float's range, the largest number MuPDF writes. The sheet: the six paper
   sizes (A4 first where the system is metric, as Windows), a custom size in inches or millimeters, scale or margins,
   the pages.
 - **4.13 Replace Pages…** (Pages menu, the bar's Organize): `PageEditor.replace`, `retargetDestinations` over
