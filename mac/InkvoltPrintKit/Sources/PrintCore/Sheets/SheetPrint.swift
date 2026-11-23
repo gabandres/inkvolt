@@ -106,6 +106,11 @@ public enum SheetPrint {
         return numbers[min(max(first, 0), numbers.count - 1)]
     }
 
+    /// Every side's `pageOnSide`, in order: what two-sided by hand's words name each side by (`BatchPrintLine.pageNumbers`).
+    public static func sideNumbers(_ plan: Sheets.PrintPlan, _ numbers: [Int]) -> [Int] {
+        (0..<plan.sheetCount).map { pageOnSide(plan, $0, numbers) }
+    }
+
     /// The job is too big to print in one go (`maxSides`, counted on the guessed paper as `count` does).
     public static func tooMany(_ setup: Sheets.PrintSetup, _ sizes: [(Double, Double)], _ paper: (Double, Double), copies: Int) -> Bool {
         count(setup, sizes, paper, copies: copies, twoSided: false).sides > maxSides

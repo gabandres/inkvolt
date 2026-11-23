@@ -10,6 +10,8 @@ struct PrinterPane: View {
     @State private var tab = Tab.status
     @State private var printingPhotos = false
     @State private var copyingCard = false
+    /// Whether the printer's queue prints both sides (nil: not known yet), for two-sided by hand (roadmap 4.2).
+    @State private var twoSided: Bool?
 
     enum Tab { case status, scan, settings }
 
@@ -43,11 +45,19 @@ struct PrinterPane: View {
             }
         }
         .sheet(isPresented: $copyingCard) { IdCardCopySheet(printer: printer, app: app) }
+        .task(id: printer.queueName) { twoSided = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
         .toolbar {
             if !printer.isScannerOnly { ToolbarItem {
                 Menu {
                     Button("Print a PDF…") { Task { await Printing.printPdf(on: printer, app: app) } }
+                    if HandDuplex.offered(twoSided) {
+                        Button("Print a PDF on Both Sides by Hand…") { HandDuplexPrinting.printPdf(on: printer, app: app) }
+                            .help("This printer prints one side: the fronts print, you put the stack back as shown, then the backs print")
+                    }
                     Button("Print Photos…") { printingPhotos = true }
+                    Button("Print the Clipboard") { ClipboardPrinting.print(on: printer, app: app) }
+                        .keyboardShortcut("v", modifiers: [.command, .shift])
+                        .help("Print what you copied: text laid out on pages, a picture in Print Photos, PDFs and pictures copied in Finder as they are")
                     if printer.canScan {
                         Divider()
                         Button("Copy an ID Card…") { copyingCard = true }

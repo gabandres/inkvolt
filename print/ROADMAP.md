@@ -175,16 +175,18 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     (`CcittG4`, `Bilevel`; on the Mac in PrintCore, PDFKit draws them too: `mac/docs/PLAN.md`, "Wave 4"). **Next:** Inkvolt
     PDF's 4.8 to reuse it, on Windows and Mac.
 - **Batch B:**
-  - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
-    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
-  - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
-    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
-    half waits.
-  - **4.2 Two-sided printing by hand.** Done on Windows: Print a PDF, Batch and Copy, through the queue or straight to the
+  - **4.15 Recent scans.** Done on Windows and Mac: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
+    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`; the Mac's in `mac/docs/PLAN.md`,
+    "Wave 4"). **Next:** a person to open, email and print a scan from the list on a Mac.
+  - **4.13 Print the clipboard.** Done on Windows and Mac: text laid out on pages and printed as a PDF, a picture through Print photos,
+    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`; the Mac's in
+    `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person to print copied text, a picture and Finder files on a Mac.
+  - **4.2 Two-sided printing by hand.** Done on Windows and Mac: Print a PDF, Batch and Copy (the Mac: Print a PDF and Batch), through the queue or straight to the
     printer; the fronts, a prompt for face down or face up (the printer's answer first, the person's kept) and an odd last sheet,
     the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
     Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
-    down; Batch with two files) and a one-sided printer; the Mac half waits.
+    down; Batch with two files) and a one-sided printer; on a Mac, Print a PDF on Both Sides by Hand and Batch on paper (the Mac's
+    in `mac/docs/PLAN.md`, "Wave 4").
   - **4.5 Ready for Windows' new driver.** Done on Windows: per printer the queue's driver (Windows' IPP class driver,
     Microsoft's, the maker's version 3 or 4), whether it answers IPP and eSCL (and says Mopria), whether it's ready for protected
     print mode, *Set up with Windows' driver* beside the old queue (never removed), and a warning for a WIA- or TWAIN-only
@@ -220,12 +222,12 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     the layout chosen under Print a PDF's file list, macOS's print panel making the copies and the two sides). **Next:** a
     booklet and a poster on paper (the owner's M234dw: fold, trim), on both; a protected scan opened in Acrobat; veraPDF on a
     PDF/A scan.
-  - **4.16 Cards, calendars and collages in Photos.** Done on Windows: a folded card (two to a sheet, the photo on the front,
+  - **4.16 Cards, calendars and collages in Photos.** Done on Windows and Mac: a folded card (two to a sheet, the photo on the front,
     a typed message inside on the sheet's back, fold and cut marks), a calendar (a month or a year per photo, in the interface
     language's month and day names and first day of the week) and a collage (2 to 9 photos in rows, columns or one large;
     spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
     (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
-    paper; the Mac half waits.
+    paper; on a Mac too (the Mac's in `mac/docs/PLAN.md`, "Wave 4").
   - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
     and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the

@@ -83,9 +83,55 @@ final class PhotosModel {
         self.app = app
     }
 
+    // Cards, calendars and collages (roadmap 4.16).
+    var cardMessage = ""
+    var calendarYear = Calendar(identifier: .gregorian).component(.year, from: Date())
+    var calendarMonth = Calendar(identifier: .gregorian).component(.month, from: Date())
+    var collage = CollageArrangement.rows
+    var collageSpacing = 0.08
+    var collageBorder = 0.25
+
     var options: PhotoLayoutOptions {
-        PhotoLayoutOptions(kind: kind, size: PhotoSizes.all.first { $0.name == sizeName } ?? PhotoSizes.in4x6, perSheet: perSheet, fit: fit,
-                           onePhotoPerSheet: onePhotoPerSheet)
+        var o = PhotoLayoutOptions(kind: kind, size: PhotoSizes.all.first { $0.name == sizeName } ?? PhotoSizes.in4x6, perSheet: perSheet, fit: fit,
+                                   onePhotoPerSheet: onePhotoPerSheet)
+        o.cardMessage = cardMessage
+        o.calendarYear = calendarYear
+        o.calendarMonth = calendarMonth
+        // The month and day names and the week's first day: the interface language's, as on Windows.
+        o.locale = Locale(identifier: AppLanguage.current)
+        o.collage = collage
+        o.collageSpacing = collageSpacing
+        o.collageBorder = collageBorder
+        return o
+    }
+
+    var isProject: Bool { PhotoProjects.isProject(kind) }
+
+    /// A collage's photos `a` and `b` change places (one dragged onto the other).
+    func swap(_ a: Int, _ b: Int) {
+        let order = PhotoProjects.swap(photos.count, a, b)
+        photos = order.map { photos[$0] }
+        refresh()
+    }
+
+    /// Save as PDF: the sheets as they print, in a file the user names.
+    func saveAsPdf() async {
+        let sheets = sheets
+        guard !sheets.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.pdf]
+        panel.nameFieldStringValue = (photos.count == 1 ? (photos[0].name as NSString).deletingPathExtension : String(localized: "Photos")) + ".pdf"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let images = photos.map(\.image), names = photos.map(\.name), sheet = sheet
+        let data: Data? = await offPool { try? PhotoSheets.pdf(sheets, photos: images, names: names, paper: sheet) }
+        do {
+            guard let data else { throw CocoaError(.fileWriteUnknown) }
+            try data.write(to: url, options: .atomic)
+            sent = String(localized: "Saved \(url.lastPathComponent).")
+            problem = nil
+        } catch {
+            problem = String(localized: "The sheets couldn't be saved there. Choose another place.")
+        }
     }
 
     var paper: PhotoPaperChoice { papers.first { $0.id == paperId } ?? papers[0] }
@@ -229,16 +275,31 @@ final class PhotosModel {
     /// offers a choice of: otherwise its default).
     private func send(_ pdf: Data, title: String, sheets: Int, to queue: String) async {
         let media = QueueJobChoices.media(paper, borderless: borderless)
-        let options = QueueJobChoices.jobOptions(mediaType: mediaTypes.count > 1 ? mediaType : nil,
+        var options = QueueJobChoices.jobOptions(mediaType: mediaTypes.count > 1 ? mediaType : nil,
                                                  quality: qualities.count > 1 ? quality : nil,
                                                  color: colors.count > 1 ? color : nil)
+        let card = PhotosModel.cardTwoSided(self.sheets, queueTwoSided: await HandDuplexPrinting.queueTwoSided(printer, app: app))
+        if card == true { options.append(("sides", "two-sided-long-edge")) }
         do {
             _ = try await LibCups().printPdf(queue, pdf, title: title, media: media, options: options)
-            sent = sheets == 1 ? String(localized: "Sent 1 sheet to \(printer.name).") : String(localized: "Sent \(sheets) sheets to \(printer.name).")
+            sent = (sheets == 1 ? String(localized: "Sent 1 sheet to \(printer.name).") : String(localized: "Sent \(sheets) sheets to \(printer.name)."))
+                + (card == false ? " " + PhotosModel.cardOneSidedNote : "")
         } catch {
             let why = (error as? PrintJobSendError)?.message ?? error.localizedDescription
             problem = String(localized: "The photos couldn't be sent to \(printer.name): \(why)")
         }
+    }
+
+    /// A card with a message (roadmap 4.16, Windows' PhotosViewModel): true, each inside on the back of its outside, flipped on
+    /// the long edge, only where the queue says it prints both sides (a job asking for it elsewhere may be refused); false,
+    /// sent one-sided, each inside a sheet of its own (`cardOneSidedNote` said), also when the queue doesn't say; nil, not a
+    /// card with a message.
+    static func cardTwoSided(_ sheets: [PhotoSheet], queueTwoSided: Bool?) -> Bool? {
+        PhotoProjects.needsTwoSided(sheets) ? queueTwoSided == true : nil
+    }
+
+    static var cardOneSidedNote: String {
+        String(localized: "This printer prints one side: each card's inside came out on a sheet of its own.")
     }
 }
 
@@ -308,14 +369,20 @@ struct PhotosView: View {
                         Text("Full page").tag(PhotoLayoutKind.fullPage)
                         Text("Print size").tag(PhotoLayoutKind.printSize)
                         Text("Contact sheet").tag(PhotoLayoutKind.contactSheet)
+                        Divider()
+                        Text("Folded card").tag(PhotoLayoutKind.card)
+                        Text("Month calendar").tag(PhotoLayoutKind.monthCalendar)
+                        Text("Year calendar").tag(PhotoLayoutKind.yearCalendar)
+                        Text("Collage").tag(PhotoLayoutKind.collage)
                     }
+                    if model.isProject { ProjectOptions(model: model) }
                     if model.kind == .printSize {
                         Picker("Size", selection: $model.sizeName) { ForEach(PhotoSizes.all, id: \.name) { Text($0.name).tag($0.name) } }
                         Toggle("A whole sheet of each photo", isOn: $model.onePhotoPerSheet)
                     }
                     if model.kind == .contactSheet {
                         Stepper("\(model.perSheet) per sheet", value: $model.perSheet, in: 6...48, step: 6)
-                    } else {
+                    } else if !model.isProject {
                         Picker("Fit", selection: $model.fit) {
                             Text("Fill the print (crops the edges)").tag(PhotoFit.fill)
                             Text("Whole photo").tag(PhotoFit.fit)
@@ -330,8 +397,11 @@ struct PhotosView: View {
             .onChange(of: model.borderless) { model.refresh() }
             .task {
                 await model.loadPapers()
-                // The Debug build's snapshots open it with the demo photos in it.
-                if case .printPhotos(let files) = app.paneRequest, model.photos.isEmpty { model.add(files) }
+                // The Debug build's snapshots, and Recent Scans' Print (roadmap 4.15), open it with pictures in it; once.
+                if case .printPhotos(let files) = app.paneRequest, model.photos.isEmpty {
+                    model.add(files)
+                    app.paneRequest = nil
+                }
             }
             Divider()
             VStack(spacing: 0) {
@@ -358,6 +428,9 @@ struct PhotosView: View {
                     Spacer()
                     if model.printing { ProgressView().controlSize(.small) }
                     Button("Close") { dismiss() }.keyboardShortcut(.cancelAction)
+                    Button("Save as PDF…") { Task { await model.saveAsPdf() } }
+                        .disabled(model.sheets.isEmpty || model.printing)
+                        .help("Save the sheets as a PDF, as they print")
                     if let sent = model.sent { Text(sent).foregroundStyle(.secondary) }
                     Button(model.printsToQueue ? String(localized: "Print") : String(localized: "Print…")) { Task { await model.print() } }
                         .buttonStyle(.borderedProminent)
@@ -398,9 +471,84 @@ private struct CropCells: View {
                         Button("Zoom In") { model.zoom(cell.photo, by: 1.25) }
                         Button("Zoom Out") { model.zoom(cell.photo, by: 0.8) }
                         Button("Reset Crop") { model.resetCrop(cell.photo) }
+                        if model.kind == .collage && model.photos.count > 1 { SwapMenu(model: model, photo: cell.photo) }
                     }
                     .help(cell.photo < model.photos.count ? String(localized: "\(model.photos[cell.photo].name): drag to move the crop") : "")
             }
         }
+    }
+}
+
+/// A collage photo's Swap With menu (roadmap 4.16; Windows swaps by dragging one photo onto another, the Mac's drag moves the
+/// crop): the photo changes places with the one chosen.
+private struct SwapMenu: View {
+    let model: PhotosModel
+    let photo: Int
+
+    var body: some View {
+        Menu("Swap With") {
+            ForEach(Array(model.photos.enumerated()), id: \.element.id) { j, other in
+                if j != photo { Button(other.name) { model.swap(photo, j) } }
+            }
+        }
+    }
+}
+
+/// The options of a card, a calendar or a collage (roadmap 4.16).
+private struct ProjectOptions: View {
+    @Bindable var model: PhotosModel
+
+    private var locale: Locale { Locale(identifier: AppLanguage.current) }
+
+    var body: some View {
+        switch model.kind {
+        case .card: card
+        case .monthCalendar, .yearCalendar: calendar
+        case .collage: collage
+        default: EmptyView()
+        }
+    }
+
+    @ViewBuilder private var card: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Message inside (optional)")
+            TextEditor(text: $model.cardMessage)
+                .frame(height: 64)
+                .accessibilityLabel("Message inside")
+        }
+        Text(model.cardMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+             ? String(localized: "Two cards to a sheet, each photo on its front: cut between them, then fold each at the dashed marks.")
+             : String(localized: "Prints on both sides: the message on the back of each card's sheet, flipped on the long edge."))
+            .font(.caption).foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder private var calendar: some View {
+        Stepper("Year: \(String(model.calendarYear))", value: $model.calendarYear, in: 1...9999)
+        if model.kind == .monthCalendar {
+            Picker("First month", selection: $model.calendarMonth) {
+                ForEach(1...12, id: \.self) { m in Text(PhotoProjects.monthName(m, locale)).tag(m) }
+            }
+            Text("Each photo is the next month's.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder private var collage: some View {
+        Picker("Arrangement", selection: $model.collage) {
+            Text("Rows").tag(CollageArrangement.rows)
+            Text("Columns").tag(CollageArrangement.columns)
+            Text("One large").tag(CollageArrangement.oneLarge)
+        }
+        Picker("Spacing", selection: $model.collageSpacing) {
+            Text("None").tag(PhotoProjects.spacings[0])
+            Text("Thin").tag(PhotoProjects.spacings[1])
+            Text("Wide").tag(PhotoProjects.spacings[2])
+        }
+        Picker("Border", selection: $model.collageBorder) {
+            Text("None").tag(PhotoProjects.borders[0])
+            Text("¼ in").tag(PhotoProjects.borders[1])
+            Text("½ in").tag(PhotoProjects.borders[2])
+        }
+        Text("Up to 9 photos a sheet; One large needs 3. Control-click a photo on a sheet to swap it with another.")
+            .font(.caption).foregroundStyle(.secondary)
     }
 }

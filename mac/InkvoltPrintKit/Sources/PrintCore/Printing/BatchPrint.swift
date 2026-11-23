@@ -440,6 +440,10 @@ public struct BatchPrintOptions: Sendable {
     /// A job's time to be drawn and handed over: this much, plus `sendTimePerPage` for each page.
     public var sendTimeout: Duration = .seconds(300)
     public var sendTimePerPage: Duration = .seconds(30)
+    /// Two-sided by hand (roadmap 4.2): asks the person, between a file's fronts and its backs, to put the stack back (the
+    /// file's name, the plan); answers which way up the sheets came out, or nil to stop there. Nil where nobody can be asked
+    /// (the command line, a watched folder): two-sided on a printer that can't print both sides is then refused as before.
+    public var turnStack: (@Sendable (String, HandDuplexPlan, BatchStop) async -> OutputFace?)?
 
     public init() {}
 }
@@ -557,12 +561,23 @@ public struct BatchPrintLine: Sendable, CustomStringConvertible {
     /// The pages it prints; none with a `problem`.
     public let pages: [Int]
     public let sheets: Int
+    /// Two-sided by hand: the fronts, the stack put back, the backs (`HandDuplexPlan`).
+    public let byHand: Bool
+    /// The document's page each of the file's pages shows (1-based, in the file's order), for the prompt's words ("page 7"):
+    /// a laid-out job's sides (`SheetPrint.sideNumbers`); nil: the file's own page numbers.
+    public let pageNumbers: [Int]?
 
-    public init(_ path: String, _ settings: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?) {
+    /// - Parameter byHand: two-sided on a printer that can't print both sides is printed by hand (roadmap 4.2): someone is
+    ///   there to put the stack back (`BatchPrintOptions.turnStack`).
+    /// - Parameter pageNumbers: what each page of the file shows of the document, for two-sided by hand's words.
+    public init(_ path: String, _ settings: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?, byHand: Bool = false,
+                pageNumbers: [Int]? = nil) {
         self.path = path
+        self.pageNumbers = pageNumbers
         self.settings = settings
         self.measure = measure
-        let (problem, pages) = Self.check(settings, measure, queue)
+        self.byHand = byHand && settings.twoSided && queue?.canTwoSided == false
+        let (problem, pages) = Self.check(settings, measure, queue, byHand: byHand)
         self.problem = problem
         self.pages = pages
         sheets = problem == nil ? BatchPrintSettings.sheets(pages.count, settings.copies, settings.twoSided) : 0
@@ -572,10 +587,10 @@ public struct BatchPrintLine: Sendable, CustomStringConvertible {
 
     public var description: String { "\(BatchPrintText.clean(name)): \(problem ?? BatchPrintText.sheets(sheets))" }
 
-    private static func check(_ s: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?) -> (String?, [Int]) {
+    private static func check(_ s: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?, byHand: Bool) -> (String?, [Int]) {
         if measure.state != .ready { return (measure.problem ?? loc("This file can't be read."), []) }
         if s.copies < 1 || s.copies > BatchPrintLimits.maxCopies { return (loc("Copies must be 1 to {0}.", BatchPrintLimits.maxCopies), []) }
-        if s.twoSided, let queue, !queue.canTwoSided { return (loc("This printer doesn't print two-sided."), []) }
+        if s.twoSided, let queue, !queue.canTwoSided, !byHand { return (loc("This printer doesn't print two-sided."), []) }
         if let paper = s.paper, let queue, !queue.papers.contains(where: { $0.key.lowercased() == paper.lowercased() }) {
             return (loc("This printer doesn't offer the paper \"{0}\".", BatchPrintText.clean(paper)), [])
         }
@@ -736,6 +751,93 @@ public enum BatchPrintRunner {
         var unsure = false
     }
 
+    /// Why a job wasn't taken, as the file's result.
+    private struct Failed: Error {
+        var outcome: Outcome
+    }
+
+    /// One job handed to the queue and waited for within its limit: the queue's receipt, or why it failed as the file's
+    /// result. Throws what the queue threw.
+    private static func sendJob(_ queue: any BatchQueue, _ document: any BatchDocument, _ job: BatchPrintJob, _ options: BatchPrintOptions,
+                                _ progress: (@Sendable (BatchPrintProgress) -> Void)?, _ index: Int, _ stop: BatchStop) async throws -> Result<BatchReceipt, Failed> {
+        let limit = options.sendTimeout + options.sendTimePerPage * job.pages.count
+        let spooling = Atomic(false)
+        // Its own stop: the queue takes it up to the point of no return, and a job past it has to finish; a drawing that
+        // hung is told to stop, and sends nothing if it ever wakes up.
+        let sendStop = BatchStop(parent: stop)
+        let report = progress.map(Self.relay(index))
+        let onSpooling: @Sendable () -> Void = { spooling.store(true, ordering: .releasing) }
+        let sending: @Sendable () async throws -> BatchReceipt = { try await queue.send(document, job, progress: report, onSpooling: onSpooling, sendStop) }
+        switch try await within(limit, sending) {
+        case .done(let r): return .success(r)
+        case .late:
+            sendStop.stop()
+            let spooled = spooling.load(ordering: .acquiring)
+            return .failure(Failed(outcome: Outcome(state: .failed, message: spooled ? loc("macOS didn't finish taking it in time: check the queue before sending it again.")
+                : loc("It took too long to draw: it may be damaged. Not printed."), stop: spooled ? loc("The printer's queue stopped taking jobs.") : nil, unsure: spooled)))
+        }
+    }
+
+    /// A pass the queue says took more sheets than the file's estimate: the batch stops.
+    private static func overEstimate(_ taken: BatchReceipt, _ line: BatchPrintLine) -> Outcome? {
+        guard taken.sheets > line.sheets else { return nil }
+        return Outcome(state: .failed, message: loc("The queue took {0}, more than the {1} estimated.", BatchPrintText.sheets(taken.sheets), CoreLanguage.number(line.sheets)),
+                       sheets: taken.sheets, stop: loc("A job came to more sheets than its estimate, so nothing more is sent."), unsure: true)
+    }
+
+    /// A file on both sides by hand (roadmap 4.2): its fronts as one job, the person asked to put the stack back
+    /// (`BatchPrintOptions.turnStack`), its backs as another, in the order the plan gives for the way it went back. A page
+    /// number 0 is a blank side. Each pass is held to the file's estimate. Stopped before or at the prompt, or the backs failing
+    /// or stopped, the fronts are said printed (the sheets used, and the file may be there: never sent again by itself) and
+    /// the batch stops there. What the fronts' pass throws is the file's as for any job.
+    private static func byHand(_ line: BatchPrintLine, _ queue: any BatchQueue, _ document: any BatchDocument, _ options: BatchPrintOptions,
+                               _ turnStack: @Sendable (String, HandDuplexPlan, BatchStop) async -> OutputFace?,
+                               _ progress: (@Sendable (BatchPrintProgress) -> Void)?, _ index: Int, _ stop: BatchStop) async throws -> Outcome {
+        let pages = line.pages
+        let numbers = line.pageNumbers
+        // The prompt names a set-aside sheet by the document's page on it (a laid-out side's first), never the side's number.
+        let plan = HandDuplexPlan.plan(Array(pages.indices), copies: line.settings.copies, pageNumber: { i in
+            guard let numbers, pages[i] >= 1, pages[i] <= numbers.count else { return pages[i] }
+            return numbers[pages[i] - 1]
+        })
+        func page(_ side: Int) -> Int { side < 0 ? 0 : pages[side] }
+        let fronts = BatchPrintJob(name: line.name, pages: plan.fronts.map(page), copies: 1, twoSided: false, paper: line.settings.paper, sheets: plan.sheets)
+        let receipt: BatchReceipt
+        switch try await sendJob(queue, document, fronts, options, progress, index, stop) {
+        case .failure(let failed): return failed.outcome
+        case .success(let r): receipt = r
+        }
+        if let over = overEstimate(receipt, line) { return over }
+        if !plan.hasBacks { return Outcome(state: .sent, message: loc("Sent to the queue: {0}.", BatchPrintText.sheets(plan.sheets)), sheets: plan.sheets) }
+
+        // From here the fronts are on paper: whatever stops the backs says so, and the file isn't sent again by itself.
+        let frontsOnly = Outcome(state: .stopped, message: loc("Fronts printed; the backs weren't, as you stopped."), sheets: plan.sheets,
+                                 stop: loc("You stopped the batch."), unsure: true)
+        if stop.isStopped { return frontsOnly }
+        progress?(BatchPrintProgress(index: index, state: .sending, message: loc("Fronts sent. Put the stack back as the window says, then print the backs."), result: nil))
+        guard let face = await turnStack(line.name, plan, stop), !stop.isStopped else { return frontsOnly }
+
+        let backs = BatchPrintJob(name: line.name, pages: plan.backs(face).map(page), copies: 1, twoSided: false, paper: line.settings.paper, sheets: plan.sheets)
+        let sent: Result<BatchReceipt, Failed>
+        do {
+            sent = try await sendJob(queue, document, backs, options, progress, index, stop)
+        } catch is CancellationError {
+            return frontsOnly
+        } catch {
+            let reason = (error as? BatchQueueError)?.message ?? (error as? BatchFileError)?.message ?? (error as? BatchSettingRefused)?.message
+                ?? loc("Sending failed: check the queue before sending it again.")
+            return Outcome(state: .failed, message: loc("Fronts printed; the backs weren't: {0}", reason), sheets: plan.sheets, stop: reason, unsure: true)
+        }
+        switch sent {
+        case .failure(let failed):
+            return Outcome(state: .failed, message: loc("Fronts printed; the backs weren't: {0}", failed.outcome.message), sheets: plan.sheets,
+                           stop: failed.outcome.stop ?? failed.outcome.message, unsure: true)
+        case .success(let r):
+            if let over = overEstimate(r, line) { return over }
+        }
+        return Outcome(state: .sent, message: loc("Sent on both sides by hand: {0}.", BatchPrintText.sheets(plan.sheets)), sheets: plan.sheets)
+    }
+
     private static func sendOne(_ line: BatchPrintLine, _ queue: any BatchQueue, _ documents: any BatchDocuments, _ options: BatchPrintOptions,
                                 _ progress: (@Sendable (BatchPrintProgress) -> Void)?, _ index: Int, _ stop: BatchStop) async -> Outcome {
         do {
@@ -771,29 +873,20 @@ public enum BatchPrintRunner {
                 return Outcome(state: .failed, message: loc("The file changed since the estimate{0}. Not printed: check the list again to print it.", counts))
             }
 
+            if line.byHand {
+                guard let turnStack = options.turnStack else {
+                    return Outcome(state: .skipped, message: loc("This printer doesn't print two-sided.")) // nobody to put the stack back
+                }
+                return try await byHand(line, queue, document, options, turnStack, progress, index, stop)
+            }
             let job = BatchPrintJob(name: line.name, pages: line.pages, copies: line.settings.copies, twoSided: line.settings.twoSided,
                                     paper: line.settings.paper, sheets: line.sheets)
-            let limit = options.sendTimeout + options.sendTimePerPage * line.pages.count
-            let spooling = Atomic(false)
-            // Its own stop: the queue takes it up to the point of no return, and a job past it has to finish; a drawing that
-            // hung is told to stop, and sends nothing if it ever wakes up.
-            let sendStop = BatchStop(parent: stop)
-            let report = progress.map(Self.relay(index))
             let receipt: BatchReceipt
-            let onSpooling: @Sendable () -> Void = { spooling.store(true, ordering: .releasing) }
-            let sending: @Sendable () async throws -> BatchReceipt = { try await queue.send(document, job, progress: report, onSpooling: onSpooling, sendStop) }
-            switch try await within(limit, sending) {
-            case .done(let r): receipt = r
-            case .late:
-                sendStop.stop()
-                let spooled = spooling.load(ordering: .acquiring)
-                return Outcome(state: .failed, message: spooled ? loc("macOS didn't finish taking it in time: check the queue before sending it again.")
-                    : loc("It took too long to draw: it may be damaged. Not printed."), stop: spooled ? loc("The printer's queue stopped taking jobs.") : nil, unsure: spooled)
+            switch try await sendJob(queue, document, job, options, progress, index, stop) {
+            case .failure(let failed): return failed.outcome
+            case .success(let r): receipt = r
             }
-            if receipt.sheets > line.sheets {
-                return Outcome(state: .failed, message: loc("The queue took {0}, more than the {1} estimated.", BatchPrintText.sheets(receipt.sheets), CoreLanguage.number(line.sheets)),
-                               sheets: receipt.sheets, stop: loc("A job came to more sheets than its estimate, so nothing more is sent."), unsure: true)
-            }
+            if let over = overEstimate(receipt, line) { return over }
             return Outcome(state: .sent, message: loc("Sent to the queue: {0}.", BatchPrintText.sheets(receipt.sheets)), sheets: receipt.sheets)
         } catch is CancellationError {
             return Outcome(state: .stopped, message: notSentText, stop: loc("You stopped the batch."))

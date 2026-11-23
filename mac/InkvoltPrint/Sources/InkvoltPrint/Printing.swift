@@ -21,7 +21,12 @@ enum Printing {
         panel.accessoryView = layout
         panel.isAccessoryViewDisclosed = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        let choice = layout.choice
+        await printPdf(url, choice: layout.choice, on: printer, app: app)
+    }
+
+    /// A PDF file printed as Print a PDF prints it (its password asked when it has one) in the layout chosen: the picked one,
+    /// or one copied in Finder (Print the Clipboard, roadmap 4.13: one page per sheet).
+    static func printPdf(_ url: URL, choice: SheetChoice = SheetChoice(.normal), on printer: PrinterModel, app: AppModel) async {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let document = PDFDocument(url: url) else {
@@ -39,10 +44,18 @@ enum Printing {
             print(document, name: name, on: printer, app: app)
             return
         }
-        var bothSides: Bool? // the queue's say, when it has one; else the panel's printer decides
-        if SheetPrint.twoSided(setup, asked: false), let queue = printer.queueName { bothSides = await LibCups().printsBothSides(queue) }
-        if let problem = sheetProblem(setup, document, bothSides: bothSides) {
+        var bothSides: Bool? // the queue's say (demo mode's made-up ones too), when it has one; else the panel's printer decides
+        if SheetPrint.twoSided(setup, asked: false) { bothSides = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
+        let byHand = HandDuplex.offered(bothSides)
+        if let problem = sheetProblem(setup, document, bothSides: bothSides, byHand: byHand) {
             alert(problem)
+            return
+        }
+        // A booklet on a queue that prints one side: by hand, as Windows' SheetPrinting.PrintAsync (roadmap 4.2).
+        if SheetPrint.route(setup, asked: false, printerTwoSided: bothSides ?? true, byHand: byHand) == .byHand {
+            if let message = await HandDuplexPrinting.printSheets(document, choice: choice, name: name, on: printer, app: app)?.items.first?.message {
+                alert(message)
+            }
             return
         }
         printSheets(document, choice: choice, name: name, on: printer, app: app)

@@ -173,12 +173,52 @@
         }
       }
     },
+    "%@ and %lld more": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ y %lld más"
+          }
+        }
+      }
+    },
+    "%@ and 1 more": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ y 1 más"
+          }
+        }
+      }
+    },
     "%@ asks for its admin password": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ pide su contraseña de administrador"
+          }
+        }
+      }
+    },
+    "%@ couldn't be opened: no app on this Mac opens it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo abrir %@: ninguna aplicación de este Mac lo abre."
+          }
+        }
+      }
+    },
+    "%@ couldn't be read to print (moved, changed or protected with a password).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer %@ para imprimirlo (se movió, cambió o tiene contraseña)."
           }
         }
       }
@@ -267,6 +307,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ por encima de los %@ que admite un lote"
+          }
+        }
+      }
+    },
+    "%@ was removed from the list; the file is still there.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ se quitó de la lista; el archivo sigue ahí."
           }
         }
       }
@@ -519,6 +569,16 @@
         }
       }
     },
+    "%lld of the files couldn't be read and won't print.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld de los archivos no se pudieron leer y no se imprimirán."
+          }
+        }
+      }
+    },
     "%lld pages": {
       "localizations": {
         "es": {
@@ -647,6 +707,16 @@
         }
       }
     },
+    "%lld sheets go through again with nothing printed on their backs (the ends of copies).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld hojas vuelven a pasar sin nada impreso en sus reversos (los finales de las copias)."
+          }
+        }
+      }
+    },
     "%lld%%": {
       "localizations": {
         "es": {
@@ -679,6 +749,48 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld. %@"
+          }
+        }
+      }
+    },
+    "%lld. Put the stack in the paper tray that way, the top edge going in first as before, then click Print the Backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld. Pon la pila así en la bandeja de papel, con el borde superior entrando primero como antes, y luego haz clic en Imprimir los reversos."
+          }
+        }
+      }
+    },
+    "%lld. Take %@ and turn the stack over like the page of a book, so the printed side faces down and the first page is on top.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Take %2$@ and turn the stack over like the page of a book, so the printed side faces down and the first page is on top."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Toma %2$@ y da la vuelta a la pila como la página de un libro, para que el lado impreso quede hacia abajo y la primera página arriba."
+          }
+        }
+      }
+    },
+    "%lld. Take %@ as they came out, printed side down, without turning the stack over.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Take %2$@ as they came out, printed side down, without turning the stack over."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld. Toma %2$@ tal como salieron, con el lado impreso hacia abajo, sin dar la vuelta a la pila."
           }
         }
       }
@@ -809,6 +921,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "1 hoja"
+          }
+        }
+      }
+    },
+    "1. Take the top sheet (page %lld) off the output tray and set it aside: nothing prints on its back. Once the backs are done, put it last.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Quita la hoja de arriba (página %lld) de la bandeja de salida y apártala: en su reverso no se imprime nada. Cuando terminen los reversos, ponla al final."
           }
         }
       }
@@ -1170,6 +1292,16 @@
         }
       }
     },
+    "Arrangement": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disposición"
+          }
+        }
+      }
+    },
     "As": {
       "localizations": {
         "es": {
@@ -1356,6 +1488,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Folleto"
+          }
+        }
+      }
+    },
+    "Border": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borde"
           }
         }
       }
@@ -1560,6 +1702,16 @@
         }
       }
     },
+    "Choose a PDF to print on both sides by hand on %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige un PDF para imprimir a doble cara a mano en %@."
+          }
+        }
+      }
+    },
     "Choose the folder for the %lld files.": {
       "localizations": {
         "es": {
@@ -1710,6 +1862,36 @@
         }
       }
     },
+    "Clear the List": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaciar la lista"
+          }
+        }
+      }
+    },
+    "Clear the List…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaciar la lista…"
+          }
+        }
+      }
+    },
+    "Clear the list of recent scans?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Vaciar la lista de escaneos recientes?"
+          }
+        }
+      }
+    },
     "Click a mark on the page in the color to drop.": {
       "localizations": {
         "es": {
@@ -1720,12 +1902,32 @@
         }
       }
     },
+    "Clipboard": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Portapapeles"
+          }
+        }
+      }
+    },
     "Close": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Cerrar"
+          }
+        }
+      }
+    },
+    "Collage": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collage"
           }
         }
       }
@@ -1746,6 +1948,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Color que quitar"
+          }
+        }
+      }
+    },
+    "Columns": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Columnas"
           }
         }
       }
@@ -1826,6 +2038,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copia los detalles y abre una incidencia nueva de GitHub en tu navegador para pegarlos"
+          }
+        }
+      }
+    },
+    "Copies:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copias:"
           }
         }
       }
@@ -2170,12 +2392,32 @@
         }
       }
     },
+    "Each photo is the next month's.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada foto es la del mes siguiente."
+          }
+        }
+      }
+    },
     "Each photo laid on the glass is found and saved as its own picture, cut out straight": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Cada foto colocada en el cristal se encuentra y se guarda como imagen propia, recortada y derecha"
+          }
+        }
+      }
+    },
+    "Email Again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar de nuevo por correo"
           }
         }
       }
@@ -2436,6 +2678,16 @@
         }
       }
     },
+    "First month": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primer mes"
+          }
+        }
+      }
+    },
     "Fit": {
       "localizations": {
         "es": {
@@ -2482,6 +2734,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Flota"
+          }
+        }
+      }
+    },
+    "Folded card": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarjeta doblada"
           }
         }
       }
@@ -3364,6 +3626,56 @@
         }
       }
     },
+    "Message inside": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensaje interior"
+          }
+        }
+      }
+    },
+    "Message inside (optional)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensaje interior (opcional)"
+          }
+        }
+      }
+    },
+    "Month calendar": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendario mensual"
+          }
+        }
+      }
+    },
+    "More for %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más para %@"
+          }
+        }
+      }
+    },
+    "More for %@: Show in Finder, Email Again, Print, Remove from List": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más para %@: Mostrar en el Finder, Enviar de nuevo por correo, Imprimir, Quitar de la lista"
+          }
+        }
+      }
+    },
     "Move Down": {
       "localizations": {
         "es": {
@@ -3484,12 +3796,32 @@
         }
       }
     },
+    "No Saved Scans Yet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay escaneos guardados"
+          }
+        }
+      }
+    },
     "No macOS print queue": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Sin cola de impresión de macOS"
+          }
+        }
+      }
+    },
+    "No mail app is set up on this Mac to attach the scan to. Finder shows it to attach by hand.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ninguna aplicación de correo configurada en este Mac para adjuntar el escaneo. El Finder lo muestra para adjuntarlo a mano."
           }
         }
       }
@@ -3604,6 +3936,16 @@
         }
       }
     },
+    "None": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguno"
+          }
+        }
+      }
+    },
     "Not a Separator": {
       "localizations": {
         "es": {
@@ -3704,12 +4046,32 @@
         }
       }
     },
+    "One large": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una grande"
+          }
+        }
+      }
+    },
     "One page per sheet": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Una página por hoja"
+          }
+        }
+      }
+    },
+    "One sheet goes through again with nothing printed on its back (the end of a copy).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una hoja vuelve a pasar sin nada impreso en su reverso (el final de una copia)."
           }
         }
       }
@@ -3780,6 +4142,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir"
+          }
+        }
+      }
+    },
+    "Open %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir %@"
           }
         }
       }
@@ -4236,6 +4608,16 @@
         }
       }
     },
+    "Print %@ on both sides by hand": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir %@ a doble cara a mano"
+          }
+        }
+      }
+    },
     "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)": {
       "localizations": {
         "es": {
@@ -4282,6 +4664,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Imprimirlos"
+          }
+        }
+      }
+    },
+    "Print a PDF on Both Sides by Hand…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir un PDF a doble cara a mano…"
           }
         }
       }
@@ -4336,12 +4728,42 @@
         }
       }
     },
+    "Print the Backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir los reversos"
+          }
+        }
+      }
+    },
+    "Print the Clipboard": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir el portapapeles"
+          }
+        }
+      }
+    },
     "Print the pages: a copy": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Imprimir las páginas: una copia"
+          }
+        }
+      }
+    },
+    "Print what you copied: text laid out on pages, a picture in Print Photos, PDFs and pictures copied in Finder as they are": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprime lo que copiaste: el texto colocado en páginas, una imagen en Imprimir fotos, y los PDF e imágenes copiados en el Finder tal como están"
           }
         }
       }
@@ -4392,6 +4814,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Impresiones de %@"
+          }
+        }
+      }
+    },
+    "Prints on both sides: the message on the back of each card's sheet, flipped on the long edge.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se imprime a doble cara: el mensaje en el reverso de la hoja de cada tarjeta, volteando por el borde largo."
           }
         }
       }
@@ -4566,6 +4998,26 @@
         }
       }
     },
+    "Recent Scans": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneos recientes"
+          }
+        }
+      }
+    },
+    "Recent Scans…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneos recientes…"
+          }
+        }
+      }
+    },
     "Recognising text…": {
       "localizations": {
         "es": {
@@ -4652,6 +5104,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitar de Inkvolt Print…"
+          }
+        }
+      }
+    },
+    "Remove from List": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar de la lista"
           }
         }
       }
@@ -4806,6 +5268,16 @@
         }
       }
     },
+    "Rows": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filas"
+          }
+        }
+      }
+    },
     "SNMP Access for %@": {
       "localizations": {
         "es": {
@@ -4926,6 +5398,16 @@
         }
       }
     },
+    "Save as PDF…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como PDF…"
+          }
+        }
+      }
+    },
     "Save cancelled after %lld files (%@): Save again writes the rest.": {
       "localizations": {
         "en": {
@@ -5022,6 +5504,16 @@
         }
       }
     },
+    "Save the sheets as a PDF, as they print": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda las hojas como PDF, tal como se imprimen"
+          }
+        }
+      }
+    },
     "Save the supply history of all printers as one CSV file (Inkvolt Pro)": {
       "localizations": {
         "es": {
@@ -5054,6 +5546,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se guardó %@%@ en %@."
+          }
+        }
+      }
+    },
+    "Saved %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó %@."
           }
         }
       }
@@ -5300,6 +5802,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escaneos"
+          }
+        }
+      }
+    },
+    "Scans you save, or save with a preset, show here.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los escaneos que guardes, o que guardes con un ajuste, aparecen aquí."
           }
         }
       }
@@ -5580,6 +6092,16 @@
         }
       }
     },
+    "Spacing": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaciado"
+          }
+        }
+      }
+    },
     "Split into files at": {
       "localizations": {
         "es": {
@@ -5742,6 +6264,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Historial de suministros %@.csv"
+          }
+        }
+      }
+    },
+    "Swap With": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercambiar con"
           }
         }
       }
@@ -5916,6 +6448,22 @@
         }
       }
     },
+    "The copied text is longer than %lld pages: only the first %lld print.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The copied text is longer than %1$lld pages: only the first %2$lld print."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto copiado ocupa más de %1$lld páginas: solo se imprimen las primeras %2$lld."
+          }
+        }
+      }
+    },
     "The copy couldn't be prepared for printing.": {
       "localizations": {
         "es": {
@@ -5946,6 +6494,26 @@
         }
       }
     },
+    "The files on the clipboard aren't PDFs or pictures. Open them in their own app to print them.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos del portapapeles no son PDF ni imágenes. Ábrelos en su propia aplicación para imprimirlos."
+          }
+        }
+      }
+    },
+    "The files stay where they are.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos se quedan donde están."
+          }
+        }
+      }
+    },
     "The first page is on its way.": {
       "localizations": {
         "es": {
@@ -5966,12 +6534,32 @@
         }
       }
     },
+    "The fronts of %@ are printing. Put the stack back for the backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se están imprimiendo los anversos de %@. Vuelve a poner la pila para los reversos."
+          }
+        }
+      }
+    },
     "The fronts of %lld sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and click Scan the Backs.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Se escanearon los anversos de %lld hojas. Saca la pila de la bandeja de salida, dale la vuelta como a la página de un libro sin ordenarla, vuelve a ponerla en el alimentador y haz clic en Escanear los reversos."
+          }
+        }
+      }
+    },
+    "The fronts print first. Then Inkvolt Print says how to put the stack back in the paper tray for the backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero se imprimen los anversos. Luego Inkvolt Print te dice cómo volver a poner la pila en la bandeja de papel para los reversos."
           }
         }
       }
@@ -6022,6 +6610,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "El idioma del texto de las páginas, para el texto del PDF buscable"
+          }
+        }
+      }
+    },
+    "The last scans saved on this Mac: open, show, email or print them again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los últimos escaneos guardados en este Mac: ábrelos, muéstralos, envíalos por correo o imprímelos de nuevo"
           }
         }
       }
@@ -6278,12 +6876,42 @@
         }
       }
     },
+    "The sheets came out printed side down": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las hojas salieron con el lado impreso hacia abajo"
+          }
+        }
+      }
+    },
+    "The sheets came out printed side up": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las hojas salieron con el lado impreso hacia arriba"
+          }
+        }
+      }
+    },
     "The sheets couldn't be prepared for printing.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron preparar las hojas para imprimir."
+          }
+        }
+      }
+    },
+    "The sheets couldn't be saved there. Choose another place.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las hojas no se pudieron guardar ahí. Elige otro lugar."
           }
         }
       }
@@ -6338,6 +6966,16 @@
         }
       }
     },
+    "There's nothing to print on the clipboard. Copy some text, a picture, or a PDF in Finder, then try again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay nada que imprimir en el portapapeles. Copia texto, una imagen o un PDF en el Finder y vuelve a intentarlo."
+          }
+        }
+      }
+    },
     "These details help find the problem: the version, macOS and a few settings. IP addresses, printer IDs and serial numbers, file paths and your names are masked. Nothing is sent: copy them, then paste them into a GitHub issue or an e-mail. Delete anything you'd rather not share.": {
       "localizations": {
         "es": {
@@ -6354,6 +6992,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se volverán a ofrecer la próxima vez que se abra Inkvolt Print."
+          }
+        }
+      }
+    },
+    "Thin": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fino"
           }
         }
       }
@@ -6514,6 +7162,36 @@
         }
       }
     },
+    "This printer prints one side: each card's inside came out on a sheet of its own.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora imprime por un solo lado: el interior de cada tarjeta salió en una hoja aparte."
+          }
+        }
+      }
+    },
+    "This printer prints one side: the fronts print, you put the stack back as shown, then the backs print": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora imprime por una cara: se imprimen los anversos, vuelves a poner la pila como se indica y luego se imprimen los reversos"
+          }
+        }
+      }
+    },
+    "This printer prints one side: two-sided files print by hand, the fronts then the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora imprime por una cara: los archivos a doble cara se imprimen a mano, primero los anversos y luego los reversos"
+          }
+        }
+      }
+    },
     "This printer's scanner didn't say what it can do.": {
       "localizations": {
         "es": {
@@ -6556,6 +7234,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Para grabar una impresora, muéstrala primero y vuelve aquí."
+          }
+        }
+      }
+    },
+    "Today, %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoy, %@"
           }
         }
       }
@@ -6720,6 +7408,16 @@
         }
       }
     },
+    "Two cards to a sheet, each photo on its front: cut between them, then fold each at the dashed marks.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dos tarjetas por hoja, cada foto en su portada: corta entre ellas y luego dobla cada una por las marcas discontinuas."
+          }
+        }
+      }
+    },
     "Two-sided": {
       "localizations": {
         "es": {
@@ -6816,6 +7514,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hasta mañana por la mañana"
+          }
+        }
+      }
+    },
+    "Up to 9 photos a sheet; One large needs 3. Control-click a photo on a sheet to swap it with another.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta 9 fotos por hoja; Una grande necesita 3. Haz clic con la tecla Control en una foto de una hoja para intercambiarla con otra."
           }
         }
       }
@@ -6966,6 +7674,36 @@
         }
       }
     },
+    "What's on the clipboard couldn't be made ready to print. Copy it again and try once more.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que está en el portapapeles no se pudo preparar para imprimir. Cópialo de nuevo y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "What's on the clipboard is too big to print from here. Save it as a file and print that.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lo que está en el portapapeles es demasiado grande para imprimirlo desde aquí. Guárdalo como archivo e imprime ese archivo."
+          }
+        }
+      }
+    },
+    "Which way up the sheets came out": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cómo salieron las hojas"
+          }
+        }
+      }
+    },
     "Whiten the background": {
       "localizations": {
         "es": {
@@ -7006,6 +7744,16 @@
         }
       }
     },
+    "Wide": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ancho"
+          }
+        }
+      }
+    },
     "Word document (.docx): the text, editable": {
       "localizations": {
         "es": {
@@ -7022,6 +7770,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trabajando…"
+          }
+        }
+      }
+    },
+    "Year calendar": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendario anual"
+          }
+        }
+      }
+    },
+    "Year: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Año: %@"
+          }
+        }
+      }
+    },
+    "Yesterday, %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayer, %@"
+          }
+        }
+      }
+    },
+    "Your last saved scans, from every scanner. The list is kept on this Mac only; removing a scan from it doesn't delete the file.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tus últimos escaneos guardados, de todos los escáneres. La lista se guarda solo en este Mac; quitar un escaneo de ella no elimina el archivo."
           }
         }
       }
@@ -7146,6 +7934,16 @@
         }
       }
     },
+    "the %lld printed sheets": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "las %lld hojas impresas"
+          }
+        }
+      }
+    },
     "the feeder": {
       "localizations": {
         "es": {
@@ -7162,6 +7960,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "el cristal"
+          }
+        }
+      }
+    },
+    "the printed sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la hoja impresa"
           }
         }
       }
@@ -7212,6 +8020,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página."
+          }
+        }
+      }
+    },
+    "¼ in": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¼ in"
+          }
+        }
+      }
+    },
+    "½ in": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½ in"
           }
         }
       }

@@ -297,6 +297,74 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
   file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
   (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
+- **4.15 Recent scans.** PrintCore `RecentScan`, `RecentScans` (`add`, `clean`, `present`, `remove`, `day`, `usable`),
+  `RecentScanDay`, `PrintState.recentScans`; `RecentScansTests` (PC). The app: every save (Save…, a preset's) goes on the list
+  with the scanner's and preset's names (`ScanModel.finishSaving`, `AppModel.noteRecentScan`); the save bar's Recent Scans…
+  opens a sheet listing them (`RecentScansSheet.swift`), the files gone checked off the main thread and dropped from the
+  list as it is by then, each with Open, Show in Finder, Email Again (the Mail sharing service), Print… and Remove from
+  List, and Clear the List…; `--report … --recent-scans`. **Mac differences:** an entry keeps an app-scoped security
+  bookmark of the folder it was saved in (or of the one file the save panel named) in `access`, the sandbox's way back to
+  it in a later run (Windows needs none); a file whose bookmark no longer resolves counts as gone. A usable path is a
+  full POSIX path (`/Users/…`, `/Volumes/…`), not `/dev/…`, with no `.` or `..` part or control character (Windows: a
+  drive or share path, no device path or alternate stream); a quote is allowed (a Mac name may hold one). Print sends
+  several PDFs as one job through the print panel (Windows opens them in Batch) and isn't offered for a Word or text scan
+  (Windows sends those to Print photos, which can't read them); pictures go to Print Photos with their folder held open
+  until the next. The list is reached from the Scan tab only (Windows also from the sidebar, without Print). The demo has
+  no stand-in for Open or Email (Windows' demo says what would happen). Not checked: the sheet on screen, Open, Email
+  Again and Print with a real mail app and printer, a network volume's files, VoiceOver.
+- **4.13 Print the clipboard.** PrintCore `ClipboardPrint` (`choose`, `prefersPicture`, `layout`, `pages`, `expand`, `wrap`,
+  `width`, `name`), `ClipboardContent`, `ClipboardWhat`, `ClipboardPlan`, `ClipboardTextLayout`, `PixelSize`;
+  `ClipboardPrintTests` (PC). The app: the Print menu's Print the Clipboard (⇧⌘V; `ClipboardPrinting.swift`): files copied in
+  Finder as they are (one PDF through `Printing.printPdf(_:on:app:)`, split from Print a PDF's panel; pictures to Print
+  Photos; several to Batch Print), a picture (its size read from the PNG or TIFF's header before it is decoded) saved as an
+  opaque PNG for Print Photos, text laid out on Letter, or A4 where the region is metric, and printed through the print panel
+  at its own size; what can't print said in an alert. `--report … --clipboard` (on a pasteboard of its own).
+  **Mac differences:** the text PDF is vector text (Menlo drawn at the size whose advance is the layout's column, Windows'
+  Consolas measure) where Windows draws 1-bit pages at 300 dpi; lengths and columns count Unicode scalars (.NET UTF-16
+  units; a character past the BMP is two columns on both); a Swift string holds no lone surrogate (that test line has no
+  counterpart); text whose UTF-8 is past 4 × `maxChars` bytes is said too big before it's read (`ClipboardPrint.textTooBig`);
+  the choice, the text's pages and a picture's PNG are made off the main thread, with no Cancel (300 pages take well under a
+  second); a text cut
+  past 300 pages is said in an alert before the print panel (Windows' message line); the made files go in the app's
+  temporary folder, cleared of anything a day old. Not checked: Finder's copied files read from the clipboard in the sandbox
+  (macOS grants a pasted file), Word's and Excel's text-and-picture copies, the print panel's preview, VoiceOver.
+- **4.2 Two-sided printing by hand.** PrintCore `HandDuplexPlan` (`plan`, `fronts`, `sheetBacks`, `backs`, `reload`),
+  `HandDuplexReload`, `OutputFace`, `HandDuplex` (`offered`, `faceOf`); `BatchPrintLine.byHand`, `BatchPrintOptions.turnStack`
+  and the runner's by-hand path (the fronts, the prompt, the backs, each pass held to the estimate, the fronts said printed
+  whatever stops the backs), page 0 a blank side in `DemoBatchQueue` and PrintMac's `CupsBatchQueue` (the size of the page
+  before it), `CupsBatchQueue.outputFace` (cupsd's `output-bin-default` and `printer-output-tray`); `HandDuplexTests`,
+  `HandDuplexBatchTests` (PC). The app (`HandDuplexPrinting.swift`): the prompt (an alert: which way up the sheets came out,
+  starting from the face chosen last for the queue, else the printer's, else face down; the steps follow it; Print the Backs
+  or Stop); Batch Print's Two-sided always on offer, a file two-sided on a one-sided queue printed by hand; the Print menu's
+  Print a PDF on Both Sides by Hand… where the queue can't print both sides (copies asked, then straight to the queue as Batch
+  sends a file); Print a PDF's booklet on a one-sided queue printed by hand as Windows' `SheetPrinting.PrintAsync` does
+  (`HandDuplexPrinting.printSheets`: copies asked, the sides drawn by `SheetPrintView` into a PDF of their own at the queue's
+  default paper with two-sided on the long edge, so each turned back is half-turned, then the runner's by-hand path, the
+  prompt naming a set-aside sheet by the document's page, `BatchPrintLine.pageNumbers` from `SheetPrint.sideNumbers`);
+  `--report … --hand-duplex`. **Mac differences:** Print a PDF by hand and a booklet by hand go straight to the queue at its
+  default paper (Windows' Print tab keeps its own options), not through macOS's print panel, which runs one job; a PDF that
+  needs a password isn't asked for one there (it's said and left out; Batch asks); no Copy (the Mac's Copy is the ID card's,
+  one side); the printer's face is cupsd's copy of the printer's attributes. Not checked: paper on a real one-sided printer,
+  face down and up (`--hand-duplex` answers the prompt), the alert on screen, VoiceOver.
+- **4.16 Cards, calendars and collages in Photos.** PrintCore `PhotoProjects` (`cards`, `cardBox`, `panel`, `message`,
+  `needsTwoSided`, `firstDay`, `dayNames`, `monthName`, `weeks`, `monthAt`, `monthSheet`, `yearSheet`, `monthGrid`,
+  `arrangements`, `lines`, `collageCells`, `collages`, `swap`), `SheetLine`, `PhotoText`, `PhotoTextAlign`,
+  `CollageArrangement` (`Placement`'s `right`, `bottom`, `centerX`, `isEmpty`, `intersect` as 4.18 added them); `PhotoLayoutKind`'s
+  `card`, `monthCalendar`, `yearCalendar`, `collage`, `PhotoLayoutOptions`' `cardMessage`, `calendarYear`, `calendarMonth`,
+  `locale`, `collage`, `collageSpacing`, `collageBorder`, `PhotoSheet`'s `lines`, `texts`, `inside`; `PhotoProjectsTests` (PC).
+  PrintMac `PhotoSheets.draw` draws a sheet's lines (hairline grey, dashed fold marks) and text (Helvetica, wrapped from the
+  top of its box, bold titles, grey day names). The app: Print Photos' Layout gains Folded card (Message inside), Month and
+  Year calendar (Year, First month), Collage (Arrangement, Spacing, Border), Save as PDF… for every layout; a card with a
+  message is sent with `sides=two-sided-long-edge` only to a queue that says it prints both sides, else one-sided with
+  Windows' note (each inside a sheet of its own; `PhotosModel.cardTwoSided`); `--report … --photo-projects`. **Mac differences:** Windows'
+  `SheetText` is `PhotoText` (PrintCore's `SheetText` is the separator sheet's); a culture is a `Locale` (the interface
+  language's, `AppLanguage.current`, without a region; Foundation's `Calendar` gives the first weekday), a week day .NET's
+  `DayOfWeek` number; with no locale the names are English (Windows: the invariant culture's, also English); a month's
+  weeks count the proleptic Gregorian calendar's day numbers (`Day.dayNumber`), never a date; `monthAt` clamps the index
+  first (Swift's Int is 64-bit, so `Int.max` would overflow where .NET's int fits a long); a collage's photos swap from a
+  photo's Swap With menu (Control-click), since dragging moves the crop; a card printed through the print panel (no queue)
+  takes the panel's two-sided setting. Not checked: a card printed two-sided and folded, a calendar on A4 in Spanish on
+  paper, the controls on screen, VoiceOver.
 - **4.18 A PDF preset's PDF/A-2b and password.** PrintCore `PdfArchive` (`PdfWriteOptions`; the XMP packet, its text
   escaped by hand as .NET's XElement writes it; `pdfDate`/`isoDate` in the Gregorian calendar, UTC), `PdfEncryption`
   (AES-256, the standard security handler's revision 6: algorithm 2.B, /U /UE /O /OE /Perms, every string and stream
@@ -333,16 +401,15 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   per sheet as before, several pages per sheet with 2 to 16, a booklet, a poster with its size and cut marks); a layout other
   than one page per sheet prints `SheetPrintView` through the print panel: the plan laid out for the panel's paper as it
   changes, each page drawn by PDFKit (vectors, annotations included) into its place, a poster's part clipped to its box, cut
-  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words, a booklet on a queue that
-  says it prints one side only too. `--report … --pdf-layout` prints the sample to PDFs in the container and says where
+  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words; a booklet on a queue that
+  says it prints one side only goes by hand (4.2). `--report … --pdf-layout` prints the sample to PDFs in the container and says where
   PDFKit finds each page's words. **Mac differences:** Inkvolt PDF for Mac's PdfCore keeps its own `PrintLayout` (Windows
   moved Inkvolt PDF's into the shared core), so PrintCore's are nested in `Sheets` (PdfCore imports PrintCore, and two
   `PrintSetup`s at the top level would collide in every file that imports both); `grid` takes a count that isn't a choice
   as 2 (Windows throws); lengths are in DIPs as on Windows and drawn in points (`SheetPrint.pointsPerUnit`); copies and two
   sides are the print panel's (macOS makes the copies, so `SheetPrint.order`'s blank back between copies isn't used); a
   booklet asks the panel for two-sided on the long edge, and a back is drawn half-turned only while the job prints on the
-  long edge (on the short edge it needs no turn); no two-sided by hand, so a booklet on a one-sided queue is refused rather
-  than printed by hand; pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
+  long edge (on the short edge it needs no turn); pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
   its Print a PDF view, with a count of the sheets). Not checked: a booklet and a poster on paper (fold, trim), the open
   panel's Layout row on screen (VoiceOver), a printer with no queue picked in the panel for a booklet.
 
@@ -2094,8 +2161,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
-  `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

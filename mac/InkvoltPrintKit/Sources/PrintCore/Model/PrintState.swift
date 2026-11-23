@@ -63,6 +63,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// app-scoped security bookmark, newest last (`BatchPlaceList`): the sandbox lets the command line's `print` and a list
     /// opened later reach them again (roadmap 2.4; no Windows equivalent, Windows has no sandbox). At most `maxBatchPlaces`.
     public var batchPlaces: [BatchPlace] = []
+    /// The last saved scans, newest first (roadmap 4.15, `RecentScans`; the Windows app's `AppState.RecentScans`): kept in
+    /// this file, on this Mac only, each with a bookmark of where it was saved.
+    public var recentScans: [RecentScan] = []
 
     public static let maxBatchPlaces = 200
 
@@ -84,6 +87,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         proKey = try? c.decodeIfPresent(String.self, forKey: .proKey)
         firmware = (try? c.decodeIfPresent([String: FirmwareRecord].self, forKey: .firmware)) ?? [:]
         batchPlaces = (try? c.decodeIfPresent([BatchPlace].self, forKey: .batchPlaces)) ?? []
+        recentScans = RecentScans.clean((try? c.decodeIfPresent([RecentScan?].self, forKey: .recentScans)) ?? [])
     }
 }
 
