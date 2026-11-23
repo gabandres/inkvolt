@@ -264,7 +264,7 @@ struct PagesTest {
         pages.keyDown(with: key("\r", code: 36))
         await pages.pendingEdit?.value
         let polygon = mine("Polygon").last, polyline = mine("PolyLine").last
-        check(callouts.count == callouts0 + 1 && tipOk && callout.map(DocumentEditor.kindName) == loc("Callout")
+        check(callouts.count == callouts0 + 1 && tipOk && callout.map { DocumentEditor.kindName($0) } == loc("Callout")
               && mine("Polygon").count == polygons0 + 1 && polygon?.geometry?.paths.first?.count == 3
               && mine("PolyLine").count == polylines0 + 1 && polyline?.geometry?.paths.first?.count == 3,
               "callout (tip where pressed, box where released), polygon (closed on its first corner), polyline (ended with Return)")

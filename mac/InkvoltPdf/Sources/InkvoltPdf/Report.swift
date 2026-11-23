@@ -85,6 +85,8 @@ enum Report {
         Scenario(flag: "--only-measure", documents: .notForm) { c, n in var t = MeasureTest(controller: c, name: n); await t.run() },
         // Wave 4's text tools (roadmap 4.1, 4.2, 4.6, 4.15, 4.18) from the menu bar, on the synthetic text document.
         Scenario(flag: "--only-text-tools", documents: .synthetic) { c, n in var t = TextToolsTest(controller: c, name: n); await t.run() },
+        // Rulers, guides, a grid and snapping (roadmap 4.19), on the synthetic text document.
+        Scenario(flag: "--only-layout", documents: .synthetic) { c, n in var t = LayoutTest(controller: c, name: n); await t.run() },
         // Edit Text & Images' paragraphs (roadmap 2.1), on a page made here: rewrap, the editor's look bar, the overlap prompt.
         Scenario(flag: "--only-paragraph-edit", documents: .synthetic) { _, _ in var t = ParagraphEditTest(); await t.run() },
         // Translate with AI (roadmap 3.1), on pages made here, a stand-in translator on loopback: the copy beside its original.

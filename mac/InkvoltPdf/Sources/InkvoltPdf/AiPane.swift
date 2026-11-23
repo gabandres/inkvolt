@@ -55,6 +55,11 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
     private let body = AiAnswerText()
     let noteLabel = NSTextField(wrappingLabelWithString: "")
     let copyButton = NSButton(image: NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: loc("Copy the answer"))!, target: nil, action: nil)
+    /// Save AI Answer for this answer (roadmap 4.20): on once it has finished with an answer kept in the conversation.
+    let saveButton = NSButton(image: NSImage(systemSymbolName: "square.and.arrow.down", accessibilityDescription: loc("Save the answer"))!, target: nil, action: nil)
+    /// The answer as the conversation keeps it, once finished; what Save saves.
+    var exchange: AiExchange? { didSet { saveButton.isEnabled = exchange != nil } }
+    var onSave: ((AiExchange) -> Void)?
     private let label: NSTextField
     private let warn = NSImageView(image: NSImage(systemSymbolName: "exclamationmark.triangle", accessibilityDescription: nil)!)
     private let model: String
@@ -89,9 +94,15 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
         copyButton.target = self
         copyButton.action = #selector(copyClicked)
         copyButton.isEnabled = false
+        saveButton.bezelStyle = .accessoryBarAction
+        saveButton.isBordered = false
+        saveButton.toolTip = loc("Save the answer")
+        saveButton.target = self
+        saveButton.action = #selector(saveClicked)
+        saveButton.isEnabled = false
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let head = NSStackView(views: [warn, label, spacer, copyButton])
+        let head = NSStackView(views: [warn, label, spacer, saveButton, copyButton])
         head.spacing = 6
 
         body.isEditable = false
@@ -206,6 +217,10 @@ final class AiAnswerCard: NSView, NSTextViewDelegate {
         scrolled()
     }
 
+    @objc func saveClicked() {
+        if let exchange { onSave?(exchange) }
+    }
+
     @objc func copyClicked() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(AiAnswerMarkup.copied(text), forType: .string)
@@ -286,6 +301,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
     let askButton = NSButton(title: loc("Ask"), target: nil, action: nil)
     let stopButton = NSButton(title: loc("Stop"), target: nil, action: nil)
     let clearButton = NSButton(image: NSImage(systemSymbolName: "trash", accessibilityDescription: loc("Clear the conversation"))!, target: nil, action: nil)
+    let saveAllButton = NSButton(image: NSImage(systemSymbolName: "square.and.arrow.down.on.square", accessibilityDescription: loc("Save the conversation"))!, target: nil, action: nil)
     let settingsButton = NSButton(image: NSImage(systemSymbolName: "gearshape", accessibilityDescription: loc("AI assistant settings"))!, target: nil, action: nil)
     let closeButton = NSButton(image: NSImage(systemSymbolName: "xmark", accessibilityDescription: loc("Close the AI assistant"))!, target: nil, action: nil)
     private let question = AiQuestionView()
@@ -295,6 +311,8 @@ final class AiPane: NSViewController, NSTextViewDelegate {
 
     var onClose: (() -> Void)?
     var onClear: (() -> Void)?
+    /// Save AI Conversation (roadmap 4.20).
+    var onSaveAll: (() -> Void)?
     var onStop: (() -> Void)?
     var onSummarize: (() -> Void)?
     var onSettings: (() -> Void)?
@@ -321,6 +339,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
         title.font = .boldSystemFont(ofSize: NSFont.systemFontSize)
         let tips: [(NSButton, String, Selector)] = [
             (settingsButton, loc("AI assistant settings"), #selector(settingsClicked)),
+            (saveAllButton, loc("Save the conversation"), #selector(saveAllClicked)),
             (clearButton, loc("Clear the conversation"), #selector(clearClicked)),
             (closeButton, loc("Close the AI assistant"), #selector(closeClicked)),
         ]
@@ -333,7 +352,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
         }
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
-        let header = NSStackView(views: [title, spacer, settingsButton, clearButton, closeButton])
+        let header = NSStackView(views: [title, spacer, settingsButton, saveAllButton, clearButton, closeButton])
 
         list.orientation = .vertical
         list.alignment = .leading
@@ -446,6 +465,7 @@ final class AiPane: NSViewController, NSTextViewDelegate {
     @objc private func settingsClicked() { onSettings?() }
     @objc private func closeClicked() { onClose?() }
     @objc func clearClicked() { onClear?() }
+    @objc func saveAllClicked() { onSaveAll?() }
     @objc func stopClicked() { onStop?() }
     @objc func summarizeClicked() { onSummarize?() }
 

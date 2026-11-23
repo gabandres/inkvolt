@@ -16,9 +16,12 @@ public struct OptimizeOptions: Equatable, Sendable {
     public var maxImageDpi: Double? = 150
     /// JPEG quality (1-100) of downsampled images.
     public var jpegQuality = 75
+    /// Scanned pages of text kept in grey or colour become black and white (1 bit, `OneBitImages`): much smaller, but their
+    /// shades of grey go. The user's choice, off by default (roadmap 4.8).
+    public var blackAndWhiteScans = false
 
     public init(compressStreams: Bool = true, deduplicateStreams: Bool = true, removeMetadata: Bool = false, removeThumbnails: Bool = true,
-                removePieceInfo: Bool = true, maxImageDpi: Double? = 150, jpegQuality: Int = 75) {
+                removePieceInfo: Bool = true, maxImageDpi: Double? = 150, jpegQuality: Int = 75, blackAndWhiteScans: Bool = false) {
         self.compressStreams = compressStreams
         self.deduplicateStreams = deduplicateStreams
         self.removeMetadata = removeMetadata
@@ -26,6 +29,7 @@ public struct OptimizeOptions: Equatable, Sendable {
         self.removePieceInfo = removePieceInfo
         self.maxImageDpi = maxImageDpi
         self.jpegQuality = jpegQuality
+        self.blackAndWhiteScans = blackAndWhiteScans
     }
 }
 
@@ -38,6 +42,8 @@ public struct OptimizeResult: Sendable {
     public var streamsCompressed: Int
     public var duplicatesRemoved: Int
     public var imagesDownsampled: Int
+    /// Pictures now stored at 1 bit as JBIG2 or CCITT G4: black-and-white ones coded smaller, and scans made black and white.
+    public var imagesBlackAndWhite = 0
 
     public var saved: Int { sizeBefore - sizeAfter }
 
@@ -51,7 +57,9 @@ public struct OptimizeResult: Sendable {
 /// JPEG. Images are decoded and resampled by MuPDF (a one-image page rendered at the target size, so every filter it
 /// reads works), limited to 8-bit DeviceGray/RGB/CMYK (or ICC-based) images without a color-key /Mask; their soft mask
 /// is resampled too (kept lossless). An image's resolution is judged from where page content and form XObjects draw it
-/// (largest use wins); images drawn only elsewhere (patterns, annotations, Type 3 glyphs) are left alone. Signed
+/// (largest use wins); images drawn only elsewhere (patterns, annotations, Type 3 glyphs) are left alone. Black-and-white
+/// pictures are coded again losslessly when that is smaller (with `compressStreams`), and scans of text become black and
+/// white when asked (`blackAndWhiteScans`; `OneBitImages`), before any downsampling. Signed
 /// documents need the caller's consent (`SignedEdits.run` with the rewrite allowed), as the rewrite invalidates their
 /// signatures. An encrypted document (opened with its owner password) keeps its protection.
 public enum Optimizer {
@@ -62,13 +70,14 @@ public enum Optimizer {
 
         removeExtras(doc, options)
         let duplicates = options.deduplicateStreams ? deduplicate(doc) : 0
+        let oneBit = try blackAndWhite(doc, options)
         var downsampled = 0
         if let dpi = options.maxImageDpi, dpi > 0 { downsampled = try downsample(doc, dpi, min(max(options.jpegQuality, 1), 100)) }
         let compressed = options.compressStreams ? compress(doc) : 0
         try doc.checkFailure()
         let saved = try PdfEdit.writeWhole(doc, password: password)
         return OptimizeResult(data: saved, sizeBefore: data.count, sizeAfter: saved.count, streamsCompressed: compressed,
-                              duplicatesRemoved: duplicates, imagesDownsampled: downsampled)
+                              duplicatesRemoved: duplicates, imagesDownsampled: downsampled, imagesBlackAndWhite: oneBit)
     }
 
     /// The indirect dictionaries (and streams) the document still uses: what a rewrite keeps.
@@ -197,7 +206,7 @@ public enum Optimizer {
     }
 
     /// The stream's filter names (empty = none), or nil when they can't be read.
-    private static func filters(_ d: PObj) -> [String]? {
+    static func filters(_ d: PObj) -> [String]? {
         guard let f = d["Filter"] else { return [] }
         if let name = f.name { return [name] }
         if f.isArray {
@@ -207,10 +216,95 @@ public enum Optimizer {
         return nil
     }
 
+    // ---- Black and white ----
+
+    /// Black-and-white pictures coded smaller, and scans of text made black and white when asked (`OneBitImages`); returns
+    /// how many changed. What to look at is chosen here, reading the document; the pictures are drawn and coded several at a
+    /// time, each in an engine of its own, and the changes made after, one by one, on this thread.
+    private static func blackAndWhite(_ doc: MuDoc, _ options: OptimizeOptions) throws -> Int {
+        if !options.compressStreams && !options.blackAndWhiteScans { return 0 }
+        let scans = options.blackAndWhiteScans ? try shown(doc) : nil
+        // What to look at, without its bytes yet: each job holds a copy of its picture's stored samples (Windows' closures
+        // reuse PDFsharp's), so they are read a batch at a time (`batchBytes`, `batchJobs`), not a whole scan's at once.
+        var picked: [(image: PObj, job: (PObj) -> OneBitImages.Job?)] = []
+        for image in objects(doc) where image.isStream && image.name("Subtype") == "Image" {
+            let bpc = image.int("BitsPerComponent")
+            if bpc == 1 || bpc == nil {
+                if options.compressStreams { picked.append((image, OneBitImages.recodeJob)) }
+            } else if let at = scans?[image.identity], min(at.x, at.y) >= 150, let source = imageSource(image, maskOnly: false) {
+                let dpi = Int(min(at.x, at.y, 2400).rounded()) // bounded: 150...2400 (NaN fails the check above)
+                picked.append((image, { OneBitImages.thresholdJob($0, source: source, dpi: dpi) }))
+            }
+        }
+        var changed = 0, next = 0
+        while next < picked.count {
+            var images: [PObj] = [], jobs: [OneBitImages.Job] = [], bytes = 0
+            while next < picked.count && jobs.count < batchJobs && bytes < batchBytes {
+                let (image, make) = picked[next]
+                next += 1
+                guard let job = make(image) else { continue }
+                images.append(image)
+                jobs.append(job)
+                bytes += job.raw.count
+            }
+            if jobs.isEmpty { continue }
+            let results = OneBitResults(jobs)
+            let threads = min(max(ProcessInfo.processInfo.activeProcessorCount / 2, 1), 4, jobs.count)
+            DispatchQueue.concurrentPerform(iterations: threads) { _ in results.work() }
+            for (i, coded) in results.all.enumerated() {
+                guard let coded else { continue }
+                OneBitImages.apply(images[i], jobs[i], coded)
+                changed += 1
+            }
+        }
+        return changed
+    }
+
+    /// At most this many pictures' stored bytes, or this many pictures, are copied out of the document at once.
+    static let batchBytes = 256 << 20, batchJobs = 64
+
+    /// The pictures' jobs, each taken by the next free worker, and their results.
+    private final class OneBitResults: @unchecked Sendable {
+        private let lock = NSLock()
+        private let jobs: [OneBitImages.Job]
+        private var items: [OneBitImages.Coded?]
+        private var taken = 0
+
+        init(_ jobs: [OneBitImages.Job]) {
+            self.jobs = jobs
+            items = Array(repeating: nil, count: jobs.count)
+        }
+
+        /// Runs jobs until none is left; a picture that fails is left as it is.
+        func work() {
+            while let i = next() {
+                let coded = (try? OneBitImages.run(jobs[i]) { dict, stream, w, h in (try? Optimizer.render(dict, stream, w, h, nil)) ?? nil }) ?? nil
+                lock.lock()
+                items[i] = coded
+                lock.unlock()
+            }
+        }
+
+        private func next() -> Int? {
+            lock.lock()
+            defer { lock.unlock() }
+            if taken >= jobs.count { return nil }
+            taken += 1
+            return taken - 1
+        }
+
+        var all: [OneBitImages.Coded?] {
+            lock.lock()
+            defer { lock.unlock() }
+            return items
+        }
+    }
+
     // ---- Image downsampling ----
 
-    private static func downsample(_ doc: MuDoc, _ targetDpi: Double, _ quality: Int) throws -> Int {
-        // Smallest resolution each image is shown at (pixels per inch along its width and height).
+    /// The smallest resolution each image is shown at in page content (pixels per inch along its width and height); nil
+    /// when a page draws more than can be followed (it may show an image larger than found).
+    private static func shown(_ doc: MuDoc) throws -> [UInt: (image: PObj, x: Double, y: Double)]? {
         var shown: [UInt: (image: PObj, x: Double, y: Double)] = [:]
         for page in try doc.pages() {
             let complete = ContentImages.scan(page) { image, ctm in
@@ -225,10 +319,14 @@ public enum Optimizer {
                     shown[image.identity] = (image, dpi.x, dpi.y)
                 }
             }
-            // A page drawing more than can be followed may show an image larger than found: leave them all as they are.
-            if !complete { return 0 }
+            if !complete { return nil }
         }
+        return shown
+    }
 
+    private static func downsample(_ doc: MuDoc, _ targetDpi: Double, _ quality: Int) throws -> Int {
+        // A page drawing more than can be followed may show an image larger than found: leave them all as they are.
+        guard let shown = try shown(doc) else { return 0 }
         var count = 0
         for (_, entry) in shown {
             let (image, dpiX, dpiY) = entry
@@ -320,7 +418,7 @@ public enum Optimizer {
     }
 
     /// A direct PDF value written out (names, numbers, booleans, arrays, dictionaries); nil for anything else.
-    private static func plain(_ item: PObj, _ depth: Int) -> String? {
+    static func plain(_ item: PObj, _ depth: Int) -> String? {
         if depth > 8 { return nil }
         switch item.kind {
         case .name: return "/" + (item.name ?? "")
@@ -372,7 +470,7 @@ public enum Optimizer {
     }
 
     /// A PDF whose single w x h point page is filled by the image.
-    private static func oneImagePage(_ imageDict: String, _ stream: [UInt8], _ w: Int, _ h: Int) -> [UInt8] {
+    static func oneImagePage(_ imageDict: String, _ stream: [UInt8], _ w: Int, _ h: Int) -> [UInt8] {
         var out: [UInt8] = []
         var offsets: [Int] = []
         func write(_ s: String) { out += Array(s.utf8) }

@@ -25,6 +25,9 @@ extension DocumentWindowController {
                                       loc("Keep pictures as they are")])
         quality.selectItem(at: 1)
         quality.setAccessibleName(loc("Pictures"))
+        // Roadmap 4.8: off unless asked, as on Windows (the one loss: a scan's shades of grey).
+        let blackAndWhite = NSButton(checkboxWithTitle: loc("Make scanned pages of text black and white (much smaller; their shades of grey go)"),
+                                     target: nil, action: nil)
         let thumbnails = NSButton(checkboxWithTitle: loc("Remove page thumbnails saved in the file"), target: nil, action: nil)
         thumbnails.state = .on
         let privateData = NSButton(checkboxWithTitle: loc("Remove other apps' private data"), target: nil, action: nil)
@@ -33,6 +36,7 @@ extension DocumentWindowController {
         // Plain words first, advanced choices behind More Options with good defaults (UX review, round 2).
         let form = SheetForm("ReduceFileSize")
         form.row(loc("Pictures"), quality)
+        form.row(nil, blackAndWhite)
         form.row(loc("Remove"), thumbnails, advanced: true)
         form.row(nil, privateData, advanced: true)
         form.row(nil, metadata, advanced: true)
@@ -44,6 +48,7 @@ extension DocumentWindowController {
                 guard response == .alertFirstButtonReturn else { return }
                 var options = OptimizeOptions()
                 options.maxImageDpi = [200.0, 150, 96, nil][max(quality.indexOfSelectedItem, 0)]
+                options.blackAndWhiteScans = blackAndWhite.state == .on
                 options.removeThumbnails = thumbnails.state == .on
                 options.removePieceInfo = privateData.state == .on
                 options.removeMetadata = metadata.state == .on

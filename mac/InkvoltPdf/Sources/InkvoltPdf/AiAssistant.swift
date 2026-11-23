@@ -2,15 +2,16 @@ import AppKit
 import PdfCore
 import PrintCore
 
-/// What the window keeps for its AI assistant: the pane (made on first use), the request running, the conversation, the
-/// pages' text already read.
+/// What the window keeps for its AI assistant: the pane (made on first use), the request running, the pages' text already
+/// read. The conversation is the session's (`DocumentSession.aiConversation`, roadmap 4.20).
 @MainActor
 final class AiState {
     var pane: AiPane?
     var panelItem: NSSplitViewItem?
     var cancel: CancelToken?
     var copyRestricted = false
-    var turns: [AiTurn] = []
+    /// Save AI Answer's sheet while it is open (the self-test reads it).
+    var saveAlert: (alert: NSAlert, choice: NSPopUpButton)?
     let pageTexts = AiPageCache()
     /// The job started from a menu or the pane (the self-test awaits it).
     var job: Task<Void, Never>?
@@ -137,7 +138,7 @@ extension DocumentWindowController {
         pane.onClear = { [weak self] in
             guard let self, let pane = self.ai.pane else { return }
             self.ai.cancel?.cancel()
-            self.ai.turns = []
+            self.pdf.session?.aiConversation.clear()
             pane.clear()
             pane.showStatus(loc("Conversation cleared"))
         }
@@ -145,6 +146,7 @@ extension DocumentWindowController {
             self?.ai.job = Task { @MainActor [weak self] in await self?.ask(question) }
         }
         pane.onSummarize = { [weak self] in self?.aiSummarize(nil) }
+        pane.onSaveAll = { [weak self] in self?.saveAiConversation(nil) }
         pane.onSettings = { [weak self] in self?.aiSettings(nil) }
         pane.onPage = { [weak self] page in
             guard let self, page >= 0, page < self.engine.pageCount else { return }
@@ -183,7 +185,7 @@ extension DocumentWindowController {
             pane.showStatus(plan.notSent)
             return
         }
-        _ = await run(config, label: job.label, job.outgoing) { client, onFinal, onStep, cancel in
+        _ = await run(config, .summary, label: job.label, job.outgoing) { client, onFinal, onStep, cancel in
             let force = config.endpoint.reach == .internet
             let confirm: @Sendable ([[AiMessage]], CancelToken?) async throws -> Bool
             if job.showCombine {
@@ -210,13 +212,13 @@ extension DocumentWindowController {
             return
         }
         guard let texts = await readPages(chosen) else { return }
-        let plan = AiJobs.question(question, turns: ai.turns, pages: chosen, texts, config)
+        let plan = AiJobs.question(question, turns: pdf.session?.aiConversation.turns ?? [], pages: chosen, texts, config)
         guard let job = plan.job else {
             pane.showStatus(plan.notSent)
             return
         }
         let messages = job.request.messages
-        let answered = await run(config, label: question, job.outgoing) { client, onFinal, onStep, cancel in
+        let answered = await run(config, .answer, label: question, job.outgoing) { client, onFinal, onStep, cancel in
             onStep(AiStep(1, 1, true, loc("Asking")))
             return try await client.chat(messages, onText: onFinal, cancel: cancel)
         }
@@ -237,7 +239,7 @@ extension DocumentWindowController {
             return
         }
         let messages = job.messages
-        _ = await run(config, label: job.label, job.outgoing, historyQuestion: job.historyQuestion) { client, onFinal, onStep, cancel in
+        _ = await run(config, .explanation, label: job.label, job.outgoing, historyQuestion: job.historyQuestion) { client, onFinal, onStep, cancel in
             onStep(AiStep(1, 1, true, loc("Explaining")))
             return try await client.chat(messages, onText: onFinal, cancel: cancel)
         }
@@ -275,7 +277,7 @@ extension DocumentWindowController {
     }
 
     /// The pages' text, read in the background; nil when cancelled or the document changed meanwhile.
-    private func readPages(_ chosen: [Int]) async -> [AiPageText]? {
+    func readPages(_ chosen: [Int]) async -> [AiPageText]? {
         guard let pane = ai.pane else { return nil }
         let current = engine
         let missing = ai.pageTexts.missing(chosen, engine: current)
@@ -324,7 +326,7 @@ extension DocumentWindowController {
 
     /// Confirms the send (unless the user chose not to be asked for this endpoint), then runs the job, streaming the final
     /// answer into a new card. True when an answer came back.
-    private func run(_ config: AiConfig, label: String, _ outgoing: AiOutgoing, historyQuestion: String? = nil,
+    private func run(_ config: AiConfig, _ kind: AiAnswerKind, label: String, _ outgoing: AiOutgoing, historyQuestion: String? = nil,
                      job: @escaping @Sendable (AiClient, @escaping @Sendable (String) -> Void, @escaping @Sendable (AiStep) -> Void, CancelToken) async throws -> AiReply) async -> Bool {
         guard let pane = ai.pane, let session = pdf.session else { return false }
         let data = session.data, password = session.password, encrypted = session.hasEncryption
@@ -365,7 +367,13 @@ extension DocumentWindowController {
             }, token)
             let answer = AiText.trim(AiText.withoutThinking(reply.text).text)
             card.finish(answer, note: AiJobs.finishNote(reply, answer: answer))
-            if !answer.isEmpty { ai.turns.append(AiTurn(historyQuestion ?? label, answer)) }
+            if !answer.isEmpty {
+                // Kept with the document (roadmap 4.20): what a follow-up sends again, and what Save saves.
+                let exchange = AiExchange(kind, shown: label, asked: historyQuestion ?? label, answer: answer, model: config.model, when: Date())
+                session.aiConversation.add(exchange)
+                card.exchange = exchange
+                card.onSave = { [weak self] e in self?.saveAiAnswer(e) }
+            }
             pane.showStatus(loc("Answer ready. AI-generated: check it against the pages."))
             return true
         } catch is CancellationError {

@@ -38,6 +38,8 @@ public struct AnnotationInfo: Equatable, Sendable {
     public var geometry: AnnotGeometry?
     /// Drawing annotations: how they look (`Annotations.updateStyle`); nil for other kinds.
     public var style: AnnotStyle?
+    /// Bound to `replyTo` as part of one comment (/RT /Group: a Replace Text's strike-out), not a reply.
+    public var grouped = false
 }
 
 /// Reads and edits comments (markup annotations): highlights, underlines, strike-outs, squiggles and sticky notes, and the
@@ -85,7 +87,8 @@ public enum Annotations {
                     isInkvoltPdfStamp: subtype == "FreeText" && TextStamps.isOwnId(nm),
                     replyTo: a.dict("IRT").map { idOf(doc, $0, p, -1) },
                     hidden: flags & (flagHidden | flagNoView) != 0, opacity: a.number("CA") ?? 1,
-                    geometry: drawing?.geometry, style: drawing?.style))
+                    geometry: drawing?.geometry, style: drawing?.style,
+                    grouped: a.dict("IRT") != nil && a.name("RT") == "Group"))
             }
         }
         return list
@@ -245,7 +248,7 @@ public enum Annotations {
         }
     }
 
-    /// Deletes an annotation with its popup and its replies (and theirs).
+    /// Deletes an annotation with its popup and its replies (and theirs); a group's member, the whole group.
     public static func delete(_ data: [UInt8], _ password: String?, _ id: String) throws -> [UInt8] {
         try PageEditor.edit(data, password, userEdit: .annotate) { doc in
             if !(try deleteIn(doc, id)) { throw PdfEditError(loc("That comment no longer exists.")) }
@@ -259,7 +262,8 @@ public enum Annotations {
         var all: [PObj] = []
         for p in 0..<count { all += (doc.page(p).array("Annots")?.elements ?? []).filter(\.isDict) }
 
-        var doomed: Set<UInt> = [found.annot.identity]
+        // A group's member (Replace Text's strike-out) is part of one comment: the whole group goes, never half of it.
+        var doomed: Set<UInt> = [groupHeadIn(found.annot).identity]
         var grew = true
         while grew {
             grew = false

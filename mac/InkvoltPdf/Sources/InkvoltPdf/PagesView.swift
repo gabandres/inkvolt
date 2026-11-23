@@ -19,6 +19,8 @@ protocol PagesHost: AnyObject {
     func openLink(_ link: PageLink)
     /// The areas marked for redaction changed.
     func redactionsChanged()
+    /// The guides were added to, moved or cleared (roadmap 4.19).
+    func guidesChanged()
     /// The Snapshot tool marked `region` (page space) of `page` in the pane showing `engine`: copy it as a picture, at the
     /// view's scale (pixels a point) and turned as the view shows the page.
     func copySnapshot(_ engine: PdfEngine, page: Int, region: RectD, viewScale: Double, rotation: Int)
@@ -167,15 +169,28 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case contentResize(page: Int, handle: Int, box: RectD, now: RectD)
         /// A press on one of the document's links (followed on release, unless the mouse moved away).
         case link(PageLink, page: Int, start: NSPoint)
+        /// A guide picked up with the hand or select tool (roadmap 4.19), `at` where it is now (off the page: it goes).
+        case guide(Guide, page: Int, at: Double)
+        /// The selected picture's round turn handle dragged (roadmap 4.22): from where the press was to `now` (this view's
+        /// coordinates).
+        case contentTurn(page: Int, from: NSPoint, now: NSPoint)
 
         var page: Int? {
             switch self {
             case .text, .pan, .link: nil
             case .move(_, let p, _, _, _), .resize(_, let p, _, _, _), .lineEnd(_, let p, _, _), .box(let p, _, _),
-                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _), .contentResize(let p, _, _, _): p
+                 .line(let p, _, _), .ink(let p, _), .contentMove(let p, _, _, _), .contentResize(let p, _, _, _), .guide(_, let p, _),
+                 .contentTurn(let p, _, _): p
             }
         }
     }
+
+    /// The document's guides (on its session; roadmap 4.19).
+    var guides: PageGuides? { didSet { needsDisplay = true } }
+    /// What the press under way snapped to, on its page.
+    var snapShown: (page: Int, lines: [SnapLine])? { didSet { needsDisplay = true } }
+    /// A guide being dragged from a ruler (this view's coordinates).
+    var guidePreview: (top: Bool, at: NSPoint)? { didSet { needsDisplay = true } }
 
     private(set) var drag: Drag? { didSet { needsDisplay = true } }
     /// The corners of the polygon (or points of the polyline) being drawn, on one page.
@@ -468,6 +483,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
             drawMarks(i, r)
             drawRedactions(i, r)
+            drawLayout(i, r)
             if tool == .prepareForm { design?.draw(i, r) } else { form?.draw(i, r) }
             if tool == .editContent { content?.draw(i, r) }
             drawEditing(i, r)
@@ -787,7 +803,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let stroke = Palette.ns(style.color ?? .red).withAlphaComponent(CGFloat(style.highlighter ? 0.5 : max(style.opacity, 0.3)))
         stroke.setStroke()
         switch drag {
-        case .text, .pan, .link:
+        case .text, .pan, .link, .guide:
             return
         case .box(_, let a, let b) where boxPicker != nil || tool == .snapshot:
             let rect = viewRect(DrawingGeometry.dragBox(a, b, square: false), r)
@@ -805,6 +821,19 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             outline(viewRect(RectD(box.x + by.x, box.y + by.y, box.width, box.height), r), px)
         case .contentResize(_, _, _, let now):
             outline(viewRect(now, r), px)
+        case .contentTurn(_, let from, let now):
+            // The picture's outline turned by how far the pointer went round its middle.
+            guard let content, let image = content.selectedImage else { return }
+            let v = viewRect(content.shownBox(image), r)
+            let angle = turnAngle(v, from, now)
+            let corners = ContentTurn.corners(RectD(Double(v.minX), Double(v.minY), Double(v.width), Double(v.height)), angle)
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: corners[0].x, y: corners[0].y))
+            for c in corners.dropFirst() { path.line(to: NSPoint(x: c.x, y: c.y)) }
+            path.close()
+            path.lineWidth = px
+            NSColor.controlAccentColor.setStroke()
+            path.stroke()
         case .move(let id, _, _, let frame, let by):
             let moved = RectD(frame.x + by.x, frame.y + by.y, frame.width, frame.height)
             outline(viewRect(moved, r), px)
@@ -1118,6 +1147,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             designDown(event, point)
             return
         }
+        // The selected picture's turn handle, which sits out past its corner (maybe off the page).
+        if tool == .editContent, let content, let page = content.turnHandle(at: point) {
+            content.flushNudge()
+            drag = .contentTurn(page: page, from: point, now: point)
+            return
+        }
         if let h = handle(at: point), let id = selectedId {
             startHandleDrag(id, h.page, h.handle)
             return
@@ -1126,6 +1161,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let p = pagePoint(point, on: hit.page)
         if boxPicker != nil {
             drag = .box(page: hit.page, start: p, now: p)
+            return
+        }
+        // A guide picked up with the hand or select tool (dropped off its page, it goes).
+        if tool == .hand || tool == .text, let g = guideNear(hit.page, p) {
+            drag = .guide(g, page: hit.page, at: g.at)
             return
         }
         if tool == .editContent {
@@ -1168,20 +1208,27 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
         case .text, .highlight, .underline, .strikeOut:
             startTextSelection(event, hit)
-        case .textBox, .rectangle, .ellipse, .link, .callout, .snapshot:
+        case .textBox, .rectangle, .ellipse, .callout:
+            let s = snapped(hit.page, p)
+            drag = .box(page: hit.page, start: s, now: s)
+        case .link, .snapshot:
             drag = .box(page: hit.page, start: p, now: p)
         case .polygon, .polyline:
-            addVertex(hit.page, p, clicks: event.clickCount)
+            addVertex(hit.page, snapped(hit.page, p), clicks: event.clickCount)
         case .line, .arrow:
-            drag = .line(page: hit.page, start: p, now: p)
+            let s = snapped(hit.page, p)
+            drag = .line(page: hit.page, start: s, now: s)
         case .pen, .highlighter:
             drag = .ink(page: hit.page, points: [p])
-        case .note, .stamp, .image, .fillText, .fillCheck, .fillCross, .fillDate, .signature:
+        case .stamp, .image, .signature:
+            let s = snapped(hit.page, p)
+            drag = .box(page: hit.page, start: s, now: s)
+        case .note, .fillText, .fillCheck, .fillCross, .fillDate:
             drag = .box(page: hit.page, start: p, now: p)
         case .editContent, .prepareForm:
             return
         case .measureDistance, .measurePerimeter, .measureArea, .measureCalibrate:
-            measureDown(hit.page, p, clicks: event.clickCount, shift: shiftDown)
+            measureDown(hit.page, snapped(hit.page, p), clicks: event.clickCount, shift: shiftDown)
         case .redact:
             // A click on a mark unmarks it; a drag marks an area.
             if let i = redactions.lastIndex(where: { $0.page == hit.page && $0.rect.contains(p.x, p.y) }) {
@@ -1190,6 +1237,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             }
             drag = .box(page: hit.page, start: p, now: p)
         }
+    }
+
+    /// How far a drag of the turn handle from `from` to `now` turns a box shown at `v` (Shift: 15° steps).
+    private func turnAngle(_ v: NSRect, _ from: NSPoint, _ now: NSPoint) -> Double {
+        ContentTurn.dragged(PointD(Double(v.midX), Double(v.midY)), PointD(Double(from.x), Double(from.y)), PointD(Double(now.x), Double(now.y)),
+                            0, steps: shiftDown)
     }
 
     /// Edit Text & Images: a picture is selected (and dragged), text is changed.
@@ -1235,6 +1288,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     private func startTextSelection(_ event: NSEvent, _ hit: (page: Int, x: Double, y: Double)) {
         guard let text = try? engine.text(hit.page), !text.isEmpty else {
             selection = nil
+            clickedOnText = false
             return
         }
         let caret = text.hitTest(hit.x, hit.y)
@@ -1242,7 +1296,10 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         switch event.clickCount {
         case 2: select(hit.page, text.wordAt(caret))
         case 3: select(hit.page, text.lineAt(caret))
-        default: selection = TextSelection(page: hit.page, anchor: caret, head: caret)
+        default:
+            selection = TextSelection(page: hit.page, anchor: caret, head: caret)
+            // Where Insert Text goes without a selection: a click on text only (Windows' last click).
+            clickedOnText = text.isOverText(hit.x, hit.y)
         }
     }
 
@@ -1265,6 +1322,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
                 let at = pageSpace(start, pageRects[page])
                 let caret = text.hitTest(at.x, at.y)
                 selection = TextSelection(page: page, anchor: caret, head: caret)
+                clickedOnText = false
                 drag = .text
             } else {
                 drag = nil
@@ -1289,8 +1347,16 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         case .move(let id, let page, let start, let frame, _):
             let p = pagePoint(point, on: page)
             let g = engine.page(page)
-            let d = DrawingGeometry.clampMove(frame, p.x - start.x, p.y - start.y, g.width, g.height)
+            // Where the pointer takes it, moved onto the nearest guide, grid line or other object's edge or middle.
+            let raw = RectD(frame.x + p.x - start.x, frame.y + p.y - start.y, frame.width, frame.height)
+            let snappedFrame = snappedMove(page, raw, id: id)
+            let d = DrawingGeometry.clampMove(frame, snappedFrame.x - frame.x, snappedFrame.y - frame.y, g.width, g.height)
             drag = .move(id: id, page: page, start: start, frame: frame, by: PointD(d.dx, d.dy))
+        case .guide(let g, let page, _):
+            let q = pageSpace(point, pageRects[page])
+            drag = .guide(g, page: page, at: g.axis == .x ? q.x : q.y)
+        case .contentTurn(let page, let from, _):
+            drag = .contentTurn(page: page, from: from, now: point)
         case .resize(let id, let page, let handle, let frame, _):
             let p = pagePoint(point, on: page)
             let keep = editor?.comment(id)?.subtype == "Stamp" || shiftDown
@@ -1302,9 +1368,11 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             points[end] = p
             drag = .lineEnd(id: id, page: page, end: end, points: points)
         case .box(let page, let start, _):
-            drag = .box(page: page, start: start, now: pagePoint(point, on: page))
+            let now = pagePoint(point, on: page)
+            let snaps: [Tool] = [.textBox, .rectangle, .ellipse, .callout, .stamp, .image, .signature]
+            drag = .box(page: page, start: start, now: snaps.contains(tool) && boxPicker == nil ? snapped(page, now) : now)
         case .line(let page, let start, _):
-            drag = .line(page: page, start: start, now: pagePoint(point, on: page))
+            drag = .line(page: page, start: start, now: snapped(page, pagePoint(point, on: page)))
         case .ink(let page, var points):
             points.append(pagePoint(point, on: page))
             drag = .ink(page: page, points: points)
@@ -1328,7 +1396,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         }
         guard let finished = drag else { return }
         drag = nil
+        showSnapLines(-1, [])
         if case .pan = finished { NSCursor.pop() }
+        if case .guide(let g, let page, let at) = finished {
+            endGuideDrag(g, page: page, at: at)
+            return
+        }
         if case .text = finished {
             if let kind = tool.markupKind { markSelection(kind) }
             return
@@ -1351,7 +1424,13 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
     /// the hand tool.
     private func designDown(_ event: NSEvent, _ point: NSPoint) {
         guard let design, let hit = page(at: point) else { return }
-        if design.press(hit.page, pagePoint(point, on: hit.page), clicks: event.clickCount) == .pan, let clip = enclosingScrollView?.contentView {
+        let p = pagePoint(point, on: hit.page)
+        // Guides can be picked up in Prepare Form too, with no field tool.
+        if design.model.kind == nil, design.model.fieldAt(hit.page, p) == nil, let g = guideNear(hit.page, p) {
+            drag = .guide(g, page: hit.page, at: g.at)
+            return
+        }
+        if design.press(hit.page, p, clicks: event.clickCount, toggle: event.modifierFlags.contains(.command)) == .pan, let clip = enclosingScrollView?.contentView {
             drag = .pan(start: event.locationInWindow, origin: clip.bounds.origin)
             NSCursor.closedHand.push()
         }
@@ -1375,8 +1454,12 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
         let style = styles.style(tool)
         let tool = self.tool
         switch finished {
-        case .text, .pan, .link:
+        case .text, .pan, .link, .guide:
             return
+        case .contentTurn(let page, let from, let now):
+            guard let content, let image = content.selectedImage, page < pageRects.count else { return }
+            let angle = turnAngle(viewRect(content.shownBox(image), pageRects[page]), from, now)
+            if abs(angle) >= 0.01 { content.rotate(image, by: angle) }
         case .contentMove(_, _, let box, let by):
             guard abs(by.x) + abs(by.y) >= 0.5, let image = content?.selectedImage else { return }
             ghost = finished
@@ -1635,6 +1718,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     func select(_ page: Int, _ range: (start: Int, end: Int)) {
         selection = TextSelection(page: page, anchor: range.start, head: range.end)
+        clickedOnText = false
         if selectedId != nil { select(nil) }
     }
 
@@ -1734,6 +1818,7 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             menu.addItem(withTitle: loc("Delete"), action: #selector(delete(_:)), keyEquivalent: "")
             return menu
         }
+        let caret = editor == nil ? nil : caretUnder(point)
         if selectedText != nil {
             menu.addItem(withTitle: loc("Copy"), action: #selector(copy(_:)), keyEquivalent: "")
             if AppSettings.ai.enabled {
@@ -1743,9 +1828,15 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
             menu.addItem(withTitle: loc("Highlight"), action: #selector(DocumentWindowController.highlightText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: loc("Underline"), action: #selector(DocumentWindowController.underlineText(_:)), keyEquivalent: "")
             menu.addItem(withTitle: loc("Strike Out"), action: #selector(DocumentWindowController.strikeOutText(_:)), keyEquivalent: "")
+            menu.addItem(withTitle: loc("Replace Text…"), action: #selector(DocumentWindowController.replaceProofText(_:)), keyEquivalent: "")
+            if let caret { menu.addItem(insertTextItem(caret)) }
             menu.addItem(withTitle: loc("Link Selected Text…"), action: #selector(DocumentWindowController.linkSelectedText(_:)), keyEquivalent: "")
             menu.addItem(.separator())
             menu.addItem(withTitle: loc("Redact"), action: #selector(DocumentWindowController.redactSelectedText(_:)), keyEquivalent: "")
+            return menu
+        }
+        if let caret {
+            menu.addItem(insertTextItem(caret))
             return menu
         }
         return nil
@@ -1753,6 +1844,33 @@ final class PagesView: NSView, NSUserInterfaceValidations, NSMenuItemValidation 
 
     private func linkAt(_ page: Int, _ p: PointD) -> String? {
         editor?.links.last { $0.pageIndex == page && $0.rect.contains(p.x, p.y) }?.id
+    }
+
+    // MARK: Proofreading marks (roadmap 4.17)
+
+    /// The last press on the page view was a click on text (no word or line chosen): Insert Text goes where it left the
+    /// caret.
+    private var clickedOnText = false
+
+    /// Where Insert Text goes: the selection's end, or where text was clicked (Windows' `PageViewer.InsertionPoint`); nil
+    /// otherwise.
+    var insertionPoint: (page: Int, caret: Int)? {
+        guard let s = selection, !s.isEmpty || clickedOnText, s.last.page < engine.pageCount else { return nil }
+        return s.last
+    }
+
+    /// The place in the text under `point` (this view's coordinates), nil off the text (the context menu's Insert Text).
+    private func caretUnder(_ point: NSPoint) -> (page: Int, caret: Int)? {
+        guard let spot = page(at: point), let text = try? engine.text(spot.page), !text.isEmpty,
+              text.isOverText(spot.x, spot.y) else { return nil }
+        return (spot.page, text.hitTest(spot.x, spot.y))
+    }
+
+    /// Insert Text… for the context menu at `at` (its place given to the action, `insertProofTextHere:`).
+    private func insertTextItem(_ at: (page: Int, caret: Int)) -> NSMenuItem {
+        let item = NSMenuItem(title: loc("Insert Text…"), action: #selector(DocumentWindowController.insertProofTextHere(_:)), keyEquivalent: "")
+        item.representedObject = [at.page, at.caret]
+        return item
     }
 
     /// The selected text's line boxes (for Link Selected Text).

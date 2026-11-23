@@ -120,6 +120,7 @@ public struct PatternRedaction: Sendable {
             let reread = mode == .reviewed ? try Self.withoutText(redacted, password, Array(areas.keys)) : Set(areas.keys)
             (still, unread) = try RedactionSearch.readBack(redacted, password, patterns, ocr: ocr, redactedPages: reread, kept: skipped,
                                                            progress: readBack, cancel: cancel)
+            still = labelled(still)
         }
         var options = checkOptions(before)
         // Pages the search or the read-back couldn't read weren't looked at: the check says it is incomplete.
@@ -132,6 +133,23 @@ public struct PatternRedaction: Sendable {
         let left = mode == .reviewed ? check.findings.contains { RedactionCheck.isLeftover($0.kind) } : !check.isClean
         let verdict: PatternRedactionVerdict = !still.isEmpty ? .stillThere : left ? .leftInFile : check.incomplete ? .incomplete : .passed
         return PatternRedactionOutcome(verdict: verdict, report: report(still), stillThere: still, check: check, checkOptions: options, unread: unread)
+    }
+
+    /// What the read-back found again, each named as the hit it was chosen as (`RedactionMatch.label`: a suggestion's
+    /// "Suggested: name"), by its words; the search alone knows only the pattern.
+    private func labelled(_ found: [RedactionMatch]) -> [RedactionMatch] {
+        func key(_ s: String) -> String { s.split(whereSeparator: \.isWhitespace).joined(separator: " ").lowercased() }
+        var labels: [String: String] = [:]
+        for h in accepted + skipped {
+            if let label = h.label, labels[key(h.normalized)] == nil { labels[key(h.normalized)] = label }
+        }
+        if labels.isEmpty { return found }
+        return found.map { h in
+            guard h.label == nil, let l = labels[key(h.normalized)] else { return h }
+            var labelled = h
+            labelled.label = l
+            return labelled
+        }
     }
 
     /// The pages of `pages` without any text (none recognized, or reading it was skipped).

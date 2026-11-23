@@ -24212,6 +24212,1271 @@
         }
       }
     },
+    "Make scanned pages of text black and white (much smaller; their shades of grey go)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasar a blanco y negro las páginas escaneadas de texto (mucho más pequeñas; se pierden sus tonos de gris)"
+          }
+        }
+      }
+    },
+    "scans in black and white": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "escaneos en blanco y negro"
+          }
+        }
+      }
+    },
+    "Suggest Redactions": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sugerir qué eliminar"
+          }
+        }
+      }
+    },
+    "Your AI assistant ({0} · {1}) reads the pages' text and suggests what to redact. You see exactly what is sent, and where, before it goes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu asistente de IA ({0} · {1}) lee el texto de las páginas y sugiere qué eliminar. Antes de enviar nada ves exactamente qué se envía y adónde."
+          }
+        }
+      }
+    },
+    "The AI assistant is off, so nothing is sent anywhere: only your names and terms list is searched. To get suggestions by meaning, set up your own assistant in Settings › AI assistant.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El asistente de IA está desactivado, así que no se envía nada: solo se busca tu lista de nombres y términos. Para recibir sugerencias por su significado, configura tu propio asistente en Configuración › Asistente de IA."
+          }
+        }
+      }
+    },
+    "Names of people": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombres de personas"
+          }
+        }
+      }
+    },
+    "Companies and organizations": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empresas y organizaciones"
+          }
+        }
+      }
+    },
+    "Postal addresses": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direcciones postales"
+          }
+        }
+      }
+    },
+    "Account and ID numbers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Números de cuenta y de identificación"
+          }
+        }
+      }
+    },
+    "Describe it in your words, for example: diagnoses and medicines, or salaries": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descríbelo con tus palabras, por ejemplo: diagnósticos y medicamentos, o salarios"
+          }
+        }
+      }
+    },
+    "Also anything that is (optional)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y también lo que sea (opcional)"
+          }
+        }
+      }
+    },
+    "Edit List…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar lista…"
+          }
+        }
+      }
+    },
+    "Ask the assistant for": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pedir al asistente"
+          }
+        }
+      }
+    },
+    "Nothing is removed yet: every place found is listed for you to accept or skip, and the result is read back and checked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no se quita nada: cada lugar encontrado aparece en una lista para que lo aceptes u omitas, y el resultado se vuelve a leer y se comprueba."
+          }
+        }
+      }
+    },
+    "Your names and terms list is empty. Add names with Edit List, or set up the AI assistant.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu lista de nombres y términos está vacía. Agrega nombres con Editar lista, o configura el asistente de IA."
+          }
+        }
+      }
+    },
+    "Choose something to ask the assistant for, or use your list.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige algo que pedir al asistente, o usa tu lista."
+          }
+        }
+      }
+    },
+    "Also my names and terms list ({0} entry)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y también mi lista de nombres y términos ({0} entrada)"
+          }
+        }
+      }
+    },
+    "Also my names and terms list ({0} entries)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Y también mi lista de nombres y términos ({0} entradas)"
+          }
+        }
+      }
+    },
+    "Your saved names and terms list is larger than {0} MB, so none of it is used. Edit it to shorten it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu lista guardada de nombres y términos ocupa más de {0} MB, así que no se usa nada de ella. Edítala para acortarla."
+          }
+        }
+      }
+    },
+    "{0} entry in your saved list is too long, or past what a list can hold, and isn't searched. Edit the list to fix it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} entrada de tu lista guardada es demasiado larga, o supera lo que cabe en una lista, y no se busca. Edita la lista para corregirlo."
+          }
+        }
+      }
+    },
+    "{0} entries in your saved list are too long, or past what a list can hold, and aren't searched. Edit the list to fix it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} entradas de tu lista guardada son demasiado largas, o superan lo que cabe en una lista, y no se buscan. Edita la lista para corregirlo."
+          }
+        }
+      }
+    },
+    "Names and terms to redact": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombres y términos que eliminar"
+          }
+        }
+      }
+    },
+    "One per line: names, companies, case numbers, words. Kept on this Mac only. Lines starting with # are skipped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uno por línea: nombres, empresas, números de expediente, palabras. Se guarda solo en este Mac. Se omiten las líneas que empiezan con #."
+          }
+        }
+      }
+    },
+    "Names and terms": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nombres y términos"
+          }
+        }
+      }
+    },
+    "The list couldn't be saved. Check that the app's data folder can be written to, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar la lista. Comprueba que se puede escribir en la carpeta de datos de la aplicación y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "{0} suggestion wasn't in the text as written, or couldn't be read, and was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} sugerencia no estaba en el texto tal como se escribió, o no se pudo leer, y se dejó fuera."
+          }
+        }
+      }
+    },
+    "{0} suggestions weren't in the text as written, or couldn't be read, and were left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} sugerencias no estaban en el texto tal como se escribieron, o no se pudieron leer, y se dejaron fuera."
+          }
+        }
+      }
+    },
+    "{0} answer from the assistant wasn't a list and was skipped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respuesta del asistente no era una lista y se omitió."
+          }
+        }
+      }
+    },
+    "{0} answers from the assistant weren't a list and were skipped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respuestas del asistente no eran una lista y se omitieron."
+          }
+        }
+      }
+    },
+    "The assistant's suggestions aren't included (nothing came back from it): only your names and terms list was searched.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se incluyen las sugerencias del asistente (no devolvió nada): solo se buscó tu lista de nombres y términos."
+          }
+        }
+      }
+    },
+    "Nothing to redact was suggested.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se sugirió nada que eliminar."
+          }
+        }
+      }
+    },
+    "The assistant didn't read {0}: it has no text. Scanned pages need Recognize Text (OCR) first; the search below still reads them for your list and shows them to look at.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El asistente no leyó {0}: no tiene texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR); la búsqueda de abajo igualmente las lee para tu lista y te las muestra para revisarlas."
+          }
+        }
+      }
+    },
+    "The assistant didn't read {0}: they have no text. Scanned pages need Recognize Text (OCR) first; the search below still reads them for your list and shows them to look at.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El asistente no leyó {0}: no tienen texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR); la búsqueda de abajo igualmente las lee para tu lista y te las muestra para revisarlas."
+          }
+        }
+      }
+    },
+    "Nothing was sent: {0} has no text. Scanned pages need Recognize Text (OCR) first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se envió nada: {0} no tiene texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR)."
+          }
+        }
+      }
+    },
+    "Nothing was sent: {0} have no text. Scanned pages need Recognize Text (OCR) first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se envió nada: {0} no tienen texto. Las páginas escaneadas necesitan primero el reconocimiento de texto (OCR)."
+          }
+        }
+      }
+    },
+    "The text of {0}, to find what to redact": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto de {0}, para encontrar qué eliminar"
+          }
+        }
+      }
+    },
+    "Send for redaction suggestions?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Enviar para recibir sugerencias de eliminación?"
+          }
+        }
+      }
+    },
+    "{0} suggestion found in the text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} sugerencia encontrada en el texto."
+          }
+        }
+      }
+    },
+    "{0} suggestions found in the text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} sugerencias encontradas en el texto."
+          }
+        }
+      }
+    },
+    "No suggestions": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay sugerencias"
+          }
+        }
+      }
+    },
+    "No AI answer to save yet: ask, summarize or explain first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay ninguna respuesta de IA que guardar: primero pregunta, resume o explica algo."
+          }
+        }
+      }
+    },
+    "Save AI answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la respuesta de IA"
+          }
+        }
+      }
+    },
+    "Save AI conversation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la conversación con la IA"
+          }
+        }
+      }
+    },
+    "The answer to “{0}”.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta a «{0}»."
+          }
+        }
+      }
+    },
+    "{0} answer, with what was asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respuesta, con lo que se preguntó."
+          }
+        }
+      }
+    },
+    "{0} answers, each with what was asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respuestas, cada una con lo que se preguntó."
+          }
+        }
+      }
+    },
+    "A Word document (.docx)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un documento de Word (.docx)"
+          }
+        }
+      }
+    },
+    "A PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un PDF"
+          }
+        }
+      }
+    },
+    "A comment on page {0} of this document": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un comentario en la página {0} de este documento"
+          }
+        }
+      }
+    },
+    "Save as": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como"
+          }
+        }
+      }
+    },
+    "It says it was written by an AI model, and which one; it may be wrong. A comment goes on the first page the answer cites.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indica que lo escribió un modelo de IA, y cuál; puede contener errores. Un comentario va en la primera página que cita la respuesta."
+          }
+        }
+      }
+    },
+    "Add AI answer as comment": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar la respuesta de IA como comentario"
+          }
+        }
+      }
+    },
+    "The answer is now a comment on page {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta es ahora un comentario en la página {0}."
+          }
+        }
+      }
+    },
+    "{0} - AI answers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - respuestas de IA"
+          }
+        }
+      }
+    },
+    "{0} is open in Inkvolt PDF. Close it first, or save under another name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} está abierto en Inkvolt PDF. Ciérralo primero, o guarda con otro nombre."
+          }
+        }
+      }
+    },
+    "Not saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se guardó"
+          }
+        }
+      }
+    },
+    "The file couldn't be written. Check that the folder exists and the file isn't open in another app, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo escribir el archivo. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Save the answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la respuesta"
+          }
+        }
+      }
+    },
+    "Save the conversation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la conversación"
+          }
+        }
+      }
+    },
+    "Align": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear"
+          }
+        }
+      }
+    },
+    "A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un signo de intercalación azul marca el lugar en la página {0}; el texto que escribas es su comentario. Autor: {1}."
+          }
+        }
+      }
+    },
+    "Click in the text where the words go (Select Text tool), or select text, then choose Insert Text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en el texto donde van las palabras (herramienta Seleccionar texto), o selecciona texto, y elige Insertar texto."
+          }
+        }
+      }
+    },
+    "Select text on one page to replace it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona texto de una sola página para reemplazarlo."
+          }
+        }
+      }
+    },
+    "“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» en la página {1} queda tachado, con un signo de intercalación azul detrás que guarda el texto que escribas. Autor: {2}."
+          }
+        }
+      }
+    },
+    "Across": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En horizontal"
+          }
+        }
+      }
+    },
+    "Align fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alinear campos"
+          }
+        }
+      }
+    },
+    "Both": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambos"
+          }
+        }
+      }
+    },
+    "Calculate": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calcular"
+          }
+        }
+      }
+    },
+    "Calculation (as Price * Quantity)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cálculo (como Precio * Cantidad)"
+          }
+        }
+      }
+    },
+    "Calculation order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo"
+          }
+        }
+      }
+    },
+    "Calculation order…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Orden de cálculo…"
+          }
+        }
+      }
+    },
+    "Centers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Centros"
+          }
+        }
+      }
+    },
+    "Change calculation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar cálculo"
+          }
+        }
+      }
+    },
+    "Change calculation order": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar orden de cálculo"
+          }
+        }
+      }
+    },
+    "Delete the selected fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar los campos seleccionados"
+          }
+        }
+      }
+    },
+    "Delete {0} fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar {0} campos"
+          }
+        }
+      }
+    },
+    "Fields calculate from the top down when the form is filled. Put a field after the fields it uses (⌥↑ and ⌥↓ move the selected one).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos se calculan de arriba abajo al llenar el formulario. Pon cada campo después de los que usa (⌥↑ y ⌥↓ mueven el seleccionado)."
+          }
+        }
+      }
+    },
+    "Middles": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medios"
+          }
+        }
+      }
+    },
+    "No field in this form is calculated.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún campo de este formulario se calcula."
+          }
+        }
+      }
+    },
+    "Of these fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "De estos campos"
+          }
+        }
+      }
+    },
+    "Only one field is calculated: there's no order to set.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se calcula un campo: no hay orden que establecer."
+          }
+        }
+      }
+    },
+    "Price * Quantity": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Precio * Cantidad"
+          }
+        }
+      }
+    },
+    "Same size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mismo tamaño"
+          }
+        }
+      }
+    },
+    "Size fields alike": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Igualar tamaño de campos"
+          }
+        }
+      }
+    },
+    "Space evenly": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir"
+          }
+        }
+      }
+    },
+    "Space fields evenly": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Distribuir campos"
+          }
+        }
+      }
+    },
+    "The fields are already that way.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los campos ya están así."
+          }
+        }
+      }
+    },
+    "The first field you picked (the solid corner) stays put; the others line up with it. ⌘-click adds or removes a field.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El primer campo que elegiste (la esquina rellena) no se mueve; los demás se alinean con él. ⌘-clic agrega o quita un campo."
+          }
+        }
+      }
+    },
+    "The form's calculation order can't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede leer el orden de cálculo del formulario."
+          }
+        }
+      }
+    },
+    "Which calculated fields work out first": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué campos calculados se calculan primero"
+          }
+        }
+      }
+    },
+    "{0} fields · first: {1} {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} campos · primero: {1} {2}"
+          }
+        }
+      }
+    },
+    "1 cm": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 cm"
+          }
+        }
+      }
+    },
+    "1 inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 pulgada"
+          }
+        }
+      }
+    },
+    "10 points": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 puntos"
+          }
+        }
+      }
+    },
+    "5 mm": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 mm"
+          }
+        }
+      }
+    },
+    "A line every": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una línea cada"
+          }
+        }
+      }
+    },
+    "Grid spacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaciado de la cuadrícula"
+          }
+        }
+      }
+    },
+    "Horizontal ruler": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla horizontal"
+          }
+        }
+      }
+    },
+    "Rulers in {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reglas en {0}."
+          }
+        }
+      }
+    },
+    "Shapes, fields, stamps and measuring points snap to the grid while it shows and Snap to Grid is on. Hold ⌥ for no snapping.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las formas, los campos, los sellos y los puntos de medición se ajustan a la cuadrícula mientras se ve y Ajustar a la cuadrícula está activado. Mantén ⌥ para no ajustar."
+          }
+        }
+      }
+    },
+    "Vertical ruler": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla vertical"
+          }
+        }
+      }
+    },
+    "{0} guide cleared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borró {0} guía."
+          }
+        }
+      }
+    },
+    "{0} guides cleared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borraron {0} guías."
+          }
+        }
+      }
+    },
+    "{0}, the page's scale or your region's": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, la escala de la página o la de tu región"
+          }
+        }
+      }
+    },
+    "¼ inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¼ de pulgada"
+          }
+        }
+      }
+    },
+    "½ inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½ pulgada"
+          }
+        }
+      }
+    },
+    "Angle (degrees, clockwise)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo (grados, en el sentido de las agujas del reloj)"
+          }
+        }
+      }
+    },
+    "Angle of the selection, in degrees": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ángulo de la selección, en grados"
+          }
+        }
+      }
+    },
+    "Press Return in the text to keep your change to it first, then turn it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pulsa Retorno en el texto para conservar primero tu cambio y luego gíralo."
+          }
+        }
+      }
+    },
+    "Select a picture with Edit Text & Images, or click a paragraph, then choose Turn to Angle.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Selecciona una imagen con Editar texto e imágenes, o haz clic en un párrafo, y elige Girar a un ángulo."
+          }
+        }
+      }
+    },
+    "This picture can't be turned: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta imagen no se puede girar: {0}."
+          }
+        }
+      }
+    },
+    "Turn picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar imagen"
+          }
+        }
+      }
+    },
+    "Turn text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar texto"
+          }
+        }
+      }
+    },
+    "Turn this text to this angle (degrees, clockwise). Pictures turn with their round handle; Shift: 15° steps.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gira este texto a este ángulo (grados, en el sentido de las agujas del reloj). Las imágenes giran con su controlador redondo; Shift: pasos de 15°."
+          }
+        }
+      }
+    },
+    "Type an angle in degrees, as 30 or -12.5.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un ángulo en grados, como 30 o -12,5."
+          }
+        }
+      }
+    },
     "Putting the text in one column…": {
       "extractionState": "manual",
       "localizations": {

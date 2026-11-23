@@ -35,6 +35,9 @@ public enum ProFeature: CaseIterable, Sendable {
     /// Search Folders' By meaning and Ask Across Folders' Also find pages by meaning: embeddings of the indexed folders'
     /// pages from the user's own AI endpoint, kept beside each folder index (roadmap 4.21).
     case meaningSearch
+    /// Redaction suggestions: what to redact proposed by the user's own AI endpoint, or found from their names and terms
+    /// list (roadmap 4.10).
+    case redactionSuggestions
 }
 
 /// The Pro entitlement check for Inkvolt PDF (the Windows Core's `Pro`): the one place that decides whether a Pro feature
@@ -104,6 +107,7 @@ public enum Pro {
         case .fieldLocking: loc("Field locking")
         case .folderAsk: loc("Ask across folders")
         case .meaningSearch: loc("Search by meaning")
+        case .redactionSuggestions: loc("Redaction suggestions")
         }
     }
 
@@ -136,6 +140,8 @@ public enum Pro {
             loc("Find pages by what they mean, not only the words they use: your own AI endpoint turns the pages of your indexed folders into embeddings kept beside the folder index, and Search Folders and Ask Across Folders use them. Off until you turn it on, and the send window shows every page before it goes.")
         case .folderAsk:
             loc("Ask a question over your indexed folders or a set of PDFs: the folder index picks the pages, your own AI assistant answers, and each answer cites the file and page, which open on a click. The send window lists every page that goes, from which files.")
+        case .redactionSuggestions:
+            loc("Your own AI assistant reads the pages and suggests the names, organizations, addresses and account numbers to redact, or what you describe; or keep your own list of names and terms. Every suggestion goes into the review list before anything is removed, and the result is checked as for patterns.")
         }
     }
 
@@ -155,6 +161,7 @@ public enum Pro {
         case .fieldLocking: loc("Choosing fields to lock is part of Inkvolt Pro.")
         case .folderAsk: loc("Asking across folders is part of Inkvolt Pro.")
         case .meaningSearch: loc("Searching by meaning is part of Inkvolt Pro.")
+        case .redactionSuggestions: loc("Redaction suggestions are part of Inkvolt Pro.")
         }
     }
 

@@ -611,6 +611,9 @@ at under "What a person must look at" and in each section.
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
+| 4.20 | Save an AI answer (roadmap 4.20): an answer (its card's Save, Tools › AI Assistant › Save AI Answer…) or the conversation (the pane's Save, Save AI Conversation…) as a Word document through `DocxWriter` or a PDF (opened in a window), or one answer as a note on the page it cites (one undo step); the conversation kept with the document's session (`AiConversation`, `AiExchange`, `AiAnswerExport`, `DocumentSession.aiConversation`; `AiSave.swift`; `--edit --only-ai` drives it) | AiAnswersTests |
+| 4.10 | AI redaction suggestions (roadmap 4.10, Pro): Tools › Redact › Suggest Redactions… (Protect on the toolbar), the user's own AI endpoint asked for names, organizations, addresses, account and ID numbers or a description, the send window always shown, the answer read as data and kept only where the text sent holds it; the names and terms list (Edit List…, no AI); both into Redact by Pattern's review list, apply, read-back, check and report, each hit named by where it came from (`RedactionSuggestions`, `RedactionTerms`, `RedactionMatch.label`, `PatternRedaction`'s labelled read-back; `RedactSuggest.swift`; `--edit --only-ai` drives it) | RedactionSuggestionsTests |
+| 4.8 | Smaller black-and-white scans (roadmap 4.8): Reduce File Size codes 1-bit pictures again as lossless JBIG2, CCITT G4 or Flate when smaller, and makes grey scans of text black and white when asked (the sheet's and Batch's check box, the preset's `blackAndWhiteScans`); Recognize Text's cleaned page of a black-and-white scan stays 1 bit (PrintCore's `Jbig2Generic`, `PdfWriter.oneBitData`; PdfCore's `OneBitImages`, `Optimizer`, `ScanPage`) | Jbig2RenderTests, OneBitImagesTests |
 | 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
@@ -642,6 +645,31 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
+- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24, not on the Mac yet). The
+  conversation moved from the window's `AiState` to the session, as on Windows. The PDF's text past WinAnsi (Cyrillic,
+  say) is drawn in Type 3 fonts (`TextPainter`), which MuPDF reads back as regular even where drawn bold (it takes bold
+  from a FreeType font's style or name only); Latin text uses Helvetica and Helvetica-Bold and reads back bold, so
+  `Pdf_HasTheSameText_AndFlowsOntoMorePages` checks bold on a Latin answer. The note's date has a plain space before
+  AM/PM (macOS writes a narrow no-break one). Saving over a PDF open in a window is refused, as Windows refuses one open in
+  a tab. Not checked by a person: the sheet and the Save buttons by eye and with VoiceOver, the .docx in Word or Pages.
+- 4.10: the command is in Tools › Redact beside Redact by Pattern… (Windows: Review › Suggest Redactions…), and on the
+  toolbar's Protect. A model's JSON is read by PrintCore's `Json` (comments and trailing commas as Windows'
+  `AllowTrailingCommas`, depth 16); its object's members have no order once read, so a list under another name than
+  "redact" is the first by name where Windows takes the first written. A bulleted answer is read by hand in one pass
+  (Windows: a linear regex with a time limit). The names and terms list is kept in Application Support's `Inkvolt
+  PDF/redaction-terms.txt` with LF line ends (Windows: the data folder, CR LF); either is read. The sheet's pages are the
+  AI assistant's Pages box ("All", or 1-3, 5) where Windows has its page range. Not checked by a person: the sheet and
+  the list's editor by eye and with VoiceOver, a real model's suggestions.
+- 4.8: PrintCore's `Jbig2Generic` (ported as is, the same bytes as Windows') sits beside `CcittG4` and `Bilevel`, which
+  Inkvolt Print's 4.4 brought, and `PdfWriter.oneBitData(_:jbig2:)` chooses among the three as Windows' `OneBitData`;
+  PdfCore uses them, nothing duplicated. MuPDF's objects belong to the document's thread, so `OneBitImages` works in three
+  steps where Windows has two: `recodeJob`/`thresholdJob` read a picture on the document's thread, `run` draws and codes
+  it (several at once, each in an engine of its own), `apply` makes the change back on the document's thread. File ›
+  Scan has no black-and-white mode on the Mac (2.3 above: color or grey only; Print for Mac's 4.4 made a preset's smaller
+  file instead), so it saves no page at 1 bit and `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg` isn't
+  ported; Recognize Text and Reduce File Size are as Windows. `Jbig2IsClearlySmallerThanG4OnTextPages` has no "as
+  typeset" case (the Mac's corpus has no clean page). Not checked by a person: a real black-and-white scan reduced, the
+  sheet's new check box by eye and with VoiceOver.
 - 4.18: the commands are in Edit › Find and are off until Find has matches (Windows opens its Search pane and says to search
   first); the marks take the Highlight, Underline and Strike Out tools' colours from the markup toolbar, as Highlight
   Selected Text does on the Mac. `Annotations.read` now reads at most `Annotations.maxQuads` (20,000) + 1 lines of a text
@@ -1933,6 +1961,64 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the 
   LM Studio on this Mac), and a real embedding model (nomic-embed-text); Edit by Asking with a real model that calls tools
   (qwen3).
 
+### Wave 4: proofreading, forms and layout (roadmap Batch B and C)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
+- **4.17 Insert Text… and Replace Text…** (Tools › Annotate, the command bar's Comment, the pages' context menu):
+  `Annotations.addInsertText`, `addReplaceText`, `caretAt`, `asListed`, `groupHead`, `replacedCarets`
+  (`AnnotationsProofreading.swift`), `AnnotationInfo.grouped`; a group's member deleted takes the whole group
+  (`groupHeadIn`), an imported caret gets its chevron from its rectangle, and Summarize Comments lists each mark once by
+  what it asks. Insert Text goes at the selection's end or where text was clicked (a click on text, as Windows' last
+  click), or where the context menu opened over text (`insertProofTextHere:`, its place on the item, so the menu bar's
+  command keeps its own rule); its words are asked in the popover the notes use, with Windows' line saying what they
+  become. The Comments list shows a group as its head, a caret by its mark ("Insert text", "Replace text"), and a
+  strike-out selected on the page selects its group's row. `TextToolsTest` (`--edit --only-text-tools`) drives both
+  from the menu bar, the list's rows, Delete of the strike-out and Undo. Not checked by a person: the popover and the
+  blue chevron by eye.
+- **4.12 calculated fields and several fields together** (Prepare Form): `FormCalculations` (`CalcKind`, `FieldCalc`;
+  .NET's `CalcKind.None` is `notCalculated`, as `.none` would read as an Optional's), `DesignField.calculation` read from
+  and written to the field's or its widget's own /AA /C, `FormDesign.calculationOrder`/`setCalculationOrder` (/CO),
+  `FormDesignRules.withCalculation`, `calcSources`, `calcIndex`, `movedInOrder`, `aligned`, `sizedAlike`, `spread`,
+  three more number formats; `FormDesigner`'s anchor, `toggle`, `selectAll`, a group drag (`.movedAll`) and nudge
+  (`flushNudgeAll`), `canDelete`. The panel's Calculate section (text fields and dropdowns: the kind, the fields to tick,
+  the notation, Calculation order…), and with several selected the arrange buttons and Delete; Tools › Forms ›
+  Calculation Order… (a sheet: the list, Move Up and Move Down, ⌥↑ ⌥↓) and Arrange Fields (eleven commands, on with two
+  or three selected). `FormCalculationTests` and the 4.12 half of `Wave4CReviewTests` ported; `PrepareFormTest`
+  (`--edit --only-prepare-form`) picks a sum and a notation in the panel, fills, changes the order, then ⌘-clicks, aligns,
+  drags and deletes two fields. Mac differences: ⌘-click where Windows has Ctrl+click (the Mac's add-to-selection); the
+  menu is under Tools › Forms, where the Mac's Prepare Form lives (Windows: Edit › Forms). The arrangements follow the
+  view's turn, as Windows' (`DesignPage.rotation`).
+  Not checked by a person: the panel's new rows and the sheet by eye and with VoiceOver.
+- **4.19 rulers, guides, a grid and snapping** (View › Rulers ⌥⇧⌘R, Grid ⌥⌘', Guides and Snapping: Snap to Guides, Grid
+  and Objects, Grid Spacing…, Ruler Units, Clear Guides): PdfCore `LayoutAids` (ticks, `fromRuler`, the grid),
+  `PageGuides` on the `DocumentSession` (never written into the PDF; `keys` and `remap` follow pages through moves and drop
+  a page's guides when it is turned, resized, replaced or deleted), `Snapper`, and `FormDesigner`'s `snap` (passed with
+  each press and drag, where Windows' designer holds a `SnapFor`) and `snapLines`. The app (`Layout.swift`): the rulers
+  are the pages' scroll view's `NSRulerView`s (`PageRuler`, counting from the current page as shown, in the page's
+  measuring scale, else the region's unit, unless Ruler Units says), a press on one drags a guide onto a page; the hand
+  and select tools (and Prepare Form with no field tool) pick a guide up, and dropping it off its page removes it; the
+  grid, the guides and what a press snapped to are drawn on the pages (a split's second pane shows the same guides).
+  Snapping, off with ⌥: Prepare Form's fields (drawn, moved, resized), shapes, lines, text boxes and callouts drawn,
+  comments moved, stamps, pictures and signatures placed, measuring points. `LayoutAidsTests` and the 4.19 half of
+  `Wave4CReviewTests` ported; `LayoutTest` (`--edit --only-layout`) drives the menu, a guide from the ruler, a rectangle
+  and a field snapping to it, Snap to Guides off, Grid Spacing…, Ruler Units, a page turned and Clear Guides. Mac
+  differences: the keys (⌘R turns pages here, ⌘' switches panes); a guide dragged from a ruler shows as a line where the
+  pointer is until it is let go over a page. Not checked by a person: the rulers' look and their labels at every zoom
+  and turn, dragging guides by hand, VoiceOver on the rulers.
+- **4.22 a picture or paragraph turned to any angle** (Edit Text & Images): PdfCore `ContentEditor.rotateImage`,
+  `rotateParagraph` (`ContentEditor+Rotate.swift`: about the middle of its box, one undo step; a paragraph's show
+  operators drawn again from a turned text matrix, the text position put back after each, so what follows stays),
+  `PageImage.angle`, `ContentTurn` (the handle, a drag's angle, Shift's 15° steps, the box's parsing and format). The
+  app: the selected picture's round handle out from its top-right corner (a drag shows the turned outline), the
+  paragraph editor's Angle box (Return turns it; a change to the text must be applied first, as Windows), Edit › Turn
+  to Angle… (the selected picture, asked in a popover; the open editor's Angle box). The tests of
+  `ParagraphEditTests.Rotate.cs` ported (`ParagraphEditTests+Rotate.swift`; the pdf.js one opt-in as the other);
+  `ParagraphEditTest` (`--edit --only-paragraph-edit`) turns the paragraph 5° from the Angle box and back through the
+  menu. Mac differences: a paragraph has no on-page handle (its editor is a popover over the page, so the Angle box
+  turns it), and the Mac's paragraphs have no pictures in their flow yet (Windows' `InlinePicture`), so none turn with
+  them. As on Windows, a paragraph turned so far that its box takes in other text (a heading above) can't be edited or
+  turned again until Undo takes the turn back. Not checked by a person: the handle and the turned outline by eye, dragging it by hand.
+
 ## Open decisions
 
 None.
@@ -1950,16 +2036,6 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
   the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
   Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
-- Wave 4 Batch B, done on Windows, the Mac's waits: 4.17 proofreading marks (`Annotations.Proofreading.cs`: Insert Text,
-  Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first), 4.10 AI redaction suggestions (Pro;
-  `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
-  (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
-  (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
-  `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
-  `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
-  `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
-  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

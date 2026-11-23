@@ -6,7 +6,8 @@ import PrintCore
 /// the menu bar: Edit › Find's Highlight All Matches (roadmap 4.18) after a search, as one undo step, then again with
 /// nothing left to mark; Links from Addresses (4.15) on a line rewritten to hold two; Copy Text from Area and Copy Area as
 /// Table (4.6) on a Snapshot box, and a scan's box read with Vision; spell check's underlines, menu and Ignore (4.1);
-/// Find and Replace's Replace All of the ticked matches and Replace of one (4.2). Only counts and states are written.
+/// Find and Replace's Replace All of the ticked matches and Replace of one (4.2); Insert Text and Replace Text (4.17), the
+/// Comments list showing Replace Text as one row, and one Delete taking it whole. Only counts and states are written.
 @MainActor
 struct TextToolsTest {
     let controller: DocumentWindowController
@@ -79,8 +80,53 @@ struct TextToolsTest {
         await copyFromArea()
         spellCheck()
         await findAndReplace()
+        await proofreading()
         lines.append("RESULT: " + "\(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
+    }
+
+    // MARK: Proofreading marks (4.17)
+
+    private mutating func proofreading() async {
+        guard let text = try? controller.engine.text(0), let word = firstWord(), let r = text.text.range(of: word) else {
+            lines.append("SKIP proofreading marks: no word on page 1")
+            return
+        }
+        let start = text.text.utf16.distance(from: text.text.utf16.startIndex, to: r.lowerBound), end = start + word.utf16.count
+        let before = editor.comments.count, rowsBefore = controller.sidebar.comments.topCount
+        func carets() -> [AnnotationInfo] { editor.comments.filter { $0.subtype == "Caret" } }
+        pages.clearSelection()
+        let off = menuItem(loc("Insert Text…")).map { controller.validateMenuItem($0) }
+        pages.select(0, (start, end))
+        controller.testText = "inserted words"
+        check(off == false && choose(loc("Insert Text…")), "Insert Text… is off with no place in the text, on with a selection")
+        await settle(400)
+        let inserted = carets().first { $0.contents == "inserted words" }
+        check(inserted != nil && inserted?.subject == "Inserted Text" && session?.undoLabel == loc("Insert text") && pages.selection == nil,
+              "Insert Text puts a caret holding the words at the selection's end, one undo step: \(carets().count) carets")
+        pages.select(0, (start, end))
+        controller.testText = "swapped words"
+        check(choose(loc("Replace Text…")), "Replace Text… is on with a selection")
+        await settle(400)
+        let replacing = carets().first { $0.contents == "swapped words" }
+        let strike = editor.comments.first { $0.subtype == "StrikeOut" && $0.grouped && $0.replyTo == replacing?.id }
+        let kinds = controller.sidebar.comments.topKinds
+        check(replacing != nil && strike != nil && session?.undoLabel == loc("Replace text"),
+              "Replace Text strikes the word out, grouped with a caret holding the new words")
+        check(controller.sidebar.comments.topCount == rowsBefore + 2 && kinds.contains(loc("Replace text")) && kinds.contains(loc("Insert text")),
+              "the Comments list shows each mark once, by what it asks: \(controller.sidebar.comments.topCount - rowsBefore) rows")
+        controller.testText = nil
+        if let strike {
+            pages.select(strike.id)
+            pages.deleteSelected()
+            await settle(400)
+        }
+        check(carets().count == 1 && !editor.comments.contains { $0.id == strike?.id }, "deleting the strike-out takes its caret too")
+        for _ in 0..<3 {
+            controller.window?.undoManager?.undo()
+            await settle(300)
+        }
+        check(editor.comments.count == before, "Undo takes both marks away: \(editor.comments.count - before) left")
     }
 
     // MARK: Mark All Matches (4.18)

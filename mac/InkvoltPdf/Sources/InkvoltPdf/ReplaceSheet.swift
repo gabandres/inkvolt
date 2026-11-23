@@ -257,16 +257,17 @@ final class ReplaceSheet: NSWindowController, NSTableViewDataSource, NSTableView
         let (data, password) = (session.data, session.password)
         let pageCount = controller?.engine.pageCount ?? 0
         update(loc("Searching…"))
+        // Made here, Sendable: the search's thread only holds this, not a weak reference of its own (CI's Swift refuses
+        // sending a closure that captures one).
+        let report: @Sendable (Int) -> Void = { [weak self] page in
+            Task { @MainActor in
+                guard let self, self.generation == generation else { return }
+                self.status.stringValue = loc("Searching… page {0} of {1}", CoreLanguage.number(page), CoreLanguage.number(pageCount))
+            }
+        }
         Task { @MainActor [weak self] in
             let found = await Task.detached { () -> Result<ReplaceFound, any Error> in
-                Result {
-                    try TextReplace.find(data, password, q, progress: { page in
-                        Task { @MainActor [weak self] in
-                            guard let self, self.generation == generation else { return }
-                            self.status.stringValue = loc("Searching… page {0} of {1}", CoreLanguage.number(page), CoreLanguage.number(pageCount))
-                        }
-                    }, cancel: cancel)
-                }
+                Result { try TextReplace.find(data, password, q, progress: report, cancel: cancel) }
             }.value
             guard let self, self.generation == generation else { return }
             busy = false
