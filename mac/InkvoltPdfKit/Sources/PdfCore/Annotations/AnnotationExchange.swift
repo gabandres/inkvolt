@@ -28,6 +28,8 @@ extension Annotations {
             }
             if quads.isEmpty { return }
             setAppearance(doc, annot, markupForm(doc, markup, quads, color ?? .yellow).form)
+        } else if subtype == "Caret" {
+            caretFromRect(doc, page, annot, color ?? proofBlue)
         } else if subtype == "Text" {
             setAppearance(doc, annot, noteForm(doc, page, color ?? .yellow))
         } else if subtype == "Stamp", let r = annot.array("Rect"), r.count == 4 {

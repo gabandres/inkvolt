@@ -117,6 +117,8 @@ public struct PageImage: Sendable, Equatable {
     public let blocked: String?
     /// Turned by other than a quarter turn, or skewed: resizing scales its bounding box.
     public var turned = false
+    /// The direction its own x axis takes on the page: degrees clockwise from left-to-right (0: upright; roadmap 4.22).
+    public internal(set) var angle = 0.0
 }
 
 /// The text runs and pictures of a page, for Edit Text & Images.
@@ -524,7 +526,7 @@ public enum ContentEditor {
         }
     }
 
-    private static func editImage(_ data: [UInt8], _ password: String?, _ image: PageImage, dropName: Bool = false,
+    static func editImage(_ data: [UInt8], _ password: String?, _ image: PageImage, dropName: Bool = false,
                                   _ edit: (MuDoc, PObj, PageImage, COp, Mat, [COp], [UInt8]) throws -> Edits) throws -> [UInt8] {
         let doc = try PdfEdit.open(data, password, failure: loc("This PDF can't be edited"))
         let page = try pageOf(doc, image.pageIndex)
@@ -708,7 +710,7 @@ public enum ContentEditor {
     }
 
     /// The drawing operator as written: the Do with its name, or the whole inline image (BI … EI, its bytes as they are).
-    private static func slice(_ op: COp, _ content: [UInt8]) -> [UInt8] {
+    static func slice(_ op: COp, _ content: [UInt8]) -> [UInt8] {
         op.name == "Do" ? latin1Bytes("/\(escapeName(op.operands[0].name)) Do") : Array(content[op.start..<op.end])
     }
 
@@ -1201,7 +1203,9 @@ public enum ContentEditor {
         let box = boxOf(w.frame, ctm, 0, 0, 1, 1)
         if box.width <= 0 && box.height <= 0 { return }
         let turned = (abs(ctm.b) > 1e-6 && abs(ctm.a) > 1e-6) || (abs(ctm.c) > 1e-6 && abs(ctm.d) > 1e-6)
-        w.images.append(PageImage(pageIndex: w.pageIndex, id: id, box: box, inline: inline, blocked: blocked, turned: turned))
+        var image = PageImage(pageIndex: w.pageIndex, id: id, box: box, inline: inline, blocked: blocked, turned: turned)
+        image.angle = imageAngle(w.frame, ctm)
+        w.images.append(image)
         if blocked == nil { w.imageCtm[id] = ctm }
     }
 

@@ -100,6 +100,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let paneSplit = PaneSplitView()
     var secondPages: PagesView?
     var secondScroll: NSScrollView?
+    /// Each page's identity when the guides were last placed or followed (roadmap 4.19, Layout.swift), and the read in
+    /// progress.
+    var guideKeys: (engine: ObjectIdentifier, keys: [String])?
+    var guideTicket = 0
     var secondBox: NSView?
     /// A translated copy's original, shown in the second pane on the left and scrolling with this one (`showBeside`);
     /// nil when the second pane shows this document.
@@ -224,6 +228,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         pages.form = form
         pages.content = self.content
         pages.design = design
+        applyLayoutAids()
         form.reload()
         noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
@@ -379,6 +384,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         content.invalidate()
         pages.reload(engine: engine)
         if besideOriginal == nil { secondPages?.reload(engine: engine) }
+        remapGuides(change)
+        refreshRulers()
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
         design.contentChanged()
@@ -743,6 +750,74 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
     }
 
+    // MARK: Proofreading marks (roadmap 4.17; Windows' DocumentTab.Proofreading)
+
+    /// Tools › Annotate › Insert Text…: a blue caret where words go in (the selection's end, or where text was clicked),
+    /// the words its comment.
+    @objc func insertProofText(_ sender: Any?) {
+        guard let at = pages.insertionPoint else {
+            notify(loc("Click in the text where the words go (Select Text tool), or select text, then choose Insert Text."))
+            return
+        }
+        insertProofText(at: at)
+    }
+
+    /// The pages' context menu's Insert Text…: where the menu was opened (the item's place, from `PagesView`).
+    @objc func insertProofTextHere(_ sender: Any?) {
+        guard let at = (sender as? NSMenuItem)?.representedObject as? [Int], at.count == 2 else { return }
+        insertProofText(at: (at[0], at[1]))
+    }
+
+    private func insertProofText(at: (page: Int, caret: Int)) {
+        guard pdf.session != nil, !organizerShown, at.page >= 0, at.page < engine.pageCount, at.page < pages.pageRects.count else { return }
+        guard let text = try? engine.text(at.page), let caret = Annotations.caretAt(text, at.caret) else {
+            notify(loc("Click in the text where the words go (Select Text tool), or select text, then choose Insert Text."))
+            return
+        }
+        let anchor = pages.viewRect(RectD(caret.x - 3, caret.y, 6, caret.height), pages.pageRects[at.page])
+        let note = loc("A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.",
+                       CoreLanguage.number(at.page + 1), editor.author)
+        askProofText(loc("Insert text"), note: note, at: anchor) { [weak self] words in
+            guard let self, let words, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            self.pages.startEdit {
+                let ok = await self.editor.insertText(page: at.page, at: caret, words)
+                if ok { self.pages.clearSelection() }
+                return ok
+            }
+        }
+    }
+
+    /// Tools › Annotate › Replace Text…: the selected words (one page) struck out, and a caret after them holding the words
+    /// that replace them, the two one comment.
+    @objc func replaceProofText(_ sender: Any?) {
+        let spans = pages.selectedSpans
+        guard !spans.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        guard spans.count == 1, let lines = pages.selectedLines, lines.page < pages.pageRects.count else {
+            notify(loc("Select text on one page to replace it."))
+            return
+        }
+        let rects = lines.rects.filter { !$0.isEmpty }
+        guard let last = rects.last else {
+            notify(loc("No text to mark."))
+            return
+        }
+        let selected = AiProtocol.shorten(AiText.clean(pages.selectedText ?? "").replacingOccurrences(of: "\n", with: " "), 80)
+        let note = loc("“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.",
+                       selected, CoreLanguage.number(lines.page + 1), editor.author)
+        let anchor = pages.viewRect(last, pages.pageRects[lines.page])
+        askProofText(loc("Replace text"), note: note, at: anchor) { [weak self] words in
+            guard let self, let words, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            self.pages.startEdit {
+                let ok = await self.editor.replaceText(page: lines.page, rects: rects, words)
+                if ok { self.pages.clearSelection() }
+                return ok
+            }
+        }
+    }
+
     /// Tools › Link Selected Text…: one link over the selected lines.
     @objc func linkSelectedText(_ sender: Any?) {
         guard let lines = pages.selectedLines, let first = lines.rects.first else {
@@ -820,8 +895,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         s.passwordSheetOpen = protectSheet != nil
         s.organizerShown = organizerShown
         s.splitShown = secondPages != nil
+        // Not `design`: asking would make Prepare Form's panel for a menu check.
+        if let made = madeDesign, made.isDesigning { s.designSelected = made.model.selectedIds.count }
+        s.hasGuides = pdf.session?.guides.all.isEmpty == false
         let needs = command?.needs ?? Requirement.allCases
         if needs.contains(.selectedText) { s.hasSelectedText = pages.selectedText != nil }
+        if needs.contains(.insertionPoint) { s.hasInsertionPoint = pages.insertionPoint != nil }
         if needs.contains(.protected) { s.isProtected = pdf.session?.hasEncryption == true }
         return s
     }
@@ -843,6 +922,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// Password or Change Password Protection).
     private func markMenuItem(_ item: NSMenuItem) {
         markSplitItem(item)
+        markLayoutItem(item)
         switch item.action {
         case #selector(toggleMarkup(_:)):
             item.title = toolStrip.isHidden ? loc("Show Markup Toolbar") : loc("Hide Markup Toolbar")
@@ -881,6 +961,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return
         }
         let ask = AskController(.text(title), initial: initial, pageCount: engine.pageCount, language: documentLanguage)
+        ask.done = done
+        present(ask, at: rect)
+    }
+
+    /// Asks for a proofreading mark's text (`note` says what it becomes) in a popover at `rect`.
+    func askProofText(_ title: String, note: String, at rect: NSRect, done: @escaping (String?) -> Void) {
+        if let testText {
+            done(testText)
+            return
+        }
+        let ask = AskController(.text(title), initial: "", pageCount: engine.pageCount, language: documentLanguage)
+        ask.note = note
         ask.done = done
         present(ask, at: rect)
     }
@@ -1116,6 +1208,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func scrolled() {
+        refreshRulers()
         reflow?.viewerMoved(activePages.currentPage)
         followBeside(fromSecond: false)
         updateSubtitle()
