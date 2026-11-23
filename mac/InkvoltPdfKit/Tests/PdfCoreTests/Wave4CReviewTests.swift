@@ -41,6 +41,14 @@ struct Wave4CReviewTests {
         #expect(d.flushNudgeAll().map(\.id) == ["a"])
     }
 
+    @Test func aSnapRefusedForSizeShowsNoLine() throws {
+        let snap = try #require(Snapper.for([Guide(0, .x, 100)], nil, gridStep: 0, reach: 5))
+        #expect(snap.resize(RectD(90, 10, 12, 20), RectD(98, 10, 4, 20), min: 4) == RectD(98, 10, 4, 20))
+        #expect(snap.lines.isEmpty)
+        _ = snap.resize(RectD(10, 10, 80, 20), RectD(10, 10, 93, 20))
+        #expect(snap.lines == [SnapLine(.x, 100)])
+    }
+
     @Test func aNotationKeepsANameWithABracketAsWritten() throws {
         let notation = FormCalculations.nameInNotation("Unit )") + " * 2"
         let js = try FormCalculations.compile(notation)
@@ -86,5 +94,27 @@ struct Wave4CReviewTests {
         #expect(try t(none).calculation == nil)
         #expect(try scripts(none) == 0)
         #expect(try FormDesign.calculationOrder(none, nil).isEmpty)
+    }
+
+    @Test func guidesFollowTheirPagesAndGoWithAPageThatChanged() throws {
+        let pdf = TestPdf.make(3)
+        let keys = try PageGuides.keys(pdf, nil)
+        #expect(Set(keys).count == 3)
+        let guides = PageGuides()
+        guides.add(Guide(0, .x, 100), 612, 792)
+        guides.add(Guide(2, .y, 300), 612, 792)
+
+        // A comment changes nothing; a move takes the guides along.
+        let noted = try Annotations.addNote(pdf, nil, 0, 100, 100, "note", author: "me")
+        #expect(try PageGuides.keys(noted, nil) == keys)
+        let moved = try PageEditor.reorder(noted, nil, [2, 0, 1])
+        #expect(guides.remap(keys, try PageGuides.keys(moved, nil)) == 0)
+        #expect(guides.all.map(\.page) == [1, 0] && guides.all.map(\.axis) == [.x, .y])
+
+        // A turned page takes its guides with it; the other's stay.
+        let before = try PageGuides.keys(moved, nil)
+        let turned = try PageEditor.rotate(moved, nil, [1], 90)
+        #expect(guides.remap(before, try PageGuides.keys(turned, nil)) == 1)
+        #expect(guides.all.map(\.page) == [0] && guides.all.map(\.axis) == [.y])
     }
 }

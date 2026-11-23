@@ -504,7 +504,10 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         flushNudge()
         let before = model.selectedId
         let g = pages.engine.page(page)
-        let result = model.press(page, p, clicks: clicks, reach: reach, pageWidth: g.width, pageHeight: g.height, toggle: toggle)
+        let snap = snapFor // read before the designer is changed
+        let result = model.press(page, p, clicks: clicks, reach: reach, pageWidth: g.width, pageHeight: g.height, toggle: toggle,
+                                 snap: snap)
+        pages.showSnapLines(page, model.snapLines)
         if model.selectedId != before { selectAfter = nil } // the click chose; an edit under way doesn't choose again
         changed()
         switch result {
@@ -520,11 +523,22 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     func dragged(_ point: NSPoint, shift: Bool) {
         guard let page = model.pressPage else { return }
-        model.dragged(to: pages.pagePoint(point, on: page), shift: shift, threshold: 2 * Double(pages.onePixel))
+        let snap = snapFor, to = pages.pagePoint(point, on: page) // read before the designer is changed
+        model.dragged(to: to, shift: shift, threshold: 2 * Double(pages.onePixel), snap: snap)
+        pages.showSnapLines(page, model.snapLines)
         pages.needsDisplay = true
     }
 
+    /// What a press snaps to (roadmap 4.19): the page's guides, the grid and the other fields, as the View menu says; none
+    /// with ⌥ held. The fields are taken as shown now (the closure runs while the designer is being changed: it may not
+    /// read `model`).
+    private var snapFor: FormDesigner.SnapFor {
+        let shown = model.fields.map { (id: $0.id, page: $0.pageIndex, rect: model.shownRect($0)) }
+        return { [weak pages] page, without in pages?.snapper(page, without: without, fields: shown) }
+    }
+
     func released() {
+        defer { pages.showSnapLines(-1, []) }
         switch model.release() {
         case .placed(let placement):
             guard isCurrent() else { break }

@@ -68,6 +68,8 @@ public enum Requirement: String, Sendable, CaseIterable {
     case fieldsToArrange
     /// Prepare Form with three fields selected or more (Arrange Fields' Space Evenly).
     case fieldsToSpace
+    /// The document has guides (roadmap 4.19's Clear Guides).
+    case guides
 }
 
 /// The small state of a document window that decides which commands can run.
@@ -93,6 +95,7 @@ public struct DocumentState: Sendable, Equatable {
     public var splitShown = false
     /// The fields selected in Prepare Form (0 outside it).
     public var designSelected = 0
+    public var hasGuides = false
 
     public init() {}
 
@@ -119,6 +122,7 @@ public struct DocumentState: Sendable, Equatable {
         case .split: splitShown
         case .fieldsToArrange: designSelected >= 2
         case .fieldsToSpace: designSelected >= 3
+        case .guides: hasGuides
         }
     }
 }
@@ -341,6 +345,20 @@ public enum DocumentCommands {
         c("Rotate View Clockwise", "rotateViewClockwise:", "r", [.command, .shift], needs: [.pages]),
         c("Rotate View Counterclockwise", "rotateViewCounterclockwise:", "l", [.command, .shift], needs: [.pages]),
         c("Dark Pages (Night Reading)", "toggleDarkPages:"),
+        sep,
+        // Roadmap 4.19 (Windows: View › Rulers, Ctrl+R; Grid, Ctrl+U; Guides and Snapping). ⌘R turns pages here, ⌘'
+        // switches panes.
+        c("Rulers", "toggleRulers:", "r", [.command, .option, .shift]),
+        c("Grid", "toggleGrid:", "'", [.command, .option]),
+        .submenu(CommandMenu("Guides and Snapping", [
+            c("Snap to Guides", "toggleSnapToGuides:"),
+            c("Snap to Grid", "toggleSnapToGrid:"),
+            c("Snap to Objects", "toggleSnapToObjects:"),
+            sep,
+            c("Grid Spacing…", "chooseGridSpacing:"),
+            c("Ruler Units", "nextRulerUnit:"),
+            c("Clear Guides", "clearGuides:", needs: [.guides]),
+        ])),
         sep,
         c("Show Sidebar", "toggleSidebar:", "s", [.command, .control]),
         // Its title becomes Hide Markup Toolbar while the toolbar shows.

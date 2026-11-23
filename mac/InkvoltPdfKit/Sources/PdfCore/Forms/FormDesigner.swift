@@ -277,11 +277,29 @@ public struct FormDesigner: Equatable, Sendable {
 
     // MARK: Mouse
 
+    /// What snapping (roadmap 4.19) takes on a page without the fields named (the ones being moved): a function the window
+    /// passes with each press and drag (Windows' `FormDesigner.SnapFor`), or nil for none.
+    public typealias SnapFor = (_ page: Int, _ without: Set<String>) -> Snapper?
+
+    /// What the press under way snapped to, for the view to show (empty: nothing).
+    public private(set) var snapLines: [SnapLine] = []
+
+    private mutating func snapPoint(_ page: Int, _ p: PointD, _ snap: SnapFor?) -> PointD {
+        guard let snapper = snap?(page, []) else {
+            snapLines = []
+            return p
+        }
+        let q = snapper.point(p)
+        snapLines = snapper.lines
+        return q
+    }
+
     /// A press at `p` of a `pageWidth` × `pageHeight` page: selects, starts moving or resizing, or starts a new field.
     /// `toggle` (⌘): a field joins the selection or leaves it, and nothing moves. A press on one of several selected fields
-    /// keeps them selected and moves them together. The caller flushes any nudge first.
+    /// keeps them selected and moves them together. `snap`: what a new box's first corner snaps to. The caller flushes any
+    /// nudge first.
     public mutating func press(_ page: Int, _ p: PointD, clicks: Int, reach: Double, pageWidth: Double, pageHeight: Double,
-                               toggle: Bool = false) -> DesignPress {
+                               toggle: Bool = false, snap: SnapFor? = nil) -> DesignPress {
         let h = handleAt(page, p, reach: reach)
         if h >= 0, let f = selectedField {
             startDrag(f, h, p, pageWidth, pageHeight)
@@ -309,7 +327,8 @@ public struct FormDesigner: Equatable, Sendable {
             }
         }
         if kind != nil {
-            let start = PointD(min(max(p.x, 0), pageWidth), min(max(p.y, 0), pageHeight))
+            let q = snapPoint(page, p, snap)
+            let start = PointD(min(max(q.x, 0), pageWidth), min(max(q.y, 0), pageHeight))
             box = NewBox(page: page, start: start, end: start, pageWidth: pageWidth, pageHeight: pageHeight)
             return .none
         }
@@ -330,11 +349,13 @@ public struct FormDesigner: Equatable, Sendable {
     }
 
     /// The pointer dragged to `p` (`threshold`: how far it must go, in page points, to count as a drag). True when it was
-    /// the designer's press.
+    /// the designer's press. `snap`: what a drawn box's corner, a moved field's (or group's) edges and centers and a
+    /// resized field's moving edges snap to.
     @discardableResult
-    public mutating func dragged(to p: PointD, shift: Bool, threshold: Double) -> Bool {
+    public mutating func dragged(to p: PointD, shift: Bool, threshold: Double, snap: SnapFor? = nil) -> Bool {
         if var b = box {
-            b.end = PointD(min(max(p.x, 0), b.pageWidth), min(max(p.y, 0), b.pageHeight))
+            let q = snapPoint(b.page, p, snap)
+            b.end = PointD(min(max(q.x, 0), b.pageWidth), min(max(q.y, 0), b.pageHeight))
             if abs(b.end.x - b.start.x) + abs(b.end.y - b.start.y) > threshold { b.dragged = true }
             box = b
             return true
@@ -344,15 +365,35 @@ public struct FormDesigner: Equatable, Sendable {
         d.dragged = true
         let start = startRect(d.field)
         if d.handle < 0 {
+            let all = [d.field] + d.group
+            var rawX = p.x - d.press.x, rawY = p.y - d.press.y
+            if let snapper = snap?(d.field.pageIndex, Set(all.map(\.id))) {
+                // The field (or the group's outline) where the pointer takes it, moved onto the nearest line.
+                let outline = all.dropFirst().reduce(startRect(all[0])) { $0.union(startRect($1)) }
+                let moved = RectD(outline.x + rawX, outline.y + rawY, outline.width, outline.height)
+                let snapped = snapper.move(moved)
+                rawX += snapped.x - moved.x
+                rawY += snapped.y - moved.y
+                snapLines = snapper.lines
+            } else {
+                snapLines = []
+            }
             let move = d.group.isEmpty
-                ? DrawingGeometry.clampMove(start, p.x - d.press.x, p.y - d.press.y, d.pageWidth, d.pageHeight)
-                : clampGroup([d.field] + d.group, p.x - d.press.x, p.y - d.press.y, d.pageWidth, d.pageHeight)
+                ? DrawingGeometry.clampMove(start, rawX, rawY, d.pageWidth, d.pageHeight)
+                : clampGroup(all, rawX, rawY, d.pageWidth, d.pageHeight)
             d.rect = RectD(start.x + move.dx, start.y + move.dy, start.width, start.height)
             d.shift = PointD(move.dx, move.dy)
         } else {
             let to = PointD(min(max(p.x + d.offset.x, 0), d.pageWidth), min(max(p.y + d.offset.y, 0), d.pageHeight))
             let toggle = d.field.kind == .checkBox || d.field.kind == .radio
-            d.rect = DrawingGeometry.resize(start, d.handle, to, minSize: 6, keepAspect: toggle || shift)
+            d.rect = DrawingGeometry.resize(start, d.handle, to, minSize: Self.minSize, keepAspect: toggle || shift)
+            // The moving edges snap (not while keeping proportions: a snapped edge would break them).
+            if !toggle && !shift, let snapper = snap?(d.field.pageIndex, [d.field.id]) {
+                d.rect = snapper.resize(start, d.rect, min: Self.minSize)
+                snapLines = snapper.lines
+            } else {
+                snapLines = []
+            }
         }
         drag = d
         return true
@@ -361,6 +402,7 @@ public struct FormDesigner: Equatable, Sendable {
     /// The press ended: the new field or the moved one to write, if any. A short press with a field tool places the kind's
     /// usual size, its top-left at the pointer, kept on the page.
     public mutating func release() -> DesignRelease? {
+        snapLines = []
         if let b = box {
             box = nil
             let tool = kind ?? .text
@@ -394,6 +436,7 @@ public struct FormDesigner: Equatable, Sendable {
     public mutating func cancelDrag() {
         drag = nil
         box = nil
+        snapLines = []
     }
 
     /// A new field's size when placed with a click (points).

@@ -124,6 +124,12 @@ struct PrepareFormTest {
     mutating func run() async {
         lines.append("== prepare form \(name)")
         guard let start = controller.pdf.session?.data else { return finish() }
+        // Drags and nudges land where the pointer takes them: no snapping (roadmap 4.19; LayoutTest checks it).
+        let snapping = (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects)
+        AppSettings.snapToGuides = false
+        AppSettings.snapToGrid = false
+        AppSettings.snapToObjects = false
+        defer { (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects) = snapping }
         let window = controller.window
 
         // In, through the menu's command.
@@ -392,8 +398,10 @@ struct PrepareFormTest {
         let first = filled(["Alpha two": "3"])
         check(first["Gamma"] == "6" && first["Delta"] == "3", "filling calculates in the order they were made (Delta before Gamma): \(first["Gamma"] ?? "-"), \(first["Delta"] ?? "-")")
         design.testCalcOrder = ["Gamma", "Delta"]
+        let ordered = editor.finishedEdits
         check(choose(#selector(DocumentWindowController.editCalculationOrder(_:))), "Tools › Forms › Calculation Order… can run")
-        for _ in 0..<200 where design.testCalcOrder != nil { try? await Task.sleep(for: .milliseconds(10)) }
+        // The menu's command runs its own task: wait for its edit to end.
+        for _ in 0..<500 where editor.finishedEdits == ordered { try? await Task.sleep(for: .milliseconds(10)) }
         await design.settle()
         let order = controller.pdf.session.flatMap { try? FormDesign.calculationOrder($0.data, $0.password) }
         let second = filled(["Alpha two": "3"])

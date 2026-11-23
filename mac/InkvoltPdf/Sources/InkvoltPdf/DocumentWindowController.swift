@@ -98,6 +98,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     let paneSplit = PaneSplitView()
     var secondPages: PagesView?
     var secondScroll: NSScrollView?
+    /// Each page's identity when the guides were last placed or followed (roadmap 4.19, Layout.swift), and the read in
+    /// progress.
+    var guideKeys: (engine: ObjectIdentifier, keys: [String])?
+    var guideTicket = 0
     var secondBox: NSView?
     /// A translated copy's original, shown in the second pane on the left and scrolling with this one (`showBeside`);
     /// nil when the second pane shows this document.
@@ -215,6 +219,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         pages.form = form
         pages.content = self.content
         pages.design = design
+        applyLayoutAids()
         form.reload()
         noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
@@ -333,6 +338,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         content.invalidate()
         pages.reload(engine: engine)
         if besideOriginal == nil { secondPages?.reload(engine: engine) }
+        remapGuides(change)
+        refreshRulers()
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
         design.contentChanged()
@@ -843,6 +850,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         s.splitShown = secondPages != nil
         // Not `design`: asking would make Prepare Form's panel for a menu check.
         if let made = madeDesign, made.isDesigning { s.designSelected = made.model.selectedIds.count }
+        s.hasGuides = pdf.session?.guides.all.isEmpty == false
         let needs = command?.needs ?? Requirement.allCases
         if needs.contains(.selectedText) { s.hasSelectedText = pages.selectedText != nil }
         if needs.contains(.insertionPoint) { s.hasInsertionPoint = pages.insertionPoint != nil }
@@ -865,6 +873,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// Password or Change Password Protection).
     private func markMenuItem(_ item: NSMenuItem) {
         markSplitItem(item)
+        markLayoutItem(item)
         switch item.action {
         case #selector(toggleMarkup(_:)):
             item.title = toolStrip.isHidden ? loc("Show Markup Toolbar") : loc("Hide Markup Toolbar")
@@ -1146,6 +1155,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func scrolled() {
+        refreshRulers()
         followBeside(fromSecond: false)
         updateSubtitle()
         sidebar.showCurrent(activePages.currentPage)

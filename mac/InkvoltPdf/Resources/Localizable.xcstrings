@@ -24574,6 +24574,171 @@
           }
         }
       }
+    },
+    "1 cm": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 cm"
+          }
+        }
+      }
+    },
+    "1 inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 pulgada"
+          }
+        }
+      }
+    },
+    "10 points": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 puntos"
+          }
+        }
+      }
+    },
+    "5 mm": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 mm"
+          }
+        }
+      }
+    },
+    "A line every": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una línea cada"
+          }
+        }
+      }
+    },
+    "Grid spacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaciado de la cuadrícula"
+          }
+        }
+      }
+    },
+    "Horizontal ruler": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla horizontal"
+          }
+        }
+      }
+    },
+    "Rulers in {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reglas en {0}."
+          }
+        }
+      }
+    },
+    "Shapes, fields, stamps and measuring points snap to the grid while it shows and Snap to Grid is on. Hold ⌥ for no snapping.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las formas, los campos, los sellos y los puntos de medición se ajustan a la cuadrícula mientras se ve y Ajustar a la cuadrícula está activado. Mantén ⌥ para no ajustar."
+          }
+        }
+      }
+    },
+    "Vertical ruler": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Regla vertical"
+          }
+        }
+      }
+    },
+    "{0} guide cleared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borró {0} guía."
+          }
+        }
+      }
+    },
+    "{0} guides cleared.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se borraron {0} guías."
+          }
+        }
+      }
+    },
+    "{0}, the page's scale or your region's": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}, la escala de la página o la de tu región"
+          }
+        }
+      }
+    },
+    "¼ inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¼ de pulgada"
+          }
+        }
+      }
+    },
+    "½ inch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½ pulgada"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

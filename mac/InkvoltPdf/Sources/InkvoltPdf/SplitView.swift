@@ -204,6 +204,7 @@ extension DocumentWindowController {
         if let layerEngine, shown === engine { second.draw(with: layerEngine) }
         second.matches = pages.matches
         second.currentMatch = pages.currentMatch
+        if shown === engine { second.guides = pdf.session?.guides } // the same document's guides (roadmap 4.19)
 
         let scroll = NSScrollView()
         scroll.contentView = CenteringClipView()

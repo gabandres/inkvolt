@@ -1768,6 +1768,22 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
   menu is under Tools › Forms, where the Mac's Prepare Form lives (Windows: Edit › Forms). The arrangements follow the
   view's turn, as Windows' (`DesignPage.rotation`).
   Not checked by a person: the panel's new rows and the sheet by eye and with VoiceOver.
+- **4.19 rulers, guides, a grid and snapping** (View › Rulers ⌥⇧⌘R, Grid ⌥⌘', Guides and Snapping: Snap to Guides, Grid
+  and Objects, Grid Spacing…, Ruler Units, Clear Guides): PdfCore `LayoutAids` (ticks, `fromRuler`, the grid),
+  `PageGuides` on the `DocumentSession` (never written into the PDF; `keys` and `remap` follow pages through moves and drop
+  a page's guides when it is turned, resized, replaced or deleted), `Snapper`, and `FormDesigner`'s `snap` (passed with
+  each press and drag, where Windows' designer holds a `SnapFor`) and `snapLines`. The app (`Layout.swift`): the rulers
+  are the pages' scroll view's `NSRulerView`s (`PageRuler`, counting from the current page as shown, in the page's
+  measuring scale, else the region's unit, unless Ruler Units says), a press on one drags a guide onto a page; the hand
+  and select tools (and Prepare Form with no field tool) pick a guide up, and dropping it off its page removes it; the
+  grid, the guides and what a press snapped to are drawn on the pages (a split's second pane shows the same guides).
+  Snapping, off with ⌥: Prepare Form's fields (drawn, moved, resized), shapes, lines, text boxes and callouts drawn,
+  comments moved, stamps, pictures and signatures placed, measuring points. `LayoutAidsTests` and the 4.19 half of
+  `Wave4CReviewTests` ported; `LayoutTest` (`--edit --only-layout`) drives the menu, a guide from the ruler, a rectangle
+  and a field snapping to it, Snap to Guides off, Grid Spacing…, Ruler Units, a page turned and Clear Guides. Mac
+  differences: the keys (⌘R turns pages here, ⌘' switches panes); a guide dragged from a ruler shows as a line where the
+  pointer is until it is let go over a page. Not checked by a person: the rulers' look and their labels at every zoom
+  and turn, dragging guides by hand, VoiceOver on the rulers.
 
 ## Open decisions
 
@@ -1800,8 +1816,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
   `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
-  `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
-  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
+  `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`);
   4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
   `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
   format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
