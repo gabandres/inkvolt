@@ -50,7 +50,8 @@ public enum IppCodec {
     public static let identifyPrinter: UInt16 = 0x003C
 
     static let operationTag: UInt8 = 0x01, printerTag: UInt8 = 0x04, endTag: UInt8 = 0x03
-    static let integer: UInt8 = 0x21, boolean: UInt8 = 0x22, enumeration: UInt8 = 0x23, octetString: UInt8 = 0x30
+    static let integer: UInt8 = 0x21, boolean: UInt8 = 0x22, enumeration: UInt8 = 0x23, octetString: UInt8 = 0x30, resolution: UInt8 = 0x32
+    static let rangeOfInteger: UInt8 = 0x33
     static let charset: UInt8 = 0x47, naturalLanguage: UInt8 = 0x48, uri: UInt8 = 0x45, keyword: UInt8 = 0x44, name: UInt8 = 0x42
 
     public static func encodeGetPrinterAttributes(_ printerUri: String, _ requested: [String], requestId: Int32 = 1) -> [UInt8] {
@@ -151,6 +152,12 @@ public enum IppCodec {
             switch a.tag {
             case integer, enumeration: value = int32Bytes(Int32(a.value)!)
             case boolean: value = [a.value == "true" ? 1 : 0]
+            case resolution:
+                let r = IppText.parseResolution(a.value)!
+                value = int32Bytes(r.x) + int32Bytes(r.y) + [r.units]
+            case rangeOfInteger:
+                let r = IppText.parseRange(a.value)!
+                value = int32Bytes(r.lower) + int32Bytes(r.upper)
             default: value = Array(a.value.utf8)
             }
             writeAttribute(&b, a.tag, attributeName, value)
@@ -204,7 +211,45 @@ public enum IppText {
         "charset": IppCodec.charset,
         "naturalLanguage": IppCodec.naturalLanguage,
         "mimeMediaType": 0x49,
+        "resolution": IppCodec.resolution,
+        "rangeOfInteger": IppCodec.rangeOfInteger,
     ]
+
+    /// `1-99` (either end may have a sign, `-5--1`); nil unless the lower end is at most the upper.
+    public static func parseRange(_ text: String) -> (lower: Int32, upper: Int32)? {
+        guard text.count > 1, let dash = text.dropFirst().firstIndex(of: "-"),
+              let lower = signed(text[..<dash]), let upper = signed(text[text.index(after: dash)...]), lower <= upper else { return nil }
+        return (lower, upper)
+
+        // .NET's AllowLeadingSign: one optional sign, then digits only.
+        func signed(_ s: Substring) -> Int32? {
+            let digits = s.first == "-" || s.first == "+" ? s.dropFirst() : s
+            return !digits.isEmpty && digits.allSatisfy { ("0"..."9").contains($0) } ? Int32(s) : nil
+        }
+    }
+
+    /// `300dpi`, `600x300dpi` or `118dpcm` (as ipptool writes them); units 3 is dots per inch, 4 per centimetre (RFC 8010
+    /// §3.9). Nil for anything else.
+    public static func parseResolution(_ text: String) -> (x: Int32, y: Int32, units: UInt8)? {
+        let units: UInt8 = text.hasSuffix("dpi") ? 3 : text.hasSuffix("dpcm") ? 4 : 0
+        if units == 0 { return nil }
+        let parts = text.dropLast(units == 3 ? 3 : 4).split(separator: "x", omittingEmptySubsequences: false)
+        guard parts.count <= 2, let x = digits(parts[0]) else { return nil }
+        guard parts.count == 2 else { return (x, x, units) }
+        guard let y = digits(parts[1]) else { return nil }
+        return (x, y, units)
+
+        func digits(_ s: Substring) -> Int32? { !s.isEmpty && s.allSatisfy { ("0"..."9").contains($0) } ? Int32(s) : nil }
+    }
+
+    private static func int32(_ b: [UInt8], _ at: Int) -> Int32 {
+        Int32(bitPattern: UInt32(b[at]) << 24 | UInt32(b[at + 1]) << 16 | UInt32(b[at + 2]) << 8 | UInt32(b[at + 3]))
+    }
+
+    /// A resolution as ipptool writes it: `300dpi`, or `600x300dpi` when the two differ.
+    private static func resolutionText(_ x: Int32, _ y: Int32, _ units: UInt8) -> String {
+        "\(x)\(x == y ? "" : "x\(y)")\(units == 3 ? "dpi" : "dpcm")"
+    }
 
     public static func parse(_ text: String) throws -> [IppValue] {
         var values: [IppValue] = []
@@ -220,6 +265,8 @@ public enum IppText {
             switch tag {
             case IppCodec.integer, IppCodec.enumeration: valid = Int32(value) != nil
             case IppCodec.boolean: valid = value == "true" || value == "false"
+            case IppCodec.resolution: valid = parseResolution(value) != nil
+            case IppCodec.rangeOfInteger: valid = parseRange(value) != nil
             default: valid = true
             }
             if !valid { throw IppFormatError("IPP text line \(index + 1): \"\(value)\" is not a valid \(parts[1])") }
@@ -230,7 +277,7 @@ public enum IppText {
 
     /// The other way: a Get-Printer-Attributes response's printer attributes as this text, one value per line, so a
     /// recording (`PrinterRecorder`) can be read and served again. Values this form can't hold are left out with a comment
-    /// line naming them: collections (`media-col-database`), dateTime, resolution, rangeOfInteger, the with-language
+    /// line naming them: collections (`media-col-database`), dateTime, the with-language
     /// strings and out-of-band values. Line breaks inside a text value become spaces.
     public static func fromResponse(_ response: [UInt8]) throws -> String {
         guard response.count >= 9 else { throw IppFormatError("IPP response too short") }
@@ -284,6 +331,10 @@ public enum IppText {
                 text = valueLength == 4 ? String(Int32(bitPattern: UInt32(value[0]) << 24 | UInt32(value[1]) << 16 | UInt32(value[2]) << 8 | UInt32(value[3]))) : nil
             case IppCodec.boolean:
                 text = valueLength == 1 ? (value[0] != 0 ? "true" : "false") : nil
+            case IppCodec.resolution:
+                text = valueLength == 9 && (value[8] == 3 || value[8] == 4) ? resolutionText(int32(value, 0), int32(value, 4), value[8]) : nil
+            case IppCodec.rangeOfInteger:
+                text = valueLength == 8 ? "\(int32(value, 0))-\(int32(value, 4))" : nil
             default:
                 text = String(decoding: value, as: UTF8.self)
                     .replacingOccurrences(of: "\r\n", with: " ").replacingOccurrences(of: "\n", with: " ").replacingOccurrences(of: "\r", with: " ")
