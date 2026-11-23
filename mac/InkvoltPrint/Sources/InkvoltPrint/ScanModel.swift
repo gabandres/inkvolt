@@ -45,6 +45,10 @@ final class ScanModel {
     var straighten: Bool {
         didSet { UserDefaults.standard.set(straighten, forKey: "scanStraighten") }
     }
+    /// Pages lying sideways or upside down turned upright when their text says so clearly (`PageUpright`, roadmap 4.3).
+    var upright: Bool {
+        didSet { UserDefaults.standard.set(upright, forKey: "scanUpright") }
+    }
     /// Batch scanning: a feeder run is saved as several files, split at patch code sheets, blank pages, or either.
     var splitAt: SplitAt {
         didSet { UserDefaults.standard.set(splitAt.rawValue, forKey: "scanSplitAt") }
@@ -64,8 +68,16 @@ final class ScanModel {
     var findPhotos: Bool {
         didSet { UserDefaults.standard.set(findPhotos, forKey: "scanFindPhotos") }
     }
+    /// The feeder scans one side: both sides by turning the stack over for the backs (`TurnedStack`, roadmap 4.1).
+    var turnStack: Bool {
+        didSet { UserDefaults.standard.set(turnStack, forKey: "scanTurnStack") }
+    }
     /// The tab's clean up (Scan settings › Clean up): what each scanned page gets (a preset has its own), each to be changed
     /// on a page in the review. Stored as Windows' number.
+    /// The color the tab's Drop a color drops (roadmap 4.7), kept as "#RRGGBB"; red until another is chosen.
+    var dropColor: DropColor {
+        didSet { UserDefaults.standard.set(dropColor.hex, forKey: "scanDropColor") }
+    }
     var cleanup: PageFilters {
         didSet { UserDefaults.standard.set(cleanup.rawValue, forKey: "scanCleanup") }
     }
@@ -83,8 +95,13 @@ final class ScanModel {
     private(set) var problem: String?
     /// The PDFs the last save wrote (a batch: one per file), for the save bar's Open in Inkvolt PDF.
     private(set) var savedPdfs: [URL] = []
-    /// The review's Undo of a clean up: a scan's by its settings, the Clean up view's Done or All Pages, each one step.
+    /// The review's Undo: a scan's clean up by its settings, the Clean up view's Done or All Pages, a turned stack put in
+    /// order or its backs swapped, each one step.
     private(set) var undoSteps: [UndoStep] = []
+    /// The last scan's turned stack, while its backs can be put the other way (until the next scan or Clear).
+    var stack: StackScan?
+    /// What the turned stack's question answers instead of asking (`--report`); nil: the alert asks.
+    @ObservationIgnored var answerTurnStack: (@MainActor (Int) -> Bool)?
 
     @ObservationIgnored private var images: [String: [UInt8]] = [:]
     /// The scanner's PDF each page came from, for a scanner that sends only PDF (roadmap 1.3, `ScannerPdf.origin`).
@@ -102,11 +119,14 @@ final class ScanModel {
         format = ScanFormat(rawValue: d.string(forKey: "scanFormat") ?? "") ?? .searchablePdf
         skipBlank = d.object(forKey: "scanSkipBlank") as? Bool ?? true
         straighten = d.object(forKey: "scanStraighten") as? Bool ?? true
+        upright = d.object(forKey: "scanUpright") as? Bool ?? true
         let split = SplitAt(rawValue: d.integer(forKey: "scanSplitAt"))
         splitAt = split.isKnown ? split : .none
         keepSeparators = d.bool(forKey: "scanKeepSeparators")
         findPhotos = d.bool(forKey: "scanFindPhotos")
+        turnStack = d.bool(forKey: "scanTurnStack")
         cleanup = PageFilters(rawValue: d.integer(forKey: "scanCleanup")).intersection(.all)
+        dropColor = DropColor.parse(d.string(forKey: "scanDropColor")) ?? .red
         ocrLanguage = d.string(forKey: "scanOcrLanguage")
         sizeKey = Locale.current.measurementSystem == .metric ? "a4" : "letter"
     }
@@ -117,6 +137,8 @@ final class ScanModel {
     var colors: [ScanColor] { caps.map { ScanChoices.colors($0, source) } ?? [.color] }
     var resolutions: [Int] { caps.map { ScanChoices.resolutions($0, source) } ?? ScanChoices.documentResolutions }
     var sizes: [ScanPageSize] { caps.map { ScanChoices.pageSizes($0, source) } ?? ScanChoices.pageSizes }
+    /// The feeder is chosen and scans one side only: the tab offers `turnStack`.
+    var offersTurnStack: Bool { caps.map { ScanChoices.offersTurnStack($0, source) } ?? false }
 
     /// Reads what the scanner offers (once connected).
     func load() async {
@@ -152,39 +174,101 @@ final class ScanModel {
     func scan(with p: ScanPreset) async {
         if caps == nil { await load() }
         guard let caps, !isScanning else { return }
-        let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric)
+        let plan = PresetPlan.plan(p, caps, feederLoaded: nil, ocrAvailable: true, metric: Locale.current.measurementSystem == .metric, turnsStacks: true)
         source = plan.request.source
         color = plan.request.color
         dpi = plan.request.resolution
         sizeKey = ScanChoices.pageSizes.first { $0.width == plan.request.width && $0.height == plan.request.height }?.key ?? sizeKey
         format = p.fileType == .jpeg ? .jpeg : plan.ocr ? .searchablePdf : .pdf
+        if preset?.id != p.id { forgetSaveName() }
         preset = p
         let notes = plan.notes
         // The preset's checks are its own: the tab's settings stay as the user set them.
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
-                              findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage)
-        scan(check: check, keepSeparators: p.keepSeparators) {
+                              findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage,
+                              upright: p.turnUpright, oneBit: plan.oneBit, drop: DropColor.parse(p.dropColor) ?? .red)
+        scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
+            if p.review { await self.fillSaveName() } // once its pages are checked
         }
     }
 
-    /// Scans with the tab's settings, or a preset's `check` and `keepSeparators`. Batches come from the feeder only, photos
-    /// from the glass only.
-    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, then finished: (@MainActor () async -> Void)? = nil) {
+    // MARK: The file's name from the page's text (roadmap 4.11)
+
+    /// The review shows the name the preset's save will give (its template reads the page's text), to change before saving.
+    var showsSaveName: Bool { preset.map { $0.review && FileNameTemplate.readsText($0.fileName) } ?? false }
+
+    /// The first file's name (no extension): filled from the page's text (`fillSaveName`), or as typed in the review.
+    private(set) var saveName = ""
+    private(set) var saveNameEdited = false
+    @ObservationIgnored private var saveNameFills = 0
+    /// What the first page said, for the page as it was read (its id and edits): a fill or the save after it reads it once.
+    @ObservationIgnored private var foundFor: (page: String, edits: PageEdits, found: FoundInText)?
+
+    /// The name as typed in the review: the save gives the first file this name.
+    func editSaveName(_ name: String) {
+        saveName = name
+        saveNameEdited = true
+    }
+
+    private func forgetSaveName() {
+        saveName = ""
+        saveNameEdited = false
+        foundFor = nil
+    }
+
+    /// What the first page of `file` (not a page of photos) says for the preset's name, its text read by Vision as the page
+    /// will be saved; nil when the name doesn't ask, `FoundInText.none` when the page says nothing or can't be read.
+    private func found(in file: [ScannedPage], _ p: ScanPreset) async -> FoundInText? {
+        guard FileNameTemplate.readsText(p.fileName) || FileNameTemplate.readsText(p.subfolder) else { return nil }
+        guard let page = file.first(where: { !$0.hasPhotos }), let jpeg = images[page.id] else { return FoundInText.none }
+        if let cached = foundFor, cached.page == page.id, cached.edits == page.edits { return cached.found }
+        let (edits, dpi, language) = (page.edits, page.dpi, page.ocrLanguage)
+        let found: FoundInText = await offPool {
+            guard let shown = try? ScanImaging.jpeg(jpeg, edits, dpi: dpi), let size = try? PdfWriter.jpegInfo(shown),
+                  let words = ScanPdf.recognize(shown, language: language) else { return FoundInText.none }
+            return TextFinds.find(ScanPdf.pixelWords(words, width: size.width, height: size.height), locale: .current)
+        }
+        if self.pages.page(page.id)?.edits == edits { foundFor = (page.id, edits, found) }
+        return found
+    }
+
+    /// Fills `saveName` as the preset's save would name the first file (with the preset's next number), unless it was typed.
+    func fillSaveName() async {
+        guard showsSaveName, !saveNameEdited, let p = preset, let file = pages.files.first, !file.isEmpty else { return }
+        saveNameFills += 1
+        let fill = saveNameFills
+        let found = await found(in: file, p)
+        guard fill == saveNameFills, !saveNameEdited, preset?.id == p.id else { return }
+        let current = app.presets.first { $0.id == p.id } ?? p
+        let pages = imagesPerFile.first ?? file.count
+        saveName = FileNameTemplate.fileName(current.fileName, NameContext(now: Date(), preset: current.name, printer: printer.name,
+                                                                           number: current.nextNumber, pages: pages, found: found))
+    }
+
+    /// Scans with the tab's settings, or a preset's `check`, `keepSeparators` and `turnStack`. Batches come from the feeder
+    /// only, photos from the glass only; a turned stack (`TurnedStack`) only from a feeder that scans one side.
+    func scan(check given: PageCheck? = nil, keepSeparators keepGiven: Bool? = nil, turnStack turnGiven: Bool? = nil,
+              then finished: (@MainActor () async -> Void)? = nil) {
         guard !isScanning else { return }
         problem = nil
         isScanning = true
+        stack = nil // "Backs in the Other Order" is for the last turned stack only
         status = source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…")
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
-                                   ocrLanguage: ocrLanguage)
+                                   ocrLanguage: ocrLanguage, upright: upright, drop: dropColor)
         if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
+        // Which way up is told by Latin-like letters only: a page in Hebrew, Arabic or Chinese isn't turned.
+        c.upright = c.upright && PageUpright.suitsLanguage(c.ocrLanguage ?? Locale.preferredLanguages.first)
         let check = c, split = c.splitAt, photos = c.findPhotos
         let duplex = source == .adfDuplex
+        let turning = (turnGiven ?? turnStack) && offersTurnStack
         if pages.isEmpty || split != .none { pages.keepSeparators = keepGiven ?? keepSeparators } // the batch's setting when it was scanned
         if app.isDemo {
-            Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper))
+            Demo.scanSetup.prepare(feederBatch: split != .none && source != .platen, photosOnGlass: photos, paperOnLid: c.cleanup.contains(.cropToPaper),
+                                   turnedStack: turning ? .fronts : nil, markedForm: !c.cleanup.isDisjoint(with: [.dropColor, .punchHoles]))
         }
         let widthIn300ths = request.width ?? caps?.input(for: source)?.maxWidth
         scanning = Task {
@@ -200,26 +284,69 @@ final class ScanModel {
             var count = 0
             var added: [String] = []
             var failure: (any Error)?
-            do {
+            var sides: [[String]] = [[], []] // a turned stack's fronts, then its backs
+            var side = 0
+            @MainActor func pass() async throws {
                 for try await jpeg in scanner.scan(request) {
                     count += 1
                     status = count == 1 ? String(localized: "Scanned \(count) page…") : String(localized: "Scanned \(count) pages…")
-                    added.append(await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check))
+                    let id = await add(jpeg, dpi: Self.dpi(of: jpeg, asked: request.resolution, widthIn300ths: widthIn300ths), check: check)
+                    added.append(id)
+                    sides[side].append(id)
                 }
+                if Task.isCancelled { throw CancellationError() } // the stream ends quietly when the task is stopped
+            }
+            do {
+                try await pass()
             } catch {
                 failure = error
+            }
+            // Both sides on a one-sided feeder: the backs once the stack is turned over, then every page in its place.
+            var stackNote = ""
+            var backsStopped = false
+            if turning && failure == nil && !sides[0].isEmpty {
+                let fronts = sides[0].count
+                status = fronts == 1 ? String(localized: "Fronts scanned: \(fronts) page.") : String(localized: "Fronts scanned: \(fronts) pages.")
+                if await askTurnStack(fronts) {
+                    if app.isDemo { Demo.scanSetup.prepare(feederBatch: split != .none, photosOnGlass: false, turnedStack: .backs) }
+                    status = String(localized: "Scanning the backs…")
+                    side = 1
+                    do {
+                        try await pass()
+                    } catch is CancellationError {
+                        // Stopped part-way: the backs scanned so far are put in order like any others, and that is said.
+                        stackNote = String(localized: "Scanning the backs was stopped: the pages scanned are in order.")
+                        backsStopped = true
+                    } catch {
+                        // The fronts are kept: what went wrong with the backs is said, and they can be scanned again by hand.
+                        let why = (error as? ScanError)?.description ?? String(localized: "the scanner stopped answering.")
+                        stackNote = String(localized: "The backs couldn't be scanned: \(why) The fronts are kept.")
+                    }
+                    await checksLanded()
+                    let backs = sides[1]
+                    if !backs.isEmpty { putStackInOrder(fronts: sides[0], backs: backs) } // with each separator sheet's other side
+                    let counts = fronts == backs.count ? String(localized: "Fronts and backs are in page order.")
+                        : backs.isEmpty ? (fronts == 1 ? String(localized: "The feeder sent no backs, so only \(fronts) front is here.")
+                                            : String(localized: "The feeder sent no backs, so only the \(fronts) fronts are here."))
+                        : String(localized: "\(fronts) fronts but \(backs.count) backs: a sheet may have gone through twice or been left behind. The backs were matched from the last sheet: check the order and drag any page that's out of place, or click Undo to put the backs after the fronts.")
+                    stackNote = stackNote.isEmpty ? counts : !backs.isEmpty && fronts != backs.count ? stackNote + " " + counts : stackNote
+                } else {
+                    stackNote = String(localized: "Only the fronts were scanned.")
+                }
             }
             // Every page check lands (blank pages skipped, separators found, pages cleaned up) before the scan's clean up
             // becomes its step of Undo and a preset saves, as Windows waits for them all; a stopped scan's pages too.
             await checksLanded()
             if failure == nil && duplex { pages.separatorBacks(added) }
             keep()
+            let turned = recordUpright(added)
             let cleaned = recordCleanup(added, check.cleanup)
             switch failure {
             case nil:
-                let found = notes(added, split: split, photos: photos, duplex: duplex) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
+                let found = (stackNote.isEmpty ? [] : [stackNote]) + notes(added, split: split, photos: photos, duplex: duplex || stack != nil)
+                    + (turned.isEmpty ? [] : [turned]) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
                 status = count == 0 ? String(localized: "No pages came from the scanner.") : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
-                await finished?()
+                if !backsStopped { await finished?() } // stopped: the pages stay for a look, not saved by a preset
             case is CancellationError:
                 status = String(localized: "Scan stopped.")
             case let e as ScanError:
@@ -261,12 +388,20 @@ final class ScanModel {
         /// What each page is cleaned up with (`ScanPages.analysed`), and the language its text is read in.
         var cleanup: PageFilters = []
         var ocrLanguage: String?
+        /// Turn a page upright when it lies sideways or upside down and its text says so clearly (`PageUpright`).
+        var upright = false
+        /// Save the pages in a PDF in black and white (a preset's smaller file, roadmap 4.4).
+        var oneBit = false
+        /// The color the clean up's Drop a color drops (roadmap 4.7).
+        var drop: DropColor = .red
     }
 
     /// What the page check found.
     private struct Checked: Sendable {
         var looksBlank: Bool
         var skew: Double
+        /// The quarter turns that stand it upright (`PageUpright.orient`); 0 when not sure.
+        var turns: Int
         var separator: SeparatorFound
         var photos: [PhotoBox]?
         /// The sheet's edge, looked for when the clean up crops to the paper (`ScanPages.wantsPaperEdge`).
@@ -283,10 +418,14 @@ final class ScanModel {
         let looksBlank = separator.kind == .blankPage || BlankPage.isBlank(gray)
         let blank = c.skipBlank && looksBlank && !separator.isSeparator
         let photos = c.findPhotos && !blank && !separator.isSeparator ? PhotoFinder.find(gray, pixelsPerInch: ppi) : nil
-        let skew = c.straighten && !blank && !separator.isSeparator && (photos?.isEmpty ?? true) ? Deskew.angle(gray) : 0
+        // Straightened and turned upright (roadmap 4.3) only when it's a page: not skipped, a separator or a scan of photos;
+        // looked at for its way up only when something is on it.
+        let mayStraighten = !blank && !separator.isSeparator && (photos?.isEmpty ?? true)
+        let (skew, turns) = PageUpright.orient(gray, ppi, straighten: c.straighten, upright: c.upright, mayStraighten: mayStraighten,
+                                               hasText: mayStraighten && !looksBlank)
         let wantsEdge = ScanPages.wantsPaperEdge(c.cleanup, looksBlank: looksBlank, separator: separator, photos: photos)
         let edge = wantsEdge ? PaperEdge.find(gray, ppi: ppi, deskew: skew) : nil
-        return Checked(looksBlank: looksBlank, skew: skew, separator: separator, photos: photos, paperEdge: edge)
+        return Checked(looksBlank: looksBlank, skew: skew, turns: turns, separator: separator, photos: photos, paperEdge: edge)
     }
 
     /// Past `PageCleanup.maxPixels` by its header (read without decoding): saved as scanned, never decoded at full size.
@@ -301,7 +440,9 @@ final class ScanModel {
         let id = ScanRecoveryStore.newPageName()
         images[id] = jpeg
         if let origin = ScannerPdf.origin(of: jpeg) { origins[id] = origin }
-        pages.add(ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage, tooLargeToEdit: Self.tooLargeToEdit(jpeg)))
+        var page = ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage, tooLargeToEdit: Self.tooLargeToEdit(jpeg))
+        page.oneBit = c.oneBit
+        pages.add(page)
         keep()
         refreshThumbnail(id)
         // The page check runs beside the next page's scan.
@@ -313,7 +454,8 @@ final class ScanModel {
                 return
             }
             pages.analysed(id, looksBlank: result.looksBlank, skew: result.skew, skipBlank: c.skipBlank, straighten: c.straighten,
-                           separator: result.separator, photos: result.photos, cleanup: c.cleanup, paperEdge: result.paperEdge)
+                           separator: result.separator, photos: result.photos, cleanup: c.cleanup, paperEdge: result.paperEdge,
+                           quarterTurns: result.turns, drop: c.drop, grey: Self.isGrey(jpeg))
             keep()
             refreshThumbnail(id)
             if !isScanning { status = pages.summary }
@@ -334,7 +476,7 @@ final class ScanModel {
     /// cut into photos, or given a text layer).
     private func toSave(_ file: [ScannedPage]) -> [PageToSave] {
         let ocr = format == .searchablePdf
-        return file.map { PageToSave(origins[$0.id], changed: !$0.edits.isEmpty || $0.hasPhotos || ocr) }
+        return file.map { PageToSave(origins[$0.id], changed: !$0.edits.isEmpty || $0.hasPhotos || ocr || $0.oneBit) }
     }
 
     /// Each file's PDF when it is exactly the scanner's own (saved as it sent it), else nil; all nil for JPEG.
@@ -419,14 +561,71 @@ final class ScanModel {
     func keepPage(_ id: String) { change(id) { $0.keep(id) } }
     func skipPage(_ id: String) { change(id) { $0.skip(id) } }
 
+    // MARK: A turned stack (roadmap 4.1)
+
+    /// Asks for the stack to be turned over once its `fronts` are scanned (the Windows app's question, a modal alert);
+    /// false: only the fronts.
+    private func askTurnStack(_ fronts: Int) async -> Bool {
+        if let answerTurnStack { return answerTurnStack(fronts) }
+        let alert = NSAlert()
+        alert.messageText = fronts == 1 ? String(localized: "Fronts scanned: \(fronts) page.") : String(localized: "Fronts scanned: \(fronts) pages.")
+        alert.informativeText = fronts == 1
+            ? String(localized: "The front of \(fronts) sheet is scanned. Take it out of the output tray, turn it over like a page of a book, put it back in the feeder and click Scan the Backs.")
+            : String(localized: "The fronts of \(fronts) sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and click Scan the Backs.")
+        alert.addButton(withTitle: String(localized: "Scan the Backs"))
+        alert.addButton(withTitle: String(localized: "Only the Fronts"))
+        return alert.runModal() == .alertFirstButtonReturn
+    }
+
+    /// A turned stack's fronts and backs put in page order (backs last sheet first), each separator sheet's other side with
+    /// it; one step of Undo puts them back as scanned.
+    private func putStackInOrder(fronts: [String], backs: [String]) {
+        var scanned = StackScan(fronts: fronts, backs: backs)
+        pages.pair(&scanned, reversed: TurnedStack.backsReversed)
+        stack = scanned
+        let ids = fronts + backs, first = scanned
+        recordUndo(String(localized: "Put the fronts and backs in order")) { model in
+            // This step's own stack: by now its pairing is the first one again (Undo takes a swap back before this), whatever
+            // a later scan did to the review's.
+            var now = first
+            model.pages.unpair(&now)
+            if model.stack?.fronts == fronts { model.stack = nil }
+            return ids
+        }
+    }
+
+    /// "Backs in the Other Order" can run: there's a turned stack and nothing is scanning or saving.
+    var canSwapBacks: Bool { stack != nil && !isScanning && !isSaving }
+
+    /// The backs matched the other way round (a scanner whose output tray reverses the stack): first sheet first, or back to
+    /// last sheet first; one step of Undo.
+    func swapBacks() {
+        guard canSwapBacks, var scanned = stack else { return }
+        savedParts.clear()
+        let was = scanned.reversed
+        // The sheets pair differently now: each separator sheet's other side is found again (the old marks put back). The
+        // step keeps its own stack and marks: a scan meanwhile lets the review's go.
+        let swap = pages.swapBacks(&scanned)
+        stack = scanned
+        keep()
+        let ids = scanned.fronts + scanned.backs
+        for id in ids { refreshThumbnail(id) }
+        recordUndo(String(localized: "Put the backs in the other order")) { model in
+            model.stack = model.pages.undoSwap(swap)
+            return ids
+        }
+        status = was ? String(localized: "The backs are now matched from the first sheet. Undo puts them back.")
+            : String(localized: "The backs are matched from the last sheet again.")
+    }
+
     // MARK: Clean up (roadmap 2.3)
 
-    /// One step of the review's Undo: each page's edits before a clean up and right after it (what of its crop and filters
-    /// is still as the clean up left it goes back, `ScanPages.restoreCleanup`).
+    /// One step of the review's Undo: a clean up (each page's edits before it and right after it: what of its crop and filters
+    /// is still as the clean up left it goes back, `ScanPages.restoreCleanup`), a turned stack put in order or its backs
+    /// swapped, pages turned upright; `undo` puts it back and returns the pages whose thumbnails change.
     struct UndoStep {
         var name: String
-        var before: [String: PageEdits]
-        var after: [String: PageEdits]
+        var undo: @MainActor (ScanModel) -> [String]
     }
 
     /// Counts every change to the steps of Undo: Edit › Undo is registered again on each, even when two steps share a name.
@@ -438,21 +637,38 @@ final class ScanModel {
     /// Undo can run: there's a step, and no scan or save is under way (Windows' `CanUndo`, not while busy).
     var canUndo: Bool { !undoSteps.isEmpty && !isSaving && !isScanning }
 
-    /// Undoes the last clean up.
+    /// Undoes the last step.
     func undo() {
         guard canUndo, let step = undoSteps.popLast() else { return }
         undoChanges += 1
         savedParts.clear()
-        pages.restoreCleanup(step.before, after: step.after)
+        let changed = step.undo(self)
         keep()
-        for id in step.before.keys { refreshThumbnail(id) }
+        for id in changed { refreshThumbnail(id) }
         status = "Undone: \(step.name.prefix(1).lowercased() + step.name.dropFirst())."
     }
 
     private func recordUndo(_ name: String, _ before: [String: PageEdits], after: [String: PageEdits]) {
         guard !before.isEmpty else { return }
-        undoSteps.append(UndoStep(name: name, before: before, after: after))
+        recordUndo(name) { model in
+            model.pages.restoreCleanup(before, after: after)
+            return Array(before.keys)
+        }
+    }
+
+    private func recordUndo(_ name: String, _ undo: @escaping @MainActor (ScanModel) -> [String]) {
+        undoSteps.append(UndoStep(name: name, undo: undo))
         undoChanges += 1
+    }
+
+    /// Pages the scan turned upright (`PageUpright`) are one step of Undo, however many: each still as the check left it
+    /// goes back as the scanner sent it. What to say about it ("2 pages were turned upright."), or "".
+    private func recordUpright(_ added: [String]) -> String {
+        let turned = added.filter { pages.page($0)?.turnedUpright == true }
+        guard let first = turned.first else { return "" }
+        let name = turned.count == 1 ? String(localized: "Turn page \(pages.number(first) ?? 1) upright") : String(localized: "Turn \(turned.count) pages upright")
+        recordUndo(name) { model in model.pages.undoUpright(turned) }
+        return turned.count == 1 ? String(localized: "1 page was turned upright.") : String(localized: "\(turned.count) pages were turned upright.")
     }
 
     /// A scan cleaned up by its settings is one step of Undo, however many pages it has; what to say about it
@@ -476,15 +692,15 @@ final class ScanModel {
 
     /// The page's edits with `filters` in place of its own (`PageEdits.withFilters`): the paper's edge is looked for on the
     /// analysis copy only when a crop to it is new, once per page and straightening. Nil when the page isn't there.
-    func edits(_ id: String, with filters: PageFilters) async -> PageEdits? {
+    func edits(_ id: String, with filters: PageFilters, drop: DropColor? = nil) async -> PageEdits? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         let (edits, photos, dpi) = (page.edits, page.hasPhotos, page.dpi)
         if let known = paperEdges[id], known.deskew == edits.deskew {
-            return edits.withFilters(filters, photos: photos) { known.edge }
+            return edits.withFilters(filters, photos: photos, drop: drop) { known.edge }
         }
         let (result, looked): (PageEdits, CropBox??) = await offPool {
             var looked: CropBox?? = nil
-            let result = edits.withFilters(filters, photos: photos) { () -> CropBox? in
+            let result = edits.withFilters(filters, photos: photos, drop: drop) { () -> CropBox? in
                 let edge = ScanImaging.paperEdge(jpeg, dpi: dpi, deskew: edits.deskew)
                 looked = .some(edge)
                 return edge
@@ -497,8 +713,8 @@ final class ScanModel {
 
     /// What the Clean up view shows: the page (or a scan's first photo) with `filters`, at most 1600 pixels on its longest
     /// side, and what it says about them; nil when `stop` fired (a newer choice) or the page is gone.
-    func cleanPreview(_ id: String, _ filters: PageFilters, stop: BatchStop) async -> (image: NSImage?, note: String)? {
-        guard let jpeg = images[id], let page = pages.page(id), let edits = await edits(id, with: filters), !stop.isStopped else { return nil }
+    func cleanPreview(_ id: String, _ filters: PageFilters, drop: DropColor? = nil, stop: BatchStop) async -> (image: NSImage?, note: String)? {
+        guard let jpeg = images[id], let page = pages.page(id), let edits = await edits(id, with: filters, drop: drop), !stop.isStopped else { return nil }
         let (dpi, photo) = (page.dpi, page.photos?.first)
         let result: Result<CGImage, any Error> = await offPool {
             Result {
@@ -522,12 +738,18 @@ final class ScanModel {
         if wanted.contains(.cropToPaper) && !edits.filters.contains(.cropToPaper) && !photos {
             return String(localized: "The paper's edge can't be told from the lid here (a white sheet on a white lid, a page printed to its edges): the page is kept whole.")
         }
-        return wanted.isEmpty ? String(localized: "As scanned.") : String(localized: "Shown \(PageCleanup.describe(wanted)).")
+        if wanted.contains(.dropColor), let jpeg = images[id], Self.isGrey(jpeg) {
+            return String(localized: "This page was scanned in grey: it has no colors to drop.")
+        }
+        return wanted.isEmpty ? String(localized: "As scanned.") : String(localized: "Shown \(PageCleanup.describe(wanted, drop: edits.drop)).")
     }
 
+    /// The scanner's JPEG is grey (one component): it has no color to drop.
+    nonisolated static func isGrey(_ jpeg: [UInt8]) -> Bool { (try? PdfWriter.jpegInfo(jpeg))?.components == 1 }
+
     /// The Clean up view's Done: the page gets `filters`, one step of Undo.
-    func applyClean(_ id: String, _ filters: PageFilters) async {
-        guard let edits = await edits(id, with: filters), let page = pages.page(id), edits != page.edits else { return }
+    func applyClean(_ id: String, _ filters: PageFilters, drop: DropColor? = nil) async {
+        guard let edits = await edits(id, with: filters, drop: drop), let page = pages.page(id), edits != page.edits else { return }
         recordUndo(String(localized: "Clean up page \(pages.number(id) ?? 1)"), [id: page.edits], after: [id: edits])
         change(id) { $0.setEdits(id, edits) }
     }
@@ -538,7 +760,7 @@ final class ScanModel {
     /// The Clean up view's All Pages: the switches it shows (`shown`; a page of photos has no crop or whiten) set as
     /// `chosen` has them on every page that is saved (not a separator, not left out), the others' own left alone; one step
     /// of Undo. The pages are looked at a few at a time (`cleanProgress`); `stop` (the view's Cancel) changes none.
-    func applyCleanToAll(_ chosen: PageFilters, shown: PageFilters = .all, stop: BatchStop = BatchStop()) async {
+    func applyCleanToAll(_ chosen: PageFilters, shown: PageFilters = .all, drop: DropColor? = nil, stop: BatchStop = BatchStop()) async {
         let targets = pages.pages.filter { !$0.isSeparator && !$0.skipped }.map { ($0.id, $0.edits.filters.setting(shown, as: chosen)) }
         var found: [String: PageEdits] = [:]
         cleanProgress = (0, targets.count)
@@ -550,7 +772,7 @@ final class ScanModel {
                 guard next < targets.count, !stop.isStopped else { return }
                 let (id, filters) = targets[next]
                 next += 1
-                group.addTask { (id, await self.edits(id, with: filters)) }
+                group.addTask { (id, await self.edits(id, with: filters, drop: drop)) }
             }
             for _ in 0..<width { start() }
             for await (id, edits) in group {
@@ -603,6 +825,8 @@ final class ScanModel {
     /// Drops every page (after saving them, or when the user starts over).
     func clear() {
         preset = nil
+        forgetSaveName()
+        stack = nil
         savedParts.clear()
         pages = ScanPages()
         images = [:]
@@ -648,6 +872,7 @@ final class ScanModel {
 
     /// The recovery folder gets the page list (and any page not written yet) each time it changes.
     private func keep() {
+        if showsSaveName && !saveNameEdited && !isScanning { Task { await fillSaveName() } } // the first page may have changed
         guard let store = app.scanStore else { return }
         if pages.isEmpty {
             store.forget(printer.id)
@@ -683,7 +908,7 @@ final class ScanModel {
     func residualSkew(_ id: String) async -> Double? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         let (edits, dpi) = (page.edits, page.dpi)
-        return await offPool { (try? ScanImaging.analysis(ScanImaging.jpeg(jpeg, edits, dpi: dpi))).map(Deskew.angle) }
+        return await offPool { (try? ScanImaging.analysis(ScanImaging.jpeg(jpeg, edits, dpi: dpi))).map { Deskew.angle($0) } }
     }
 
     /// The page as the scanner sent it; for `--report`.
@@ -734,19 +959,23 @@ final class ScanModel {
         var photos: [PhotoBox]?
         /// The language the page's text is read in (nil: Vision's choice).
         var ocrLanguage: String?
+        /// Saved in a PDF in black and white (roadmap 4.4).
+        var oneBit = false
     }
 
-    /// An image a file holds: a page as edited, or one photo cut out (no text recognition for photos).
+    /// An image a file holds: a page as edited, or one photo cut out (no text recognition for photos, never black and white).
     private struct OutputImage: Sendable {
         var jpeg: [UInt8]
         var dpi: Int
         var isPhoto: Bool
         var ocrLanguage: String?
+        var oneBit = false
     }
 
     private func jobs(_ files: [[ScannedPage]]) -> [[PageJob]] {
         files.map { file in
-            file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil, ocrLanguage: $0.ocrLanguage) }
+            file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil, ocrLanguage: $0.ocrLanguage,
+                    oneBit: $0.oneBit) }
         }
     }
 
@@ -763,8 +992,37 @@ final class ScanModel {
                     }
                 }
                 let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
-                return [OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: false, ocrLanguage: job.ocrLanguage)]
+                return [OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: false, ocrLanguage: job.ocrLanguage, oneBit: job.oneBit)]
             }
+        }
+    }
+
+    /// One file's pages as a Word document or text file (roadmap 4.14) at `url`: each page's text read by Vision as the page
+    /// is saved; a page of photos goes in as its photos, a page with no text read as the page itself (Windows' `DocPagesAsync`).
+    /// - Throws: `SaveStopped` (nothing written) when `stop` fires.
+    nonisolated private static func writeDocument(_ file: [PageJob], to url: URL, type: PresetFileType, title: String, stop: BatchStop?) throws -> [URL] {
+        do {
+            var pages: [ScanDocPage] = []
+            for job in file {
+                try stop?.check()
+                if let photos = job.photos {
+                    let jpegs = try photos.map { try ScanImaging.photo(job.jpeg, $0, filters: job.edits.filters, dpi: job.dpi, stop: stop) }
+                    pages.append(ScanDocPage(nil, dpi: job.dpi, pictures: jpegs))
+                    continue
+                }
+                let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
+                if let words = ScanPdf.recognize(jpeg, language: job.ocrLanguage), !words.isEmpty, let size = try? PdfWriter.jpegInfo(jpeg) {
+                    pages.append(ScanDocPage(ScanPdf.pixelWords(words, width: size.width, height: size.height), dpi: job.dpi))
+                } else {
+                    pages.append(ScanDocPage(nil, dpi: job.dpi, pictures: [jpeg]))
+                }
+            }
+            try stop?.check()
+            let bytes = type == .word ? try ScanDocx.write(pages, title: title) : ScanText.write(pages)
+            try Data(bytes).write(to: url, options: .atomic)
+            return [url]
+        } catch is CancellationError {
+            throw SaveStopped(written: [])
         }
     }
 
@@ -815,7 +1073,10 @@ final class ScanModel {
                 let pdfPages = try file.map { image in
                     try stop?.check()
                     let words = format == .searchablePdf && !image.isPhoto ? ScanPdf.recognize(image.jpeg, language: image.ocrLanguage) : nil
-                    return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words)
+                    // Black and white (a smaller file): the page at 1 bit; one that can't be (too large) stays its JPEG.
+                    let bits = image.oneBit && !image.isPhoto ? try? ScanImaging.bits(image.jpeg, dpi: image.dpi, stop: stop) : nil
+                    try stop?.check()
+                    return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words, bits: bits)
                 }
                 try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent).write(to: urls[0], options: .atomic)
                 written[f] = [urls[0]]
@@ -873,7 +1134,9 @@ final class ScanModel {
         defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
         let files = pages.files
         let counts = imagesPerFile
-        let ext = format == .jpeg ? ".jpg" : ".pdf"
+        // A Word document or text file (roadmap 4.14): the text read from the pages, written by PrintCore.
+        let document: PresetFileType? = p.fileType == .word || p.fileType == .text ? p.fileType : nil
+        let ext = document.map(ScanPresets.fileExtension) ?? (format == .jpeg ? ".jpg" : ".pdf")
         var numbers = PartNumbers(1)
         var all: [URL] = []
         isSaving = true
@@ -888,8 +1151,12 @@ final class ScanModel {
                 all += done.map { URL(fileURLWithPath: $0) }
                 continue
             }
-            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f])
-            let stem = FileNameTemplate.fileName(p.fileName, ctx)
+            let found = await found(in: file, p)
+            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f],
+                                  found: found)
+            // The first file's name as the review shows it, when it was changed there; else the template's.
+            let typed = saveName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let stem = f == 0 && saveNameEdited && !typed.isEmpty ? FileNameTemplate.sanitize(typed) : FileNameTemplate.fileName(p.fileName, ctx)
             let sub = FileNameTemplate.subfolder(p.subfolder, ctx)
             let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
             let format = format
@@ -898,8 +1165,11 @@ final class ScanModel {
             let result: Result<[URL], any Error> = await offPool {
                 Result {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                    let count = format == .jpeg ? counts[f] : 1
+                    let count = format == .jpeg && document == nil ? counts[f] : 1
                     let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
+                    if let document {
+                        return try Self.writeDocument(job[0], to: URL(fileURLWithPath: paths[0]), type: document, title: stem, stop: stop)
+                    }
                     return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop)
                 }
             }
@@ -923,14 +1193,19 @@ final class ScanModel {
         }
         isSaving = false
         await finishSaving(all, in: folder.lastPathComponent, note: asSentNote(files), reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
-        await after(p.after, all)
+        await after(p.after, all, document: document != nil)
     }
 
     /// The preset's step after saving: print a copy of what was saved on this printer, attach it to a new email in the
     /// user's mail app (Inkvolt Print has no mail account of its own), or open the saved PDFs in Inkvolt PDF (as on Windows,
     /// JPEG scans are only saved).
-    private func after(_ step: PresetAfter, _ urls: [URL]) async {
+    /// A Word or text scan (`document`) prints its pages, as Windows' copy does, and isn't opened in Inkvolt PDF (it opens PDFs).
+    private func after(_ step: PresetAfter, _ urls: [URL], document: Bool = false) async {
         switch step {
+        case .print where document:
+            await printPages()
+        case .openInInkvoltPdf where document:
+            break
         case .print:
             let document = PDFDocument()
             for url in urls {
@@ -1029,5 +1304,115 @@ final class ScanModel {
     /// The save bar's Open in Inkvolt PDF: every PDF the last save wrote.
     func openSavedInInkvoltPdf() {
         if !InkvoltPdfApp.open(savedPdfs) { problem = String(localized: "Inkvolt PDF isn't installed on this Mac. The scan is saved.") }
+    }
+}
+
+// MARK: Join two halves (roadmap 4.8)
+
+/// Join with the Next Page…'s work: both halves as saved (RGB, full size), the overlap `HalvesJoin` found on copies a
+/// `factor` smaller, whether it is sure, and the page ids it was opened on.
+struct JoinWork: Sendable {
+    let first: String, second: String
+    let a: JoinImages.Half, b: JoinImages.Half
+    let dpi: Int
+    let found: JoinFound
+    /// The overlap in full-size pixels (`HalvesJoin.fromCopy`): where the second half starts.
+    let placement: JoinPlacement
+    /// The halves `previewFactor` times smaller, made once for the sheet's preview (Windows' join view does the same).
+    let previewA: JoinImages.Half, previewB: JoinImages.Half
+    let previewFactor: Int
+}
+
+extension ScanModel {
+    /// Why page `id` can't be joined with the next one; nil when it can (the next page there, neither a separator nor a scan
+    /// of photos, both checked and at one resolution).
+    func joinProblem(_ id: String) -> String? {
+        guard let n = pages.number(id), let page = pages.page(id) else { return String(localized: "The pages changed while the join was open: choose Join with the Next Page… again.") }
+        guard n < pages.pages.count else { return String(localized: "Page \(n) is the last: join a page with the one after it.") }
+        let next = pages.pages[n]
+        if page.isSeparator || next.isSeparator || page.photos != nil || next.photos != nil || page.tooLargeToEdit || next.tooLargeToEdit {
+            return String(localized: "Page \(n) or the next one can't be joined: separator sheets and scans of photos stay as they are.")
+        }
+        if !page.analysed || !next.analysed { return String(localized: "Page \(n) or the next one is still being checked: join them in a moment.") }
+        if page.dpi != next.dpi { return String(localized: "The two pages were scanned at different resolutions: scan both halves at the same one to join them.") }
+        return nil
+    }
+
+    /// The two halves read and their overlap looked for (on grey copies of about 100 pixels an inch); nil (with `problem` set)
+    /// when they can't be joined or read.
+    func findJoin(_ id: String, stop: BatchStop = BatchStop()) async -> JoinWork? {
+        if let why = joinProblem(id) {
+            problem = why
+            return nil
+        }
+        guard let n = pages.number(id) else { return nil }
+        let (first, second) = (pages.pages[n - 1], pages.pages[n])
+        guard let jpegA = images[first.id], let jpegB = images[second.id] else { return nil }
+        let dpi = first.dpi
+        let work: JoinWork? = await offPool {
+            guard let a = try? JoinImages.half(jpegA, first.edits, dpi: dpi, stop: stop),
+                  let b = try? JoinImages.half(jpegB, second.edits, dpi: dpi, stop: stop) else { return nil }
+            // As Windows: the placement found, sure or not (not sure, it is the best guess to nudge from).
+            guard let found = try? HalvesJoin.find(a.rgb, a.width, a.height, b.rgb, b.width, b.height, channels: 3, dpi: dpi, stop: stop) else { return nil }
+            let placement = found.placement
+            let previewFactor = HalvesJoin.previewFactor(a.width, a.height, b.width, b.height, side: ScanModel.joinPreviewSide)
+            let pa = HalvesJoin.shrink(a.rgb, a.width, a.height, channels: 3, factor: previewFactor)
+            let pb = HalvesJoin.shrink(b.rgb, b.width, b.height, channels: 3, factor: previewFactor)
+            return JoinWork(first: first.id, second: second.id, a: a, b: b, dpi: dpi, found: found, placement: placement,
+                            previewA: JoinImages.Half(rgb: pa.pixels, width: pa.width, height: pa.height),
+                            previewB: JoinImages.Half(rgb: pb.pixels, width: pb.width, height: pb.height), previewFactor: previewFactor)
+        }
+        if work == nil && !stop.isStopped { problem = String(localized: "Couldn't join the pages. Try scanning the halves again.") }
+        return work
+    }
+
+    /// The halves joined at `placement` into one page in their place (one step of Undo); false (with `problem` set) when the
+    /// joined page would be too large or the pages changed meanwhile.
+    @discardableResult
+    func join(_ work: JoinWork, at placement: JoinPlacement) async -> Bool {
+        guard pages.page(work.first) != nil, pages.page(work.second) != nil, pages.number(work.second) == pages.number(work.first).map({ $0 + 1 }) else {
+            problem = String(localized: "The pages changed while the join was open: choose Join with the Next Page… again.")
+            return false
+        }
+        let made: (bytes: [UInt8]?, tooLarge: Bool) = await offPool {
+            guard let joined = HalvesJoin.join(work.a.rgb, work.a.width, work.a.height, work.b.rgb, work.b.width, work.b.height, channels: 3, placement) else {
+                return (nil, true)
+            }
+            return (try? JoinImages.jpeg(joined.pixels, width: joined.width, height: joined.height), false)
+        }
+        guard let bytes = made.bytes else {
+            problem = made.tooLarge ? String(localized: "The joined page would be too large: move the second half closer.")
+                : String(localized: "Couldn't join the pages. Try scanning the halves again.")
+            return false
+        }
+        let (n1, n2) = (pages.number(work.first) ?? 1, pages.number(work.second) ?? 2)
+        let id = ScanRecoveryStore.newPageName()
+        images[id] = bytes
+        var page = ScannedPage(id: id, dpi: work.dpi, analysed: true, ocrLanguage: pages.page(work.first)?.ocrLanguage)
+        page.oneBit = pages.page(work.first)?.oneBit ?? false
+        guard let done = pages.join(work.first, work.second, into: page) else { return false }
+        savedParts.clear()
+        problem = nil
+        keep()
+        refreshThumbnail(id)
+        recordUndo(String(localized: "Join pages \(n1) and \(n2)")) { model in
+            model.pages.unjoin(id, halves: done.halves, at: done.at)
+            model.thumbnails[id] = nil
+            return done.halves.map(\.id)
+        }
+        status = String(localized: "Pages \(n1) and \(n2) joined into one.")
+        return true
+    }
+
+    /// The longest side of the join sheet's preview, about (pixels).
+    nonisolated static let joinPreviewSide = 900
+
+    /// A small copy of the halves joined at `placement`, for the join sheet's preview (at most about `joinPreviewSide` pixels
+    /// a side). Only the small copies made once (`JoinWork.previewA`, `previewB`) are joined: a nudge costs a moment.
+    nonisolated static func joinPreview(_ work: JoinWork, _ placement: JoinPlacement) -> CGImage? {
+        let (a, b) = (work.previewA, work.previewB)
+        let at = HalvesJoin.toCopy(placement, factor: work.previewFactor, secondWidth: work.b.width, secondHeight: work.b.height)
+        guard let joined = HalvesJoin.join(a.rgb, a.width, a.height, b.rgb, b.width, b.height, channels: 3, at) else { return nil }
+        return try? JoinImages.picture(joined.pixels, width: joined.width, height: joined.height)
     }
 }

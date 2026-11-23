@@ -22,7 +22,9 @@ public struct PresetFileType: StoredChoice {
     public let rawValue: Int
     public init(rawValue: Int) { self.rawValue = rawValue }
     public static let pdf = PresetFileType(rawValue: 0), searchablePdf = PresetFileType(rawValue: 1), jpeg = PresetFileType(rawValue: 2)
-    public static let known = [pdf, searchablePdf, jpeg]
+    /// The text read from the pages as a Word document or plain text (roadmap 4.14).
+    public static let word = PresetFileType(rawValue: 3), text = PresetFileType(rawValue: 4)
+    public static let known = [pdf, searchablePdf, jpeg, word, text]
 }
 
 /// The folder a preset saves into; sync folders (iCloud Drive, OneDrive, Dropbox) are `custom` paths.
@@ -61,7 +63,15 @@ public struct ScanPreset: Equatable, Sendable, Codable {
 
     /// Both sides of each page, when the feeder is used and can.
     public var twoSided = false
+
+    /// With `twoSided`, on a feeder that scans one side: the fronts, then the stack turned over for the backs, put in order
+    /// (`TurnedStack`). Off: one side only, as before.
+    public var turnStack = false
     public var color = true
+
+    /// A PDF's pages saved in black and white (1 bit, CCITT G4) for a much smaller file; scanned in grey (roadmap 4.4). Not
+    /// for photos on the glass, which stay in color (`ScanPresets.savesSmallerFile`).
+    public var smallerFile = false
     public var resolution = 300
 
     /// `ScanChoices.pageSizes` key; nil = Letter or A4 by region.
@@ -73,8 +83,14 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     public var skipBlank = true
     public var straighten = true
 
+    /// Pages lying sideways or upside down turned upright, when their text says so clearly (`PageUpright`, roadmap 4.3).
+    public var turnUpright = true
+
     /// What each page is cleaned up with (crop to the paper, whiten, descreen, restore colors); none by default.
     public var cleanup: PageFilters = []
+
+    /// The color `.dropColor` drops, "#RRGGBB" (`DropColor.hex`, roadmap 4.7); nil: red.
+    public var dropColor: String?
 
     /// The OCR language (a BCP-47 tag) for a searchable PDF; nil: the Mac's own choice.
     public var ocrLanguage: String?
@@ -115,8 +131,8 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         init?(intValue: Int) { nil }
     }
 
-    private static let names = ["Id", "Name", "Source", "TwoSided", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten",
-                                "Cleanup", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
+    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "SmallerFile", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
+                                "Cleanup", "DropColor", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
         let c = try decoder.container(keyedBy: Key.self)
@@ -125,14 +141,18 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         name = get("Name", "")
         source = get("Source", .auto)
         twoSided = get("TwoSided", false)
+        turnStack = get("TurnStack", false)
         color = get("Color", true)
+        smallerFile = get("SmallerFile", false)
         resolution = get("Resolution", 300)
         pageSize = get("PageSize", nil as String?)
         fileType = get("FileType", .searchablePdf)
         review = get("Review", false)
         skipBlank = get("SkipBlank", true)
         straighten = get("Straighten", true)
+        turnUpright = get("TurnUpright", true)
         cleanup = get("Cleanup", PageFilters())
+        dropColor = get("DropColor", nil as String?)
         ocrLanguage = get("OcrLanguage", nil as String?)
         splitAt = get("SplitAt", .none)
         keepSeparators = get("KeepSeparators", false)
@@ -154,14 +174,18 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(name, forKey: Key("Name"))
         try c.encode(source, forKey: Key("Source"))
         try c.encode(twoSided, forKey: Key("TwoSided"))
+        try c.encode(turnStack, forKey: Key("TurnStack"))
         try c.encode(color, forKey: Key("Color"))
+        try c.encode(smallerFile, forKey: Key("SmallerFile"))
         try c.encode(resolution, forKey: Key("Resolution"))
         try c.encode(pageSize, forKey: Key("PageSize"))
         try c.encode(fileType, forKey: Key("FileType"))
         try c.encode(review, forKey: Key("Review"))
         try c.encode(skipBlank, forKey: Key("SkipBlank"))
         try c.encode(straighten, forKey: Key("Straighten"))
+        try c.encode(turnUpright, forKey: Key("TurnUpright"))
         try c.encode(cleanup, forKey: Key("Cleanup"))
+        try c.encodeIfPresent(dropColor, forKey: Key("DropColor"))
         try c.encode(ocrLanguage, forKey: Key("OcrLanguage"))
         try c.encode(splitAt, forKey: Key("SplitAt"))
         try c.encode(keepSeparators, forKey: Key("KeepSeparators"))
@@ -277,6 +301,7 @@ public enum ScanPresets {
             if !p.after.isKnown { p.after = .none }
             if !p.splitAt.isKnown { p.splitAt = .none }
             p.cleanup = p.cleanup.intersection(.all)
+            p.dropColor = DropColor.parse(p.dropColor)?.hex
             let noCustomPath = p.folder == .custom && (p.folderPath?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
             if !p.folder.isKnown || noCustomPath { p.folder = .documents }
             p.resolution = min(max(p.resolution, minResolution), maxResolution)
@@ -288,6 +313,27 @@ public enum ScanPresets {
             list.append(p)
         }
         return list
+    }
+
+    /// The preset's pages go into its PDF in black and white (`ScanPreset.smallerFile`): not for JPEG files, nor for photos
+    /// found on the glass, which stay pictures in color. `source`: where it scans from this time; nil: as the preset says
+    /// (glass when it says glass).
+    public static func savesSmallerFile(_ p: ScanPreset, source: ScanSource? = nil) -> Bool {
+        let onGlass = source.map { $0 == .platen } ?? (p.source == .glass)
+        return p.smallerFile && isPdf(p.fileType) && !(p.findPhotos && onGlass)
+    }
+
+    /// The file type is a PDF (searchable or not).
+    public static func isPdf(_ type: PresetFileType) -> Bool { type == .pdf || type == .searchablePdf }
+
+    /// The saved file's extension: ".pdf", ".jpg", ".docx" or ".txt" (Windows' `Extension`).
+    public static func fileExtension(_ type: PresetFileType) -> String {
+        switch type {
+        case .jpeg: ".jpg"
+        case .word: ".docx"
+        case .text: ".txt"
+        default: ".pdf"
+        }
     }
 
     /// Ids go on a command line or into a URL unquoted: letters, digits and '-' only, at most 64.
@@ -390,6 +436,8 @@ public enum ScanPresetText {
         switch t {
         case .searchablePdf: loc("Searchable PDF")
         case .jpeg: loc("JPEG images")
+        case .word: loc("Word document")
+        case .text: loc("Text")
         default: "PDF"
         }
     }
@@ -433,12 +481,19 @@ public enum ScanPresetText {
         }
     }
 
+    /// The preset's color as its summary says it: color, grey, or black and white for a smaller file.
+    public static func colorDpi(_ p: ScanPreset) -> String {
+        ScanPresets.savesSmallerFile(p) ? loc("black and white, {0} dpi, smaller file", p.resolution)
+            : p.color ? loc("color, {0} dpi", p.resolution) : loc("grey, {0} dpi", p.resolution)
+    }
+
     /// "Searchable PDF · feeder or glass · grey, 300 dpi · Documents/Scans", plus the review step and what happens after saving.
     public static func summary(_ p: ScanPreset) -> String {
-        var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), p.color ? loc("color, {0} dpi", p.resolution) : loc("grey, {0} dpi", p.resolution), folder(p)]
+        var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), colorDpi(p), folder(p)]
+        if p.twoSided && p.turnStack && p.source != .glass { parts.append(loc("the stack turned over for the backs")) }
         if p.splitAt != .none { parts.append(loc("a new file at each {0}", splitText(p.splitAt))) }
         if p.findPhotos { parts.append(loc("each photo on the glass by itself")) }
-        let cleanup = PageCleanup.describe(p.cleanup)
+        let cleanup = PageCleanup.describe(p.cleanup, drop: DropColor.parse(p.dropColor))
         if !cleanup.isEmpty { parts.append(cleanup) }
         if p.review { parts.append(loc("review first")) }
         if p.after != .none { parts.append(loc("then {0}", after(p.after))) }

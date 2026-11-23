@@ -12,6 +12,8 @@ struct ScanView: View {
     @State private var cropping: String?
     @State private var photos: String?
     @State private var cleaning: String?
+    /// The page whose Join with the Next Page… is open (roadmap 4.8).
+    @State private var joining: String?
     @Environment(\.undoManager) private var undoManager
 
     // One statement a modifier or two: as one expression it took Xcode's type checker past the 150 ms limit.
@@ -19,7 +21,8 @@ struct ScanView: View {
         let loading = content.task { await scan.load() }
         let withCrop = loading.sheet(item: croppingTarget) { (target: CropTarget) in cropSheet(target) }
         let withPhotos = withCrop.sheet(item: photosTarget) { (target: CropTarget) in photosSheet(target) }
-        let sheets = withPhotos.sheet(item: cleaningTarget) { (target: CropTarget) in CleanSheet(scan: scan, id: target.id) }
+        let cleaned = withPhotos.sheet(item: cleaningTarget) { (target: CropTarget) in CleanSheet(scan: scan, id: target.id) }
+        let sheets = cleaned.sheet(item: joiningTarget) { (target: CropTarget) in JoinSheet(scan: scan, id: target.id) }
         let undoState = UndoState(changes: scan.undoChanges, can: scan.canUndo)
         let undo = sheets.onChange(of: undoState, initial: true) { (_: UndoState, _: UndoState) in registerUndo() }
         return undo.onChange(of: app.paneRequest, initial: true) { (old: PaneRequest?, new: PaneRequest?) in requested(old, new) }
@@ -80,7 +83,7 @@ struct ScanView: View {
                 ContentUnavailableView("No pages yet", systemImage: "doc.viewfinder",
                                        description: Text(scan.isScanning ? String(localized: "The first page is on its way.") : String(localized: "Put a page on the glass or pages in the feeder, then click Scan.")))
             } else {
-                PageGrid(scan: scan, cropping: $cropping, photos: $photos, cleaning: $cleaning)
+                PageGrid(scan: scan, cropping: $cropping, photos: $photos, cleaning: $cleaning, joining: $joining)
             }
             Divider()
             SaveBar(scan: scan)
@@ -90,6 +93,7 @@ struct ScanView: View {
     private var croppingTarget: Binding<CropTarget?> { Binding(get: { cropping.map(CropTarget.init) }, set: { cropping = $0?.id }) }
     private var photosTarget: Binding<CropTarget?> { Binding(get: { photos.map(CropTarget.init) }, set: { photos = $0?.id }) }
     private var cleaningTarget: Binding<CropTarget?> { Binding(get: { cleaning.map(CropTarget.init) }, set: { cleaning = $0?.id }) }
+    private var joiningTarget: Binding<CropTarget?> { Binding(get: { joining.map(CropTarget.init) }, set: { joining = $0?.id }) }
 }
 
 private struct CropTarget: Identifiable { let id: String }
@@ -122,10 +126,16 @@ private struct ScanSettings: View {
             if scan.format == .searchablePdf { TextLanguagePicker(language: $scan.ocrLanguage) }
             Toggle("Skip blank pages", isOn: $scan.skipBlank)
             Toggle("Straighten pages", isOn: $scan.straighten)
+            Toggle("Turn pages upright", isOn: $scan.upright)
+                .help("Pages lying sideways or upside down, when their text shows which way is up")
             if scan.source == .platen {
                 Toggle("Several photos on the glass", isOn: $scan.findPhotos)
                     .help("Each photo laid on the glass is found and saved as its own picture, cut out straight")
             } else {
+                if scan.offersTurnStack {
+                    Toggle("Both sides: turn the stack over", isOn: $scan.turnStack)
+                        .help("This feeder scans one side: the fronts, then the backs")
+                }
                 Picker("Split into files at", selection: $scan.splitAt) {
                     ForEach(SplitAt.known, id: \.self) { Text(Separators.label($0)).tag($0) }
                 }
@@ -139,7 +149,7 @@ private struct ScanSettings: View {
                     }
                 }
             }
-            Section("Clean up") { CleanupToggles(filters: $scan.cleanup) }
+            Section("Clean up") { CleanupToggles(filters: $scan.cleanup, drop: $scan.dropColor) }
             HStack {
                 if scan.isScanning {
                     ProgressView().controlSize(.small)
@@ -162,6 +172,10 @@ private struct ScanSettings: View {
 struct CleanupToggles: View {
     @Binding var filters: PageFilters
     var wholePage = true
+    /// The color Drop a color drops (roadmap 4.7); nil: no choice shown.
+    var drop: Binding<DropColor>?
+    /// Pick from the Page (the review's Clean up view only).
+    var pick: (() -> Void)?
 
     var body: some View {
         if wholePage {
@@ -174,12 +188,42 @@ struct CleanupToggles: View {
             .help("Takes the dots out of pictures from magazines and newspapers")
         Toggle("Restore faded colors", isOn: on(.restoreColors))
             .help("Brings back the blacks and colors of a faded print")
+        if wholePage {
+            Toggle("Drop a color", isOn: on(.dropColor))
+                .help("A pen's or a form's color becomes white; black print stays")
+            if filters.contains(.dropColor), let drop { DropColorChoice(drop: drop, pick: pick) }
+            Toggle("Remove punch holes", isOn: on(.punchHoles))
+                .help("Round hole marks near the edges are filled with the paper's color")
+        }
     }
 
     private func on(_ filter: PageFilters) -> Binding<Bool> {
         Binding(get: { filters.contains(filter) }, set: { (wanted: Bool) in
             if wanted { filters.insert(filter) } else { filters.remove(filter) }
         })
+    }
+}
+
+/// The color Drop a color drops: red, green, blue, or one picked off a page (shown with its swatch), and Pick from the Page.
+struct DropColorChoice: View {
+    @Binding var drop: DropColor
+    var pick: (() -> Void)?
+
+    var body: some View {
+        Picker("Color to drop", selection: $drop) {
+            Text("Red").tag(DropColor.red)
+            Text("Green").tag(DropColor.green)
+            Text("Blue").tag(DropColor.blue)
+            if !drop.isNamed {
+                Label { Text("Picked color") } icon: {
+                    Image(systemName: "circle.fill").foregroundStyle(Color(red: Double(drop.r) / 255, green: Double(drop.g) / 255, blue: Double(drop.b) / 255))
+                }
+                .tag(drop)
+            }
+        }
+        if let pick {
+            Button("Pick from the Page") { pick() }.help("Then click a mark on the page in the color to drop")
+        }
     }
 }
 
@@ -239,13 +283,15 @@ private struct PageGrid: View {
     @Binding var cropping: String?
     @Binding var photos: String?
     @Binding var cleaning: String?
+    @Binding var joining: String?
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 170), spacing: 14)], spacing: 14) {
                 let starts = scan.pages.fileStarts
                 ForEach(scan.pages.pages) { page in
-                    PageTile(scan: scan, page: page, file: starts[page.id] ?? 0, cropping: $cropping, photos: $photos, cleaning: $cleaning)
+                    PageTile(scan: scan, page: page, file: starts[page.id] ?? 0, cropping: $cropping, photos: $photos, cleaning: $cleaning,
+                             joining: $joining)
                 }
             }
             .padding(14)
@@ -263,6 +309,8 @@ private struct PageTile: View {
     @Binding var photos: String?
     /// The page in the Clean up view.
     @Binding var cleaning: String?
+    /// The page in the join sheet (with the next one).
+    @Binding var joining: String?
 
     var body: some View {
         let number = scan.pages.number(page.id) ?? 0
@@ -317,6 +365,8 @@ private struct PageTile: View {
                 if !page.edits.isEmpty { Button("Undo Edits") { scan.reset(page.id) } }
             }
             Button("Clean Up…") { cleaning = page.id }
+            Button("Join with the Next Page…") { joining = page.id }
+                .disabled(number >= scan.pages.pages.count || page.isSeparator || page.photos != nil)
             if page.photos != nil {
                 Button("Photos…") { photos = page.id }
                 Button("Find Photos Again") { Task { await scan.findPhotosAgain(page.id) } }
@@ -390,6 +440,10 @@ private struct SaveBar: View {
                     .help(scan.savedPdfs.count == 1 ? String(localized: "Open the PDF just saved in Inkvolt PDF") : String(localized: "Open the PDFs just saved in Inkvolt PDF"))
             }
             Spacer()
+            if scan.canSwapBacks {
+                Button("Backs in the Other Order") { scan.swapBacks() }
+                    .help("For a scanner whose output tray reverses the stack: matches the backs to the fronts the other way round. Undo puts them back.")
+            }
             if let name = scan.undoName, scan.canUndo {
                 Button("Undo") { scan.undo() }.help("Undo: \(name.lowercased())")
             }
@@ -401,6 +455,12 @@ private struct SaveBar: View {
             Button("Print…") { Task { await scan.printPages() } }
                 .help("Print the pages: a copy")
                 .disabled(scan.pages.toSave.isEmpty || scan.isScanning || scan.isSaving)
+            if scan.showsSaveName {
+                TextField("File name", text: Binding(get: { scan.saveName }, set: { scan.editSaveName($0) }))
+                    .frame(width: 240)
+                    .help("The name the preset gives the file, read from the first page. Change it before saving.")
+                    .accessibilityLabel("File name")
+            }
             if let p = scan.preset {
                 Button("Save (\(p.name))") { Task { await scan.saveWithPreset() } }
                     .disabled(scan.pages.toSave.isEmpty || scan.isScanning || scan.isSaving)
@@ -523,16 +583,21 @@ private struct CleanSheet: View {
     @State private var applying = false
     /// All Pages' stop: the view's Cancel while it looks at the pages.
     @State private var stopAll: BatchStop?
+    /// The color Drop a color drops on this page (roadmap 4.7), and whether the next click on the page picks it.
+    @State private var drop: DropColor
+    @State private var picking = false
 
     init(scan: ScanModel, id: String) {
         self.scan = scan
         self.id = id
         _filters = State(initialValue: scan.pages.page(id)?.edits.filters ?? [])
+        _drop = State(initialValue: scan.pages.page(id)?.edits.drop ?? scan.dropColor)
     }
 
     private struct Choice: Hashable {
         var filters: PageFilters
         var asScanned: Bool
+        var drop: DropColor
     }
 
     private var photos: Bool { scan.pages.page(id)?.hasPhotos ?? false }
@@ -563,12 +628,12 @@ private struct CleanSheet: View {
         }
         .padding(18)
         .frame(minWidth: 820, minHeight: 660)
-        .task(id: Choice(filters: filters, asScanned: asScanned)) { await draw() }
+        .task(id: Choice(filters: filters, asScanned: asScanned, drop: drop)) { await draw() }
     }
 
     private var choices: some View {
         VStack(alignment: .leading, spacing: 8) {
-            CleanupToggles(filters: $filters, wholePage: !photos)
+            CleanupToggles(filters: $filters, wholePage: !photos, drop: $drop) { startPicking() }
             Divider()
             Toggle("Show as scanned", isOn: $asScanned).help("Shows the page without the filters, to compare")
             Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -578,16 +643,63 @@ private struct CleanSheet: View {
     }
 
     private var shown: some View {
-        ZStack {
-            if let image {
-                Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
-                    .shadow(radius: 1)
-                    .accessibilityLabel(asScanned ? String(localized: "The page as scanned") : String(localized: "The page as it will be saved"))
-            } else {
-                ProgressView()
+        GeometryReader { geo in
+            ZStack {
+                if let image {
+                    Image(nsImage: image).resizable().interpolation(.high).aspectRatio(contentMode: .fit)
+                        .shadow(radius: 1)
+                        .accessibilityLabel(asScanned ? String(localized: "The page as scanned") : String(localized: "The page as it will be saved"))
+                } else {
+                    ProgressView()
+                }
             }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .contentShape(Rectangle())
+            .onTapGesture { (location: CGPoint) in if picking, let image { picked(at: location, in: geo.size, of: image) } }
+            .onHover { inside in if picking { if inside { NSCursor.crosshair.push() } else { NSCursor.pop() } } }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// Pick from the Page: the page shown as scanned, the next click on it takes its color.
+    private func startPicking() {
+        picking = true
+        asScanned = true
+        note = String(localized: "Click a mark on the page in the color to drop.")
+        AccessibilityNotification.Announcement(note).post()
+    }
+
+    /// The click at `location` on the page drawn fitted in `size`: its color (the average of a small square) is the one to
+    /// drop, when it has a hue; grey, black or the paper is said and the next click tried.
+    private func picked(at location: CGPoint, in size: CGSize, of image: NSImage) {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil), cg.width > 0, cg.height > 0 else { return }
+        let scale = min(size.width / CGFloat(cg.width), size.height / CGFloat(cg.height))
+        let (dw, dh) = (CGFloat(cg.width) * scale, CGFloat(cg.height) * scale)
+        let (fx, fy) = ((location.x - (size.width - dw) / 2) / dw, (location.y - (size.height - dh) / 2) / dh)
+        guard fx >= 0, fy >= 0, fx < 1, fy < 1 else { return }
+        let (px, py) = (Int(fx * CGFloat(cg.width)), Int(fy * CGFloat(cg.height))) // bounded: fractions of the image's own size
+        var rgba = [UInt8](repeating: 0, count: 5 * 5 * 4)
+        let drawn: Bool = rgba.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: 5, height: 5, bitsPerComponent: 8, bytesPerRow: 20,
+                                          space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return false }
+            // The 5 × 5 pixels around the click (Core Graphics counts rows from the bottom).
+            context.draw(cg, in: CGRect(x: -(px - 2), y: -(cg.height - 1 - py - 2), width: cg.width, height: cg.height))
+            return true
+        }
+        guard drawn else { return }
+        var sums = (0, 0, 0)
+        for i in 0..<25 { sums = (sums.0 + Int(rgba[i * 4]), sums.1 + Int(rgba[i * 4 + 1]), sums.2 + Int(rgba[i * 4 + 2])) }
+        let color = DropColor(UInt8(sums.0 / 25), UInt8(sums.1 / 25), UInt8(sums.2 / 25))
+        guard color.isColorful else {
+            note = String(localized: "That spot has no color to drop (it's grey, black or the paper): click a colored mark.")
+            AccessibilityNotification.Announcement(note).post()
+            return
+        }
+        picking = false
+        NSCursor.arrow.set()
+        drop = color
+        filters.insert(.dropColor)
+        asScanned = false
     }
 
     /// The page with the choices; a newer choice cancels this task, which stops the filters.
@@ -596,13 +708,13 @@ private struct CleanSheet: View {
         let wanted = asScanned ? PageFilters() : filters
         note = String(localized: "Working…")
         let result = await withTaskCancellationHandler {
-            await scan.cleanPreview(id, wanted, stop: stop)
+            await scan.cleanPreview(id, wanted, drop: drop, stop: stop)
         } onCancel: {
             stop.stop()
         }
         guard !Task.isCancelled, let result else { return }
         image = result.image
-        note = asScanned ? String(localized: "As scanned.") : result.note
+        if !picking { note = asScanned ? String(localized: "As scanned.") : result.note }
         AccessibilityNotification.Announcement(note).post()
     }
 
@@ -611,12 +723,12 @@ private struct CleanSheet: View {
     private func apply(all: Bool) {
         applying = true
         note = String(localized: "Working…")
-        let chosen = filters
+        let (chosen, color) = (filters, drop)
         let stop = all ? BatchStop() : nil
         stopAll = stop
         let shown = PageFilters.switches(photos: photos)
         Task {
-            if let stop { await scan.applyCleanToAll(chosen, shown: shown, stop: stop) } else { await scan.applyClean(id, chosen) }
+            if let stop { await scan.applyCleanToAll(chosen, shown: shown, drop: color, stop: stop) } else { await scan.applyClean(id, chosen, drop: color) }
             dismiss()
         }
     }

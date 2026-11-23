@@ -191,6 +191,113 @@ mac/InkvoltPrintKit --build-system native`.
   Report a Problem's details, recordings, export columns, protocol and parser errors. Not checked: a Mac whose macOS is
   in Spanish, the UI on screen in Spanish.
 
+### Wave 4 (print/ROADMAP.md): what differs and what's left, per item
+
+Ported test-first from the .NET tests (same names in lower camel case); PrintCore on the PC, the app on `buildmac`.
+
+- **4.1 Two-sided scanning on a one-sided feeder.** PrintCore `TurnedStack` (`TurnedStackTests`), the preset's
+  `turnStack` (Windows' field name `TurnStack`), `PresetPlan.turnStack` (`turnsStacks:`, Inkvolt PDF's Scan leaves it off),
+  `ScanChoices.offersTurnStack`; the review's pairing is `ScanPages.pair`/`unpair` with `StackScan` (Windows keeps it in its
+  view model; `aTurnedStacksPagesPairAndUndoInTheReview` is Mac only). The question is an `NSAlert` (Scan the Backs / Only
+  the Fronts); `--report … --turn-stack` answers it yes. **Mac differences:** a negative count reads as none and
+  `separatorBacks` answers nil for flags that don't fit (Windows throws); only patch code sheets are separator sheets (no QR
+  or barcode sheets on the Mac yet); a scan stopped during the backs keeps them in order, as Windows does, but a preset then
+  doesn't save by itself (Windows saves); the review's Undo, which held only clean ups, now also takes the stack's order and
+  Backs in the Other Order back (each one step, as Windows, and each with its own copy of the stack and its marks, as
+  Windows' steps hold its `StackScan`: `ScanPages.swapBacks`/`undoSwap` with `StackSwap`, so a scan since, which lets the
+  review's stack go, loses no sheet's mark), still not turns, crops or moves by hand; the demo's stack comes
+  from the USB demo laser (`DemoScanDevice`, a one-sided feeder; the eSCL demo inkjet's feeder scans both sides). Not
+  checked: a real one-sided feeder, either kind of output tray, the alert and the button on screen, VoiceOver.
+- **4.3 Pages turned upright on their own.** PrintCore `PageUpright` (`find`, `orient`, `straightenBy`, `suitsLanguage`),
+  `PageEdits.checked`/`turnedUprightBy`, `ScannedPage.uprightTurns` and `ScanPages.undoUpright`, the preset's `turnUpright`
+  (on unless turned off, Windows' `TurnUpright`); `UprightTests` (PC), `PageUprightCorpusTests` (PdfCoreTests on the Mac:
+  the OCR corpus's typeset pages fed each way round). Inkvolt PDF's `ScanCleanup`, `Deskew.measure`, `PageRotate`,
+  `PaperLevel`, `Upright` and `GrayImage` moved into PrintCore (Windows has them in the shared core), so the scan review and
+  Recognize Text read a page alike, `Upright` with Windows' newer reading (pictures and rules left out); PdfCore keeps its
+  `CancelToken` wrapper (`ScanCleanup.clean(…cancel:)`, `Despeckle`). `Deskew.angle` is `measure`'s angle now, as on Windows
+  (the Mac's had its own copy). **Mac differences:** the language a page is read in when none is chosen is the Mac's first
+  preferred language (Windows: its OCR's default); `suitsLanguage` asks Foundation's `Locale.Language` for right-to-left
+  where Windows asks CultureInfo; Undo turns back only pages still as the check left them (a turn by hand since stays: the
+  Mac's review has no Undo of its own for turns); a page restored after a crash reads "Edited", not "Turned upright" (the
+  recovery folder keeps no check turns). Not checked: real feeder scans, pages in scripts it leaves alone, the note on
+  screen.
+- **4.4 Small black-and-white PDFs.** PrintCore `BitImage`, `Bilevel`, `CcittG4` (the same bytes as Windows' encoder) and
+  `PdfWriter.Page.blackAndWhite`/`oneBit`, so Inkvolt PDF for Mac's 4.8 can write such pages too; the preset's `smallerFile`
+  (Windows' `SmallerFile`), `ScanPresets.savesSmallerFile`, `PresetPlan.oneBit` (scanned in grey), the summary's "black and
+  white, N dpi, smaller file"; a page's `oneBit`, kept for crash recovery (`KeptPage.oneBit`, as Windows' `ScanKeeper`);
+  PrintMac `ScanImaging.bits` (the saved page decoded grey at full size) and `ScanPdf.Page.bits`.
+  `BlackAndWhitePdfTests` (PC; Windows' T.6 decoder ported as the test's own) and `CcittG4RenderTests` (PdfCoreTests on the
+  Mac: MuPDF reads G4 and Flate pages bit for bit; a corpus text page against its JPEG). **Mac differences:** Flate is
+  PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
+  read back by an inflater the tests write from RFC 1951), where Windows uses .NET's `ZLibStream` and Inkvolt PDF for Mac's
+  exports Apple's Compression; it is only the fallback for pages G4 codes badly (fine, even patterns), so it needn't match
+  zlib's size. The Mac scans no black and white (`ScanColor` is color or grey), so only a preset's smaller file saves one bit
+  (Windows' `ScanChoices.SavesOneBit` has no Mac use); a size refused throws `BitImage.SizeError`; a page that can't be made
+  black and white (past `BitImage.maxPixels`) is saved as its JPEG. `--report … --smaller-file` saves the demo feeder's pages
+  both ways and has PDFKit draw the 1-bit page. Not checked: a real scanner's pages, Preview and other readers on screen, a
+  printed copy.
+- **4.7 Drop a color, remove punch holes.** PrintCore `DropColor`/`ColorDropout`, `PunchHoles`, `PageFilters.dropColor` (16)
+  and `.punchHoles` (32) among the pixel filters (Windows' numbers, so presets read alike), `PageCleanup.apply(…drop:)`,
+  `for(_:grey:)`, `describe(_:drop:)`, `CleanedPage.holes`, `PageEdits.drop` (`withFilters(_:drop:)`, `cleanedUp(…drop:grey:)`;
+  the init sets red with the filter, so a color is never without it), `KeptPage.drop`, the preset's `dropColor` (Windows'
+  `DropColor`, "#RRGGBB"); `CleanUpMarksTests` (PC). The app: the four clean up switches become six (Scan settings, each preset,
+  the review's Clean Up… view) with Color to drop (Red, Green, Blue, a picked color with its swatch); the Clean up view's Pick
+  from the Page shows the page as scanned and takes the colour of the 5 × 5 pixels clicked (grey, black or paper is said and
+  the next click tried); a grey scan is never said to have a colour dropped; the demo glass holds a punched order form
+  when a scan drops a color or removes holes (`DemoScan.punchedForm`); `--report … --cleanup-marks`. **Mac differences:** RGB
+  where Windows has BGR (the tests build their pages as RGB); a page is grey when its JPEG has one component (Windows asks
+  its decoder); the Mac's 2.3 tests that ran `.pixelFilters` on a grey page now name the three 2.3 filters (a grey page has
+  no colour to drop and no holes). Not checked: real punched sheets from a feeder and a flatbed, a real pen's and a form's
+  colours, picking a colour on screen (the crosshair, VoiceOver).
+- **4.8 Join two halves.** PrintCore `HalvesJoin` (`find`: normalized cross-correlation on coarse copies of at most 400
+  pixels a side, every side either way up, the six best refined, sure only when well ahead of the next; `find(…dpi:)` on the
+  full-size halves, through grey copies of about 100 pixels an inch (`analysisFactor`), the placement back in full-size
+  pixels; `previewFactor` for the preview's copies; `join`, `gray`,
+  `shrink`, `fromCopy`/`toCopy`, `edgeToEdge`), `JoinPlacement`, `JoinFound`, `ScanPages.join`/`unjoin` (the joined page keeps
+  the first half's new-file mark); `HalvesJoinTests` (PC). PrintMac `JoinImages` (each half as saved, RGB at full size; the
+  joined page as JPEG). The app: the page's Join with the Next Page… (refused for the last page, separators, photos, pages
+  being checked or at another resolution, each said), a sheet that shows the joined page, arrows to move the second half (a
+  fiftieth of an inch, ⇧ and an arrow key or a ⇧-click a fifth), Turn the Second Half, Other Side, Join (one step of Undo:
+  the halves come back); the second half starts where it was found, sure or not, whatever its score (as Windows); the
+  preview joins copies made once when the sheet opens, the halves side by side at most about 900 pixels (Windows 1600).
+  `--report … --join` joins the demo glass's two halves of a 14-inch plan (`DemoScanSetup.hold`). **Mac differences:** a
+  nudge is a fiftieth of an inch, a fifth with ⇧ (Windows a twentieth and a half: the Mac's preview is smaller, and a
+  fiftieth is a pixel or two of it at 300 dpi); a stop is a `BatchStop` (`CancellationError`); the coarse search's
+  placements are put in a fixed order before the best are taken (Windows' come from parallel rows in any order), so the same
+  halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows
+  keeps the channels both have; a join placed past Int's range is refused. Not checked: a real A3 drawing on a letter or A4
+  glass, the sheet on screen (the arrows' keys, VoiceOver).
+- **4.11 Name the file from its contents.** PrintCore `PageText.lines`/`withoutStrays` (`TextLine`), `TextFinds` (`find`,
+  `dayFirst`), `FoundInText`, `TextDate`, `NameContext.found`, `FileNameTemplate`'s `{text-date}` (with a format),
+  `{text-title}` and `{text-number}` (what the page doesn't say takes its separator with it) and `readsText`, `PresetPlan.ocr`
+  for a name read from the page (a PDF preset's file becomes searchable, as on Windows); `NameFromTextTests` (PC). The app:
+  `ScanModel.showsSaveName`, `saveName` (filled once the scan's pages are checked and again when the first page changes,
+  unless typed: `editSaveName`), the first page read by Vision as it will be saved and kept for the save (`foundFor`, by the
+  page's id and edits), the first file of a save named as typed; the save bar's File name field beside Save (preset); the
+  editor's caption for the tokens; the demo glass's made-up invoice (`DemoScan.invoice`); `--report … --name-from-text`.
+  **Mac differences:** a locale where Windows has a culture (`Locale.current`; day or month first from its short date as ICU
+  writes it, the month names from `DateFormatter`'s lists); a found date is a `TextDate` (a day, no clock) written with UTC's;
+  lengths count characters where .NET counts UTF-16 units, and a name is also cut to 200 UTF-8 bytes
+  (`FileNameTemplate.maxNameBytes`: APFS allows 255 bytes, so a long Chinese or Japanese title would not save); a name's
+  reserved characters are found scalar by scalar (a '/' with a combining mark after it is still a separator); the field shows for a preset that stops on the review, as on
+  Windows, beside Save rather than above the pages. Not checked: real invoices and receipts, the field on screen (VoiceOver).
+- **4.14 Scan straight to Word or text.** PrintCore `PageText.paragraphs` (`TextParagraph`), `ScanDocPage`, `ScanDocx`,
+  `ScanText`, `PresetFileType.word` (3) and `.text` (4) (Windows' numbers), `ScanPresets.isPdf`/`fileExtension`, the
+  summary's "Word document" and "Text", `PresetPlan`'s notes without text recognition; the Office parts Inkvolt PDF for Mac
+  wrote with (`XmlOut`, `OpenXmlParts`: `xml`, `clean`, `cut`, `contentTypes`, `coreProperties`, `appProperties(application:)`,
+  `relationships`) moved from PdfCore into PrintCore (`Office/OpenXmlParts.swift`), as Windows moved them to the shared core;
+  PdfCore keeps its `ZipWriter` (Apple's Compression deflates), `entry`, its own `appProperties`, `twips` and `emu`, so its
+  exports are byte for byte as before. `ScanToDocumentTests` (PC). The app: the editor's As list gains Word document and
+  Text, with the text language and a note when the preset opens in Inkvolt PDF; a preset save writes the file
+  (`ScanModel.writeDocument`: each page read by Vision as saved; a page of photos as its photos, one with no text read as
+  the page itself), Print a copy prints the pages; `--report … --word-text`. **Mac differences:** the .docx's parts are
+  stored, not deflated (PrintCore's `Deflate` is a fixed-Huffman fallback and the tests read stored entries with
+  `ZipArchive.entries`; the pictures are stored on Windows too), so a page of text makes a few kilobytes more; the
+  misread-text test's lone surrogate is U+FFFF (a Swift string holds none); a Word or text preset's scan reads as a
+  searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
+  file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
+  (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
+
 ## Mac differences
 
 - Numbers from outside that become an Int: Swift's `Int(x)` traps on NaN, infinity or a value out of range
@@ -508,6 +615,8 @@ at under "What a person must look at" and in each section.
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
 | 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
+| 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
+| 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 
 From the steps, besides the sections below:
@@ -568,6 +677,32 @@ From the steps, besides the sections below:
   shows no progress (one paragraph); Replace All shows it page by page with Cancel. `nextAfter` gives nil where Windows'
   gives -1. Not run here: `ReplacedTextReadsTheSameInPdfJs` (INKVOLTPDF_PDFJS, needs Node on the Mac). Not checked by a
   person: the sheet's look, VoiceOver on its list.
+- 4.9: a "window" of Windows' rules is a group of AppKit's window tabs, and a tab one document's window. AppKit draws,
+  drags, tears off and merges the tabs; `WindowHub` reads its groups (`tabbedWindows`) whenever it asks the rules, so
+  `DocumentWindows` follows what AppKit did. A tab carries its window whole (sheets, progress, a running job, the Reflow
+  view), so no move is refused as busy: `canMove` and `canTearOff` aren't asked, and `TabDrag` (ported with its tests)
+  isn't used, AppKit having its own drag. What is remembered for the next start stays macOS's window restoration
+  ("Mac differences"): after Quit it reopens every window with its tabs (unless macOS's "Close windows when quitting an
+  application" is on) and a window closed by hand is forgotten, as `remember` does, except the last one (Windows
+  remembers its files); `remember` is ported, unused. File › New Window shows the start page and the next document
+  opened gets a window of its own (Windows opens an empty window with its own start page); closing the start page
+  forgets it. The Dock menu's New Window is the jump list's; `WindowLaunch` (`--new-window`) is ported, unused (files
+  reach a running Mac app by Apple Events, not a second launch). A path is compared ignoring case with its links
+  followed (`WindowHub.fullPath`), where NSDocumentController compares URLs. Not checked by a person: a tab dragged out
+  and onto another window by hand, the tab bar with long names, VoiceOver on the tabs.
+- 4.16: the page is put in the WKWebView with `loadHTMLString` at `Reflow.address` (Windows serves it there through
+  WebView2's request filter; WebKit keeps https for itself), with page scripts off, a data store nothing outlives,
+  pop-ups, link previews, media and the online list of bad sites off; the app's scripts (the page at the top, a scroll,
+  the look) run in their own world (`.defaultClient`), sharing only the page's elements. The text size follows the
+  view's zoom alone: the Mac has no Text size for apps (Windows' `TextScale`), so `ReflowLook.textScale` is 1. The
+  commands that run are `Reflow.runs`' by the Mac's menu actions (`Reflow.runsAction`, `macActions`: those the Mac has,
+  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Export Images, Back and
+  Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
+  are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
+  it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
+  reflow says Recognize Text where Windows adds Scan & OCR. Swift's HtmlWriter has no links yet ("Windows ahead, to
+  port": E15's links), so the column's own links wait for it; `follow` is ported and tested. Not checked by a person: the
+  column's look in light and dark, VoiceOver reading it, a trackpad's scrolling, a real web link opening the browser.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.
@@ -1242,10 +1377,11 @@ pages read together from its text read once (Windows' search cursor filled a meg
 `SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
 `Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
 (`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
-(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). The scan cleanup's which-way-up test leaves
-out a run of ink rows over 3 times the page's lines' height (the lower middle of runs of 6 rows or more, a tight run cut
-between its bands first), then reads the lines again without it (`Upright.MaxLineRatio`, `MinLineRows`; PrintTests' `UprightTests`, ScanTextTests'
-`APageWithALargeShadedPictureIsTurnedTheRightWayUp`): `ScanCleanup.swift` has the old reading.
+(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). Ported with Inkvolt Print's 4.3 (Wave 4,
+above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
+(`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
+PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
+ported (the Mac's `ExportTestPdf` has no large shaded picture).
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`
@@ -1810,12 +1946,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
-  `PunchHoles`), done on Windows.
-- Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
-  `{text-number}`), done on Windows.
-- Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
-- Inkvolt Print 4.8: join two halves of an original too big for the glass (`HalvesJoin`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
@@ -1824,10 +1954,6 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Wave 4 Batch B, done on Windows, the Mac's waits: 4.10 AI redaction suggestions (Pro;
   `RedactionSuggestions`, `RedactionTerms`; port `RedactionSuggestionsTests` first) and 4.20 save an AI answer
   (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
-  `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
-  a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
-  `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
   `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
   format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
@@ -1836,7 +1962,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `AskEditTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
-  phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).
+  phrase reading.
 - Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
   own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
   phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN

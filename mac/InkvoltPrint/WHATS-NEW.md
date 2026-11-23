@@ -6,6 +6,13 @@ collects what's done since the last release. Short lines, in the user's words. `
 for line, for the es-MX listing (`listing.json`'s `localizations`): an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.
+- Pages turned upright on their own: a page fed upside down or lying sideways is turned when its text shows clearly which way is up, and says Turned upright. Undo turns them back; Turn pages upright in Scan settings and in each scan preset turns it off.
+- Smaller file (black and white) in a scan preset: its PDF's pages are saved in black and white, so a page of text takes a tenth of the space or less.
+- Clean up drops a color and removes punch holes: a red form's lines, a blue pen's notes or a stamp turn white while the black print stays (red, green, blue, or a color you pick off the page), and the round shadows of punch holes near the edges take the paper's color. In Scan settings, each scan preset, and Clean Up… on a page.
+- Join two halves: for an original too big for the glass, scan one half, then the other with an inch or so of overlap, and choose Join with the Next Page… on the first. Inkvolt Print finds where they overlap (either way up, on any side) and shows the joined page; when it isn't sure, move the second half with the arrows. Undo splits them again.
+- A scan named from its first page: {text-date}, {text-title} and {text-number} in a scan preset's file name take a date, the heading and an invoice or order number from the page's text. With Stop on the pages to review them before saving, the name shows beside Save, to change before saving.
+- Scan straight to Word or text: a scan preset saves the text read from the pages as a Word document (.docx), headings and paragraphs ready to edit and photos as pictures, or as a plain text file (.txt).
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

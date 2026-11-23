@@ -467,6 +467,16 @@
         }
       }
     },
+    "%lld fronts but %lld backs: a sheet may have gone through twice or been left behind. The backs were matched from the last sheet: check the order and drag any page that's out of place, or click Undo to put the backs after the fronts.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld anversos pero %lld reversos: puede que una hoja pasara dos veces o se quedara atrás. Los reversos se emparejaron desde la última hoja: revisa el orden y arrastra la página que esté fuera de lugar, o haz clic en Deshacer para poner los reversos después de los anversos."
+          }
+        }
+      }
+    },
     "%lld jobs from other people stay in the queue.": {
       "localizations": {
         "es": {
@@ -525,6 +535,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se limpiaron %lld páginas (Deshacer las recupera)."
+          }
+        }
+      }
+    },
+    "%lld pages were turned upright.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se pusieron %lld páginas al derecho."
           }
         }
       }
@@ -713,6 +733,16 @@
         }
       }
     },
+    "1 page was turned upright.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se puso 1 página al derecho."
+          }
+        }
+      }
+    },
     "1 photo found": {
       "localizations": {
         "es": {
@@ -819,6 +849,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Un recuadro en el centro del cristal, para una foto que no se encontró"
+          }
+        }
+      }
+    },
+    "A pen's or a form's color becomes white; black print stays": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El color de un bolígrafo o de un formulario se vuelve blanco; lo impreso en negro se queda"
           }
         }
       }
@@ -1140,6 +1180,16 @@
         }
       }
     },
+    "Asks you to turn the stack over after the fronts, then puts the pages in order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Te pide dar la vuelta a la pila después de los anversos y luego pone las páginas en orden"
+          }
+        }
+      }
+    },
     "Attach to a new email": {
       "localizations": {
         "es": {
@@ -1200,6 +1250,16 @@
         }
       }
     },
+    "Backs in the Other Order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversos en el otro orden"
+          }
+        }
+      }
+    },
     "Batch Print": {
       "localizations": {
         "es": {
@@ -1250,6 +1310,16 @@
         }
       }
     },
+    "Blue": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Azul"
+          }
+        }
+      }
+    },
     "Borderless": {
       "localizations": {
         "es": {
@@ -1276,6 +1346,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las dos caras están en una hoja, a tamaño real. Vuelve a imprimir o empieza de nuevo con otra tarjeta."
+          }
+        }
+      }
+    },
+    "Both sides: turn the stack over": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambas caras: dar la vuelta a la pila"
           }
         }
       }
@@ -1590,6 +1670,16 @@
         }
       }
     },
+    "Click a mark on the page in the color to drop.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz clic en una marca de la página del color que quieres quitar."
+          }
+        }
+      }
+    },
     "Close": {
       "localizations": {
         "es": {
@@ -1606,6 +1696,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Color"
+          }
+        }
+      }
+    },
+    "Color to drop": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color que quitar"
           }
         }
       }
@@ -1780,6 +1880,26 @@
         }
       }
     },
+    "Couldn't find where the halves overlap: move the second half with the arrows (Shift moves it further), turn it, or put it on another side.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró dónde se superponen las mitades: mueve la segunda mitad con las flechas (con Mayús se mueve más), gírala o ponla en otro lado."
+          }
+        }
+      }
+    },
+    "Couldn't join the pages. Try scanning the halves again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron unir las páginas. Prueba a escanear las mitades de nuevo."
+          }
+        }
+      }
+    },
     "Couldn't show the page: it couldn't be read.": {
       "localizations": {
         "es": {
@@ -1946,6 +2066,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Arrastra sobre la parte de la página que quieres conservar."
+          }
+        }
+      }
+    },
+    "Drop a color": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar un color"
           }
         }
       }
@@ -2346,6 +2476,26 @@
         }
       }
     },
+    "For a scanner whose output tray reverses the stack: matches the backs to the fronts the other way round. Undo puts them back.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para un escáner cuya bandeja de salida invierte la pila: empareja los reversos con los anversos al revés. Deshacer los deja como estaban."
+          }
+        }
+      }
+    },
+    "For an original too big for the glass: scan one half, then the other with an inch or so of overlap (turning the original round is fine).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para un original demasiado grande para el cristal: escanea una mitad y luego la otra con unos 2 o 3 cm de superposición (puedes girar el original)."
+          }
+        }
+      }
+    },
     "For files added:": {
       "localizations": {
         "es": {
@@ -2362,6 +2512,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Olvidar contraseña"
+          }
+        }
+      }
+    },
+    "Found where the halves overlap. Move the second half if it isn't quite right.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontró dónde se superponen las mitades. Mueve la segunda mitad si no queda bien del todo."
           }
         }
       }
@@ -2392,6 +2552,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Frente"
+          }
+        }
+      }
+    },
+    "Fronts and backs are in page order.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los anversos y los reversos están en orden de página."
+          }
+        }
+      }
+    },
+    "Fronts scanned: %lld page.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos escaneados: %lld página."
+          }
+        }
+      }
+    },
+    "Fronts scanned: %lld pages.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos escaneados: %lld páginas."
           }
         }
       }
@@ -2442,6 +2632,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escala de grises"
+          }
+        }
+      }
+    },
+    "Green": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verde"
           }
         }
       }
@@ -2512,6 +2712,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inkvolt PDF abre archivos PDF: los escaneos JPEG solo se guardan."
+          }
+        }
+      }
+    },
+    "Inkvolt PDF opens PDFs: Word and text scans are only saved.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF abre archivos PDF: los escaneos de Word y de texto solo se guardan."
           }
         }
       }
@@ -2728,6 +2938,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Imágenes JPEG"
+          }
+        }
+      }
+    },
+    "Join": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir"
+          }
+        }
+      }
+    },
+    "Join page %lld and page %lld": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir la página %lld y la página %lld"
+          }
+        }
+      }
+    },
+    "Join pages %lld and %lld": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir las páginas %lld y %lld"
+          }
+        }
+      }
+    },
+    "Join with the Next Page…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unir con la página siguiente…"
           }
         }
       }
@@ -2974,6 +3224,16 @@
         }
       }
     },
+    "Looking for where the halves overlap…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando dónde se superponen las mitades…"
+          }
+        }
+      }
+    },
     "Looks for the photos again, dropping the changes made here": {
       "localizations": {
         "es": {
@@ -3070,6 +3330,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Subir"
+          }
+        }
+      }
+    },
+    "Move the second half down": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad hacia abajo"
+          }
+        }
+      }
+    },
+    "Move the second half left": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad a la izquierda"
+          }
+        }
+      }
+    },
+    "Move the second half right": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad a la derecha"
+          }
+        }
+      }
+    },
+    "Move the second half up": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover la segunda mitad hacia arriba"
           }
         }
       }
@@ -3254,6 +3554,16 @@
         }
       }
     },
+    "On a one-sided feeder, turn the stack over for the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En un alimentador de una cara, dar la vuelta a la pila para los reversos"
+          }
+        }
+      }
+    },
     "On your network": {
       "localizations": {
         "es": {
@@ -3330,6 +3640,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hazlo solo si de verdad es esta impresora, por ejemplo si una reparación, un restablecimiento o una nueva tarjeta de red le dio un nuevo ID. Si no, es otro dispositivo que tomó la dirección de la impresora."
+          }
+        }
+      }
+    },
+    "Only the Fronts": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo los anversos"
+          }
+        }
+      }
+    },
+    "Only the fronts were scanned.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se escanearon los anversos."
           }
         }
       }
@@ -3484,12 +3814,62 @@
         }
       }
     },
+    "Other Side": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otro lado"
+          }
+        }
+      }
+    },
     "PDF": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "PDF"
+          }
+        }
+      }
+    },
+    "PDF pages in black and white: a page of text takes a tenth of the space or less": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas del PDF en blanco y negro: una página de texto ocupa una décima parte o menos"
+          }
+        }
+      }
+    },
+    "Page %lld is the last: join a page with the one after it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página %lld es la última: une una página con la siguiente."
+          }
+        }
+      }
+    },
+    "Page %lld or the next one can't be joined: separator sheets and scans of photos stay as they are.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página %lld o la siguiente no se pueden unir: las hojas separadoras y los escaneos de fotos se quedan como están."
+          }
+        }
+      }
+    },
+    "Page %lld or the next one is still being checked: join them in a moment.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página %lld o la siguiente todavía se está revisando: únelas en un momento."
           }
         }
       }
@@ -3532,6 +3912,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Páginas"
+          }
+        }
+      }
+    },
+    "Pages %lld and %lld joined into one.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas %lld y %lld se unieron en una."
+          }
+        }
+      }
+    },
+    "Pages lying sideways or upside down": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas de lado o al revés"
+          }
+        }
+      }
+    },
+    "Pages lying sideways or upside down, when their text shows which way is up": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas de lado o al revés, cuando su texto muestra cuál es la parte de arriba"
           }
         }
       }
@@ -3632,6 +4042,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fotos…"
+          }
+        }
+      }
+    },
+    "Pick from the Page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir en la página"
+          }
+        }
+      }
+    },
+    "Picked color": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color elegido"
           }
         }
       }
@@ -3876,12 +4306,42 @@
         }
       }
     },
+    "Put the backs in the other order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner los reversos en el otro orden"
+          }
+        }
+      }
+    },
     "Put the card face down in the corner of the scanner glass (by the arrow mark), then click Scan Front. You'll turn it over halfway.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Coloca la tarjeta boca abajo en la esquina del cristal del escáner (junto a la flecha) y haz clic en Escanear frente. A mitad tendrás que darle la vuelta."
+          }
+        }
+      }
+    },
+    "Put the fronts and backs in order": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ordenar los anversos y los reversos"
+          }
+        }
+      }
+    },
+    "Puts the second half below, to the left of, above or to the right of the first": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pone la segunda mitad debajo, a la izquierda, encima o a la derecha de la primera"
           }
         }
       }
@@ -3986,6 +4446,16 @@
         }
       }
     },
+    "Red": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rojo"
+          }
+        }
+      }
+    },
     "Remove": {
       "localizations": {
         "es": {
@@ -4032,6 +4502,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitar de Inkvolt Print…"
+          }
+        }
+      }
+    },
+    "Remove punch holes": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar perforaciones"
           }
         }
       }
@@ -4162,6 +4642,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revertir"
+          }
+        }
+      }
+    },
+    "Round hole marks near the edges are filled with the paper's color": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las marcas redondas de las perforaciones cerca de los bordes se rellenan con el color del papel"
           }
         }
       }
@@ -4544,6 +5034,16 @@
         }
       }
     },
+    "Scan the Backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear los reversos"
+          }
+        }
+      }
+    },
     "Scan with %@": {
       "localizations": {
         "es": {
@@ -4590,6 +5090,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escaneando desde el alimentador…"
+          }
+        }
+      }
+    },
+    "Scanning the backs was stopped: the pages scanned are in order.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se detuvo el escaneo de los reversos: las páginas escaneadas están en orden."
+          }
+        }
+      }
+    },
+    "Scanning the backs…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneando los reversos…"
           }
         }
       }
@@ -4860,6 +5380,16 @@
         }
       }
     },
+    "Smaller file (black and white)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivo más pequeño (blanco y negro)"
+          }
+        }
+      }
+    },
     "Source": {
       "localizations": {
         "es": {
@@ -5116,6 +5646,16 @@
         }
       }
     },
+    "Text (.txt): the text only": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto (.txt): solo el texto"
+          }
+        }
+      }
+    },
     "Text language": {
       "localizations": {
         "es": {
@@ -5156,6 +5696,46 @@
         }
       }
     },
+    "That spot has no color to drop (it's grey, black or the paper): click a colored mark.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ese punto no tiene un color que quitar (es gris, negro o el papel): haz clic en una marca de color."
+          }
+        }
+      }
+    },
+    "The backs are matched from the last sheet again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos vuelven a emparejarse desde la última hoja."
+          }
+        }
+      }
+    },
+    "The backs are now matched from the first sheet. Undo puts them back.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora los reversos se emparejan desde la primera hoja. Deshacer los deja como estaban."
+          }
+        }
+      }
+    },
+    "The backs couldn't be scanned: %@ The fronts are kept.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron escanear los reversos: %@ Los anversos se conservan."
+          }
+        }
+      }
+    },
     "The copy couldn't be prepared for printing.": {
       "localizations": {
         "es": {
@@ -5166,12 +5746,72 @@
         }
       }
     },
+    "The feeder sent no backs, so only %lld front is here.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El alimentador no envió reversos, así que solo hay %lld anverso."
+          }
+        }
+      }
+    },
+    "The feeder sent no backs, so only the %lld fronts are here.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El alimentador no envió reversos, así que solo hay %lld anversos."
+          }
+        }
+      }
+    },
     "The first page is on its way.": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "La primera página está en camino."
+          }
+        }
+      }
+    },
+    "The front of %lld sheet is scanned. Take it out of the output tray, turn it over like a page of a book, put it back in the feeder and click Scan the Backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se escaneó el anverso de %lld hoja. Sácala de la bandeja de salida, dale la vuelta como a la página de un libro, vuelve a ponerla en el alimentador y haz clic en Escanear los reversos."
+          }
+        }
+      }
+    },
+    "The fronts of %lld sheets are scanned. Take the stack out of the output tray, turn it over like a page of a book without sorting it, put it back in the feeder and click Scan the Backs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se escanearon los anversos de %lld hojas. Saca la pila de la bandeja de salida, dale la vuelta como a la página de un libro sin ordenarla, vuelve a ponerla en el alimentador y haz clic en Escanear los reversos."
+          }
+        }
+      }
+    },
+    "The joined page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página unida"
+          }
+        }
+      }
+    },
+    "The joined page would be too large: move the second half closer.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La página unida sería demasiado grande: acerca la segunda mitad."
           }
         }
       }
@@ -5216,6 +5856,16 @@
         }
       }
     },
+    "The name the preset gives the file, read from the first page. Change it before saving.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nombre que el ajuste da al archivo, leído en la primera página. Cámbialo antes de guardar."
+          }
+        }
+      }
+    },
     "The page as it will be saved": {
       "localizations": {
         "es": {
@@ -5232,6 +5882,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "La página tal como se escaneó"
+          }
+        }
+      }
+    },
+    "The pages changed while the join was open: choose Join with the Next Page… again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas cambiaron mientras la unión estaba abierta: elige Unir con la página siguiente… otra vez."
           }
         }
       }
@@ -5448,12 +6108,32 @@
         }
       }
     },
+    "The two pages were scanned at different resolutions: scan both halves at the same one to join them.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las dos páginas se escanearon con resoluciones distintas: escanea las dos mitades con la misma para unirlas."
+          }
+        }
+      }
+    },
     "Then": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Luego"
+          }
+        }
+      }
+    },
+    "Then click a mark on the page in the color to drop": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Luego haz clic en una marca de la página del color que quieres quitar"
           }
         }
       }
@@ -5544,6 +6224,16 @@
         }
       }
     },
+    "This feeder scans one side: the fronts, then the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este alimentador escanea una cara: los anversos y luego los reversos"
+          }
+        }
+      }
+    },
     "This file couldn't be opened as a PDF.": {
       "localizations": {
         "es": {
@@ -5560,6 +6250,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Esta página es demasiado grande para limpiarla, enderezarla, recortarla o girarla (%lld millones de píxeles): se guarda tal como se escaneó."
+          }
+        }
+      }
+    },
+    "This page was scanned in grey: it has no colors to drop.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta página se escaneó en gris: no tiene colores que quitar."
           }
         }
       }
@@ -5690,6 +6390,16 @@
         }
       }
     },
+    "Turn %lld pages upright": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner %lld páginas al derecho"
+          }
+        }
+      }
+    },
     "Turn Left": {
       "localizations": {
         "es": {
@@ -5750,12 +6460,42 @@
         }
       }
     },
+    "Turn page %lld upright": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner la página %lld al derecho"
+          }
+        }
+      }
+    },
+    "Turn pages upright": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner las páginas al derecho"
+          }
+        }
+      }
+    },
     "Turn right": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Girar a la derecha"
+          }
+        }
+      }
+    },
+    "Turn the Second Half": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar la segunda mitad"
           }
         }
       }
@@ -5776,6 +6516,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Desactiva las actualizaciones automáticas de firmware, para que una actualización de HP no pueda instalarse sola, y comprueba que la impresora lo conservó."
+          }
+        }
+      }
+    },
+    "Turns it half a turn, for an original turned round on the glass": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La gira media vuelta, para un original que giraste en el cristal"
           }
         }
       }
@@ -6036,6 +6786,16 @@
         }
       }
     },
+    "Word document (.docx): the text, editable": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento de Word (.docx): el texto, editable"
+          }
+        }
+      }
+    },
     "Working…": {
       "localizations": {
         "es": {
@@ -6196,6 +6956,16 @@
         }
       }
     },
+    "the scanner stopped answering.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el escáner dejó de responder."
+          }
+        }
+      }
+    },
     "to": {
       "localizations": {
         "es": {
@@ -6212,6 +6982,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} o {n:000}, {pages}"
+          }
+        }
+      }
+    },
+    "{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página."
           }
         }
       }

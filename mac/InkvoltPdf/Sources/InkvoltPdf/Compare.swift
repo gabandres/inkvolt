@@ -51,8 +51,8 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     let oldSide: CompareSide
     let newSide: CompareSide
     private(set) var result: CompareResult?
-    private(set) var oldText: [PageText] = []
-    private(set) var newText: [PageText] = []
+    private(set) var oldText: [PdfCore.PageText] = []
+    private(set) var newText: [PdfCore.PageText] = []
     private var oldScan: [Bool] = [], newScan: [Bool] = []
     private var oldUnread = Set<Int>(), newUnread = Set<Int>()
     private var oldEngine: PdfEngine?
@@ -315,8 +315,8 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
     /// Recognizes the pages that are pictures with no text, one at a time, on this Mac (Vision; nothing leaves it).
     /// Reading long scans takes minutes, so it can be skipped: those pages are then only compared by how they look.
     private func readScans(_ oldEngine: PdfEngine, _ oldPages: [ComparePage], _ newEngine: PdfEngine, _ newPages: [ComparePage]) async throws
-        -> (old: [Int: PageText], new: [Int: PageText]) {
-        var read: (old: [Int: PageText], new: [Int: PageText]) = ([:], [:])
+        -> (old: [Int: PdfCore.PageText], new: [Int: PdfCore.PageText]) {
+        var read: (old: [Int: PdfCore.PageText], new: [Int: PdfCore.PageText]) = ([:], [:])
         var todo: [(engine: PdfEngine, page: Int, old: Bool)] = []
         for (p, page) in oldPages.enumerated() where page.isPicture && page.text.isEmpty { todo.append((oldEngine, p, true)) }
         for (p, page) in newPages.enumerated() where page.isPicture && page.text.isEmpty { todo.append((newEngine, p, false)) }
@@ -953,7 +953,7 @@ final class CompareRowsView: NSView {
     /// The overlay regions found so far (the self-test reads them).
     var overlayRegions: [Int: [RectD]] { regions }
 
-    func load(result: CompareResult, oldText: [PageText], newText: [PageText], old: PdfEngine, new: PdfEngine) {
+    func load(result: CompareResult, oldText: [PdfCore.PageText], newText: [PdfCore.PageText], old: PdfEngine, new: PdfEngine) {
         self.result = result
         self.old = old
         self.new = new
@@ -982,7 +982,7 @@ final class CompareRowsView: NSView {
     }
 
     /// A thin box where words went missing on this side.
-    private func caret(_ text: PageText, _ at: Int) -> RectD? {
+    private func caret(_ text: PdfCore.PageText, _ at: Int) -> RectD? {
         let rects = at > 0 ? text.rects(at - 1, at) : text.rects(at, min(text.length, at + 1))
         guard let r = rects.first else { return nil }
         return RectD((at > 0 ? r.right : r.x) - 1, r.y, 2.5, r.height)

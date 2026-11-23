@@ -11,7 +11,7 @@ import PrintCore
 /// Windows lays its editor over the paragraph at the page's zoom.
 @MainActor
 final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
-    let paragraph: TextParagraph
+    let paragraph: PdfCore.TextParagraph
     /// The text and looks to write; nil when cancelled.
     var done: ((String, [TextSpan]) -> Void)?
     /// The angle typed in the Angle box (roadmap 4.22; degrees clockwise): the paragraph is turned to it.
@@ -47,7 +47,7 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
          (loc("green"), 0x00803C), (loc("orange"), 0xE36C09)]
     }
 
-    init(_ paragraph: TextParagraph, width: CGFloat) {
+    init(_ paragraph: PdfCore.TextParagraph, width: CGFloat) {
         self.paragraph = paragraph
         self.width = min(max(width, 380), 640)
         super.init(nibName: nil, bundle: nil)

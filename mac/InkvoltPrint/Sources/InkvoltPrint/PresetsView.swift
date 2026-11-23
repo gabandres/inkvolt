@@ -131,7 +131,11 @@ private struct PresetEditor: View {
                     Text("Feeder").tag(PresetSource.feeder)
                 }
                 Toggle("Both sides (feeder)", isOn: $preset.twoSided).disabled(preset.source == .glass)
-                Toggle("Color", isOn: $preset.color)
+                if preset.twoSided && preset.source != .glass {
+                    Toggle("On a one-sided feeder, turn the stack over for the backs", isOn: $preset.turnStack)
+                        .help("Asks you to turn the stack over after the fronts, then puts the pages in order")
+                }
+                Toggle("Color", isOn: $preset.color).disabled(ScanPresets.savesSmallerFile(preset)) // a smaller file scans in grey
                 Picker("Resolution", selection: $preset.resolution) { ForEach([150, 200, 300, 600], id: \.self) { Text("\($0) dpi").tag($0) } }
                 Picker("Size", selection: $preset.pageSize) {
                     Text("Letter or A4, by region").tag(String?.none)
@@ -139,6 +143,7 @@ private struct PresetEditor: View {
                 }
                 Toggle("Skip blank pages", isOn: $preset.skipBlank)
                 Toggle("Straighten pages", isOn: $preset.straighten)
+                Toggle("Turn pages upright", isOn: $preset.turnUpright).help("Pages lying sideways or upside down")
                 Toggle("Stop on the pages to review them before saving", isOn: $preset.review)
                 if preset.source != .glass {
                     Picker("Split into files at", selection: $preset.splitAt) {
@@ -148,14 +153,23 @@ private struct PresetEditor: View {
                 }
                 if preset.source != .feeder { Toggle("Several photos on the glass", isOn: $preset.findPhotos) }
             }
-            Section("Clean up") { CleanupToggles(filters: $preset.cleanup) }
+            Section("Clean up") {
+                CleanupToggles(filters: $preset.cleanup, drop: Binding(get: { DropColor.parse(preset.dropColor) ?? .red },
+                                                                       set: { (color: DropColor) in preset.dropColor = color.hex }))
+            }
             Section("Save") {
                 Picker("As", selection: $preset.fileType) {
                     Text("PDF").tag(PresetFileType.pdf)
                     Text("Searchable PDF").tag(PresetFileType.searchablePdf)
                     Text("JPEG images").tag(PresetFileType.jpeg)
+                    Text("Word document (.docx): the text, editable").tag(PresetFileType.word)
+                    Text("Text (.txt): the text only").tag(PresetFileType.text)
                 }
-                if preset.fileType == .searchablePdf { TextLanguagePicker(language: $preset.ocrLanguage) }
+                if ScanPresets.isPdf(preset.fileType) {
+                    Toggle("Smaller file (black and white)", isOn: $preset.smallerFile)
+                        .help("PDF pages in black and white: a page of text takes a tenth of the space or less")
+                }
+                if [PresetFileType.searchablePdf, .word, .text].contains(preset.fileType) { TextLanguagePicker(language: $preset.ocrLanguage) }
                 HStack {
                     Text("Folder")
                     Spacer()
@@ -172,6 +186,8 @@ private struct PresetEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text("{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} or {n:000}, {pages}").font(.caption).foregroundStyle(.secondary)
+                Text("{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 // Open in Inkvolt PDF: offered when Inkvolt PDF is installed (or the preset already has it, from Windows or before
                 // Inkvolt PDF was removed).
                 Picker("Then", selection: $preset.after) {
@@ -184,6 +200,9 @@ private struct PresetEditor: View {
                 }
                 if preset.after == .openInInkvoltPdf && preset.fileType == .jpeg {
                     Text("Inkvolt PDF opens PDFs: JPEG scans are only saved.").font(.caption).foregroundStyle(.secondary)
+                }
+                if preset.after == .openInInkvoltPdf && !ScanPresets.isPdf(preset.fileType) && preset.fileType != .jpeg {
+                    Text("Inkvolt PDF opens PDFs: Word and text scans are only saved.").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }

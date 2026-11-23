@@ -163,15 +163,17 @@ printers on Windows' IPP class driver, which lacks the makers' extras: 4.2 and 4
 merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 
 - **Batch A (a pile of paper):**
-  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows: fronts, the stack turned over, backs, pages put in
+  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows and Mac: fronts, the stack turned over, backs, pages put in
     order, the other order one click away, counts that differ said; a preset option (README, "Two-sided on a one-sided
-    feeder"; `TurnedStack`). **Next:** a person with a one-sided feeder to try both tray kinds; the Mac half waits for the new Mac.
-  - **4.3 Pages turned upright on their own.** Done on Windows: sideways and upside down, only when sure, on by default
-    (every corpus page each way round), one Undo step (`PageUpright`). **Next:** real feeder scans, and pages in scripts it
-    leaves alone; the Mac half waits.
-  - **4.4 Small black-and-white PDFs.** Done on Windows: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
+    feeder"; `TurnedStack`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person with a one-sided feeder to try
+    both tray kinds, on Windows and on a Mac.
+  - **4.3 Pages turned upright on their own.** Done on Windows and Mac: sideways and upside down, only when sure, on by default
+    (every corpus page each way round), one Undo step (`PageUpright`; the Mac's in `mac/docs/PLAN.md`, "Wave 4").
+    **Next:** real feeder scans, and pages in scripts it leaves alone, on both.
+  - **4.4 Small black-and-white PDFs.** Done on Windows and Mac: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
     encoder, read back by MuPDF; a "smaller file" choice per preset; a text page 17 to 60 times smaller than its JPEG
-    (`CcittG4`, `Bilevel`). **Next:** Inkvolt PDF's 4.8 to reuse it; the Mac half waits.
+    (`CcittG4`, `Bilevel`; on the Mac in PrintCore, PDFKit draws them too: `mac/docs/PLAN.md`, "Wave 4"). **Next:** Inkvolt
+    PDF's 4.8 to reuse it, on Windows and Mac.
 - **Batch B:**
   - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
     from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
@@ -190,20 +192,22 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
     queues are driverless already).
 - **Batch C:**
-  - **4.7 Drop a color, remove punch holes.** Done on Windows: Clean up's Drop a color (red, green, blue or picked off the page)
+  - **4.7 Drop a color, remove punch holes.** Done on Windows and Mac: Clean up's Drop a color (red, green, blue or picked off the page)
     and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
-    `ColorDropout`, `PunchHoles`). **Next:** real punched sheets from a feeder and a flatbed; the Mac half waits.
-  - **4.8 Join two halves.** Done on Windows: a page's Join with the next page… finds the overlap of two scans of an original
+    `ColorDropout`, `PunchHoles`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** real punched sheets from a feeder and a
+    flatbed, on both.
+  - **4.8 Join two halves.** Done on Windows and Mac: a page's Join with the next page… finds the overlap of two scans of an original
     too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
-    one Undo step (README, "Join two halves"; `HalvesJoin`). **Next:** a real A3 drawing on a letter or A4 glass; the Mac half waits.
-  - **4.11 Name the file from its contents.** Done on Windows: a preset's file name can hold `{text-date}`, `{text-title}` and
+    one Undo step (README, "Join two halves"; `HalvesJoin`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a real A3
+    drawing on a letter or A4 glass, on both.
+  - **4.11 Name the file from its contents.** Done on Windows and Mac: a preset's file name can hold `{text-date}`, `{text-title}` and
     `{text-number}`, read from the first page (a date in the usual ways of writing it, in English and Spanish; the heading; an
-    invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`).
-    **Next:** real invoices and receipts; the Mac half waits.
-  - **4.14 Scan straight to Word or text.** Done on Windows: preset file types Word document (.docx) and Text (.txt), the
+    invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`; the
+    Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** real invoices and receipts, on both.
+  - **4.14 Scan straight to Word or text.** Done on Windows and Mac: preset file types Word document (.docx) and Text (.txt), the
     recognized text as paragraphs (headings in Heading 1), photos as pictures; written in the shared core with the Office parts
-    moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`). Word opens them (checked here). **Next:** the
-    Mac half waits.
+    moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`; the Mac's in `mac/docs/PLAN.md`, "Wave 4").
+    Word opens them (checked on Windows). **Next:** Word and Pages on the Mac opening one.
   - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone; the Mac half waits.
   - **4.12 A camera as a scan source.** Done on Windows: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window; the Mac half waits (AVFoundation).
   - **4.18 From Inkvolt PDF into Print's presets and Print a PDF.** Done on Windows: a PDF preset saves PDF/A-2b or puts a

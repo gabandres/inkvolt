@@ -29,6 +29,13 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     /// Past `PageCleanup.maxPixels` (its JPEG's header says; the app sets it, not kept in the recovery folder): saved as
     /// scanned (`PageEdits.for(width:height:)`), so the page check neither straightens, cleans up nor finds photos on it.
     public var tooLargeToEdit = false
+    /// The quarter turns the page check stood it upright by (`PageUpright`, roadmap 4.3); 0 when it wasn't turned.
+    public var uprightTurns = 0
+    /// Saved in a PDF in black and white at 1 bit (a preset's smaller file, roadmap 4.4); a page of photos is never.
+    public var oneBit = false
+
+    /// Still turned upright as the check turned it (not turned back by hand or by Undo).
+    public var turnedUpright: Bool { edits.turnedUprightBy(uprightTurns) }
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
                 separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil,
@@ -58,18 +65,49 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
         if hasPhotos {
             let n = photos!.count
             if edits.filters.isEmpty { return n == 1 ? loc("{0} photo", n) : loc("{0} photos", n) }
-            let done = PageCleanup.describe(edits.filters)
+            let done = PageCleanup.describe(edits.filters, drop: edits.drop)
             return n == 1 ? loc("{0} photo, {1}", n, done) : loc("{0} photos, {1}", n, done)
         }
         if skipped { return looksBlank ? loc("Blank, not saved") : loc("Not saved") }
         if tooLargeToEdit { return loc("Saved as scanned: too large to straighten, crop or turn") }
         if !edits.filters.isEmpty {
-            let done = PageCleanup.describe(edits.filters)
+            let done = PageCleanup.describe(edits.filters, drop: edits.drop)
             return done.prefix(1).uppercased() + done.dropFirst()
         }
+        if turnedUpright && edits.crop == nil { return loc("Turned upright") }
         if edits.deskew != 0 && edits.crop == nil && edits.quarterTurns % 4 == 0 { return loc("Straightened") }
         return edits.isEmpty ? "" : loc("Edited")
     }
+}
+
+/// The last turned stack (roadmap 4.1): its fronts and backs as scanned, whether its backs are now matched last sheet first,
+/// and the pages that pairing made the other side of a separator sheet (`ScanPages.pair`).
+public struct StackScan: Equatable, Sendable {
+    public let fronts: [String]
+    public let backs: [String]
+    public var reversed = TurnedStack.backsReversed
+    public var marks: [SheetBackMark] = []
+
+    public init(fronts: [String], backs: [String]) {
+        self.fronts = fronts
+        self.backs = backs
+    }
+}
+
+/// What Undo of Backs in the Other Order needs (`ScanPages.swapBacks`): the page order before it, the pairing it had, and
+/// the stack as swapped with that pairing's marks.
+public struct StackSwap: Equatable, Sendable {
+    public let before: [String]
+    public let was: Bool
+    public let swapped: StackScan
+}
+
+/// A page made the other side of a separator sheet, with what it was before, to put back when the pairing changes.
+public struct SheetBackMark: Equatable, Sendable {
+    public let id: String
+    public let separator: SeparatorFound
+    public let edits: PageEdits
+    public let skipped: Bool
 }
 
 /// The scan review's pages (the Windows app's Scan tab list): pages join as they're scanned, the page check skips blank ones
@@ -107,7 +145,8 @@ public struct ScanPages: Equatable, Sendable {
     public mutating func add(_ page: ScannedPage) { pages.append(page) }
 
     /// The page check's answer for a page (on a downscaled grey copy): blank pages are skipped when `skipBlank`, a crooked page
-    /// is straightened when `straighten` and it hasn't been edited meanwhile. A blank page isn't straightened.
+    /// is straightened when `straighten` and turned upright by `quarterTurns` (`PageUpright.orient`), when it hasn't been edited
+    /// meanwhile (`PageEdits.checked`). A blank page isn't straightened.
     /// A separator sheet is neither skipped nor straightened, nor is a page of photos straightened (each photo is cut out
     /// straight by itself).
     ///
@@ -118,7 +157,7 @@ public struct ScanPages: Equatable, Sendable {
     @discardableResult
     public mutating func analysed(_ id: String, looksBlank: Bool, skew: Double, skipBlank: Bool, straighten: Bool,
                                   separator: SeparatorFound = .none, photos: [PhotoBox]? = nil, cleanup: PageFilters = [],
-                                  paperEdge: CropBox? = nil) -> PageEdits? {
+                                  paperEdge: CropBox? = nil, quarterTurns: Int = 0, drop: DropColor? = nil, grey: Bool = false) -> PageEdits? {
         update(id) { p in
             p.analysed = true
             p.beforeCleanup = nil
@@ -129,11 +168,15 @@ public struct ScanPages: Equatable, Sendable {
             let blank = skipBlank && p.looksBlank && !separator.isSeparator
             if blank { p.skipped = true }
             if p.tooLargeToEdit { return } // saved as scanned: nothing to straighten or clean up
-            if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
+            if !blank && !separator.isSeparator && !p.hasPhotos, let checked = p.edits.checked(straighten ? skew : 0, quarterTurns) {
+                p.edits = checked
+                p.uprightTurns = checked.quarterTurns
+            }
             guard !cleanup.isEmpty, !p.looksBlank, !separator.isSeparator else { return }
             // Tried only on a page with no filters or crop yet (`cleanedUp`) whose photos weren't looked for.
             p.noPaperEdge = cleanup.contains(.cropToPaper) && photos == nil && paperEdge == nil && p.edits.filters.isEmpty && p.edits.crop == nil
-            guard let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew) else { return }
+            guard let cleaned = p.edits.cleanedUp(cleanup, photos: p.hasPhotos, paperEdge: photos == nil ? paperEdge : nil, measuredAt: skew, drop: drop,
+                                                  grey: grey) else { return }
             p.beforeCleanup = p.edits
             p.edits = cleaned
         }
@@ -176,6 +219,79 @@ public struct ScanPages: Equatable, Sendable {
                 p.skipped = false
                 p.separator = SeparatorFound(.sheetBack)
                 p.edits = .none // not straightened: it isn't saved (unless separators are kept)
+            }
+        }
+    }
+
+    // MARK: A turned stack (roadmap 4.1)
+
+    /// A turned stack's fronts and backs put in page order (`TurnedStack.rearrange`) where they are now, each separator
+    /// sheet's other side marked again (`TurnedStack.separatorBacks`, the marks of the old pairing put back first).
+    public mutating func pair(_ stack: inout StackScan, reversed: Bool) {
+        unmark(stack.marks)
+        reorder(TurnedStack.rearrange(pages.map(\.id), stack.fronts, stack.backs, reversed: reversed))
+        stack.reversed = reversed
+        stack.marks = markSheetBacks(stack.fronts, stack.backs, reversed: reversed)
+    }
+
+    /// Undo of `pair`: the marks put back and the stack's pages as scanned (its fronts, then its backs) in their places.
+    public mutating func unpair(_ stack: inout StackScan) {
+        unmark(stack.marks)
+        stack.marks = []
+        reorder(TurnedStack.inPlaces(pages.map(\.id), stack.fronts + stack.backs))
+    }
+
+    /// Backs in the Other Order: the stack paired the other way round. Returns what its Undo needs (`undoSwap`), which keeps
+    /// its own copy of the stack and its marks, so a scan meanwhile (which lets the review's stack go) doesn't lose them.
+    public mutating func swapBacks(_ stack: inout StackScan) -> StackSwap {
+        let (before, was) = (pages.map(\.id), stack.reversed)
+        pair(&stack, reversed: !was)
+        return StackSwap(before: before, was: was, swapped: stack)
+    }
+
+    /// Undo of `swapBacks`: the swapped pairing's marks put back, the first pairing's found again, the pages where they were.
+    /// Returns the stack as it is paired again.
+    @discardableResult
+    public mutating func undoSwap(_ swap: StackSwap) -> StackScan {
+        var stack = swap.swapped
+        pair(&stack, reversed: swap.was)
+        reorder(swap.before)
+        return stack
+    }
+
+    /// The pages put in `order`'s order where they are now (`TurnedStack.inPlaces`): ids not here are passed over, pages it
+    /// doesn't name stay where they are.
+    public mutating func reorder(_ order: [String]) {
+        let byId = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        pages = TurnedStack.inPlaces(pages.map(\.id), order).compactMap { byId[$0] }
+    }
+
+    private mutating func markSheetBacks(_ fronts: [String], _ backs: [String], reversed: Bool) -> [SheetBackMark] {
+        let all = fronts + backs
+        let byId = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        // A page the review deleted reads as no sheet and not blank: it is never marked.
+        let found = all.map { byId[$0] }
+        let sheet = found.map { $0?.separator.kind == .patchCode }
+        let blank = found.map { $0?.looksBlank ?? false }
+        var marks: [SheetBackMark] = []
+        for i in TurnedStack.separatorBacks(fronts.count, backs.count, reversed: reversed, sheet: sheet, blank: blank) ?? [] {
+            guard let page = found[i], !page.isSeparator else { continue }
+            marks.append(SheetBackMark(id: page.id, separator: page.separator, edits: page.edits, skipped: page.skipped))
+            update(page.id) { p in
+                p.skipped = false
+                p.separator = SeparatorFound(.sheetBack)
+                p.edits = .none // not straightened: it isn't saved (unless separators are kept)
+            }
+        }
+        return marks
+    }
+
+    private mutating func unmark(_ marks: [SheetBackMark]) {
+        for m in marks {
+            update(m.id) { p in
+                p.separator = m.separator
+                p.edits = m.edits
+                p.skipped = m.skipped
             }
         }
     }
@@ -239,11 +355,45 @@ public struct ScanPages: Equatable, Sendable {
                     p.edits.crop = edits.crop
                     p.edits.filters = p.edits.filters.setting(.cropToPaper, as: edits.filters)
                 }
-                if p.edits.filters.intersection(.pixelFilters) == left.filters.intersection(.pixelFilters) {
+                if p.edits.filters.intersection(.pixelFilters) == left.filters.intersection(.pixelFilters) && p.edits.drop == left.drop {
                     p.edits.filters = p.edits.filters.setting(.pixelFilters, as: edits.filters)
+                    p.edits.drop = edits.drop
                 }
             }
         }
+    }
+
+    /// Undo of the page check's turns (roadmap 4.3): each of `ids` still turned upright as the check left it goes back to the
+    /// way it was scanned (its straightening stays); a page turned by hand since keeps its turn. Returns the pages changed.
+    @discardableResult
+    public mutating func undoUpright(_ ids: [String]) -> [String] {
+        var changed: [String] = []
+        for id in ids where page(id)?.turnedUpright == true {
+            update(id) { $0.edits.quarterTurns = 0 }
+            changed.append(id)
+        }
+        return changed
+    }
+
+    /// Join two halves (roadmap 4.8): `first` and `second` give way to `joined` in `first`'s place, which keeps `first`'s
+    /// new-file mark (a batch's boundary stays). Returns the halves as they were and where the first was, for Undo; nil when
+    /// either isn't here.
+    public mutating func join(_ first: String, _ second: String, into joined: ScannedPage) -> (halves: [ScannedPage], at: Int)? {
+        guard first != second, let a = pages.firstIndex(where: { $0.id == first }), let b = pages.firstIndex(where: { $0.id == second }) else { return nil }
+        let halves = [pages[a], pages[b]]
+        var page = joined
+        page.startsFile = pages[a].startsFile
+        pages.remove(at: max(a, b))
+        pages.remove(at: min(a, b))
+        pages.insert(page, at: min(a, b))
+        return (halves, min(a, b))
+    }
+
+    /// Undo of `join`: the joined page taken out (when it's still here), the halves back from `at` on.
+    public mutating func unjoin(_ joined: String, halves: [ScannedPage], at: Int) {
+        let place = pages.firstIndex { $0.id == joined } ?? at
+        pages.removeAll { $0.id == joined }
+        pages.insert(contentsOf: halves, at: min(max(place, 0), pages.count))
     }
 
     /// Undoes every edit, the straightening too.
@@ -289,6 +439,8 @@ public struct ScanPages: Equatable, Sendable {
             k.separator = p.isSeparator ? p.separator : nil
             k.looksBlank = p.looksBlank
             k.filters = p.edits.filters.isEmpty ? nil : p.edits.filters
+            k.drop = p.edits.drop?.hex
+            k.oneBit = p.oneBit ? true : nil
             k.ocrLanguage = p.ocrLanguage
             return k
         })
@@ -297,8 +449,10 @@ public struct ScanPages: Equatable, Sendable {
     /// The pages a scan left over (the app quit or crashed before they were saved), as they were.
     public init(restoring scan: KeptScan) {
         pages = scan.pages.map { k in
-            ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
-                        separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
+            var p = ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
+                                separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
+            p.oneBit = k.oneBit ?? false
+            return p
         }
     }
 

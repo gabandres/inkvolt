@@ -528,17 +528,17 @@ struct PageCleanupTests {
         var small = Self.textPage(sw, sh, paper: 200, ink: 30)
         Self.screen(&small, sw, 125, 125, 625, 625, 9.2, 0.5)
         var clock = ContinuousClock.now
-        _ = try PageCleanup.apply(small, width: sw, height: sh, channels: 1, dpi: 150, .pixelFilters)
+        _ = try PageCleanup.apply(small, width: sw, height: sh, channels: 1, dpi: 150, [.whiten, .descreen, .restoreColors])
         let bound = max(Timing.limit(.seconds(120)), (ContinuousClock.now - clock) * 48)
         clock = ContinuousClock.now
-        let result = try PageCleanup.apply(page, width: w, height: h, channels: 1, dpi: 600, .pixelFilters)
+        let result = try PageCleanup.apply(page, width: w, height: h, channels: 1, dpi: 600, [.whiten, .descreen, .restoreColors])
         #expect(ContinuousClock.now - clock < bound, "\(ContinuousClock.now - clock), bound \(bound)")
-        #expect(result.done == .pixelFilters)
+        #expect(result.done == [.whiten, .descreen, .restoreColors])
 
         let stop = BatchStop()
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { stop.stop() }
         clock = ContinuousClock.now
-        #expect(throws: CancellationError.self) { try PageCleanup.apply(page, width: w, height: h, channels: 1, dpi: 600, .pixelFilters, stop: stop) }
+        #expect(throws: CancellationError.self) { try PageCleanup.apply(page, width: w, height: h, channels: 1, dpi: 600, [.whiten, .descreen, .restoreColors], stop: stop) }
         #expect(ContinuousClock.now - clock < Timing.limit(.seconds(20)), "cancelled after \(ContinuousClock.now - clock)")
     }
 
@@ -619,7 +619,7 @@ struct PageCleanupStepsTests {
     @Test func aScansCleanUpGoesOnEachPageWithItsEdgeAndItsStraightening() {
         let p = Self.analysed(.all)
         #expect(p.edits == PageEdits(deskew: 2, crop: Self.edge, filters: .all))
-        #expect(p.note == "Cropped to the paper, whitened, descreened, colors restored")
+        #expect(p.note == "Cropped to the paper, whitened, descreened, colors restored, red dropped, punch holes removed")
         let noEdge = Self.analysed(.all, paperEdge: nil)
         #expect(noEdge.edits == PageEdits(deskew: 2, filters: .pixelFilters))
         #expect(Self.analysed([]).edits == PageEdits(deskew: 2))

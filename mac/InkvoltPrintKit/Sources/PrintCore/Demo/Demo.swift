@@ -36,9 +36,9 @@ public enum Demo {
         var feeder: (@Sendable () -> [[UInt8]]?)?
         if let scanPage {
             area = { w, h in
-                scanPage(scanSetup.photosOnGlass ? DemoScan.photos : scanSetup.paperOnLid ? DemoScan.onLid : DemoScan.letter, w, h)
+                scanPage(scanSetup.glassPage, w, h)
             }
-            feeder = { (scanSetup.feederBatch ? DemoScan.batch : DemoScan.feeder).map { scanPage($0, 2550, 3300) } }
+            feeder = { scanSetup.feederPages.map { scanPage($0, 2550, 3300) } }
         }
         let http = HostRouter([
             FixtureTransport.demoHost: FixtureTransport(document: laser, scanArea: area, feederBatch: feeder),
@@ -166,22 +166,69 @@ public enum DemoScan {
     public static let feeder = [letter, crooked, blank]
     /// The feeder's batch (the Windows demo's): two pages, a Patch T sheet, then three more (one blank, one crooked).
     public static let batch = [letter, crooked, separatorSheet, letter, blank, crookedLeft]
+
+    /// Page `n` (1 to 6) of a short report of made-up prose (roadmap 4.1 and 4.3); pages 3 and 4 are one sheet fed upside
+    /// down. Real letters, so the review can tell which way is up.
+    public static func reportPage(_ n: Int) -> Int { 10 + n }
+    public static let reportPages = 11...16
+    public static func isUpsideDown(_ page: Int) -> Bool { page == reportPage(3) || page == reportPage(4) }
+
+    /// The Windows demo's stack of three two-sided sheets, pages 1 to 6, as a one-sided feeder sends it: the fronts (1, 3, 5),
+    /// then turned over, the backs last sheet first (6, 4, 2).
+    public static let stackFronts = [reportPage(1), reportPage(3), reportPage(5)]
+    public static let stackBacks = [reportPage(6), reportPage(4), reportPage(2)]
+
+    /// An order form on the glass (roadmap 4.7, the Windows demo's punched form): red rules with black print over them, a blue
+    /// pen's line, and three punch holes down its left edge.
+    public static let punchedForm = 7
+
+    /// The two halves of a 14-inch-wide plan scanned on a letter glass (roadmap 4.8): its left 8.5 inches, then its right 8.5
+    /// inches, three inches of it on both.
+    public static let leftHalf = 8, rightHalf = 9
+
+    /// A made-up hardware store's invoice (roadmap 4.11 and 4.14): its name as the heading, an invoice number, a date, its items
+    /// and a paragraph of terms, so a name can be read from the page and the page saved as Word or text.
+    public static let invoice = 20
 }
 
-/// What the demo scanners hold next, set by the Scan tab (the Windows demo's `FeederBatch`, `PhotosOnGlass`): a batch in the
-/// feeder when the scan splits into files, photos on the glass when it looks for them, a sheet on the lid (`DemoScan.onLid`)
-/// when it crops to the paper.
+/// Which pass of a turned stack (`TurnedStack`) the demo feeder's next scan is (the Windows demo's `StackSide`).
+public enum DemoStackSide: Sendable { case fronts, backs }
+
+/// What the demo scanners hold next, set by the Scan tab (the Windows demo's `FeederBatch`, `PhotosOnGlass`, `StackSide`): a
+/// batch in the feeder when the scan splits into files, photos on the glass when it looks for them, a sheet on the lid
+/// (`DemoScan.onLid`) when it crops to the paper, a turned stack's fronts or backs.
 public final class DemoScanSetup: Sendable {
-    private let state = Shared((batch: false, photos: false, lid: false))
+    private let state = Shared((batch: false, photos: false, lid: false, stack: DemoStackSide?.none, form: false))
+    private let held = Shared(Int?.none)
+
+    /// The glass's page now: one laid there by `hold` (`--report`), photos, the punched form (a scan that drops a color or
+    /// removes holes), the sheet on the lid, or the letter.
+    public var glassPage: Int {
+        if let page = held.withLock({ $0 }) { return page }
+        return state.withLock { $0.photos ? DemoScan.photos : $0.form ? DemoScan.punchedForm : $0.lid ? DemoScan.onLid : DemoScan.letter }
+    }
+
+    /// Lays `page` on the glass whatever the scan asks for (nil: as it asks): a plan's halves for Join with the Next Page….
+    public func hold(_ page: Int?) { held.withLock { $0 = page } }
 
     public init() {}
 
     public var feederBatch: Bool { state.withLock { $0.batch } }
     public var photosOnGlass: Bool { state.withLock { $0.photos } }
     public var paperOnLid: Bool { state.withLock { $0.lid } }
+    public var stackSide: DemoStackSide? { state.withLock { $0.stack } }
 
-    public func prepare(feederBatch: Bool, photosOnGlass: Bool, paperOnLid: Bool = false) {
-        state.withLock { $0 = (feederBatch, photosOnGlass, paperOnLid) }
+    /// The feeder's pages now: a turned stack's pass, a batch, or its three pages.
+    public var feederPages: [Int] {
+        switch stackSide {
+        case .fronts: DemoScan.stackFronts
+        case .backs: DemoScan.stackBacks
+        case nil: feederBatch ? DemoScan.batch : DemoScan.feeder
+        }
+    }
+
+    public func prepare(feederBatch: Bool, photosOnGlass: Bool, paperOnLid: Bool = false, turnedStack: DemoStackSide? = nil, markedForm: Bool = false) {
+        state.withLock { $0 = (feederBatch && turnedStack == nil, photosOnGlass, paperOnLid, turnedStack, markedForm) }
     }
 }
 

@@ -24849,6 +24849,72 @@
           }
         }
       }
+    },
+    "Putting the text in one column…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Colocando el texto en una columna…"
+          }
+        }
+      }
+    },
+    "These pages have no text to reflow. If they're scans, use Recognize Text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas páginas no tienen texto que redistribuir. Si son escaneos, usa primero Reconocer texto."
+          }
+        }
+      }
+    },
+    "The Reflow view couldn't be made: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo crear la vista Redistribuir: {0}"
+          }
+        }
+      }
+    },
+    "The view stopped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La vista se detuvo."
+          }
+        }
+      }
+    },
+    "Back to Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a las páginas"
+          }
+        }
+      }
+    },
+    "The document's text in one column": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto del documento en una columna"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

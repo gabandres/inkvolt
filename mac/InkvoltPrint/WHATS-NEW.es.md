@@ -6,6 +6,13 @@ versión ya tiene esa localización en App Store Connect). Los mismos encabezado
 línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su español (`PdfStringsTests` lo comprueba).
 
 ## Next
+- Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.
+- Páginas puestas al derecho solas: una página que entra al revés o de lado se gira cuando su texto muestra con claridad cuál es la parte de arriba, y dice Puesta al derecho. Deshacer las deja como estaban; Poner las páginas al derecho, en la configuración de escaneo y en cada ajuste de escaneo, lo desactiva.
+- Archivo más pequeño (blanco y negro) en un ajuste de escaneo: las páginas de su PDF se guardan en blanco y negro, así que una página de texto ocupa una décima parte o menos.
+- La limpieza quita un color y las perforaciones: las líneas rojas de un formulario, las notas de un bolígrafo azul o un sello se vuelven blancos mientras lo impreso en negro se queda (rojo, verde, azul o un color que elijas en la página), y las sombras redondas de las perforaciones cerca de los bordes toman el color del papel. En la configuración de escaneo, en cada ajuste de escaneo y en Limpiar… de una página.
+- Unir dos mitades: para un original demasiado grande para el cristal, escanea una mitad y luego la otra con unos 2 o 3 cm de superposición, y elige Unir con la página siguiente… en la primera. Inkvolt Print encuentra dónde se superponen (en cualquier sentido y por cualquier lado) y muestra la página unida; cuando no está seguro, mueve la segunda mitad con las flechas. Deshacer las vuelve a separar.
+- Un escaneo con el nombre de su primera página: {text-date}, {text-title} y {text-number} en el nombre de archivo de un ajuste de escaneo toman una fecha, el título y un número de factura o de pedido del texto de la página. Con Detenerse en las páginas para revisarlas antes de guardar, el nombre aparece junto a Guardar, para cambiarlo antes de guardar.
+- Escanear directo a Word o a texto: un ajuste de escaneo guarda el texto leído en las páginas como documento de Word (.docx), con títulos y párrafos listos para editar y las fotos como imágenes, o como archivo de texto (.txt).
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

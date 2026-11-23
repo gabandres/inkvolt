@@ -36,7 +36,7 @@ extension DocumentWindowController {
                 (hits, planned) = try await Task.detached { () throws -> ([HitToMark], SearchMarksCount) in
                     var hits: [HitToMark] = []
                     var page = -1
-                    var text: PageText?
+                    var text: PdfCore.PageText?
                     for f in found {
                         try cancel.check()
                         if f.page != page {

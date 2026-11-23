@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 @testable import PdfCore
 
 /// Ported from PlantedReader.cs. Stands in for the recognizer, without a language of its own beyond en-US: told where each
@@ -34,17 +35,17 @@ final class PlantedReader: TextRecognizer, @unchecked Sendable {
     /// How many places were read on their own.
     var placesReadCount: Int { lock.withLock { placesRead } }
 
-    func plant(_ pageWidth: Double, _ pageHeight: Double, _ text: PageText) {
+    func plant(_ pageWidth: Double, _ pageHeight: Double, _ text: PdfCore.PageText) {
         var words: [(String, RectD)] = []
         let units = Array(text.text.utf16)
         var i = 0
         while i < units.count {
-            if PageText.isWhiteSpace(units[i]) {
+            if PdfCore.PageText.isWhiteSpace(units[i]) {
                 i += 1
                 continue
             }
             var end = i
-            while end < units.count && !PageText.isWhiteSpace(units[end]) { end += 1 }
+            while end < units.count && !PdfCore.PageText.isWhiteSpace(units[end]) { end += 1 }
             words.append((text.string(i, end), text.rects(i, end)[0]))
             i = end
         }
