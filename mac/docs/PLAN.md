@@ -279,6 +279,22 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   writes it, the month names from `DateFormatter`'s lists); a found date is a `TextDate` (a day, no clock) written with UTC's;
   lengths count characters where .NET counts UTF-16 units; the field shows for a preset that stops on the review, as on
   Windows, beside Save rather than above the pages. Not checked: real invoices and receipts, the field on screen (VoiceOver).
+- **4.14 Scan straight to Word or text.** PrintCore `PageText.paragraphs` (`TextParagraph`), `ScanDocPage`, `ScanDocx`,
+  `ScanText`, `PresetFileType.word` (3) and `.text` (4) (Windows' numbers), `ScanPresets.isPdf`/`fileExtension`, the
+  summary's "Word document" and "Text", `PresetPlan`'s notes without text recognition; the Office parts Inkvolt PDF for Mac
+  wrote with (`XmlOut`, `OpenXmlParts`: `xml`, `clean`, `cut`, `contentTypes`, `coreProperties`, `appProperties(application:)`,
+  `relationships`) moved from PdfCore into PrintCore (`Office/OpenXmlParts.swift`), as Windows moved them to the shared core;
+  PdfCore keeps its `ZipWriter` (Apple's Compression deflates), `entry`, its own `appProperties`, `twips` and `emu`, so its
+  exports are byte for byte as before. `ScanToDocumentTests` (PC). The app: the editor's As list gains Word document and
+  Text, with the text language and a note when the preset opens in Inkvolt PDF; a preset save writes the file
+  (`ScanModel.writeDocument`: each page read by Vision as saved; a page of photos as its photos, one with no text read as
+  the page itself), Print a copy prints the pages; `--report … --word-text`. **Mac differences:** the .docx's parts are
+  stored, not deflated (PrintCore's `Deflate` is a fixed-Huffman fallback and the tests read stored entries with
+  `ZipArchive.entries`; the pictures are stored on Windows too), so a page of text makes a few kilobytes more; the
+  misread-text test's lone surrogate is U+FFFF (a Swift string holds none); a Word or text preset's scan reads as a
+  searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
+  file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
+  (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
 
 ## Mac differences
 
@@ -1842,7 +1858,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to

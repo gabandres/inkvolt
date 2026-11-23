@@ -997,6 +997,35 @@ final class ScanModel {
         }
     }
 
+    /// One file's pages as a Word document or text file (roadmap 4.14) at `url`: each page's text read by Vision as the page
+    /// is saved; a page of photos goes in as its photos, a page with no text read as the page itself (Windows' `DocPagesAsync`).
+    /// - Throws: `SaveStopped` (nothing written) when `stop` fires.
+    nonisolated private static func writeDocument(_ file: [PageJob], to url: URL, type: PresetFileType, title: String, stop: BatchStop?) throws -> [URL] {
+        do {
+            var pages: [ScanDocPage] = []
+            for job in file {
+                try stop?.check()
+                if let photos = job.photos {
+                    let jpegs = try photos.map { try ScanImaging.photo(job.jpeg, $0, filters: job.edits.filters, dpi: job.dpi, stop: stop) }
+                    pages.append(ScanDocPage(nil, dpi: job.dpi, pictures: jpegs))
+                    continue
+                }
+                let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
+                if let words = ScanPdf.recognize(jpeg, language: job.ocrLanguage), !words.isEmpty, let size = try? PdfWriter.jpegInfo(jpeg) {
+                    pages.append(ScanDocPage(ScanPdf.pixelWords(words, width: size.width, height: size.height), dpi: job.dpi))
+                } else {
+                    pages.append(ScanDocPage(nil, dpi: job.dpi, pictures: [jpeg]))
+                }
+            }
+            try stop?.check()
+            let bytes = type == .word ? try ScanDocx.write(pages, title: title) : ScanText.write(pages)
+            try Data(bytes).write(to: url, options: .atomic)
+            return [url]
+        } catch is CancellationError {
+            throw SaveStopped(written: [])
+        }
+    }
+
     /// The running save's stop (its Cancel); nil when none runs.
     @ObservationIgnored private var saveStop: BatchStop?
 
@@ -1105,7 +1134,9 @@ final class ScanModel {
         defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
         let files = pages.files
         let counts = imagesPerFile
-        let ext = format == .jpeg ? ".jpg" : ".pdf"
+        // A Word document or text file (roadmap 4.14): the text read from the pages, written by PrintCore.
+        let document: PresetFileType? = p.fileType == .word || p.fileType == .text ? p.fileType : nil
+        let ext = document.map(ScanPresets.fileExtension) ?? (format == .jpeg ? ".jpg" : ".pdf")
         var numbers = PartNumbers(1)
         var all: [URL] = []
         isSaving = true
@@ -1134,8 +1165,11 @@ final class ScanModel {
             let result: Result<[URL], any Error> = await offPool {
                 Result {
                     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-                    let count = format == .jpeg ? counts[f] : 1
+                    let count = format == .jpeg && document == nil ? counts[f] : 1
                     let paths = try FileNameTemplate.uniquePaths(dir.path, stem, ext, count: count) { FileManager.default.fileExists(atPath: $0) }
+                    if let document {
+                        return try Self.writeDocument(job[0], to: URL(fileURLWithPath: paths[0]), type: document, title: stem, stop: stop)
+                    }
                     return try Self.write(job, to: [paths.map { URL(fileURLWithPath: $0) }], format: format, asSent: sent, stop: stop)
                 }
             }
@@ -1159,14 +1193,19 @@ final class ScanModel {
         }
         isSaving = false
         await finishSaving(all, in: folder.lastPathComponent, note: asSentNote(files), reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
-        await after(p.after, all)
+        await after(p.after, all, document: document != nil)
     }
 
     /// The preset's step after saving: print a copy of what was saved on this printer, attach it to a new email in the
     /// user's mail app (Inkvolt Print has no mail account of its own), or open the saved PDFs in Inkvolt PDF (as on Windows,
     /// JPEG scans are only saved).
-    private func after(_ step: PresetAfter, _ urls: [URL]) async {
+    /// A Word or text scan (`document`) prints its pages, as Windows' copy does, and isn't opened in Inkvolt PDF (it opens PDFs).
+    private func after(_ step: PresetAfter, _ urls: [URL], document: Bool = false) async {
         switch step {
+        case .print where document:
+            await printPages()
+        case .openInInkvoltPdf where document:
+            break
         case .print:
             let document = PDFDocument()
             for url in urls {

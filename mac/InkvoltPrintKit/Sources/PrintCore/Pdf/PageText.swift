@@ -18,7 +18,7 @@ public struct TextLine: Equatable, Sendable {
 
 /// A scanned page's recognized words (in the image's pixels from its top left, as `PdfWriter` takes them; Windows'
 /// `OcrWord`) put back into lines, top to bottom: words whose boxes share most of their height are one line, read left to
-/// right. What a scan's name is read from (`TextFinds`).
+/// right. What a scan's name is read from (`TextFinds`), and a scan saved as Word or text (`paragraphs`, `ScanDocx`).
 public enum PageText {
     /// At most this many words are read from a page (a recognizer's answer is outside input).
     public static let maxWords = 20_000
@@ -55,6 +55,51 @@ public enum PageText {
         }
     }
 
+    /// The lines as paragraphs (roadmap 4.14, a scan saved as Word or text): a new paragraph after a gap more than
+    /// `paragraphGap` of a line's height, or where the size changes; a line a third taller than most is a heading. A word
+    /// broken with a hyphen at a line's end is joined again ("ink-" "jet" → "inkjet" only when the next line goes on in lower
+    /// case).
+    public static func paragraphs(_ lines: [TextLine]) -> [TextParagraph] {
+        var result: [TextParagraph] = []
+        guard !lines.isEmpty else { return result }
+        let heights = lines.map(\.height).sorted()
+        let usual = heights[heights.count / 2]
+        var text = ""
+        var previous: TextLine?
+        var heading = false
+        for line in lines {
+            let isHeading = line.height >= usual * 4 / 3
+            var breaks = true
+            if let p = previous {
+                let gap = line.top - (p.top + p.height)
+                breaks = isHeading != heading || gap > paragraphGap * max(p.height, line.height)
+                    || (isHeading && abs(line.height - p.height) > 0.2 * p.height)
+            }
+            if breaks && !text.isEmpty {
+                result.append(TextParagraph(text, heading: heading))
+                text = ""
+            }
+            let words = withoutStrays(line).trimmingCharacters(in: .whitespacesAndNewlines)
+            if words.isEmpty { continue }
+            if text.isEmpty {
+                text = words
+            } else if text.hasSuffix("-"), text.count > 1, text.dropLast().last?.isLetter == true, words.first?.isLowercase == true {
+                text.removeLast() // "ink-" + "jet"
+                text += words
+            } else {
+                text += " " + words
+            }
+            heading = isHeading
+            previous = line
+        }
+        if !text.isEmpty { result.append(TextParagraph(text, heading: heading)) }
+        return result
+    }
+
+    /// A gap between lines more than this share of a line's height starts a new paragraph (lines of a paragraph sit about
+    /// half a line apart).
+    public static let paragraphGap = 0.9
+
     /// The line's text without a lone character at either end standing apart from the rest (a punch hole or a speck read as
     /// "O" or "."): further from its neighbour than the line is tall.
     public static func withoutStrays(_ line: TextLine) -> String {
@@ -66,5 +111,16 @@ public enum PageText {
             words.removeLast()
         }
         return words.map { $0.text.trimmingCharacters(in: .whitespacesAndNewlines) }.joined(separator: " ")
+    }
+}
+
+/// A paragraph of recognized text; `heading` when its lines stand taller than most.
+public struct TextParagraph: Equatable, Sendable {
+    public var text: String
+    public var heading: Bool
+
+    public init(_ text: String, heading: Bool) {
+        self.text = text
+        self.heading = heading
     }
 }

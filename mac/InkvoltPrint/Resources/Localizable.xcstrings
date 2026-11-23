@@ -2716,6 +2716,16 @@
         }
       }
     },
+    "Inkvolt PDF opens PDFs: Word and text scans are only saved.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF abre archivos PDF: los escaneos de Word y de texto solo se guardan."
+          }
+        }
+      }
+    },
     "Inkvolt Print": {
       "localizations": {
         "es": {
@@ -5636,6 +5646,16 @@
         }
       }
     },
+    "Text (.txt): the text only": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto (.txt): solo el texto"
+          }
+        }
+      }
+    },
     "Text language": {
       "localizations": {
         "es": {
@@ -6762,6 +6782,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Foto entera"
+          }
+        }
+      }
+    },
+    "Word document (.docx): the text, editable": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento de Word (.docx): el texto, editable"
           }
         }
       }

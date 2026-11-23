@@ -62,10 +62,14 @@ public struct PresetPlan: Equatable, Sendable {
 
         // Text is read for a searchable PDF, and for a name taken from the page (its PDF gets the text layer too).
         let readsName = FileNameTemplate.readsText(preset.fileName) || FileNameTemplate.readsText(preset.subfolder)
-        let readsPages = preset.fileType == .searchablePdf
+        let readsPages = preset.fileType == .searchablePdf || preset.fileType == .word || preset.fileType == .text
         let ocr = (readsPages || readsName) && ocrAvailable
         if preset.fileType == .searchablePdf && !ocrAvailable {
             notes.append(loc("Text recognition isn't available on this Mac: the PDF won't be searchable."))
+        } else if preset.fileType == .word && !ocrAvailable {
+            notes.append(loc("This Mac can't read text, so the Word document holds the pages as pictures."))
+        } else if preset.fileType == .text && !ocrAvailable {
+            notes.append(loc("This Mac can't read text, so the text file is empty."))
         } else if readsName && !ocrAvailable {
             notes.append(loc("This Mac can't read text, so the parts of the file name taken from the page stay empty."))
         }

@@ -162,12 +162,14 @@ private struct PresetEditor: View {
                     Text("PDF").tag(PresetFileType.pdf)
                     Text("Searchable PDF").tag(PresetFileType.searchablePdf)
                     Text("JPEG images").tag(PresetFileType.jpeg)
+                    Text("Word document (.docx): the text, editable").tag(PresetFileType.word)
+                    Text("Text (.txt): the text only").tag(PresetFileType.text)
                 }
-                if preset.fileType != .jpeg {
+                if ScanPresets.isPdf(preset.fileType) {
                     Toggle("Smaller file (black and white)", isOn: $preset.smallerFile)
                         .help("PDF pages in black and white: a page of text takes a tenth of the space or less")
                 }
-                if preset.fileType == .searchablePdf { TextLanguagePicker(language: $preset.ocrLanguage) }
+                if [PresetFileType.searchablePdf, .word, .text].contains(preset.fileType) { TextLanguagePicker(language: $preset.ocrLanguage) }
                 HStack {
                     Text("Folder")
                     Spacer()
@@ -198,6 +200,9 @@ private struct PresetEditor: View {
                 }
                 if preset.after == .openInInkvoltPdf && preset.fileType == .jpeg {
                     Text("Inkvolt PDF opens PDFs: JPEG scans are only saved.").font(.caption).foregroundStyle(.secondary)
+                }
+                if preset.after == .openInInkvoltPdf && !ScanPresets.isPdf(preset.fileType) && preset.fileType != .jpeg {
+                    Text("Inkvolt PDF opens PDFs: Word and text scans are only saved.").font(.caption).foregroundStyle(.secondary)
                 }
             }
         }
