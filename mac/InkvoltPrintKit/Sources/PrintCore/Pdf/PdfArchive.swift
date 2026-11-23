@@ -36,20 +36,8 @@ public enum PdfArchive {
         return Array(("<?xpacket begin=\"\u{FEFF}\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>\n" + root + "\n<?xpacket end=\"w\"?>").utf8)
     }
 
-    /// Element text as XML writes it: `&`, `<` and `>` as entities.
-    static func escape(_ text: String) -> String {
-        var out = ""
-        out.reserveCapacity(text.utf8.count)
-        for c in text.unicodeScalars {
-            switch c {
-            case "&": out += "&amp;"
-            case "<": out += "&lt;"
-            case ">": out += "&gt;"
-            default: out.unicodeScalars.append(c)
-            }
-        }
-        return out
-    }
+    /// Element text as XML writes it (.NET's XElement: `&`, `<`, `>` and CR as entities).
+    static func escape(_ text: String) -> String { XmlOut.escape(text, attribute: false) }
 
     /// The UTC date and time as XMP writes it, always in the Gregorian calendar: "2026-11-22T14:30:05Z".
     static func isoDate(_ date: Date) -> String {

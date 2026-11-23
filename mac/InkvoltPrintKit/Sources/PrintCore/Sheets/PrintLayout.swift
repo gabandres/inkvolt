@@ -47,6 +47,9 @@ public enum Sheets {
         public var cutMarks = true
 
         public static let pagesPerSheetChoices = [2, 4, 6, 9, 16]
+        /// `n` if it is one of the choices, else 2 (the Mac's difference: Windows refuses it). The grid, the sheet count
+        /// and each sheet's pages all take it from here, so no page is ever left off.
+        public static func perSheet(_ n: Int) -> Int { pagesPerSheetChoices.contains(n) ? n : 2 }
 
         public init(handling: PrintHandling = .fit, sizing: PrintSizing = .actualSize, pagesPerSheet: Int = 2, order: PagesOrder = .across,
                     borders: Bool = false, rightBinding: Bool = false, posterScale: Double = 2, overlap: Double = 0, cutMarks: Bool = true) {
@@ -122,7 +125,7 @@ public enum Sheets {
         /// the pages turned a quarter clockwise onto the paper): whichever shows a `pageW` × `pageH` page largest (2 portrait
         /// pages on portrait paper: side by side on the turned sheet). `n` not one of the choices: 2.
         public static func grid(_ n: Int, _ pageW: Double, _ pageH: Double, _ areaW: Double, _ areaH: Double) -> (cols: Int, rows: Int, turned: Bool) {
-            let n = PrintSetup.pagesPerSheetChoices.contains(n) ? n : 2
+            let n = PrintSetup.perSheet(n)
             var best = (cols: 1, rows: n, turned: false)
             var bestScale = -1.0
             for turned in [false, true] {
@@ -330,7 +333,7 @@ public enum Sheets {
             case .pagesPerSheet:
                 sides = nil
                 posterStart = nil
-                let n = max(1, setup.pagesPerSheet)
+                let n = PrintSetup.perSheet(setup.pagesPerSheet)
                 sheetCount = (pages.count + n - 1) / n
             case .poster:
                 // No further once past maxCounted: a tiny paper and a huge page enlarged would otherwise count past any limit.
@@ -365,7 +368,7 @@ public enum Sheets {
                 let (l, r) = sides![index]
                 return PrintLayout.bookletSide(l < 0 ? -1 : pages[l], r < 0 ? -1 : pages[r], size, area)
             case .pagesPerSheet:
-                let n = max(1, setup.pagesPerSheet)
+                let n = PrintSetup.perSheet(setup.pagesPerSheet)
                 let slice = Array(pages.dropFirst(index * n).prefix(n))
                 return PrintLayout.pagesPerSheet(slice, size, n, setup.order, setup.borders, area)
             case .poster:

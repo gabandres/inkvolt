@@ -54,6 +54,15 @@ struct SheetPrintTests {
         #expect(SheetPrint.count(sixteen, [], Self.letter, copies: 1, twoSided: false) == (0, 0))
     }
 
+    /// Mac only (the review): a count that isn't a choice is 2 everywhere, so the sheets still hold every page.
+    @Test func aCountThatIsntAChoiceStillPrintsEveryPage() {
+        var three = Sheets.PrintSetup(handling: .pagesPerSheet)
+        three.pagesPerSheet = 3
+        let plan = Sheets.PrintPlan(Array(0..<6), { _ in (612, 792) }, Placement(0, 0, 612, 792), three)
+        #expect(plan.sheetCount == 3)
+        #expect((0..<plan.sheetCount).flatMap { plan.sheet($0).pages.map(\.page) } == Array(0..<6))
+    }
+
     @Test func aPosterTilesOnePageOverSeveralSheetsWithMarksInsideTheArea() {
         let poster = Self.setup(SheetChoice(.poster, posterPercent: 200))
         let (sides, sheets) = SheetPrint.count(poster, Self.pages(1), Self.letter, copies: 1, twoSided: true)

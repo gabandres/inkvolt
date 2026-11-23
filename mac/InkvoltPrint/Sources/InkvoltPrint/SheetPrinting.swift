@@ -113,14 +113,14 @@ final class SheetPrintView: NSView {
         let turned = (page.rotation / 90) % 2 != 0
         let (ptW, ptH) = turned ? (Double(box.height), Double(box.width)) : (Double(box.width), Double(box.height))
         guard ptW > 0, ptH > 0 else { return }
-        // PDFKit's page space, once `transform(_:for:)` has turned it, runs from its bottom left, y up, in points.
+        // PDFKit draws the page turned by its /Rotate itself (`draw(with:to:)`; `transform(_:for:)` as well turned a
+        // rotated page twice, off the sheet: checked on the build Mac), into its shown size from the bottom left, y up.
         let fromPage = CGAffineTransform(a: w / ptW, b: 0, c: 0, d: -h / ptH, tx: 0, ty: h)
         let onSheet = fromPage.concatenating(Self.toSheet(placed, w, h)).concatenating(toView)
         let clip = CGRect(x: placed.box.x, y: placed.box.y, width: placed.box.width, height: placed.box.height).applying(toView)
         cg.saveGState()
         cg.clip(to: clip)
         cg.concatenate(onSheet)
-        page.transform(cg, for: .cropBox)
         page.draw(with: .cropBox, to: cg)
         cg.restoreGState()
     }

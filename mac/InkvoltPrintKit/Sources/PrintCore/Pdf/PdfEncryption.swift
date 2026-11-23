@@ -241,15 +241,7 @@ public struct PdfEncryption: Sendable {
     }
 
     /// Upper-case hex, as .NET's Convert.ToHexString.
-    static func hex(_ bytes: [UInt8]) -> String {
-        let digits = Array("0123456789ABCDEF".unicodeScalars)
-        var out = String.UnicodeScalarView()
-        for b in bytes {
-            out.append(digits[Int(b >> 4)])
-            out.append(digits[Int(b & 0x0F)])
-        }
-        return String(out)
-    }
+    static func hex(_ bytes: [UInt8]) -> String { Digest.hex(bytes, uppercase: true) }
 
     private static func hexValue(_ c: Unicode.Scalar) -> UInt8? {
         switch c {

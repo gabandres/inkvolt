@@ -1237,7 +1237,12 @@ final class ScanModel {
             let document = PDFDocument()
             for url in urls {
                 if url.pathExtension.lowercased() == "pdf", let pdf = PDFDocument(url: url) {
-                    if pdf.isLocked, !(password.map { pdf.unlock(withPassword: $0) } ?? false) { continue }
+                    if pdf.isLocked, !(password.map { pdf.unlock(withPassword: $0) } ?? false) {
+                        // PDFKit can't open AES-256 with a password beyond ASCII (an ñ): the copy is printed from the
+                        // scanned pages instead, as a Word or text scan's is, rather than nothing said and nothing printed.
+                        await printPages()
+                        return
+                    }
                     for i in 0..<pdf.pageCount { if let page = pdf.page(at: i) { document.insert(page, at: document.pageCount) } }
                 } else if let image = NSImage(contentsOf: url), let page = PDFPage(image: image) {
                     document.insert(page, at: document.pageCount)
