@@ -224,35 +224,44 @@ public enum Optimizer {
     private static func blackAndWhite(_ doc: MuDoc, _ options: OptimizeOptions) throws -> Int {
         if !options.compressStreams && !options.blackAndWhiteScans { return 0 }
         let scans = options.blackAndWhiteScans ? try shown(doc) : nil
-        var images: [PObj] = []
-        var jobs: [OneBitImages.Job] = []
+        // What to look at, without its bytes yet: each job holds a copy of its picture's stored samples (Windows' closures
+        // reuse PDFsharp's), so they are read a batch at a time (`batchBytes`, `batchJobs`), not a whole scan's at once.
+        var picked: [(image: PObj, job: (PObj) -> OneBitImages.Job?)] = []
         for image in objects(doc) where image.isStream && image.name("Subtype") == "Image" {
-            let job: OneBitImages.Job?
             let bpc = image.int("BitsPerComponent")
             if bpc == 1 || bpc == nil {
-                job = options.compressStreams ? OneBitImages.recodeJob(image) : nil
+                if options.compressStreams { picked.append((image, OneBitImages.recodeJob)) }
             } else if let at = scans?[image.identity], min(at.x, at.y) >= 150, let source = imageSource(image, maskOnly: false) {
-                job = OneBitImages.thresholdJob(image, source: source, dpi: Int(min(at.x, at.y, 2400).rounded())) // bounded: 150...2400 (NaN fails the check above)
-            } else {
-                job = nil
-            }
-            if let job {
-                images.append(image)
-                jobs.append(job)
+                let dpi = Int(min(at.x, at.y, 2400).rounded()) // bounded: 150...2400 (NaN fails the check above)
+                picked.append((image, { OneBitImages.thresholdJob($0, source: source, dpi: dpi) }))
             }
         }
-        if jobs.isEmpty { return 0 }
-        let results = OneBitResults(jobs)
-        let threads = min(max(ProcessInfo.processInfo.activeProcessorCount / 2, 1), 4, jobs.count)
-        DispatchQueue.concurrentPerform(iterations: threads) { _ in results.work() }
-        var changed = 0
-        for (i, coded) in results.all.enumerated() {
-            guard let coded else { continue }
-            OneBitImages.apply(images[i], jobs[i], coded)
-            changed += 1
+        var changed = 0, next = 0
+        while next < picked.count {
+            var images: [PObj] = [], jobs: [OneBitImages.Job] = [], bytes = 0
+            while next < picked.count && jobs.count < batchJobs && bytes < batchBytes {
+                let (image, make) = picked[next]
+                next += 1
+                guard let job = make(image) else { continue }
+                images.append(image)
+                jobs.append(job)
+                bytes += job.raw.count
+            }
+            if jobs.isEmpty { continue }
+            let results = OneBitResults(jobs)
+            let threads = min(max(ProcessInfo.processInfo.activeProcessorCount / 2, 1), 4, jobs.count)
+            DispatchQueue.concurrentPerform(iterations: threads) { _ in results.work() }
+            for (i, coded) in results.all.enumerated() {
+                guard let coded else { continue }
+                OneBitImages.apply(images[i], jobs[i], coded)
+                changed += 1
+            }
         }
         return changed
     }
+
+    /// At most this many pictures' stored bytes, or this many pictures, are copied out of the document at once.
+    static let batchBytes = 256 << 20, batchJobs = 64
 
     /// The pictures' jobs, each taken by the next free worker, and their results.
     private final class OneBitResults: @unchecked Sendable {
