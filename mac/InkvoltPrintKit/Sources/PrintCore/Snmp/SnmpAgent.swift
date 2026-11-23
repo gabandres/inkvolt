@@ -109,6 +109,19 @@ public final class SnmpAgent: SnmpTransport {
         case "Gauge32", "Counter32":
             guard let n = UInt64(value) else { throw bad }
             return .unsigned(type == "Gauge32" ? Ber.gauge32 : Ber.counter32, n)
+        case "Counter64":
+            guard let n = UInt64(value) else { throw bad }
+            return .unsigned(Ber.counter64, n)
+        case "Opaque", "OPAQUE":
+            // Its octets in hex, as "Opaque: 9F 78 04 3F C0 00 00"; net-snmp's decoded "Opaque: Float: …" isn't read.
+            let digits = Array(value.filter { $0 != " " })
+            guard digits.count % 2 == 0 else { throw bad }
+            var bytes: [UInt8] = []
+            for i in stride(from: 0, to: digits.count, by: 2) {
+                guard let b = UInt8(String(digits[i...i + 1]), radix: 16) else { throw bad }
+                bytes.append(b)
+            }
+            return .opaque(bytes)
         case "Timeticks":
             guard let n = firstNumber(in: value, signed: false) else { throw bad }
             return .unsigned(Ber.timeTicks, UInt64(n))
@@ -133,7 +146,8 @@ public final class SnmpAgent: SnmpTransport {
 
     /// The other way: objects as `parseWalk` reads them, one per line in OID order, each name once. A string that wouldn't
     /// read back byte for byte (invalid UTF-8, control characters, surrounding spaces, a trailing backslash) is written as
-    /// Hex-STRING; a type the walk form has no word for is a comment line.
+    /// Hex-STRING; a Counter64 keeps its full unsigned value and an Opaque its octets as they came. A type the walk form has
+    /// no word for (NULL, the v2c exceptions, a vendor's type) is a comment line.
     public static func formatWalk(_ objects: [SnmpVarBind]) -> String {
         var seen = Set<Oid>()
         var lines = ""
@@ -144,6 +158,8 @@ public final class SnmpAgent: SnmpTransport {
             case Ber.integer: value = "INTEGER: \(v.number)"
             case Ber.gauge32: value = "Gauge32: \(v.number)"
             case Ber.counter32: value = "Counter32: \(v.number)"
+            case Ber.counter64: value = "Counter64: \(UInt64(bitPattern: v.number))"
+            case Ber.opaque: value = "Opaque: \(SnmpValue.hexString(v.bytes ?? []))"
             case Ber.timeTicks: value = "Timeticks: (\(v.number))"
             case Ber.objectIdentifier: value = v.objectId.map { "OID: .\($0)" }
             case Ber.ipAddress: value = v.bytes?.count == 4 ? "IpAddress: \(v.bytes!.map(String.init).joined(separator: "."))" : nil
