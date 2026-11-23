@@ -1905,8 +1905,21 @@ Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the 
   bringing in a page sharing no word, Remove deleting the meaning index. Mac differences: a file's paths are compared as
   written (the Mac's index keeps them so), where Windows ignores case; "busy just now" is a file this user can't read
   (`MeaningIndexTests` makes it so with chmod), macOS having no FileShare.None; a boolean in a vector is refused.
+- **4.23 Edit by Asking** (Tools › AI Assistant › Edit by Asking…; Windows has it under Review › AI Assistant): PdfCore
+  `AskEdit` (`messages`: the request, the page count and the page in view, no document text; `requestJson` with the six
+  tools, not streamed; `parse`: only calls of those tools with values that check out become steps, at most 10, the rest
+  said; `afterDelete`; `isNoToolsError`), `AiClient.askEdit`, `AskEditTests` under their names. The app: AskEdit.swift
+  (`AskEditRequestSheet`, the send window with the tools in its preview (`AiOutgoing.previewExtra`), `AskEditStepsSheet`
+  with each step ticked, the steps run in order through the commands the menus use: `go`, `rotatePages`, `removePages`,
+  `addBookmark`, a highlight of every match through `SearchMarks`, Redact by Pattern's marks (`runPatternRedaction`), each
+  one undo step). `--only-ask-edit` (`AskEditTest`): the assistant off then on, the send window (the tools, no document
+  text), four steps ticked and a fifth tool said, Run (a page turned, a bookmark following the deleted page, the highlight,
+  the deletion), four Undos, a model that can't call tools. Mac difference: redaction's step marks the matches as
+  Redact by Pattern does on the Mac (marked for review, applied only by Apply Redactions), where Windows opens its review
+  list.
 - Not checked by a person: the windows and the send window's listing by eye and with VoiceOver; a real model (Ollama or
-  LM Studio on this Mac), and a real embedding model (nomic-embed-text).
+  LM Studio on this Mac), and a real embedding model (nomic-embed-text); Edit by Asking with a real model that calls tools
+  (qwen3).
 
 ## Open decisions
 
@@ -1937,8 +1950,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
   4.24 a summary read aloud to a file
   (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
-  makes MP3; port `AiAnswerSpeechTests`); 4.23 Edit by Asking (`AskEdit`, `AiClient.AskEditAsync`, the steps window; port
-  `AskEditTests`).
+  makes MP3; port `AiAnswerSpeechTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

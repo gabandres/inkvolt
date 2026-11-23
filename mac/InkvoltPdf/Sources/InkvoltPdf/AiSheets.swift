@@ -600,10 +600,13 @@ final class AiConfirmSheet: AiSheet {
 
     private func full() -> String {
         if let fullPreview { return fullPreview }
-        let made = AiPrompts.preview(outgoing.requests)
+        let made = AiPrompts.preview(outgoing.requests) + (outgoing.previewExtra ?? "")
         fullPreview = made
         return made
     }
+
+    /// Exactly what goes, as Copy All copies it (the self-test reads it).
+    var fullPreviewText: String { full() }
 
     @objc func disclosureClicked() {
         let open = disclosure.state == .on

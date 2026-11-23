@@ -21,6 +21,8 @@ final class AiState {
     var testTranslate: DocumentWindowController.TranslateTestAnswers?
     var lastTranslationSummary: String?
     weak var lastTranslationCopy: DocumentWindowController?
+    /// What the last Edit by Asking proposed and did (the self-test reads it).
+    var lastAskEdit = "none"
 
     /// True while a request of this document's AI assistant runs.
     var isBusy: Bool { cancel != nil }
@@ -241,7 +243,7 @@ extension DocumentWindowController {
     // MARK: Plumbing
 
     /// The configuration to use, with the pane open; nil (after asking for setup) when the assistant is off or busy.
-    private func prepare() async -> AiConfig? {
+    func prepare() async -> AiConfig? {
         guard await aiReady(), var config = AiService.current(AppSettings.ai).config else { return nil }
         showAiPane(focusQuestion: false)
         guard let pane = ai.pane else { return nil }

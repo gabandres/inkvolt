@@ -480,3 +480,32 @@ extension AiClient {
         return try AiEmbeddings.parse(body, api, inputs.count)
     }
 }
+
+extension AiClient {
+    /// One chat request with the Edit by Asking tools, not streamed; its answer read into checked steps (roadmap 4.23; the
+    /// Windows `AskEditAsync`). A model that can't call tools is said so, in words.
+    /// - Throws: `AiError` when the endpoint refused or failed, or the model can't call tools.
+    public func askEdit(_ messages: [AiMessage], pageCount: Int, cancel: CancelToken? = nil) async throws -> AskEditPlan {
+        var headers: [(name: String, value: String)] = [("Content-Type", "application/json; charset=utf-8")]
+        headers += try authorization()
+        let json = AskEdit.requestJson(model, messages)
+        let request = AiHttpRequest(method: "POST", url: endpoint.chatUrl, headers: headers, body: Array(json.utf8))
+        let deadline = AiDeadline(cancel)
+        defer { deadline.finish() }
+        deadline.cancelAfter(timeouts.firstByte)
+        let response = try await send(request, deadline, cancel, timeouts.firstByte)
+        defer { response.body.close() }
+        let ok = (200..<300).contains(response.status)
+        let body = try await readBody(response, deadline, cancel, truncate: !ok)
+        if !ok {
+            let said = AiProtocol.errorMessageOf(body)
+            if AskEdit.isNoToolsError(response.status, said) {
+                throw AiError(loc("{0} on {1} can't call tools, which Edit by Asking needs. Choose a model that can, such as qwen3, llama3.1 or mistral-nemo, in the AI assistant's settings.", model, endpoint.host),
+                              status: response.status)
+            }
+            throw AiError(AiProtocol.describeError(response.status, said, model, endpoint), status: response.status)
+        }
+        // Off the caller's (the window's) thread: an answer of up to the reply limit is parsed and checked on a worker.
+        return try await Task.detached(priority: .userInitiated) { try AskEdit.parse(body, pageCount: pageCount) }.value
+    }
+}

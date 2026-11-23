@@ -26631,6 +26631,193 @@
           }
         }
       }
+    },
+    "Rotate {0} clockwise": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar {0} en el sentido de las agujas del reloj"
+          }
+        }
+      }
+    },
+    "Rotate {0} counterclockwise": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar {0} en sentido contrario a las agujas del reloj"
+          }
+        }
+      }
+    },
+    "Turn {0} upside down (180°)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Girar {0} 180°"
+          }
+        }
+      }
+    },
+    "Add a bookmark \"{0}\" that goes to page {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar un marcador «{0}» que lleva a la página {1}"
+          }
+        }
+      }
+    },
+    "Highlight every \"{0}\"": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar cada «{0}»"
+          }
+        }
+      }
+    },
+    "Find for redaction, to review in its list: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar para eliminar, para revisarlo en su lista: {0}"
+          }
+        }
+      }
+    },
+    "Only the first {0} steps are shown; the rest were left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se muestran los primeros {0} pasos; el resto se dejó fuera."
+          }
+        }
+      }
+    },
+    "The answer held more than {0} calls; the rest were left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta tenía más de {0} llamadas; el resto se dejó fuera."
+          }
+        }
+      }
+    },
+    "A proposed step wasn't a call of a command and was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un paso propuesto no era una llamada a un comando y se dejó fuera."
+          }
+        }
+      }
+    },
+    "A {0} step had values that don't make sense and was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un paso {0} tenía valores sin sentido y se dejó fuera."
+          }
+        }
+      }
+    },
+    "A {0} step named a page this document doesn't have (it has {1}) and was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un paso {0} indicaba una página que este documento no tiene (tiene {1}) y se dejó fuera."
+          }
+        }
+      }
+    },
+    "A step deleting every page was left out: a PDF keeps at least one page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejó fuera un paso que eliminaba todas las páginas: un PDF conserva al menos una página."
+          }
+        }
+      }
+    },
+    "A step called {0}, which isn't one of the commands offered, was left out.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejó fuera un paso llamado {0}, que no es uno de los comandos ofrecidos."
+          }
+        }
+      }
+    },
+    "{0} on {1} can't call tools, which Edit by Asking needs. Choose a model that can, such as qwen3, llama3.1 or mistral-nemo, in the AI assistant's settings.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} en {1} no puede llamar a herramientas, y Editar pidiéndolo lo necesita. Elige un modelo que pueda, como qwen3, llama3.1 o mistral-nemo, en la configuración del asistente de IA."
+          }
+        }
+      }
+    },
+    "Edit by Asking…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar pidiéndolo…"
+          }
+        }
+      }
+    },
+    "Go to page {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ir a la página {0}"
+          }
+        }
+      }
+    },
+    "Delete {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar {0}"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

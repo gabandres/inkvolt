@@ -486,6 +486,8 @@ public enum DocumentCommands {
             c("Ask AI about This Document", "aiAsk:", needs: [.pages]),
             c("Explain Selection with AI", "aiExplain:", needs: [.selectedText, .aiIdle]),
             c("Translate with AI…", "aiTranslate:", needs: [.pages, .aiIdle]),
+            // Roadmap 4.23: a request in the person's words as a few of the palette's commands (Windows: Review › AI Assistant).
+            c("Edit by Asking…", "aiAskEdit:", needs: [.pages, .aiIdle]),
             sep,
             c("AI Assistant Settings…", "aiSettings:"),
         ])),

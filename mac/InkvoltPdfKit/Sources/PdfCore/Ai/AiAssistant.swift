@@ -195,6 +195,8 @@ public struct AiOutgoing: Sendable, Equatable {
     public var listing: [String] = []
     /// The window's "only this is sent" note in place of the usual one, or nil.
     public var onlyNote: String?
+    /// What the preview shows after the messages (Edit by Asking's tools), or nil.
+    public var previewExtra: String?
 
     public init(_ requests: [[AiMessage]], what: String, followUp: String? = nil, listing: [String] = [], onlyNote: String? = nil) {
         self.requests = requests

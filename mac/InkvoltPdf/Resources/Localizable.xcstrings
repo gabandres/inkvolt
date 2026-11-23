@@ -4203,17 +4203,6 @@
         }
       }
     },
-    "Delete {0}": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar {0}"
-          }
-        }
-      }
-    },
     "Delete {0} pages": {
       "extractionState": "manual",
       "localizations": {
@@ -6212,17 +6201,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ir a una página (⌥⌘G)"
-          }
-        }
-      }
-    },
-    "Go to page {0}": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ir a la página {0}"
           }
         }
       }
@@ -24901,6 +24879,237 @@
           "stringUnit": {
             "state": "translated",
             "value": "La búsqueda por significado solo funciona en carpetas indexadas."
+          }
+        }
+      }
+    },
+    "Edit by Asking": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar pidiéndolo"
+          }
+        }
+      }
+    },
+    "Say what to do to this document in your own words, such as \"turn pages 3 to 5 the right way up and bookmark page 6 as Appendix\". Your AI assistant proposes the steps; you see each one and choose before anything runs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di qué hacer con este documento con tus propias palabras, por ejemplo «pon derechas las páginas 3 a 5 y agrega un marcador Apéndice en la página 6». Tu asistente de IA propone los pasos; ves cada uno y eliges antes de que se ejecute nada."
+          }
+        }
+      }
+    },
+    "Rotate the last page and highlight every \"deadline\"": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gira la última página y resalta cada «plazo»"
+          }
+        }
+      }
+    },
+    "What to do": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer"
+          }
+        }
+      }
+    },
+    "Only your words, the number of pages and the page you're on are sent, with the list of commands it may use: none of the document's text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían tus palabras, el número de páginas y la página en la que estás, con la lista de comandos que puede usar: nada del texto del documento."
+          }
+        }
+      }
+    },
+    "Type what to do.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe qué hacer."
+          }
+        }
+      }
+    },
+    "Steps Proposed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasos propuestos"
+          }
+        }
+      }
+    },
+    "Your AI assistant proposes these steps, in this order. Untick any you don't want: nothing runs until you press Run, and Undo takes each edit back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu asistente de IA propone estos pasos, en este orden. Desmarca los que no quieras: no se ejecuta nada hasta que pulses Ejecutar, y Deshacer revierte cada edición."
+          }
+        }
+      }
+    },
+    "The model said: \"{0}\"": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo dijo: «{0}»"
+          }
+        }
+      }
+    },
+    "Tick at least one step, or Cancel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos un paso, o Cancelar."
+          }
+        }
+      }
+    },
+    "Your request, the page count and the page you're on, with the commands it may propose": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu petición, el número de páginas y la página en la que estás, con los comandos que puede proponer"
+          }
+        }
+      }
+    },
+    "Only this and the model's name are sent: no text of the document, its name or its folder. The model only proposes steps; nothing runs before you choose.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían esto y el nombre del modelo: nada del texto del documento, ni su nombre ni su carpeta. El modelo solo propone pasos; no se ejecuta nada antes de que elijas."
+          }
+        }
+      }
+    },
+    "Send your request to the AI assistant?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Enviar tu petición al asistente de IA?"
+          }
+        }
+      }
+    },
+    "The document changed while the AI assistant was answering, so its steps no longer fit. Nothing was done: ask again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento cambió mientras el asistente de IA respondía, así que sus pasos ya no corresponden. No se hizo nada: vuelve a pedirlo."
+          }
+        }
+      }
+    },
+    "The AI assistant didn't propose any step it can take with the commands offered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El asistente de IA no propuso ningún paso que se pueda hacer con los comandos ofrecidos."
+          }
+        }
+      }
+    },
+    "Left out, as a step before it deleted its pages: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejó fuera, porque un paso anterior eliminó sus páginas: {0}."
+          }
+        }
+      }
+    },
+    "Left out, as it would delete every page: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejó fuera, porque eliminaría todas las páginas: {0}."
+          }
+        }
+      }
+    },
+    "Not done: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se hizo: {0}."
+          }
+        }
+      }
+    },
+    "Ran {0} step. Undo takes each edit back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecutó {0} paso. Deshacer revierte cada edición."
+          }
+        }
+      }
+    },
+    "Ran {0} steps. Undo takes each edit back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecutaron {0} pasos. Deshacer revierte cada edición."
+          }
+        }
+      }
+    },
+    "\"{0}\" isn't in the document.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» no está en el documento."
           }
         }
       }
