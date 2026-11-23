@@ -297,6 +297,21 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
   file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
   (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
+- **4.15 Recent scans.** PrintCore `RecentScan`, `RecentScans` (`add`, `clean`, `present`, `remove`, `day`, `usable`),
+  `RecentScanDay`, `PrintState.recentScans`; `RecentScansTests` (PC). The app: every save (Save…, a preset's) goes on the list
+  with the scanner's and preset's names (`ScanModel.finishSaving`, `AppModel.noteRecentScan`); the save bar's Recent Scans…
+  opens a sheet listing them (`RecentScansSheet.swift`), the files gone checked off the main thread and dropped from the
+  list as it is by then, each with Open, Show in Finder, Email Again (the Mail sharing service), Print… and Remove from
+  List, and Clear the List…; `--report … --recent-scans`. **Mac differences:** an entry keeps an app-scoped security
+  bookmark of the folder it was saved in (or of the one file the save panel named) in `access`, the sandbox's way back to
+  it in a later run (Windows needs none); a file whose bookmark no longer resolves counts as gone. A usable path is a
+  full POSIX path (`/Users/…`, `/Volumes/…`), not `/dev/…`, with no `.` or `..` part or control character (Windows: a
+  drive or share path, no device path or alternate stream); a quote is allowed (a Mac name may hold one). Print sends
+  several PDFs as one job through the print panel (Windows opens them in Batch) and isn't offered for a Word or text scan
+  (Windows sends those to Print photos, which can't read them); pictures go to Print Photos with their folder held open
+  until the next. The list is reached from the Scan tab only (Windows also from the sidebar, without Print). The demo has
+  no stand-in for Open or Email (Windows' demo says what would happen). Not checked: the sheet on screen, Open, Email
+  Again and Print with a real mail app and printer, a network volume's files, VoiceOver.
 
 ## Mac differences
 

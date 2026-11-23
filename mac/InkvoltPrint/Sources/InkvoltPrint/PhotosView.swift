@@ -330,8 +330,11 @@ struct PhotosView: View {
             .onChange(of: model.borderless) { model.refresh() }
             .task {
                 await model.loadPapers()
-                // The Debug build's snapshots open it with the demo photos in it.
-                if case .printPhotos(let files) = app.paneRequest, model.photos.isEmpty { model.add(files) }
+                // The Debug build's snapshots, and Recent Scans' Print (roadmap 4.15), open it with pictures in it; once.
+                if case .printPhotos(let files) = app.paneRequest, model.photos.isEmpty {
+                    model.add(files)
+                    app.paneRequest = nil
+                }
             }
             Divider()
             VStack(spacing: 0) {

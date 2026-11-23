@@ -175,8 +175,9 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     (`CcittG4`, `Bilevel`; on the Mac in PrintCore, PDFKit draws them too: `mac/docs/PLAN.md`, "Wave 4"). **Next:** Inkvolt
     PDF's 4.8 to reuse it, on Windows and Mac.
 - **Batch B:**
-  - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
-    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
+  - **4.15 Recent scans.** Done on Windows and Mac: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
+    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`; the Mac's in `mac/docs/PLAN.md`,
+    "Wave 4"). **Next:** a person to open, email and print a scan from the list on a Mac.
   - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
     copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
     half waits.

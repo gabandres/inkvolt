@@ -112,6 +112,9 @@ final class ScanModel {
     @ObservationIgnored private unowned let printer: PrinterModel
     @ObservationIgnored private let app: AppModel
 
+    /// The printer this tab scans on (Recent Scans' Print prints there).
+    var owner: PrinterModel { printer }
+
     init(printer: PrinterModel, app: AppModel) {
         self.printer = printer
         self.app = app
@@ -1192,7 +1195,8 @@ final class ScanModel {
             all += urls
         }
         isSaving = false
-        await finishSaving(all, in: folder.lastPathComponent, note: asSentNote(files), reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf)
+        await finishSaving(all, in: folder.lastPathComponent, note: asSentNote(files), reveal: p.after == .none, presetOpens: p.after == .openInInkvoltPdf,
+                           preset: p.name, access: folder)
         await after(p.after, all, document: document != nil)
     }
 
@@ -1279,7 +1283,7 @@ final class ScanModel {
         }
         switch result {
         case .success(let urls):
-            await finishSaving(before + urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal)
+            await finishSaving(before + urls, in: url.lastPathComponent, note: asSentNote(files), reveal: reveal, access: url)
         case .failure:
             problem = String(localized: "The scan couldn't be saved there. Choose another place, or check there's room on the disk.")
             status = pages.summary
@@ -1288,7 +1292,11 @@ final class ScanModel {
 
     /// The save's status line; then, with Settings' "Open scans in Inkvolt PDF" on and Inkvolt PDF installed, the saved
     /// PDFs open there (once: not again when the preset's own step opens them), else Finder shows them when asked.
-    private func finishSaving(_ urls: [URL], in place: String, note: String, reveal: Bool, presetOpens: Bool = false) async {
+    /// A save also goes on the recent scans (roadmap 4.15), with this scanner's name, the preset's, and a bookmark of `access`
+    /// (the folder saved in, or the one file a save panel named), while the save still holds it.
+    private func finishSaving(_ urls: [URL], in place: String, note: String, reveal: Bool, presetOpens: Bool = false,
+                              preset: String? = nil, access: URL? = nil) async {
+        app.noteRecentScan(urls, pages: pages.toSave.count, printer: printer.name, preset: preset, access: access)
         let saved = pages.toSave.count == 1 ? String(localized: "1 page") : String(localized: "\(pages.toSave.count) pages")
         let files = urls.count > 1 ? String(localized: " as \(urls.count) files") : ""
         clear()

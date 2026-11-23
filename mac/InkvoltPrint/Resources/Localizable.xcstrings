@@ -173,12 +173,52 @@
         }
       }
     },
+    "%@ and %lld more": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ y %lld más"
+          }
+        }
+      }
+    },
+    "%@ and 1 more": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ y 1 más"
+          }
+        }
+      }
+    },
     "%@ asks for its admin password": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "%@ pide su contraseña de administrador"
+          }
+        }
+      }
+    },
+    "%@ couldn't be opened: no app on this Mac opens it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo abrir %@: ninguna aplicación de este Mac lo abre."
+          }
+        }
+      }
+    },
+    "%@ couldn't be read to print (moved, changed or protected with a password).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer %@ para imprimirlo (se movió, cambió o tiene contraseña)."
           }
         }
       }
@@ -267,6 +307,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ por encima de los %@ que admite un lote"
+          }
+        }
+      }
+    },
+    "%@ was removed from the list; the file is still there.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ se quitó de la lista; el archivo sigue ahí."
           }
         }
       }
@@ -515,6 +565,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld de %lld páginas"
+          }
+        }
+      }
+    },
+    "%lld of the files couldn't be read and won't print.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld de los archivos no se pudieron leer y no se imprimirán."
           }
         }
       }
@@ -1670,6 +1730,36 @@
         }
       }
     },
+    "Clear the List": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaciar la lista"
+          }
+        }
+      }
+    },
+    "Clear the List…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vaciar la lista…"
+          }
+        }
+      }
+    },
+    "Clear the list of recent scans?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Vaciar la lista de escaneos recientes?"
+          }
+        }
+      }
+    },
     "Click a mark on the page in the color to drop.": {
       "localizations": {
         "es": {
@@ -2126,6 +2216,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cada foto colocada en el cristal se encuentra y se guarda como imagen propia, recortada y derecha"
+          }
+        }
+      }
+    },
+    "Email Again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviar de nuevo por correo"
           }
         }
       }
@@ -3294,6 +3394,26 @@
         }
       }
     },
+    "More for %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más para %@"
+          }
+        }
+      }
+    },
+    "More for %@: Show in Finder, Email Again, Print, Remove from List": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más para %@: Mostrar en el Finder, Enviar de nuevo por correo, Imprimir, Quitar de la lista"
+          }
+        }
+      }
+    },
     "Move Down": {
       "localizations": {
         "es": {
@@ -3414,12 +3534,32 @@
         }
       }
     },
+    "No Saved Scans Yet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay escaneos guardados"
+          }
+        }
+      }
+    },
     "No macOS print queue": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Sin cola de impresión de macOS"
+          }
+        }
+      }
+    },
+    "No mail app is set up on this Mac to attach the scan to. Finder shows it to attach by hand.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ninguna aplicación de correo configurada en este Mac para adjuntar el escaneo. El Finder lo muestra para adjuntarlo a mano."
           }
         }
       }
@@ -3670,6 +3810,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir"
+          }
+        }
+      }
+    },
+    "Open %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir %@"
           }
         }
       }
@@ -4416,6 +4566,26 @@
         }
       }
     },
+    "Recent Scans": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneos recientes"
+          }
+        }
+      }
+    },
+    "Recent Scans…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneos recientes…"
+          }
+        }
+      }
+    },
     "Recognising text…": {
       "localizations": {
         "es": {
@@ -4502,6 +4672,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quitar de Inkvolt Print…"
+          }
+        }
+      }
+    },
+    "Remove from List": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar de la lista"
           }
         }
       }
@@ -5130,6 +5310,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escaneos"
+          }
+        }
+      }
+    },
+    "Scans you save, or save with a preset, show here.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los escaneos que guardes, o que guardes con un ajuste, aparecen aquí."
           }
         }
       }
@@ -5766,6 +5956,16 @@
         }
       }
     },
+    "The files stay where they are.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los archivos se quedan donde están."
+          }
+        }
+      }
+    },
     "The first page is on its way.": {
       "localizations": {
         "es": {
@@ -5842,6 +6042,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "El idioma del texto de las páginas, para el texto del PDF buscable"
+          }
+        }
+      }
+    },
+    "The last scans saved on this Mac: open, show, email or print them again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los últimos escaneos guardados en este Mac: ábrelos, muéstralos, envíalos por correo o imprímelos de nuevo"
           }
         }
       }
@@ -6370,6 +6580,16 @@
         }
       }
     },
+    "Today, %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoy, %@"
+          }
+        }
+      }
+    },
     "Try Again": {
       "localizations": {
         "es": {
@@ -6802,6 +7022,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trabajando…"
+          }
+        }
+      }
+    },
+    "Yesterday, %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayer, %@"
+          }
+        }
+      }
+    },
+    "Your last saved scans, from every scanner. The list is kept on this Mac only; removing a scan from it doesn't delete the file.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tus últimos escaneos guardados, de todos los escáneres. La lista se guarda solo en este Mac; quitar un escaneo de ella no elimina el archivo."
           }
         }
       }
