@@ -267,6 +267,18 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows
   keeps the channels both have; a join placed past Int's range is refused. Not checked: a real A3 drawing on a letter or A4
   glass, the sheet on screen (the arrows' keys, VoiceOver).
+- **4.11 Name the file from its contents.** PrintCore `PageText.lines`/`withoutStrays` (`TextLine`), `TextFinds` (`find`,
+  `dayFirst`), `FoundInText`, `TextDate`, `NameContext.found`, `FileNameTemplate`'s `{text-date}` (with a format),
+  `{text-title}` and `{text-number}` (what the page doesn't say takes its separator with it) and `readsText`, `PresetPlan.ocr`
+  for a name read from the page (a PDF preset's file becomes searchable, as on Windows); `NameFromTextTests` (PC). The app:
+  `ScanModel.showsSaveName`, `saveName` (filled once the scan's pages are checked and again when the first page changes,
+  unless typed: `editSaveName`), the first page read by Vision as it will be saved and kept for the save (`foundFor`, by the
+  page's id and edits), the first file of a save named as typed; the save bar's File name field beside Save (preset); the
+  editor's caption for the tokens; the demo glass's made-up invoice (`DemoScan.invoice`); `--report … --name-from-text`.
+  **Mac differences:** a locale where Windows has a culture (`Locale.current`; day or month first from its short date as ICU
+  writes it, the month names from `DateFormatter`'s lists); a found date is a `TextDate` (a day, no clock) written with UTC's;
+  lengths count characters where .NET counts UTF-16 units; the field shows for a preset that stops on the review, as on
+  Windows, beside Save rather than above the pages. Not checked: real invoices and receipts, the field on screen (VoiceOver).
 
 ## Mac differences
 
@@ -1830,8 +1842,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
-  `{text-number}`), done on Windows.
 - Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.

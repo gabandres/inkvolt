@@ -180,6 +180,7 @@ final class ScanModel {
         dpi = plan.request.resolution
         sizeKey = ScanChoices.pageSizes.first { $0.width == plan.request.width && $0.height == plan.request.height }?.key ?? sizeKey
         format = p.fileType == .jpeg ? .jpeg : plan.ocr ? .searchablePdf : .pdf
+        if preset?.id != p.id { forgetSaveName() }
         preset = p
         let notes = plan.notes
         // The preset's checks are its own: the tab's settings stay as the user set them.
@@ -189,7 +190,61 @@ final class ScanModel {
         scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
+            if p.review { await self.fillSaveName() } // once its pages are checked
         }
+    }
+
+    // MARK: The file's name from the page's text (roadmap 4.11)
+
+    /// The review shows the name the preset's save will give (its template reads the page's text), to change before saving.
+    var showsSaveName: Bool { preset.map { $0.review && FileNameTemplate.readsText($0.fileName) } ?? false }
+
+    /// The first file's name (no extension): filled from the page's text (`fillSaveName`), or as typed in the review.
+    private(set) var saveName = ""
+    private(set) var saveNameEdited = false
+    @ObservationIgnored private var saveNameFills = 0
+    /// What the first page said, for the page as it was read (its id and edits): a fill or the save after it reads it once.
+    @ObservationIgnored private var foundFor: (page: String, edits: PageEdits, found: FoundInText)?
+
+    /// The name as typed in the review: the save gives the first file this name.
+    func editSaveName(_ name: String) {
+        saveName = name
+        saveNameEdited = true
+    }
+
+    private func forgetSaveName() {
+        saveName = ""
+        saveNameEdited = false
+        foundFor = nil
+    }
+
+    /// What the first page of `file` (not a page of photos) says for the preset's name, its text read by Vision as the page
+    /// will be saved; nil when the name doesn't ask, `FoundInText.none` when the page says nothing or can't be read.
+    private func found(in file: [ScannedPage], _ p: ScanPreset) async -> FoundInText? {
+        guard FileNameTemplate.readsText(p.fileName) || FileNameTemplate.readsText(p.subfolder) else { return nil }
+        guard let page = file.first(where: { !$0.hasPhotos }), let jpeg = images[page.id] else { return FoundInText.none }
+        if let cached = foundFor, cached.page == page.id, cached.edits == page.edits { return cached.found }
+        let (edits, dpi, language) = (page.edits, page.dpi, page.ocrLanguage)
+        let found: FoundInText = await offPool {
+            guard let shown = try? ScanImaging.jpeg(jpeg, edits, dpi: dpi), let size = try? PdfWriter.jpegInfo(shown),
+                  let words = ScanPdf.recognize(shown, language: language) else { return FoundInText.none }
+            return TextFinds.find(ScanPdf.pixelWords(words, width: size.width, height: size.height), locale: .current)
+        }
+        if self.pages.page(page.id)?.edits == edits { foundFor = (page.id, edits, found) }
+        return found
+    }
+
+    /// Fills `saveName` as the preset's save would name the first file (with the preset's next number), unless it was typed.
+    func fillSaveName() async {
+        guard showsSaveName, !saveNameEdited, let p = preset, let file = pages.files.first, !file.isEmpty else { return }
+        saveNameFills += 1
+        let fill = saveNameFills
+        let found = await found(in: file, p)
+        guard fill == saveNameFills, !saveNameEdited, preset?.id == p.id else { return }
+        let current = app.presets.first { $0.id == p.id } ?? p
+        let pages = imagesPerFile.first ?? file.count
+        saveName = FileNameTemplate.fileName(current.fileName, NameContext(now: Date(), preset: current.name, printer: printer.name,
+                                                                           number: current.nextNumber, pages: pages, found: found))
     }
 
     /// Scans with the tab's settings, or a preset's `check`, `keepSeparators` and `turnStack`. Batches come from the feeder
@@ -770,6 +825,7 @@ final class ScanModel {
     /// Drops every page (after saving them, or when the user starts over).
     func clear() {
         preset = nil
+        forgetSaveName()
         stack = nil
         savedParts.clear()
         pages = ScanPages()
@@ -816,6 +872,7 @@ final class ScanModel {
 
     /// The recovery folder gets the page list (and any page not written yet) each time it changes.
     private func keep() {
+        if showsSaveName && !saveNameEdited && !isScanning { Task { await fillSaveName() } } // the first page may have changed
         guard let store = app.scanStore else { return }
         if pages.isEmpty {
             store.forget(printer.id)
@@ -1063,8 +1120,12 @@ final class ScanModel {
                 all += done.map { URL(fileURLWithPath: $0) }
                 continue
             }
-            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f])
-            let stem = FileNameTemplate.fileName(p.fileName, ctx)
+            let found = await found(in: file, p)
+            let ctx = NameContext(now: Date(), preset: p.name, printer: printer.name, number: numbers.take(app.reserveNumber(p.id)), pages: counts[f],
+                                  found: found)
+            // The first file's name as the review shows it, when it was changed there; else the template's.
+            let typed = saveName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let stem = f == 0 && saveNameEdited && !typed.isEmpty ? FileNameTemplate.sanitize(typed) : FileNameTemplate.fileName(p.fileName, ctx)
             let sub = FileNameTemplate.subfolder(p.subfolder, ctx)
             let dir = sub.isEmpty ? folder : folder.appendingPathComponent(sub, isDirectory: true)
             let format = format

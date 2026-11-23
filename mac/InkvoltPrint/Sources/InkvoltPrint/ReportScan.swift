@@ -190,6 +190,31 @@ extension Report {
         return lines
     }
 
+    /// `--name-from-text` (roadmap 4.11): the demo inkjet's glass holds a made-up invoice; scanned with a preset named
+    /// "{text-date} {text-title} {text-number}" that stops on the review, the name the review shows (read by Vision from the
+    /// page), then the name typed over it.
+    static func nameFromTextCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["name from text: no demo inkjet"] }
+        defer { Demo.scanSetup.hold(nil) }
+        Demo.scanSetup.hold(DemoScan.invoice)
+        var p = ScanPresets.builtIns()[0]
+        p.id = "name-from-text-check"
+        p.name = "Bills"
+        (p.source, p.fileType, p.review, p.skipBlank) = (.glass, .pdf, true, false)
+        p.fileName = "{text-date} {text-title} {text-number}"
+        await scan.scan(with: p)
+        for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
+        for _ in 0..<100 where scan.saveName.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        var lines = ["name from text: \(scan.status) \(scan.problem ?? "")",
+                     "  shown in the review \(scan.showsSaveName), format \(scan.format), name \"\(scan.saveName)\""]
+        scan.editSaveName("Maple invoice")
+        await scan.fillSaveName() // a name typed stays
+        lines.append("  typed over: \"\(scan.saveName)\" (edited \(scan.saveNameEdited))")
+        scan.clear()
+        lines.append("  after Clear: \"\(scan.saveName)\" shown \(scan.showsSaveName)")
+        return lines
+    }
+
     /// Pixels darker than mid-grey in `image` drawn grey (-1 when it can't be drawn).
     private static func darkPixels(_ image: NSImage) -> Int {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }

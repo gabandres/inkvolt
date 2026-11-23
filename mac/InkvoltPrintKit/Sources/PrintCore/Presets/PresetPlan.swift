@@ -1,4 +1,5 @@
-/// A preset matched to one scanner: the request to send, whether to run text recognition, and what had to give.
+/// A preset matched to one scanner: the request to send, whether to run text recognition (a searchable PDF, or a name read
+/// from the page), and what had to give.
 public struct PresetPlan: Equatable, Sendable {
     public var request: ScanRequest
     public var ocr: Bool
@@ -59,9 +60,14 @@ public struct PresetPlan: Equatable, Sendable {
             notes.append(loc("{0} doesn't fit this source: scanning {1}.", missing.label, size.label))
         }
 
-        let ocr = preset.fileType == .searchablePdf && ocrAvailable
+        // Text is read for a searchable PDF, and for a name taken from the page (its PDF gets the text layer too).
+        let readsName = FileNameTemplate.readsText(preset.fileName) || FileNameTemplate.readsText(preset.subfolder)
+        let readsPages = preset.fileType == .searchablePdf
+        let ocr = (readsPages || readsName) && ocrAvailable
         if preset.fileType == .searchablePdf && !ocrAvailable {
             notes.append(loc("Text recognition isn't available on this Mac: the PDF won't be searchable."))
+        } else if readsName && !ocrAvailable {
+            notes.append(loc("This Mac can't read text, so the parts of the file name taken from the page stay empty."))
         }
         return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes, turnStack: turnStack, oneBit: smaller)
     }

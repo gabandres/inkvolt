@@ -200,10 +200,10 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
     one Undo step (README, "Join two halves"; `HalvesJoin`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a real A3
     drawing on a letter or A4 glass, on both.
-  - **4.11 Name the file from its contents.** Done on Windows: a preset's file name can hold `{text-date}`, `{text-title}` and
+  - **4.11 Name the file from its contents.** Done on Windows and Mac: a preset's file name can hold `{text-date}`, `{text-title}` and
     `{text-number}`, read from the first page (a date in the usual ways of writing it, in English and Spanish; the heading; an
-    invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`).
-    **Next:** real invoices and receipts; the Mac half waits.
+    invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`; the
+    Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** real invoices and receipts, on both.
   - **4.14 Scan straight to Word or text.** Done on Windows: preset file types Word document (.docx) and Text (.txt), the
     recognized text as paragraphs (headings in Heading 1), photos as pictures; written in the shared core with the Office parts
     moved there from Inkvolt PDF (README, "Scan presets"; `ScanDocx`, `ScanText`). Word opens them (checked here). **Next:** the

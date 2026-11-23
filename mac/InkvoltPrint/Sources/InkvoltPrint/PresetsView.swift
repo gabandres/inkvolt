@@ -184,6 +184,8 @@ private struct PresetEditor: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Text("{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} or {n:000}, {pages}").font(.caption).foregroundStyle(.secondary)
+                Text("{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 // Open in Inkvolt PDF: offered when Inkvolt PDF is installed (or the preset already has it, from Windows or before
                 // Inkvolt PDF was removed).
                 Picker("Then", selection: $preset.after) {

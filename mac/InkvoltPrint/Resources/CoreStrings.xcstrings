@@ -7054,6 +7054,17 @@
         }
       }
     },
+    "This Mac can't read text, so the parts of the file name taken from the page stay empty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac no puede leer texto, así que las partes del nombre del archivo que se toman de la página quedan vacías."
+          }
+        }
+      }
+    },
     "This Mac isn't on a home or office network that can be searched.": {
       "extractionState": "manual",
       "localizations": {
@@ -7786,13 +7797,13 @@
         }
       }
     },
-    "Unknown token {0}. Use {1}.": {
+    "Unknown token {0}. Use {1} or {2}.": {
       "extractionState": "manual",
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Marcador desconocido {0}. Usa {1}."
+            "value": "Marcador desconocido {0}. Usa {1} o {2}."
           }
         }
       }

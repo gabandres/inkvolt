@@ -5836,6 +5836,16 @@
         }
       }
     },
+    "The name the preset gives the file, read from the first page. Change it before saving.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El nombre que el ajuste da al archivo, leído en la primera página. Cámbialo antes de guardar."
+          }
+        }
+      }
+    },
     "The page as it will be saved": {
       "localizations": {
         "es": {
@@ -6942,6 +6952,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "{date}, {date:yyyy-MM}, {time}, {preset}, {printer}, {n} o {n:000}, {pages}"
+          }
+        }
+      }
+    },
+    "{text-date}, {text-title} and {text-number}: a date, the first heading and an invoice or order number read on the first page.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página."
           }
         }
       }
