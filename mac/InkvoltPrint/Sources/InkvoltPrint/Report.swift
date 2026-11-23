@@ -60,12 +60,17 @@ enum Report {
             if model.isDemo && args.contains("--turn-stack") { cancelled += await turnStackCheck(model) }
             if model.isDemo && args.contains("--upright") { cancelled += await uprightCheck(model) }
             if model.isDemo && args.contains("--smaller-file") { cancelled += await smallerFileCheck(model) }
+            if model.isDemo && args.contains("--scan-archive") { cancelled += await scanArchiveCheck(model) }
             if model.isDemo && args.contains("--cleanup-marks") { cancelled += await cleanupMarksCheck(model) }
             if model.isDemo && args.contains("--join") { cancelled += await joinCheck(model) }
             if model.isDemo && args.contains("--name-from-text") { cancelled += await nameFromTextCheck(model) }
             if model.isDemo && args.contains("--word-text") { cancelled += await wordTextCheck(model) }
             if model.isDemo && args.contains("--camera") { cancelled += await cameraCheck(model) }
             if model.isDemo && args.contains("--phone") { cancelled += await phoneCheck(model) }
+            if model.isDemo && args.contains("--recent-scans") { cancelled += await recentScansCheck(model) }
+            if args.contains("--clipboard") { cancelled += clipboardCheck() }
+            if model.isDemo && args.contains("--hand-duplex") { cancelled += await handDuplexCheck(model) }
+            if args.contains("--photo-projects") { cancelled += await photoProjectsCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
@@ -75,6 +80,7 @@ enum Report {
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
+            if args.contains("--pdf-layout") { cancelled += pdfLayoutCheck() }
             if args.contains("--jobs") { cancelled += await jobsCheck(model) }
             if args.contains("--snmp") { cancelled += await snmpCheck(model) }
             if args.contains("--device") { cancelled += await deviceCheck(model) }

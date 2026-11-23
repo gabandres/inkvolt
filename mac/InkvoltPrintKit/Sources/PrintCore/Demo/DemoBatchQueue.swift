@@ -49,7 +49,7 @@ public final class DemoBatchQueue: BatchQueue {
         for (i, page) in job.pages.enumerated() {
             try stop.check()
             progress?("Getting page \(i + 1) of \(job.pages.count) ready…")
-            _ = try await document.render(page, stop)
+            if page > 0 { _ = try await document.render(page, stop) } // 0: a blank side (two-sided by hand)
             drawn += 1
         }
         try stop.check()

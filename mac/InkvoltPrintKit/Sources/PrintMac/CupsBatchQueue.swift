@@ -68,6 +68,31 @@ public final class CupsBatchQueue: BatchQueue {
         return BatchQueueReading.problem(state: state?.state, accepting: state?.accepting, reasons: state?.reasons ?? [])
     }
 
+    /// Which way up the queue's printer delivers its sheets (two-sided by hand, roadmap 4.2): its `output-bin-default` and
+    /// `printer-output-tray` as cupsd has them (`HandDuplex.faceOf`); nil when it doesn't say.
+    public static func outputFace(_ queue: String) async -> OutputFace? {
+        await LibCups.run {
+            cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
+            guard let request = ippNewRequest(IPP_OP_GET_PRINTER_ATTRIBUTES) else { return nil }
+            ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, "ipp://localhost/printers/" + queue)
+            let names = ["output-bin-default", "printer-output-tray"]
+            _ = names.withCStringArray { ippAddStrings(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "requested-attributes", Int32(names.count), nil, $0) }
+            guard let response = cupsDoRequest(nil, request, "/") else { return nil }
+            defer { ippDelete(response) }
+            guard ippGetStatusCode(response).rawValue < IPP_STATUS_REDIRECTION_OTHER_SITE.rawValue else { return nil }
+            let bin = ippFindAttribute(response, "output-bin-default", IPP_TAG_ZERO).flatMap { ippGetString($0, 0, nil) }.map { String(cString: $0) }
+            var trays: [String] = []
+            if let attr = ippFindAttribute(response, "printer-output-tray", IPP_TAG_ZERO) {
+                for i in 0..<min(ippGetCount(attr), 16) {
+                    var length: Int32 = 0
+                    guard let bytes = ippGetOctetString(attr, i, &length), length > 0, length <= 1024 else { continue }
+                    trays.append(String(decoding: UnsafeRawBufferPointer(start: bytes, count: Int(length)), as: UTF8.self))
+                }
+            }
+            return HandDuplex.faceOf(bin, trays)
+        }
+    }
+
     /// The queue's `printer-state`, `printer-is-accepting-jobs` and `printer-state-reasons`; nil when cupsd has no such queue.
     private static func state(_ queue: String) -> (state: Int, accepting: Bool, reasons: [String])? {
         cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
@@ -173,13 +198,24 @@ public final class CupsBatchQueue: BatchQueue {
         var written = 0
         var closed = false
         defer { if !closed { pdf.closePDF() } }
+        // A page number 0 is a blank side (two-sided by hand, roadmap 4.2): the size of the page before it, else the paper's.
+        var lastBox = job.paper.flatMap(BatchQueueReading.size).map { CGRect(x: 0, y: 0, width: $0.width, height: $0.height) }
+            ?? CGRect(x: 0, y: 0, width: 612, height: 792)
         for (i, number) in job.pages.enumerated() {
             try stop.check()
+            if number == 0 {
+                var box = lastBox
+                pdf.beginPage(mediaBox: &box)
+                pdf.endPage()
+                written += 1
+                continue
+            }
             progress?(loc("Getting page {0} of {1} ready…", i + 1, job.pages.count))
             let page = try await document.render(number, stop)
             guard let source = CGImageSourceCreateWithData(Data(page.jpeg) as CFData, nil),
                   let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { throw BatchFileError(loc("Page {0} can't be drawn.", number)) }
             var box = CGRect(x: 0, y: 0, width: page.widthInches * 72, height: page.heightInches * 72)
+            lastBox = box
             pdf.beginPage(mediaBox: &box)
             pdf.draw(image, in: box)
             pdf.endPage()

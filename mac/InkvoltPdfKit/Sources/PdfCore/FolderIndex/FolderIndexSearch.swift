@@ -31,6 +31,15 @@ public struct FolderHit: Sendable, Equatable {
     public let matchStart: Int
     public let matchLength: Int
 
+    public init(relativePath: String, page: Int, hits: Int, excerpt: String, matchStart: Int, matchLength: Int) {
+        self.relativePath = relativePath
+        self.page = page
+        self.hits = hits
+        self.excerpt = excerpt
+        self.matchStart = matchStart
+        self.matchLength = matchLength
+    }
+
     /// The hit itself, as the excerpt has it.
     public var match: String {
         let units = Array(excerpt.utf16)
@@ -130,7 +139,7 @@ extension FolderIndex {
     }
 
     /// Sets the bit of every page with `word` in one of its terms.
-    private static func markPages(_ state: Snapshot, _ map: PageMap, _ word: [UInt8], _ bits: inout [UInt64], _ cancel: CancelToken?) throws {
+    static func markPages(_ state: Snapshot, _ map: PageMap, _ word: [UInt8], _ bits: inout [UInt64], _ cancel: CancelToken?) throws {
         let cursor = Cursor(state.store.file)
         let first = map.firstById
         let count = map.countById
@@ -338,7 +347,7 @@ private final class Counter: @unchecked Sendable {
 }
 
 /// Reads one page's kept text, holding on to the last file's list of pages. One thread at a time.
-private final class PageReader: @unchecked Sendable {
+final class PageReader: @unchecked Sendable {
     private let cursor: Cursor
     private var id = -1
     private var packed: [Int] = []

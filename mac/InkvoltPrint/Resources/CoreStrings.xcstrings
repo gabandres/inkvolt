@@ -2293,6 +2293,39 @@
         }
       }
     },
+    "Fronts printed; the backs weren't, as you stopped.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se imprimieron los anversos; los reversos no, porque te detuviste."
+          }
+        }
+      }
+    },
+    "Fronts printed; the backs weren't: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se imprimieron los anversos; los reversos no: {0}"
+          }
+        }
+      }
+    },
+    "Fronts sent. Put the stack back as the window says, then print the backs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos enviados. Vuelve a poner la pila como dice la ventana y luego imprime los reversos."
+          }
+        }
+      }
+    },
     "Full": {
       "extractionState": "manual",
       "localizations": {
@@ -3916,6 +3949,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Falta la bandeja de salida"
+          }
+        }
+      }
+    },
+    "PDF/A": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF/A"
           }
         }
       }
@@ -5618,6 +5662,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Enviado"
+          }
+        }
+      }
+    },
+    "Sent on both sides by hand: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviado a doble cara a mano: {0}."
           }
         }
       }
@@ -8675,6 +8730,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "un archivo nuevo en cada {0}"
+          }
+        }
+      }
+    },
+    "a password to open": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "con contraseña para abrir"
           }
         }
       }

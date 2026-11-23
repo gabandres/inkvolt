@@ -330,6 +330,8 @@ public enum DocumentCommands {
             sep,
             // Every PDF of the indexed folders (roadmap 3.5; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F).
             c("Search Folders…", "showFolderSearch:", "f", [.command, .option, .shift]),
+            // A question over the indexed folders or chosen PDFs (roadmap 4.11, Pro; Windows: Edit › Ask Across Folders…).
+            c("Ask Across Folders…", "showFolderAsk:"),
         ])),
     ])
 
@@ -537,9 +539,13 @@ public enum DocumentCommands {
         // AI Assistant (Windows: Review › AI Assistant): bring your own, off by default.
         .submenu(CommandMenu("AI Assistant", [
             c("Summarize with AI…", "aiSummarize:", needs: [.pages, .aiIdle]),
+            // Roadmap 4.24: the summary read aloud to an audio file (Windows: Review › AI Assistant › Summary to Audio…).
+            c("Summary to Audio…", "aiSummaryToAudio:", needs: [.pages, .aiIdle]),
             c("Ask AI about This Document", "aiAsk:", needs: [.pages]),
             c("Explain Selection with AI", "aiExplain:", needs: [.selectedText, .aiIdle]),
             c("Translate with AI…", "aiTranslate:", needs: [.pages, .aiIdle]),
+            // Roadmap 4.23: a request in the person's words as a few of the palette's commands (Windows: Review › AI Assistant).
+            c("Edit by Asking…", "aiAskEdit:", needs: [.pages, .aiIdle]),
             // Roadmap 4.20 (Windows: Review › AI Assistant › Save AI Answer, Save AI Conversation).
             c("Save AI Answer…", "saveAiAnswerCommand:", needs: [.document, .aiIdle]),
             c("Save AI Conversation…", "saveAiConversation:", needs: [.document, .aiIdle]),

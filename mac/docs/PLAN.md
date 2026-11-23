@@ -367,6 +367,121 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   past the certificate warning, several pages, Done; an Android phone's Chrome), the app's own keychain on a user's Mac
   (the build Mac's account isn't touched: only keychain files of the test's own), the firewall's question with automatic
   allowing off, VoiceOver on the window.
+- **4.15 Recent scans.** PrintCore `RecentScan`, `RecentScans` (`add`, `clean`, `present`, `remove`, `day`, `usable`),
+  `RecentScanDay`, `PrintState.recentScans`; `RecentScansTests` (PC). The app: every save (Save…, a preset's) goes on the list
+  with the scanner's and preset's names (`ScanModel.finishSaving`, `AppModel.noteRecentScan`); the save bar's Recent Scans…
+  opens a sheet listing them (`RecentScansSheet.swift`), the files gone checked off the main thread and dropped from the
+  list as it is by then, each with Open, Show in Finder, Email Again (the Mail sharing service), Print… and Remove from
+  List, and Clear the List…; `--report … --recent-scans`. **Mac differences:** an entry keeps an app-scoped security
+  bookmark of the folder it was saved in (or of the one file the save panel named) in `access`, the sandbox's way back to
+  it in a later run (Windows needs none); a file whose bookmark no longer resolves counts as gone. A usable path is a
+  full POSIX path (`/Users/…`, `/Volumes/…`), not `/dev/…`, with no `.` or `..` part or control character (Windows: a
+  drive or share path, no device path or alternate stream); a quote is allowed (a Mac name may hold one). Print sends
+  several PDFs as one job through the print panel (Windows opens them in Batch) and isn't offered for a Word or text scan
+  (Windows sends those to Print photos, which can't read them); pictures go to Print Photos with their folder held open
+  until the next. The list is reached from the Scan tab only (Windows also from the sidebar, without Print). The demo has
+  no stand-in for Open or Email (Windows' demo says what would happen). Not checked: the sheet on screen, Open, Email
+  Again and Print with a real mail app and printer, a network volume's files, VoiceOver.
+- **4.13 Print the clipboard.** PrintCore `ClipboardPrint` (`choose`, `prefersPicture`, `layout`, `pages`, `expand`, `wrap`,
+  `width`, `name`), `ClipboardContent`, `ClipboardWhat`, `ClipboardPlan`, `ClipboardTextLayout`, `PixelSize`;
+  `ClipboardPrintTests` (PC). The app: the Print menu's Print the Clipboard (⇧⌘V; `ClipboardPrinting.swift`): files copied in
+  Finder as they are (one PDF through `Printing.printPdf(_:on:app:)`, split from Print a PDF's panel; pictures to Print
+  Photos; several to Batch Print), a picture (its size read from the PNG or TIFF's header before it is decoded) saved as an
+  opaque PNG for Print Photos, text laid out on Letter, or A4 where the region is metric, and printed through the print panel
+  at its own size; what can't print said in an alert. `--report … --clipboard` (on a pasteboard of its own).
+  **Mac differences:** the text PDF is vector text (Menlo drawn at the size whose advance is the layout's column, Windows'
+  Consolas measure) where Windows draws 1-bit pages at 300 dpi; lengths and columns count Unicode scalars (.NET UTF-16
+  units; a character past the BMP is two columns on both); a Swift string holds no lone surrogate (that test line has no
+  counterpart); text whose UTF-8 is past 4 × `maxChars` bytes is said too big before it's read (`ClipboardPrint.textTooBig`);
+  the choice, the text's pages and a picture's PNG are made off the main thread, with no Cancel (300 pages take well under a
+  second); a text cut
+  past 300 pages is said in an alert before the print panel (Windows' message line); the made files go in the app's
+  temporary folder, cleared of anything a day old. Not checked: Finder's copied files read from the clipboard in the sandbox
+  (macOS grants a pasted file), Word's and Excel's text-and-picture copies, the print panel's preview, VoiceOver.
+- **4.2 Two-sided printing by hand.** PrintCore `HandDuplexPlan` (`plan`, `fronts`, `sheetBacks`, `backs`, `reload`),
+  `HandDuplexReload`, `OutputFace`, `HandDuplex` (`offered`, `faceOf`); `BatchPrintLine.byHand`, `BatchPrintOptions.turnStack`
+  and the runner's by-hand path (the fronts, the prompt, the backs, each pass held to the estimate, the fronts said printed
+  whatever stops the backs), page 0 a blank side in `DemoBatchQueue` and PrintMac's `CupsBatchQueue` (the size of the page
+  before it), `CupsBatchQueue.outputFace` (cupsd's `output-bin-default` and `printer-output-tray`); `HandDuplexTests`,
+  `HandDuplexBatchTests` (PC). The app (`HandDuplexPrinting.swift`): the prompt (an alert: which way up the sheets came out,
+  starting from the face chosen last for the queue, else the printer's, else face down; the steps follow it; Print the Backs
+  or Stop); Batch Print's Two-sided always on offer, a file two-sided on a one-sided queue printed by hand; the Print menu's
+  Print a PDF on Both Sides by Hand… where the queue can't print both sides (copies asked, then straight to the queue as Batch
+  sends a file); Print a PDF's booklet on a one-sided queue printed by hand as Windows' `SheetPrinting.PrintAsync` does
+  (`HandDuplexPrinting.printSheets`: copies asked, the sides drawn by `SheetPrintView` into a PDF of their own at the queue's
+  default paper with two-sided on the long edge, so each turned back is half-turned, then the runner's by-hand path, the
+  prompt naming a set-aside sheet by the document's page, `BatchPrintLine.pageNumbers` from `SheetPrint.sideNumbers`);
+  `--report … --hand-duplex`. **Mac differences:** Print a PDF by hand and a booklet by hand go straight to the queue at its
+  default paper (Windows' Print tab keeps its own options), not through macOS's print panel, which runs one job; a PDF that
+  needs a password isn't asked for one there (it's said and left out; Batch asks); no Copy (the Mac's Copy is the ID card's,
+  one side); the printer's face is cupsd's copy of the printer's attributes. Not checked: paper on a real one-sided printer,
+  face down and up (`--hand-duplex` answers the prompt), the alert on screen, VoiceOver.
+- **4.16 Cards, calendars and collages in Photos.** PrintCore `PhotoProjects` (`cards`, `cardBox`, `panel`, `message`,
+  `needsTwoSided`, `firstDay`, `dayNames`, `monthName`, `weeks`, `monthAt`, `monthSheet`, `yearSheet`, `monthGrid`,
+  `arrangements`, `lines`, `collageCells`, `collages`, `swap`), `SheetLine`, `PhotoText`, `PhotoTextAlign`,
+  `CollageArrangement` (`Placement`'s `right`, `bottom`, `centerX`, `isEmpty`, `intersect` as 4.18 added them); `PhotoLayoutKind`'s
+  `card`, `monthCalendar`, `yearCalendar`, `collage`, `PhotoLayoutOptions`' `cardMessage`, `calendarYear`, `calendarMonth`,
+  `locale`, `collage`, `collageSpacing`, `collageBorder`, `PhotoSheet`'s `lines`, `texts`, `inside`; `PhotoProjectsTests` (PC).
+  PrintMac `PhotoSheets.draw` draws a sheet's lines (hairline grey, dashed fold marks) and text (Helvetica, wrapped from the
+  top of its box, bold titles, grey day names). The app: Print Photos' Layout gains Folded card (Message inside), Month and
+  Year calendar (Year, First month), Collage (Arrangement, Spacing, Border), Save as PDF… for every layout; a card with a
+  message is sent with `sides=two-sided-long-edge` only to a queue that says it prints both sides, else one-sided with
+  Windows' note (each inside a sheet of its own; `PhotosModel.cardTwoSided`); `--report … --photo-projects`. **Mac differences:** Windows'
+  `SheetText` is `PhotoText` (PrintCore's `SheetText` is the separator sheet's); a culture is a `Locale` (the interface
+  language's, `AppLanguage.current`, without a region; Foundation's `Calendar` gives the first weekday), a week day .NET's
+  `DayOfWeek` number; with no locale the names are English (Windows: the invariant culture's, also English); a month's
+  weeks count the proleptic Gregorian calendar's day numbers (`Day.dayNumber`), never a date; `monthAt` clamps the index
+  first (Swift's Int is 64-bit, so `Int.max` would overflow where .NET's int fits a long); a collage's photos swap from a
+  photo's Swap With menu (Control-click), since dragging moves the crop; a card printed through the print panel (no queue)
+  takes the panel's two-sided setting. Not checked: a card printed two-sided and folded, a calendar on A4 in Spanish on
+  paper, the controls on screen, VoiceOver.
+- **4.18 A PDF preset's PDF/A-2b and password.** PrintCore `PdfArchive` (`PdfWriteOptions`; the XMP packet, its text
+  escaped by hand as .NET's XElement writes it; `pdfDate`/`isoDate` in the Gregorian calendar, UTC), `PdfEncryption`
+  (AES-256, the standard security handler's revision 6: algorithm 2.B, /U /UE /O /OE /Perms, every string and stream
+  encrypted with its own IV, `encryptStrings`, NFKC passwords cut at 127 bytes on a character, `checkNew`) over a
+  `PdfCrypto` (SHA-256/384/512, AES-CBC), `IccProfiles` (moved from PdfCore: `srgb()` named for Inkvolt PDF, as it was,
+  `srgbForPrint()`), `PdfWriter.write(…options:)` (PDF 1.7 with Adobe's extension level 8 when protected, the output
+  intent, metadata and file ID for PDF/A, a CMYK picture refused, PDF/A with a password refused);
+  `ScanPreset.pdfA`/`password` (`PdfA`, `Password`, the Windows names), `ScanPresets.savesPdfA`, `savesWithPassword`,
+  `withPdfA`/`withPassword` (the last ticked wins), `passwordsToForget`, `writeOptions` (throws rather than save a
+  protected preset's PDF open), `isPdf`; `ScanArchiveTests` (PC, 20). PrintMac `ApplePdfCrypto` (CryptoKit's hashes,
+  CommonCrypto's AES-CBC; installed at launch with SNMPv3's, `PdfCryptoTests`), `PresetPasswords` (the login keychain by
+  preset id, memory in demo mode). The app: the preset editor's Save as PDF/A and Put a password on the
+  PDF (a PDF type only, each clearing the other), the password asked the first time the preset saves (typed twice; Use it
+  for this preset from now on keeps it in the keychain), forgotten when the preset goes or its option is turned off; such a
+  file is always the app's own PDF, never the scanner's as sent, and the status says Saved as PDF/A or It asks for its
+  password to open. PdfCoreTests `PrintScanArchiveTests` (Mac, the Windows names): Inkvolt PDF for Mac's PDF/A check passes
+  the PDF/A scan, MuPDF opens the protected one only with its password (a Spanish one too) and finds its text, Remove
+  Protection takes the password off. `--report … --demo --scan-archive` saves the demo laser's feeder through each preset
+  into the container and has PDFKit open the protected one with its password (an ASCII one opens it; "Contraseña 2026"
+  doesn't: PDFKit, Preview's engine, takes only ASCII for AES-256, where MuPDF takes any, so the prompt says so once before
+  keeping such a password, as Windows' README names its own engine's limit). **Mac differences:** the password is in the
+  keychain (Windows: Credential Manager); the preset's Print a copy step opens the protected file with its password through
+  PDFKit (Windows' own PDF engine can't open these files); the crypto is the system's behind `PdfCrypto`, the PC's tests a
+  stand-in of their own (`TestPdfCrypto`: FIPS 180-4 and 197, a table cipher fast enough that the suite doesn't hold up the
+  Mac's timing tests); DatesAreGregorianWhateverTheRegionalCalendar can't switch Foundation's calendar for the process, so
+  it checks the dates written don't follow the region. Found here: PdfEngine draws every page of a document opened with its open password white (Inkvolt PDF's own Protect
+  output the same, AES-128 or AES-256; owner-only files draw), so AProtectedScanDrawsAsThePlainOne is off ("Open"). Not
+  checked: a protected scan in Acrobat, veraPDF on the PDF/A scan, the password sheet on screen (VoiceOver).
+- **4.18 Print a PDF's pages per sheet, booklet and poster.** PrintCore `Sheets` (`PrintLayout`, `PrintSetup`, `PrintPlan`,
+  `PrintSheet`, `PlacedPage`, `CutMark`, `PrintHandling`, `PrintSizing`, `PagesOrder`: the Windows core's `Core/Sheets`, moved
+  there from Inkvolt PDF, ported over `Placement`, which gains `right`, `bottom`, `intersect`, `inflate`), `SheetPrint`,
+  `SheetChoice`, `PdfLayout`, `SheetRoute`; `SheetPrintTests` (PC, 14). PrintMac `LibCups.printsBothSides` (the queue's
+  `sides-supported`). The app (`SheetPrinting.swift`): Print a PDF's open panel has a Layout row under the file list (one page
+  per sheet as before, several pages per sheet with 2 to 16, a booklet, a poster with its size and cut marks); a layout other
+  than one page per sheet prints `SheetPrintView` through the print panel: the plan laid out for the panel's paper as it
+  changes, each page drawn by PDFKit (vectors, annotations included) into its place, a poster's part clipped to its box, cut
+  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words; a booklet on a queue that
+  says it prints one side only goes by hand (4.2). `--report … --pdf-layout` prints the sample to PDFs in the container and says where
+  PDFKit finds each page's words. **Mac differences:** Inkvolt PDF for Mac's PdfCore keeps its own `PrintLayout` (Windows
+  moved Inkvolt PDF's into the shared core), so PrintCore's are nested in `Sheets` (PdfCore imports PrintCore, and two
+  `PrintSetup`s at the top level would collide in every file that imports both); `grid` takes a count that isn't a choice
+  as 2 (Windows throws); lengths are in DIPs as on Windows and drawn in points (`SheetPrint.pointsPerUnit`); copies and two
+  sides are the print panel's (macOS makes the copies, so `SheetPrint.order`'s blank back between copies isn't used); a
+  booklet asks the panel for two-sided on the long edge, and a back is drawn half-turned only while the job prints on the
+  long edge (on the short edge it needs no turn); pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
+  its Print a PDF view, with a count of the sheets). Not checked: a booklet and a poster on paper (fold, trim), the open
+  panel's Layout row on screen (VoiceOver), a printer with no queue picked in the panel for a booklet.
 
 ## Mac differences
 
@@ -715,7 +830,7 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
-- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24, not on the Mac yet). The
+- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24; the Mac's 4.24 is Summary to Audio… only). The
   conversation moved from the window's `AiState` to the session, as on Windows. The PDF's text past WinAnsi (Cyrillic,
   say) is drawn in Type 3 fonts (`TextPainter`), which MuPDF reads back as regular even where drawn bold (it takes bold
   from a FreeType font's style or name only); Latin text uses Helvetica and Helvetica-Bold and reads back bold, so
@@ -1855,6 +1970,19 @@ Tests that must run while the pool is busy (a Cancel, a deadline's timer) run on
 suites held it, so a Cancel came after the render had ended. Endless test streams sleep 1 ms a read rather than spin, and
 a timer must not be re-armed per streamed line (millions queued once killed the runner through jetsam).
 
+### Gotcha: MuPDF's key after a wrong password
+
+MuPDF keeps one key per document, and every failed `fz_authenticate_password` overwrites it; `fz_needs_password` itself
+tries "". `PdfEngine` asked it again after the password had opened the document (`isEncrypted`), so its main instance read
+every stream with a wrong key and drew each page white, while text (its own instance) and Remove Protection worked. In
+every release up to 1.12.1, for any file opened with its open password (RC4, AES-128, AES-256, Inkvolt PDF's own Protect
+output). **Fixed 2026-11-23 in `MuPDFShim`:** whether a document needs a password is asked once, at open
+(`inkv_needs_password` returns that), and a failed try after a good one authenticates the good password again (kept,
+zeroed when the document goes), so a wrong guess in `authBits` (Sanitizer, PdfRepair) can't do the same. Tests:
+`EncryptedRenderTests` (each method, Protect's output, the engine's sibling, text and saved pictures, the print copy, a
+wrong try after the right one); the self-test's Protect step draws page 1 as before, in the window and reopened (`--only-passwords` with `--edit
+--synthetic` runs it alone).
+
 ### Redaction by pattern, Windows' additions (roadmap 1.1)
 
 Windows' redaction by pattern additions (named sets, scans searched through OCR, Check What Was Found, the read-back,
@@ -1974,6 +2102,65 @@ and undoes it.
   The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
   file to choose.
 
+### Wave 4's AI items (roadmap Batch C, Pro)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the Mac's AI client and its send window
+(`AiConfirmSheet`, E11's), against stand-in models on loopback in the self-test (`AiLoopbackServer`, as `--only-translate`).
+- **4.11 Ask Across Folders** (Edit › Find, after Search Folders; Windows also lists it under Review › AI Assistant):
+  PdfCore `FolderAsk` (`build`, `withMeaning`, `citations`, `sentList`, `safeName`, `copyRestricted`, `readFiles`) and
+  `FolderIndex.rank` and `pageTexts` (FolderIndexPages.swift), `FolderAskTests` under their names. The window is
+  `FolderAskWindowController` (FolderAsk.swift): the indexed folders or chosen PDFs, the question, the answers as the AI
+  pane's cards, whose citations of a page sent open that file at the page (`AiAnswerCard`'s `links`: `AiAnswerMarkup.runs`
+  takes the citations a caller finds). The send window lists each file and its pages (`AiOutgoing.listing`) and says what
+  only goes (`onlyNote`). `--only-folder-ask` (`FolderAskTest`): an index of its own, the assistant off then on, the
+  listing, the request (files named within their folder, pages sharing no word left out), the link opening the file,
+  chosen PDFs declined, a question sharing no word. Mac differences: paths are "/"-separated as the Mac's index keeps them;
+  a file's name cut at 120 UTF-16 units is cut between characters, never inside one (an emoji, a letter and its accent);
+  a question over the folders that no page shares a word with says so (Windows says the pages have no text, since the
+  index proposed none).
+- **4.21 search by meaning** (Search Folders' By meaning and Meaning…, Ask Across Folders' Also find pages by meaning):
+  PdfCore `AiEmbeddings` (`requestJson`, `urlFor`, `parse`: one finite vector per text, all one length, or refused),
+  `AiClient.embed` (a chat model asked for embeddings said in words), `MeaningIndex` (FolderIndex/MeaningIndex.swift: the
+  Windows file byte for byte, `.meaning` beside the folder index; pieces, 8-bit vectors, bounds, a stop keeping whole
+  files), `MeaningIndexTests` under their names, `ProFeature.meaningSearch`. The app: FolderMeaning.swift
+  (`MeaningSettingsSheet`: on or off and the embedding model, kept in the settings as `MeaningEnabled`, `MeaningModel`;
+  `FolderMeaning.search`: what each folder lacks, the send window listing every page before it goes, shown always when
+  pages go, then the query), each folder's meaning index held by `FolderSearches.Folder` and deleted with it.
+  `--only-meaning` (`MeaningTest`): the settings asked first, the listing, the requests (the model and the texts, no file
+  name), the closest page first and opened at its page, a second search sending its words only, Ask Across Folders
+  bringing in a page sharing no word, Remove deleting the meaning index. Mac differences: a file's paths are compared as
+  written (the Mac's index keeps them so), where Windows ignores case; "busy just now" is a file this user can't read
+  (`MeaningIndexTests` makes it so with chmod), macOS having no FileShare.None; a boolean in a vector is refused.
+- **4.23 Edit by Asking** (Tools › AI Assistant › Edit by Asking…; Windows has it under Review › AI Assistant): PdfCore
+  `AskEdit` (`messages`: the request, the page count and the page in view, no document text; `requestJson` with the six
+  tools, not streamed; `parse`: only calls of those tools with values that check out become steps, at most 10, the rest
+  said; `afterDelete`; `isNoToolsError`), `AiClient.askEdit`, `AskEditTests` under their names. The app: AskEdit.swift
+  (`AskEditRequestSheet`, the send window with the tools in its preview (`AiOutgoing.previewExtra`), `AskEditStepsSheet`
+  with each step ticked, the steps run in order through the commands the menus use: `go`, `rotatePages`, `removePages`,
+  `addBookmark`, a highlight of every match through `SearchMarks`, Redact by Pattern's marks (`runPatternRedaction`), each
+  one undo step). `--only-ask-edit` (`AskEditTest`): the assistant off then on, the send window (the tools, no document
+  text), four steps ticked and a fifth tool said, Run (a page turned, a bookmark following the deleted page, the highlight,
+  the deletion), four Undos, a model that can't call tools. Mac difference: redaction's step marks the matches as
+  Redact by Pattern does on the Mac (marked for review, applied only by Apply Redactions), where Windows opens its review
+  list.
+- **4.24 a summary read aloud to a file** (Tools › AI Assistant › Summary to Audio…; Windows also reads saved answers
+  aloud from Save AI Answer, which the Mac's doesn't offer): PdfCore AiAnswerSpeech.swift (`AiAnswerSpeech.paragraphs`,
+  `spoken`; `WavFile.read`, `join`; `WavParts`; the answer's lines from 4.20's `AiAnswerExport.blocks`, `plain`, `note`),
+  `AiAnswerSpeechTests` under their names. The summary read is the conversation's last exchange (`DocumentSession.aiConversation`,
+  so the model named is the one that answered); the joining, coding and writing run off the main thread, Stop checked
+  between paragraphs and on each chunk written, its partial file deleted (Windows' `SaveAsync`). The app: SpeechFile.swift (each
+  paragraph through `AVSpeechSynthesizer.write(_:toBufferCallback:)` with Read Aloud's voice and speed, its buffers as
+  16-bit samples, joined with 0.35 s between paragraphs, then an M4A (AAC, `AVAudioFile`) or a WAV; the summary first,
+  with its send window, as Summarize with AI). `--only-summary-audio` (`SummaryAudioTest`): an M4A and a WAV, each as long
+  as the speech. Mac differences: M4A where Windows makes MP3 (macOS has no MP3 encoder; no fallback note is needed);
+  the WAV's rate is the voice's own (22,050 Hz for the English voice here, 16,000 Hz for the Spanish one), and the AAC
+  encoder picks its own bit rate (a set 64 kbit/s is refused at 16 kHz). A paragraph ends at the synthesizer's empty last
+  buffer, not at `didFinish` (which came before the last buffers and cut recordings short), with a watchdog for a voice
+  that never sends it (5 s without a buffer, 30 s before the first).
+- Not checked by a person: listening to a recording; the windows and the send window's listing by eye and with VoiceOver; a real model (Ollama or
+  LM Studio on this Mac), and a real embedding model (nomic-embed-text); Edit by Asking with a real model that calls tools
+  (qwen3).
+
 ### Wave 4: proofreading, forms and layout (roadmap Batch B and C)
 
 Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
@@ -2044,17 +2231,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
-  `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
-- Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
-  the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
-  Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
-  `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
-  format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
-  (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
-  makes MP3; port `AiAnswerSpeechTests`); 4.23 Edit by Asking (`AskEdit`, `AiClient.AskEditAsync`, the steps window; port
-  `AskEditTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

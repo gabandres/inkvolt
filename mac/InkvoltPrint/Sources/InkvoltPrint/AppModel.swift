@@ -518,8 +518,13 @@ final class AppModel {
 
     // MARK: Scan presets
 
+    /// The passwords presets put on their PDFs, by preset id: the login keychain, or memory in demo mode (roadmap 4.18).
+    @ObservationIgnored private(set) lazy var presetPasswords = PresetPasswords(inMemory: isDemo)
+
     /// Saves the presets (a list from a newer version of the app is used as it is, never written over).
     func savePresets(_ list: [ScanPreset]) {
+        // A preset deleted, or whose PDF password was turned off, forgets the password kept for it (roadmap 4.18).
+        for id in ScanPresets.passwordsToForget(presets, list) { presetPasswords.remove(for: id) }
         presets = list
         guard store.current.scanPresets?.isNewer != true else { return }
         store.change { s in

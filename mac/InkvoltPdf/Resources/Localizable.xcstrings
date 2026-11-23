@@ -4203,17 +4203,6 @@
         }
       }
     },
-    "Delete {0}": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eliminar {0}"
-          }
-        }
-      }
-    },
     "Delete {0} pages": {
       "extractionState": "manual",
       "localizations": {
@@ -6212,17 +6201,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ir a una página (⌥⌘G)"
-          }
-        }
-      }
-    },
-    "Go to page {0}": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ir a la página {0}"
           }
         }
       }
@@ -25561,6 +25539,930 @@
           "stringUnit": {
             "state": "translated",
             "value": "El texto del documento en una columna"
+          }
+        }
+      }
+    },
+    "In the indexed folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En las carpetas indexadas"
+          }
+        }
+      }
+    },
+    "In these PDFs:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En estos archivos PDF:"
+          }
+        }
+      }
+    },
+    "Choose PDFs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elegir archivos PDF…"
+          }
+        }
+      }
+    },
+    "Ask Across Folders": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en carpetas"
+          }
+        }
+      }
+    },
+    "Ask a question about the PDFs in your indexed folders, or about PDFs you choose. The folder index picks the pages most related to it, and your own AI assistant answers from them, citing the file and page. Nothing is sent before you see exactly what goes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz una pregunta sobre los archivos PDF de tus carpetas indexadas, o sobre los que elijas. El índice elige las páginas más relacionadas con ella, y tu propio asistente de IA responde a partir de ellas, citando el archivo y la página. No se envía nada antes de que veas exactamente qué se envía."
+          }
+        }
+      }
+    },
+    "Ask in": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntar en"
+          }
+        }
+      }
+    },
+    "Ask a question about these documents": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Haz una pregunta sobre estos documentos"
+          }
+        }
+      }
+    },
+    "Question": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pregunta"
+          }
+        }
+      }
+    },
+    "Questions and answers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntas y respuestas"
+          }
+        }
+      }
+    },
+    "No PDFs chosen yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aún no has elegido archivos PDF."
+          }
+        }
+      }
+    },
+    "{0} PDF: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} archivo PDF: {1}"
+          }
+        }
+      }
+    },
+    "{0} PDFs: {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} archivos PDF: {1}"
+          }
+        }
+      }
+    },
+    "Choose the PDFs to ask about first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero elige los archivos PDF sobre los que preguntar."
+          }
+        }
+      }
+    },
+    "Reading the PDFs…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo los archivos PDF…"
+          }
+        }
+      }
+    },
+    "Finding the pages most related to the question…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando las páginas más relacionadas con la pregunta…"
+          }
+        }
+      }
+    },
+    "None of the pages has text to send. Scans need Recognize Text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna página tiene texto que enviar. Los escaneos necesitan antes Reconocer texto."
+          }
+        }
+      }
+    },
+    "No page shares a word with the question. Try other words.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna página comparte una palabra con la pregunta. Prueba con otras palabras."
+          }
+        }
+      }
+    },
+    "Checking the files' permissions…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando los permisos de los archivos…"
+          }
+        }
+      }
+    },
+    "These PDFs don't allow copying their text: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estos archivos PDF no permiten copiar su texto: {0}"
+          }
+        }
+      }
+    },
+    "Your question and the parts most related to it, from {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu pregunta y las partes más relacionadas con ella, de {0} de {1}"
+          }
+        }
+      }
+    },
+    "Your question and the text of {0} from {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu pregunta y el texto de {0} de {1}"
+          }
+        }
+      }
+    },
+    "A folder's index or a file couldn't be read. Check that the folder is still there and the files aren't open in another app, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer el índice de una carpeta o un archivo. Comprueba que la carpeta sigue ahí y que los archivos no están abiertos en otra app, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Only this text, the instructions shown below and the model's name are sent, with each file's name within its folder as listed: not where the files are on this Mac, their properties or any other page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían este texto, las instrucciones que se muestran abajo y el nombre del modelo, con el nombre de cada archivo dentro de su carpeta tal como aparece en la lista: no dónde están los archivos en este Mac, sus propiedades ni ninguna otra página."
+          }
+        }
+      }
+    },
+    "Open {0} at page {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir {0} en la página {1}"
+          }
+        }
+      }
+    },
+    "Not read (they need a password): {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se leyeron (necesitan una contraseña): {0}."
+          }
+        }
+      }
+    },
+    "Couldn't be read: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer: {0}."
+          }
+        }
+      }
+    },
+    "Only the first {0} pages of the PDFs were read; not all of: {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se leyeron las primeras {0} páginas de los archivos PDF; no todas de: {1}."
+          }
+        }
+      }
+    },
+    "Pages sent, by file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas enviadas, por archivo"
+          }
+        }
+      }
+    },
+    "Turn on search by meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Activar la búsqueda por significado"
+          }
+        }
+      }
+    },
+    "Search by Meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por significado"
+          }
+        }
+      }
+    },
+    "Search by meaning finds pages by what they mean, not only the words they use. Your AI assistant's server turns each page's text into embeddings (lists of numbers) with an embedding model, and they're kept on this Mac beside each folder's index. Before any page goes, the send window shows every one. It stays off until you turn it on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar por significado encuentra páginas por lo que significan, no solo por las palabras que usan. El servidor de tu asistente de IA convierte el texto de cada página en embeddings (listas de números) con un modelo de embeddings, y se guardan en este Mac junto al índice de cada carpeta. Antes de enviar ninguna página, la ventana de envío las muestra todas. Está desactivado hasta que lo actives."
+          }
+        }
+      }
+    },
+    "Embedding model": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Modelo de embeddings"
+          }
+        }
+      }
+    },
+    "A model that makes embeddings, not a chat model: nomic-embed-text, mxbai-embed-large or bge-m3 in Ollama (ollama pull nomic-embed-text), or text-embedding-3-small with OpenAI.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un modelo que genera embeddings, no un modelo de chat: nomic-embed-text, mxbai-embed-large o bge-m3 en Ollama (ollama pull nomic-embed-text), o text-embedding-3-small con OpenAI."
+          }
+        }
+      }
+    },
+    "Embeddings come from the AI assistant's server. {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los embeddings vienen del servidor del asistente de IA. {0}"
+          }
+        }
+      }
+    },
+    "Set up the AI assistant first (Tools › AI Assistant › AI Assistant Settings…): search by meaning uses its server.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primero configura el asistente de IA (Herramientas › Asistente de IA › Configuración del asistente de IA…): la búsqueda por significado usa su servidor."
+          }
+        }
+      }
+    },
+    "Type the embedding model's name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el nombre del modelo de embeddings."
+          }
+        }
+      }
+    },
+    "Checking which pages are new…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comprobando qué páginas son nuevas…"
+          }
+        }
+      }
+    },
+    "Your search words, to be turned into an embedding by {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tus palabras de búsqueda, para convertirlas en un embedding con {0}"
+          }
+        }
+      }
+    },
+    "The text of {0} from {1}, to be turned into embeddings by {2}, then your search words": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El texto de {0} de {1}, para convertirlo en embeddings con {2}, y después tus palabras de búsqueda"
+          }
+        }
+      }
+    },
+    "Past the limit of {0} pieces, the rest isn't searched by meaning.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por encima del límite de {0} fragmentos, el resto no se busca por significado."
+          }
+        }
+      }
+    },
+    "Send for search by meaning?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Enviar para buscar por significado?"
+          }
+        }
+      }
+    },
+    "Turning pages into embeddings: {0} of {1} pieces…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convirtiendo páginas en embeddings: {0} de {1} fragmentos…"
+          }
+        }
+      }
+    },
+    "Only this text and the model's name are sent: no file name, folder or other document. The embeddings stay on this Mac beside the folder's index, and next time only new or changed pages are sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían este texto y el nombre del modelo: ningún nombre de archivo, carpeta ni otro documento. Los embeddings se quedan en este Mac junto al índice de la carpeta, y la próxima vez solo se envían las páginas nuevas o cambiadas."
+          }
+        }
+      }
+    },
+    "By meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por significado"
+          }
+        }
+      }
+    },
+    "Find pages close in meaning to your words through your own AI assistant's embedding model (Inkvolt Pro). Nothing is sent until you press Search.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encuentra páginas cercanas en significado a tus palabras con el modelo de embeddings de tu propio asistente de IA (Inkvolt Pro). No se envía nada hasta que pulses Buscar."
+          }
+        }
+      }
+    },
+    "Meaning…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Significado…"
+          }
+        }
+      }
+    },
+    "Type what you're looking for and press Search. Nothing is sent before you see it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe lo que buscas y pulsa Buscar. No se envía nada antes de que lo veas."
+          }
+        }
+      }
+    },
+    "Nothing found by meaning: the folders' pages may have no text yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró nada por significado: puede que las páginas de las carpetas aún no tengan texto."
+          }
+        }
+      }
+    },
+    "{0} closest in meaning, best first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} más cercanas en significado, de mejor a peor."
+          }
+        }
+      }
+    },
+    "Stopped. The pages already turned into embeddings are kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detenido. Se conservan las páginas que ya se convirtieron en embeddings."
+          }
+        }
+      }
+    },
+    "A folder's index doesn't read back and is being built again. Search by meaning again once it's up to date.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El índice de una carpeta no se puede leer y se está creando de nuevo. Vuelve a buscar por significado cuando esté al día."
+          }
+        }
+      }
+    },
+    "page {0}, {1} close in meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "página {0}, cercanía de significado {1}"
+          }
+        }
+      }
+    },
+    "Also find pages by meaning": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar también páginas por significado"
+          }
+        }
+      }
+    },
+    "Pages close in meaning to the question join those that share its words (search by meaning, through your own AI assistant's embedding model).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas cercanas en significado a la pregunta se suman a las que comparten sus palabras (buscar por significado, con el modelo de embeddings de tu propio asistente de IA)."
+          }
+        }
+      }
+    },
+    "Search by meaning works on indexed folders only.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La búsqueda por significado solo funciona en carpetas indexadas."
+          }
+        }
+      }
+    },
+    "Edit by Asking": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Editar pidiéndolo"
+          }
+        }
+      }
+    },
+    "Say what to do to this document in your own words, such as \"turn pages 3 to 5 the right way up and bookmark page 6 as Appendix\". Your AI assistant proposes the steps; you see each one and choose before anything runs.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Di qué hacer con este documento con tus propias palabras, por ejemplo «pon derechas las páginas 3 a 5 y agrega un marcador Apéndice en la página 6». Tu asistente de IA propone los pasos; ves cada uno y eliges antes de que se ejecute nada."
+          }
+        }
+      }
+    },
+    "Rotate the last page and highlight every \"deadline\"": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gira la última página y resalta cada «plazo»"
+          }
+        }
+      }
+    },
+    "What to do": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer"
+          }
+        }
+      }
+    },
+    "Only your words, the number of pages and the page you're on are sent, with the list of commands it may use: none of the document's text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían tus palabras, el número de páginas y la página en la que estás, con la lista de comandos que puede usar: nada del texto del documento."
+          }
+        }
+      }
+    },
+    "Type what to do.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe qué hacer."
+          }
+        }
+      }
+    },
+    "Steps Proposed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasos propuestos"
+          }
+        }
+      }
+    },
+    "Your AI assistant proposes these steps, in this order. Untick any you don't want: nothing runs until you press Run, and Undo takes each edit back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu asistente de IA propone estos pasos, en este orden. Desmarca los que no quieras: no se ejecuta nada hasta que pulses Ejecutar, y Deshacer revierte cada edición."
+          }
+        }
+      }
+    },
+    "The model said: \"{0}\"": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El modelo dijo: «{0}»"
+          }
+        }
+      }
+    },
+    "Tick at least one step, or Cancel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos un paso, o Cancelar."
+          }
+        }
+      }
+    },
+    "Your request, the page count and the page you're on, with the commands it may propose": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu petición, el número de páginas y la página en la que estás, con los comandos que puede proponer"
+          }
+        }
+      }
+    },
+    "Only this and the model's name are sent: no text of the document, its name or its folder. The model only proposes steps; nothing runs before you choose.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se envían esto y el nombre del modelo: nada del texto del documento, ni su nombre ni su carpeta. El modelo solo propone pasos; no se ejecuta nada antes de que elijas."
+          }
+        }
+      }
+    },
+    "Send your request to the AI assistant?": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Enviar tu petición al asistente de IA?"
+          }
+        }
+      }
+    },
+    "The document changed while the AI assistant was answering, so its steps no longer fit. Nothing was done: ask again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento cambió mientras el asistente de IA respondía, así que sus pasos ya no corresponden. No se hizo nada: vuelve a pedirlo."
+          }
+        }
+      }
+    },
+    "The AI assistant didn't propose any step it can take with the commands offered.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El asistente de IA no propuso ningún paso que se pueda hacer con los comandos ofrecidos."
+          }
+        }
+      }
+    },
+    "Left out, as a step before it deleted its pages: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejó fuera, porque un paso anterior eliminó sus páginas: {0}."
+          }
+        }
+      }
+    },
+    "Left out, as it would delete every page: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se dejó fuera, porque eliminaría todas las páginas: {0}."
+          }
+        }
+      }
+    },
+    "Not done: {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se hizo: {0}."
+          }
+        }
+      }
+    },
+    "Ran {0} step. Undo takes each edit back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecutó {0} paso. Deshacer revierte cada edición."
+          }
+        }
+      }
+    },
+    "Ran {0} steps. Undo takes each edit back.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se ejecutaron {0} pasos. Deshacer revierte cada edición."
+          }
+        }
+      }
+    },
+    "\"{0}\" isn't in the document.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "«{0}» no está en el documento."
+          }
+        }
+      }
+    },
+    "This Mac has no voices to read with. Add one in System Settings › Accessibility › Spoken Content.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este Mac no tiene voces para leer. Agrega una en Configuración del Sistema › Accesibilidad › Contenido leído."
+          }
+        }
+      }
+    },
+    "Save as Audio": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como audio"
+          }
+        }
+      }
+    },
+    "{0} - summary": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - resumen"
+          }
+        }
+      }
+    },
+    "Reading the answer aloud…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo la respuesta en voz alta…"
+          }
+        }
+      }
+    },
+    "Reading aloud: paragraph {0} of {1}…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo en voz alta: párrafo {0} de {1}…"
+          }
+        }
+      }
+    },
+    "Saved {0} ({1}).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó {0} ({1})."
+          }
+        }
+      }
+    },
+    "Stopped. No recording was saved.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Detenido. No se guardó ninguna grabación."
+          }
+        }
+      }
+    },
+    "The recording couldn't be made or saved. Check that the folder exists and the file isn't open in another app, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo crear o guardar la grabación. Comprueba que la carpeta existe y que el archivo no está abierto en otra app, y vuelve a intentarlo."
           }
         }
       }

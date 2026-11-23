@@ -146,6 +146,16 @@ struct PagesTest {
         Report.write(lines.joined(separator: "\n"))
     }
 
+    /// Password protection alone (`--only-passwords`): protect through the sheet, the file reopened and drawn, then
+    /// Remove Protection.
+    mutating func runPasswords() async {
+        guard session != nil else { return Report.write("== \(name): passwords\nRESULT: FAIL (no session)") }
+        lines.append("== \(name): passwords (\(count) pages)")
+        await passwords()
+        lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
+        Report.write(lines.joined(separator: "\n"))
+    }
+
     // MARK: Links
 
     private mutating func links() async {
@@ -570,9 +580,22 @@ struct PagesTest {
               + "undo step, undone")
     }
 
+    /// Two drawings of one page the same size, under 1 % of their pixels apart by more than a few levels.
+    private static func nearlySame(_ a: RenderedImage, _ b: RenderedImage) -> Bool {
+        guard a.width == b.width, a.height == b.height, a.pixels.count == b.pixels.count, !a.pixels.isEmpty else { return false }
+        var apart = 0
+        for i in stride(from: 0, to: a.pixels.count - 2, by: 3) {
+            let d = abs(Int(a.pixels[i]) - Int(b.pixels[i])) + abs(Int(a.pixels[i + 1]) - Int(b.pixels[i + 1]))
+                + abs(Int(a.pixels[i + 2]) - Int(b.pixels[i + 2]))
+            if d > 24 { apart += 1 }
+        }
+        return apart * 100 < a.width * a.height
+    }
+
     private mutating func passwords() async {
         let signed = (session?.data ?? []).firstRange(of: Array("/ByteRange".utf8)) != nil
         let wasEncrypted = session?.hasEncryption == true
+        let drawnBefore = try? controller.engine.render(0, scale: 0.25)
         controller.protectDocument(nil)
         guard let sheet = controller.protectSheet else { return check(false, "Protect with Password sheet shown") }
         sheet.needOpen.state = .on
@@ -606,13 +629,16 @@ struct PagesTest {
         do { _ = try DocumentSession.open(saved.path).close() } catch is PasswordRequired { asksPassword = true } catch {}
         let reopened = try? DocumentSession.open(saved.path, password: "selftest-open")
         let opens = reopened != nil
+        // The window's protected document and the reopened file draw page 1 as it was (they once drew it blank).
+        let drawn = [try? controller.engine.render(0, scale: 0.25), try? reopened?.engine.render(0, scale: 0.25)]
+        let drawsAsBefore = drawnBefore.map { before in drawn.allSatisfy { $0.map { Self.nearlySame(before, $0) } ?? false } } ?? false
         reopened?.close()
         let info = (try? Data(contentsOf: saved)).flatMap { try? PdfSecurity.readSecurity([UInt8]($0), "selftest-open") }
         let rightInfo = info?.method == .aes256 && info?.requiresOpenPassword == true && info?.permissions.copy == false
             && info?.permissions.print == .lowResolution && info?.permissions.modify == true
-        check(refused && comma && protected && error == nil && asksPassword && opens && rightInfo,
+        check(refused && comma && protected && error == nil && asksPassword && opens && rightInfo && drawsAsBefore,
               "Protect with Password (its sheet; a mismatch and a comma refused first): saved file asks for its password, opens with it, "
-              + "AES-256, copying off, low-resolution printing")
+              + "AES-256, copying off, low-resolution printing; page 1 draws as before, here and reopened")
 
         // An edit afterwards keeps it protected; then Remove Protection.
         let noted = await editor.addNote(page: 0, at: PointD(12, 12), text: "Protected", color: nil)

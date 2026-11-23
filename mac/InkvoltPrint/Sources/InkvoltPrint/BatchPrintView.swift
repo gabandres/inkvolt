@@ -75,7 +75,8 @@ private struct BatchPrinterBar: View {
             .disabled(!model.isFree)
             Text("For files added:").foregroundStyle(.secondary)
             Stepper("Copies: \(model.allCopies)", value: $model.allCopies, in: 1...BatchPrintLimits.maxCopies)
-            Toggle("Two-sided", isOn: $model.allTwoSided).disabled(!model.canTwoSided)
+            Toggle("Two-sided", isOn: $model.allTwoSided)
+                .help(model.canTwoSided ? "" : String(localized: "This printer prints one side: two-sided files print by hand, the fronts then the backs"))
             BatchPaperPicker(papers: model.papers, paper: $model.allPaper)
         }
     }
@@ -161,7 +162,7 @@ private struct BatchRowEditor: View {
             TextField("Pages", text: $row.range, prompt: Text("All"))
                 .frame(width: 110)
                 .help("Use page numbers like 1-3, 5")
-            Toggle("Two-sided", isOn: $row.twoSided).disabled(!model.canTwoSided && !row.twoSided)
+            Toggle("Two-sided", isOn: $row.twoSided)
             BatchPaperPicker(papers: model.papers, paper: $row.paper)
             if row.needsPassword { Button("Enter Password…") { Task { await model.enterPassword() } } }
         }

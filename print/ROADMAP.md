@@ -175,16 +175,18 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     (`CcittG4`, `Bilevel`; on the Mac in PrintCore, PDFKit draws them too: `mac/docs/PLAN.md`, "Wave 4"). **Next:** Inkvolt
     PDF's 4.8 to reuse it, on Windows and Mac.
 - **Batch B:**
-  - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
-    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
-  - **4.13 Print the clipboard.** Done on Windows: text laid out on pages and printed as a PDF, a picture through Print photos,
-    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`). **Next:** the Mac
-    half waits.
-  - **4.2 Two-sided printing by hand.** Done on Windows: Print a PDF, Batch and Copy, through the queue or straight to the
+  - **4.15 Recent scans.** Done on Windows and Mac: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
+    from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`; the Mac's in `mac/docs/PLAN.md`,
+    "Wave 4"). **Next:** a person to open, email and print a scan from the list on a Mac.
+  - **4.13 Print the clipboard.** Done on Windows and Mac: text laid out on pages and printed as a PDF, a picture through Print photos,
+    copied files as they are, each with the usual options (README, "Print the clipboard"; `ClipboardPrint`; the Mac's in
+    `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person to print copied text, a picture and Finder files on a Mac.
+  - **4.2 Two-sided printing by hand.** Done on Windows and Mac: Print a PDF, Batch and Copy (the Mac: Print a PDF and Batch), through the queue or straight to the
     printer; the fronts, a prompt for face down or face up (the printer's answer first, the person's kept) and an odd last sheet,
     the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
     Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
-    down; Batch with two files) and a one-sided printer; the Mac half waits.
+    down; Batch with two files) and a one-sided printer; on a Mac, Print a PDF on Both Sides by Hand and Batch on paper (the Mac's
+    in `mac/docs/PLAN.md`, "Wave 4").
   - **4.5 Ready for Windows' new driver.** Done on Windows: per printer the queue's driver (Windows' IPP class driver,
     Microsoft's, the maker's version 3 or 4), whether it answers IPP and eSCL (and says Mopria), whether it's ready for protected
     print mode, *Set up with Windows' driver* beside the old queue (never removed), and a warning for a WIA- or TWAIN-only
@@ -210,20 +212,22 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     Word opens them (checked on Windows). **Next:** Word and Pages on the Mac opening one.
   - **4.6 Phone as a scanner.** Done on Windows, with or without a scanner (the sidebar's Scan with your phone, or a Scan tab): a QR code opens a page this PC serves over HTTPS on the private network only while a phone scan is open; the phone's browser takes the photos (no app, no cloud), the first phone to pair is the only one that sends, each photo bounded and checked before it's decoded, made a flat page at the scan's settings or a preset, into the review (README, "Scan with your phone"; `PhoneSession`, `PhotoPage`). Replaces Microsoft Lens. **Next:** the owner's phone on the home Wi-Fi (Android's Chrome past the certificate warning, several pages, Done); an iPhone. On the Mac too (Use Your Phone… beside Use a Camera…: Network framework's TLS server, the app's own certificate in its keychain; `mac/docs/PLAN.md` 4.6); a real phone there is the same check.
   - **4.12 A camera as a scan source.** Done on Windows and Mac: Use a camera opens the camera's live picture (Windows.Media.Capture, the largest format that still moves), Capture page takes its latest frame in full as a page, warped flat and sized like a phone's photo, into the review with the settings or a preset (README, "Scan with a camera"; `CameraSession`, `CameraFormats`; the Mac's AVFoundation and an iPhone as Continuity Camera: `mac/docs/PLAN.md`, "Wave 4"). A 1080p webcam here opened and streamed. **Next:** a document camera, and a real page captured through the window, on both.
-  - **4.18 From Inkvolt PDF into Print's presets and Print a PDF.** Done on Windows: a PDF preset saves PDF/A-2b or puts a
+  - **4.18 From Inkvolt PDF into Print's presets and Print a PDF.** Done on Windows and Mac: a PDF preset saves PDF/A-2b or puts a
     password on the PDF (AES-256 as Inkvolt PDF writes it; the password asked once and kept in Credential Manager if wanted,
     never in the presets); Print a PDF's Layout prints several pages per sheet (2, 4, 6, 9, 16), a booklet (saddle-stitch order,
     both sides, by hand on a one-sided printer) or a poster (150 to 400% over overlapping sheets with cut marks). Inkvolt PDF's
     print layouts and sRGB profile moved into the shared core, Inkvolt PDF's behavior unchanged; Print's PDF/A and protected
     scans pass Inkvolt PDF's PDF/A check and open in its PDFsharp and MuPDF (README, "Print a PDF", "Scan presets";
-    `SheetPrint`, `PdfArchive`, `PdfEncryption`). **Next:** a booklet and a poster on paper (the owner's M234dw: fold, trim);
-    a protected scan opened in Acrobat; veraPDF on a PDF/A scan; the Mac half waits.
-  - **4.16 Cards, calendars and collages in Photos.** Done on Windows: a folded card (two to a sheet, the photo on the front,
+    `SheetPrint`, `PdfArchive`, `PdfEncryption`; the Mac's in `mac/docs/PLAN.md`, "Wave 4": the password kept in the keychain,
+    the layout chosen under Print a PDF's file list, macOS's print panel making the copies and the two sides). **Next:** a
+    booklet and a poster on paper (the owner's M234dw: fold, trim), on both; a protected scan opened in Acrobat; veraPDF on a
+    PDF/A scan.
+  - **4.16 Cards, calendars and collages in Photos.** Done on Windows and Mac: a folded card (two to a sheet, the photo on the front,
     a typed message inside on the sheet's back, fold and cut marks), a calendar (a month or a year per photo, in the interface
     language's month and day names and first day of the week) and a collage (2 to 9 photos in rows, columns or one large;
     spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
     (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
-    paper; the Mac half waits.
+    paper; on a Mac too (the Mac's in `mac/docs/PLAN.md`, "Wave 4").
   - **4.9 A print log on this PC.** Done on Windows and Mac: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
     and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the

@@ -68,6 +68,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// When the print log was turned on (`PrintLogKeeper.since`): CUPS's history is logged from then. Nil before the first
     /// launch that keeps one, and while it's off.
     public var printLogSince: Date?
+    /// The last saved scans, newest first (roadmap 4.15, `RecentScans`; the Windows app's `AppState.RecentScans`): kept in
+    /// this file, on this Mac only, each with a bookmark of where it was saved.
+    public var recentScans: [RecentScan] = []
 
     public static let maxBatchPlaces = 200
 
@@ -91,6 +94,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         batchPlaces = (try? c.decodeIfPresent([BatchPlace].self, forKey: .batchPlaces)) ?? []
         printLogOff = (try? c.decodeIfPresent(Bool.self, forKey: .printLogOff)) ?? false
         printLogSince = try? c.decodeIfPresent(Date.self, forKey: .printLogSince)
+        recentScans = RecentScans.clean((try? c.decodeIfPresent([RecentScan?].self, forKey: .recentScans)) ?? [])
     }
 }
 
