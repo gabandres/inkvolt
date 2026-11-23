@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Security.Cryptography;
 using PdfSharp.Pdf;
+using PdfSharp.Pdf.Advanced;
 using PdfSharp.Pdf.IO;
 
 namespace InkvoltPdf.Core;
@@ -197,19 +198,33 @@ public sealed class PageGuides
     /// <summary>
     /// Each page's identity for its guides (roadmap 4.19): its boxes, its turn and its own content as stored. Annotations,
     /// form fields and the document's other pages don't change it; moving the page keeps it, turning, resizing, cropping
-    /// or replacing the page (or editing its text) changes it.
+    /// or replacing the page (or editing its text) changes it. A content stream several pages share is hashed once (each
+    /// stream's digest goes into its page's).
     /// </summary>
-    public static IReadOnlyList<string> Keys(byte[] data, string? password)
+    /// <exception cref="OperationCanceledException"><paramref name="cancel"/> fired (checked before each page and stream).</exception>
+    public static IReadOnlyList<string> Keys(byte[] data, string? password, CancellationToken cancel = default)
     {
         using var doc = PdfObj.Open(data, password, PdfDocumentOpenMode.Import, PdfStrings.Doc_PagesCantBeRead);
         var keys = new List<string>(doc.PageCount);
+        var digests = new Dictionary<int, byte[]>(); // by object number, streams being indirect
         for (var i = 0; i < doc.PageCount; i++)
         {
+            cancel.ThrowIfCancellationRequested();
             var page = doc.Pages[i];
             using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             void Add(PdfItem? item)
             {
-                if (PdfObj.Dict(item) is { Stream: { } st }) hash.AppendData(st.Value ?? []);
+                var number = item is PdfReference r ? r.ObjectNumber : (int?)null;
+                if (number is { } n && digests.TryGetValue(n, out var known))
+                {
+                    hash.AppendData(known);
+                    return;
+                }
+                if (PdfObj.Dict(item) is not { Stream: { } st }) return;
+                cancel.ThrowIfCancellationRequested();
+                var digest = SHA256.HashData(st.Value ?? []);
+                if (number is { } m) digests[m] = digest;
+                hash.AppendData(digest);
             }
             var contents = page.Elements["/Contents"];
             if (PdfObj.Array(contents) is { } parts) foreach (var part in parts.Elements) Add(part);

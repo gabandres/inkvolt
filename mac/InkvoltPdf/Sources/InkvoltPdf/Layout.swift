@@ -342,8 +342,12 @@ extension DocumentWindowController {
         let engine = ObjectIdentifier(session.engine)
         if guideKeys?.engine == engine { return }
         let data = session.data, password = session.password
+        // A read still running for an earlier guide is stopped, not only its answer dropped (a huge file reads for long).
+        guideKeying?.cancel()
+        let cancel = CancelToken()
+        guideKeying = cancel
         Task { @MainActor [weak self] in
-            guard let keys = try? await Task.detached(operation: { try PageGuides.keys(data, password) }).value else { return }
+            guard let keys = try? await Task.detached(operation: { try PageGuides.keys(data, password, cancel: cancel) }).value else { return }
             guard let self, let now = self.pdf.session, ObjectIdentifier(now.engine) == engine else { return }
             self.guideKeys = (engine, keys)
         }
@@ -368,8 +372,14 @@ extension DocumentWindowController {
         guideTicket += 1
         let ticket = guideTicket
         let data = session.data, password = session.password
+        // The reads of an earlier version are stopped: their answers would be dropped (the ticket, the engine).
+        guideKeying?.cancel()
+        guideKeying = nil
+        guideRemapping?.cancel()
+        let cancel = CancelToken()
+        guideRemapping = cancel
         Task { @MainActor [weak self] in
-            let keys = try? await Task.detached(operation: { try PageGuides.keys(data, password) }).value
+            let keys = try? await Task.detached(operation: { try PageGuides.keys(data, password, cancel: cancel) }).value
             guard let self, ticket == self.guideTicket, let now = self.pdf.session else { return }
             if let before, let keys { now.guides.remap(before.keys, keys) } else { now.guides.pagesChanged() }
             self.guideKeys = keys.map { (engine, $0) }
