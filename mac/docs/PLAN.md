@@ -340,6 +340,24 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   needs a password isn't asked for one there (it's said and left out; Batch asks); no Copy (the Mac's Copy is the ID card's,
   one side); the printer's face is cupsd's copy of the printer's attributes. Not checked: paper on a real one-sided printer,
   face down and up (`--hand-duplex` answers the prompt), the alert on screen, VoiceOver.
+- **4.16 Cards, calendars and collages in Photos.** PrintCore `PhotoProjects` (`cards`, `cardBox`, `panel`, `message`,
+  `needsTwoSided`, `firstDay`, `dayNames`, `monthName`, `weeks`, `monthAt`, `monthSheet`, `yearSheet`, `monthGrid`,
+  `arrangements`, `lines`, `collageCells`, `collages`, `swap`), `SheetLine`, `PhotoText`, `PhotoTextAlign`,
+  `CollageArrangement`, `Placement`'s `right`, `bottom`, `centerX`, `centerY`, `isEmpty`, `intersect`; `PhotoLayoutKind`'s
+  `card`, `monthCalendar`, `yearCalendar`, `collage`, `PhotoLayoutOptions`' `cardMessage`, `calendarYear`, `calendarMonth`,
+  `locale`, `collage`, `collageSpacing`, `collageBorder`, `PhotoSheet`'s `lines`, `texts`, `inside`; `PhotoProjectsTests` (PC).
+  PrintMac `PhotoSheets.draw` draws a sheet's lines (hairline grey, dashed fold marks) and text (Helvetica, wrapped from the
+  top of its box, bold titles, grey day names). The app: Print Photos' Layout gains Folded card (Message inside), Month and
+  Year calendar (Year, First month), Collage (Arrangement, Spacing, Border), Save as PDF… for every layout; a card with a
+  message is sent with `sides=two-sided-long-edge`; `--report … --photo-projects`. **Mac differences:** Windows'
+  `SheetText` is `PhotoText` (PrintCore's `SheetText` is the separator sheet's); a culture is a `Locale` (the interface
+  language's, `AppLanguage.current`, without a region; Foundation's `Calendar` gives the first weekday), a week day .NET's
+  `DayOfWeek` number; with no locale the names are English (Windows: the invariant culture's, also English); a month's
+  weeks count the proleptic Gregorian calendar's day numbers (`Day.dayNumber`), never a date; `monthAt` clamps the index
+  first (Swift's Int is 64-bit, so `Int.max` would overflow where .NET's int fits a long); a collage's photos swap from a
+  photo's Swap With menu (Control-click), since dragging moves the crop; a card printed through the print panel (no queue)
+  takes the panel's two-sided setting. Not checked: a card printed two-sided and folded, a calendar on A4 in Spanish on
+  paper, the controls on screen, VoiceOver.
 
 ## Mac differences
 
@@ -1989,8 +2007,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
-  `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
   the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
   Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.

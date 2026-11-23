@@ -220,12 +220,12 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     scans pass Inkvolt PDF's PDF/A check and open in its PDFsharp and MuPDF (README, "Print a PDF", "Scan presets";
     `SheetPrint`, `PdfArchive`, `PdfEncryption`). **Next:** a booklet and a poster on paper (the owner's M234dw: fold, trim);
     a protected scan opened in Acrobat; veraPDF on a PDF/A scan; the Mac half waits.
-  - **4.16 Cards, calendars and collages in Photos.** Done on Windows: a folded card (two to a sheet, the photo on the front,
+  - **4.16 Cards, calendars and collages in Photos.** Done on Windows and Mac: a folded card (two to a sheet, the photo on the front,
     a typed message inside on the sheet's back, fold and cut marks), a calendar (a month or a year per photo, in the interface
     language's month and day names and first day of the week) and a collage (2 to 9 photos in rows, columns or one large;
     spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
     (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
-    paper; the Mac half waits.
+    paper; on a Mac too (the Mac's in `mac/docs/PLAN.md`, "Wave 4").
   - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
     and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the

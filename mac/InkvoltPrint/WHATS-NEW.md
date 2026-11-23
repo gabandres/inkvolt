@@ -16,6 +16,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Recent Scans… in the Scan tab lists the last 20 scans saved on this Mac, from every scanner: open one, show it in Finder, email it again, print it again or remove it from the list. Files deleted or moved drop out by themselves.
 - Print the Clipboard (⇧⌘V, in the Print menu): copied text is laid out on pages and printed, a copied picture opens in Print Photos, and PDFs and pictures copied in Finder print as they are.
 - Both sides by hand on a printer that prints one side: Print a PDF on Both Sides by Hand… and Batch Print's Two-sided print the fronts, show how to put the stack back (printed side down or up, an odd last sheet set aside), then print the backs in the order the stack feeds them.
+- Cards, calendars and collages in Print Photos: a folded card (two to a sheet, the photo on the front, your message inside), a month or year calendar under each photo in the app's language, and a collage of 2 to 9 photos in rows, columns or one large. Save as PDF… saves any layout as it prints.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

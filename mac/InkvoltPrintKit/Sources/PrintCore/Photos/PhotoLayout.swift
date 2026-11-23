@@ -34,6 +34,18 @@ public enum PhotoLayoutKind: Sendable {
 
     /// An index: `PhotoLayoutOptions.perSheet` small whole photos per sheet, each with its file name.
     case contactSheet
+
+    /// Folded greeting cards, two to a sheet, with a message inside (`PhotoProjects.cards`; roadmap 4.16).
+    case card
+
+    /// A month's calendar under each photo, month after month (`PhotoProjects.monthSheet`).
+    case monthCalendar
+
+    /// A year's calendar under each photo (`PhotoProjects.yearSheet`).
+    case yearCalendar
+
+    /// Up to nine photos together on a sheet (`PhotoProjects.collages`).
+    case collage
 }
 
 public enum PhotoFit: Sendable {
@@ -55,6 +67,22 @@ public struct PhotoLayoutOptions: Equatable, Sendable {
 
     /// Print sizes: every cell of a sheet holds the same photo (wallets of one portrait); copies count sheets.
     public var onePhotoPerSheet: Bool
+
+    /// Cards: the message inside (empty: no inside sheet).
+    public var cardMessage = ""
+
+    /// Calendars: the year, and the first photo's month (1 to 12); this month by default.
+    public var calendarYear = Calendar(identifier: .gregorian).component(.year, from: Date())
+    public var calendarMonth = Calendar(identifier: .gregorian).component(.month, from: Date())
+
+    /// Calendars: month and day names and the week's first day (the interface's language); English's when nil (Windows:
+    /// the invariant culture's).
+    public var locale: Locale?
+
+    /// Collages: the arrangement, the space between photos and the border around them (inches).
+    public var collage = CollageArrangement.rows
+    public var collageSpacing = 0.08
+    public var collageBorder = 0.25
 
     public init(kind: PhotoLayoutKind = .fullPage, size: PhotoSize = PhotoSizes.in4x6, perSheet: Int = 12, fit: PhotoFit = .fill,
                 onePhotoPerSheet: Bool = false) {
@@ -134,8 +162,19 @@ public struct PhotoCell: Equatable, Sendable {
 
 public struct PhotoSheet: Equatable, Sendable {
     public var cells: [PhotoCell]
+    /// Lines drawn on the sheet (a card's fold and cut marks, a calendar's grid; roadmap 4.16).
+    public var lines: [SheetLine] = []
+    /// Text drawn on the sheet (a card's message, a calendar's month, day names and days).
+    public var texts: [PhotoText] = []
+    /// A card's inside: printed on the back of the sheet before it (both sides, flipped on the long edge).
+    public var inside = false
 
-    public init(_ cells: [PhotoCell]) { self.cells = cells }
+    public init(_ cells: [PhotoCell], lines: [SheetLine] = [], texts: [PhotoText] = [], inside: Bool = false) {
+        self.cells = cells
+        self.lines = lines
+        self.texts = texts
+        self.inside = inside
+    }
 }
 
 /// The cells of one sheet; `shrunk`: the print size didn't fit in the printable area, so one smaller print.
@@ -163,6 +202,7 @@ public enum PhotoLayout {
     /// Every sheet to print, in order. Photos without copies are left out; a contact sheet shows each photo once.
     public static func sheets(_ photos: [PhotoInput], _ options: PhotoLayoutOptions, _ paper: SheetPaper) -> [PhotoSheet] {
         if photos.isEmpty { return [] }
+        if PhotoProjects.isProject(options.kind) { return PhotoProjects.sheets(photos, options, paper) }
         if options.kind == .contactSheet { return contactSheets(photos, options, paper) }
 
         let landscape = photos.filter { $0.width > $0.height }.count
@@ -203,7 +243,7 @@ public enum PhotoLayout {
         let area = paper.printable
         if area.width <= 0 || area.height <= 0 { return SheetGrid([], false) }
         switch options.kind {
-        case .fullPage:
+        case .fullPage, .card, .monthCalendar, .yearCalendar, .collage:
             return SheetGrid([area], false)
         case .contactSheet:
             let (cols, rows) = contactGrid(options.perSheet, area.width, area.height)

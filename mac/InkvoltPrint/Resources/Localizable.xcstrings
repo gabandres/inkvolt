@@ -1262,6 +1262,16 @@
         }
       }
     },
+    "Arrangement": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disposición"
+          }
+        }
+      }
+    },
     "As": {
       "localizations": {
         "es": {
@@ -1438,6 +1448,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Azul"
+          }
+        }
+      }
+    },
+    "Border": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borde"
           }
         }
       }
@@ -1862,6 +1882,16 @@
         }
       }
     },
+    "Collage": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Collage"
+          }
+        }
+      }
+    },
     "Color": {
       "localizations": {
         "es": {
@@ -1878,6 +1908,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Color que quitar"
+          }
+        }
+      }
+    },
+    "Columns": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Columnas"
           }
         }
       }
@@ -2302,6 +2342,16 @@
         }
       }
     },
+    "Each photo is the next month's.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada foto es la del mes siguiente."
+          }
+        }
+      }
+    },
     "Each photo laid on the glass is found and saved as its own picture, cut out straight": {
       "localizations": {
         "es": {
@@ -2578,6 +2628,16 @@
         }
       }
     },
+    "First month": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Primer mes"
+          }
+        }
+      }
+    },
     "Fit": {
       "localizations": {
         "es": {
@@ -2624,6 +2684,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Flota"
+          }
+        }
+      }
+    },
+    "Folded card": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarjeta doblada"
           }
         }
       }
@@ -3486,6 +3556,36 @@
         }
       }
     },
+    "Message inside": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensaje interior"
+          }
+        }
+      }
+    },
+    "Message inside (optional)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mensaje interior (opcional)"
+          }
+        }
+      }
+    },
+    "Month calendar": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendario mensual"
+          }
+        }
+      }
+    },
     "More for %@": {
       "localizations": {
         "es": {
@@ -3766,6 +3866,16 @@
         }
       }
     },
+    "None": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguno"
+          }
+        }
+      }
+    },
     "Not a Separator": {
       "localizations": {
         "es": {
@@ -3832,6 +3942,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo leer un archivo como imagen."
+          }
+        }
+      }
+    },
+    "One large": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una grande"
           }
         }
       }
@@ -4558,6 +4678,16 @@
         }
       }
     },
+    "Prints on both sides: the message on the back of each card's sheet, flipped on the long edge.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se imprime a doble cara: el mensaje en el reverso de la hoja de cada tarjeta, volteando por el borde largo."
+          }
+        }
+      }
+    },
     "Prints with margins: this paper has no borderless size.": {
       "localizations": {
         "es": {
@@ -4988,6 +5118,16 @@
         }
       }
     },
+    "Rows": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filas"
+          }
+        }
+      }
+    },
     "SNMP Access for %@": {
       "localizations": {
         "es": {
@@ -5098,6 +5238,16 @@
         }
       }
     },
+    "Save as PDF…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como PDF…"
+          }
+        }
+      }
+    },
     "Save cancelled after %lld files (%@): Save again writes the rest.": {
       "localizations": {
         "en": {
@@ -5194,6 +5344,16 @@
         }
       }
     },
+    "Save the sheets as a PDF, as they print": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda las hojas como PDF, tal como se imprimen"
+          }
+        }
+      }
+    },
     "Save the supply history of all printers as one CSV file (Inkvolt Pro)": {
       "localizations": {
         "es": {
@@ -5226,6 +5386,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se guardó %@%@ en %@."
+          }
+        }
+      }
+    },
+    "Saved %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó %@."
           }
         }
       }
@@ -5742,6 +5912,16 @@
         }
       }
     },
+    "Spacing": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Espaciado"
+          }
+        }
+      }
+    },
     "Split into files at": {
       "localizations": {
         "es": {
@@ -5904,6 +6084,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Historial de suministros %@.csv"
+          }
+        }
+      }
+    },
+    "Swap With": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercambiar con"
           }
         }
       }
@@ -6536,6 +6726,16 @@
         }
       }
     },
+    "The sheets couldn't be saved there. Choose another place.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las hojas no se pudieron guardar ahí. Elige otro lugar."
+          }
+        }
+      }
+    },
     "The two pages were scanned at different resolutions: scan both halves at the same one to join them.": {
       "localizations": {
         "es": {
@@ -6602,6 +6802,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se volverán a ofrecer la próxima vez que se abra Inkvolt Print."
+          }
+        }
+      }
+    },
+    "Thin": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fino"
           }
         }
       }
@@ -6998,6 +7208,16 @@
         }
       }
     },
+    "Two cards to a sheet, each photo on its front: cut between them, then fold each at the dashed marks.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dos tarjetas por hoja, cada foto en su portada: corta entre ellas y luego dobla cada una por las marcas discontinuas."
+          }
+        }
+      }
+    },
     "Two-sided": {
       "localizations": {
         "es": {
@@ -7084,6 +7304,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hasta mañana por la mañana"
+          }
+        }
+      }
+    },
+    "Up to 9 photos a sheet; One large needs 3. Control-click a photo on a sheet to swap it with another.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hasta 9 fotos por hoja; Una grande necesita 3. Haz clic con la tecla Control en una foto de una hoja para intercambiarla con otra."
           }
         }
       }
@@ -7284,6 +7514,16 @@
         }
       }
     },
+    "Wide": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ancho"
+          }
+        }
+      }
+    },
     "Word document (.docx): the text, editable": {
       "localizations": {
         "es": {
@@ -7300,6 +7540,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Trabajando…"
+          }
+        }
+      }
+    },
+    "Year calendar": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Calendario anual"
+          }
+        }
+      }
+    },
+    "Year: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Año: %@"
           }
         }
       }
@@ -7530,6 +7790,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "{text-date}, {text-title} y {text-number}: una fecha, el primer título y un número de factura o de pedido leídos en la primera página."
+          }
+        }
+      }
+    },
+    "¼ in": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¼ in"
+          }
+        }
+      }
+    },
+    "½ in": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "½ in"
           }
         }
       }
