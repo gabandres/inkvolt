@@ -460,7 +460,14 @@ public enum DocLayout {
             // Pieces that touch are one word split by MuPDF (at a capital's accent: "PREDICACIÓ" "N"): no space between.
             let touching = b.box.x - a.box.right < 0.15 * max(a.size, b.size)
             let needsSpace = !touching && !(a.text.unicodeScalars.last?.isWS ?? true) && !(b.text.unicodeScalars.first?.isWS ?? true)
-            if needsSpace { spans[spans.count - 1].text += " " }
+            if needsSpace && spans[spans.count - 1].link != nil {
+                // After a link the space between is its own run, linked to nothing: the link stops at its last word.
+                var space = spans[spans.count - 1].with(text: " ", box: RectD(a.box.right, a.box.y, 0, a.box.height))
+                space.link = nil
+                spans.append(space)
+            } else if needsSpace {
+                spans[spans.count - 1].text += " "
+            }
             spans += b.spans
             return .of(spans)
         }

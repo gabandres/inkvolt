@@ -422,4 +422,43 @@ struct ExportPptxTests {
         try #require(lines.count == 1)
         #expect(Self.ext(lines[0]).cx == 612 * Self.emu)
     }
+
+    /// A slide's runs with their text and the a:hlinkClick of their properties, if any.
+    private static func runs(_ slide: XMLDocument) -> [(text: String, click: XMLElement?)] {
+        X.elements(slide, "a:r").map { r in
+            let click = X.children(r, "a:rPr").first.flatMap { X.children($0, "a:hlinkClick").first }
+            return (X.elements(r, "a:t").map(X.text).joined(), click)
+        }
+    }
+
+    @Test func linksStayLinksOnTheWordsTheyCover() throws {
+        let bytes = try Self.pptx(ExportTestPdf.linked())
+        try Self.assertValid(bytes)
+        let deck = try Deck(bytes)
+        let slides = deck.slides
+        try #require(slides.count == 2)
+        let linked = Self.runs(slides[0]).filter { $0.click != nil }
+        #expect(linked.map { $0.text.trimmingCharacters(in: .whitespaces) } == ["guide", "Next page", "Mail us"])
+        try #require(linked.count == 3)
+        // The web and mail addresses are hyperlinks outside the file; the jump goes to the second slide.
+        let web = try deck.package.hyperlinks(of: deck.slideParts[0])
+        #expect(web[X.attr(linked[0].click, "r:id") ?? ""] == ExportTestPdf.linkUriEscaped)
+        #expect(web[X.attr(linked[2].click, "r:id") ?? ""] == "mailto:a@example.com")
+        #expect(X.attr(linked[1].click, "action") == "ppaction://hlinksldjump")
+        let inside = try deck.package.relationships(of: deck.slideParts[0])
+        #expect(inside[X.attr(linked[1].click, "r:id") ?? ""] == deck.slideParts[1])
+        // The words around a link and a javascript: one are plain text.
+        #expect(Self.runs(slides[0]).contains { $0.text.contains("See the") && $0.click == nil })
+        #expect(Self.runs(slides[0]).contains { $0.text.contains("Do not run this") && $0.click == nil })
+        #expect(web.count == 2)
+    }
+
+    @Test func aLinkToASlideLeftOutIsDropped() throws {
+        let bytes = try Self.pptx(ExportTestPdf.linked(), options: ExportOptions(pages: [0]))
+        try Self.assertValid(bytes)
+        let slide = try #require(try Deck(bytes).slides.first)
+        let clicks = X.elements(slide, "a:hlinkClick")
+        #expect(clicks.count == 2)
+        #expect(clicks.allSatisfy { X.attr($0, "action") == nil })
+    }
 }

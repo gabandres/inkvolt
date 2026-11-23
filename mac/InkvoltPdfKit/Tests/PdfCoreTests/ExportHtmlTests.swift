@@ -42,12 +42,21 @@ struct ExportHtmlTests {
     static func children(_ e: XMLElement, _ name: String) -> [XMLElement] { OpenXmlPackage.children(e, name) }
 
     /// What no export may hold: anything that runs or fetches.
+    /// What no export may hold: anything that runs or fetches. A link is the one thing a reader may click: an a with an
+    /// http, https or mailto address or an exported page's anchor, and nothing else on it.
     static func assertInert(_ root: XMLElement) throws {
-        let banned: Set<String> = ["script", "iframe", "object", "embed", "link", "base", "form", "svg", "math", "video", "audio", "source", "a", "input",
+        let banned: Set<String> = ["script", "iframe", "object", "embed", "link", "base", "form", "svg", "math", "video", "audio", "source", "input",
                                    "button", "frame", "applet"]
         let src = try NSRegularExpression(pattern: "^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$")
+        let href = try NSRegularExpression(pattern: "^(https?://|mailto:|#page-[0-9]+$)")
         for e in [root] + descendants(root) {
             #expect(!banned.contains(e.name ?? ""))
+            if e.name == "a" {
+                let h = attr(e, "href") ?? ""
+                #expect(href.firstMatch(in: h, range: NSRange(h.startIndex..., in: h)) != nil, "\(h)")
+                #expect((e.attributes ?? []).allSatisfy { ["href", "rel"].contains($0.name ?? "") })
+                continue
+            }
             for a in e.attributes ?? [] {
                 let name = a.name ?? ""
                 #expect(!name.lowercased().hasPrefix("on"), "\(e.name ?? "") has \(name)")
@@ -321,5 +330,147 @@ struct ExportHtmlTests {
     @Test func anUnreadableSourceOnlyLosesTheAltText() throws {
         let root = try Self.dom(try Self.html(ExportTestPdf.make(), options: ExportOptions(source: [1, 2, 3])))
         #expect(!Self.all(root, "h1").isEmpty)
+    }
+
+    // ---- links (Windows' 722013bb and its reviews) ----
+
+    static func span(_ text: String, _ x: Double, _ width: Double, bold: Bool = false, italic: Bool = false, y: Double = 60,
+                     link: ExportLink? = nil) -> ExportSpan {
+        var s = ExportSpan(text, "Arial", 11, bold, italic, 0, RectD(x, y, width, 12))
+        s.link = link
+        return s
+    }
+
+    @Test func linksStayLinksOnTheWordsTheyCover() throws {
+        let root = try Self.dom(try Self.html(ExportTestPdf.linked()))
+        try Self.assertInert(root)
+        let anchors = Self.all(root, "a")
+        #expect(anchors.map { Self.textOf($0).trimmingCharacters(in: .whitespaces) } == ["guide", "Next page", "Mail us"])
+        #expect(anchors.map { Self.attr($0, "href") ?? "" } == [ExportTestPdf.linkUriEscaped, "#page-2", "mailto:a@example.com"])
+        #expect(Self.attr(anchors.first, "rel") == "noopener noreferrer")
+        // The words around a link stay outside it, and the page it jumps to is there.
+        #expect(Self.all(root, "p").contains { Self.textOf($0).replacingOccurrences(of: "  ", with: " ") == "See the guide for details." })
+        #expect(Self.all(root, "div").filter { Self.attr($0, "id") == "page-2" }.count == 1)
+        // A javascript: address is only text.
+        #expect(Self.all(root, "p").contains { Self.textOf($0) == "Do not run this" && Self.all($0, "a").isEmpty })
+    }
+
+    @Test func aLinkToAPageLeftOutIsDropped() throws {
+        let root = try Self.dom(try Self.html(ExportTestPdf.linked(), options: ExportOptions(pages: [0])))
+        #expect(!Self.all(root, "a").contains { (Self.attr($0, "href") ?? "").hasPrefix("#") })
+        #expect(Self.all(root, "a").count == 2)
+    }
+
+    @Test func aLinkKeepsItsRunsStressInsideIt() throws {
+        let link = ExportLink.web("https://example.com/")
+        let spans = [Self.span("Plain ", 72, 30), Self.span("bold", 102, 20, bold: true, link: link), Self.span(" and ", 122, 20, link: link),
+                     Self.span("italic", 142, 30, italic: true)]
+        let html = try Self.html([ExportPage(612, 792, [ExportLine.of(spans)], [], [])])
+        #expect(html.contains("Plain <a href=\"https://example.com/\" rel=\"noopener noreferrer\"><strong>bold</strong> and </a><em>italic</em>"), "\(html)")
+        try Self.assertInert(try Self.dom(html))
+    }
+
+    @Test func onlyWebAndMailAddressesBecomeLinks() {
+        #expect(ExportLink.web("javascript:alert(1)") == nil)
+        #expect(ExportLink.web("file:///C:/Windows/notepad.exe") == nil)
+        #expect(ExportLink.web("data:text/html,<script>alert(1)</script>") == nil)
+        #expect(ExportLink.web("https://example.com/" + String(repeating: "a", count: ExportLink.maxUri)) == nil)
+        #expect(ExportLink.web("  ") == nil)
+        #expect(ExportLink.web(" https://example.com/a b\"< ")?.uri == "https://example.com/a%20b%22%3C")
+        #expect(ExportLink.web("mailto:a@example.com")?.uri == "mailto:a@example.com")
+    }
+
+    @Test func linksThatAreDroppedDontCountAgainstAPagesCap() throws {
+        // 600 javascript: links before the page's one web link: the cap of 500 is for links carried.
+        let bad = 600
+        let annots = (0...bad).map { "\(6 + $0) 0 R" }.joined(separator: " ")
+        let jsLinks: [String] = (0..<bad).map { i in
+            "<< /Type /Annot /Subtype /Link /Rect [\(300 + i % 200) 100 \(301 + i % 200) 101] /A << /S /URI /URI (javascript:x\(i)) >> >>"
+        }
+        let pdf = RedactionTestPdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [\(annots)] >>",
+            RedactionTestPdf.stream("BT /F1 12 Tf 72 700 Td (Visit the site) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        ] + jsLinks + ["<< /Type /Annot /Subtype /Link /Rect [70 694 160 714] /A << /S /URI /URI (https://example.com/) >> >>"])
+        let anchors = Self.all(try Self.dom(try Self.html(pdf)), "a")
+        #expect(anchors.map { Self.attr($0, "href") ?? "" } == ["https://example.com/"])
+    }
+
+    @Test func theSpaceALineBreakOrAJoinMakesStaysOutsideALink() throws {
+        let link = ExportLink.web("https://example.com/")
+        func s(_ text: String, _ x: Double, _ y: Double, _ linked: Bool) -> ExportSpan {
+            var span = ExportSpan(text, "Arial", 11, false, false, 0, RectD(x, y, Double(text.count) * 5.5, 13))
+            span.link = linked ? link : nil
+            return span
+        }
+        // A link to the end of one line and from the start of the next; and two pieces of a line MuPDF read apart.
+        let wrapped = [ExportLine.of([s("See the ", 72, 72, false), s("guide", 116, 72, true)]), ExportLine.of([s("here", 72, 86, true), s(" now.", 94, 86, false)])]
+        var html = try Self.html([ExportPage(612, 792, wrapped, [], [])])
+        let a = "<a href=\"https://example.com/\" rel=\"noopener noreferrer\">"
+        #expect(html.contains("See the \(a)guide</a> \(a)here</a> now."), "\(html)")
+        let pieces = [ExportLine.of([s("Read", 72, 200, true)]), ExportLine.of([s("more", 110, 200, false)])]
+        html = try Self.html([ExportPage(612, 792, pieces, [], [])])
+        #expect(html.contains("\(a)Read</a> more"), "\(html)")
+    }
+
+    @Test func spaceWithNoLinkClosesTheLinkBeforeIt() throws {
+        let link = ExportLink.web("https://example.com/")
+        let spans = [Self.span("one", 72, 15, bold: true, link: link), Self.span(" ", 87, 3, bold: true), Self.span("two", 90, 15, bold: true)]
+        let html = try Self.html([ExportPage(612, 792, [ExportLine(spans, RectD(72, 60, 33, 12))], [], [])])
+        #expect(html.contains("<a href=\"https://example.com/\" rel=\"noopener noreferrer\"><strong>one</strong></a><strong> two</strong>"), "\(html)")
+        try Self.assertInert(try Self.dom(html))
+    }
+
+    @Test func aLinkOverTwoLinesCoversItsQuadsWordsOnly() throws {
+        let pdf = ExportTestPdf.twoLineLink(quads: true)
+        let root = try Self.dom(try Self.html(pdf, options: ExportOptions(source: pdf)))
+        try Self.assertInert(root)
+        #expect(Self.all(root, "a").map(Self.textOf) == ["guide", "to setup"])
+        let text = Self.all(root, "p").map { Self.textOf($0).trimmingCharacters(in: .whitespaces) }.joined(separator: " ")
+        #expect(text == "Read our full guide to setup and more.")
+    }
+
+    @Test func aLinkOverTwoLinesWithoutQuadsIsLeftOut() throws {
+        // Its area alone would link "Read our full" and "and more." too; without the PDF's bytes the quads aren't read either.
+        let pdf = ExportTestPdf.twoLineLink(quads: false)
+        #expect(Self.all(try Self.dom(try Self.html(pdf, options: ExportOptions(source: pdf))), "a").isEmpty)
+        #expect(Self.all(try Self.dom(try Self.html(ExportTestPdf.twoLineLink(quads: true))), "a").isEmpty)
+    }
+
+    /// "Visit the site" linked to https://example.com/ by `links` links sharing one /QuadPoints of `quads` boxes, each over
+    /// the whole line.
+    private static func sharedQuads(_ links: Int, _ quads: Int) -> [UInt8] {
+        let box = String(repeating: "70 714 200 714 70 694 200 694 ", count: quads)
+        let refs = (0..<links).map { "\(7 + $0) 0 R" }.joined(separator: " ")
+        let link = "<< /Type /Annot /Subtype /Link /Rect [70 694 200 714] /QuadPoints 6 0 R /A << /S /URI /URI (https://example.com/) >> >>"
+        return RedactionTestPdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [\(refs)] >>",
+            RedactionTestPdf.stream("BT /F1 12 Tf 72 700 Td (Visit the site) Tj ET"),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            "[\(box)]",
+        ] + Array(repeating: link, count: links))
+    }
+
+    @Test func aLinkWithMoreBoxesThanAreReadGoesByItsArea() throws {
+        let pdf = Self.sharedQuads(1, Links.maxQuads + 6)
+        let read = try Links.readForExport(pdf, nil)
+        #expect(read.count == 1 && read.first?.quads.count == Links.maxQuads + 1)
+        let root = try Self.dom(try Self.html(pdf, options: ExportOptions(source: pdf)))
+        #expect(Self.all(root, "a").map(Self.textOf) == ["Visit the site"])
+    }
+
+    @Test func linksSharingAHugeListOfBoxesAreReadAFewBoxesEach() throws {
+        // 2,000 links, one list of 20,000 boxes: read in full for each, about 1.3 GB.
+        let pdf = Self.sharedQuads(2_000, 20_000)
+        let read = try Links.readForExport(pdf, nil)
+        #expect(read.count == Links.maxPerPage)
+        #expect(read.allSatisfy { $0.quads.count == Links.maxQuads + 1 })
+        #expect(!(try Links.read(pdf, nil)).contains { !$0.quads.isEmpty }) // the Link tool doesn't read them at all
+        let root = try Self.dom(try Self.html(pdf, options: ExportOptions(source: pdf)))
+        #expect(Self.all(root, "a").map(Self.textOf) == ["Visit the site"])
     }
 }

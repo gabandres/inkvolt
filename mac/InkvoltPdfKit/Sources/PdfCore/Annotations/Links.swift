@@ -11,6 +11,9 @@ public struct LinkInfo: Equatable, Sendable {
     public var uri: String?
     /// The page a link inside the document goes to (0-based); -1 for a URI or an action Inkvolt PDF doesn't edit.
     public var targetPage: Int
+    /// The boxes it covers, from its /QuadPoints (page space, a line of text each), when it has them; empty when only its
+    /// /Rect says where it is. Read only by `Links.readForExport`, at most one more than `Links.maxQuads`.
+    public var quads: [RectD] = []
 
     /// What it leads to, for lists and tooltips.
     public func describe() -> String { uri ?? (targetPage >= 0 ? loc("Page {0}", CoreLanguage.number(targetPage + 1)) : loc("Another action")) }
@@ -27,14 +30,37 @@ public enum Links {
     private static let blockedSchemes: Set<String> = ["javascript", "vbscript", "data"]
 
     public static func read(_ data: [UInt8], _ password: String?) throws -> [LinkInfo] {
-        let doc = try PdfEdit.openToRead(data, password)
+        try read(try PdfEdit.openToRead(data, password), quads: false)
+    }
+
+    /// Most boxes of a link's /QuadPoints an export uses (a line each); one with more goes by its area.
+    public static let maxQuads = 64
+
+    /// Most links of a page an export reads the boxes of (and carries; see `PdfEngine.exportPage`).
+    public static let maxPerPage = 500
+
+    /// The links an export carries, with their /QuadPoints' boxes (`LinkInfo.quads`): at most `maxQuads` + 1 boxes a link
+    /// and `maxPerPage` links a page, whatever the file lists (2,000 links sharing one list of 20,000 boxes would otherwise
+    /// be read box by box for each).
+    public static func readForExport(_ data: [UInt8], _ password: String?) throws -> [LinkInfo] {
+        try read(try PdfEdit.openToRead(data, password), quads: true)
+    }
+
+    private static func read(_ doc: MuDoc, quads: Bool) throws -> [LinkInfo] {
         var list: [LinkInfo] = []
         for p in 0..<(try doc.pageCount()) {
             let page = doc.page(p)
+            var onPage = 0
             for (i, a) in (page.array("Annots")?.elements ?? []).enumerated() where a.isDict && a.name("Subtype") == "Link" {
                 guard let r = a.array("Rect"), r.count >= 4 else { continue }
+                if quads {
+                    onPage += 1
+                    if onPage > maxPerPage { break }
+                }
                 let (uri, target) = target(doc, a)
-                list.append(LinkInfo(id: Annotations.idOf(doc, a, p, i), pageIndex: p, rect: PageBoxes.rectToPage(page, r), uri: uri, targetPage: target))
+                var link = LinkInfo(id: Annotations.idOf(doc, a, p, i), pageIndex: p, rect: PageBoxes.rectToPage(page, r), uri: uri, targetPage: target)
+                if quads { link.quads = Annotations.quadRectsOf(page, a, max: maxQuads) }
+                list.append(link)
             }
         }
         return list

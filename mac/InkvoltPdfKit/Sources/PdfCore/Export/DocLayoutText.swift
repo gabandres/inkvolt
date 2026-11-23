@@ -81,7 +81,9 @@ extension DocLayout {
             }
             var spans = group[0].line!.spans
             for g in group.dropFirst() {
-                spans.append(g.line!.spans[0].with(text: "\t", box: RectD(g.box.x, g.box.y, 0, g.box.height)))
+                var tab = g.line!.spans[0].with(text: "\t", box: RectD(g.box.x, g.box.y, 0, g.box.height))
+                tab.link = nil // a link stays on its words
+                spans.append(tab)
                 spans += g.line!.spans
             }
             let line = ExportLine.of(spans)
@@ -211,6 +213,10 @@ extension DocLayout {
                     var t = String.UnicodeScalarView(last.dropLast())
                     t.append(lineHyphen)
                     runs[runs.count - 1].text = String(t)                                            // "exam-" + "ple": dehyphenate decides
+                } else if !(lastRun.text.unicodeScalars.last?.isWS ?? true) && lastRun.link != nil {
+                    var space = lastRun.with(text: " ")
+                    space.link = nil
+                    runs.append(space)                                                               // a link stops at the line's last word
                 } else if !(lastRun.text.unicodeScalars.last?.isWS ?? true) {
                     runs[runs.count - 1].text += " "
                 }
@@ -278,7 +284,8 @@ extension DocLayout {
 
     static func add(_ runs: inout [ExportSpan], _ s: ExportSpan) {
         if s.text.isEmpty { return }
-        if let last = runs.last, last.sameLook(s) || s.text.isBlank {
+        // Space joins the run before it, but never carries a link onto text that has none (or another).
+        if let last = runs.last, last.sameLook(s) || (s.text.isBlank && last.link == s.link) {
             runs[runs.count - 1] = last.with(text: last.text + s.text, box: last.box.union(s.box))
         } else {
             runs.append(s)

@@ -141,9 +141,6 @@ public enum Reflow {
     public static let topPageScript =
         "(function(){var d=document.querySelectorAll('main > div[id^=\"page-\"]');for(var i=0;i<d.length;i++){if(d[i].getBoundingClientRect().bottom>4)return d[i].id;}return d.length?d[d.length-1].id:'';})()"
 
-    /// Longest web address followed (Windows' `ExportLink.MaxUri`).
-    public static let maxUri = 2048
-
     /// Where a navigation to `uri` goes: a place in the document stays in the view, a web or mail address leaves it for the
     /// browser, everything else is refused.
     public static func follow(_ uri: String, _ pages: Int) -> ReflowLink {
@@ -155,15 +152,7 @@ public enum Reflow {
             return ReflowLink(.inDocument, page: pageOf(fragment, pages) ?? -1)
         }
         if host == own.host { return ReflowLink(.blocked) } // the view shows one page
-        return web(uri).map { ReflowLink(.external, address: $0) } ?? ReflowLink(.blocked)
-    }
-
-    /// `uri` as it is sent, when it is an http, https or mailto address (Windows' `ExportLink.Web`).
-    private static func web(_ uri: String) -> String? {
-        let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, uri.utf16.count <= maxUri, Links.isSafe(trimmed), let url = URL(string: trimmed), url.scheme != nil else { return nil }
-        let absolute = url.absoluteString
-        return absolute.utf16.count > maxUri ? nil : absolute
+        return ExportLink.web(uri)?.uri.map { ReflowLink(.external, address: $0) } ?? ReflowLink(.blocked)
     }
 
     /// The commands that work while the Reflow view shows (Windows' names): it is read-only, so the ones that change the

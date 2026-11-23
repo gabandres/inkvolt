@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Export to PowerPoint and HTML keeps the PDF's links: web and email links still open, and a link to another page goes to that slide or that part of the page. Only the words the link covers are linked. Reflow's column has the PDF's links too.
 - Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.
 
 ## 1.13.0

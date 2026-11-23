@@ -912,6 +912,15 @@ From the steps, besides the sections below:
 - E14a: `PageOcr.recognizer(_:options:spelling:)` is a page recognizer through `ScanText` with Recognize Text's choices,
   so the words it marks stay marked (`…SuspectWordsAsRecognizeTextDoes`, Mac only). Not checked: a real scan or Batch run
   with Vision and the Mac's dictionary.
+- E15's links (Windows' 722013bb and its reviews dfc3570d, 1445b1c0, 44e875b5, 05074119): `ExportSpan.link`, read in
+  `PdfEngine.exportPage` (`ExportLinks.swift`: a character linked when its middle is in a link's /QuadPoints' boxes, from
+  `Links.readForExport` through `ExportOptions.source`, or its area when that holds one line; 500 links a page carried,
+  64 boxes a link; a space at a link's edge left out), `ExportLink.web` (http, https and mailto through `Links.normalize`,
+  then quotes, angle brackets, backslashes, carets, backticks, braces and bars escaped as .NET's `Uri.AbsoluteUri` does; at most 2,048 characters), DocLayout's spaces, tabs and
+  joins kept outside a link, HtmlWriter's `<a href rel="noopener noreferrer">` and `#page-N`, PptxWriter's `a:hlinkClick`
+  (external hyperlink relationships, slide jumps). Ported: ExportHtmlTests' 11 link tests and ExportPptxTests' 2, with
+  Windows' names. ExportCorpusTests allows only such links in the HTML (and counts them); the corpus wasn't run (its PDFs
+  aren't on the build Mac). Not checked: a link clicked in PowerPoint for Mac or Keynote.
 - E15: census-p60 page 16's line chart is short stroked segments whose boxes are over 3 pt on the Mac, so they are kept as
   27 pictures where Windows makes them lines. Not checked: the .pptx in PowerPoint for Mac or Keynote.
 - E16: FindAllTests ported, two adapted (the Mac's `findAll` returns its pages and hands them to `onPage` where Windows'
@@ -1005,8 +1014,8 @@ From the steps, besides the sections below:
   Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
   are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
   it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
-  reflow says Recognize Text where Windows adds Scan & OCR. Swift's HtmlWriter has no links yet ("Windows ahead, to
-  port": E15's links), so the column's own links wait for it; `follow` is ported and tested. Not checked by a person: the
+  reflow says Recognize Text where Windows adds Scan & OCR. The column has the PDF's links (E15's, below), followed
+  through `follow` (`ExportLink.web`, as Windows). Not checked by a person: the
   column's look in light and dark, VoiceOver reading it, a trackpad's scrolling, a real web link opening the browser.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
@@ -1681,8 +1690,7 @@ then ±0.6 %), then finds skew and shift in that frame as before, kept only when
 the same scan fed sideways.
 
 **Windows ahead, to port:** Compare reads scans with the language's dictionary (which way up, when the cleanup isn't
-sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). E15's exports carry links
-(`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests). Folder search's phrase reading: a file's
+sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). Folder search's phrase reading: a file's
 pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
 `SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
 `Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
@@ -2329,8 +2337,8 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
-- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary, E15's links, folder
-  search's phrase reading.
+- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary, folder search's
+  phrase reading.
 - Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
   34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
   through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).
