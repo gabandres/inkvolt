@@ -159,6 +159,23 @@ public sealed class RedactionSuggestionsTests : IDisposable
     }
 
     [Fact]
+    public void AProposalOfMegabytesOfQuotesAndStops_IsLeftOutInAMoment()
+    {
+        // `".` four million characters long: tidying it took one quote and one full stop off per pass, the whole copied
+        // each time (hours); it is left out unread now, and one just short of the limit is tidied in one pass.
+        var hostile = string.Concat(Enumerable.Repeat("\".", 2_000_000));
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Empty(RedactionSuggestions.Variants(hostile));
+        var padded = new string('"', 900) + "Jane Doe" + string.Concat(Enumerable.Repeat(".\"", 540));
+        Assert.True(padded.Length <= RedactionSuggestions.MaxQuoteLength);
+        Assert.Equal(["Jane Doe"], RedactionSuggestions.Variants(padded));
+        var result = RedactionSuggestions.Verify([new(hostile, "other"), new(padded, "name")], ["Jane Doe signs."]);
+        Assert.Equal(["Jane Doe"], result.Kept.Select(k => k.Text));
+        Assert.Equal(1, result.Dropped);
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+    }
+
+    [Fact]
     public async Task SuggestAsync_ThroughAFakeEndpoint_KeepsWhatEachRequestsTextHolds()
     {
         var pages = Texts(Contract());

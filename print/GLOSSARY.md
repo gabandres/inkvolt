@@ -136,6 +136,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   IPP class driver; **can move**: it answers IPP with a raster format but its queue is on another driver, or it has none; **not
   ready**: asked, it doesn't answer IPP; **not known**: it can't be asked) and whether its scanner scans (**driver only**: WIA or
   TWAIN without eSCL) (`DriverReadiness`). **Windows' driver**: Microsoft's IPP class driver, the one Windows Ready Print installs.
+  On the Mac: **ready** means it answers IPP with a raster format, so macOS prints to it **driverless** (AirPrint, IPP Everywhere),
+  with no can move; a **maker's driver** for a scanner is an ImageCaptureCore module outside `/System`.
+- **Printer Sharing** (Mac, roadmap 4.10): macOS's own sharing of a queue (System Settings › General › Sharing); a queue is
+  **shared** when cupsd says so (`printer-is-shared`; `PrinterSharing`). The Mac app runs no shared printer of its own.
 - **Two-sided by hand**: both sides on a printer that can't print them: the fronts, the stack put back, the backs (`HandDuplexPlan`).
   **Output face**: which way up sheets land in the output tray (`OutputFace`); it decides how the stack goes back (**as it came out**,
   face down, backs last sheet first; **turned over like a page**, face up, backs in order). **Set aside**: an odd last sheet with no
@@ -172,6 +176,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   waits to be told the Wi-Fi) or its **Wi-Fi Direct** network (`SetupNetworks`), its **setup page** (its web server, at the gateway
   that network gives) and **going back** to the network the PC was on, by Windows' saved profile (`PrinterSetupGuide`). **Away**: on
   the printer's network, not back yet. A **secured** network is joined in **Windows' own Wi-Fi list**, never by the app.
+  On the Mac every network is joined, and left, by the person in macOS's **Wi-Fi menu**; the guide waits to see it.
 - **Print log**: the jobs this PC's spooler saw while the app ran, one entry each, kept on this PC only (`PrintLog`, `PrintLogFile`): when,
   the queue, the document's name, the user and PC, pages and copies, color and two-sided when known, and how it **ended**: **printed**
   (the spooler said so, or it had started printing), **cancelled** (deleted before printing; counts no pages) or **left** (went with

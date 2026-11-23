@@ -21,6 +21,21 @@ Apple doc pages render with JavaScript. They were read through their JSON form
 - Menu bar item (`MenuBarExtra`).
 - Opt-in launch at login (`SMAppService.mainApp`).
 - macOS needs **no** multicast entitlement.
+- The print log (roadmap 4.9) needs **no new** entitlement: CUPS's history of finished jobs (IPP Get-Jobs,
+  `which-jobs=completed`) comes over cupsd's socket with `com.apple.security.print`, checked from the sandbox (Q2).
+- A camera scan (roadmap 4.12) needs `com.apple.security.device.camera` (owner-approved 2026-11-23) and
+  `NSCameraUsageDescription`. macOS asks once, at the first capture session, with the app's sentence ("Inkvolt Print
+  uses the camera only while you scan with it: each page you capture becomes a scanned page on this Mac. Nothing is
+  recorded or sent.", in Spanish too); denied is said with where to turn it on (Privacy & Security › Camera).
+- A phone scan (roadmap 4.6) listens on TCP 9781 (HTTPS, Network framework's `NWListener` with TLS) only while its window
+  is open: `com.apple.security.network.server`, already there for SNMP replies (the owner approved it for this too,
+  2026-11-23); no Info.plist key. Listening and accepting TCP don't trigger Local Network privacy (TN3179, below). The TLS
+  identity is a self-signed certificate the app makes with `SecKeyCreateRandomKey` and keeps in its own keychain items
+  (`SecItemAdd`, `SecIdentityCreateWithCertificate`, `sec_identity_create`). macOS's application firewall is off by
+  default; when on, its default "Automatically allow downloaded signed software to receive incoming connections" lets a
+  signed app listen with no question (on, on the build Mac); with that off, macOS asks once whether "Inkvolt Print.app"
+  may accept incoming network connections. Checked on the build Mac (2026-11-23) on loopback only: the server, its TLS and
+  a phone client, with the certificate in a keychain file of the test's own (`KeychainFile`), never the login keychain.
 
 **Local Network privacy gates almost all of it.** The probe, SNMP, Bonjour, IPP, LEDM and eSCL all need the
 Local Network privilege. Design for three states:
@@ -45,18 +60,22 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 |---|---|
 | `com.apple.security.app-sandbox` | Required for the Mac App Store |
 | `com.apple.security.network.client` | Outgoing TCP (IPP, LEDM/CDM, eSCL, the 631/9100/515 probe) and sending UDP (SNMP) |
-| `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." |
-| `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing) |
+| `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." Also the phone scan's HTTPS listener on TCP 9781 (roadmap 4.6, owner-approved 2026-11-23), open only while a phone scan is |
+| `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing); the print log's read of CUPS's history of finished jobs (4.9) needs nothing more |
 | `com.apple.security.device.usb` | ImageCaptureCore with USB scanners (macOS 14+) |
+| `com.apple.security.device.camera` | A camera scan (roadmap 4.12, the owner approved it 2026-11-23): AVFoundation's capture session on a webcam, document camera or iPhone (Continuity Camera). Needs `NSCameraUsageDescription` (English and Spanish, `InfoPlist.xcstrings`); macOS asks once, and denied is said with where to turn it on |
 | `com.apple.security.files.bookmarks.app-scope` | A scan preset's folder, chosen once and written to again (app-scoped security bookmark) |
 | `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks; opening PDFs and photos to print |
 | `com.apple.security.application-groups` = [`AE6TTXW92K.com.bermudezsystems.inkvolt`] | The Inkvolt Pro key's file, shared with Inkvolt PDF (added 2026-11-04 for roadmap 1.6; Q6) |
+| `com.apple.security.personal-information.location` | Wi-Fi names for the new-printer Wi-Fi guide: macOS 14+ gives them only to apps with location access (added 2026-11-23 for roadmap 4.17, the owner's approval; Q7) |
 
 Not needed: `com.apple.developer.networking.multicast`, which is iOS, iPadOS and visionOS only.
 
 **Info.plist keys:**
 
 - `NSLocalNetworkUsageDescription`: say plainly that the app finds and checks printers and scanners on this network.
+- `NSLocationUsageDescription` and `NSLocationWhenInUseUsageDescription` (roadmap 4.17): Wi-Fi names only while setting up
+  a new printer's Wi-Fi; the location itself isn't used or kept.
 - `NSBonjourServices`: `_ipp._tcp`, `_ipps._tcp`, `_uscan._tcp`, `_uscans._tcp`, `_pdl-datastream._tcp`,
   `_printer._tcp`. On macOS, a non-empty list reportedly limits Bonjour to exactly those types (secondhand Apple
   engineering reply, see Q1).
@@ -405,8 +424,28 @@ IPP-over-USB printer was at hand, so the device URI below is read from the syste
 macOS's cupsd takes no notification subscriptions: Create-Printer-Subscriptions (with `notify-pull-method` `ippget`) from
 the sandboxed Release build answers 0x501, "Create-Printer-Subscriptions not supported." (macOS 27.1), so there is no
 `ippget` pull and no push. CUPS-Get-Printers with only `printer-name`, `device-uri` and `printer-make-and-model` answers
-from the sandbox over libcups' per-thread connection: the app polls that every 2 s to notice a queue added, deleted or
+from the sandbox over libcups' per-thread connection: the app polls that (every 2 s while its window shows, 6 s on battery or in Low Power Mode, not while it's closed) to notice a queue added, deleted or
 renamed (`CupsQueueNotices`).
+
+### The print log's read of CUPS's history (roadmap 4.9), checked on the Mac (2026-11-23)
+
+buildmac, macOS 27.2, Inkvolt Print's Release build (sandboxed, the entitlements above: **no new entitlement**;
+`com.apple.security.print` opens cupsd's socket as for everything else here).
+
+- **IPP Get-Jobs with `printer-uri` `ipp://localhost/` and `which-jobs=completed` answers from the sandbox** with every
+  queue's finished jobs (cancelled, aborted and completed), newest first, `limit` honoured. Not `cupsGetJobs2`: it gives no
+  pages, copies or options. Asked for `job-printer-uri`, `job-name`, `job-originating-user-name`,
+  `job-originating-host-name`, `time-at-creation`, `time-at-completed`, `job-impressions`, `job-impressions-completed`,
+  `job-media-sheets-completed`, `copies`, `print-color-mode` and `sides`. On that Mac's history (46 jobs, 12 cancelled and
+  34 completed; counts only were read): `job-impressions` for 44, a printed count for 35, copies for 44, `sides` for 40, but
+  `print-color-mode` for 6 only (most apps set color through the driver's own options, which the log can't read), all
+  named, none from another computer.
+- **A job is in the history the moment it ends**, with what was asked: a job held (`lp -H hold -n 2 -o
+  sides=two-sided-long-edge -o print-color-mode=monochrome`) on a made-up queue (Generic PPD, `ipp://192.0.2.1/…`) and
+  cancelled came back as cancelled with 2 copies, two-sided and black and white, no pages (`job-impressions` is unknown
+  for a job that never ran), and was logged once; the queue was deleted after.
+- macOS's cupsd keeps finished jobs' history (`PreserveJobHistory` on, at most `MaxJobs` jobs), so jobs printed while the
+  app is closed are still there at its next read; how long it keeps them on a busy Mac: UNVERIFIED.
 
 ### Conclusion: how far the App Store fixer goes
 
@@ -677,6 +716,46 @@ Help › Inkvolt Pro… enters and shows a key but has no Get Inkvolt Pro button
 nothing asks for a key at launch. While `ProCheck.enforced` is off a key unlocks nothing, so 3.1.3(b) isn't reached.
 **Before enforcement is switched on in the App Store app**, its Pro features need an in-app purchase as well (StoreKit,
 the same features), or they stay free in that copy; and `Pro.howToGet` (price and shop URL) must not reach its UI.
+
+## Q7. Printer Sharing and the new-printer Wi-Fi guide (researched 2026-11-23)
+
+**Printer Sharing (roadmap 4.10).** macOS shares a CUPS queue itself (System Settings › General › Sharing › Printer
+Sharing, then per printer), over IPP and Bonjour; a sandboxed app may run no server for it and changes no cupsd setting
+(Q2: cupsd's admin operations need the admin right), so Inkvolt Print only reads and points:
+
+- Per queue, cupsd says whether it is shared in `printer-is-shared`, one of the attributes `cupsGetDests2` asks for
+  (CUPS's `cups/dest.c`, the `pattrs` list), so it is in each destination's options with no request of our own
+  (`CupsDestination.options`; the job alerts read it already, `othersMayPrint`). Whether Printer Sharing itself is on is
+  cupsd's `_share_printers` server setting, which `cupsAdminGetServerSettings` reads from `/admin/conf/cupsd.conf`
+  (admin only): not read, so the app says what it takes and opens the pane.
+- **Proved on the build Mac (macOS 27.2.1):** System Settings' Sharing pane is the extension
+  `/System/Library/ExtensionKit/Extensions/Sharing.appex`, bundle ID `com.apple.Sharing-Settings.extension`, and its
+  binary holds the anchor `Services_PrinterSharing` (with `Services_ScreenSharing`, `Services_RemoteLogin`…), so
+  `x-apple.systempreferences:com.apple.Sharing-Settings.extension?Services_PrinterSharing` names the Printer Sharing row;
+  Printers & Scanners is `com.apple.Print-Scan-Settings.extension` (`PrinterScannerSettings.appex`). Its Spanish name is
+  "Compartir impresora" (the extension's `PrinterService.loctable`). The URL wasn't opened there (System Settings was
+  open there, in use): a person checks that it lands on the row.
+
+**The new-printer Wi-Fi guide (roadmap 4.17).** CoreWLAN lists networks; the question was what the sandbox allows.
+
+- Location: "In macOS 14 it now requires location permission to get the current Wi-Fi network" (Quinn, Apple DTS,
+  [forum 739945](https://developer.apple.com/forums/thread/739945), Oct 2023); "Accessing the `ssid` property now requires
+  the location privilege", and CoreWLAN's header says "SSID information is not available unless Location Services is
+  enabled" ([forum 732431](https://developer.apple.com/forums/thread/732431)); scans give networks with a nil SSID
+  without it. So the app asks for location access (`CLLocationManager.requestWhenInUseAuthorization`, only from the
+  guide), with the entitlement `com.apple.security.personal-information.location`, which a sandboxed app needs for Core
+  Location ([App Sandbox entitlements](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.personal-information.location)),
+  and the usage text above.
+- Sandbox: Quinn wrote in 2015 that "CoreWLAN is not supported within the sandbox"
+  ([forum 11350](https://developer.apple.com/forums/thread/11350)), then in 2018 that `CWWiFiClient` "is definitely
+  working" from a sandboxed app with `com.apple.security.network.client` on 10.13.4 and that "there are no special
+  entitlements associated with CoreWLAN" ([forum 11307](https://developer.apple.com/forums/thread/11307), forum 11350).
+  No Apple source says whether `associate(to:password:)` (joining) works in the sandbox. **Not tried:** on the build Mac a
+  join would take the Mac off the network its SSH comes over, and no printer's setup network was there to join. So the
+  guide never joins: the person joins and goes back in macOS's Wi-Fi menu and the guide waits to see it (PLAN, 4.17).
+- **Seen on the build Mac (2026-11-23, macOS 27.2.1, a development build, sandboxed, with the entitlement):** with location access not yet asked (no one at the screen), `scanForNetworks(withSSID: nil)` from the sandbox returned 23 networks, none with its name, and the current network's name came back nil, as the sources say; the Wi-Fi gateway was read (a private address); the installed app carries the entitlement and the usage text.
+  The gateway comes from SystemConfiguration's dynamic store (`State:/Network/Service/*/IPv4`, its `Router` for the Wi-Fi
+  interface's service), read from the sandbox.
 
 ## Open questions
 

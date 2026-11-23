@@ -15,6 +15,15 @@ public partial class DocumentTab
 {
     private (byte[] Data, IReadOnlyList<string> Keys)? _guideKeys; // each page's identity when the guides were last placed
     private int _guideTicket;
+    private CancellationTokenSource? _guideKeying, _guideRemapping; // stop the reads an earlier one would have dropped
+
+    /// <summary>Stops the read <paramref name="running"/> holds (a huge file reads for long) and starts another's token.</summary>
+    private static CancellationToken Restart(ref CancellationTokenSource? running)
+    {
+        running?.Cancel();
+        running = new CancellationTokenSource();
+        return running.Token;
+    }
 
     private void InitLayoutAids()
     {
@@ -42,10 +51,15 @@ public partial class DocumentTab
     {
         if (Session.Guides.All.Count == 0 || ReferenceEquals(_guideKeys?.Data, Session.Data) || !Session.IsPdf) return;
         var (data, pw) = (Session.Data, Session.Password);
+        var cancel = Restart(ref _guideKeying);
         try
         {
-            var keys = await Task.Run(() => PageGuides.Keys(data, pw));
+            var keys = await Task.Run(() => PageGuides.Keys(data, pw, cancel), cancel);
             if (ReferenceEquals(data, Session.Data)) _guideKeys = (data, keys);
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            // A later read took over.
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {
@@ -62,10 +76,16 @@ public partial class DocumentTab
         var before = _guideKeys;
         var ticket = ++_guideTicket;
         var (data, pw) = (Session.Data, Session.Password);
+        _guideKeying?.Cancel(); // the version it reads is gone
+        var cancel = Restart(ref _guideRemapping);
         IReadOnlyList<string>? keys = null;
         try
         {
-            keys = await Task.Run(() => PageGuides.Keys(data, pw));
+            keys = await Task.Run(() => PageGuides.Keys(data, pw, cancel), cancel);
+        }
+        catch (OperationCanceledException) when (cancel.IsCancellationRequested)
+        {
+            return; // a later edit's read took over (its ticket is newer)
         }
         catch (Exception ex) when (ex is not OutOfMemoryException)
         {

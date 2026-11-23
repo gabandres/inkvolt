@@ -149,6 +149,21 @@ struct RedactionSuggestionsTests {
         #expect(result.dropped == 5)
     }
 
+    @Test func aProposalOfMegabytesOfQuotesAndStops_IsLeftOutInAMoment() throws {
+        // `".` four million characters long: tidying it took one quote and one full stop off per pass, the whole copied
+        // each time (hours); it is left out unread now, and one just short of the limit is tidied in one pass.
+        let hostile = String(repeating: "\".", count: 2_000_000)
+        let clock = ContinuousClock.now
+        #expect(RedactionSuggestions.variants(hostile).isEmpty)
+        let padded = String(repeating: "\"", count: 900) + "Jane Doe" + String(repeating: ".\"", count: 540)
+        #expect(padded.utf16.count <= RedactionSuggestions.maxQuoteLength)
+        #expect(RedactionSuggestions.variants(padded) == ["Jane Doe"])
+        let result = try RedactionSuggestions.verify([RedactionProposal(hostile, "other"), RedactionProposal(padded, "name")], ["Jane Doe signs."])
+        #expect(result.kept.map(\.text) == ["Jane Doe"])
+        #expect(result.dropped == 1)
+        #expect(ContinuousClock.now - clock < .seconds(5), "took \(ContinuousClock.now - clock)")
+    }
+
     @Test func suggestAsync_ThroughAFakeEndpoint_KeepsWhatEachRequestsTextHolds() async throws {
         let pages = try Self.texts(Self.contract())
         let requests = RedactionSuggestions.requests(pages, [.names, .organizations, .addresses], nil, 300)

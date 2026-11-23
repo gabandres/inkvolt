@@ -52,6 +52,11 @@ public final class LocalNetworkSignal: Sendable {
 public enum SystemSettings {
     /// Privacy & Security › Local Network.
     public static let localNetwork = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocalNetwork")!
+    /// Privacy & Security › Location Services (the new-printer Wi-Fi guide, roadmap 4.17: Wi-Fi names need it).
+    public static let locationServices = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_LocationServices")!
     /// Printers & Scanners (both forms open it on macOS 27; the probe checked).
     public static let printers = URL(string: "x-apple.systempreferences:com.apple.Print-Scan-Settings.extension")!
+    /// General › Sharing at its Printer Sharing row (roadmap 4.10): the extension's id and its `Services_PrinterSharing`
+    /// anchor, both found in macOS 27.2's Sharing.appex on the build Mac (research file, Q7).
+    public static let printerSharing = URL(string: "x-apple.systempreferences:com.apple.Sharing-Settings.extension?Services_PrinterSharing")!
 }

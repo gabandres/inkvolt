@@ -8,6 +8,7 @@ public final class IppClient: Sendable {
         "document-format-supported", "printer-firmware-name", "printer-firmware-string-version",
         "printer-alert", "printer-alert-description", "printer-location", "printer-more-info", "printer-icons",
         "printer-supply", "printer-impressions-completed",
+        "mopria-certified", "mopria-certified-scan",
     ]
 
     private let http: DeviceHttp

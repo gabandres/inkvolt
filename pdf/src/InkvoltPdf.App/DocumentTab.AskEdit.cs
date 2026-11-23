@@ -120,7 +120,7 @@ public partial class DocumentTab
     /// <summary>Runs the steps in order, each edit its own undo step, the pages of later steps following pages deleted before them.</summary>
     private async Task RunAskEditSteps(IReadOnlyList<AskEditStep> steps)
     {
-        var deleted = new List<int>(); // pages of the document as it was asked about
+        var deleted = new DeletedPages(); // pages of the document as it was asked about
         var done = 0;
         var notes = new List<string>();
         foreach (var original in steps)
@@ -156,7 +156,7 @@ public partial class DocumentTab
                     }
                     ok = await RunEdit(Loc.Plural(pages.Length, Strings.Organize_EditDelete_One, Strings.Organize_EditDelete_Many),
                         (d, pw) => PageEditor.Delete(d, pw, pages), pages.Min());
-                    if (ok) deleted.AddRange(original.Pages.Where(p => !deleted.Contains(p)));
+                    if (ok) deleted.AddRange(original.Pages);
                     break;
                 }
                 case AskEditKind.AddBookmark:

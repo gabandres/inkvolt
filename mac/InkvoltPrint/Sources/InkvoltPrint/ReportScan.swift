@@ -273,6 +273,93 @@ extension Report {
     /// `--word-text` (roadmap 4.14): the demo glass's made-up invoice scanned with a Word preset and a text preset, each saved
     /// by itself into a folder in the container: the files, the document's paragraphs (Heading 1 first) and the text file's
     /// first lines.
+    /// A camera scan (roadmap 4.12) with demo mode's document camera: Use a Camera's window, two Capture Page, Done, the
+    /// pages in the review (found on the desk and warped flat, sized as their paper), then a preset's camera scan saved.
+    static func cameraCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["camera: no demo inkjet"] }
+        scan.clear()
+        scan.scanWithCamera()
+        var lines = ["camera:"]
+        for _ in 0..<50 where CameraWindow.model?.canCapture != true { try? await Task.sleep(for: .milliseconds(100)) }
+        guard let camera = CameraWindow.model else { return lines + ["  no camera window"] }
+        lines.append("  window \(CameraWindow.size.map { "\(Int($0.width)) × \(Int($0.height))" } ?? "not shown"), cameras \(camera.cameras.map(\.name)), " + camera.status)
+        for _ in 0..<2 {
+            await camera.capture()
+            for _ in 0..<100 where !camera.canCapture { try? await Task.sleep(for: .milliseconds(100)) }
+        }
+        lines.append("  after two captures: " + camera.status)
+        camera.done()
+        for _ in 0..<150 where scan.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        let sizes = scan.pages.pages.compactMap { scan.scannedJpeg($0.id).flatMap(ScanImaging.size) }.map { "\($0.width) × \($0.height)" }
+        lines.append("  review: \(scan.pages.pages.count) pages \(sizes), window closed \(CameraWindow.model == nil): " + scan.status)
+        // A preset's camera scan: its settings, saved by itself (no review).
+        let folder = AppModel.dataFolder.appendingPathComponent("camera-check", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var p = ScanPresets.builtIns()[0]
+        p.id = "camera-check"
+        p.name = "Camera check"
+        (p.review, p.skipBlank, p.after) = (false, false, .none)
+        model.setPresetFolder(p.id, folder)
+        scan.clear()
+        scan.scanWithCamera(p)
+        for _ in 0..<50 where CameraWindow.model?.canCapture != true { try? await Task.sleep(for: .milliseconds(100)) }
+        await CameraWindow.model?.capture()
+        try? await Task.sleep(for: .milliseconds(500))
+        CameraWindow.model?.done()
+        for _ in 0..<150 where scan.isScanning || scan.isSaving || !scan.pages.isEmpty { try? await Task.sleep(for: .milliseconds(200)) }
+        let saved = ((try? FileManager.default.subpathsOfDirectory(atPath: folder.path)) ?? []).filter { $0.hasSuffix(".pdf") }.sorted()
+        lines.append("  preset (\(ScanPresetText.summary(p))): saved \(saved.count) PDF(s): " + scan.status)
+        try? FileManager.default.removeItem(at: folder)
+        return lines
+    }
+
+    /// A phone scan (roadmap 4.6) with a phone on this Mac (`LoopbackPhone`, demo mode: 127.0.0.1 only, a certificate made
+    /// for the run): Use Your Phone's window and code, the page, pairing, two photos of the demo document camera's desk, one
+    /// that isn't a photo, a second device refused, Done, the pages in the review, and the port closed after.
+    static func phoneCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["phone: no demo inkjet"] }
+        scan.clear()
+        scan.scanWithPhone()
+        var lines = ["phone:"]
+        for _ in 0..<100 where PhoneWindow.model == nil && scan.problem == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        guard let window = PhoneWindow.model else { return lines + ["  no phone window: \(scan.problem ?? "")"] }
+        let link = window.link
+        let address = link.url.replacingOccurrences(of: link.session.token, with: "<code>")
+        lines.append("  window \(PhoneWindow.size.map { "\(Int($0.width)) × \(Int($0.height))" } ?? "not shown"), QR \(window.qr.map { "\(Int($0.size.width)) px" } ?? "none"), \(address), \(window.fingerprint): " + window.status)
+        let phone = LoopbackPhone(fingerprint: link.fingerprint)
+        defer { phone.finish() }
+        do {
+            let page = try await phone.get(link.url)
+            lines.append("  page \(page.status) \(page.body.count) bytes, CSP \(page.header("Content-Security-Policy")?.hasPrefix("default-src 'none'") == true)")
+            let pair = try await phone.post(link.url + "/pair")
+            lines.append("  pair \(pair.status), cookie \(pair.header("Set-Cookie")?.contains("HttpOnly") == true ? "HttpOnly" : "none"): " + window.status)
+            let photo = try ImageIOPhotoCodec().encodeJpeg(DemoCameras.frame(), dpi: 72)
+            var sent: [Int] = []
+            for _ in 0..<2 { sent.append(try await phone.post(link.url + "/photo", body: photo).status) }
+            sent.append(try await phone.post(link.url + "/photo", body: Array("<html>not a photo</html>".utf8) + [UInt8](repeating: 32, count: 64)).status)
+            let other = LoopbackPhone(fingerprint: link.fingerprint)
+            sent.append(try await other.post(link.url + "/pair").status)
+            other.finish()
+            lines.append("  photos \(sent) (two photos, one not a photo, a second device): " + window.status)
+            lines.append("  done \(try await phone.post(link.url + "/done").status)")
+        } catch {
+            lines.append("  the phone couldn't reach the page: \(error.localizedDescription)")
+            window.done()
+        }
+        for _ in 0..<200 where scan.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        for _ in 0..<50 where PhoneWindow.model != nil { try? await Task.sleep(for: .milliseconds(100)) }
+        let sizes = scan.pages.pages.compactMap { scan.scannedJpeg($0.id).flatMap(ScanImaging.size) }.map { "\($0.width) × \($0.height)" }
+        lines.append("  review: \(scan.pages.pages.count) pages \(sizes), window closed \(PhoneWindow.model == nil): " + scan.status)
+        try? await Task.sleep(for: .milliseconds(500))
+        let after = LoopbackPhone(fingerprint: link.fingerprint)
+        let closed = (try? await after.get(link.url)) == nil
+        after.finish()
+        lines.append("  port closed after: \(closed)")
+        scan.clear() // no pages left for the quit's question
+        return lines
+    }
+
     static func wordTextCheck(_ model: AppModel) async -> [String] {
         guard let scan = await demoScanner(model) else { return ["word and text: no demo inkjet"] }
         defer { Demo.scanSetup.hold(nil) }

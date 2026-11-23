@@ -104,6 +104,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// progress.
     var guideKeys: (engine: ObjectIdentifier, keys: [String])?
     var guideTicket = 0
+    /// Stops the read for newly placed guides (`guidesChanged`) and the one after an edit (`remapGuides`).
+    var guideKeying: CancelToken?
+    var guideRemapping: CancelToken?
     var secondBox: NSView?
     /// A translated copy's original, shown in the second pane on the left and scrolling with this one (`showBeside`);
     /// nil when the second pane shows this document.

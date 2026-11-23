@@ -20,13 +20,20 @@ extension LibCups {
     /// One Get-Jobs: each job-attributes group's first values as text, read by `QueueJobAttributes`. Nil when cupsd refused or
     /// couldn't be asked. `limit`: at most that many (cupsd's first, the newest for finished jobs).
     private static func getJobs(_ queue: String, which: String, limit: Int? = nil) -> [QueueJob]? {
+        jobGroups("ipp://localhost/printers/" + queue, which: which, limit: limit, requested: QueueJobAttributes.requested)?
+            .compactMap(QueueJobAttributes.job)
+    }
+
+    /// One Get-Jobs over cupsd's socket, as the user: each job-attributes group's first values as text by attribute name.
+    /// Nil when cupsd refused or couldn't be asked. `printerUri` `ipp://localhost/` asks for every queue's jobs.
+    static func jobGroups(_ printerUri: String, which: String, limit: Int?, requested: [String]) -> [[String: String]]? {
         cupsSetPasswordCB2({ _, _, _, _, _ in nil }, nil)
         guard let request = ippNewRequest(IPP_OP_GET_JOBS) else { return nil }
-        ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, "ipp://localhost/printers/" + queue)
+        ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_URI, "printer-uri", nil, printerUri)
         ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_NAME, "requesting-user-name", nil, cupsUser())
         ippAddString(request, IPP_TAG_OPERATION, IPP_TAG_KEYWORD, "which-jobs", nil, which)
         if let limit { ippAddInteger(request, IPP_TAG_OPERATION, IPP_TAG_INTEGER, "limit", Int32(limit)) }
-        let names = QueueJobAttributes.requested.map { strdup($0) }
+        let names = requested.map { strdup($0) }
         defer { names.forEach { free($0) } }
         let values = names.map { UnsafePointer($0) }
         values.withUnsafeBufferPointer { list in
@@ -35,10 +42,10 @@ extension LibCups {
         guard let response = cupsDoRequest(nil, request, "/") else { return nil }
         defer { ippDelete(response) }
         guard ippGetStatusCode(response).rawValue < IPP_STATUS_REDIRECTION_OTHER_SITE.rawValue else { return nil }
-        var jobs: [QueueJob] = []
+        var groups: [[String: String]] = []
         var group: [String: String] = [:]
         func flush() {
-            if let job = QueueJobAttributes.job(group) { jobs.append(job) }
+            if !group.isEmpty { groups.append(group) }
             group = [:]
         }
         var attribute = ippFirstAttribute(response)
@@ -51,7 +58,7 @@ extension LibCups {
             attribute = ippNextAttribute(response)
         }
         flush()
-        return jobs
+        return groups
     }
 
     private static func text(_ a: OpaquePointer) -> String? {

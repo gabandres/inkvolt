@@ -112,6 +112,7 @@ struct PrinterPane: View {
                     .accessibilityElement(children: .combine)
                 }
                 if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
+                PrinterSharingCard(printer: printer)
                 if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
                 details
             }
@@ -155,6 +156,12 @@ struct PrinterPane: View {
                     if let n = u.scanImages { row(String(localized: "Pages scanned"), n.formatted()) }
                     if let n = u.jamEvents { row(String(localized: "Paper jams"), n.formatted()) }
                 }
+                ForEach(PrinterReadiness.rows(printer), id: \.label) { r in row(r.label, r.value) }
+            }
+            if let warning = PrinterReadiness.scanWarning(printer) {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

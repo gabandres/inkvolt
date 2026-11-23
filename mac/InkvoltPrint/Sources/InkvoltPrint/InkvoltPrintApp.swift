@@ -26,6 +26,9 @@ struct InkvoltPrintApp: App {
                 .keyboardShortcut("n")
                 Button("Batch Print…") { BatchPrintWindow.show(AppModel.shared) }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
+                Divider()
+                Button("Share a Printer with Phones…") { PhoneSharing.show(AppModel.shared) }
+                Button("Set Up a New Printer's Wi-Fi…") { PrinterSetupWindow.show(AppModel.shared) }
             }
             CommandGroup(after: .sidebar) {
                 Button("Fleet") {
@@ -33,6 +36,11 @@ struct InkvoltPrintApp: App {
                     AppModel.shared.showFleet = true
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
+            }
+            CommandGroup(before: .windowList) {
+                Button("Print Log") { PrintLogWindow.show(AppModel.shared) }
+                    .keyboardShortcut("l", modifiers: [.command, .option])
+                Divider()
             }
             CommandGroup(after: .help) {
                 Button("Report a Problem…") { ReportProblemWindowController.show(AppModel.shared) }

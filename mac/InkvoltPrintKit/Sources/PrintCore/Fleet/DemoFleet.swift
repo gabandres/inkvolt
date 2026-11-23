@@ -41,8 +41,9 @@ public struct DemoFleetMac: FleetMac {
 
 extension Demo {
     /// The made-up Mac's USB scanners macOS would have drivers for: the USB laser's scanner part, and a photo flatbed that
-    /// belongs to no printer (PrintMac's `DemoScanDevice` scans with them).
+    /// belongs to no printer (PrintMac's `DemoScanDevice` scans with them). The flatbed is on its maker's driver, so the demo
+    /// shows roadmap 4.5's warning.
     public static let laserScanner = SystemScanner(id: "demo-usb-laser-scanner", name: "Demo Laser 2100", usb: true)
-    public static let flatbed = SystemScanner(id: "demo-photo-scanner", name: "Demo Photo Scanner 40", usb: true)
+    public static let flatbed = SystemScanner(id: "demo-photo-scanner", name: "Demo Photo Scanner 40", usb: true, makerDriver: true)
     public static let scanners = [laserScanner, flatbed]
 }
