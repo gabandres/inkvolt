@@ -143,6 +143,7 @@ private struct PresetEditor: View {
                 }
                 Toggle("Skip blank pages", isOn: $preset.skipBlank)
                 Toggle("Straighten pages", isOn: $preset.straighten)
+                Toggle("Turn pages upright", isOn: $preset.turnUpright).help("Pages lying sideways or upside down")
                 Toggle("Stop on the pages to review them before saving", isOn: $preset.review)
                 if preset.source != .glass {
                     Picker("Split into files at", selection: $preset.splitAt) {

@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 @testable import PdfCore
 
 /// Ported from PlantedReader.cs. Stands in for the recognizer, without a language of its own beyond en-US: told where each

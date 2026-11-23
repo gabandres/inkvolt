@@ -7,6 +7,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 
 ## Next
 - Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.
+- Pages turned upright on their own: a page fed upside down or lying sideways is turned when its text shows clearly which way is up, and says Turned upright. Undo turns them back; Turn pages upright in Scan settings and in each scan preset turns it off.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

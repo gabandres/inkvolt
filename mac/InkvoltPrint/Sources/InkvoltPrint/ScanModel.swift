@@ -45,6 +45,10 @@ final class ScanModel {
     var straighten: Bool {
         didSet { UserDefaults.standard.set(straighten, forKey: "scanStraighten") }
     }
+    /// Pages lying sideways or upside down turned upright when their text says so clearly (`PageUpright`, roadmap 4.3).
+    var upright: Bool {
+        didSet { UserDefaults.standard.set(upright, forKey: "scanUpright") }
+    }
     /// Batch scanning: a feeder run is saved as several files, split at patch code sheets, blank pages, or either.
     var splitAt: SplitAt {
         didSet { UserDefaults.standard.set(splitAt.rawValue, forKey: "scanSplitAt") }
@@ -111,6 +115,7 @@ final class ScanModel {
         format = ScanFormat(rawValue: d.string(forKey: "scanFormat") ?? "") ?? .searchablePdf
         skipBlank = d.object(forKey: "scanSkipBlank") as? Bool ?? true
         straighten = d.object(forKey: "scanStraighten") as? Bool ?? true
+        upright = d.object(forKey: "scanUpright") as? Bool ?? true
         let split = SplitAt(rawValue: d.integer(forKey: "scanSplitAt"))
         splitAt = split.isKnown ? split : .none
         keepSeparators = d.bool(forKey: "scanKeepSeparators")
@@ -174,7 +179,8 @@ final class ScanModel {
         let notes = plan.notes
         // The preset's checks are its own: the tab's settings stay as the user set them.
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
-                              findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage)
+                              findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage,
+                              upright: p.turnUpright)
         scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
@@ -192,8 +198,10 @@ final class ScanModel {
         status = source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…")
         let request = ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
-                                   ocrLanguage: ocrLanguage)
+                                   ocrLanguage: ocrLanguage, upright: upright)
         if source == .platen { c.splitAt = .none } else { c.findPhotos = false }
+        // Which way up is told by Latin-like letters only: a page in Hebrew, Arabic or Chinese isn't turned.
+        c.upright = c.upright && PageUpright.suitsLanguage(c.ocrLanguage ?? Locale.preferredLanguages.first)
         let check = c, split = c.splitAt, photos = c.findPhotos
         let duplex = source == .adfDuplex
         let turning = (turnGiven ?? turnStack) && offersTurnStack
@@ -271,11 +279,12 @@ final class ScanModel {
             await checksLanded()
             if failure == nil && duplex { pages.separatorBacks(added) }
             keep()
+            let turned = recordUpright(added)
             let cleaned = recordCleanup(added, check.cleanup)
             switch failure {
             case nil:
                 let found = (stackNote.isEmpty ? [] : [stackNote]) + notes(added, split: split, photos: photos, duplex: duplex || stack != nil)
-                    + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
+                    + (turned.isEmpty ? [] : [turned]) + (cleaned.isEmpty ? [] : [cleaned]) + pdfNote(added, request)
                 status = count == 0 ? String(localized: "No pages came from the scanner.") : ([pages.summary + (found.isEmpty ? "" : ".")] + found).joined(separator: " ")
                 if !backsStopped { await finished?() } // stopped: the pages stay for a look, not saved by a preset
             case is CancellationError:
@@ -319,12 +328,16 @@ final class ScanModel {
         /// What each page is cleaned up with (`ScanPages.analysed`), and the language its text is read in.
         var cleanup: PageFilters = []
         var ocrLanguage: String?
+        /// Turn a page upright when it lies sideways or upside down and its text says so clearly (`PageUpright`).
+        var upright = false
     }
 
     /// What the page check found.
     private struct Checked: Sendable {
         var looksBlank: Bool
         var skew: Double
+        /// The quarter turns that stand it upright (`PageUpright.orient`); 0 when not sure.
+        var turns: Int
         var separator: SeparatorFound
         var photos: [PhotoBox]?
         /// The sheet's edge, looked for when the clean up crops to the paper (`ScanPages.wantsPaperEdge`).
@@ -341,10 +354,14 @@ final class ScanModel {
         let looksBlank = separator.kind == .blankPage || BlankPage.isBlank(gray)
         let blank = c.skipBlank && looksBlank && !separator.isSeparator
         let photos = c.findPhotos && !blank && !separator.isSeparator ? PhotoFinder.find(gray, pixelsPerInch: ppi) : nil
-        let skew = c.straighten && !blank && !separator.isSeparator && (photos?.isEmpty ?? true) ? Deskew.angle(gray) : 0
+        // Straightened and turned upright (roadmap 4.3) only when it's a page: not skipped, a separator or a scan of photos;
+        // looked at for its way up only when something is on it.
+        let mayStraighten = !blank && !separator.isSeparator && (photos?.isEmpty ?? true)
+        let (skew, turns) = PageUpright.orient(gray, ppi, straighten: c.straighten, upright: c.upright, mayStraighten: mayStraighten,
+                                               hasText: mayStraighten && !looksBlank)
         let wantsEdge = ScanPages.wantsPaperEdge(c.cleanup, looksBlank: looksBlank, separator: separator, photos: photos)
         let edge = wantsEdge ? PaperEdge.find(gray, ppi: ppi, deskew: skew) : nil
-        return Checked(looksBlank: looksBlank, skew: skew, separator: separator, photos: photos, paperEdge: edge)
+        return Checked(looksBlank: looksBlank, skew: skew, turns: turns, separator: separator, photos: photos, paperEdge: edge)
     }
 
     /// Past `PageCleanup.maxPixels` by its header (read without decoding): saved as scanned, never decoded at full size.
@@ -371,7 +388,8 @@ final class ScanModel {
                 return
             }
             pages.analysed(id, looksBlank: result.looksBlank, skew: result.skew, skipBlank: c.skipBlank, straighten: c.straighten,
-                           separator: result.separator, photos: result.photos, cleanup: c.cleanup, paperEdge: result.paperEdge)
+                           separator: result.separator, photos: result.photos, cleanup: c.cleanup, paperEdge: result.paperEdge,
+                           quarterTurns: result.turns)
             keep()
             refreshThumbnail(id)
             if !isScanning { status = pages.summary }
@@ -578,6 +596,16 @@ final class ScanModel {
     private func recordUndo(_ name: String, _ undo: @escaping @MainActor (ScanModel) -> [String]) {
         undoSteps.append(UndoStep(name: name, undo: undo))
         undoChanges += 1
+    }
+
+    /// Pages the scan turned upright (`PageUpright`) are one step of Undo, however many: each still as the check left it
+    /// goes back as the scanner sent it. What to say about it ("2 pages were turned upright."), or "".
+    private func recordUpright(_ added: [String]) -> String {
+        let turned = added.filter { pages.page($0)?.turnedUpright == true }
+        guard let first = turned.first else { return "" }
+        let name = turned.count == 1 ? String(localized: "Turn page \(pages.number(first) ?? 1) upright") : String(localized: "Turn \(turned.count) pages upright")
+        recordUndo(name) { model in model.pages.undoUpright(turned) }
+        return turned.count == 1 ? String(localized: "1 page was turned upright.") : String(localized: "\(turned.count) pages were turned upright.")
     }
 
     /// A scan cleaned up by its settings is one step of Undo, however many pages it has; what to say about it
@@ -809,7 +837,7 @@ final class ScanModel {
     func residualSkew(_ id: String) async -> Double? {
         guard let jpeg = images[id], let page = pages.page(id) else { return nil }
         let (edits, dpi) = (page.edits, page.dpi)
-        return await offPool { (try? ScanImaging.analysis(ScanImaging.jpeg(jpeg, edits, dpi: dpi))).map(Deskew.angle) }
+        return await offPool { (try? ScanImaging.analysis(ScanImaging.jpeg(jpeg, edits, dpi: dpi))).map { Deskew.angle($0) } }
     }
 
     /// The page as the scanner sent it; for `--report`.

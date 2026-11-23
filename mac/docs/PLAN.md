@@ -206,6 +206,19 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   Backs in the Other Order back (each one step, as Windows), still not turns, crops or moves by hand; the demo's stack comes
   from the USB demo laser (`DemoScanDevice`, a one-sided feeder; the eSCL demo inkjet's feeder scans both sides). Not
   checked: a real one-sided feeder, either kind of output tray, the alert and the button on screen, VoiceOver.
+- **4.3 Pages turned upright on their own.** PrintCore `PageUpright` (`find`, `orient`, `straightenBy`, `suitsLanguage`),
+  `PageEdits.checked`/`turnedUprightBy`, `ScannedPage.uprightTurns` and `ScanPages.undoUpright`, the preset's `turnUpright`
+  (on unless turned off, Windows' `TurnUpright`); `UprightTests` (PC), `PageUprightCorpusTests` (PdfCoreTests on the Mac:
+  the OCR corpus's typeset pages fed each way round). Inkvolt PDF's `ScanCleanup`, `Deskew.measure`, `PageRotate`,
+  `PaperLevel`, `Upright` and `GrayImage` moved into PrintCore (Windows has them in the shared core), so the scan review and
+  Recognize Text read a page alike, `Upright` with Windows' newer reading (pictures and rules left out); PdfCore keeps its
+  `CancelToken` wrapper (`ScanCleanup.clean(…cancel:)`, `Despeckle`). `Deskew.angle` is `measure`'s angle now, as on Windows
+  (the Mac's had its own copy). **Mac differences:** the language a page is read in when none is chosen is the Mac's first
+  preferred language (Windows: its OCR's default); `suitsLanguage` asks Foundation's `Locale.Language` for right-to-left
+  where Windows asks CultureInfo; Undo turns back only pages still as the check left them (a turn by hand since stays: the
+  Mac's review has no Undo of its own for turns); a page restored after a crash reads "Edited", not "Turned upright" (the
+  recovery folder keeps no check turns). Not checked: real feeder scans, pages in scripts it leaves alone, the note on
+  screen.
 
 ## Mac differences
 
@@ -1217,10 +1230,11 @@ pages read together from its text read once (Windows' search cursor filled a meg
 `SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
 `Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
 (`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
-(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). The scan cleanup's which-way-up test leaves
-out a run of ink rows over 3 times the page's lines' height (the lower middle of runs of 6 rows or more, a tight run cut
-between its bands first), then reads the lines again without it (`Upright.MaxLineRatio`, `MinLineRows`; PrintTests' `UprightTests`, ScanTextTests'
-`APageWithALargeShadedPictureIsTurnedTheRightWayUp`): `ScanCleanup.swift` has the old reading.
+(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). Ported with Inkvolt Print's 4.3 (Wave 4,
+above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
+(`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
+PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
+ported (the Mac's `ExportTestPdf` has no large shaded picture).
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`
@@ -1712,7 +1726,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `AskEditTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
-  phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).
+  phrase reading.
 - Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
   own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
   phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN

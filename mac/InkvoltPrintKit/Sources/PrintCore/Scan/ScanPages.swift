@@ -29,6 +29,11 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     /// Past `PageCleanup.maxPixels` (its JPEG's header says; the app sets it, not kept in the recovery folder): saved as
     /// scanned (`PageEdits.for(width:height:)`), so the page check neither straightens, cleans up nor finds photos on it.
     public var tooLargeToEdit = false
+    /// The quarter turns the page check stood it upright by (`PageUpright`, roadmap 4.3); 0 when it wasn't turned.
+    public var uprightTurns = 0
+
+    /// Still turned upright as the check turned it (not turned back by hand or by Undo).
+    public var turnedUpright: Bool { edits.turnedUprightBy(uprightTurns) }
 
     public init(id: String, dpi: Int, edits: PageEdits = .none, skipped: Bool = false, looksBlank: Bool = false, analysed: Bool = false,
                 separator: SeparatorFound = .none, startsFile: Bool = false, photos: [PhotoBox]? = nil, ocrLanguage: String? = nil,
@@ -67,6 +72,7 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
             let done = PageCleanup.describe(edits.filters)
             return done.prefix(1).uppercased() + done.dropFirst()
         }
+        if turnedUpright && edits.crop == nil { return loc("Turned upright") }
         if edits.deskew != 0 && edits.crop == nil && edits.quarterTurns % 4 == 0 { return loc("Straightened") }
         return edits.isEmpty ? "" : loc("Edited")
     }
@@ -129,7 +135,8 @@ public struct ScanPages: Equatable, Sendable {
     public mutating func add(_ page: ScannedPage) { pages.append(page) }
 
     /// The page check's answer for a page (on a downscaled grey copy): blank pages are skipped when `skipBlank`, a crooked page
-    /// is straightened when `straighten` and it hasn't been edited meanwhile. A blank page isn't straightened.
+    /// is straightened when `straighten` and turned upright by `quarterTurns` (`PageUpright.orient`), when it hasn't been edited
+    /// meanwhile (`PageEdits.checked`). A blank page isn't straightened.
     /// A separator sheet is neither skipped nor straightened, nor is a page of photos straightened (each photo is cut out
     /// straight by itself).
     ///
@@ -140,7 +147,7 @@ public struct ScanPages: Equatable, Sendable {
     @discardableResult
     public mutating func analysed(_ id: String, looksBlank: Bool, skew: Double, skipBlank: Bool, straighten: Bool,
                                   separator: SeparatorFound = .none, photos: [PhotoBox]? = nil, cleanup: PageFilters = [],
-                                  paperEdge: CropBox? = nil) -> PageEdits? {
+                                  paperEdge: CropBox? = nil, quarterTurns: Int = 0) -> PageEdits? {
         update(id) { p in
             p.analysed = true
             p.beforeCleanup = nil
@@ -151,7 +158,10 @@ public struct ScanPages: Equatable, Sendable {
             let blank = skipBlank && p.looksBlank && !separator.isSeparator
             if blank { p.skipped = true }
             if p.tooLargeToEdit { return } // saved as scanned: nothing to straighten or clean up
-            if straighten && !blank && !separator.isSeparator && !p.hasPhotos && skew != 0 && p.edits.isEmpty { p.edits = PageEdits(deskew: skew) }
+            if !blank && !separator.isSeparator && !p.hasPhotos, let checked = p.edits.checked(straighten ? skew : 0, quarterTurns) {
+                p.edits = checked
+                p.uprightTurns = checked.quarterTurns
+            }
             guard !cleanup.isEmpty, !p.looksBlank, !separator.isSeparator else { return }
             // Tried only on a page with no filters or crop yet (`cleanedUp`) whose photos weren't looked for.
             p.noPaperEdge = cleanup.contains(.cropToPaper) && photos == nil && paperEdge == nil && p.edits.filters.isEmpty && p.edits.crop == nil
@@ -321,6 +331,18 @@ public struct ScanPages: Equatable, Sendable {
                 }
             }
         }
+    }
+
+    /// Undo of the page check's turns (roadmap 4.3): each of `ids` still turned upright as the check left it goes back to the
+    /// way it was scanned (its straightening stays); a page turned by hand since keeps its turn. Returns the pages changed.
+    @discardableResult
+    public mutating func undoUpright(_ ids: [String]) -> [String] {
+        var changed: [String] = []
+        for id in ids where page(id)?.turnedUpright == true {
+            update(id) { $0.edits.quarterTurns = 0 }
+            changed.append(id)
+        }
+        return changed
     }
 
     /// Undoes every edit, the straightening too.

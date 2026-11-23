@@ -1,4 +1,5 @@
 import Foundation
+import PrintCore
 @testable import PdfCore
 
 /// Ported from RedactionCorpus.cs. The roadmap 1.1 corpus, generated: values planted line-broken, hyphenated, in split

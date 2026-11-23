@@ -77,6 +77,9 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     public var skipBlank = true
     public var straighten = true
 
+    /// Pages lying sideways or upside down turned upright, when their text says so clearly (`PageUpright`, roadmap 4.3).
+    public var turnUpright = true
+
     /// What each page is cleaned up with (crop to the paper, whiten, descreen, restore colors); none by default.
     public var cleanup: PageFilters = []
 
@@ -119,7 +122,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         init?(intValue: Int) { nil }
     }
 
-    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten",
+    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
                                 "Cleanup", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
@@ -137,6 +140,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         review = get("Review", false)
         skipBlank = get("SkipBlank", true)
         straighten = get("Straighten", true)
+        turnUpright = get("TurnUpright", true)
         cleanup = get("Cleanup", PageFilters())
         ocrLanguage = get("OcrLanguage", nil as String?)
         splitAt = get("SplitAt", .none)
@@ -167,6 +171,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(review, forKey: Key("Review"))
         try c.encode(skipBlank, forKey: Key("SkipBlank"))
         try c.encode(straighten, forKey: Key("Straighten"))
+        try c.encode(turnUpright, forKey: Key("TurnUpright"))
         try c.encode(cleanup, forKey: Key("Cleanup"))
         try c.encode(ocrLanguage, forKey: Key("OcrLanguage"))
         try c.encode(splitAt, forKey: Key("SplitAt"))

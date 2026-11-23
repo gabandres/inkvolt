@@ -2,6 +2,7 @@ import CoreGraphics
 import CryptoKit
 import Foundation
 import ImageIO
+import PrintCore
 @testable import PdfCore
 
 // The OCR corpus's generator and its measure (the Windows app's pdf/tools/ocr-corpus: ScanCorpus.cs, WordErrorRate.cs),

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import PrintCore
 @testable import PdfCore
 
 /// Ported from ScanTextTests.cs: Recognize Text's pipeline without Vision (roadmap 2.2): a stand-in recognizer "reads"

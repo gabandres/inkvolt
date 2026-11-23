@@ -539,6 +539,16 @@
         }
       }
     },
+    "%lld pages were turned upright.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se pusieron %lld páginas al derecho."
+          }
+        }
+      }
+    },
     "%lld per sheet": {
       "localizations": {
         "es": {
@@ -719,6 +729,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se limpió 1 página (Deshacer la recupera)."
+          }
+        }
+      }
+    },
+    "1 page was turned upright.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se puso 1 página al derecho."
           }
         }
       }
@@ -3646,6 +3666,26 @@
         }
       }
     },
+    "Pages lying sideways or upside down": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas de lado o al revés"
+          }
+        }
+      }
+    },
+    "Pages lying sideways or upside down, when their text shows which way is up": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas de lado o al revés, cuando su texto muestra cuál es la parte de arriba"
+          }
+        }
+      }
+    },
     "Pages printed": {
       "localizations": {
         "es": {
@@ -5930,6 +5970,16 @@
         }
       }
     },
+    "Turn %lld pages upright": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner %lld páginas al derecho"
+          }
+        }
+      }
+    },
     "Turn Left": {
       "localizations": {
         "es": {
@@ -5986,6 +6036,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "¿Desactivar las actualizaciones automáticas de firmware en %@?"
+          }
+        }
+      }
+    },
+    "Turn page %lld upright": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner la página %lld al derecho"
+          }
+        }
+      }
+    },
+    "Turn pages upright": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poner las páginas al derecho"
           }
         }
       }

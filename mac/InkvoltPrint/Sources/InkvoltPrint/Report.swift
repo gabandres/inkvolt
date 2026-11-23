@@ -58,6 +58,7 @@ enum Report {
             if model.isDemo && args.contains("--scan") { cancelled += await scanCheck(model) }
             if model.isDemo && args.contains("--batch") { cancelled += await batchCheck(model) }
             if model.isDemo && args.contains("--turn-stack") { cancelled += await turnStackCheck(model) }
+            if model.isDemo && args.contains("--upright") { cancelled += await uprightCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
@@ -825,7 +826,7 @@ enum Report {
         for name in files(in: folder).split(separator: ",").map({ $0.trimmingCharacters(in: .whitespaces) }) where !name.isEmpty {
             let bytes = (try? Data(contentsOf: folder.appendingPathComponent(name))).map(Array.init) ?? []
             let size = ScanImaging.size(bytes)
-            let skew = (try? ScanImaging.analysis(bytes)).map(Deskew.angle)
+            let skew = (try? ScanImaging.analysis(bytes)).map { Deskew.angle($0) }
             lines.append("  \(name): \(size.map { "\($0.width) × \($0.height)" } ?? "-") px, skew left " + (skew.map { String(format: "%.2f", $0) } ?? "-"))
         }
         scan.findPhotos = false

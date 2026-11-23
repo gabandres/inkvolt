@@ -42,9 +42,9 @@ extension Report {
             let listed = model.printers.map { "\($0.name) [\($0.systemScanner?.id ?? "-")]" }.joined(separator: ", ")
             return ["turn stack: no demo USB laser scanner with a feeder (\(listed))"]
         }
-        let kept = (scan.turnStack, scan.skipBlank, scan.straighten, scan.splitAt)
+        let kept = (scan.turnStack, scan.skipBlank, scan.straighten, scan.splitAt, scan.upright)
         defer {
-            (scan.turnStack, scan.skipBlank, scan.straighten, scan.splitAt) = kept
+            (scan.turnStack, scan.skipBlank, scan.straighten, scan.splitAt, scan.upright) = kept
             scan.answerTurnStack = nil
         }
         scan.source = .adf
@@ -52,6 +52,7 @@ extension Report {
         scan.straighten = true
         scan.splitAt = .none
         scan.turnStack = true
+        scan.upright = false // the order's own steps of Undo only (`uprightCheck` turns the upside-down sheet)
         final class Asked { var fronts = 0 }
         let asked = Asked()
         scan.answerTurnStack = { fronts in
@@ -79,6 +80,36 @@ extension Report {
         scan.clear()
         await scanAndWait(scan)
         lines.append("  saved and read back: \(await reportOrder(scan, "turn-stack.pdf"))")
+        return lines
+    }
+
+    /// `--upright` (roadmap 4.3): the same stack with Turn pages upright on: the sheet fed upside down (pages 3 and 4) is
+    /// turned, nothing else; one step of Undo turns them back as scanned; then a scan with it off turns none.
+    static func uprightCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoLaserScanner(model) else { return ["upright: no demo USB laser scanner with a feeder"] }
+        let kept = (scan.turnStack, scan.upright, scan.skipBlank, scan.straighten, scan.splitAt)
+        defer {
+            (scan.turnStack, scan.upright, scan.skipBlank, scan.straighten, scan.splitAt) = kept
+            scan.answerTurnStack = nil
+        }
+        scan.source = .adf
+        scan.skipBlank = true
+        scan.straighten = true
+        scan.splitAt = .none
+        scan.turnStack = true
+        scan.answerTurnStack = { _ in true }
+        func turns() -> String { scan.pages.pages.map { "\($0.edits.quarterTurns)" }.joined(separator: " ") }
+        func notes() -> String { scan.pages.pages.map { $0.note.isEmpty ? "-" : $0.note }.joined(separator: ", ") }
+        scan.upright = true
+        await scanAndWait(scan)
+        var lines = ["upright: \(scan.status)", "  turns by page: \(turns()); notes: \(notes()); undo: \(scan.undoName ?? "none")"]
+        scan.undo()
+        lines.append("  undone: \(scan.status) turns \(turns()); undo next: \(scan.undoName ?? "none")")
+        scan.clear()
+        scan.upright = false
+        await scanAndWait(scan)
+        lines.append("  off: turns \(turns())")
+        scan.clear()
         return lines
     }
 }

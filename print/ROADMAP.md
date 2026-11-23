@@ -167,9 +167,9 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     order, the other order one click away, counts that differ said; a preset option (README, "Two-sided on a one-sided
     feeder"; `TurnedStack`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person with a one-sided feeder to try
     both tray kinds, on Windows and on a Mac.
-  - **4.3 Pages turned upright on their own.** Done on Windows: sideways and upside down, only when sure, on by default
-    (every corpus page each way round), one Undo step (`PageUpright`). **Next:** real feeder scans, and pages in scripts it
-    leaves alone; the Mac half waits.
+  - **4.3 Pages turned upright on their own.** Done on Windows and Mac: sideways and upside down, only when sure, on by default
+    (every corpus page each way round), one Undo step (`PageUpright`; the Mac's in `mac/docs/PLAN.md`, "Wave 4").
+    **Next:** real feeder scans, and pages in scripts it leaves alone, on both.
   - **4.4 Small black-and-white PDFs.** Done on Windows: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
     encoder, read back by MuPDF; a "smaller file" choice per preset; a text page 17 to 60 times smaller than its JPEG
     (`CcittG4`, `Bilevel`). **Next:** Inkvolt PDF's 4.8 to reuse it; the Mac half waits.

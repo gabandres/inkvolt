@@ -7720,6 +7720,17 @@
         }
       }
     },
+    "Turned upright": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Puesta al derecho"
+          }
+        }
+      }
+    },
     "Two-sided binding": {
       "extractionState": "manual",
       "localizations": {

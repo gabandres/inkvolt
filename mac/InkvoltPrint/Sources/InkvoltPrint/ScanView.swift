@@ -122,6 +122,8 @@ private struct ScanSettings: View {
             if scan.format == .searchablePdf { TextLanguagePicker(language: $scan.ocrLanguage) }
             Toggle("Skip blank pages", isOn: $scan.skipBlank)
             Toggle("Straighten pages", isOn: $scan.straighten)
+            Toggle("Turn pages upright", isOn: $scan.upright)
+                .help("Pages lying sideways or upside down, when their text shows which way is up")
             if scan.source == .platen {
                 Toggle("Several photos on the glass", isOn: $scan.findPhotos)
                     .help("Each photo laid on the glass is found and saved as its own picture, cut out straight")
