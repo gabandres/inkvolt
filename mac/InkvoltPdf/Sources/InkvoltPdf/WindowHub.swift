@@ -36,6 +36,13 @@ final class WindowHub {
         let used = rules.active.flatMap { rules.tabs(of: $0).first }
         // A window whose document went without windowWillClose reaching here.
         for (key, e) in placed where e.controller.window == nil || e.controller.document == nil { placed[key] = nil }
+        // Windows shown without showWindow (macOS's window restoration at launch): counted as they are, not re-tabbed. A
+        // window not yet on screen is left to `place`, which showWindow calls before it shows.
+        for case let c as DocumentWindowController in NSApp.windows.compactMap(\.windowController)
+        where placed[ObjectIdentifier(c)] == nil && c.document != nil && c.window?.isVisible == true {
+            placed[ObjectIdentifier(c)] = (c, nextTab)
+            nextTab += 1
+        }
         // AppKit's groups, each its document windows in the tab bar's order.
         var groups: [[(controller: DocumentWindowController, tab: Int64)]] = []
         var grouped: Set<ObjectIdentifier> = []

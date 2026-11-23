@@ -340,8 +340,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         guard on != reflow.isShown else { return }
         if on {
             guard engine.pageCount > 0 else { return }
-            // The page before the bars go: the pages lay out again under the view as they do.
-            let page = pages.currentPage
+            // The page before the bars go: the pages lay out again under the view as they do. The active pane's, as `go`
+            // and `scrolled` follow it (Split View).
+            let page = activePages.currentPage
             if organizerShown { showOrganizer(false) }
             if !findBar.isHidden { hideFind() }
             toolStrip.isHidden = true
@@ -349,17 +350,19 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         } else {
             let page = reflow.hide()
             toolStrip.isHidden = !AppSettings.markupShown
-            if let page, page != pages.currentPage { go(page) }
-            window?.makeFirstResponder(pages)
-            pages.requestVisible()
+            let shown = activePages
+            if let page, page != shown.currentPage { go(page) }
+            window?.makeFirstResponder(shown)
+            shown.requestVisible()
         }
     }
 
     /// Its group of tabs is the one in use: documents opened from elsewhere join it (WindowHub).
     func windowDidBecomeMain(_ notification: Notification) { WindowHub.shared.activated(self) }
 
-    /// Edit › Undo and Redo: the document's session steps.
-    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { pdf.undoBridge }
+    /// Edit › Undo and Redo: the document's session steps; none while Reflow shows (read-only, as Windows' `Reflow.Runs`
+    /// has no Undo). NSWindow answers undo: and redo: before this controller's validateMenuItem is asked.
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { reflow?.isShown == true ? nil : pdf.undoBridge }
 
     // MARK: Content changes
 
@@ -1113,7 +1116,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func scrolled() {
-        reflow?.viewerMoved(pages.currentPage)
+        reflow?.viewerMoved(activePages.currentPage)
         followBeside(fromSecond: false)
         updateSubtitle()
         sidebar.showCurrent(activePages.currentPage)
