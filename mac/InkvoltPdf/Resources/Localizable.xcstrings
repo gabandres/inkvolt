@@ -24673,6 +24673,215 @@
           }
         }
       }
+    },
+    "No AI answer to save yet: ask, summarize or explain first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay ninguna respuesta de IA que guardar: primero pregunta, resume o explica algo."
+          }
+        }
+      }
+    },
+    "Save AI answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la respuesta de IA"
+          }
+        }
+      }
+    },
+    "Save AI conversation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la conversación con la IA"
+          }
+        }
+      }
+    },
+    "The answer to “{0}”.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta a «{0}»."
+          }
+        }
+      }
+    },
+    "{0} answer, with what was asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respuesta, con lo que se preguntó."
+          }
+        }
+      }
+    },
+    "{0} answers, each with what was asked.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} respuestas, cada una con lo que se preguntó."
+          }
+        }
+      }
+    },
+    "A Word document (.docx)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un documento de Word (.docx)"
+          }
+        }
+      }
+    },
+    "A PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un PDF"
+          }
+        }
+      }
+    },
+    "A comment on page {0} of this document": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un comentario en la página {0} de este documento"
+          }
+        }
+      }
+    },
+    "Save as": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar como"
+          }
+        }
+      }
+    },
+    "It says it was written by an AI model, and which one; it may be wrong. A comment goes on the first page the answer cites.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Indica que lo escribió un modelo de IA, y cuál; puede contener errores. Un comentario va en la primera página que cita la respuesta."
+          }
+        }
+      }
+    },
+    "Add AI answer as comment": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar la respuesta de IA como comentario"
+          }
+        }
+      }
+    },
+    "The answer is now a comment on page {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La respuesta es ahora un comentario en la página {0}."
+          }
+        }
+      }
+    },
+    "{0} - AI answers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - respuestas de IA"
+          }
+        }
+      }
+    },
+    "{0} is open in Inkvolt PDF. Close it first, or save under another name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} está abierto en Inkvolt PDF. Ciérralo primero, o guarda con otro nombre."
+          }
+        }
+      }
+    },
+    "Not saved": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se guardó"
+          }
+        }
+      }
+    },
+    "The file couldn't be written. Check that the folder exists and the file isn't open in another app, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo escribir el archivo. Comprueba que la carpeta existe y que el archivo no está abierto en otra aplicación, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "Save the answer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la respuesta"
+          }
+        }
+      }
+    },
+    "Save the conversation": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la conversación"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

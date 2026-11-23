@@ -273,4 +273,5 @@ locality) are used in their usual sense: the interface is everything a caller mu
   assistant's answers about one document (each an **exchange**: what the pane showed as asked, what a follow-up sends as
   that turn, the answer, the model, when), kept with its document session until cleared or closed. Follow-up questions
   send it again (`Turns`); **Save an AI answer** (`AiAnswerExport`) writes one exchange or all of them to Word or a PDF,
-  or one as a note on the first page it cites, always naming the model and saying it may be wrong.
+  or one as a note on the first page it cites, always naming the model and saying it may be wrong. On the Mac: PdfCore's
+  `Ai/AiAnswers.swift`, `DocumentSession.aiConversation`, the app's `AiSave.swift`.

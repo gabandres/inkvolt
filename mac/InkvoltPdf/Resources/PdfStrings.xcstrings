@@ -26675,6 +26675,61 @@
           }
         }
       }
+    },
+    "AI answers about {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Respuestas de IA sobre {0}"
+          }
+        }
+      }
+    },
+    "Written by an AI model ({0}) on {1}; it may be wrong. Check it against the document.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escrito por un modelo de IA ({0}) el {1}; puede contener errores. Compruébalo con el documento."
+          }
+        }
+      }
+    },
+    "There's no AI answer to save.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ninguna respuesta de IA que guardar."
+          }
+        }
+      }
+    },
+    "Save AI Answer…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la respuesta de IA…"
+          }
+        }
+      }
+    },
+    "Save AI Conversation…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar la conversación con la IA…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

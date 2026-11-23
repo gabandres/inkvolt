@@ -581,6 +581,7 @@ at under "What a person must look at" and in each section.
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
+| 4.20 | Save an AI answer (roadmap 4.20): an answer (its card's Save, Tools › AI Assistant › Save AI Answer…) or the conversation (the pane's Save, Save AI Conversation…) as a Word document through `DocxWriter` or a PDF (opened in a window), or one answer as a note on the page it cites (one undo step); the conversation kept with the document's session (`AiConversation`, `AiExchange`, `AiAnswerExport`, `DocumentSession.aiConversation`; `AiSave.swift`; `--edit --only-ai` drives it) | AiAnswersTests |
 | 4.10 | AI redaction suggestions (roadmap 4.10, Pro): Tools › Redact › Suggest Redactions… (Protect on the toolbar), the user's own AI endpoint asked for names, organizations, addresses, account and ID numbers or a description, the send window always shown, the answer read as data and kept only where the text sent holds it; the names and terms list (Edit List…, no AI); both into Redact by Pattern's review list, apply, read-back, check and report, each hit named by where it came from (`RedactionSuggestions`, `RedactionTerms`, `RedactionMatch.label`, `PatternRedaction`'s labelled read-back; `RedactSuggest.swift`; `--edit --only-ai` drives it) | RedactionSuggestionsTests |
 | 4.8 | Smaller black-and-white scans (roadmap 4.8): Reduce File Size codes 1-bit pictures again as lossless JBIG2, CCITT G4 or Flate when smaller, and makes grey scans of text black and white when asked (the sheet's and Batch's check box, the preset's `blackAndWhiteScans`); Recognize Text's cleaned page of a black-and-white scan stays 1 bit (PrintCore's `Jbig2Generic`, `PdfWriter.oneBitData`; PdfCore's `OneBitImages`, `Optimizer`, `ScanPage`) | Jbig2RenderTests, OneBitImagesTests |
 | 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
@@ -612,6 +613,13 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
+- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24, not on the Mac yet). The
+  conversation moved from the window's `AiState` to the session, as on Windows. The PDF's text past WinAnsi (Cyrillic,
+  say) is drawn in Type 3 fonts (`TextPainter`), which MuPDF reads back as regular even where drawn bold (it takes bold
+  from a FreeType font's style or name only); Latin text uses Helvetica and Helvetica-Bold and reads back bold, so
+  `Pdf_HasTheSameText_AndFlowsOntoMorePages` checks bold on a Latin answer. The note's date has a plain space before
+  AM/PM (macOS writes a narrow no-break one). Saving over a PDF open in a window is refused, as Windows refuses one open in
+  a tab. Not checked by a person: the sheet and the Save buttons by eye and with VoiceOver, the .docx in Word or Pages.
 - 4.10: the command is in Tools › Redact beside Redact by Pattern… (Windows: Review › Suggest Redactions…), and on the
   toolbar's Protect. A model's JSON is read by PrintCore's `Json` (comments and trailing commas as Windows'
   `AllowTrailingCommas`, depth 16); its object's members have no order once read, so a list under another name than
@@ -1859,8 +1867,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
   Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
 - Wave 4 Batch B, done on Windows, the Mac's waits: 4.17 proofreading marks (`Annotations.Proofreading.cs`: Insert Text,
-  Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first) and 4.20 save an AI answer
-  (`AiAnswerExport`, `AiConversation`; port `AiAnswersTests`).
+  Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first).
 - Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
   `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
   a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port

@@ -484,6 +484,9 @@ public enum DocumentCommands {
             c("Ask AI about This Document", "aiAsk:", needs: [.pages]),
             c("Explain Selection with AI", "aiExplain:", needs: [.selectedText, .aiIdle]),
             c("Translate with AI…", "aiTranslate:", needs: [.pages, .aiIdle]),
+            // Roadmap 4.20 (Windows: Review › AI Assistant › Save AI Answer, Save AI Conversation).
+            c("Save AI Answer…", "saveAiAnswerCommand:", needs: [.document, .aiIdle]),
+            c("Save AI Conversation…", "saveAiConversation:", needs: [.document, .aiIdle]),
             sep,
             c("AI Assistant Settings…", "aiSettings:"),
         ])),
