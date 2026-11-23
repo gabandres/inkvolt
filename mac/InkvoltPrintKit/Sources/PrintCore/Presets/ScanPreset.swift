@@ -66,6 +66,10 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     /// (`TurnedStack`). Off: one side only, as before.
     public var turnStack = false
     public var color = true
+
+    /// A PDF's pages saved in black and white (1 bit, CCITT G4) for a much smaller file; scanned in grey (roadmap 4.4). Not
+    /// for photos on the glass, which stay in color (`ScanPresets.savesSmallerFile`).
+    public var smallerFile = false
     public var resolution = 300
 
     /// `ScanChoices.pageSizes` key; nil = Letter or A4 by region.
@@ -122,7 +126,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         init?(intValue: Int) { nil }
     }
 
-    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
+    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "SmallerFile", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
                                 "Cleanup", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
@@ -134,6 +138,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         twoSided = get("TwoSided", false)
         turnStack = get("TurnStack", false)
         color = get("Color", true)
+        smallerFile = get("SmallerFile", false)
         resolution = get("Resolution", 300)
         pageSize = get("PageSize", nil as String?)
         fileType = get("FileType", .searchablePdf)
@@ -165,6 +170,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(twoSided, forKey: Key("TwoSided"))
         try c.encode(turnStack, forKey: Key("TurnStack"))
         try c.encode(color, forKey: Key("Color"))
+        try c.encode(smallerFile, forKey: Key("SmallerFile"))
         try c.encode(resolution, forKey: Key("Resolution"))
         try c.encode(pageSize, forKey: Key("PageSize"))
         try c.encode(fileType, forKey: Key("FileType"))
@@ -299,6 +305,14 @@ public enum ScanPresets {
             list.append(p)
         }
         return list
+    }
+
+    /// The preset's pages go into its PDF in black and white (`ScanPreset.smallerFile`): not for JPEG files, nor for photos
+    /// found on the glass, which stay pictures in color. `source`: where it scans from this time; nil: as the preset says
+    /// (glass when it says glass).
+    public static func savesSmallerFile(_ p: ScanPreset, source: ScanSource? = nil) -> Bool {
+        let onGlass = source.map { $0 == .platen } ?? (p.source == .glass)
+        return p.smallerFile && (p.fileType == .pdf || p.fileType == .searchablePdf) && !(p.findPhotos && onGlass)
     }
 
     /// Ids go on a command line or into a URL unquoted: letters, digits and '-' only, at most 64.
@@ -444,9 +458,15 @@ public enum ScanPresetText {
         }
     }
 
+    /// The preset's color as its summary says it: color, grey, or black and white for a smaller file.
+    public static func colorDpi(_ p: ScanPreset) -> String {
+        ScanPresets.savesSmallerFile(p) ? loc("black and white, {0} dpi, smaller file", p.resolution)
+            : p.color ? loc("color, {0} dpi", p.resolution) : loc("grey, {0} dpi", p.resolution)
+    }
+
     /// "Searchable PDF · feeder or glass · grey, 300 dpi · Documents/Scans", plus the review step and what happens after saving.
     public static func summary(_ p: ScanPreset) -> String {
-        var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), p.color ? loc("color, {0} dpi", p.resolution) : loc("grey, {0} dpi", p.resolution), folder(p)]
+        var parts = [fileType(p.fileType), source(p.source, twoSided: p.twoSided), colorDpi(p), folder(p)]
         if p.twoSided && p.turnStack && p.source != .glass { parts.append(loc("the stack turned over for the backs")) }
         if p.splitAt != .none { parts.append(loc("a new file at each {0}", splitText(p.splitAt))) }
         if p.findPhotos { parts.append(loc("each photo on the glass by itself")) }

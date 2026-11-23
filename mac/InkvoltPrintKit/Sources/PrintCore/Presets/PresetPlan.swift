@@ -8,6 +8,9 @@ public struct PresetPlan: Equatable, Sendable {
     public var notes: [String]
     /// Both sides on a one-sided feeder: scan the fronts, then ask for the stack turned over (`TurnedStack`).
     public var turnStack = false
+    /// The PDF's pages in black and white at 1 bit (`ScanPresets.savesSmallerFile`, scanned in grey); never a JPEG preset's or
+    /// photos found on the glass.
+    public var oneBit = false
 
     /// - Parameters:
     ///   - feederLoaded: the scanner's feeder holds pages (eSCL AdfState); nil = unknown.
@@ -37,8 +40,11 @@ public struct PresetPlan: Equatable, Sendable {
             if preset.twoSided && !caps.adfDuplex && !turnStack { notes.append(loc("This scanner's feeder scans one side only.")) }
         }
 
+        // A smaller file is black and white at 1 bit, made from grey (a scan in color would only take longer). Not for pictures:
+        // JPEG files, photos found on the glass.
+        let smaller = ScanPresets.savesSmallerFile(preset, source: source)
         let colors = ScanChoices.colors(caps, source)
-        let color: ScanColor = preset.color && colors.contains(.color) ? .color : colors.contains(.grayscale) ? .grayscale : colors[0]
+        let color: ScanColor = preset.color && !smaller && colors.contains(.color) ? .color : colors.contains(.grayscale) ? .grayscale : colors[0]
 
         // The closest the source offers; between two equally close, the sharper one.
         let supported = caps.input(for: source)?.resolutions ?? []
@@ -57,6 +63,6 @@ public struct PresetPlan: Equatable, Sendable {
         if preset.fileType == .searchablePdf && !ocrAvailable {
             notes.append(loc("Text recognition isn't available on this Mac: the PDF won't be searchable."))
         }
-        return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes, turnStack: turnStack)
+        return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes, turnStack: turnStack, oneBit: smaller)
     }
 }

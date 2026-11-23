@@ -8228,6 +8228,17 @@
         }
       }
     },
+    "black and white, {0} dpi, smaller file": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blanco y negro, {0} ppp, archivo más pequeño"
+          }
+        }
+      }
+    },
     "blank page": {
       "extractionState": "manual",
       "localizations": {

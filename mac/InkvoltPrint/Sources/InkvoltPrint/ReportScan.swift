@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import PDFKit
 import PrintCore
@@ -81,6 +82,50 @@ extension Report {
         await scanAndWait(scan)
         lines.append("  saved and read back: \(await reportOrder(scan, "turn-stack.pdf"))")
         return lines
+    }
+
+    /// `--smaller-file` (roadmap 4.4): the USB demo laser's feeder scanned with a scan preset as it is and with Smaller file
+    /// (black and white), each saved as a PDF in the container: its size, whether its pages are CCITT G4 or JPEG, and how much
+    /// ink PDFKit (Preview's engine) draws on its first page, so macOS is seen to read the 1-bit pages.
+    static func smallerFileCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoLaserScanner(model) else { return ["smaller file: no demo USB laser scanner with a feeder"] }
+        let kept = (scan.turnStack, scan.format)
+        defer { (scan.turnStack, scan.format) = kept }
+        scan.turnStack = false
+        var lines = ["smaller file:"]
+        for smaller in [false, true] {
+            var p = ScanPresets.builtIns()[0]
+            p.id = "smaller-file-check"
+            p.name = smaller ? "Smaller file" : "As scanned"
+            (p.source, p.fileType, p.review, p.skipBlank, p.color, p.smallerFile) = (.feeder, .pdf, true, false, true, smaller)
+            await scan.scan(with: p)
+            for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
+            let url = AppModel.dataFolder.appendingPathComponent(smaller ? "smaller-file.pdf" : "smaller-file-off.pdf")
+            await scan.save(to: url, reveal: false)
+            let data = (try? Data(contentsOf: url)) ?? Data()
+            let text = String(decoding: data, as: UTF8.self)
+            let pdf = PDFDocument(url: url)
+            let ink = pdf?.page(at: 0).map { darkPixels($0.thumbnail(of: CGSize(width: 255, height: 330), for: .mediaBox)) } ?? -1
+            lines.append("  \(p.name) (\(ScanPresetText.summary(p))): \(scan.status) \(scan.problem ?? "")")
+            lines.append("    \(data.count) bytes, pages \(pdf?.pageCount ?? 0), CCITT G4 \(text.contains("/CCITTFaxDecode")), JPEG \(text.contains("/DCTDecode")), "
+                + "dark pixels PDFKit draws on page 1: \(ink)")
+        }
+        scan.clear()
+        return lines
+    }
+
+    /// Pixels darker than mid-grey in `image` drawn grey (-1 when it can't be drawn).
+    private static func darkPixels(_ image: NSImage) -> Int {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }
+        let (w, h) = (cg.width, cg.height)
+        var px = [UInt8](repeating: 255, count: w * h)
+        let drawn: Bool = px.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                          space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        return drawn ? px.filter { $0 < 128 }.count : -1
     }
 
     /// `--upright` (roadmap 4.3): the same stack with Turn pages upright on: the sheet fed upside down (pages 3 and 4) is

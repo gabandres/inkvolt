@@ -139,6 +139,18 @@ public enum ScanImaging {
         return image
     }
 
+    /// A page as saved (`jpeg`, its edits already in it) in black and white for a small file (roadmap 4.4, PrintCore's
+    /// `Bilevel`): decoded grey at full size, its paper evened out, cut at Otsu's level. A page too large to decode
+    /// (`decode`) or one past `BitImage.maxPixels` throws, and is saved as its JPEG.
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func bits(_ jpeg: [UInt8], dpi: Int, stop: BatchStop? = nil) throws -> BitImage {
+        let image = try decode(jpeg, maxPixels: nil)
+        let area = image.width.multipliedReportingOverflow(by: image.height)
+        guard !area.overflow, area.partialValue <= BitImage.maxPixels else { throw BitImage.SizeError.outOfRange }
+        try stop?.check()
+        return try Bilevel.fromScan(try pixels(image, channels: 1), image.width, image.height, dpi: dpi, stop: stop)
+    }
+
     public static func jpeg(_ image: CGImage) throws -> [UInt8] {
         let data = NSMutableData()
         guard let destination = CGImageDestinationCreateWithData(data, UTType.jpeg.identifier as CFString, 1, nil) else { throw ImageError() }

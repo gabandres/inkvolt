@@ -24,16 +24,22 @@ public enum ScanPdf {
         public var jpeg: [UInt8]
         public var dpi: Int
         public var words: [OcrWord]?
+        /// The page in black and white (roadmap 4.4, `ScanImaging.bits`): written at 1 bit in place of the JPEG, the same size.
+        public var bits: BitImage?
 
-        public init(jpeg: [UInt8], dpi: Int, words: [OcrWord]? = nil) {
+        public init(jpeg: [UInt8], dpi: Int, words: [OcrWord]? = nil, bits: BitImage? = nil) {
             self.jpeg = jpeg
             self.dpi = dpi
             self.words = words
+            self.bits = bits
         }
     }
 
     public static func write(_ pages: [Page], title: String? = nil) throws -> Data {
         let written = try pages.map { page -> PdfWriter.Page in
+            if let bits = page.bits {
+                return .blackAndWhite(bits, dpi: page.dpi, words: page.words.map { pixelWords($0, width: bits.width, height: bits.height) })
+            }
             guard let words = page.words else { return PdfWriter.Page(page.jpeg, dpi: page.dpi) }
             let size = try PdfWriter.jpegInfo(page.jpeg)
             return PdfWriter.Page(page.jpeg, dpi: page.dpi, words: pixelWords(words, width: size.width, height: size.height))

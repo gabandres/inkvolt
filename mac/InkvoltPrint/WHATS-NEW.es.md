@@ -8,6 +8,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 ## Next
 - Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.
 - Páginas puestas al derecho solas: una página que entra al revés o de lado se gira cuando su texto muestra con claridad cuál es la parte de arriba, y dice Puesta al derecho. Deshacer las deja como estaban; Poner las páginas al derecho, en la configuración de escaneo y en cada ajuste de escaneo, lo desactiva.
+- Archivo más pequeño (blanco y negro) en un ajuste de escaneo: las páginas de su PDF se guardan en blanco y negro, así que una página de texto ocupa una décima parte o menos.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

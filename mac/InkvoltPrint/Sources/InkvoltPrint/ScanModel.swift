@@ -180,7 +180,7 @@ final class ScanModel {
         // The preset's checks are its own: the tab's settings stay as the user set them.
         let check = PageCheck(skipBlank: p.skipBlank, straighten: p.straighten, splitAt: p.splitAt,
                               findPhotos: p.findPhotos && plan.request.source == .platen, cleanup: p.cleanup, ocrLanguage: p.ocrLanguage,
-                              upright: p.turnUpright)
+                              upright: p.turnUpright, oneBit: plan.oneBit)
         scan(check: check, keepSeparators: p.keepSeparators, turnStack: plan.turnStack) {
             if !notes.isEmpty { self.status = (notes + [self.status]).joined(separator: " ") }
             if !p.review && !self.pages.toSave.isEmpty && self.problem == nil { await self.saveWithPreset() }
@@ -330,6 +330,8 @@ final class ScanModel {
         var ocrLanguage: String?
         /// Turn a page upright when it lies sideways or upside down and its text says so clearly (`PageUpright`).
         var upright = false
+        /// Save the pages in a PDF in black and white (a preset's smaller file, roadmap 4.4).
+        var oneBit = false
     }
 
     /// What the page check found.
@@ -376,7 +378,9 @@ final class ScanModel {
         let id = ScanRecoveryStore.newPageName()
         images[id] = jpeg
         if let origin = ScannerPdf.origin(of: jpeg) { origins[id] = origin }
-        pages.add(ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage, tooLargeToEdit: Self.tooLargeToEdit(jpeg)))
+        var page = ScannedPage(id: id, dpi: dpi, ocrLanguage: c.ocrLanguage, tooLargeToEdit: Self.tooLargeToEdit(jpeg))
+        page.oneBit = c.oneBit
+        pages.add(page)
         keep()
         refreshThumbnail(id)
         // The page check runs beside the next page's scan.
@@ -410,7 +414,7 @@ final class ScanModel {
     /// cut into photos, or given a text layer).
     private func toSave(_ file: [ScannedPage]) -> [PageToSave] {
         let ocr = format == .searchablePdf
-        return file.map { PageToSave(origins[$0.id], changed: !$0.edits.isEmpty || $0.hasPhotos || ocr) }
+        return file.map { PageToSave(origins[$0.id], changed: !$0.edits.isEmpty || $0.hasPhotos || ocr || $0.oneBit) }
     }
 
     /// Each file's PDF when it is exactly the scanner's own (saved as it sent it), else nil; all nil for JPEG.
@@ -888,19 +892,23 @@ final class ScanModel {
         var photos: [PhotoBox]?
         /// The language the page's text is read in (nil: Vision's choice).
         var ocrLanguage: String?
+        /// Saved in a PDF in black and white (roadmap 4.4).
+        var oneBit = false
     }
 
-    /// An image a file holds: a page as edited, or one photo cut out (no text recognition for photos).
+    /// An image a file holds: a page as edited, or one photo cut out (no text recognition for photos, never black and white).
     private struct OutputImage: Sendable {
         var jpeg: [UInt8]
         var dpi: Int
         var isPhoto: Bool
         var ocrLanguage: String?
+        var oneBit = false
     }
 
     private func jobs(_ files: [[ScannedPage]]) -> [[PageJob]] {
         files.map { file in
-            file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil, ocrLanguage: $0.ocrLanguage) }
+            file.map { PageJob(jpeg: images[$0.id] ?? [], edits: $0.edits, dpi: $0.dpi, photos: $0.hasPhotos ? $0.photos : nil, ocrLanguage: $0.ocrLanguage,
+                    oneBit: $0.oneBit) }
         }
     }
 
@@ -917,7 +925,7 @@ final class ScanModel {
                     }
                 }
                 let jpeg = try ScanImaging.jpeg(job.jpeg, job.edits, dpi: job.dpi, stop: stop)
-                return [OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: false, ocrLanguage: job.ocrLanguage)]
+                return [OutputImage(jpeg: jpeg, dpi: job.dpi, isPhoto: false, ocrLanguage: job.ocrLanguage, oneBit: job.oneBit)]
             }
         }
     }
@@ -969,7 +977,10 @@ final class ScanModel {
                 let pdfPages = try file.map { image in
                     try stop?.check()
                     let words = format == .searchablePdf && !image.isPhoto ? ScanPdf.recognize(image.jpeg, language: image.ocrLanguage) : nil
-                    return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words)
+                    // Black and white (a smaller file): the page at 1 bit; one that can't be (too large) stays its JPEG.
+                    let bits = image.oneBit && !image.isPhoto ? try? ScanImaging.bits(image.jpeg, dpi: image.dpi, stop: stop) : nil
+                    try stop?.check()
+                    return ScanPdf.Page(jpeg: image.jpeg, dpi: image.dpi, words: words, bits: bits)
                 }
                 try ScanPdf.write(pdfPages, title: urls[0].deletingPathExtension().lastPathComponent).write(to: urls[0], options: .atomic)
                 written[f] = [urls[0]]

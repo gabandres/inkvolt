@@ -31,6 +31,8 @@ public struct ScannedPage: Equatable, Sendable, Identifiable {
     public var tooLargeToEdit = false
     /// The quarter turns the page check stood it upright by (`PageUpright`, roadmap 4.3); 0 when it wasn't turned.
     public var uprightTurns = 0
+    /// Saved in a PDF in black and white at 1 bit (a preset's smaller file, roadmap 4.4); a page of photos is never.
+    public var oneBit = false
 
     /// Still turned upright as the check turned it (not turned back by hand or by Undo).
     public var turnedUpright: Bool { edits.turnedUprightBy(uprightTurns) }

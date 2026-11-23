@@ -170,9 +170,10 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
   - **4.3 Pages turned upright on their own.** Done on Windows and Mac: sideways and upside down, only when sure, on by default
     (every corpus page each way round), one Undo step (`PageUpright`; the Mac's in `mac/docs/PLAN.md`, "Wave 4").
     **Next:** real feeder scans, and pages in scripts it leaves alone, on both.
-  - **4.4 Small black-and-white PDFs.** Done on Windows: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
+  - **4.4 Small black-and-white PDFs.** Done on Windows and Mac: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
     encoder, read back by MuPDF; a "smaller file" choice per preset; a text page 17 to 60 times smaller than its JPEG
-    (`CcittG4`, `Bilevel`). **Next:** Inkvolt PDF's 4.8 to reuse it; the Mac half waits.
+    (`CcittG4`, `Bilevel`; on the Mac in PrintCore, PDFKit draws them too: `mac/docs/PLAN.md`, "Wave 4"). **Next:** Inkvolt
+    PDF's 4.8 to reuse it, on Windows and Mac.
 - **Batch B:**
   - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
     from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.

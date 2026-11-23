@@ -3624,6 +3624,16 @@
         }
       }
     },
+    "PDF pages in black and white: a page of text takes a tenth of the space or less": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas del PDF en blanco y negro: una página de texto ocupa una décima parte o menos"
+          }
+        }
+      }
+    },
     "Page %lld%@": {
       "localizations": {
         "en": {
@@ -5056,6 +5066,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Omitir páginas en blanco"
+          }
+        }
+      }
+    },
+    "Smaller file (black and white)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivo más pequeño (blanco y negro)"
           }
         }
       }

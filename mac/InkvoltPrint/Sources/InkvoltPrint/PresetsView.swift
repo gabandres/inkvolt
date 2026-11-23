@@ -135,7 +135,7 @@ private struct PresetEditor: View {
                     Toggle("On a one-sided feeder, turn the stack over for the backs", isOn: $preset.turnStack)
                         .help("Asks you to turn the stack over after the fronts, then puts the pages in order")
                 }
-                Toggle("Color", isOn: $preset.color)
+                Toggle("Color", isOn: $preset.color).disabled(ScanPresets.savesSmallerFile(preset)) // a smaller file scans in grey
                 Picker("Resolution", selection: $preset.resolution) { ForEach([150, 200, 300, 600], id: \.self) { Text("\($0) dpi").tag($0) } }
                 Picker("Size", selection: $preset.pageSize) {
                     Text("Letter or A4, by region").tag(String?.none)
@@ -159,6 +159,10 @@ private struct PresetEditor: View {
                     Text("PDF").tag(PresetFileType.pdf)
                     Text("Searchable PDF").tag(PresetFileType.searchablePdf)
                     Text("JPEG images").tag(PresetFileType.jpeg)
+                }
+                if preset.fileType != .jpeg {
+                    Toggle("Smaller file (black and white)", isOn: $preset.smallerFile)
+                        .help("PDF pages in black and white: a page of text takes a tenth of the space or less")
                 }
                 if preset.fileType == .searchablePdf { TextLanguagePicker(language: $preset.ocrLanguage) }
                 HStack {
