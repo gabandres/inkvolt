@@ -281,7 +281,7 @@ public enum AiAnswerExport {
     }
 
     /// A line without its **bold** marks.
-    private static func plain(_ line: String) -> String { runs(line).map(\.text).joined() }
+    static func plain(_ line: String) -> String { runs(line).map(\.text).joined() }
 
     /// A line's **bold** spans (an unclosed ** stays as text).
     static func runs(_ line: String) -> [(text: String, bold: Bool)] {
@@ -334,5 +334,5 @@ public enum AiAnswerExport {
 
     private static let heading = try! NSRegularExpression(pattern: #"^\s{0,3}#{1,6}\s+(.*)$"#)
     private static let bullet = try! NSRegularExpression(pattern: #"^\s*(?:[-*+]|•)\s+(.*)$"#)
-    private static let numbered = try! NSRegularExpression(pattern: #"^\s*\d{1,3}[.)]\s+"#)
+    static let numbered = try! NSRegularExpression(pattern: #"^\s*\d{1,3}[.)]\s+"#)
 }

@@ -50,12 +50,8 @@ struct PrintScanArchiveTests {
         #expect(try engine.text(0).find("Archived", matchCase: true, wholeWord: false).count == 1)
     }
 
-    /// Off: PdfEngine draws every page of a document opened with its open password white (found here, not this scan's:
-    /// Inkvolt PDF's own Protect output, AES-128 and AES-256, draws white the same way; an owner-only one draws; the text
-    /// layer reads, and once unprotected the scan draws as the plain one: `aProtectedScanDrawsAsThePlainOneOnceUnprotected`).
-    /// PLAN, "Open".
-    @Test(.disabled("PdfEngine draws a document opened with its open password white (PLAN, Open)"))
-    func aProtectedScanDrawsAsThePlainOne() throws {
+    /// Found the engine's blank protected pages (MuPDFShim's fz_needs_password after the password; EncryptedRenderTests).
+    @Test func aProtectedScanDrawsAsThePlainOne() throws {
         let plain = try PdfEngine.open(try Self.pdf(nil))
         let locked = try PdfEngine.open(try Self.pdf(PdfWriteOptions(password: Self.password)), password: Self.password)
         #expect(try plain.render(0, scale: 0.5).pixels == locked.render(0, scale: 0.5).pixels)

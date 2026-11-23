@@ -294,16 +294,16 @@ public enum AiPrompts {
 
     private static let wordPattern = try! NSRegularExpression(pattern: #"\p{L}[\p{L}\p{Mn}\p{Nd}'’-]*|\p{Nd}+"#)
 
-    private static func matches(_ lowered: String) -> [String] {
+    static func matches(_ lowered: String) -> [String] {
         let ns = lowered as NSString
         return wordPattern.matches(in: lowered, range: NSRange(location: 0, length: ns.length)).map { ns.substring(with: $0.range) }
     }
 
-    private static func words(_ text: String) -> Set<String> {
+    static func words(_ text: String) -> Set<String> {
         Set(matches(text.lowercased()).filter { $0.utf16.count >= 3 && !stopWords.contains($0) })
     }
 
-    private static func score(_ text: String, _ words: Set<String>) -> Double {
+    static func score(_ text: String, _ words: Set<String>) -> Double {
         if words.isEmpty { return 0 }
         var counts: [String: Int] = [:]
         for m in matches(text.lowercased()) where words.contains(m) { counts[m, default: 0] += 1 }

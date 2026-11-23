@@ -754,7 +754,7 @@ From the steps, besides the sections below:
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
   wording for the owner: `pdf/docs/SPANISH-REVIEW.md`, "Inkvolt PDF for Mac".
-- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24, not on the Mac yet). The
+- 4.20: no spoken recording among the choices (Windows' Save AI Answer offers one through 4.24; the Mac's 4.24 is Summary to Audio… only). The
   conversation moved from the window's `AiState` to the session, as on Windows. The PDF's text past WinAnsi (Cyrillic,
   say) is drawn in Type 3 fonts (`TextPainter`), which MuPDF reads back as regular even where drawn bold (it takes bold
   from a FreeType font's style or name only); Latin text uses Helvetica and Helvetica-Bold and reads back bold, so
@@ -1894,6 +1894,19 @@ Tests that must run while the pool is busy (a Cancel, a deadline's timer) run on
 suites held it, so a Cancel came after the render had ended. Endless test streams sleep 1 ms a read rather than spin, and
 a timer must not be re-armed per streamed line (millions queued once killed the runner through jetsam).
 
+### Gotcha: MuPDF's key after a wrong password
+
+MuPDF keeps one key per document, and every failed `fz_authenticate_password` overwrites it; `fz_needs_password` itself
+tries "". `PdfEngine` asked it again after the password had opened the document (`isEncrypted`), so its main instance read
+every stream with a wrong key and drew each page white, while text (its own instance) and Remove Protection worked. In
+every release up to 1.12.1, for any file opened with its open password (RC4, AES-128, AES-256, Inkvolt PDF's own Protect
+output). **Fixed 2026-11-23 in `MuPDFShim`:** whether a document needs a password is asked once, at open
+(`inkv_needs_password` returns that), and a failed try after a good one authenticates the good password again (kept,
+zeroed when the document goes), so a wrong guess in `authBits` (Sanitizer, PdfRepair) can't do the same. Tests:
+`EncryptedRenderTests` (each method, Protect's output, the engine's sibling, text and saved pictures, the print copy, a
+wrong try after the right one); the self-test's Protect step draws page 1 as before, in the window and reopened (`--only-passwords` with `--edit
+--synthetic` runs it alone).
+
 ### Redaction by pattern, Windows' additions (roadmap 1.1)
 
 Windows' redaction by pattern additions (named sets, scans searched through OCR, Check What Was Found, the read-back,
@@ -2013,6 +2026,65 @@ and undoes it.
   The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
   file to choose.
 
+### Wave 4's AI items (roadmap Batch C, Pro)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`), through the Mac's AI client and its send window
+(`AiConfirmSheet`, E11's), against stand-in models on loopback in the self-test (`AiLoopbackServer`, as `--only-translate`).
+- **4.11 Ask Across Folders** (Edit › Find, after Search Folders; Windows also lists it under Review › AI Assistant):
+  PdfCore `FolderAsk` (`build`, `withMeaning`, `citations`, `sentList`, `safeName`, `copyRestricted`, `readFiles`) and
+  `FolderIndex.rank` and `pageTexts` (FolderIndexPages.swift), `FolderAskTests` under their names. The window is
+  `FolderAskWindowController` (FolderAsk.swift): the indexed folders or chosen PDFs, the question, the answers as the AI
+  pane's cards, whose citations of a page sent open that file at the page (`AiAnswerCard`'s `links`: `AiAnswerMarkup.runs`
+  takes the citations a caller finds). The send window lists each file and its pages (`AiOutgoing.listing`) and says what
+  only goes (`onlyNote`). `--only-folder-ask` (`FolderAskTest`): an index of its own, the assistant off then on, the
+  listing, the request (files named within their folder, pages sharing no word left out), the link opening the file,
+  chosen PDFs declined, a question sharing no word. Mac differences: paths are "/"-separated as the Mac's index keeps them;
+  a file's name cut at 120 UTF-16 units is cut between characters, never inside one (an emoji, a letter and its accent);
+  a question over the folders that no page shares a word with says so (Windows says the pages have no text, since the
+  index proposed none).
+- **4.21 search by meaning** (Search Folders' By meaning and Meaning…, Ask Across Folders' Also find pages by meaning):
+  PdfCore `AiEmbeddings` (`requestJson`, `urlFor`, `parse`: one finite vector per text, all one length, or refused),
+  `AiClient.embed` (a chat model asked for embeddings said in words), `MeaningIndex` (FolderIndex/MeaningIndex.swift: the
+  Windows file byte for byte, `.meaning` beside the folder index; pieces, 8-bit vectors, bounds, a stop keeping whole
+  files), `MeaningIndexTests` under their names, `ProFeature.meaningSearch`. The app: FolderMeaning.swift
+  (`MeaningSettingsSheet`: on or off and the embedding model, kept in the settings as `MeaningEnabled`, `MeaningModel`;
+  `FolderMeaning.search`: what each folder lacks, the send window listing every page before it goes, shown always when
+  pages go, then the query), each folder's meaning index held by `FolderSearches.Folder` and deleted with it.
+  `--only-meaning` (`MeaningTest`): the settings asked first, the listing, the requests (the model and the texts, no file
+  name), the closest page first and opened at its page, a second search sending its words only, Ask Across Folders
+  bringing in a page sharing no word, Remove deleting the meaning index. Mac differences: a file's paths are compared as
+  written (the Mac's index keeps them so), where Windows ignores case; "busy just now" is a file this user can't read
+  (`MeaningIndexTests` makes it so with chmod), macOS having no FileShare.None; a boolean in a vector is refused.
+- **4.23 Edit by Asking** (Tools › AI Assistant › Edit by Asking…; Windows has it under Review › AI Assistant): PdfCore
+  `AskEdit` (`messages`: the request, the page count and the page in view, no document text; `requestJson` with the six
+  tools, not streamed; `parse`: only calls of those tools with values that check out become steps, at most 10, the rest
+  said; `afterDelete`; `isNoToolsError`), `AiClient.askEdit`, `AskEditTests` under their names. The app: AskEdit.swift
+  (`AskEditRequestSheet`, the send window with the tools in its preview (`AiOutgoing.previewExtra`), `AskEditStepsSheet`
+  with each step ticked, the steps run in order through the commands the menus use: `go`, `rotatePages`, `removePages`,
+  `addBookmark`, a highlight of every match through `SearchMarks`, Redact by Pattern's marks (`runPatternRedaction`), each
+  one undo step). `--only-ask-edit` (`AskEditTest`): the assistant off then on, the send window (the tools, no document
+  text), four steps ticked and a fifth tool said, Run (a page turned, a bookmark following the deleted page, the highlight,
+  the deletion), four Undos, a model that can't call tools. Mac difference: redaction's step marks the matches as
+  Redact by Pattern does on the Mac (marked for review, applied only by Apply Redactions), where Windows opens its review
+  list.
+- **4.24 a summary read aloud to a file** (Tools › AI Assistant › Summary to Audio…; Windows also reads saved answers
+  aloud from Save AI Answer, which the Mac's doesn't offer): PdfCore AiAnswerSpeech.swift (`AiAnswerSpeech.paragraphs`,
+  `spoken`; `WavFile.read`, `join`; `WavParts`; the answer's lines from 4.20's `AiAnswerExport.blocks`, `plain`, `note`),
+  `AiAnswerSpeechTests` under their names. The summary read is the conversation's last exchange (`DocumentSession.aiConversation`,
+  so the model named is the one that answered); the joining, coding and writing run off the main thread, Stop checked
+  between paragraphs and on each chunk written, its partial file deleted (Windows' `SaveAsync`). The app: SpeechFile.swift (each
+  paragraph through `AVSpeechSynthesizer.write(_:toBufferCallback:)` with Read Aloud's voice and speed, its buffers as
+  16-bit samples, joined with 0.35 s between paragraphs, then an M4A (AAC, `AVAudioFile`) or a WAV; the summary first,
+  with its send window, as Summarize with AI). `--only-summary-audio` (`SummaryAudioTest`): an M4A and a WAV, each as long
+  as the speech. Mac differences: M4A where Windows makes MP3 (macOS has no MP3 encoder; no fallback note is needed);
+  the WAV's rate is the voice's own (22,050 Hz for the English voice here, 16,000 Hz for the Spanish one), and the AAC
+  encoder picks its own bit rate (a set 64 kbit/s is refused at 16 kHz). A paragraph ends at the synthesizer's empty last
+  buffer, not at `didFinish` (which came before the last buffers and cut recordings short), with a watchdog for a voice
+  that never sends it (5 s without a buffer, 30 s before the first).
+- Not checked by a person: listening to a recording; the windows and the send window's listing by eye and with VoiceOver; a real model (Ollama or
+  LM Studio on this Mac), and a real embedding model (nomic-embed-text); Edit by Asking with a real model that calls tools
+  (qwen3).
+
 ### Wave 4: proofreading, forms and layout (roadmap Batch B and C)
 
 Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
@@ -2083,15 +2155,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt PDF for Mac: `PdfEngine.render` draws every page of a document opened with its open password white (AES-128 and
-  AES-256, Inkvolt PDF's own Protect output too; an owner-only file draws; its text reads, and Remove Protection's copy
-  draws). Found by Print 4.18's `PrintScanArchiveTests.aProtectedScanDrawsAsThePlainOne`, off until it's fixed.
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
-  `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
-  format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
-  (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows
-  makes MP3; port `AiAnswerSpeechTests`); 4.23 Edit by Asking (`AskEdit`, `AiClient.AskEditAsync`, the steps window; port
-  `AskEditTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.

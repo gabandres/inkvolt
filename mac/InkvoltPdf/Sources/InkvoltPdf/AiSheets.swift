@@ -468,6 +468,8 @@ final class AiConfirmSheet: AiSheet {
     let disclosure = NSButton(title: "", target: nil, action: nil)
     let previewScroll = NSScrollView()
     let preview = NSTextView()
+    /// The files and pages that go (Ask Across Folders), when the outgoing text lists them.
+    let listing = NSTextView()
     let copyAll = NSButton(title: loc("Copy All"), target: nil, action: nil)
     let cloudOk: NSButton?
     let restrictedOk: NSButton?
@@ -503,7 +505,28 @@ final class AiConfirmSheet: AiSheet {
         whatLabel.stringValue = outgoing.summary
         whatLabel.isSelectable = false
         addWide(whatLabel)
-        addWide(note(AiConsent.onlyThis))
+        if !outgoing.listing.isEmpty {
+            // Ask Across Folders: every file and the pages of it that go, scrolled past a few lines.
+            listing.isEditable = false
+            listing.isSelectable = true
+            listing.drawsBackground = false
+            listing.font = .systemFont(ofSize: NSFont.systemFontSize)
+            listing.string = outgoing.listing.joined(separator: "\n")
+            listing.isVerticallyResizable = true
+            listing.isHorizontallyResizable = false
+            listing.autoresizingMask = [.width]
+            listing.textContainer?.widthTracksTextView = true
+            listing.setAccessibilityLabel(loc("Pages sent, by file"))
+            let scroll = NSScrollView()
+            scroll.documentView = listing
+            scroll.hasVerticalScroller = true
+            scroll.drawsBackground = false
+            scroll.borderType = .noBorder
+            let lines = CGFloat(min(outgoing.listing.count, 7))
+            scroll.heightAnchor.constraint(equalToConstant: lines * 17 + 4).isActive = true
+            addWide(scroll)
+        }
+        addWide(note(outgoing.onlyNote ?? AiConsent.onlyThis))
 
         disclosure.setButtonType(.onOff)
         disclosure.bezelStyle = .disclosure
@@ -577,10 +600,13 @@ final class AiConfirmSheet: AiSheet {
 
     private func full() -> String {
         if let fullPreview { return fullPreview }
-        let made = AiPrompts.preview(outgoing.requests)
+        let made = AiPrompts.preview(outgoing.requests) + (outgoing.previewExtra ?? "")
         fullPreview = made
         return made
     }
+
+    /// Exactly what goes, as Copy All copies it (the self-test reads it).
+    var fullPreviewText: String { full() }
 
     @objc func disclosureClicked() {
         let open = disclosure.state == .on
