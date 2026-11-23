@@ -2120,6 +2120,16 @@
         }
       }
     },
+    "Driver": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlador"
+          }
+        }
+      }
+    },
     "Drop a color": {
       "localizations": {
         "es": {
@@ -2992,6 +3002,16 @@
         }
       }
     },
+    "Its maker's: it doesn't answer IPP, so macOS can't print to it driverless": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El de su fabricante: no responde a IPP, así que macOS no puede imprimir en ella sin controlador"
+          }
+        }
+      }
+    },
     "JPEG images": {
       "localizations": {
         "es": {
@@ -3364,6 +3384,16 @@
         }
       }
     },
+    "Mopria certified": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "con certificación Mopria"
+          }
+        }
+      }
+    },
     "Move Down": {
       "localizations": {
         "es": {
@@ -3450,6 +3480,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nombre"
+          }
+        }
+      }
+    },
+    "Neither IPP nor eSCL": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ni IPP ni eSCL"
           }
         }
       }
@@ -3600,6 +3640,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se encontraron hojas separadoras: es un solo archivo."
+          }
+        }
+      }
+    },
+    "None needed: macOS prints to it driverless": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hace falta: macOS imprime en ella sin controlador"
           }
         }
       }
@@ -4362,6 +4412,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Página web de la impresora"
+          }
+        }
+      }
+    },
+    "Printer answers": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora responde a"
           }
         }
       }
@@ -6546,6 +6606,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este escáner envía PDF desde %@: sus imágenes se extrajeron tal como llegaron, así que la revisión, el reconocimiento de texto y los ajustes funcionan como siempre."
+          }
+        }
+      }
+    },
+    "This scanner works only through its maker's driver, not AirScan: after a macOS update it may stop scanning until its maker updates the driver.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este escáner solo funciona con el controlador de su fabricante, no con AirScan: tras una actualización de macOS puede dejar de escanear hasta que el fabricante actualice el controlador."
           }
         }
       }

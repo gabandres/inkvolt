@@ -345,6 +345,22 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   than printed by hand; pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
   its Print a PDF view, with a count of the sheets). Not checked: a booklet and a poster on paper (fold, trim), the open
   panel's Layout row on screen (VoiceOver), a printer with no queue picked in the panel for a booklet.
+- **4.5 Ready for a printer with no driver.** PrintCore `DriverReadiness` (`assess`: a raster format answered over IPP is
+  ready, no answer when asked is not ready, a printer not asked is not known; `mopria-certified`, `mopria-certified-scan` of
+  1 to 16 characters; AirPrint when it takes `image/urf`; `isMakerModule`), `DriverReadiness.Readiness` (nested: PrintCore's
+  `Readiness` is the Suite's), `PrintReadiness`, `ScanReadiness`, `PrinterView.readiness` (set when a network printer
+  connects), `SystemScanner.makerDriver`, `IppClient.statusAttributes` asking for Mopria's two; `DriverReadinessTests` (PC).
+  PrintMac `SystemScanners` reads each device's `modulePath`. The app (`PrinterReadiness.swift`): Details' Printer answers
+  ("IPP (AirPrint, Mopria certified), eSCL (Mopria certified)") and Driver ("None needed: macOS prints to it driverless", or
+  "Its maker's…"), and a warning under them for a scanner only its maker's driver reaches; the demo photo flatbed is on a
+  maker's driver, so `--report … --demo` lists the warning. **Mac differences:** Windows' half is about Windows' queue
+  drivers (IPP class driver, Microsoft's, a maker's version 3 or 4) and protected print mode; on the Mac CUPS sets up a
+  printer that answers IPP driverless (AirPrint, IPP Everywhere) and macOS has no protected print mode, so there is no
+  driver kind, no "can move" and no Set up with Windows' driver (Set Up in macOS already makes a driverless queue); a queue
+  printer's own driver (a maker's PPD) isn't told apart (CUPS's PPD drivers are deprecated, not gone); a scanner's maker's
+  driver is an ImageCaptureCore module outside `/System` (Apple's AirScan is inside), where Windows asks for WIA or TWAIN;
+  4.2's output tray isn't asked for yet (two-sided by hand waits on the Mac). Not checked: a Mac with a maker's scanner
+  driver installed (the build Mac has no scanner), the lines on screen (VoiceOver).
 
 ## Mac differences
 

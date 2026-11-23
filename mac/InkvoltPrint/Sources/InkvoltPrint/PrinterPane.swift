@@ -145,6 +145,12 @@ struct PrinterPane: View {
                     if let n = u.scanImages { row(String(localized: "Pages scanned"), n.formatted()) }
                     if let n = u.jamEvents { row(String(localized: "Paper jams"), n.formatted()) }
                 }
+                ForEach(PrinterReadiness.rows(printer), id: \.label) { r in row(r.label, r.value) }
+            }
+            if let warning = PrinterReadiness.scanWarning(printer) {
+                Label(warning, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

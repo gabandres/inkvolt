@@ -865,6 +865,8 @@ enum Report {
             }
             if !v.interfaces.isEmpty { lines.append("  over: \(v.interfaces.joined(separator: ", "))") }
             if let f = v.firmware { lines.append("  firmware: \(f.display)") }
+            for r in PrinterReadiness.rows(p) { lines.append("  \(r.label): \(r.value)") } // roadmap 4.5
+            if let warning = PrinterReadiness.scanWarning(p) { lines.append("  scanner warning: \(warning)") }
             if let n = v.firmwareNotice { lines.append("  firmware notice: \(n.text)") }
             for supply in v.supplies {
                 let s = SupplyText(supply)

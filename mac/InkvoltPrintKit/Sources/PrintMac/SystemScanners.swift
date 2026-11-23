@@ -42,7 +42,7 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     /// Every scanner ICC lists, network ones too (for checks: the app scans those over eSCL).
     public var allDevices: [(scanner: SystemScanner, device: SystemScanDevice)] {
-        devices.map { id, d in (SystemScanner(id: id, name: d.name ?? "Scanner", usb: d.transportType?.contains("USB") == true), SystemScanDevice(d)) }
+        devices.map { id, d in (Self.scanner(id, d), SystemScanDevice(d)) }
     }
 
     public func stop() { browser.stop() }
@@ -51,8 +51,14 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
     public func device(_ id: String) -> SystemScanDevice? { devices[id].map(SystemScanDevice.init) }
 
     public var list: [SystemScanner] {
-        devices.map { id, d in SystemScanner(id: id, name: d.name ?? "Scanner", usb: d.transportType?.contains("USB") == true) }
+        devices.map { id, d in Self.scanner(id, d) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    /// What the list says of one device: its name, USB or not, and whether a maker's module drives it (roadmap 4.5).
+    private static func scanner(_ id: String, _ d: ICScannerDevice) -> SystemScanner {
+        SystemScanner(id: id, name: d.name ?? "Scanner", usb: d.transportType?.contains("USB") == true,
+                      makerDriver: DriverReadiness.isMakerModule(d.modulePath))
     }
 
     public func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {

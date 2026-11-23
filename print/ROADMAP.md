@@ -185,12 +185,15 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     the backs in the order that stack feeds them, proven on a model of the paper (README, "Two-sided by hand"; `HandDuplex`).
     Photos prints one side. **Next:** the owner's paper test (`--hand-duplex` on the M234dw: 1, 2, 5 pages, 2 copies of 3, face
     down; Batch with two files) and a one-sided printer; the Mac half waits.
-  - **4.5 Ready for Windows' new driver.** Done on Windows: per printer the queue's driver (Windows' IPP class driver,
+  - **4.5 Ready for Windows' new driver.** Done on Windows and Mac. On Windows: per printer the queue's driver (Windows' IPP class driver,
     Microsoft's, the maker's version 3 or 4), whether it answers IPP and eSCL (and says Mopria), whether it's ready for protected
     print mode, *Set up with Windows' driver* beside the old queue (never removed), and a warning for a WIA- or TWAIN-only
     scanner (README, "Ready for Windows' new driver"; `DriverReadiness`). The M234dw here: IPP class driver, IPP and eSCL,
-    ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
-    queues are driverless already).
+    ready. On the Mac: a network printer's Details say what it answers (IPP, eSCL, AirPrint, Mopria) and whether it
+    needs a maker's driver, and a scanner only its maker's ImageCaptureCore driver reaches is warned about (`DriverReadiness`;
+    the Mac's in `mac/docs/PLAN.md`, "Wave 4": no Set up with Windows' driver, macOS sets up IPP printers driverless itself).
+    **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; a Mac with a maker's scanner
+    driver.
 - **Batch C:**
   - **4.7 Drop a color, remove punch holes.** Done on Windows and Mac: Clean up's Drop a color (red, green, blue or picked off the page)
     and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
