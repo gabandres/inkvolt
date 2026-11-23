@@ -161,6 +161,36 @@ public enum HalvesJoin {
         return (JoinPlacement(near.side, near.turned, fx, fy), fine)
     }
 
+    /// The pixels an inch the overlap is looked for at: grey copies of the halves `analysisFactor(dpi)` times smaller.
+    public static let analysisPpi = 100.0
+
+    /// How many times smaller than halves scanned at `dpi` the copies `find` reads are (about 100 pixels an inch).
+    public static func analysisFactor(dpi: Int) -> Int { max(1, rounded(Double(dpi) / analysisPpi)) }
+
+    /// The overlap of two full-size halves scanned at `dpi` (grey or RGB, `channels` 1 or 3), looked for on grey copies of
+    /// about 100 pixels an inch (Windows' join view): the placement found in the full-size pixels, sure or not (not sure, it
+    /// is the best guess to nudge from, whatever its score).
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func find(_ first: [UInt8], _ w1: Int, _ h1: Int, _ second: [UInt8], _ w2: Int, _ h2: Int, channels: Int, dpi: Int,
+                            stop: BatchStop? = nil) throws -> JoinFound {
+        guard channels == 1 || channels == 3, w1 >= 1, h1 >= 1, w2 >= 1, h2 >= 1,
+              w1 <= first.count / h1 / channels, w2 <= second.count / h2 / channels else { // all there (divided: no overflow)
+            return JoinFound(edgeToEdge(.right, false, max(0, w1), max(0, h1), max(0, w2), max(0, h2)), false, 0)
+        }
+        let factor = analysisFactor(dpi: dpi)
+        var found = try find(gray(first, w1, h1, channels: channels, factor: factor), gray(second, w2, h2, channels: channels, factor: factor),
+                             ppi: Double(dpi) / Double(factor), stop: stop)
+        found.placement = fromCopy(found.placement, factor: factor, secondWidth: w2, secondHeight: h2)
+        return found
+    }
+
+    /// How many times smaller the copies the join's preview draws are, so the halves joined side by side are at most about
+    /// `side` pixels long (Windows' `JoinPreviewSize`); at least 1.
+    public static func previewFactor(_ w1: Int, _ h1: Int, _ w2: Int, _ h2: Int, side: Int) -> Int {
+        let longest = min(max(0, w1, h1, w2, h2), Int(Int32.max)) * 2, side = min(max(1, side), Int(Int32.max)) // no overflow: Int is 64 bits
+        return max(1, (longest + side - 1) / side)
+    }
+
     /// A placement found on copies `factor` times smaller (`gray`, `shrink`) in the full-size pixels. A copy leaves out the
     /// last (size mod factor) columns and rows of the half, which, turned, are its first: a turned second half (`secondWidth`
     /// × `secondHeight` at full size) moves back by them.

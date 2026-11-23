@@ -203,7 +203,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   `separatorBacks` answers nil for flags that don't fit (Windows throws); only patch code sheets are separator sheets (no QR
   or barcode sheets on the Mac yet); a scan stopped during the backs keeps them in order, as Windows does, but a preset then
   doesn't save by itself (Windows saves); the review's Undo, which held only clean ups, now also takes the stack's order and
-  Backs in the Other Order back (each one step, as Windows), still not turns, crops or moves by hand; the demo's stack comes
+  Backs in the Other Order back (each one step, as Windows, and each with its own copy of the stack and its marks, as
+  Windows' steps hold its `StackScan`: `ScanPages.swapBacks`/`undoSwap` with `StackSwap`, so a scan since, which lets the
+  review's stack go, loses no sheet's mark), still not turns, crops or moves by hand; the demo's stack comes
   from the USB demo laser (`DemoScanDevice`, a one-sided feeder; the eSCL demo inkjet's feeder scans both sides). Not
   checked: a real one-sided feeder, either kind of output tray, the alert and the button on screen, VoiceOver.
 - **4.3 Pages turned upright on their own.** PrintCore `PageUpright` (`find`, `orient`, `straightenBy`, `suitsLanguage`),
@@ -222,7 +224,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - **4.4 Small black-and-white PDFs.** PrintCore `BitImage`, `Bilevel`, `CcittG4` (the same bytes as Windows' encoder) and
   `PdfWriter.Page.blackAndWhite`/`oneBit`, so Inkvolt PDF for Mac's 4.8 can write such pages too; the preset's `smallerFile`
   (Windows' `SmallerFile`), `ScanPresets.savesSmallerFile`, `PresetPlan.oneBit` (scanned in grey), the summary's "black and
-  white, N dpi, smaller file"; a page's `oneBit`, kept for crash recovery (`KeptPage.oneBit`, as Windows' `ScanKeeper`); PrintMac `ScanImaging.bits` (the saved page decoded grey at full size) and `ScanPdf.Page.bits`.
+  white, N dpi, smaller file"; a page's `oneBit`, kept for crash recovery (`KeptPage.oneBit`, as Windows' `ScanKeeper`);
+  PrintMac `ScanImaging.bits` (the saved page decoded grey at full size) and `ScanPdf.Page.bits`.
   `BlackAndWhitePdfTests` (PC; Windows' T.6 decoder ported as the test's own) and `CcittG4RenderTests` (PdfCoreTests on the
   Mac: MuPDF reads G4 and Flate pages bit for bit; a corpus text page against its JPEG). **Mac differences:** Flate is
   PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
@@ -247,15 +250,19 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   no colour to drop and no holes). Not checked: real punched sheets from a feeder and a flatbed, a real pen's and a form's
   colours, picking a colour on screen (the crosshair, VoiceOver).
 - **4.8 Join two halves.** PrintCore `HalvesJoin` (`find`: normalized cross-correlation on coarse copies of at most 400
-  pixels a side, every side either way up, the six best refined, sure only when well ahead of the next; `join`, `gray`,
+  pixels a side, every side either way up, the six best refined, sure only when well ahead of the next; `find(…dpi:)` on the
+  full-size halves, through grey copies of about 100 pixels an inch (`analysisFactor`), the placement back in full-size
+  pixels; `previewFactor` for the preview's copies; `join`, `gray`,
   `shrink`, `fromCopy`/`toCopy`, `edgeToEdge`), `JoinPlacement`, `JoinFound`, `ScanPages.join`/`unjoin` (the joined page keeps
   the first half's new-file mark); `HalvesJoinTests` (PC). PrintMac `JoinImages` (each half as saved, RGB at full size; the
   joined page as JPEG). The app: the page's Join with the Next Page… (refused for the last page, separators, photos, pages
   being checked or at another resolution, each said), a sheet that shows the joined page, arrows to move the second half (a
   fiftieth of an inch, ⇧ and an arrow key or a ⇧-click a fifth), Turn the Second Half, Other Side, Join (one step of Undo:
-  the halves come back); the overlap is looked for on copies at about 100 pixels an inch, and the second half starts where
-  it was found, sure or not (as Windows); the preview joins small copies made once. `--report … --join` joins the demo glass's two halves of a
-  14-inch plan (`DemoScanSetup.hold`). **Mac differences:** a stop is a `BatchStop` (`CancellationError`); the coarse search's
+  the halves come back); the second half starts where it was found, sure or not, whatever its score (as Windows); the
+  preview joins copies made once when the sheet opens, the halves side by side at most about 900 pixels (Windows 1600).
+  `--report … --join` joins the demo glass's two halves of a 14-inch plan (`DemoScanSetup.hold`). **Mac differences:** a
+  nudge is a fiftieth of an inch, a fifth with ⇧ (Windows a twentieth and a half: the Mac's preview is smaller, and a
+  fiftieth is a pixel or two of it at 300 dpi); a stop is a `BatchStop` (`CancellationError`); the coarse search's
   placements are put in a fixed order before the best are taken (Windows' come from parallel rows in any order), so the same
   halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows
   keeps the channels both have; a join placed past Int's range is refused. Not checked: a real A3 drawing on a letter or A4

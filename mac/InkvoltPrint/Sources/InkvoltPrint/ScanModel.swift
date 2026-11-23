@@ -1252,13 +1252,10 @@ extension ScanModel {
         let work: JoinWork? = await offPool {
             guard let a = try? JoinImages.half(jpegA, first.edits, dpi: dpi, stop: stop),
                   let b = try? JoinImages.half(jpegB, second.edits, dpi: dpi, stop: stop) else { return nil }
-            let factor = max(1, Int((Double(dpi) / 100).rounded())) // bounded: a page's resolution, at most 9600
-            let copyA = HalvesJoin.gray(a.rgb, a.width, a.height, channels: 3, factor: factor)
-            let copyB = HalvesJoin.gray(b.rgb, b.width, b.height, channels: 3, factor: factor)
-            guard let found = try? HalvesJoin.find(copyA, copyB, ppi: Double(dpi) / Double(factor), stop: stop) else { return nil }
             // As Windows: the placement found, sure or not (not sure, it is the best guess to nudge from).
-            let placement = HalvesJoin.fromCopy(found.placement, factor: factor, secondWidth: b.width, secondHeight: b.height)
-            let previewFactor = max(1, max(a.width, a.height, b.width, b.height) * 2 / 900)
+            guard let found = try? HalvesJoin.find(a.rgb, a.width, a.height, b.rgb, b.width, b.height, channels: 3, dpi: dpi, stop: stop) else { return nil }
+            let placement = found.placement
+            let previewFactor = HalvesJoin.previewFactor(a.width, a.height, b.width, b.height, side: ScanModel.joinPreviewSide)
             let pa = HalvesJoin.shrink(a.rgb, a.width, a.height, channels: 3, factor: previewFactor)
             let pb = HalvesJoin.shrink(b.rgb, b.width, b.height, channels: 3, factor: previewFactor)
             return JoinWork(first: first.id, second: second.id, a: a, b: b, dpi: dpi, found: found, placement: placement,
@@ -1307,8 +1304,11 @@ extension ScanModel {
         return true
     }
 
-    /// A small copy of the halves joined at `placement`, for the join sheet's preview (at most about `side` pixels a side).
-    /// Only the small copies made once (`JoinWork.previewA`, `previewB`) are joined: a nudge costs a moment.
+    /// The longest side of the join sheet's preview, about (pixels).
+    nonisolated static let joinPreviewSide = 900
+
+    /// A small copy of the halves joined at `placement`, for the join sheet's preview (at most about `joinPreviewSide` pixels
+    /// a side). Only the small copies made once (`JoinWork.previewA`, `previewB`) are joined: a nudge costs a moment.
     nonisolated static func joinPreview(_ work: JoinWork, _ placement: JoinPlacement) -> CGImage? {
         let (a, b) = (work.previewA, work.previewB)
         let at = HalvesJoin.toCopy(placement, factor: work.previewFactor, secondWidth: work.b.width, secondHeight: work.b.height)

@@ -76,16 +76,18 @@ struct JoinSheet: View {
 
     /// An arrow: the key (or a click) moves the second half a fiftieth of an inch, ⇧ and the key (or a ⇧-click) a fifth.
     private func arrow(_ symbol: String, _ label: String, _ dx: Int, _ dy: Int, _ key: KeyEquivalent) -> some View {
-        ZStack {
-            // ⇧ and the arrow key: a shortcut of its own (one with no modifiers doesn't answer to ⇧).
-            Button { nudge(dx, dy, far: true) } label: { EmptyView() }
-                .keyboardShortcut(key, modifiers: .shift)
-                .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
-            Button { nudge(dx, dy, far: NSEvent.modifierFlags.contains(.shift)) } label: { Image(systemName: symbol) }
-                .help(label)
-                .accessibilityLabel(label)
-                .keyboardShortcut(key, modifiers: [])
-        }
+        Button { nudge(dx, dy, far: NSEvent.modifierFlags.contains(.shift)) } label: { Image(systemName: symbol) }
+            .help(label)
+            .accessibilityLabel(label)
+            .keyboardShortcut(key, modifiers: [])
+            .background {
+                // ⇧ and the arrow key: a shortcut of its own (one with no modifiers doesn't answer to ⇧). Not drawn but there
+                // (`hidden()` or an empty label would drop its shortcut), behind the arrow, so clicks go to the arrow.
+                Button { nudge(dx, dy, far: true) } label: { Text(verbatim: " ") }
+                    .keyboardShortcut(key, modifiers: .shift)
+                    .opacity(0)
+                    .accessibilityHidden(true)
+            }
     }
 
     private var shown: some View {

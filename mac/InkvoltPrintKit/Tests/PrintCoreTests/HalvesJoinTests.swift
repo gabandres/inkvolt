@@ -210,4 +210,54 @@ struct HalvesJoinTests {
         #expect(pages.pages.map(\.id) == ["a", "b", "c", "d"] && pages.page("b")?.startsFile == true)
         #expect(pages.join("a", "gone", into: ScannedPage(id: "x", dpi: 300)) == nil && pages.pages.count == 4)
     }
+
+    /// `px` (width `w`) twice as large each way: a drawing at 100 pixels an inch as scanned at 200.
+    private static func doubled(_ px: [UInt8], _ w: Int) -> [UInt8] {
+        let h = px.count / w
+        var out = [UInt8](repeating: 0, count: w * h * 4)
+        for y in 0..<(h * 2) {
+            for x in 0..<(w * 2) { out[y * w * 2 + x] = px[y / 2 * w + x / 2] }
+        }
+        return out
+    }
+
+    /// Mac only (Windows' join view does it): full-size halves are looked for on copies of about 100 pixels an inch, and the
+    /// placement found is where the second half starts, in full-size pixels, sure or not. Review finding: one scoring 0 or
+    /// less was put edge to edge instead.
+    @Test func fullSizeHalvesAreFoundOnCopiesAndTheGuessIsKeptSureOrNot() throws {
+        let (w, h) = (1500, 999)
+        let original = Self.doubled(Self.drawing(w, h, seed: 12), w) // 3000 × 1998, "scanned at 200 dpi"
+        let first = Self.part(original, 3000, 1998, 0, 0, 1700, 1998)
+        // 1695 wide: odd, so its copy leaves out a column, which, turned, is its first (the cut ends on the drawing's last
+        // column, so the copy's pixels are the drawing's, as the first half's are).
+        let second = Self.turn(Self.part(original, 3000, 1998, 1305, 0, 1695, 1998))
+        #expect(HalvesJoin.analysisFactor(dpi: 200) == 2 && HalvesJoin.analysisFactor(dpi: 600) == 6 && HalvesJoin.analysisFactor(dpi: 75) == 1)
+        let found = try HalvesJoin.find(first, 1700, 1998, second, 1695, 1998, channels: 1, dpi: 200)
+        #expect(found.sure, "score \(found.score), next \(found.next), \(found.placement)")
+        #expect(found.placement == JoinPlacement(.right, true, 1305, 0))
+
+        // Nothing in common: not sure, and the guess is the search's, at full size (not edge to edge).
+        let other = Self.doubled(Self.drawing(850, h, seed: 2), 850)
+        let guess = try HalvesJoin.find(first, 1700, 1998, other, 1700, 1998, channels: 1, dpi: 200)
+        let onCopies = try HalvesJoin.find(HalvesJoin.gray(first, 1700, 1998, channels: 1, factor: 2), HalvesJoin.gray(other, 1700, 1998, channels: 1, factor: 2),
+                                           ppi: 100)
+        #expect(!guess.sure && guess.score == onCopies.score)
+        #expect(guess.placement == HalvesJoin.fromCopy(onCopies.placement, factor: 2, secondWidth: 1700, secondHeight: 1998))
+
+        // Fewer pixels than said, or no channels it reads: edge to edge, not sure, nothing read past the end.
+        let short = try HalvesJoin.find([1, 2, 3], 1700, 1998, other, 1700, 1998, channels: 1, dpi: 200)
+        #expect(!short.sure && short.placement == HalvesJoin.edgeToEdge(.right, false, 1700, 1998, 1700, 1998))
+        #expect(!(try HalvesJoin.find(first, 1700, 1998, other, 1700, 1998, channels: 2, dpi: 200).sure))
+        #expect(!(try HalvesJoin.find(first, Int.max, 1998, other, 1700, -1, channels: 1, dpi: 200).sure))
+    }
+
+    /// Mac only: the preview's copies are made once, small enough that the halves side by side are at most about the side
+    /// asked for (Windows' join view: the same sum with its 1600).
+    @Test func thePreviewsCopiesAreSmallEnoughForTheHalvesSideBySide() {
+        #expect(HalvesJoin.previewFactor(3000, 1998, 1695, 1998, side: 900) == 7) // ⌈6000 / 900⌉
+        #expect(HalvesJoin.previewFactor(400, 300, 300, 300, side: 900) == 1)
+        #expect(HalvesJoin.previewFactor(4500, 100, 100, 100, side: 900) == 10)
+        #expect(HalvesJoin.previewFactor(Int.max, 1, 1, 1, side: 0) >= 1) // no trap
+        #expect(HalvesJoin.previewFactor(-5, -5, -5, -5, side: 900) == 1 && HalvesJoin.previewFactor(10, 10, 10, 10, side: .max) == 1)
+    }
 }
