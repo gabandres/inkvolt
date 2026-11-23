@@ -10,12 +10,15 @@ import PrintCore
 @MainActor
 final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextViewDelegate {
     private(set) weak var controller: DocumentWindowController?
-    private(set) var model = FormDesigner()
+    // Set from PrepareFormArrange.swift too (several fields, calculations).
+    var model = FormDesigner()
     /// The engine the shown fields were read from (positional ids refer to its bytes).
     private var readFrom: ObjectIdentifier?
     private var ticket = 0
     private var wasOn = false
-    private var selectAfter: String?
+    var selectAfter: String?
+    /// Several fields to select once the fields are read again (an edit of several keeps them selected).
+    var selectAfterMany: [String]?
     private var suggestionPages = -1
     private var nudgeTimer: Timer?
     /// The read and the edit in progress (the self-test awaits them).
@@ -87,6 +90,22 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     let suggestionCount = NSTextField(wrappingLabelWithString: "")
     let acceptAllButton = NSButton(title: loc("Add All"), target: nil, action: nil)
     let rejectAllButton = NSButton(title: loc("Skip All"), target: nil, action: nil)
+    // Roadmap 4.12 (PrepareFormArrange.swift): a text field's or dropdown's Calculate section, and several fields.
+    let calcGroup = NSStackView()
+    let calcPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    let calcFieldsRow = NSStackView()
+    let calcFieldsList = NSStackView()
+    let calcNotationRow = NSStackView()
+    let calcNotationField = NSTextField()
+    let calcOrderButton = NSButton(title: loc("Calculation order…"), target: nil, action: nil)
+    /// The names the Of these fields list shows (rebuilt only when they change).
+    var calcSourcesShown: [String] = []
+    let severalGroup = NSStackView()
+    let severalHint = NSTextField(wrappingLabelWithString: loc("The first field you picked (the solid corner) stays put; the others line up with it. ⌘-click adds or removes a field."))
+    let severalDelete = NSButton(title: loc("Delete"), target: nil, action: nil)
+    var arrangeButtons: [(button: NSButton, how: FieldArrange)] = []
+    /// The self-test's answer to the Calculation Order sheet (Windows' DevCalcOrder).
+    var testCalcOrder: [String]?
 
     init(controller: DocumentWindowController) {
         self.controller = controller
@@ -103,8 +122,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     }
 
     // The controller's own, kept here: an edit under way goes on after the window closes and the controller is gone.
-    private let pages: PagesView
-    private let editor: DocumentEditor
+    let pages: PagesView
+    let editor: DocumentEditor
     var isDesigning: Bool { controller?.pages.tool == .prepareForm }
 
     // MARK: Entering and leaving
@@ -183,7 +202,11 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
                 self.model.setSuggestions(FormDesignRules.stillSuggested(self.model.suggestions, fields: fields))
             }
             self.model.setFields(fields)
-            if let id = self.selectAfter {
+            if let many = self.selectAfterMany, many.count > 1 {
+                self.selectAfterMany = nil
+                self.selectAfter = nil
+                self.model.selectAll(many)
+            } else if let id = self.selectAfter {
                 self.selectAfter = nil
                 if fields.contains(where: { $0.id == id }) { self.model.select(id) }
             }
@@ -191,7 +214,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         }
     }
 
-    private func isCurrent() -> Bool {
+    func isCurrent() -> Bool {
         guard let session = controller?.pdf.session else { return false }
         if readFrom == ObjectIdentifier(session.engine) { return true }
         controller?.notify(loc("The fields are still being refreshed after the last change. Try again in a moment."))
@@ -200,7 +223,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     }
 
     /// What the page and the panel show changed.
-    private func changed() {
+    func changed() {
         showSelection()
         pages.needsDisplay = true
         pages.window?.invalidateCursorRects(for: pages)
@@ -218,7 +241,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     // MARK: Edits
 
-    private func track(_ work: @escaping @MainActor () async -> Void) {
+    func track(_ work: @escaping @MainActor () async -> Void) {
         let previous = lastEdit
         lastEdit = Task { @MainActor in
             await previous?.value
@@ -239,10 +262,12 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     }
 
     /// Writes changed fields; when it isn't made, the fields show as the document has them (a dragged field goes back).
-    private func update(_ label: String, _ changes: [DesignField]) async {
+    func update(_ label: String, _ changes: [DesignField]) async {
         guard isCurrent() else { return }
         let selected = model.selectedId
         selectAfter = selected
+        let several = model.selectedIds
+        selectAfterMany = several.count > 1 ? several : nil
         let made = NewIds()
         let ok = await editor.run(label, contentOnly: true) { d, pw in
             var ids: [String: String] = [:]
@@ -250,9 +275,21 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             made.ids = ids
             return result
         }
-        if let selected, let renamed = made.ids[selected] { selectNow(renamed, ifStill: selected) }
+        if several.count > 1 {
+            // Fields that got an id during the edit are selected under it (the read may have finished already).
+            let followed = several.map { made.ids[$0] ?? $0 }
+            if followed != several {
+                if selectAfterMany == several { selectAfterMany = followed } else if model.fields.contains(where: { followed.contains($0.id) }) {
+                    model.selectAll(followed)
+                    changed()
+                }
+            }
+        } else if let selected, let renamed = made.ids[selected] {
+            selectNow(renamed, ifStill: selected)
+        }
         if !ok && editor.lastOutcome != .noChange {
             selectAfter = nil
+            selectAfterMany = nil
             model.dropPending()
             changed()
         }
@@ -278,14 +315,27 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     func flushNudge() {
         nudgeTimer?.invalidate()
         nudgeTimer = nil
-        guard let moved = model.flushNudge() else { return }
+        let moved = model.flushNudgeAll()
+        if moved.isEmpty { return }
         pages.needsDisplay = true
-        track { [weak self] in await self?.update(loc("Move field"), [moved]) }
+        track { [weak self] in await self?.update(loc("Move field"), moved) }
     }
 
     func deleteSelected() {
         flushNudge()
-        guard let f = model.selectedField, !f.signed, isCurrent() else { return }
+        let gone = model.selectedFields.filter { !$0.signed }
+        if gone.count > 1 {
+            // Several (Windows' FormDesign_UndoDeleteMany): every unsigned one, one undo step; a signed anchor stays.
+            guard isCurrent() else { return }
+            let ids = gone.map(\.id)
+            track { [weak self] in
+                _ = await self?.editor.run(loc("Delete {0} fields", CoreLanguage.number(ids.count)), contentOnly: true) { d, pw in
+                    try FormDesign.delete(d, pw, ids)
+                }
+            }
+            return
+        }
+        guard let f = gone.first, isCurrent() else { return }
         let next = FormDesignRules.nextField(after: f, in: model.fields)
         selectAfter = next
         track { [weak self] in
@@ -449,11 +499,15 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     private var reach: Double { Double(5 + 3) * Double(pages.onePixel) }
 
     /// A press on the page. `.pan` starts scrolling, which the page view does.
-    func press(_ page: Int, _ p: PointD, clicks: Int) -> DesignPress {
+    /// `toggle` (⌘-click): the field joins the selection or leaves it.
+    func press(_ page: Int, _ p: PointD, clicks: Int, toggle: Bool = false) -> DesignPress {
         flushNudge()
         let before = model.selectedId
         let g = pages.engine.page(page)
-        let result = model.press(page, p, clicks: clicks, reach: reach, pageWidth: g.width, pageHeight: g.height)
+        let snap = snapFor // read before the designer is changed
+        let result = model.press(page, p, clicks: clicks, reach: reach, pageWidth: g.width, pageHeight: g.height, toggle: toggle,
+                                 snap: snap)
+        pages.showSnapLines(page, model.snapLines)
         if model.selectedId != before { selectAfter = nil } // the click chose; an edit under way doesn't choose again
         changed()
         switch result {
@@ -469,11 +523,22 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     func dragged(_ point: NSPoint, shift: Bool) {
         guard let page = model.pressPage else { return }
-        model.dragged(to: pages.pagePoint(point, on: page), shift: shift, threshold: 2 * Double(pages.onePixel))
+        let snap = snapFor, to = pages.pagePoint(point, on: page) // read before the designer is changed
+        model.dragged(to: to, shift: shift, threshold: 2 * Double(pages.onePixel), snap: snap)
+        pages.showSnapLines(page, model.snapLines)
         pages.needsDisplay = true
     }
 
+    /// What a press snaps to (roadmap 4.19): the page's guides, the grid and the other fields, as the View menu says; none
+    /// with ⌥ held. The fields are taken as shown now (the closure runs while the designer is being changed: it may not
+    /// read `model`).
+    private var snapFor: FormDesigner.SnapFor {
+        let shown = model.fields.map { (id: $0.id, page: $0.pageIndex, rect: model.shownRect($0)) }
+        return { [weak pages] page, without in pages?.snapper(page, without: without, fields: shown) }
+    }
+
     func released() {
+        defer { pages.showSnapLines(-1, []) }
         switch model.release() {
         case .placed(let placement):
             guard isCurrent() else { break }
@@ -484,6 +549,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             track { [weak self] in _ = await self?.add(label, [field], select: field.id) }
         case .moved(let field):
             track { [weak self] in await self?.update(loc("Move field"), [field]) }
+        case .movedAll(let fields):
+            track { [weak self] in await self?.update(loc("Move field"), fields) }
         case nil:
             break
         }
@@ -502,7 +569,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             changed()
             return true
         case 51 where plain, 117 where plain: // Delete
-            guard field?.signed == false || suggestion != nil else { return false }
+            guard model.canDelete || suggestion != nil else { return false }
             if field != nil { deleteSelected() } else { rejectSuggestion() }
             return true
         case 36 where plain, 76 where plain: // Return
@@ -515,7 +582,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             }
             return true
         case 123 where plain || shiftOnly, 124 where plain || shiftOnly, 125 where plain || shiftOnly, 126 where plain || shiftOnly: // Arrows
-            guard let field, !field.signed else { return false }
+            // Several selected: the unsigned ones move together (a signed anchor among them stays).
+            guard let field, model.canDelete else { return false }
             let step = shiftOnly ? 10.0 : 1.0
             let key: NSEvent.SpecialKey = event.keyCode == 123 ? .leftArrow : event.keyCode == 124 ? .rightArrow : event.keyCode == 126 ? .upArrow : .downArrow
             let move = pages.arrowStep(key, step, page: field.pageIndex) // on the screen, as the view is turned
@@ -550,7 +618,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
         for f in model.fields(onPage: page) {
             let box = pages.viewRect(model.shownRect(f), r)
-            let selected = f.id == model.selectedId
+            let selected = model.isSelected(f.id)
             let path = f.kind == .radio ? NSBezierPath(ovalIn: box) : NSBezierPath(rect: box)
             fill.setFill()
             path.fill()
@@ -570,6 +638,15 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
                 label(f.kind == .radio ? "\(f.name): \(f.exportValue)" : f.name, box, accent, labelSize, inside: false)
             }
             if model.showTabOrder { tabBadge(f.tabIndex + 1, box, accent, px) }
+            if selected && model.hasSeveral {
+                // Several: no handles; the anchor (the first one picked, which stays put) has a solid corner.
+                if f.id == model.selectedId {
+                    let size = 7 * px
+                    accent.setFill()
+                    NSRect(x: box.minX - size / 2, y: box.minY - size / 2, width: size, height: size).fill()
+                }
+                continue
+            }
             guard selected, !f.signed else { continue }
             let frame = RectD(Double(box.minX), Double(box.minY), Double(box.width), Double(box.height))
             let size = 7 * px
@@ -719,14 +796,14 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     // MARK: The panel
 
-    private func small(_ title: String) -> NSTextField {
+    func small(_ title: String) -> NSTextField {
         let label = NSTextField(labelWithString: title)
         label.font = .systemFont(ofSize: NSFont.smallSystemFontSize)
         label.textColor = .secondaryLabelColor
         return label
     }
 
-    private func column(_ views: [NSView], spacing: CGFloat = 8, in stack: NSStackView = NSStackView()) -> NSStackView {
+    func column(_ views: [NSView], spacing: CGFloat = 8, in stack: NSStackView = NSStackView()) -> NSStackView {
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = spacing
@@ -735,12 +812,12 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     }
 
     /// A control with its small title above it, as wide as the panel.
-    private func row(_ title: String, _ control: NSView, in stack: NSStackView = NSStackView()) -> NSStackView {
+    func row(_ title: String, _ control: NSView, in stack: NSStackView = NSStackView()) -> NSStackView {
         control.setAccessibilityLabel(title)
         return column([small(title), control], spacing: 3, in: stack)
     }
 
-    private func wire(_ field: NSTextField, _ action: Selector) {
+    func wire(_ field: NSTextField, _ action: Selector) {
         field.target = self
         field.action = action
         field.delegate = self
@@ -748,7 +825,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         field.lineBreakMode = .byTruncatingTail
     }
 
-    private func wire(_ control: NSControl, _ action: Selector) {
+    func wire(_ control: NSControl, _ action: Selector) {
         control.target = self
         control.action = action
     }
@@ -830,18 +907,21 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         _ = column([
             row(loc("Name (dots group fields: address.city)"), nameField), row(loc("Tooltip"), tooltipField), requiredBox, readOnlyBox,
             textGroup, choicesGroup, exportGroup, buttonGroup, defaultTextRow, defaultChoiceRow, defaultCheck,
+            calcGroup,
             row(loc("Text size"), sizeCombo), row(loc("Alignment"), alignPopup), row(loc("Border"), borderPopup), row(loc("Fill", context: "field colour"), fillPopup),
             tabRow, commandRow,
         ], in: fieldGroup)
+        buildCalculation()
+        buildSeveral()
         let suggestionRow = Self.buttons([acceptButton, rejectButton])
         _ = column([row(loc("Name"), suggestionName), row(loc("Kind"), suggestionKind), suggestionSource, suggestionRow], in: suggestionGroup)
         let allRow = Self.buttons([acceptAllButton, rejectAllButton])
         _ = column([suggestionCount, allRow], in: allGroup)
 
-        let stack = column([titleLabel, errorLabel, hintLabel, fieldGroup, suggestionGroup, allGroup], spacing: 12)
+        let stack = column([titleLabel, errorLabel, hintLabel, fieldGroup, severalGroup, suggestionGroup, allGroup], spacing: 12)
         panelStack = stack
         stack.edgeInsets = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        for text in [hintLabel, errorLabel, suggestionSource, suggestionCount] { text.preferredMaxLayoutWidth = 236 }
+        for text in [hintLabel, errorLabel, suggestionSource, suggestionCount, severalHint] { text.preferredMaxLayoutWidth = 236 }
         pinRowWidths()
 
         let document = FlippedView()
@@ -860,12 +940,12 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         ])
         panelController.view = scroll
         scroll.setAccessibilityLabel(loc("Field properties"))
-        for group in [fieldGroup, suggestionGroup, allGroup] { group.isHidden = true }
+        for group in [fieldGroup, severalGroup, suggestionGroup, allGroup] { group.isHidden = true }
     }
 
     /// Every row shown as wide as the panel. Done again each time rows show or hide: a stack view detaches its hidden
     /// rows, and their constraints go with them.
-    private func pinRowWidths() {
+    func pinRowWidths() {
         NSLayoutConstraint.deactivate(widthPins)
         widthPins = []
         func pin(_ stack: NSStackView) {
@@ -881,7 +961,7 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
     }
 
     /// Buttons side by side, sharing the panel's width.
-    private static func buttons(_ views: [NSView]) -> NSStackView {
+    static func buttons(_ views: [NSView]) -> NSStackView {
         let row = NSStackView(views: views)
         row.distribution = .fillEqually
         return row
@@ -904,14 +984,14 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         return true
     }
 
-    private func announce(_ message: String) {
+    func announce(_ message: String) {
         guard let window = controller?.window else { return }
         NSAccessibility.post(element: window, notification: .announcementRequested,
                              userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
     }
 
     /// Applies one property change of the selected field as an edit (nothing when it changes nothing).
-    private func change(_ label: String, _ make: (DesignField) throws -> DesignField) {
+    func change(_ label: String, _ make: (DesignField) throws -> DesignField) {
         guard let f = model.selectedField, !f.signed else { return }
         do {
             let updated = try make(f)
@@ -1070,11 +1150,11 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
         controller?.window?.makeFirstResponder(pages)
     }
 
-    private func setText(_ field: NSTextField, _ text: String) {
+    func setText(_ field: NSTextField, _ text: String) {
         if field.currentEditor() == nil && field.stringValue != text { field.stringValue = text }
     }
 
-    private func fill(_ popup: NSPopUpButton, _ titles: [String], selected: Int) {
+    func fill(_ popup: NSPopUpButton, _ titles: [String], selected: Int) {
         popup.removeAllItems()
         popup.addItems(withTitles: titles)
         popup.selectItem(at: selected)
@@ -1089,26 +1169,31 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
 
     /// Fills the panel from the selection: a field's properties, a suggestion, or the hint.
     func showSelection() {
-        let f = model.selectedField
-        let s = f == nil ? model.selectedSuggestion : nil
+        let several = model.selectedFields
+        let f = several.count > 1 ? nil : model.selectedField
+        let s = f == nil && several.count <= 1 ? model.selectedSuggestion : nil
         let count = model.suggestions.count
         fieldGroup.isHidden = f == nil
+        severalGroup.isHidden = several.count <= 1
         suggestionGroup.isHidden = s == nil
         allGroup.isHidden = count == 0
-        hintLabel.isHidden = f != nil || s != nil
+        hintLabel.isHidden = f != nil || s != nil || several.count > 1
         errorLabel.isHidden = true
         suggestionCount.stringValue = count == 1 ? loc("{0} suggested field (dashed on the page).", 1)
             : loc("{0} suggested fields (dashed on the page).", CoreLanguage.number(count))
-        let title = FormDesignRules.panelTitle(f, s)
+        let title = several.count > 1
+            ? loc("{0} fields · first: {1} {2}", CoreLanguage.number(several.count), DesignField.kindName(several[0].kind).lowercased(), several[0].name)
+            : FormDesignRules.panelTitle(f, s)
         let titleChanged = titleLabel.stringValue != title
         titleLabel.stringValue = title
+        if several.count > 1 { showSeveral(several) }
         if let f { showField(f) }
         if let s {
             setText(suggestionName, s.name)
             suggestionKind.selectItem(at: FormDesignRules.suggestionKinds.firstIndex { $0.kind == s.kind && $0.multiline == s.multiline } ?? 0)
             suggestionSource.stringValue = FormDesignRules.sourceText(s.source)
         }
-        if titleChanged || f != nil || s != nil {
+        if titleChanged || f != nil || s != nil || several.count > 1 {
             announce(f.map { loc("{0} selected, page {1}", $0.describe(), CoreLanguage.number($0.pageIndex + 1)) }
                 ?? s.map { loc("Suggested {0} {1}, page {2}", DesignField.kindName($0.kind).lowercased(), $0.name, CoreLanguage.number($0.pageIndex + 1)) } ?? title)
         }
@@ -1148,6 +1233,8 @@ final class PrepareForm: NSObject, NSTextFieldDelegate, NSTextDelegate, NSTextVi
             let actions = [loc("Nothing"), loc("Reset the form"), loc("Print")] + (f.action == .other ? [loc("The form's own action (kept)")] : [])
             fill(actionPopup, actions, selected: f.action == .resetForm ? 1 : f.action == .print ? 2 : f.action == .other ? 3 : 0)
         }
+
+        showCalculation(f)
 
         defaultTextRow.isHidden = !text
         defaultChoiceRow.isHidden = !choice

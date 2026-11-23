@@ -92,12 +92,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var spellingLanguage: (engine: ObjectIdentifier, language: String?)?
     var spellingLanguageReading: ObjectIdentifier?
     var lastReplace: ReplaceResult?
+    /// The Reflow view (roadmap 4.16, ReflowView.swift): the text as one column in place of the pages.
+    private(set) var reflow: ReflowView!
 
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
     // pane while the view is split, how, and which pane navigation acts on.
     let paneSplit = PaneSplitView()
     var secondPages: PagesView?
     var secondScroll: NSScrollView?
+    /// Each page's identity when the guides were last placed or followed (roadmap 4.19, Layout.swift), and the read in
+    /// progress.
+    var guideKeys: (engine: ObjectIdentifier, keys: [String])?
+    var guideTicket = 0
     var secondBox: NSView?
     /// A translated copy's original, shown in the second pane on the left and scrolling with this one (`showBeside`);
     /// nil when the second pane shows this document.
@@ -185,6 +191,13 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         noticeBar.isHidden = true
         content.view = stack
         contentStack = stack
+        reflow = ReflowView(controller: self)
+        // Over the panes, not instead of them: the page view under it keeps its page, which Reflow reads and moves.
+        stack.addSubview(reflow.host)
+        NSLayoutConstraint.activate([
+            reflow.host.leadingAnchor.constraint(equalTo: paneSplit.leadingAnchor), reflow.host.trailingAnchor.constraint(equalTo: paneSplit.trailingAnchor),
+            reflow.host.topAnchor.constraint(equalTo: paneSplit.topAnchor), reflow.host.bottomAnchor.constraint(equalTo: paneSplit.bottomAnchor),
+        ])
         findBar.onSearch = { [weak self] query in self?.find(query) }
         findBar.onNext = { [weak self] in self?.step(1) }
         findBar.onPrevious = { [weak self] in self?.step(-1) }
@@ -215,6 +228,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         pages.form = form
         pages.content = self.content
         pages.design = design
+        applyLayoutAids()
         form.reload()
         noticeBar.onUndo = { [weak self] in self?.pdf.undo() }
         wireTools()
@@ -242,6 +256,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     required init?(coder: NSCoder) { fatalError("not used") }
 
     override func showWindow(_ sender: Any?) {
+        // The first time: into the group of tabs in use, or a window of its own after File › New Window (WindowHub).
+        WindowHub.shared.place(self)
         super.showWindow(sender)
         // Fit the width once the window has its size (pages narrower than the window stay at actual size).
         DispatchQueue.main.async {
@@ -299,6 +315,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         // Reopen at last page: where this file was left.
         if !Report.isRunning || AppTest.isActive { rememberPosition() }
         progressSheet?.cancelClicked()
+        reflow.stop()
         readAloud.stop()
         ai.cancel?.cancel()
         ai.pageTexts.clear()
@@ -311,12 +328,46 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         sidebar.stop()
         organizer?.stop()
         NotificationCenter.default.removeObserver(self)
+        WindowHub.shared.closed(self)
     }
 
     func windowDidBecomeKey(_ notification: Notification) { checkDisk() }
 
-    /// Edit › Undo and Redo: the document's session steps.
-    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { pdf.undoBridge }
+    /// The pages are laid out again under the Reflow view: the page they settle on isn't the reader's.
+    func windowDidResize(_ notification: Notification) { reflow?.viewerRelaid() }
+
+    // MARK: Reflow (roadmap 4.16)
+
+    /// View › Reflow (⌘3): the text as one column, from the page in view; again, back to the pages at the page it was at.
+    @objc func toggleReflow(_ sender: Any?) { setReflow(!reflow.isShown) }
+
+    func setReflow(_ on: Bool) {
+        guard on != reflow.isShown else { return }
+        if on {
+            guard engine.pageCount > 0 else { return }
+            // The page before the bars go: the pages lay out again under the view as they do. The active pane's, as `go`
+            // and `scrolled` follow it (Split View).
+            let page = activePages.currentPage
+            if organizerShown { showOrganizer(false) }
+            if !findBar.isHidden { hideFind() }
+            toolStrip.isHidden = true
+            reflow.show(at: page)
+        } else {
+            let page = reflow.hide()
+            toolStrip.isHidden = !AppSettings.markupShown
+            let shown = activePages
+            if let page, page != shown.currentPage { go(page) }
+            window?.makeFirstResponder(shown)
+            shown.requestVisible()
+        }
+    }
+
+    /// Its group of tabs is the one in use: documents opened from elsewhere join it (WindowHub).
+    func windowDidBecomeMain(_ notification: Notification) { WindowHub.shared.activated(self) }
+
+    /// Edit › Undo and Redo: the document's session steps; none while Reflow shows (read-only, as Windows' `Reflow.Runs`
+    /// has no Undo). NSWindow answers undo: and redo: before this controller's validateMenuItem is asked.
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { reflow?.isShown == true ? nil : pdf.undoBridge }
 
     // MARK: Content changes
 
@@ -333,6 +384,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         content.invalidate()
         pages.reload(engine: engine)
         if besideOriginal == nil { secondPages?.reload(engine: engine) }
+        remapGuides(change)
+        refreshRulers()
         sidebar.reload(engine: engine)
         organizer?.reload(engine: engine)
         design.contentChanged()
@@ -342,6 +395,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         verifySignatures(onOpen: change == .reload)
         refreshAttachmentsAndLayers()
         refreshSuspectWords()
+        reflow.contentChanged()
         updateSubtitle()
     }
 
@@ -696,6 +750,74 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         }
     }
 
+    // MARK: Proofreading marks (roadmap 4.17; Windows' DocumentTab.Proofreading)
+
+    /// Tools › Annotate › Insert Text…: a blue caret where words go in (the selection's end, or where text was clicked),
+    /// the words its comment.
+    @objc func insertProofText(_ sender: Any?) {
+        guard let at = pages.insertionPoint else {
+            notify(loc("Click in the text where the words go (Select Text tool), or select text, then choose Insert Text."))
+            return
+        }
+        insertProofText(at: at)
+    }
+
+    /// The pages' context menu's Insert Text…: where the menu was opened (the item's place, from `PagesView`).
+    @objc func insertProofTextHere(_ sender: Any?) {
+        guard let at = (sender as? NSMenuItem)?.representedObject as? [Int], at.count == 2 else { return }
+        insertProofText(at: (at[0], at[1]))
+    }
+
+    private func insertProofText(at: (page: Int, caret: Int)) {
+        guard pdf.session != nil, !organizerShown, at.page >= 0, at.page < engine.pageCount, at.page < pages.pageRects.count else { return }
+        guard let text = try? engine.text(at.page), let caret = Annotations.caretAt(text, at.caret) else {
+            notify(loc("Click in the text where the words go (Select Text tool), or select text, then choose Insert Text."))
+            return
+        }
+        let anchor = pages.viewRect(RectD(caret.x - 3, caret.y, 6, caret.height), pages.pageRects[at.page])
+        let note = loc("A blue caret marks the place on page {0}; the text you type is its comment. Author: {1}.",
+                       CoreLanguage.number(at.page + 1), editor.author)
+        askProofText(loc("Insert text"), note: note, at: anchor) { [weak self] words in
+            guard let self, let words, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            self.pages.startEdit {
+                let ok = await self.editor.insertText(page: at.page, at: caret, words)
+                if ok { self.pages.clearSelection() }
+                return ok
+            }
+        }
+    }
+
+    /// Tools › Annotate › Replace Text…: the selected words (one page) struck out, and a caret after them holding the words
+    /// that replace them, the two one comment.
+    @objc func replaceProofText(_ sender: Any?) {
+        let spans = pages.selectedSpans
+        guard !spans.isEmpty else {
+            NSSound.beep()
+            return
+        }
+        guard spans.count == 1, let lines = pages.selectedLines, lines.page < pages.pageRects.count else {
+            notify(loc("Select text on one page to replace it."))
+            return
+        }
+        let rects = lines.rects.filter { !$0.isEmpty }
+        guard let last = rects.last else {
+            notify(loc("No text to mark."))
+            return
+        }
+        let selected = AiProtocol.shorten(AiText.clean(pages.selectedText ?? "").replacingOccurrences(of: "\n", with: " "), 80)
+        let note = loc("“{0}” on page {1} is crossed out, with a blue caret after it holding the text you type. Author: {2}.",
+                       selected, CoreLanguage.number(lines.page + 1), editor.author)
+        let anchor = pages.viewRect(last, pages.pageRects[lines.page])
+        askProofText(loc("Replace text"), note: note, at: anchor) { [weak self] words in
+            guard let self, let words, !words.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            self.pages.startEdit {
+                let ok = await self.editor.replaceText(page: lines.page, rects: rects, words)
+                if ok { self.pages.clearSelection() }
+                return ok
+            }
+        }
+    }
+
     /// Tools › Link Selected Text…: one link over the selected lines.
     @objc func linkSelectedText(_ sender: Any?) {
         guard let lines = pages.selectedLines, let first = lines.rects.first else {
@@ -773,8 +895,12 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         s.passwordSheetOpen = protectSheet != nil
         s.organizerShown = organizerShown
         s.splitShown = secondPages != nil
+        // Not `design`: asking would make Prepare Form's panel for a menu check.
+        if let made = madeDesign, made.isDesigning { s.designSelected = made.model.selectedIds.count }
+        s.hasGuides = pdf.session?.guides.all.isEmpty == false
         let needs = command?.needs ?? Requirement.allCases
         if needs.contains(.selectedText) { s.hasSelectedText = pages.selectedText != nil }
+        if needs.contains(.insertionPoint) { s.hasInsertionPoint = pages.insertionPoint != nil }
         if needs.contains(.protected) { s.isProtected = pdf.session?.hasEncryption == true }
         return s
     }
@@ -783,6 +909,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// checkmarks and the titles that change are set here first.
     func validateMenuItem(_ item: NSMenuItem) -> Bool {
         markMenuItem(item)
+        // Read-only while Reflow shows: only its commands (roadmap 4.16; Copy and Select All are the web view's own).
+        if reflow.isShown, let action = item.action, !Reflow.runsAction(NSStringFromSelector(action)) { return false }
         if item.action == #selector(barItemClicked(_:)) {
             return (item.representedObject as? String).flatMap(Self.barEntry).map(barEnabled) ?? false
         }
@@ -794,6 +922,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// Password or Change Password Protection).
     private func markMenuItem(_ item: NSMenuItem) {
         markSplitItem(item)
+        markLayoutItem(item)
         switch item.action {
         case #selector(toggleMarkup(_:)):
             item.title = toolStrip.isHidden ? loc("Show Markup Toolbar") : loc("Hide Markup Toolbar")
@@ -815,6 +944,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             item.state = readingOrder.isShown ? .on : .off
         case #selector(toggleOrganizer(_:)):
             item.state = organizerShown ? .on : .off
+        case #selector(toggleReflow(_:)):
+            item.state = reflow.isShown ? .on : .off
         case #selector(protectDocument(_:)):
             item.title = pdf.session?.hasEncryption == true ? loc("Change Password Protection…") : loc("Protect with Password…")
         default:
@@ -830,6 +961,18 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             return
         }
         let ask = AskController(.text(title), initial: initial, pageCount: engine.pageCount, language: documentLanguage)
+        ask.done = done
+        present(ask, at: rect)
+    }
+
+    /// Asks for a proofreading mark's text (`note` says what it becomes) in a popover at `rect`.
+    func askProofText(_ title: String, note: String, at rect: NSRect, done: @escaping (String?) -> Void) {
+        if let testText {
+            done(testText)
+            return
+        }
+        let ask = AskController(.text(title), initial: "", pageCount: engine.pageCount, language: documentLanguage)
+        ask.note = note
         ask.done = done
         present(ask, at: rect)
     }
@@ -989,9 +1132,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     // MARK: Zoom
 
-    @objc func zoomIn(_ sender: Any?) { zoom(by: 1.25) }
-    @objc func zoomOut(_ sender: Any?) { zoom(by: 0.8) }
-    @objc func actualSize(_ sender: Any?) { setZoom(1) }
+    // While Reflow shows, its text's size (roadmap 4.16).
+    @objc func zoomIn(_ sender: Any?) { if reflow.isShown { reflow.zoom(1) } else { zoom(by: 1.25) } }
+    @objc func zoomOut(_ sender: Any?) { if reflow.isShown { reflow.zoom(-1) } else { zoom(by: 0.8) } }
+    @objc func actualSize(_ sender: Any?) { if reflow.isShown { reflow.zoom(0) } else { setZoom(1) } }
     @objc func fitWidth(_ sender: Any?) { fitWidth(sender, atMost: 8) }
 
     /// View › Zoom to Page: the whole current page in the window.
@@ -1038,6 +1182,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func magnified() {
+        reflow?.viewerRelaid()
         for view in allPanes {
             view.needsDisplay = true
             view.requestVisible()
@@ -1063,6 +1208,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     }
 
     @objc func scrolled() {
+        refreshRulers()
+        reflow?.viewerMoved(activePages.currentPage)
         followBeside(fromSecond: false)
         updateSubtitle()
         sidebar.showCurrent(activePages.currentPage)

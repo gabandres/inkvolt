@@ -441,7 +441,7 @@ struct EditTest {
     }
 
     /// The words (runs of letters) of a page's text, as UTF-16 ranges.
-    static func words(_ t: PageText) -> [(start: Int, end: Int)] {
+    static func words(_ t: PdfCore.PageText) -> [(start: Int, end: Int)] {
         var found: [(start: Int, end: Int)] = []
         var start = -1
         let units = Array(t.text.utf16)

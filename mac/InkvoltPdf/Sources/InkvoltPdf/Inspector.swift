@@ -360,6 +360,8 @@ final class AskController: NSViewController {
     var done: ((String?) -> Void)?
     var doneLink: ((String?, Int) -> Void)?
     weak var popover: NSPopover?
+    /// A line under the title saying what the text becomes (Insert Text, Replace Text).
+    var note: String?
     private var answered = false
 
     enum Kind { case text(String), link }
@@ -407,7 +409,15 @@ final class AskController: NSViewController {
         cancel.keyEquivalent = "\u{1b}"
         cancel.bezelStyle = .rounded
         let buttons = NSStackView(views: [cancel, ok])
-        var views: [NSView] = [label, field]
+        var views: [NSView] = [label]
+        if let note {
+            let says = NSTextField(wrappingLabelWithString: note)
+            says.textColor = .secondaryLabelColor
+            says.preferredMaxLayoutWidth = 240
+            says.widthAnchor.constraint(equalToConstant: 240).isActive = true
+            views.append(says)
+        }
+        views.append(field)
         if case .link = kind { views.append(pageField) }
         views.append(buttons)
         let stack = NSStackView(views: views)

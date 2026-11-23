@@ -359,6 +359,9 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
     // MARK: Opening
 
+    /// Closed without opening anything: File › New Window's window of its own is forgotten.
+    func windowWillClose(_ notification: Notification) { WindowHub.shared.startPageClosed() }
+
     @objc func openClicked() {
         if Report.isRunning, !Self.testPicks.isEmpty {
             for url in Self.testPicks.removeFirst() { Self.open(url) }

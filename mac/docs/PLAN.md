@@ -267,6 +267,36 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows
   keeps the channels both have; a join placed past Int's range is refused. Not checked: a real A3 drawing on a letter or A4
   glass, the sheet on screen (the arrows' keys, VoiceOver).
+- **4.11 Name the file from its contents.** PrintCore `PageText.lines`/`withoutStrays` (`TextLine`), `TextFinds` (`find`,
+  `dayFirst`), `FoundInText`, `TextDate`, `NameContext.found`, `FileNameTemplate`'s `{text-date}` (with a format),
+  `{text-title}` and `{text-number}` (what the page doesn't say takes its separator with it) and `readsText`, `PresetPlan.ocr`
+  for a name read from the page (a PDF preset's file becomes searchable, as on Windows); `NameFromTextTests` (PC). The app:
+  `ScanModel.showsSaveName`, `saveName` (filled once the scan's pages are checked and again when the first page changes,
+  unless typed: `editSaveName`), the first page read by Vision as it will be saved and kept for the save (`foundFor`, by the
+  page's id and edits), the first file of a save named as typed; the save bar's File name field beside Save (preset); the
+  editor's caption for the tokens; the demo glass's made-up invoice (`DemoScan.invoice`); `--report … --name-from-text`.
+  **Mac differences:** a locale where Windows has a culture (`Locale.current`; day or month first from its short date as ICU
+  writes it, the month names from `DateFormatter`'s lists); a found date is a `TextDate` (a day, no clock) written with UTC's;
+  lengths count characters where .NET counts UTF-16 units, and a name is also cut to 200 UTF-8 bytes
+  (`FileNameTemplate.maxNameBytes`: APFS allows 255 bytes, so a long Chinese or Japanese title would not save); a name's
+  reserved characters are found scalar by scalar (a '/' with a combining mark after it is still a separator); the field shows for a preset that stops on the review, as on
+  Windows, beside Save rather than above the pages. Not checked: real invoices and receipts, the field on screen (VoiceOver).
+- **4.14 Scan straight to Word or text.** PrintCore `PageText.paragraphs` (`TextParagraph`), `ScanDocPage`, `ScanDocx`,
+  `ScanText`, `PresetFileType.word` (3) and `.text` (4) (Windows' numbers), `ScanPresets.isPdf`/`fileExtension`, the
+  summary's "Word document" and "Text", `PresetPlan`'s notes without text recognition; the Office parts Inkvolt PDF for Mac
+  wrote with (`XmlOut`, `OpenXmlParts`: `xml`, `clean`, `cut`, `contentTypes`, `coreProperties`, `appProperties(application:)`,
+  `relationships`) moved from PdfCore into PrintCore (`Office/OpenXmlParts.swift`), as Windows moved them to the shared core;
+  PdfCore keeps its `ZipWriter` (Apple's Compression deflates), `entry`, its own `appProperties`, `twips` and `emu`, so its
+  exports are byte for byte as before. `ScanToDocumentTests` (PC). The app: the editor's As list gains Word document and
+  Text, with the text language and a note when the preset opens in Inkvolt PDF; a preset save writes the file
+  (`ScanModel.writeDocument`: each page read by Vision as saved; a page of photos as its photos, one with no text read as
+  the page itself), Print a copy prints the pages; `--report … --word-text`. **Mac differences:** the .docx's parts are
+  stored, not deflated (PrintCore's `Deflate` is a fixed-Huffman fallback and the tests read stored entries with
+  `ZipArchive.entries`; the pictures are stored on Windows too), so a page of text makes a few kilobytes more; the
+  misread-text test's lone surrogate is U+FFFF (a Swift string holds none); a Word or text preset's scan reads as a
+  searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
+  file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
+  (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
 
 ## Mac differences
 
@@ -588,6 +618,8 @@ at under "What a person must look at" and in each section.
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
 | 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
+| 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
+| 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 
 From the steps, besides the sections below:
@@ -673,6 +705,32 @@ From the steps, besides the sections below:
   shows no progress (one paragraph); Replace All shows it page by page with Cancel. `nextAfter` gives nil where Windows'
   gives -1. Not run here: `ReplacedTextReadsTheSameInPdfJs` (INKVOLTPDF_PDFJS, needs Node on the Mac). Not checked by a
   person: the sheet's look, VoiceOver on its list.
+- 4.9: a "window" of Windows' rules is a group of AppKit's window tabs, and a tab one document's window. AppKit draws,
+  drags, tears off and merges the tabs; `WindowHub` reads its groups (`tabbedWindows`) whenever it asks the rules, so
+  `DocumentWindows` follows what AppKit did. A tab carries its window whole (sheets, progress, a running job, the Reflow
+  view), so no move is refused as busy: `canMove` and `canTearOff` aren't asked, and `TabDrag` (ported with its tests)
+  isn't used, AppKit having its own drag. What is remembered for the next start stays macOS's window restoration
+  ("Mac differences"): after Quit it reopens every window with its tabs (unless macOS's "Close windows when quitting an
+  application" is on) and a window closed by hand is forgotten, as `remember` does, except the last one (Windows
+  remembers its files); `remember` is ported, unused. File › New Window shows the start page and the next document
+  opened gets a window of its own (Windows opens an empty window with its own start page); closing the start page
+  forgets it. The Dock menu's New Window is the jump list's; `WindowLaunch` (`--new-window`) is ported, unused (files
+  reach a running Mac app by Apple Events, not a second launch). A path is compared ignoring case with its links
+  followed (`WindowHub.fullPath`), where NSDocumentController compares URLs. Not checked by a person: a tab dragged out
+  and onto another window by hand, the tab bar with long names, VoiceOver on the tabs.
+- 4.16: the page is put in the WKWebView with `loadHTMLString` at `Reflow.address` (Windows serves it there through
+  WebView2's request filter; WebKit keeps https for itself), with page scripts off, a data store nothing outlives,
+  pop-ups, link previews, media and the online list of bad sites off; the app's scripts (the page at the top, a scroll,
+  the look) run in their own world (`.defaultClient`), sharing only the page's elements. The text size follows the
+  view's zoom alone: the Mac has no Text size for apps (Windows' `TextScale`), so `ReflowLook.textScale` is 1. The
+  commands that run are `Reflow.runs`' by the Mac's menu actions (`Reflow.runsAction`, `macActions`: those the Mac has,
+  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Export Images, Back and
+  Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
+  are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
+  it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
+  reflow says Recognize Text where Windows adds Scan & OCR. Swift's HtmlWriter has no links yet ("Windows ahead, to
+  port": E15's links), so the column's own links wait for it; `follow` is ported and tested. Not checked by a person: the
+  column's look in light and dark, VoiceOver reading it, a trackpad's scrolling, a real web link opening the browser.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.
@@ -1846,6 +1904,64 @@ and undoes it.
   The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
   file to choose.
 
+### Wave 4: proofreading, forms and layout (roadmap Batch B and C)
+
+Ported from Windows' modules and tests (2026-11-23, on `buildmac`).
+- **4.17 Insert Text… and Replace Text…** (Tools › Annotate, the command bar's Comment, the pages' context menu):
+  `Annotations.addInsertText`, `addReplaceText`, `caretAt`, `asListed`, `groupHead`, `replacedCarets`
+  (`AnnotationsProofreading.swift`), `AnnotationInfo.grouped`; a group's member deleted takes the whole group
+  (`groupHeadIn`), an imported caret gets its chevron from its rectangle, and Summarize Comments lists each mark once by
+  what it asks. Insert Text goes at the selection's end or where text was clicked (a click on text, as Windows' last
+  click), or where the context menu opened over text (`insertProofTextHere:`, its place on the item, so the menu bar's
+  command keeps its own rule); its words are asked in the popover the notes use, with Windows' line saying what they
+  become. The Comments list shows a group as its head, a caret by its mark ("Insert text", "Replace text"), and a
+  strike-out selected on the page selects its group's row. `TextToolsTest` (`--edit --only-text-tools`) drives both
+  from the menu bar, the list's rows, Delete of the strike-out and Undo. Not checked by a person: the popover and the
+  blue chevron by eye.
+- **4.12 calculated fields and several fields together** (Prepare Form): `FormCalculations` (`CalcKind`, `FieldCalc`;
+  .NET's `CalcKind.None` is `notCalculated`, as `.none` would read as an Optional's), `DesignField.calculation` read from
+  and written to the field's or its widget's own /AA /C, `FormDesign.calculationOrder`/`setCalculationOrder` (/CO),
+  `FormDesignRules.withCalculation`, `calcSources`, `calcIndex`, `movedInOrder`, `aligned`, `sizedAlike`, `spread`,
+  three more number formats; `FormDesigner`'s anchor, `toggle`, `selectAll`, a group drag (`.movedAll`) and nudge
+  (`flushNudgeAll`), `canDelete`. The panel's Calculate section (text fields and dropdowns: the kind, the fields to tick,
+  the notation, Calculation order…), and with several selected the arrange buttons and Delete; Tools › Forms ›
+  Calculation Order… (a sheet: the list, Move Up and Move Down, ⌥↑ ⌥↓) and Arrange Fields (eleven commands, on with two
+  or three selected). `FormCalculationTests` and the 4.12 half of `Wave4CReviewTests` ported; `PrepareFormTest`
+  (`--edit --only-prepare-form`) picks a sum and a notation in the panel, fills, changes the order, then ⌘-clicks, aligns,
+  drags and deletes two fields. Mac differences: ⌘-click where Windows has Ctrl+click (the Mac's add-to-selection); the
+  menu is under Tools › Forms, where the Mac's Prepare Form lives (Windows: Edit › Forms). The arrangements follow the
+  view's turn, as Windows' (`DesignPage.rotation`).
+  Not checked by a person: the panel's new rows and the sheet by eye and with VoiceOver.
+- **4.19 rulers, guides, a grid and snapping** (View › Rulers ⌥⇧⌘R, Grid ⌥⌘', Guides and Snapping: Snap to Guides, Grid
+  and Objects, Grid Spacing…, Ruler Units, Clear Guides): PdfCore `LayoutAids` (ticks, `fromRuler`, the grid),
+  `PageGuides` on the `DocumentSession` (never written into the PDF; `keys` and `remap` follow pages through moves and drop
+  a page's guides when it is turned, resized, replaced or deleted), `Snapper`, and `FormDesigner`'s `snap` (passed with
+  each press and drag, where Windows' designer holds a `SnapFor`) and `snapLines`. The app (`Layout.swift`): the rulers
+  are the pages' scroll view's `NSRulerView`s (`PageRuler`, counting from the current page as shown, in the page's
+  measuring scale, else the region's unit, unless Ruler Units says), a press on one drags a guide onto a page; the hand
+  and select tools (and Prepare Form with no field tool) pick a guide up, and dropping it off its page removes it; the
+  grid, the guides and what a press snapped to are drawn on the pages (a split's second pane shows the same guides).
+  Snapping, off with ⌥: Prepare Form's fields (drawn, moved, resized), shapes, lines, text boxes and callouts drawn,
+  comments moved, stamps, pictures and signatures placed, measuring points. `LayoutAidsTests` and the 4.19 half of
+  `Wave4CReviewTests` ported; `LayoutTest` (`--edit --only-layout`) drives the menu, a guide from the ruler, a rectangle
+  and a field snapping to it, Snap to Guides off, Grid Spacing…, Ruler Units, a page turned and Clear Guides. Mac
+  differences: the keys (⌘R turns pages here, ⌘' switches panes); a guide dragged from a ruler shows as a line where the
+  pointer is until it is let go over a page. Not checked by a person: the rulers' look and their labels at every zoom
+  and turn, dragging guides by hand, VoiceOver on the rulers.
+- **4.22 a picture or paragraph turned to any angle** (Edit Text & Images): PdfCore `ContentEditor.rotateImage`,
+  `rotateParagraph` (`ContentEditor+Rotate.swift`: about the middle of its box, one undo step; a paragraph's show
+  operators drawn again from a turned text matrix, the text position put back after each, so what follows stays),
+  `PageImage.angle`, `ContentTurn` (the handle, a drag's angle, Shift's 15° steps, the box's parsing and format). The
+  app: the selected picture's round handle out from its top-right corner (a drag shows the turned outline), the
+  paragraph editor's Angle box (Return turns it; a change to the text must be applied first, as Windows), Edit › Turn
+  to Angle… (the selected picture, asked in a popover; the open editor's Angle box). The tests of
+  `ParagraphEditTests.Rotate.cs` ported (`ParagraphEditTests+Rotate.swift`; the pdf.js one opt-in as the other);
+  `ParagraphEditTest` (`--edit --only-paragraph-edit`) turns the paragraph 5° from the Angle box and back through the
+  menu. Mac differences: a paragraph has no on-page handle (its editor is a popover over the page, so the Angle box
+  turns it), and the Mac's paragraphs have no pictures in their flow yet (Windows' `InlinePicture`), so none turn with
+  them. As on Windows, a paragraph turned so far that its box takes in other text (a heading above) can't be edited or
+  turned again until Undo takes the turn back. Not checked by a person: the handle and the turned outline by eye, dragging it by hand.
+
 ## Open decisions
 
 None.
@@ -1858,27 +1974,12 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
-  `{text-number}`), done on Windows.
-- Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
   the shared core; port `ScanArchiveTests`), and Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
   Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
-- Wave 4 Batch B, done on Windows, the Mac's waits: 4.17 proofreading marks (`Annotations.Proofreading.cs`: Insert Text,
-  Replace Text as a caret and strike-out group, `AnnotationInfo.Grouped`; port `ProofreadingTests` first).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.9 two documents side by side (`DocumentWindows`, `TabDrag`; port
-  `DocumentWindowsTests` first; on the Mac, NSWindow tabbing and a tab dragged out are AppKit's, so the port is the rules:
-  a file open once, the window in use, what is remembered); 4.16 the Reflow view (`Reflow`, `ReflowPosition`; port
-  `ReflowTests`; WKWebView with JavaScript off for page content, the same served page).
-- Wave 4 Batch C, done on Windows, the Mac's waits: 4.12 calculated form fields and several fields arranged together
-  (`FormCalculations`, `FieldCalc`, `FormDesign.CalculationOrder`/`SetCalculationOrder`, `FormDesignRules.Aligned`,
-  `SizedAlike`, `Spread`, `WithCalculation`; the Mac's `FormDesigner` gains the anchor and Ctrl+click: port
-  `FormCalculationTests` first); 4.22 turning a picture or paragraph to any angle (`ContentEditor.RotateImage`,
-  `RotateParagraph`, `PageImage.Angle`, `ContentTurn`; port the tests in `ParagraphEditTests.Rotate.cs`); 4.19 rulers,
-  guides, a grid and snapping (`LayoutAids`, `PageGuides`, `Snapper`, `FormDesigner.SnapFor`; port `LayoutAidsTests`);
-  4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
+- Wave 4 Batch C, done on Windows, the Mac's waits: 4.11 Ask Across Folders (Pro; `FolderAsk`, `FolderIndex.Rank` and `PageTexts`, the send window's file listing; port
   `FolderAskTests` first); 4.21 search by meaning (Pro; `AiEmbeddings`, `AiClient.EmbedAsync`, `MeaningIndex` and its file
   format, the send window before embedding; port `MeaningIndexTests` first); 4.24 a summary read aloud to a file
   (`AiAnswerSpeech`, `WavFile`; AVSpeechSynthesizer's `write(_:toBufferCallback:)` into an AVAudioFile, M4A where Windows

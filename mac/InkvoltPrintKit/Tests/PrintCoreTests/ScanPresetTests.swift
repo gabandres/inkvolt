@@ -52,11 +52,11 @@ struct FileNameTemplateTests {
     @Test(arguments: [
         ("{preset} {date}", nil),
         ("{n:000} {date:yyyy-MM}", nil),
-        ("{pagez}", "Unknown token {pagez}. Use {date}, {time}, {preset}, {printer}, {n} or {pages}."),
+        ("{pagez}", "Unknown token {pagez}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}."),
         ("{date", "A { has no closing }. Type {{ for a brace."),
         ("a } b", "A } has no opening {. Type }} for a brace."),
         ("{preset:x}", "{preset} takes no format."),
-        ("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n} or {pages}."),
+        ("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}."),
     ] as [(String, String?)])
     func validates(_ template: String, _ problem: String?) {
         #expect(FileNameTemplate.problem(template) == problem)

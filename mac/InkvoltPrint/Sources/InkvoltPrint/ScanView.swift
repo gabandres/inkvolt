@@ -455,6 +455,12 @@ private struct SaveBar: View {
             Button("Print…") { Task { await scan.printPages() } }
                 .help("Print the pages: a copy")
                 .disabled(scan.pages.toSave.isEmpty || scan.isScanning || scan.isSaving)
+            if scan.showsSaveName {
+                TextField("File name", text: Binding(get: { scan.saveName }, set: { scan.editSaveName($0) }))
+                    .frame(width: 240)
+                    .help("The name the preset gives the file, read from the first page. Change it before saving.")
+                    .accessibilityLabel("File name")
+            }
             if let p = scan.preset {
                 Button("Save (\(p.name))") { Task { await scan.saveWithPreset() } }
                     .disabled(scan.pages.toSave.isEmpty || scan.isScanning || scan.isSaving)

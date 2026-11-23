@@ -86,6 +86,9 @@ public final class DocumentSession: @unchecked Sendable {
     public var contentChanged: ((ContentChange) -> Void)?
     /// Called when the name, path or dirty state changed.
     public var stateChanged: (() -> Void)?
+    /// The guides dragged from the rulers (roadmap 4.19): kept while the document is open, never written into it. Used on
+    /// the main thread.
+    public let guides = PageGuides()
 
     public var canUndo: Bool { !undoSteps.isEmpty }
     public var canRedo: Bool { !redoSteps.isEmpty }

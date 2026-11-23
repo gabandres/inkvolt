@@ -78,7 +78,7 @@ struct ScanTextTests {
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
         let reader = FirstLineReader()
-        let page = try ScanText.recognize(pdf, 0, reader, RecognizeOptions(checkWords: false))
+        let page = try PdfCore.ScanText.recognize(pdf, 0, reader, RecognizeOptions(checkWords: false))
 
         #expect(page.quarterTurns == 2)
         #expect(abs(page.skew - 3.1) <= 0.3, "\(page.skew)")
@@ -136,7 +136,7 @@ struct ScanTextTests {
         // nothing clearly better, the page stays as it is.
         let pdf = try PdfEngine.open(Core2Pdf.build(Self.digitsPageObjects))
         defer { pdf.close() }
-        let page = try ScanText.recognize(pdf, 0, DigitReader(), RecognizeOptions(checkWords: false))
+        let page = try PdfCore.ScanText.recognize(pdf, 0, DigitReader(), RecognizeOptions(checkWords: false))
         #expect(page.quarterTurns == 0)
         #expect(!page.words.isEmpty)
     }
@@ -150,14 +150,14 @@ struct ScanTextTests {
         (40, 2, true), // a page of prose against its reading upside down
     ])
     func aTurnNeedsAClearlyBetterReading(_ turned: Int, _ asItIs: Int, _ turn: Bool) {
-        #expect(ScanText.clearlyMore(turned, asItIs) == turn)
+        #expect(PdfCore.ScanText.clearlyMore(turned, asItIs) == turn)
     }
 
     @Test(.enabled(if: ScanCorpus.runs)) func thePageAsScannedIsReadAsToday() throws {
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
         let reader = FirstLineReader()
-        let page = try ScanText.recognize(pdf, 0, reader, .asScanned)
+        let page = try PdfCore.ScanText.recognize(pdf, 0, reader, .asScanned)
         #expect(reader.calls == 1)
         #expect(page.quarterTurns == 0 && page.skew == 0)
         try #require(page.words.count == 1)
@@ -168,7 +168,7 @@ struct ScanTextTests {
     @Test(.enabled(if: ScanCorpus.runs)) func theCleanedPageCanReplaceTheScanAndTheWordsFitIt() throws {
         let scan = try Self.turnedScan()
         let pdf = try PdfEngine.open(scan)
-        let page = try ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
+        let page = try PdfCore.ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
         pdf.close()
         let cleaned = try #require(page.cleaned)
         #expect(cleaned.quarterTurns == 2 && cleaned.channels == 1) // a grey scan stays grey
@@ -195,7 +195,7 @@ struct ScanTextTests {
         // Replace the scans holds every page until it writes them: raw, a 500-page Letter colour scan was about 12.6 GB.
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
-        let page = try ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
+        let page = try PdfCore.ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
         let cleaned = try #require(page.cleaned)
         let raw = cleaned.width * cleaned.height * cleaned.channels
         #expect(cleaned.deflated.count >= 1 && cleaned.deflated.count <= raw / 4)
@@ -209,7 +209,7 @@ struct ScanTextTests {
             Core2Pdf.stream("BT /F1 24 Tf 72 700 Td (Heading) Tj ET 0.85 0.1 0.1 rg 72 300 200 150 re f 0.1 0.2 0.85 rg 320 300 200 150 re f"),
         ])
         let pdf = try PdfEngine.open(scan)
-        let page = try ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
+        let page = try PdfCore.ScanText.recognize(pdf, 0, FirstLineReader(), RecognizeOptions(checkWords: false, keepCleanedImage: true))
         pdf.close()
         let cleaned = try #require(page.cleaned)
         #expect(cleaned.channels == 3)

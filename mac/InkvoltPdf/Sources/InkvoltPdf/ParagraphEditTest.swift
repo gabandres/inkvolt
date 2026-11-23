@@ -8,7 +8,8 @@ import PrintCore
 /// step that undo and redo take back and forth); the paragraph editor opened over it, bold, a color and a bigger size
 /// given to words through its look bar and the note under it read, then applied (the looks read back as spans); new text
 /// that would run into the line below declined, then confirmed; a character Helvetica lacks drawn from a font on this
-/// Mac. The document is closed unsaved. Only what it made is written.
+/// Mac; the paragraph turned 5° from its editor's Angle box and back with Edit › Turn to Angle… (roadmap 4.22). The
+/// document is closed unsaved. Only what it made is written.
 @MainActor
 struct ParagraphEditTest {
     /// Running: the document it opens gets no self-test of its own.
@@ -86,7 +87,7 @@ struct ParagraphEditTest {
         return (try? ContentEditor.read(s.data, s.password, 0)) ?? .empty
     }
 
-    private func paragraph(_ c: DocumentWindowController, _ start: String) -> TextParagraph? {
+    private func paragraph(_ c: DocumentWindowController, _ start: String) -> PdfCore.TextParagraph? {
         read(c).paragraphs.first { $0.text.hasPrefix(start) }
     }
 
@@ -126,6 +127,7 @@ struct ParagraphEditTest {
         item.tag = Tool.editContent.rawValue
         c.chooseTool(item)
         _ = await c.content.ensure(0)
+        await turning(c) // first, on the paragraph as the file has it (PLAN, 4.22)
         await rewrap(c)
         await looks(c)
         await overlap(c)
@@ -161,6 +163,43 @@ struct ParagraphEditTest {
         undo?.redo()
         await settle(c)
         check(paragraph(c, "The quick")?.text == text, "redo writes it again")
+    }
+
+    /// Roadmap 4.22: the editor's Angle box turns the paragraph 5° about its middle, one undo step (more would sweep it
+    /// into the heading above, and text inside its box keeps a paragraph from being edited); Edit › Turn to Angle… with
+    /// the editor open goes to its Angle box, which turns it back.
+    private mutating func turning(_ c: DocumentWindowController) async {
+        c.content.testParagraph = nil
+        guard let p = paragraph(c, "The quick") else { return check(false, "the paragraph is read again") }
+        c.content.editParagraph(p)
+        guard let editor = c.content.paragraphEditor else { return check(false, "the paragraph editor opens to turn it") }
+        _ = editor.view
+        check(editor.angleField.stringValue == ContentTurn.format(0), "its Angle box says 0°: \(editor.angleField.stringValue)")
+        let edits = c.editor.finishedEdits
+        editor.angleField.stringValue = "5"
+        editor.angleEntered(nil)
+        let turned = await waitEdits(c, edits + 1)
+        await settle(c)
+        let q = paragraph(c, "The quick")
+        check(turned && q.map { abs($0.angle - 5) < 0.01 && $0.text == p.text } == true
+                && q.map { abs($0.box.centerX - p.box.centerX) < 2 && abs($0.box.centerY - p.box.centerY) < 2 } == true
+                && c.window?.undoManager?.undoMenuItemTitle == Shown.undo(loc("Turn text")),
+              "the Angle box turns it 5° about its middle, one undo step: \(q.map { String($0.angle) } ?? "none")")
+        guard let q else { return }
+        c.content.editParagraph(q)
+        NSApp.sendAction(#selector(DocumentWindowController.turnToAngle(_:)), to: c, from: nil)
+        guard let again = c.content.paragraphEditor else { return check(false, "the editor opens on the turned paragraph") }
+        check(again.angleField.stringValue == ContentTurn.format(5), "Edit › Turn to Angle… goes to its Angle box: \(again.angleField.stringValue)")
+        again.angleField.stringValue = "0"
+        again.angleEntered(nil)
+        _ = await waitEdits(c, edits + 2)
+        await settle(c)
+        let back = paragraph(c, "The quick").map { abs($0.angle) < 0.01 } == true
+        check(back, "and turns it back")
+        if !back {
+            c.window?.undoManager?.undo() // upright again for the steps after
+            await settle(c)
+        }
     }
 
     /// The editor over the paragraph: bold, a color and a bigger size from its look bar, its note, then Apply.

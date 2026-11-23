@@ -24,6 +24,7 @@ extension DocumentWindowController {
     @objc func toggleOrganizer(_ sender: Any?) { showOrganizer(!organizerShown) }
 
     func showOrganizer(_ show: Bool) {
+        if show && reflow.isShown { setReflow(false) } // Organize leaves Reflow, as on Windows
         if show { setSplit(.none) } // the grid takes the panes' place
         if show && organizer == nil {
             let grid = OrganizerView(engine: engine)
