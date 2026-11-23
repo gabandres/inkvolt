@@ -74,11 +74,18 @@ struct JoinSheet: View {
         .disabled(joiningNow)
     }
 
+    /// An arrow: the key (or a click) moves the second half a fiftieth of an inch, ⇧ and the key (or a ⇧-click) a fifth.
     private func arrow(_ symbol: String, _ label: String, _ dx: Int, _ dy: Int, _ key: KeyEquivalent) -> some View {
-        Button { nudge(dx, dy) } label: { Image(systemName: symbol) }
-            .help(label)
-            .accessibilityLabel(label)
-            .keyboardShortcut(key, modifiers: [])
+        ZStack {
+            // ⇧ and the arrow key: a shortcut of its own (one with no modifiers doesn't answer to ⇧).
+            Button { nudge(dx, dy, far: true) } label: { EmptyView() }
+                .keyboardShortcut(key, modifiers: .shift)
+                .frame(width: 0, height: 0).opacity(0).accessibilityHidden(true)
+            Button { nudge(dx, dy, far: NSEvent.modifierFlags.contains(.shift)) } label: { Image(systemName: symbol) }
+                .help(label)
+                .accessibilityLabel(label)
+                .keyboardShortcut(key, modifiers: [])
+        }
     }
 
     private var shown: some View {
@@ -113,9 +120,9 @@ struct JoinSheet: View {
     }
 
     /// A fiftieth of an inch a click, a fifth with ⇧.
-    private func nudge(_ dx: Int, _ dy: Int) {
+    private func nudge(_ dx: Int, _ dy: Int, far: Bool) {
         guard let work else { return }
-        let step = max(1, work.dpi / (NSEvent.modifierFlags.contains(.shift) ? 5 : 50))
+        let step = max(1, work.dpi / (far ? 5 : 50))
         placement = placement.nudged(dx * step, dy * step)
     }
 

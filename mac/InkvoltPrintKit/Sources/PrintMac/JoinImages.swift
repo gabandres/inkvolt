@@ -10,6 +10,12 @@ public enum JoinImages {
         public let rgb: [UInt8]
         public let width: Int
         public let height: Int
+
+        public init(rgb: [UInt8], width: Int, height: Int) {
+            self.rgb = rgb
+            self.width = width
+            self.height = height
+        }
     }
 
     /// The page `jpeg` with `edits` (scanned at `dpi`), as RGB pixels.

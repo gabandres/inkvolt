@@ -222,7 +222,7 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - **4.4 Small black-and-white PDFs.** PrintCore `BitImage`, `Bilevel`, `CcittG4` (the same bytes as Windows' encoder) and
   `PdfWriter.Page.blackAndWhite`/`oneBit`, so Inkvolt PDF for Mac's 4.8 can write such pages too; the preset's `smallerFile`
   (Windows' `SmallerFile`), `ScanPresets.savesSmallerFile`, `PresetPlan.oneBit` (scanned in grey), the summary's "black and
-  white, N dpi, smaller file"; PrintMac `ScanImaging.bits` (the saved page decoded grey at full size) and `ScanPdf.Page.bits`.
+  white, N dpi, smaller file"; a page's `oneBit`, kept for crash recovery (`KeptPage.oneBit`, as Windows' `ScanKeeper`); PrintMac `ScanImaging.bits` (the saved page decoded grey at full size) and `ScanPdf.Page.bits`.
   `BlackAndWhitePdfTests` (PC; Windows' T.6 decoder ported as the test's own) and `CcittG4RenderTests` (PdfCoreTests on the
   Mac: MuPDF reads G4 and Flate pages bit for bit; a corpus text page against its JPEG). **Mac differences:** Flate is
   PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
@@ -252,8 +252,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   the first half's new-file mark); `HalvesJoinTests` (PC). PrintMac `JoinImages` (each half as saved, RGB at full size; the
   joined page as JPEG). The app: the page's Join with the Next Page… (refused for the last page, separators, photos, pages
   being checked or at another resolution, each said), a sheet that shows the joined page, arrows to move the second half (a
-  fiftieth of an inch, ⇧ a fifth), Turn the Second Half, Other Side, Join (one step of Undo: the halves come back); the
-  overlap is looked for on copies at about 100 pixels an inch. `--report … --join` joins the demo glass's two halves of a
+  fiftieth of an inch, ⇧ and an arrow key or a ⇧-click a fifth), Turn the Second Half, Other Side, Join (one step of Undo:
+  the halves come back); the overlap is looked for on copies at about 100 pixels an inch, and the second half starts where
+  it was found, sure or not (as Windows); the preview joins small copies made once. `--report … --join` joins the demo glass's two halves of a
   14-inch plan (`DemoScanSetup.hold`). **Mac differences:** a stop is a `BatchStop` (`CancellationError`); the coarse search's
   placements are put in a fixed order before the best are taken (Windows' come from parallel rows in any order), so the same
   halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows

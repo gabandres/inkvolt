@@ -94,6 +94,14 @@ public struct StackScan: Equatable, Sendable {
     }
 }
 
+/// What Undo of Backs in the Other Order needs (`ScanPages.swapBacks`): the page order before it, the pairing it had, and
+/// the stack as swapped with that pairing's marks.
+public struct StackSwap: Equatable, Sendable {
+    public let before: [String]
+    public let was: Bool
+    public let swapped: StackScan
+}
+
 /// A page made the other side of a separator sheet, with what it was before, to put back when the pairing changes.
 public struct SheetBackMark: Equatable, Sendable {
     public let id: String
@@ -231,6 +239,24 @@ public struct ScanPages: Equatable, Sendable {
         unmark(stack.marks)
         stack.marks = []
         reorder(TurnedStack.inPlaces(pages.map(\.id), stack.fronts + stack.backs))
+    }
+
+    /// Backs in the Other Order: the stack paired the other way round. Returns what its Undo needs (`undoSwap`), which keeps
+    /// its own copy of the stack and its marks, so a scan meanwhile (which lets the review's stack go) doesn't lose them.
+    public mutating func swapBacks(_ stack: inout StackScan) -> StackSwap {
+        let (before, was) = (pages.map(\.id), stack.reversed)
+        pair(&stack, reversed: !was)
+        return StackSwap(before: before, was: was, swapped: stack)
+    }
+
+    /// Undo of `swapBacks`: the swapped pairing's marks put back, the first pairing's found again, the pages where they were.
+    /// Returns the stack as it is paired again.
+    @discardableResult
+    public mutating func undoSwap(_ swap: StackSwap) -> StackScan {
+        var stack = swap.swapped
+        pair(&stack, reversed: swap.was)
+        reorder(swap.before)
+        return stack
     }
 
     /// The pages put in `order`'s order where they are now (`TurnedStack.inPlaces`): ids not here are passed over, pages it
@@ -414,6 +440,7 @@ public struct ScanPages: Equatable, Sendable {
             k.looksBlank = p.looksBlank
             k.filters = p.edits.filters.isEmpty ? nil : p.edits.filters
             k.drop = p.edits.drop?.hex
+            k.oneBit = p.oneBit ? true : nil
             k.ocrLanguage = p.ocrLanguage
             return k
         })
@@ -422,8 +449,10 @@ public struct ScanPages: Equatable, Sendable {
     /// The pages a scan left over (the app quit or crashed before they were saved), as they were.
     public init(restoring scan: KeptScan) {
         pages = scan.pages.map { k in
-            ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
-                        separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
+            var p = ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
+                                separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
+            p.oneBit = k.oneBit ?? false
+            return p
         }
     }
 

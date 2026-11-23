@@ -175,4 +175,34 @@ struct TurnedStackTests {
         #expect(pages.pages.map(\.id) == ["earlier", "F1", "F2", "F3", "B3", "B2", "B1"])
         #expect(pages.page("B3")?.separator == SeparatorFound.none && stack.marks.isEmpty)
     }
+
+    @Test func undoingTheOtherOrderAfterAnotherScanPutsEverySheetsMarkBack() {
+        // Review finding: a scan after Backs in the Other Order lets the review's stack go; each step of Undo keeps its own.
+        var pages = ScanPages(["F1", "F2", "F3", "B3", "B2", "B1"].map { ScannedPage(id: $0, dpi: 300) })
+        pages.analysed("F1", looksBlank: false, skew: 0, skipBlank: true, straighten: true, separator: SeparatorFound(.patchCode, code: .patchT))
+        pages.analysed("B1", looksBlank: true, skew: 0, skipBlank: true, straighten: true)
+        var stack = StackScan(fronts: ["F1", "F2", "F3"], backs: ["B3", "B2", "B1"])
+        pages.pair(&stack, reversed: TurnedStack.backsReversed)
+        let first = stack
+        let swap = pages.swapBacks(&stack) // B3, a page of the document, is now the patch sheet's other side
+        #expect(pages.page("B3")?.separator.kind == .sheetBack)
+        pages.add(ScannedPage(id: "N", dpi: 300)) // a plain second scan: the model's stack is gone
+
+        pages.undoSwap(swap)
+        #expect(pages.page("B3")?.separator == SeparatorFound.none && pages.page("B1")?.separator.kind == .sheetBack)
+        var order = first
+        pages.unpair(&order)
+        #expect(pages.pages.map(\.id) == ["F1", "F2", "F3", "B3", "B2", "B1", "N"])
+        #expect(!pages.pages.contains { $0.separator.kind == .sheetBack })
+        #expect(pages.toSave.map(\.id).contains("B3"))
+    }
+
+    @Test func aKeptPageKeepsItsSmallerFile() throws {
+        // Review finding: a crash restore keeps the page's 1-bit saving (Windows' ScanKeeper keeps OneBit).
+        var page = ScannedPage(id: "a", dpi: 300)
+        page.oneBit = true
+        let kept = ScanPages([page, ScannedPage(id: "b", dpi: 300)]).kept(printerId: "p", printerName: "P", ocr: false, now: Date(timeIntervalSince1970: 0))
+        let back = ScanPages(restoring: try JSONDecoder().decode(KeptScan.self, from: JSONEncoder().encode(kept)))
+        #expect(back.pages.map(\.oneBit) == [true, false])
+    }
 }

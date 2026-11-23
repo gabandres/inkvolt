@@ -22,6 +22,8 @@ public struct KeptPage: Equatable, Sendable, Codable {
     public var ocrLanguage: String?
     /// The color the clean up drops, "#RRGGBB" (roadmap 4.7, `DropColor.hex`); missing or unreadable: red, with that filter.
     public var drop: String?
+    /// Saved in a PDF in black and white (a preset's smaller file, roadmap 4.4; Windows' `OneBit`); missing: no.
+    public var oneBit: Bool?
 
     public init(_ file: String, dpi: Int, ocr: Bool, quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, skipped: Bool = false,
                 startsFile: Bool = false) {

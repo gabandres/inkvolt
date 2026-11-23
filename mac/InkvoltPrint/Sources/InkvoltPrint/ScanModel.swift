@@ -530,8 +530,9 @@ final class ScanModel {
         stack = scanned
         let ids = fronts + backs, first = scanned
         recordUndo(String(localized: "Put the fronts and backs in order")) { model in
-            // A later scan let this stack go: its pairing is still the first one (Undo takes a swap back before this).
-            var now = model.stack.flatMap { $0.fronts == fronts && $0.backs == backs ? $0 : nil } ?? first
+            // This step's own stack: by now its pairing is the first one again (Undo takes a swap back before this), whatever
+            // a later scan did to the review's.
+            var now = first
             model.pages.unpair(&now)
             if model.stack?.fronts == fronts { model.stack = nil }
             return ids
@@ -546,20 +547,16 @@ final class ScanModel {
     func swapBacks() {
         guard canSwapBacks, var scanned = stack else { return }
         savedParts.clear()
-        let before = pages.pages.map(\.id)
         let was = scanned.reversed
-        // The sheets pair differently now: each separator sheet's other side is found again (the old marks put back).
-        pages.pair(&scanned, reversed: !was)
+        // The sheets pair differently now: each separator sheet's other side is found again (the old marks put back). The
+        // step keeps its own stack and marks: a scan meanwhile lets the review's go.
+        let swap = pages.swapBacks(&scanned)
         stack = scanned
         keep()
-        let ids = stack.map { $0.fronts + $0.backs } ?? []
+        let ids = scanned.fronts + scanned.backs
         for id in ids { refreshThumbnail(id) }
         recordUndo(String(localized: "Put the backs in the other order")) { model in
-            if var now = model.stack {
-                model.pages.pair(&now, reversed: was)
-                model.stack = now
-            }
-            model.pages.reorder(before)
+            model.stack = model.pages.undoSwap(swap)
             return ids
         }
         status = was ? String(localized: "The backs are now matched from the first sheet. Undo puts them back.")
@@ -1221,6 +1218,9 @@ struct JoinWork: Sendable {
     let found: JoinFound
     /// The overlap in full-size pixels (`HalvesJoin.fromCopy`): where the second half starts.
     let placement: JoinPlacement
+    /// The halves `previewFactor` times smaller, made once for the sheet's preview (Windows' join view does the same).
+    let previewA: JoinImages.Half, previewB: JoinImages.Half
+    let previewFactor: Int
 }
 
 extension ScanModel {
@@ -1256,10 +1256,14 @@ extension ScanModel {
             let copyA = HalvesJoin.gray(a.rgb, a.width, a.height, channels: 3, factor: factor)
             let copyB = HalvesJoin.gray(b.rgb, b.width, b.height, channels: 3, factor: factor)
             guard let found = try? HalvesJoin.find(copyA, copyB, ppi: Double(dpi) / Double(factor), stop: stop) else { return nil }
-            let placement = found.sure || found.score > 0
-                ? HalvesJoin.fromCopy(found.placement, factor: factor, secondWidth: b.width, secondHeight: b.height)
-                : HalvesJoin.edgeToEdge(found.placement.side, found.placement.turned, a.width, a.height, b.width, b.height)
-            return JoinWork(first: first.id, second: second.id, a: a, b: b, dpi: dpi, found: found, placement: placement)
+            // As Windows: the placement found, sure or not (not sure, it is the best guess to nudge from).
+            let placement = HalvesJoin.fromCopy(found.placement, factor: factor, secondWidth: b.width, secondHeight: b.height)
+            let previewFactor = max(1, max(a.width, a.height, b.width, b.height) * 2 / 900)
+            let pa = HalvesJoin.shrink(a.rgb, a.width, a.height, channels: 3, factor: previewFactor)
+            let pb = HalvesJoin.shrink(b.rgb, b.width, b.height, channels: 3, factor: previewFactor)
+            return JoinWork(first: first.id, second: second.id, a: a, b: b, dpi: dpi, found: found, placement: placement,
+                            previewA: JoinImages.Half(rgb: pa.pixels, width: pa.width, height: pa.height),
+                            previewB: JoinImages.Half(rgb: pb.pixels, width: pb.width, height: pb.height), previewFactor: previewFactor)
         }
         if work == nil && !stop.isStopped { problem = String(localized: "Couldn't join the pages. Try scanning the halves again.") }
         return work
@@ -1304,13 +1308,11 @@ extension ScanModel {
     }
 
     /// A small copy of the halves joined at `placement`, for the join sheet's preview (at most about `side` pixels a side).
-    nonisolated static func joinPreview(_ work: JoinWork, _ placement: JoinPlacement, side: Int = 900) -> CGImage? {
-        let longest = max(work.a.width, work.a.height, work.b.width, work.b.height) * 2
-        let factor = max(1, longest / side)
-        let a = HalvesJoin.shrink(work.a.rgb, work.a.width, work.a.height, channels: 3, factor: factor)
-        let b = HalvesJoin.shrink(work.b.rgb, work.b.width, work.b.height, channels: 3, factor: factor)
-        let at = HalvesJoin.toCopy(placement, factor: factor, secondWidth: work.b.width, secondHeight: work.b.height)
-        guard let joined = HalvesJoin.join(a.pixels, a.width, a.height, b.pixels, b.width, b.height, channels: 3, at) else { return nil }
+    /// Only the small copies made once (`JoinWork.previewA`, `previewB`) are joined: a nudge costs a moment.
+    nonisolated static func joinPreview(_ work: JoinWork, _ placement: JoinPlacement) -> CGImage? {
+        let (a, b) = (work.previewA, work.previewB)
+        let at = HalvesJoin.toCopy(placement, factor: work.previewFactor, secondWidth: work.b.width, secondHeight: work.b.height)
+        guard let joined = HalvesJoin.join(a.rgb, a.width, a.height, b.rgb, b.width, b.height, channels: 3, at) else { return nil }
         return try? JoinImages.picture(joined.pixels, width: joined.width, height: joined.height)
     }
 }
