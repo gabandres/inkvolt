@@ -48,11 +48,17 @@ public enum PageEditor {
             if order.count != count || Set(order).count != order.count || order.contains(where: { $0 < 0 || $0 >= count }) {
                 throw PdfEditError(loc("Order must be a permutation of the document's pages."))
             }
-            if order == Array(0..<count) { return }
-            let pages = try doc.pages()
-            try doc.deletePages(Array(0..<count))
-            for (k, i) in order.enumerated() { doc.insertPage(pages[i], at: k) }
+            try applyOrder(doc, order)
         }
+    }
+
+    /// Puts the pages in `order` (a permutation of the document's pages, checked by the caller).
+    static func applyOrder(_ doc: MuDoc, _ order: [Int]) throws {
+        let count = try doc.pageCount()
+        if order == Array(0..<count) { return }
+        let pages = try doc.pages()
+        try doc.deletePages(Array(0..<count))
+        for (k, i) in order.enumerated() { doc.insertPage(pages[i], at: k) }
     }
 
     /// The page order after moving `pages` so they sit before original page `before` (the count: the end).
@@ -267,11 +273,23 @@ public enum PageEditor {
     /// step, and saves it (`rewrite`: always written whole, never appended; `userEdit`: what an encrypted document's user
     /// password may do here when its permissions allow it).
     static func edit(_ data: [UInt8], _ password: String?, rewrite: Bool = false, userEdit: UserEdit = .none, _ body: (MuDoc) throws -> Void) throws -> [UInt8] {
+        try edit(data, password, rewrite: rewrite, userEdit: userEdit) { doc, _ in try body(doc) }
+    }
+
+    /// Each page's label before an edit (nil: the document has none).
+    typealias Labels = [(page: ObjId, label: PdfStructure.PageLabel)]
+
+    /// `edit`, `body` also given each page's label before the edit, for an edit that gives a page a label of its own (an
+    /// added page otherwise goes on from the page before it). Emptied, the document is left with no labels.
+    static func edit(_ data: [UInt8], _ password: String?, rewrite: Bool = false, userEdit: UserEdit = .none,
+                     _ body: (MuDoc, inout Labels?) throws -> Void) throws -> [UInt8] {
         let doc = try PdfEdit.open(data, password, userEdit: userEdit)
         let xmp = Xmp.read(doc)
-        let labels = try PdfStructure.readLabels(doc)
-        try body(doc)
-        if let labels { try PdfStructure.writeLabels(doc, labels) }
+        var labels = try PdfStructure.readLabels(doc)
+        try body(doc, &labels)
+        if let labels {
+            if labels.isEmpty { doc.catalog.remove("PageLabels") } else { try PdfStructure.writeLabels(doc, labels) }
+        }
         InfoDict.setDate(doc, "ModDate", Date())
         Xmp.write(doc, original: xmp)
         try doc.checkFailure()

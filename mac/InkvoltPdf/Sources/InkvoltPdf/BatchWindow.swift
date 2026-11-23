@@ -228,7 +228,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         var steps: [BatchStep] = [.optimize(OptimizeOptions()), .protect(ProtectStep("", nil, .all)), .unprotect]
         steps += [.sanitize(Set(SanitizeItem.allCases.filter { $0 != .signatures })), .redactPatterns(RedactionPatternOptions())]
         steps += [.checkRedaction, .checkAccessibility, .reportContents, .watermark(WatermarkOptions(text: loc("DRAFT")))]
-        steps += [.headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .flatten(FlattenOptions())]
+        steps += [.headerFooter(BatchWindowController.defaultHeaderFooter, continueBates: false), .rotate(90), .removeBlankPages, .splitAtBlankPages]
+        steps += [.flatten(FlattenOptions())]
         steps += [.ocr, .makeAccessible(language: nil), .saveAsPdfA, .saveAsPdfA2a, .addLongTerm(timestampUrl: nil)]
         steps += [.export(.word, dpi: 150), .export(.excel, dpi: 150), .export(.powerPoint, dpi: 150), .export(.html, dpi: 150), .export(.text, dpi: 150)]
         steps += [.export(.png, dpi: 150), .export(.jpeg, dpi: 150)]
@@ -351,6 +352,8 @@ final class BatchWindowController: NSWindowController, NSTableViewDataSource, NS
         case .watermark(let o): "\(step.title): \(o.text ?? loc("a picture"))"
         case .headerFooter(let o, let c): "\(step.title): \(headerFooterTexts(o, continues: c))"
         case .rotate(let d): step.title + ": \(d)°"
+        case .removeBlankPages: step.title + ": " + loc("Pages that are almost all paper go; a file of blank pages only is kept")
+        case .splitAtBlankPages: step.title + ": " + loc("A PDF for each part between blank separator pages")
         case .export(let f, let dpi): f == .png || f == .jpeg ? loc("{0} at {1} dpi", step.title, CoreLanguage.number(dpi)) : step.title
         case .protect(let p): "\(step.title): \(passwordsNamed(p))"
         case .sanitize(let items): "\(step.title): \(items.count == 1 ? loc("1 kind") : loc("{0} kinds", CoreLanguage.number(items.count)))"
@@ -789,7 +792,8 @@ enum ActionSheet {
         alert.messageText = step.title
         let read: () -> BatchStep?
         switch step {
-        case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .makeAccessible, .saveAsPdfA, .saveAsPdfA2a:
+        case .unprotect, .checkRedaction, .checkAccessibility, .reportContents, .ocr, .makeAccessible, .saveAsPdfA, .saveAsPdfA2a, .removeBlankPages,
+             .splitAtBlankPages:
             return done(step)
         case .addLongTerm(let current):
             alert.informativeText = loc("Each signed file gets what it takes to check its signatures years from now, stored as an update after them: they stay as they are, and each result is a new copy. Files without a signature are skipped. When the batch starts, a window lists every address that will be asked.")

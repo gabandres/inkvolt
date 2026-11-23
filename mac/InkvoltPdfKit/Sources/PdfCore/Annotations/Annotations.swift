@@ -75,16 +75,7 @@ public enum Annotations {
                 if subtype == "Widget" || subtype == "Link" || subtype == "Popup" || subtype.isEmpty { continue }
                 let rect = PageBoxes.rectToPage(page, a.array("Rect"))
                 let flags = a.int("F") ?? 0
-                var quads: [RectD] = []
-                if let qp = a.array("QuadPoints") {
-                    var k = 0
-                    while k + 7 < qp.count {
-                        let xs = [qp.num(k), qp.num(k + 2), qp.num(k + 4), qp.num(k + 6)]
-                        let ys = [qp.num(k + 1), qp.num(k + 3), qp.num(k + 5), qp.num(k + 7)]
-                        quads.append(PageBoxes.toPageSpace(page, xs.min()!, ys.min()!, xs.max()!, ys.max()!))
-                        k += 8
-                    }
-                }
+                let quads = quadRectsOf(page, a)
                 let nm = a.text("NM")
                 let drawing = isDrawing(a, subtype) ? describe(page, a, subtype) : nil
                 list.append(AnnotationInfo(
@@ -98,6 +89,26 @@ public enum Annotations {
             }
         }
         return list
+    }
+
+    /// The most marked lines of a text mark that are read (a hostile file can list millions).
+    static let maxQuads = 20_000
+
+    /// A text mark's marked line boxes (from /QuadPoints) in page space; empty for other kinds. At most one more than
+    /// `max` (`maxQuads`; a hostile file lists millions, or has hundreds of marks share one huge list): enough for a
+    /// caller to see the mark has too many.
+    static func quadRectsOf(_ page: PObj, _ a: PObj, max: Int = maxQuads) -> [RectD] {
+        var quads: [RectD] = []
+        guard let qp = a.array("QuadPoints") else { return quads }
+        let n = qp.count
+        var k = 0
+        while k + 7 < n && quads.count <= max {
+            let xs = [qp.num(k), qp.num(k + 2), qp.num(k + 4), qp.num(k + 6)]
+            let ys = [qp.num(k + 1), qp.num(k + 3), qp.num(k + 5), qp.num(k + 7)]
+            quads.append(PageBoxes.toPageSpace(page, xs.min()!, ys.min()!, xs.max()!, ys.max()!))
+            k += 8
+        }
+        return quads
     }
 
     /// Adds a highlight, underline, strike-out or squiggly over the given text line boxes (page space, one per line, as

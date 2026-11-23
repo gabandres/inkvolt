@@ -36,6 +36,17 @@ public class AddressLinksTests
         Assert.Equal(["support@example.com"], Found("support@example.com, then"));
     }
 
+    [Fact]
+    public void ARunOfClosingBracketsIsNoAddressAndIsQuicklyPassedOver()
+    {
+        // Each bracket trimmed counted the brackets again: 500,000 took hours. Too long for an address, it is passed over
+        // before any trimming; a long tail under the limit is trimmed at once.
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Empty(Found("https://example.com/" + new string(')', 500_000)));
+        Assert.Equal(["https://example.com/a(b)"], Found("https://example.com/a(b)" + new string(')', 1_900)));
+        Assert.True(clock.Elapsed < TimeSpan.FromSeconds(5), $"took {clock.Elapsed}");
+    }
+
     private static byte[] Pdf() => Core2Pdf.Build(
     [
         "<< /Type /Catalog /Pages 2 0 R >>",

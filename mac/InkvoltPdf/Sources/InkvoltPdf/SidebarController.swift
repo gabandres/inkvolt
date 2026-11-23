@@ -102,6 +102,8 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     var menuOpen = false
     /// Bookmark changes, made into edits by the window controller (paths of indexes from the top level).
     var onAddBookmark: (() -> Void)?
+    /// The Bookmarks list's Bookmarks from Headings… (roadmap 4.5).
+    var onBookmarksFromHeadings: (() -> Void)?
     var onRenameBookmark: (([Int]) -> Void)?
     var onDeleteBookmark: (([Int]) -> Void)?
     var onMoveBookmark: ((_ from: [Int], _ parent: [Int], _ index: Int) -> Void)?
@@ -504,8 +506,10 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
         let add = NSMenuItem(title: loc("Add Bookmark"), action: #selector(addClicked), keyEquivalent: "")
         let rename = NSMenuItem(title: loc("Rename…"), action: #selector(renameClicked), keyEquivalent: "")
         let delete = NSMenuItem(title: loc("Delete"), action: #selector(deleteClicked), keyEquivalent: "")
-        for item in [add, rename, delete] { item.target = self }
+        let headings = NSMenuItem(title: loc("Bookmarks from Headings…"), action: #selector(headingsClicked), keyEquivalent: "")
+        for item in [add, rename, delete, headings] { item.target = self }
         menu.addItem(add)
+        menu.addItem(headings)
         menu.addItem(.separator())
         menu.addItem(rename)
         menu.addItem(delete)
@@ -513,6 +517,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     }
 
     @objc private func addClicked() { onAddBookmark?() }
+    @objc private func headingsClicked() { onBookmarksFromHeadings?() }
     @objc private func renameClicked() { if let p = clickedOrSelectedPath() { onRenameBookmark?(p) } }
     @objc private func deleteClicked() { if let p = clickedOrSelectedPath() { onDeleteBookmark?(p) } }
 

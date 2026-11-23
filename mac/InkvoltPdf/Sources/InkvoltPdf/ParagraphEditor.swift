@@ -88,6 +88,8 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         textView.isAutomaticDashSubstitutionEnabled = false
         textView.isAutomaticTextReplacementEnabled = false
         textView.isAutomaticSpellingCorrectionEnabled = false
+        textView.isContinuousSpellCheckingEnabled = false // `SpellCheck` underlines, by PdfCore's rules
+        textView.isGrammarCheckingEnabled = false
         textView.isVerticallyResizable = true
         textView.autoresizingMask = [.width]
         textView.textContainer?.widthTracksTextView = true
@@ -131,6 +133,20 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
         super.viewDidAppear()
         view.window?.makeFirstResponder(textView)
         textView.setSelectedRange(NSRange(location: textView.string.utf16.count, length: 0))
+        underlineSpelling()
+    }
+
+    // MARK: Spell check (roadmap 4.1)
+
+    /// The document's language (its /Lang), for the dictionary `SpellCheck` picks.
+    var spellingLanguage: String?
+
+    /// The misspelled words underlined (`SpellCheck`; nothing when spell check is off).
+    func underlineSpelling() { SpellCheck.underline(textView, SpellCheck.checker(spellingLanguage)) }
+
+    /// The menu on a misspelled word: its suggestions, Ignore Spelling and Add to Dictionary first.
+    func textView(_ view: NSTextView, menu: NSMenu, for event: NSEvent, at charIndex: Int) -> NSMenu? {
+        SpellCheck.menu(menu, view, at: charIndex, SpellCheck.checker(spellingLanguage)) { [weak self] in self?.underlineSpelling() }
     }
 
     private func button(_ title: String, _ tip: String, _ action: Selector) -> NSButton {
@@ -278,7 +294,10 @@ final class ParagraphEditorController: NSViewController, NSTextViewDelegate {
 
     func undoManager(for view: NSTextView) -> UndoManager? { typingUndo }
 
-    func textDidChange(_ notification: Notification) { scheduleNote() }
+    func textDidChange(_ notification: Notification) {
+        scheduleNote()
+        underlineSpelling()
+    }
 
     /// Lays the text out again for the note once typing rests for a moment, off the main thread; a newer key wins.
     private func scheduleNote() {

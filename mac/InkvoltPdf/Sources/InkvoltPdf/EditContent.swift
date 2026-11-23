@@ -286,6 +286,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
         closeParagraphEditor()
         let anchor = pages.viewRect(p.box, pages.pageRects[p.pageIndex])
         let editor = ParagraphEditorController(p, width: anchor.width + 40)
+        editor.spellingLanguage = controller?.documentLanguage
         editor.done = { [weak self] text, spans in
             self?.paragraphEditor = nil
             self?.replace(p, text, spans)

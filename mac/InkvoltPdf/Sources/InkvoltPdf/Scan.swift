@@ -81,6 +81,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private var insertInto: (count: Int, current: Int) = (0, 0)
     /// The pages Insert last put in (the self-test reads it).
     private(set) var lastInserted: (document: PdfDocument, at: Int, count: Int)?
+    /// Scan the Backs (roadmap 4.3): the document holds the fronts of two-sided sheets; the backs scanned now go after
+    /// their fronts (`PageEditor.interleaveWith`), blank ones kept so each stays beside its front.
+    private(set) var backsMode = false
+    let backsReversed = NSButton(checkboxWithTitle: loc("The backs are in reverse order (the stack was turned over to scan them)"), target: nil, action: nil)
+    private let backsNote = NSTextField(wrappingLabelWithString: loc("Put the stack in again to scan the backs of this document's pages. Each back goes after its front. Blank backs are kept, so each lands next to its front."))
+    /// The backs Scan the Backs last put in (the self-test reads it).
+    private(set) var lastBacks: (document: PdfDocument, count: Int)?
 
     private(set) var scanners: [Scanner] = []
     private(set) var pages: [Page] = []
@@ -190,7 +197,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let placeRow = NSStackView(views: [placeLabel, placePopup])
         placePopup.isHidden = true
         placeLabel.isHidden = true
-        let stack = NSStackView(views: [grid, scannerState, settingsButton, ocr, skipBlank, placeRow, pagesRow, thumbScroll, message, progress, buttons])
+        backsReversed.state = .on
+        backsReversed.isHidden = true
+        backsNote.preferredMaxLayoutWidth = 520
+        backsNote.textColor = .secondaryLabelColor
+        backsNote.isHidden = true
+        let stack = NSStackView(views: [grid, scannerState, settingsButton, ocr, skipBlank, backsNote, backsReversed, placeRow, pagesRow, thumbScroll, message,
+                                        progress, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -216,21 +229,43 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         scan.startLooking()
     }
 
-    /// Scan (nil) or Insert from Scanner into `controller`: the title, the button and the place to insert.
-    private func setTarget(_ controller: DocumentWindowController?) {
-        guard pages.isEmpty || controller === insertTarget else { return } // pages scanned for one stay for it
+    /// File › Scan the Backs… (Windows' Scan the Backs): the same window, its pages interleaved with `controller`'s pages
+    /// (the fronts) as one undo step.
+    static func showBacks(into controller: DocumentWindowController) {
+        let scan = shared ?? ScanWindowController()
+        shared = scan
+        scan.setTarget(controller, backs: true)
+        scan.showWindow(nil)
+        scan.window?.makeKeyAndOrderFront(nil)
+        scan.startLooking()
+    }
+
+    /// Scan (nil), Insert from Scanner into `controller` or Scan the Backs of it (`backs`): the title, the button and the
+    /// place to insert.
+    private func setTarget(_ controller: DocumentWindowController?, backs: Bool = false) {
+        guard pages.isEmpty || (controller === insertTarget && backs == backsMode) else { return } // pages scanned for one stay for it
         insertTarget = controller
+        backsMode = backs && controller != nil
         let count = controller?.engine.pageCount ?? 0, current = controller?.pages.currentPage ?? 0
         insertInto = (count, current)
-        window?.title = controller == nil ? loc("Scan") : loc("Insert from Scanner")
-        createButton.title = controller == nil ? loc("Create PDF") : loc("Insert Pages")
+        window?.title = backsMode ? loc("Scan the Backs") : controller == nil ? loc("Scan") : loc("Insert from Scanner")
+        createButton.title = backsMode ? loc("Interleave Pages") : controller == nil ? loc("Create PDF") : loc("Insert Pages")
         placePopup.removeAllItems()
         let page = current + 1
         placePopup.addItems(withTitles: [loc("After page {0}", CoreLanguage.number(page)), loc("Before page {0}", CoreLanguage.number(page)), loc("At the start"), loc("At the end")])
         placePopup.setAccessibilityLabel(loc("Insert"))
-        placePopup.isHidden = controller == nil
-        placeLabel.isHidden = controller == nil
+        placePopup.isHidden = controller == nil || backsMode
+        placeLabel.isHidden = controller == nil || backsMode
+        backsNote.isHidden = !backsMode
+        backsReversed.isHidden = !backsMode
+        // A back left out would put every back after it next to the wrong front: blank ones are kept (Remove Blank Pages
+        // after), without changing the choice remembered for other scans.
+        skipBlank.state = !backsMode && rememberedSkipBlank ? .on : .off
+        refresh()
     }
+
+    /// "Leave out blank pages" as last chosen for a scan (on unless turned off); a preset saved while scanning backs keeps it.
+    private var rememberedSkipBlank: Bool { AppSettings.defaults.object(forKey: AppSettings.Key.scanSkipBlank) as? Bool != false }
 
     // MARK: Finding scanners
 
@@ -439,7 +474,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         d.set(request.resolution, forKey: AppSettings.Key.scanResolution)
         if sizes.indices.contains(sizePopup.indexOfSelectedItem) { d.set(sizes[sizePopup.indexOfSelectedItem].key, forKey: AppSettings.Key.scanPageSize) }
         d.set(ocr.state == .on, forKey: AppSettings.Key.scanOcr)
-        d.set(skipBlank.state == .on, forKey: AppSettings.Key.scanSkipBlank)
+        if !backsMode { d.set(skipBlank.state == .on, forKey: AppSettings.Key.scanSkipBlank) } // the backs keep blank pages: not a choice to remember
     }
 
     // MARK: Presets
@@ -482,7 +517,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let plan = PresetPlan.plan(preset, caps, feederLoaded: nil, ocrAvailable: true, metric: metric)
         fillChoices(wanted: plan.request, sizeKey: plan.sizeKey)
         ocr.state = plan.ocr ? .on : .off
-        skipBlank.state = preset.skipBlank ? .on : .off
+        skipBlank.state = preset.skipBlank && !backsMode ? .on : .off
         message.stringValue = plan.notes.isEmpty ? loc("Preset \"{0}\" chosen.", preset.name) : plan.notes.joined(separator: " ")
         refresh()
     }
@@ -540,7 +575,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let r = request
         let size = sizes.indices.contains(sizePopup.indexOfSelectedItem) ? sizes[sizePopup.indexOfSelectedItem].key : nil
         let preset = ScanPresets.fromChoices(list, name: name, source: r.source, color: r.color, dpi: r.resolution, pageSize: size,
-                                             ocr: ocr.state == .on, skipBlank: skipBlank.state == .on)
+                                             ocr: ocr.state == .on, skipBlank: backsMode ? rememberedSkipBlank : skipBlank.state == .on)
         Self.savePresets(list + [preset])
         fillPresets(select: preset.id)
         message.stringValue = loc("Saved the preset \"{0}\".", preset.name)
@@ -575,7 +610,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let ready = caps != nil && device != nil
         scanButton.isEnabled = ready && !isScanning
         scanButton.title = pages.isEmpty ? loc("Scan") : currentSource == .platen ? loc("Scan Another Page") : loc("Scan More Pages")
-        skipBlank.isEnabled = !isScanning
+        skipBlank.isEnabled = !isScanning && !backsMode
         scanButton.isHidden = isScanning
         stopButton.isHidden = !isScanning
         createButton.isEnabled = !pages.isEmpty && !isScanning
@@ -679,12 +714,34 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         message.stringValue = loc("Making the PDF…")
         let target = insertTarget
         let place = placePopup.indexOfSelectedItem
+        let backs = backsMode, reversed = backsReversed.state == .on
         Task { [weak self] in
             let made = await Task.detached { Result { try ImageImport.imagesToPdf(images) } }.value
             guard let self else { return }
             switch made {
             case .failure(let error):
                 self.message.stringValue = loc("The scan couldn't be made into a PDF: {0}", (error as? PdfEditError)?.message ?? error.localizedDescription)
+            case .success(let bytes) where target != nil && backs:
+                guard let c = target, c.pdf.session != nil else {
+                    self.message.stringValue = loc("The document to insert into has closed.")
+                    return
+                }
+                let fronts = c.engine.pageCount
+                guard await c.confirmUneven(fronts: fronts, backs: count) else { return }
+                let label = count == 1 ? loc("Interleave {0} scanned back", CoreLanguage.number(count)) : loc("Interleave {0} scanned backs", CoreLanguage.number(count))
+                guard await c.interleaveWith(PdfSource(bytes, nil, NewDocuments.name(loc("Scan", context: "file name"))), reversed: reversed, label: label) else {
+                    self.message.stringValue = loc("The pages couldn't be inserted.")
+                    return
+                }
+                self.lastBacks = (c.pdf, count)
+                self.clearPages()
+                self.window?.orderOut(nil)
+                guard searchable else { return }
+                // Only the backs that came in are read: where the interleave put them.
+                let order = (try? PageEditor.interleaveOrder(fronts + count, Array(0..<fronts), Array(fronts..<(fronts + count)), reverseBacks: reversed)) ?? []
+                let backPages = order.indices.filter { order[$0] >= fronts }
+                let (reader, spelling) = (Self.testReader, Self.testSpelling)
+                c.startLongTask { await c.runRecognize(pages: backPages, ocr: reader, spelling: spelling) }
             case .success(let bytes) where target != nil:
                 guard let c = target, c.pdf.session != nil else {
                     self.message.stringValue = loc("The document to insert into has closed.")

@@ -22154,6 +22154,2085 @@
           }
         }
       }
+    },
+    "No number (the prefix only)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin número (solo el prefijo)"
+          }
+        }
+      }
+    },
+    "Numbering": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeración"
+          }
+        }
+      }
+    },
+    "Start at": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezar en"
+          }
+        }
+      }
+    },
+    "Numbering:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numeración:"
+          }
+        }
+      }
+    },
+    "Prefix:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prefijo:"
+          }
+        }
+      }
+    },
+    "Start at:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezar en:"
+          }
+        }
+      }
+    },
+    "Number the pages after them 1, 2, 3…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numerar las páginas siguientes 1, 2, 3…"
+          }
+        }
+      }
+    },
+    "A page's label is what the page box, the thumbnails and Go to Page show for it, such as i, ii for a preface and then 1, 2.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La etiqueta de una página es lo que muestran para ella el cuadro de página, las miniaturas e Ir a la página, como i, ii para un prólogo y luego 1, 2."
+          }
+        }
+      }
+    },
+    "These pages will show: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estas páginas mostrarán: {0}"
+          }
+        }
+      }
+    },
+    "Enter the first number, from 1 to {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el primer número, de 1 a {0}."
+          }
+        }
+      }
+    },
+    "Page Labels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Etiquetas de página"
+          }
+        }
+      }
+    },
+    "Use Plain Numbers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar números simples"
+          }
+        }
+      }
+    },
+    "Set page labels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Establecer etiquetas de página"
+          }
+        }
+      }
+    },
+    "Remove page labels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar etiquetas de página"
+          }
+        }
+      }
+    },
+    "Pages of this document": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En páginas de este documento"
+          }
+        }
+      }
+    },
+    "In another PDF (this document has the fronts)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En otro PDF (este documento tiene los anversos)"
+          }
+        }
+      }
+    },
+    "The backs are": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos están"
+          }
+        }
+      }
+    },
+    "The backs are:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos están:"
+          }
+        }
+      }
+    },
+    "Fronts (pages)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos (páginas)"
+          }
+        }
+      }
+    },
+    "Backs (pages)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversos (páginas)"
+          }
+        }
+      }
+    },
+    "Fronts (pages):": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anversos (páginas):"
+          }
+        }
+      }
+    },
+    "Backs (pages):": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reversos (páginas):"
+          }
+        }
+      }
+    },
+    "The backs are in reverse order (the stack was turned over to scan them)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los reversos están en orden inverso (se le dio la vuelta a la pila para escanearlos)"
+          }
+        }
+      }
+    },
+    "For two-sided sheets scanned one side at a time: the fronts, then the backs. The pages become front 1, back 1, front 2, back 2, and so on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para hojas a doble cara escaneadas primero por un lado y luego por el otro: los anversos y después los reversos. Las páginas quedan anverso 1, reverso 1, anverso 2, reverso 2, y así sucesivamente."
+          }
+        }
+      }
+    },
+    "Interleave Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar páginas"
+          }
+        }
+      }
+    },
+    "Interleave": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar"
+          }
+        }
+      }
+    },
+    "Choose the PDF with the backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el PDF con los reversos"
+          }
+        }
+      }
+    },
+    "The two sides don't match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las dos caras no coinciden"
+          }
+        }
+      }
+    },
+    "There are {0} fronts and {1} backs. The pages left over go after the others.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hay {0} anversos y {1} reversos. Las páginas que sobran van después de las demás."
+          }
+        }
+      }
+    },
+    "Interleave Anyway": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar de todos modos"
+          }
+        }
+      }
+    },
+    "Interleave pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar páginas"
+          }
+        }
+      }
+    },
+    "Scan the Backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear los reversos"
+          }
+        }
+      }
+    },
+    "Put the stack in again to scan the backs of this document's pages. Each back goes after its front. Blank backs are kept, so each lands next to its front.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vuelve a poner la pila para escanear los reversos de las páginas de este documento. Cada reverso va después de su anverso. Los reversos en blanco se conservan para que cada uno quede junto a su anverso."
+          }
+        }
+      }
+    },
+    "Interleave {0} scanned back": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar {0} reverso escaneado"
+          }
+        }
+      }
+    },
+    "Interleave {0} scanned backs": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar {0} reversos escaneados"
+          }
+        }
+      }
+    },
+    "Pages that are almost all paper go; a file of blank pages only is kept": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se quitan las páginas que son casi solo papel; un archivo solo de páginas en blanco se conserva"
+          }
+        }
+      }
+    },
+    "A PDF for each part between blank separator pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un PDF por cada parte entre páginas separadoras en blanco"
+          }
+        }
+      }
+    },
+    "Looking for blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando páginas en blanco"
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Empezando…"
+          }
+        }
+      }
+    },
+    "The pages couldn't be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron leer las páginas"
+          }
+        }
+      }
+    },
+    "Something in this document stopped Inkvolt PDF from reading its pages. Nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo en este documento impidió que Inkvolt PDF leyera sus páginas. No se cambió nada."
+          }
+        }
+      }
+    },
+    "No blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay páginas en blanco"
+          }
+        }
+      }
+    },
+    "No page of this document looks blank. A page with as little as a short word on it is kept.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna página de este documento parece estar en blanco. Una página con aunque sea una palabra corta se conserva."
+          }
+        }
+      }
+    },
+    "1 page looks blank. Untick it to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 página parece estar en blanco. Desmárcala para conservarla."
+          }
+        }
+      }
+    },
+    "{0} pages look blank. Untick any you want to keep.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas parecen estar en blanco. Desmarca las que quieras conservar."
+          }
+        }
+      }
+    },
+    "Delete them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminarlas"
+          }
+        }
+      }
+    },
+    "Split the document at them into separate PDFs (they're left out)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir el documento por ellas en varios PDF (no se incluyen)"
+          }
+        }
+      }
+    },
+    "What to do with them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer con ellas"
+          }
+        }
+      }
+    },
+    "What to do with them:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer con ellas:"
+          }
+        }
+      }
+    },
+    "Split at Blank Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dividir en las páginas en blanco"
+          }
+        }
+      }
+    },
+    "Remove Blank Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar páginas en blanco"
+          }
+        }
+      }
+    },
+    "Tick at least one page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos una página."
+          }
+        }
+      }
+    },
+    "Every page is ticked, and a document keeps at least one page. Untick one to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Están marcadas todas las páginas y un documento conserva al menos una. Desmarca una para conservarla."
+          }
+        }
+      }
+    },
+    "Nothing is left between the blank pages to save.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No queda nada entre las páginas en blanco para guardar."
+          }
+        }
+      }
+    },
+    "Choose where to save the parts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige dónde guardar las partes"
+          }
+        }
+      }
+    },
+    "Remove 1 blank page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar 1 página en blanco"
+          }
+        }
+      }
+    },
+    "Remove {0} blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar {0} páginas en blanco"
+          }
+        }
+      }
+    },
+    "Saving {0} parts…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardando {0} partes…"
+          }
+        }
+      }
+    },
+    "Split at Blank Pages didn't work": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo dividir en las páginas en blanco"
+          }
+        }
+      }
+    },
+    "Saved {0} parts to “{1}”.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardaron {0} partes en “{1}”."
+          }
+        }
+      }
+    },
+    "Finding headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando títulos"
+          }
+        }
+      }
+    },
+    "No headings found": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontraron títulos"
+          }
+        }
+      }
+    },
+    "Headings are found from text set larger than the body text. This document has none, or its pages are scans without text: recognize the text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los títulos se reconocen por el texto más grande que el del cuerpo. Este documento no tiene ninguno, o sus páginas son escaneos sin texto: reconoce el texto primero."
+          }
+        }
+      }
+    },
+    "1 heading found. The bookmarks will be:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontró 1 título. Los marcadores serán:"
+          }
+        }
+      }
+    },
+    "{0} headings found. The bookmarks will be:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se encontraron {0} títulos. Los marcadores serán:"
+          }
+        }
+      }
+    },
+    "Bookmarks to make": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores que se crearán"
+          }
+        }
+      }
+    },
+    "All levels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todos los niveles"
+          }
+        }
+      }
+    },
+    "Level 1 only": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo el nivel 1"
+          }
+        }
+      }
+    },
+    "Levels 1 and 2": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niveles 1 y 2"
+          }
+        }
+      }
+    },
+    "Levels 1 to 3": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niveles 1 a 3"
+          }
+        }
+      }
+    },
+    "Heading levels": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Niveles de títulos"
+          }
+        }
+      }
+    },
+    "Headings:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Títulos:"
+          }
+        }
+      }
+    },
+    "Replace them": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazarlos"
+          }
+        }
+      }
+    },
+    "Keep them and add these after": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conservarlos y agregar estos después"
+          }
+        }
+      }
+    },
+    "The document has 1 bookmark": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento tiene 1 marcador"
+          }
+        }
+      }
+    },
+    "The document has {0} bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El documento tiene {0} marcadores"
+          }
+        }
+      }
+    },
+    "{0}  (page {1})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0}  (página {1})"
+          }
+        }
+      }
+    },
+    "No heading at these levels.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ningún título en estos niveles."
+          }
+        }
+      }
+    },
+    "Bookmarks from Headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcadores a partir de los títulos"
+          }
+        }
+      }
+    },
+    "Make Bookmarks": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear marcadores"
+          }
+        }
+      }
+    },
+    "Bookmark 1 heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear 1 marcador a partir de un título"
+          }
+        }
+      }
+    },
+    "Bookmark {0} headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crear {0} marcadores a partir de títulos"
+          }
+        }
+      }
+    },
+    "Custom size": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamaño personalizado"
+          }
+        }
+      }
+    },
+    "Units": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unidades"
+          }
+        }
+      }
+    },
+    "Height": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alto"
+          }
+        }
+      }
+    },
+    "Scale it to fit the paper": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustarlo al papel"
+          }
+        }
+      }
+    },
+    "Keep its size and add margins (shrunk only if it doesn't fit)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantener su tamaño y agregar márgenes (se reduce solo si no cabe)"
+          }
+        }
+      }
+    },
+    "The content": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El contenido"
+          }
+        }
+      }
+    },
+    "The content:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El contenido:"
+          }
+        }
+      }
+    },
+    "A page that shows landscape gets the paper sideways. Comments and form fields move with the content.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página horizontal recibe el papel de lado. Los comentarios y los campos de formulario se mueven con el contenido."
+          }
+        }
+      }
+    },
+    "Width:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ancho:"
+          }
+        }
+      }
+    },
+    "Height:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alto:"
+          }
+        }
+      }
+    },
+    "Resize Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de las páginas"
+          }
+        }
+      }
+    },
+    "Enter a width and a height between 1 and 200 inches (25 and 5080 mm).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe un ancho y un alto entre 1 y 200 pulgadas (25 y 5080 mm)."
+          }
+        }
+      }
+    },
+    "Resize 1 page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de 1 página"
+          }
+        }
+      }
+    },
+    "Resize {0} pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambiar el tamaño de {0} páginas"
+          }
+        }
+      }
+    },
+    "Choose the PDF with the new pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el PDF con las páginas nuevas"
+          }
+        }
+      }
+    },
+    "{1} has 1 page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1} tiene 1 página."
+          }
+        }
+      }
+    },
+    "{1} has {0} pages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1} tiene {0} páginas."
+          }
+        }
+      }
+    },
+    "Replace these pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar estas páginas"
+          }
+        }
+      }
+    },
+    "With these pages of the other PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por estas páginas del otro PDF"
+          }
+        }
+      }
+    },
+    "Replace these pages:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar estas páginas:"
+          }
+        }
+      }
+    },
+    "With these pages of the other PDF:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por estas páginas del otro PDF:"
+          }
+        }
+      }
+    },
+    "Bookmarks and links that led to a replaced page lead to the page that takes its place.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los marcadores y los vínculos que llevaban a una página reemplazada llevan a la página que ocupa su lugar."
+          }
+        }
+      }
+    },
+    "Replace Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar páginas"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar"
+          }
+        }
+      }
+    },
+    "{0} pages to replace but {1} to put in: choose as many of each.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas para reemplazar pero {1} para poner: elige la misma cantidad de cada una."
+          }
+        }
+      }
+    },
+    "Replace 1 page with {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar 1 página por {1}"
+          }
+        }
+      }
+    },
+    "Replace {0} pages with {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar {0} páginas por {1}"
+          }
+        }
+      }
+    },
+    "Search for the words to mark, then choose it again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca las palabras que quieras marcar y vuelve a elegirlo."
+          }
+        }
+      }
+    },
+    "The search found nothing to mark.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La búsqueda no encontró nada que marcar."
+          }
+        }
+      }
+    },
+    "Couldn't mark the matches: the document couldn't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron marcar las coincidencias: no se pudo leer el documento."
+          }
+        }
+      }
+    },
+    "Every match is marked already.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las coincidencias ya están marcadas."
+          }
+        }
+      }
+    },
+    "Underline 1 match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar 1 coincidencia"
+          }
+        }
+      }
+    },
+    "Underline {0} matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar {0} coincidencias"
+          }
+        }
+      }
+    },
+    "Strike out 1 match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar 1 coincidencia"
+          }
+        }
+      }
+    },
+    "Strike out {0} matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar {0} coincidencias"
+          }
+        }
+      }
+    },
+    "Highlight 1 match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar 1 coincidencia"
+          }
+        }
+      }
+    },
+    "Highlight {0} matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar {0} coincidencias"
+          }
+        }
+      }
+    },
+    "Marked the first {0} of {1} matches; choose it again for the rest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se marcaron las primeras {0} de {1} coincidencias; vuelve a elegirlo para las demás."
+          }
+        }
+      }
+    },
+    "1 page already had more marks than are read: a match under one of the others may be marked twice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página ya tenía más marcas de las que se leen: una coincidencia bajo alguna de las demás puede quedar marcada dos veces."
+          }
+        }
+      }
+    },
+    "{0} pages already had more marks than are read: a match under one of the others may be marked twice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas ya tenían más marcas de las que se leen: una coincidencia bajo alguna de las demás puede quedar marcada dos veces."
+          }
+        }
+      }
+    },
+    "Looking for web and email addresses": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando direcciones web y de correo"
+          }
+        }
+      }
+    },
+    "No web or email address in the text needs a link: each one found is a link already. A scanned page needs Recognize Text first.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguna dirección web o de correo del texto necesita un vínculo: todas las encontradas ya lo son. Una página escaneada necesita Reconocer texto primero."
+          }
+        }
+      }
+    },
+    "No addresses to link": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay direcciones que vincular"
+          }
+        }
+      }
+    },
+    "Add 1 link": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar 1 vínculo"
+          }
+        }
+      }
+    },
+    "Add {0} links": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar {0} vínculos"
+          }
+        }
+      }
+    },
+    "No link was added: none of the ticked addresses could be made a link.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se agregó ningún vínculo: ninguna de las direcciones marcadas se pudo convertir en vínculo."
+          }
+        }
+      }
+    },
+    "1 address in the text isn't a link yet. Untick it to leave it as it is.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 dirección del texto todavía no es un vínculo. Desmárcala para dejarla como está."
+          }
+        }
+      }
+    },
+    "{0} addresses in the text aren't links yet. Untick any you want left as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} direcciones del texto todavía no son vínculos. Desmarca las que quieras dejar como están."
+          }
+        }
+      }
+    },
+    "Only the first {0} are listed: run it again for the rest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se muestran las primeras {0}: vuelve a ejecutarlo para las demás."
+          }
+        }
+      }
+    },
+    "Opens {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abre {0}"
+          }
+        }
+      }
+    },
+    "Add Links": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar vínculos"
+          }
+        }
+      }
+    },
+    "Tick at least one address.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos una dirección."
+          }
+        }
+      }
+    },
+    "Links from Addresses": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vínculos a partir de las direcciones"
+          }
+        }
+      }
+    },
+    "Copy text": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar texto"
+          }
+        }
+      }
+    },
+    "Drag a box around the table to copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra un recuadro alrededor de la tabla que quieras copiar."
+          }
+        }
+      }
+    },
+    "Drag a box around the text to copy.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastra un recuadro alrededor del texto que quieras copiar."
+          }
+        }
+      }
+    },
+    "Reading the text in the box…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leyendo el texto del recuadro…"
+          }
+        }
+      }
+    },
+    "Couldn't read that part of the page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo leer esa parte de la página."
+          }
+        }
+      }
+    },
+    "Table copied ({0} × {1}): paste it into Numbers, Excel or Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tabla copiada ({0} × {1}): pégala en Numbers, Excel o Pages"
+          }
+        }
+      }
+    },
+    "No text found in that box.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se encontró texto en ese recuadro."
+          }
+        }
+      }
+    },
+    "Text read from the scan and copied (1 word)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto leído del escaneo y copiado (1 palabra)"
+          }
+        }
+      }
+    },
+    "Text read from the scan and copied ({0} words)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto leído del escaneo y copiado ({0} palabras)"
+          }
+        }
+      }
+    },
+    "Text copied (1 word)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto copiado (1 palabra)"
+          }
+        }
+      }
+    },
+    "Text copied ({0} words)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto copiado ({0} palabras)"
+          }
+        }
+      }
+    },
+    "More than {0} cells for a table: copied as text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Más de {0} celdas para una tabla: se copió como texto."
+          }
+        }
+      }
+    },
+    "No Suggestions": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin sugerencias"
+          }
+        }
+      }
+    },
+    "Ignore Spelling": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorar ortografía"
+          }
+        }
+      }
+    },
+    "Add to Dictionary": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar al diccionario"
+          }
+        }
+      }
+    },
+    "Couldn't add the word": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo agregar la palabra"
+          }
+        }
+      }
+    },
+    "macOS didn't add “{0}” to your dictionary. Try again later.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no agregó “{0}” a tu diccionario. Vuelve a intentarlo más tarde."
+          }
+        }
+      }
+    },
+    "Check spelling as I type": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisar la ortografía mientras escribo"
+          }
+        }
+      }
+    },
+    "Underlines the words the Mac's dictionary doesn't know in edited text, notes, text boxes, callouts and form fields, in the document's language (else the app's). Control-click a word for suggestions.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subraya las palabras que el diccionario del Mac no conoce en el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario, en el idioma del documento (si no, en el de la aplicación). Haz clic con la tecla Control pulsada en una palabra para ver sugerencias."
+          }
+        }
+      }
+    },
+    "Replacing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazando"
+          }
+        }
+      }
+    },
+    "Replace All": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar todo"
+          }
+        }
+      }
+    },
+    "Replaced 1 match.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reemplazó 1 coincidencia."
+          }
+        }
+      }
+    },
+    "Replaced {0} matches.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se reemplazaron {0} coincidencias."
+          }
+        }
+      }
+    },
+    "Replaced: {0}. Left as they were: {1}. Undo (⌘Z) puts back every replacement made.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazadas: {0}. Sin cambios: {1}. Deshacer (⌘Z) revierte todos los reemplazos hechos."
+          }
+        }
+      }
+    },
+    "Replacements to check": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazos que revisar"
+          }
+        }
+      }
+    },
+    "a space": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "un espacio"
+          }
+        }
+      }
+    },
+    "replaced; {0} drawn in {1}, the closest font on this Mac (the paragraph's font lacks them).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reemplazada; para {0}, que la fuente del párrafo no tiene, se usa {1}, la fuente más parecida de este Mac."
+          }
+        }
+      }
+    },
+    "replaced; text on one line doesn't wrap, and this line is {0} pt wider: check it doesn't run into what's beside it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reemplazada; el texto de una sola línea no se ajusta, y esta línea es {0} pt más ancha: comprueba que no choque con lo que tiene al lado."
+          }
+        }
+      }
+    },
+    "left as it was: no font on this Mac has {0}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: ninguna fuente de este Mac tiene {0}."
+          }
+        }
+      }
+    },
+    "left as it was: the longer paragraph would run into the text or picture below it. Change it in Edit Text & Images to decide.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: el párrafo, más largo, chocaría con el texto o la imagen de debajo. Cámbialo en Editar texto e imágenes para decidir."
+          }
+        }
+      }
+    },
+    "left as it was: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: {0}"
+          }
+        }
+      }
+    },
+    "left as it was: the paragraph changed since it was found. Search again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin cambios: el párrafo cambió desde que se encontró. Vuelve a buscar."
+          }
+        }
+      }
+    },
+    " ({0} matches in this paragraph)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " ({0} coincidencias en este párrafo)"
+          }
+        }
+      }
+    },
+    "Page {0} · “{1}”: {2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página {0} · “{1}”: {2}"
+          }
+        }
+      }
+    },
+    "Find and Replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar y reemplazar"
+          }
+        }
+      }
+    },
+    "Replace with": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar por"
+          }
+        }
+      }
+    },
+    "Text to find": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto que buscar"
+          }
+        }
+      }
+    },
+    "Text to put instead": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Texto que poner en su lugar"
+          }
+        }
+      }
+    },
+    "Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coincidencias"
+          }
+        }
+      }
+    },
+    "Replaces the selected match now and goes on to the next": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplaza ahora la coincidencia seleccionada y pasa a la siguiente"
+          }
+        }
+      }
+    },
+    "Find:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar:"
+          }
+        }
+      }
+    },
+    "Replace with:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar por:"
+          }
+        }
+      }
+    },
+    "Type what to find. Matches are listed here with their page and the words around them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe lo que quieres buscar. Las coincidencias aparecen aquí con su página y las palabras de alrededor."
+          }
+        }
+      }
+    },
+    "Searching… page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando… página {0} de {1}"
+          }
+        }
+      }
+    },
+    "The document's text couldn't be searched. Try again, or reopen the file.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo buscar en el texto del documento. Vuelve a intentarlo o abre de nuevo el archivo."
+          }
+        }
+      }
+    },
+    "No matches in the document's text.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay coincidencias en el texto del documento."
+          }
+        }
+      }
+    },
+    "1 page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 página"
+          }
+        }
+      }
+    },
+    "1 match. Untick it to keep it as it is.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 coincidencia. Desmárcala para dejarla como está."
+          }
+        }
+      }
+    },
+    "{0} matches on {1}. Untick any to keep as they are.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} coincidencias en {1}. Desmarca las que quieras dejar como están."
+          }
+        }
+      }
+    },
+    "Only the first {0} are listed: make the search longer to see the rest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Solo se muestran las primeras {0}: alarga la búsqueda para ver el resto."
+          }
+        }
+      }
+    },
+    "Some are in text that can't be changed (said under them).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algunas están en texto que no se puede cambiar (se indica debajo)."
+          }
+        }
+      }
+    },
+    "Replace All ({0})": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar todo ({0})"
+          }
+        }
+      }
+    },
+    "Tick at least one match to replace, or close.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marca al menos una coincidencia para reemplazar, o cierra."
+          }
+        }
+      }
+    },
+    "Marking the matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcando las coincidencias"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

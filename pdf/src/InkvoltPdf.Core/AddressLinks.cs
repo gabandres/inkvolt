@@ -53,6 +53,7 @@ public static partial class AddressLinks
                 result.Add((m.Index, m.Length));
                 continue;
             }
+            if (value.Length > MaxLength) continue; // a run of characters, not an address (checked before it is trimmed)
             var length = Trimmed(value);
             var host = value[..length];
             // "www." or "https://" with nothing worth a link after it.
@@ -63,24 +64,36 @@ public static partial class AddressLinks
         return result;
     }
 
-    /// <summary>A web address's length without what a sentence put after it.</summary>
+    /// <summary>
+    /// A web address's length without what a sentence put after it. The brackets are counted once and kept up to date as
+    /// the end moves (counting them again for each character trimmed took minutes for a run of thousands).
+    /// </summary>
     private static int Trimmed(string value)
     {
+        int round = 0, square = 0, curly = 0; // closing brackets less opening ones, in value[..end]
+        foreach (var ch in value)
+        {
+            switch (ch)
+            {
+                case '(': round--; break;
+                case ')': round++; break;
+                case '[': square--; break;
+                case ']': square++; break;
+                case '{': curly--; break;
+                case '}': curly++; break;
+            }
+        }
         var end = value.Length;
         while (end > 0)
         {
             var c = value[end - 1];
             if (".,;:!?'\"*»”’›".Contains(c)) end--;
-            else if (c is ')' or ']' or '}' && Unopened(value[..end], c)) end--;
+            else if (c == ')' && round > 0) { round--; end--; }
+            else if (c == ']' && square > 0) { square--; end--; }
+            else if (c == '}' && curly > 0) { curly--; end--; }
             else break;
         }
         return end;
-
-        static bool Unopened(string s, char close)
-        {
-            var open = close switch { ')' => '(', ']' => '[', _ => '{' };
-            return s.Count(ch => ch == close) > s.Count(ch => ch == open);
-        }
     }
 
     /// <summary>

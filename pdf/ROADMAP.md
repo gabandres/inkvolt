@@ -348,22 +348,23 @@ of them", 2026-11-21). Built in the order of the batches; each item's line says 
 for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says Pro.
 
 - **Batch A (paper and pages):**
-  - 4.3 Interleave two scans (fronts, then backs reversed; Organize and File › Scan). Done on Windows (`PageEditor.Interleave`, Scan the Backs); the Mac's waits.
-  - 4.4 Remove blank pages, and split at blank separator pages (Organize, Batch). Done on Windows (`BlankPages`, both Batch actions); the Mac's waits.
-  - 4.5 Bookmarks from headings (`DocLayout`'s headings, nested by level). Done on Windows (`HeadingBookmarks`); the Mac's waits.
-  - 4.7 Resize pages (Letter and A4, scale or add margins). Done on Windows (`PageEditor.Resize`); the Mac's waits.
-  - 4.13 Replace pages (keeping bookmarks and links to them). Done on Windows (`PageEditor.Replace`); the Mac's waits.
-  - 4.14 Edit page labels (i, ii, then 1, 2; prefixes). Done on Windows (`PageLabels`); the Mac's waits.
+  - 4.3 Interleave two scans (fronts, then backs reversed; Organize and File › Scan). Done on Windows and Mac (`PageEditor.Interleave`, Scan the Backs; Mac: Pages › Interleave Pages…, File › Scan the Backs…).
+  - 4.4 Remove blank pages, and split at blank separator pages (Organize, Batch). Done on Windows and Mac (`BlankPages`, both Batch actions; Mac: Pages › Remove Blank Pages… and Split at Blank Pages…).
+  - 4.5 Bookmarks from headings (`DocLayout`'s headings, nested by level). Done on Windows and Mac (`HeadingBookmarks`; Mac: Pages › Bookmarks from Headings…, the Bookmarks list's menu).
+  - 4.7 Resize pages (Letter and A4, scale or add margins). Done on Windows and Mac (`PageEditor.Resize`; Mac: Pages › Resize Pages…).
+  - 4.13 Replace pages (keeping bookmarks and links to them). Done on Windows and Mac (`PageEditor.Replace`; Mac: Pages › Replace Pages…).
+  - 4.14 Edit page labels (i, ii, then 1, 2; prefixes). Done on Windows and Mac (`PageLabels`; Mac: Pages › Page Labels…).
 - **Batch A (text):** 4.1 Spell check where people type (edited text, notes, text boxes, callouts, form fields; Windows'
-  own spell checker): Done, Windows (`SpellChecker`, tests `SpellCheckerTests`; the app's `Spelling`); Mac waits
-  (NSSpellChecker behind the same rules). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
-  the replacements a font can't draw listed): Done, Windows (`TextReplace` over `ContentEditor.ReplaceParagraphIn`, one save
-  for all; tests `TextReplaceTests`, pdf.js `ReplacedTextReadsTheSameInPdfJs`; the app's `ReplaceDialog`); Mac waits.
+  own spell checker): Done, Windows and Mac (`SpellChecker`, tests `SpellCheckerTests`; the app's `Spelling`; the Mac's
+  NSSpellChecker behind the same rules, its underlines and menu drawn by the app, `SpellCheck`). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
+  the replacements a font can't draw listed): Done, Windows and Mac (`TextReplace` over `ContentEditor.ReplaceParagraphIn`, one save
+  for all; tests `TextReplaceTests`, pdf.js `ReplacedTextReadsTheSameInPdfJs`; the app's `ReplaceDialog`, the Mac's Edit › Find ›
+  Find and Replace… sheet).
 - **Batch B:**
   - 4.8 Smaller black-and-white scans: lossless JBIG2 (our own generic-region encoder; never symbol substitution) or CCITT G4 (the shared encoder from Inkvolt Print's 4.4), whichever is smaller. Done on Windows (`Jbig2Generic`, `OneBitImages`; File › Scan, Recognize Text's cleaned pages, Reduce File Size); the Mac's waits.
-  - 4.6 Copy text from an area of a scan, and an area as a table. Done on Windows (`AreaCopy`: Copy Text from Area, Copy Area as Table); the Mac's waits.
-  - 4.15 Links from the addresses in the text. Done on Windows (`AddressLinks`, Links from Addresses); the Mac's waits.
-  - 4.18 Mark every search hit. Done on Windows (`SearchMarks`: Highlight, Underline or Strike Out All Matches); the Mac's waits.
+  - 4.6 Copy text from an area of a scan, and an area as a table. Done on Windows and Mac (`AreaCopy`: Copy Text from Area, Copy Area as Table; the Mac's in the Edit menu and on the snapshot's notice, a scan read with Vision).
+  - 4.15 Links from the addresses in the text. Done on Windows and Mac (`AddressLinks`, Links from Addresses; the Mac's in Tools › Annotate).
+  - 4.18 Mark every search hit. Done on Windows and Mac (`SearchMarks`: Highlight, Underline or Strike Out All Matches; the Mac's in Edit › Find, after a search with the Find bar).
   - 4.17 Proofreading marks. Done on Windows (`Annotations.AddInsertText`, `AddReplaceText`: a caret, and a strike-out grouped with it as Acrobat groups them; the Comments pane, Summarize Comments, XFDF and FDF); the Mac's waits.
   - 4.10 AI redaction suggestions (Pro). Done on Windows (`RedactionSuggestions`: the user's endpoint only, the send window always shown, the answer read as quotes and kept only where the text sent holds them; `RedactionTerms`, the no-AI names and terms list; both into Redact by Pattern's review list, read-back, check and report); the Mac's waits.
   - 4.20 Save an AI answer. Done on Windows (`AiAnswerExport`: an answer or the conversation to Word through `DocxWriter` or to a PDF, or an answer as a note on the page it cites; `AiConversation` kept on the `DocumentSession`); the Mac's waits.

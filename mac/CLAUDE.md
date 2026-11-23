@@ -13,7 +13,8 @@ differences and what's left (P12's hardware items, PLAN's "Open"): `docs/PLAN.md
   what it flags before pushing. Inkvolt PDF's `InkvoltPdfKit` needs MuPDF, so it builds and tests only on the Mac
   (`sh mac/Vendor/mupdf/build.sh` once, then `swift test --package-path mac/InkvoltPdfKit`) and in CI's `pdf` job; every
   MuPDF call goes through `MuPDFShim`'s fz_try, never straight from Swift.
-- **From the PC, one call per step: `bash mac/tools/mac.sh`** (Git Bash; its header lists the commands). `sync` sends the
+- **From the PC, one call per step: `bash mac/tools/mac.sh`** (Git Bash; its header lists the commands; built on the
+  shared `mac`, the build-Mac rule, so `run` returns the last 80 lines and `wait` one line). `sync` sends the
   PC's working tree, uncommitted files included, as a git commit object pushed straight to the Mac (no GitHub, no
   copying, LF as git stores it) into the worktree `~/Repos/inkvolt-pc`; `pdf-test [filter]`, `print-test`, `pdf-app`,
   `run '<cmd>'` sync first; long runs go through `bg <name> '<cmd>'`, then `wait <name>` as a background command (or `log <name>`). Only one session at a time
