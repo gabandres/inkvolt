@@ -23210,6 +23210,149 @@
           }
         }
       }
+    },
+    "Choose the PDF with the new pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige el PDF con las páginas nuevas"
+          }
+        }
+      }
+    },
+    "{1} has 1 page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1} tiene 1 página."
+          }
+        }
+      }
+    },
+    "{1} has {0} pages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{1} tiene {0} páginas."
+          }
+        }
+      }
+    },
+    "Replace these pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar estas páginas"
+          }
+        }
+      }
+    },
+    "With these pages of the other PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por estas páginas del otro PDF"
+          }
+        }
+      }
+    },
+    "Replace these pages:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar estas páginas:"
+          }
+        }
+      }
+    },
+    "With these pages of the other PDF:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por estas páginas del otro PDF:"
+          }
+        }
+      }
+    },
+    "Bookmarks and links that led to a replaced page lead to the page that takes its place.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Los marcadores y los vínculos que llevaban a una página reemplazada llevan a la página que ocupa su lugar."
+          }
+        }
+      }
+    },
+    "Replace Pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar páginas"
+          }
+        }
+      }
+    },
+    "Replace": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar"
+          }
+        }
+      }
+    },
+    "{0} pages to replace but {1} to put in: choose as many of each.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas para reemplazar pero {1} para poner: elige la misma cantidad de cada una."
+          }
+        }
+      }
+    },
+    "Replace 1 page with {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar 1 página por {1}"
+          }
+        }
+      }
+    },
+    "Replace {0} pages with {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar {0} páginas por {1}"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

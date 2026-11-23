@@ -26378,6 +26378,61 @@
           }
         }
       }
+    },
+    "Choose as many pages to put in as pages to replace.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige tantas páginas para poner como páginas para reemplazar."
+          }
+        }
+      }
+    },
+    "A page to replace is named twice: each can be replaced once.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se indicó dos veces una página para reemplazar: cada una se puede reemplazar una sola vez."
+          }
+        }
+      }
+    },
+    "A page of the other PDF is named twice: each can take only one page's place.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se indicó dos veces una página del otro PDF: cada una puede ocupar el lugar de una sola página."
+          }
+        }
+      }
+    },
+    "Replace Pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reemplazar páginas…"
+          }
+        }
+      }
+    },
+    "Swap pages for those of another PDF": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cambia páginas por las de otro PDF"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

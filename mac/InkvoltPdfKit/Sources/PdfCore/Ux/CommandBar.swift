@@ -124,6 +124,7 @@ public enum CommandBar {
                      action: "interleavePages:", startsSection: true),
                 Item("RemoveBlankPages", loc("Remove Blank Pages…"), loc("Find blank pages and delete them"), "doc.badge.ellipsis", action: "removeBlankPages:"),
                 Item("ResizePages", loc("Resize Pages…"), loc("Put pages on Letter, A4 or any size"), "arrow.up.left.and.arrow.down.right", action: "resizePages:"),
+                Item("ReplacePages", loc("Replace Pages…"), loc("Swap pages for those of another PDF"), "arrow.left.arrow.right.square", action: "replacePages:"),
                 Item("Combine", loc("Combine Files…"), loc("Join several files into one PDF"), "square.stack", action: "combineFiles:", startsSection: true),
                 Item("ReduceSize", loc("Reduce File Size…"), loc("Make the file smaller to send it"), "arrow.down.right.and.arrow.up.left",
                      action: "reduceFileSize:"),

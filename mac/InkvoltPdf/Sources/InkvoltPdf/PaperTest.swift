@@ -6,7 +6,8 @@ import PrintCore
 /// `--only-paper` runs it alone): each through the menu bar's item (enabled, its sheet's edit run as the sheet runs it)
 /// and the edit the sheet makes, checked on the document, then undone so the next starts from the document as opened.
 /// Page Labels (4.14), Interleave Pages (4.3; Scan the Backs in `AppTest`, with the demo scanner), Remove Blank Pages and
-/// Split at Blank Pages (4.4), Bookmarks from Headings (4.5), Resize Pages (4.7). Only counts, labels and states are written.
+/// Split at Blank Pages (4.4), Bookmarks from Headings (4.5), Resize Pages (4.7), Replace Pages (4.13). Only counts, labels
+/// and states are written.
 @MainActor
 struct PaperTest {
     let controller: DocumentWindowController
@@ -70,6 +71,7 @@ struct PaperTest {
         await blankPages()
         await headings()
         await resize()
+        await replace()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
         Report.note("paper commands took \(Int(Date().timeIntervalSince(started))) s")
@@ -190,6 +192,21 @@ struct PaperTest {
         let undone = await undo(n)
         check(menu && done && onA4 && named && sameText && undone && texts() == before,
               "Resize Pages… (Pages menu): \(n) pages on A4, the content scaled (\(sizes.map { "\(Int($0.0))×\(Int($0.1))" }.joined(separator: ", "))), text kept, undone")
+    }
+
+    /// Replace Pages…: page 1 swapped for a copy of the last page (from another PDF), page 1's label kept, then undone.
+    private mutating func replace() async {
+        let n = count
+        let menu = offered("Replace Pages…", "replacePages:")
+        let before = texts()
+        guard let s = session, let last = try? PageEditor.extract(s.data, s.password, [n - 1]) else { return check(false, "Replace Pages…: a page to put in") }
+        let done = await controller.replace([0], with: PdfSource(last, nil, "new.pdf"), [0])
+        let after = texts()
+        let named = session?.undoLabel == loc("Replace 1 page with {1}", CoreLanguage.number(1), "new.pdf")
+        let undone = await undo(n)
+        check(menu && done && named && after.count == n && after[0] == before[n - 1] && Array(after.dropFirst()) == Array(before.dropFirst())
+              && undone && texts() == before,
+              "Replace Pages… (Pages menu): page 1 swapped for the last page's copy, the others as they were (\(after.count) pages), undone")
     }
 
     /// A4 from Resize Pages' list.

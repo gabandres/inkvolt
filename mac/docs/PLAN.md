@@ -503,7 +503,7 @@ at under "What a person must look at" and in each section.
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
-| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests; BatchAutomationTests' preset round trip |
+| W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1692,6 +1692,13 @@ and undoes it.
   on Windows. Moved points are kept within a float's range, the largest number MuPDF writes. The sheet: the six paper
   sizes (A4 first where the system is metric, as Windows), a custom size in inches or millimeters, scale or margins,
   the pages.
+- **4.13 Replace Pages…** (Pages menu, the bar's Organize): `PageEditor.replace`, `retargetDestinations` over
+  `forEachDestination`; the new pages grafted after the pages they replace and their annotations copied, as the Mac's
+  Insert does (PDFsharp's import brings them on Windows), each taking the replaced page's label. The other PDF is
+  chosen first (an open panel), then the two ranges.
+- Not checked by a person: the sheets by eye and with VoiceOver, the blank pages' picture grid, a real scanner's backs.
+  The UX review's dialog shots open Interleave Pages, Resize Pages and Page Labels; the others start with a search or a
+  file to choose.
 
 ## Open decisions
 
@@ -1705,7 +1712,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Wave 4's paper commands (`pdf/ROADMAP.md`, Batch A: 4.13), done on Windows.
 - Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
   `PunchHoles`), done on Windows.
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,

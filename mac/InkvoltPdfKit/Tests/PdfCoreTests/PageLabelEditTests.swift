@@ -59,6 +59,8 @@ struct PageLabelEditTests {
     @Test func pageEditsKeepTheLabelsWritten_AndAReplacedPageKeepsItsOwn() throws {
         let labeled = try PageLabels.write(TestPdf.make(4), nil, [0, 1], Self.roman, restartAfter: true)
         #expect(try Self.labels(labeled) == ["i", "ii", "1", "2"])
+        let replaced = try PageEditor.replace(labeled, nil, [1, 2], PdfSource(TestPdf.make(2, marker: "new"), nil, "x.pdf"), [0, 1])
+        #expect(try Self.labels(replaced) == ["i", "ii", "1", "2"])
         #expect(try Self.labels(PageEditor.move(labeled, nil, 4, [0], 4)) == ["ii", "1", "2", "i"])
     }
 
