@@ -76,6 +76,49 @@ public enum PhotoSheets {
                 context.restoreGState()
             }
         }
+        drawMarks(sheet, height: height, scale: Double(scale), in: context)
+    }
+
+    /// A sheet's lines (a card's fold and cut marks, a calendar's grid) and text (a card's message, a calendar's names and
+    /// days; roadmap 4.16): lines a hairline grey, dashed where marked; text wrapped from the top of its box, in Helvetica
+    /// (bold for titles, grey when muted).
+    private static func drawMarks(_ sheet: PhotoSheet, height: Double, scale: Double, in context: CGContext) {
+        if !sheet.lines.isEmpty {
+            context.saveGState()
+            context.setStrokeColor(CGColor(gray: 0.45, alpha: 1))
+            context.setLineWidth(max(0.5, 0.75 * scale / 72))
+            for line in sheet.lines {
+                context.setLineDash(phase: 0, lengths: line.dashed ? [3 * scale / 72, 2 * scale / 72] : [])
+                context.beginPath()
+                context.move(to: CGPoint(x: line.x1 * scale, y: height - line.y1 * scale))
+                context.addLine(to: CGPoint(x: line.x2 * scale, y: height - line.y2 * scale))
+                context.strokePath()
+            }
+            context.restoreGState()
+        }
+        context.textMatrix = .identity
+        for text in sheet.texts where !text.text.isEmpty && text.size > 0 && text.box.width > 0 && text.box.height > 0 {
+            let font = CTFontCreateWithName((text.bold ? "Helvetica-Bold" : "Helvetica") as CFString, text.size * scale, nil)
+            var alignment: CTTextAlignment = switch text.align {
+            case .left: .left
+            case .center: .center
+            case .right: .right
+            }
+            let style = withUnsafeBytes(of: &alignment) { bytes in
+                [CTParagraphStyleSetting(spec: .alignment, valueSize: MemoryLayout<CTTextAlignment>.size, value: bytes.baseAddress!)]
+                    .withUnsafeBufferPointer { CTParagraphStyleCreate($0.baseAddress, $0.count) }
+            }
+            let words = NSAttributedString(string: text.text, attributes: [
+                NSAttributedString.Key(kCTFontAttributeName as String): font,
+                NSAttributedString.Key(kCTForegroundColorAttributeName as String): CGColor(gray: text.muted ? 0.45 : 0.1, alpha: 1),
+                NSAttributedString.Key(kCTParagraphStyleAttributeName as String): style,
+            ])
+            // Down by the font's height past the box (a line or two of a short box still shows, as Windows lets text run on).
+            let box = CGRect(x: text.box.x * scale, y: height - text.box.bottom * scale - text.size * scale,
+                             width: text.box.width * scale, height: text.box.height * scale + text.size * scale)
+            let frame = CTFramesetterCreateFrame(CTFramesetterCreateWithAttributedString(words), CFRange(location: 0, length: 0), CGPath(rect: box, transform: nil), nil)
+            CTFrameDraw(frame, context)
+        }
     }
 
     /// A small picture of a sheet for the preview, `width` pixels wide.

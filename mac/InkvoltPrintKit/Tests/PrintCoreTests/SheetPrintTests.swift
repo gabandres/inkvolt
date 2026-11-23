@@ -58,7 +58,7 @@ struct SheetPrintTests {
     @Test func aCountThatIsntAChoiceStillPrintsEveryPage() {
         var three = Sheets.PrintSetup(handling: .pagesPerSheet)
         three.pagesPerSheet = 3
-        let plan = Sheets.PrintPlan(Array(0..<6), { _ in (612, 792) }, Placement(0, 0, 612, 792), three)
+        let plan = Sheets.PrintPlan(Array(0..<6), { _ in (612.0, 792.0) }, Placement(0.0, 0.0, 612.0, 792.0), three)
         #expect(plan.sheetCount == 3)
         #expect((0..<plan.sheetCount).flatMap { plan.sheet($0).pages.map(\.page) } == Array(0..<6))
     }
@@ -156,10 +156,11 @@ struct SheetPrintTests {
         #expect(SheetPrint.bounded(Self.letter) == (816.0, 1056.0)) // a normal page is left as it is
         // The poster's tiles cover the bounded page exactly: what the print path draws at that same size.
         let poster = Self.setup(SheetChoice(.poster, posterPercent: 150))
-        let plan = SheetPrint.plan([(400 * 96, 10 * 96)], Self.letter.0, Self.letter.1, poster)
-        let shown = (0..<plan.sheetCount).map { plan.sheet($0).pages[0].source! }
-        #expect(abs(shown.map(\.right).max()! - w) < 1e-3)
-        #expect(abs(shown.map(\.bottom).max()! - h) < 1e-3)
+        let plan = SheetPrint.plan([(400.0 * 96, 10.0 * 96)], Self.letter.0, Self.letter.1, poster)
+        let shown: [Placement] = (0..<plan.sheetCount).map { plan.sheet($0).pages[0].source! }
+        let right: Double = shown.map { $0.right }.max()!, bottom: Double = shown.map { $0.bottom }.max()!
+        #expect(abs(right - w) < 1e-3)
+        #expect(abs(bottom - h) < 1e-3)
     }
 
     @Test func aSideIsNamedByTheFirstDocumentPageOnIt() {
@@ -172,6 +173,25 @@ struct SheetPrintTests {
         // A booklet's first back carries the second page printed.
         let booklet = SheetPrint.plan(Self.pages(4), Self.letter.0, Self.letter.1, Self.setup(SheetChoice(.booklet)))
         #expect(SheetPrint.pageOnSide(booklet, 1, printed) == 5)
+    }
+
+    // Mac only (Windows builds the same plan in SheetPrinting.PrintAsync): a booklet on a one-sided printer goes by hand, its
+    // sides as the plan's pages, each named by the document's page on it, the backs half-turned as on a duplexer.
+    @Test func aLayoutPrintedByHandNamesItsSidesByTheDocumentsPages() {
+        let booklet = SheetPrint.plan(Self.pages(8), Self.letter.0, Self.letter.1, Self.setup(SheetChoice(.booklet)))
+        let even = Array(stride(from: 2, through: 16, by: 2))
+        let names = SheetPrint.sideNumbers(booklet, even)
+        #expect(names == [2, 4, 6, 8])
+        let byHand = HandDuplexPlan.plan(Array(0..<booklet.sheetCount), pageNumber: { names[$0] })
+        #expect(byHand.fronts == [0, 2] && byHand.backs(.down) == [3, 1] && byHand.backs(.up) == [1, 3])
+        #expect(!byHand.setAside && byHand.sheets == 2)
+        #expect((0..<booklet.sheetCount).map { SheetPrint.halfTurned(booklet.sheet($0), $0, twoSided: true) } == [false, true, false, true])
+        // An odd count of sides: the last sheet is set aside and named by its first page, not its side's number.
+        let four = SheetPrint.plan(Self.pages(9), Self.letter.0, Self.letter.1, Self.setup(SheetChoice(.pagesPerSheet, pagesPerSheet: 4)))
+        let fourNames = SheetPrint.sideNumbers(four, Array(1...9))
+        #expect(fourNames == [1, 5, 9])
+        let odd = HandDuplexPlan.plan(Array(0..<four.sheetCount), pageNumber: { fourNames[$0] })
+        #expect(odd.setAside && odd.reload(.down).lastPage == 9)
     }
 
     @Test func theAreaKeepsAQuarterInchClear() {

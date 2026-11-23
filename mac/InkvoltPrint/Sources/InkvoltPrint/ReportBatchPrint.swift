@@ -88,7 +88,7 @@ extension Report {
         await m.printAll()
         lines.append("batch-print: to the front desk (off): \(m.message ?? "?")")
 
-        // Two-sided on the USB laser that has none: each file says so, nothing quietly changes.
+        // Two-sided on the USB laser that has none: by hand (roadmap 4.2), the fronts then the backs; the row says its sheets.
         await m.startOver()
         m.queueId = "Demo_USB_laser"
         await m.readInfo()

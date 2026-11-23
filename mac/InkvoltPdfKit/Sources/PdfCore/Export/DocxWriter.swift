@@ -181,7 +181,12 @@ final class DocxWriter {
                 space += p.spaceBefore.map { $0 + (p.spaceAfter ?? 0) } ?? 6
             case .table(let t):
                 for (r, row) in t.rows.enumerated() {
-                    let text = row.map { c in c.paragraphs.reduce(0.0) { $0 + lines($1) + ($1.spaceBefore ?? 0) } }.max() ?? 0
+                    var text = 0.0 // spelled out: CI's older Swift is slow on the nested reduce
+                    for c in row {
+                        var cell = 0.0
+                        for p in c.paragraphs { cell += lines(p) + (p.spaceBefore ?? 0) }
+                        text = max(text, cell)
+                    }
                     content += max(text, t.rowHeights.flatMap { r < $0.count ? $0[r] : nil } ?? 0)
                 }
                 if b > 0, case .table(let above) = page.blocks[b - 1] { space += max(0, t.box.y - above.box.bottom) }

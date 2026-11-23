@@ -308,6 +308,43 @@ extension Report {
         return lines
     }
 
+    /// `--recent-scans` (roadmap 4.15): three saves of the demo glass (a PDF, JPEGs, the PDF again) go on the recent scans,
+    /// newest first, the PDF saved again moved up once and its bookmark kept; a file deleted drops out when the list is read;
+    /// Remove takes one out. The list as it was is put back after.
+    static func recentScansCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["recent scans: no demo inkjet"] }
+        let kept = model.store.current.recentScans
+        let format = scan.format
+        defer {
+            scan.format = format
+            model.store.change { $0.recentScans = kept }
+        }
+        model.store.change { $0.recentScans = [] }
+        let folder = AppModel.dataFolder.appendingPathComponent("recent-scans-check", isDirectory: true)
+        try? FileManager.default.removeItem(at: folder)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        var lines = ["recent scans:"]
+        for (name, f) in [("first.pdf", ScanFormat.pdf), ("second.jpg", .jpeg), ("first.pdf", .pdf)] {
+            scan.format = f
+            await scanAndWait(scan)
+            await scan.save(to: folder.appendingPathComponent(name), reveal: false)
+            lines.append("  saved \(name): \(scan.status) \(scan.problem ?? "")")
+        }
+        let list = await model.loadRecentScans()
+        let now = Date()
+        for r in list {
+            lines.append("  \(RecentScansModel.title(r)) | \(RecentScansModel.detail(r, now: now)) | pdf \(r.isPdf), bookmark \(r.access != nil)")
+        }
+        if let jpeg = list.first(where: { !$0.isPdf }), let file = jpeg.files.first {
+            try? FileManager.default.removeItem(atPath: file)
+            lines.append("  deleted \(RecentScans.fileExtension(file)): \(await model.loadRecentScans().map(\.name))")
+        }
+        if let first = model.store.current.recentScans.first {
+            lines.append("  removed \(first.name): \(model.removeRecentScan(first).map(\.name))")
+        }
+        return lines
+    }
+
     /// Pixels darker than mid-grey in `image` drawn grey (-1 when it can't be drawn).
     private static func darkPixels(_ image: NSImage) -> Int {
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { return -1 }

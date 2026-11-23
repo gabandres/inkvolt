@@ -65,6 +65,10 @@ enum Report {
             if model.isDemo && args.contains("--join") { cancelled += await joinCheck(model) }
             if model.isDemo && args.contains("--name-from-text") { cancelled += await nameFromTextCheck(model) }
             if model.isDemo && args.contains("--word-text") { cancelled += await wordTextCheck(model) }
+            if model.isDemo && args.contains("--recent-scans") { cancelled += await recentScansCheck(model) }
+            if args.contains("--clipboard") { cancelled += clipboardCheck() }
+            if model.isDemo && args.contains("--hand-duplex") { cancelled += await handDuplexCheck(model) }
+            if args.contains("--photo-projects") { cancelled += await photoProjectsCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }

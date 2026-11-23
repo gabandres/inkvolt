@@ -167,11 +167,14 @@ enum OneBitImages {
         let n = w * h
         var gray = [UInt8](repeating: 0, count: n)
         var colored = 0
-        rgb.withUnsafeBufferPointer { p in
+        // Types spelled out and the sums split: CI's Swift gave up type-checking this closure in one piece.
+        rgb.withUnsafeBufferPointer { (p: UnsafeBufferPointer<UInt8>) -> Void in
             for i in 0..<n {
-                let r = Int(p[3 * i]), g = Int(p[3 * i + 1]), b = Int(p[3 * i + 2])
-                if max(r, g, b) - min(r, g, b) > 48 { colored += 1 }
-                gray[i] = UInt8((r * 299 + g * 587 + b * 114 + 500) / 1000)
+                let r: Int = Int(p[3 * i]), g: Int = Int(p[3 * i + 1]), b: Int = Int(p[3 * i + 2])
+                let spread: Int = max(r, g, b) - min(r, g, b)
+                if spread > 48 { colored += 1 }
+                let weighted: Int = r * 299 + g * 587 + b * 114
+                gray[i] = UInt8((weighted + 500) / 1000)
             }
         }
         return colored > n / 200 ? nil : gray

@@ -14,6 +14,8 @@ struct ScanView: View {
     @State private var cleaning: String?
     /// The page whose Join with the Next Page… is open (roadmap 4.8).
     @State private var joining: String?
+    /// Recent Scans (roadmap 4.15).
+    @State private var showingRecent = false
     @Environment(\.undoManager) private var undoManager
 
     // One statement a modifier or two: as one expression it took Xcode's type checker past the 150 ms limit.
@@ -86,7 +88,8 @@ struct ScanView: View {
                 PageGrid(scan: scan, cropping: $cropping, photos: $photos, cleaning: $cleaning, joining: $joining)
             }
             Divider()
-            SaveBar(scan: scan)
+            SaveBar(scan: scan) { showingRecent = true }
+                .sheet(isPresented: $showingRecent) { RecentScansSheet(app: app, printer: scan.owner) }
         }
     }
 
@@ -427,6 +430,7 @@ private struct PhotoBoxes: View {
 
 private struct SaveBar: View {
     let scan: ScanModel
+    let recent: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -434,6 +438,9 @@ private struct SaveBar: View {
                 if let problem = scan.problem { Text(problem).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true) }
                 Text(scan.status).foregroundStyle(.secondary)
             }
+            Button("Recent Scans…", action: recent)
+                .buttonStyle(.link)
+                .help("The last scans saved on this Mac: open, show, email or print them again")
             if !scan.savedPdfs.isEmpty && InkvoltPdfApp.url != nil {
                 Button("Open in Inkvolt PDF") { scan.openSavedInInkvoltPdf() }
                     .buttonStyle(.link)
