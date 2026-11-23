@@ -18,11 +18,15 @@ public struct SystemScanner: Equatable, Sendable {
     public var name: String
     /// Connected over USB (else on the network: those are eSCL scanners Inkvolt Print reaches itself).
     public var usb: Bool
+    /// Reached through its maker's ImageCaptureCore driver, not Apple's own (AirScan): roadmap 4.5's warning
+    /// (`DriverReadiness.isMakerModule`).
+    public var makerDriver: Bool
 
-    public init(id: String, name: String, usb: Bool) {
+    public init(id: String, name: String, usb: Bool, makerDriver: Bool = false) {
         self.id = id
         self.name = name
         self.usb = usb
+        self.makerDriver = makerDriver
     }
 }
 

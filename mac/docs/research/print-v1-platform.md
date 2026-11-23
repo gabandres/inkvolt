@@ -51,12 +51,15 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 | `com.apple.security.files.bookmarks.app-scope` | A scan preset's folder, chosen once and written to again (app-scoped security bookmark) |
 | `com.apple.security.files.user-selected.read-write` | Saving scans where the user picks; opening PDFs and photos to print |
 | `com.apple.security.application-groups` = [`AE6TTXW92K.com.bermudezsystems.inkvolt`] | The Inkvolt Pro key's file, shared with Inkvolt PDF (added 2026-11-04 for roadmap 1.6; Q6) |
+| `com.apple.security.personal-information.location` | Wi-Fi names for the new-printer Wi-Fi guide: macOS 14+ gives them only to apps with location access (added 2026-11-23 for roadmap 4.17, the owner's approval; Q7) |
 
 Not needed: `com.apple.developer.networking.multicast`, which is iOS, iPadOS and visionOS only.
 
 **Info.plist keys:**
 
 - `NSLocalNetworkUsageDescription`: say plainly that the app finds and checks printers and scanners on this network.
+- `NSLocationUsageDescription` and `NSLocationWhenInUseUsageDescription` (roadmap 4.17): Wi-Fi names only while setting up
+  a new printer's Wi-Fi; the location itself isn't used or kept.
 - `NSBonjourServices`: `_ipp._tcp`, `_ipps._tcp`, `_uscan._tcp`, `_uscans._tcp`, `_pdl-datastream._tcp`,
   `_printer._tcp`. On macOS, a non-empty list reportedly limits Bonjour to exactly those types (secondhand Apple
   engineering reply, see Q1).
@@ -669,6 +672,46 @@ Help › Inkvolt Pro… enters and shows a key but has no Get Inkvolt Pro button
 nothing asks for a key at launch. While `ProCheck.enforced` is off a key unlocks nothing, so 3.1.3(b) isn't reached.
 **Before enforcement is switched on in the App Store app**, its Pro features need an in-app purchase as well (StoreKit,
 the same features), or they stay free in that copy; and `Pro.howToGet` (price and shop URL) must not reach its UI.
+
+## Q7. Printer Sharing and the new-printer Wi-Fi guide (researched 2026-11-23)
+
+**Printer Sharing (roadmap 4.10).** macOS shares a CUPS queue itself (System Settings › General › Sharing › Printer
+Sharing, then per printer), over IPP and Bonjour; a sandboxed app may run no server for it and changes no cupsd setting
+(Q2: cupsd's admin operations need the admin right), so Inkvolt Print only reads and points:
+
+- Per queue, cupsd says whether it is shared in `printer-is-shared`, one of the attributes `cupsGetDests2` asks for
+  (CUPS's `cups/dest.c`, the `pattrs` list), so it is in each destination's options with no request of our own
+  (`CupsDestination.options`; the job alerts read it already, `othersMayPrint`). Whether Printer Sharing itself is on is
+  cupsd's `_share_printers` server setting, which `cupsAdminGetServerSettings` reads from `/admin/conf/cupsd.conf`
+  (admin only): not read, so the app says what it takes and opens the pane.
+- **Proved on the build Mac (macOS 27.2.1):** System Settings' Sharing pane is the extension
+  `/System/Library/ExtensionKit/Extensions/Sharing.appex`, bundle ID `com.apple.Sharing-Settings.extension`, and its
+  binary holds the anchor `Services_PrinterSharing` (with `Services_ScreenSharing`, `Services_RemoteLogin`…), so
+  `x-apple.systempreferences:com.apple.Sharing-Settings.extension?Services_PrinterSharing` names the Printer Sharing row;
+  Printers & Scanners is `com.apple.Print-Scan-Settings.extension` (`PrinterScannerSettings.appex`). Its Spanish name is
+  "Compartir impresora" (the extension's `PrinterService.loctable`). The URL wasn't opened there (System Settings was
+  open there, in use): a person checks that it lands on the row.
+
+**The new-printer Wi-Fi guide (roadmap 4.17).** CoreWLAN lists networks; the question was what the sandbox allows.
+
+- Location: "In macOS 14 it now requires location permission to get the current Wi-Fi network" (Quinn, Apple DTS,
+  [forum 739945](https://developer.apple.com/forums/thread/739945), Oct 2023); "Accessing the `ssid` property now requires
+  the location privilege", and CoreWLAN's header says "SSID information is not available unless Location Services is
+  enabled" ([forum 732431](https://developer.apple.com/forums/thread/732431)); scans give networks with a nil SSID
+  without it. So the app asks for location access (`CLLocationManager.requestWhenInUseAuthorization`, only from the
+  guide), with the entitlement `com.apple.security.personal-information.location`, which a sandboxed app needs for Core
+  Location ([App Sandbox entitlements](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.personal-information.location)),
+  and the usage text above.
+- Sandbox: Quinn wrote in 2015 that "CoreWLAN is not supported within the sandbox"
+  ([forum 11350](https://developer.apple.com/forums/thread/11350)), then in 2018 that `CWWiFiClient` "is definitely
+  working" from a sandboxed app with `com.apple.security.network.client` on 10.13.4 and that "there are no special
+  entitlements associated with CoreWLAN" ([forum 11307](https://developer.apple.com/forums/thread/11307), forum 11350).
+  No Apple source says whether `associate(to:password:)` (joining) works in the sandbox. **Not tried:** on the build Mac a
+  join would take the Mac off the network its SSH comes over, and no printer's setup network was there to join. So the
+  guide never joins: the person joins and goes back in macOS's Wi-Fi menu and the guide waits to see it (PLAN, 4.17).
+- **Seen on the build Mac (2026-11-23, macOS 27.2.1, a development build, sandboxed, with the entitlement):** with location access not yet asked (no one at the screen), `scanForNetworks(withSSID: nil)` from the sandbox returned 23 networks, none with its name, and the current network's name came back nil, as the sources say; the Wi-Fi gateway was read (a private address); the installed app carries the entitlement and the usage text.
+  The gateway comes from SystemConfiguration's dynamic store (`State:/Network/Service/*/IPv4`, its `Router` for the Wi-Fi
+  interface's service), read from the sandbox.
 
 ## Open questions
 

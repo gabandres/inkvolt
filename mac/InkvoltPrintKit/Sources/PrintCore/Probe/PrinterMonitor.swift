@@ -33,6 +33,9 @@ public struct PrinterView: Equatable, Sendable {
     public var statusOrigin: String? = nil
     /// A queue printer's supplies card: "From the printer over USB", "Not reported by this printer." (`QueueDeviceText`).
     public var suppliesSource: String? = nil
+    /// A network printer's answer for roadmap 4.5 (`DriverReadiness`): whether it prints and scans with no maker's driver;
+    /// nil before it connects, and for a queue printer.
+    public var readiness: DriverReadiness.Readiness? = nil
 
     public static var connecting: PrinterView { PrinterView(phase: .connecting, statusMessage: loc("Connecting…"), statusDetail: nil, severity: .info, alerts: [],
                                                supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil) }
@@ -255,6 +258,7 @@ public actor PrinterMonitor {
         v.interfaces = probe.interfaces
         v.firmware = probe.firmware
         v.location = probe.location
+        v.readiness = DriverReadiness.assess(probe.ipp, asked: true, answersEscl: probe.esclRoot != nil, makerScanner: false)
         // The connection's version against the one remembered: a change is kept and shown until dismissed (30 days at most).
         if let firmwareMemory { v.firmwareNotice = firmwareMemory.watch(probe.firmware?.display) }
         publish(v)

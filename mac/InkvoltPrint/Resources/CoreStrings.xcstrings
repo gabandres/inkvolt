@@ -1104,6 +1104,16 @@
         }
       }
     },
+    "Choose \"{0}\" in the Wi-Fi menu in the menu bar. If it asks for a password, type the one shown on the printer's panel or its network page; Inkvolt Print never sees it. This window goes on once the Mac is on it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elige \"{0}\" en el menú Wi-Fi de la barra de menús. Si pide una contraseña, escribe la que muestra el panel de la impresora o su página de red; Inkvolt Print nunca la ve. Esta ventana sigue cuando la Mac esté conectada."
+          }
+        }
+      }
+    },
     "Choose the folder to watch.": {
       "extractionState": "manual",
       "localizations": {
@@ -3297,6 +3307,16 @@
         }
       }
     },
+    "No printer's setup network is in range. Turn the printer on, put it in Wi-Fi setup mode (its manual says how; many start it on their own when new or after a network reset), wait a minute and look again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No hay ninguna red de configuración de impresora al alcance. Enciende la impresora, ponla en modo de configuración Wi-Fi (su manual dice cómo; muchas lo inician solas cuando son nuevas o tras restablecer la red), espera un minuto y vuelve a buscar."
+          }
+        }
+      }
+    },
     "No printers answered on your network.": {
       "extractionState": "manual",
       "localizations": {
@@ -3557,6 +3577,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Nada en espera de impresión"
+          }
+        }
+      }
+    },
+    "Now choose \"{0}\" again in the Wi-Fi menu. This window goes on once the Mac is back on it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora vuelve a elegir \"{0}\" en el menú Wi-Fi. Esta ventana sigue cuando la Mac haya vuelto a esa red."
           }
         }
       }
@@ -5954,6 +5984,36 @@
         }
       }
     },
+    "The Mac didn't join the printer's network. Check that the printer is still in Wi-Fi setup mode and try again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La Mac no se unió a la red de la impresora. Comprueba que la impresora siga en modo de configuración Wi-Fi y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "The Mac is on the printer's network, but the printer gave no address for its setup page. Its manual names the address to type in a browser.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La Mac está en la red de la impresora, pero la impresora no dio una dirección para su página de configuración. Su manual indica la dirección que hay que escribir en un navegador."
+          }
+        }
+      }
+    },
+    "The Mac isn't back on \"{0}\" yet. Choose \"{0}\" in the Wi-Fi menu in the menu bar, then Check Again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La Mac aún no ha vuelto a \"{0}\". Elige \"{0}\" en el menú Wi-Fi de la barra de menús y luego Volver a comprobar."
+          }
+        }
+      }
+    },
     "The authentication passphrase has at least {0} characters.": {
       "extractionState": "manual",
       "localizations": {
@@ -7153,6 +7213,16 @@
         }
       }
     },
+    "This Mac has no Wi-Fi, so it can't join the printer's setup network. Set the printer up from its control panel or the maker's phone app instead.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta Mac no tiene Wi-Fi, así que no puede unirse a la red de configuración de la impresora. Configúrala desde su panel de control o con la aplicación del fabricante para el teléfono."
+          }
+        }
+      }
+    },
     "This Mac isn't on a home or office network that can be searched.": {
       "extractionState": "manual",
       "localizations": {
@@ -7160,6 +7230,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Este Mac no está en una red de casa u oficina en la que se pueda buscar."
+          }
+        }
+      }
+    },
+    "This Mac wasn't on Wi-Fi before. Leave the printer's network in the Wi-Fi menu, or turn Wi-Fi off there.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta Mac no estaba en ninguna red Wi-Fi antes. Sal de la red de la impresora en el menú Wi-Fi o desactiva la Wi-Fi allí."
           }
         }
       }
@@ -8758,6 +8838,16 @@
         }
       }
     },
+    "macOS didn't list the Wi-Fi networks nearby. Check that Wi-Fi is on and look again in a moment.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no mostró las redes Wi-Fi cercanas. Comprueba que la Wi-Fi esté activada y vuelve a buscar en un momento."
+          }
+        }
+      }
+    },
     "macOS doesn't answer about the printer.": {
       "extractionState": "manual",
       "localizations": {
@@ -8842,6 +8932,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Impresoras de macOS para este dispositivo"
+          }
+        }
+      }
+    },
+    "macOS shows Wi-Fi names to an app only with Location Services on for it. Turn on Inkvolt Print in System Settings › Privacy & Security › Location Services, then look again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS solo muestra los nombres de las redes Wi-Fi a una aplicación con Localización activada para ella. Activa Inkvolt Print en Configuración del Sistema › Privacidad y seguridad › Localización y vuelve a buscar."
           }
         }
       }

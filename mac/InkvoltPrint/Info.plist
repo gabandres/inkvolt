@@ -28,6 +28,10 @@
 	<string>NSApplication</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Inkvolt Print finds your printers and scanners on this network and reads their status, ink and toner.</string>
+	<key>NSLocationUsageDescription</key>
+	<string>Inkvolt Print reads the names of the Wi-Fi networks nearby only while you set up a new printer's Wi-Fi, to find the printer's own network. macOS gives Wi-Fi names only to apps with location access; your location isn't used or kept.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Inkvolt Print reads the names of the Wi-Fi networks nearby only while you set up a new printer's Wi-Fi, to find the printer's own network. macOS gives Wi-Fi names only to apps with location access; your location isn't used or kept.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_ipp._tcp</string>
