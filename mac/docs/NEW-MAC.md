@@ -1,20 +1,17 @@
 # Releasing the Mac apps from a new Mac
 
-**Set up on 2026-11-22: `buildmac`**, a MacBook Air M5 (16 GB, macOS 27.2.1, Xcode 27.2 at `/Applications/Xcode.app`)
-that is the owner's wife's laptop, in her account (`stephaniecastillozambrana`); reached from the PC as `ssh buildmac`
-over Tailscale (`mac.sh`'s default). It serves the mobile apps too: access, staying awake and sudo are in
-inkvolt-mobile's `docs/build-mac.md`. Restored from the tarball below (checksum matched); `ASC_KEY_PATH` points into
-her home; Homebrew `node`, `python` (3.15, first on the login PATH), `gh` (**not logged in**: do `gh auth login` before
-the first release that publishes). Both release scripts now take the App Store Xcode (`INKVOLT_XCODE` names another).
-Dry check, all four passed: `build.sh` signed "Apple Development"; `release.sh 0.0.1` notarized (Accepted), stapled,
+**On the current build Mac since 2026-11-22.** The machine itself (how to reach it, its tools, keys and setup) is
+described once, in `Z:\machines\README.md`. These apps' secrets were restored there from the tarball below (checksum
+matched), `ASC_KEY_PATH` points into that home, and both release scripts take the App Store Xcode (`INKVOLT_XCODE` names
+another). `gh` is **not logged in** there: `gh auth login` before the first release that publishes. Dry check, all four passed: `build.sh` signed "Apple Development"; `release.sh 0.0.1` notarized (Accepted), stapled,
 Gatekeeper "Notarized Developer ID"; `sign_update` signed and verified; `asc-builds.mjs` listed Print's builds 1–8 and
 Print's `release.sh 9` (no upload) exported 1.3.1 (9), `PREFLIGHT OK`. `swift test` of InkvoltPdfKit: 2,003 of 2,004;
 `AiLoopbackTests.thePlainServerAnswersWhileThePoolIsBusy` goes over its 3 s local limit under the full suite (passes
 alone in 0.4 s). `/Applications/Inkvolt PDF.app` is that dev build.
 
-ignia-mac (MacBook Air M1, 16 GB) was sold in November 2026; the plan was an M6 Mac mini (24 GB, 512 GB) in its place.
-Until a Mac is set up, Mac work goes through the PC (PrintCore, `swift-dev.ps1`) and the `mac` CI job (push a branch for
-CI, delete it after). Everything the release scripts need that isn't in git was saved first; this says where each piece
+ignia-mac (MacBook Air M1, 16 GB), the Mac before, was sold in November 2026. When no Mac is set up, Mac work goes
+through the PC (PrintCore, `swift-dev.ps1`) and the `mac` CI job (push a branch for CI, delete it after). Everything the
+release scripts need that isn't in git was saved first; this says where each piece
 is, where it goes on the next Mac, what to install, and how to prove the setup works without publishing anything. No
 secret is in this file: secrets are named by file or key name only.
 
@@ -23,7 +20,7 @@ secret is in this file: secrets are named by file or key name only.
 - **The PC** (Windows) keeps: the Inkvolt Pro signing key (`C:\Users\gabri\.inkvolt-pro\`; never read by an agent, never
   goes to a Mac), a copy of the App Store Connect API key (`C:\Users\gabri\.inkvolt-asc\`, with
   `mac/InkvoltPrint/.env.local`, git-ignored, so `asc-builds.mjs` and `asc-listing.mjs` also run from Windows), and the
-  `ignia-mac` entry in `~/.ssh/config` that `mac.sh` uses (or a new host name: `INKVOLT_MAC_HOST`).
+  build Mac's entry in `~/.ssh/config` that `mac.sh` uses (`Z:\machines\README.md`; another host: `INKVOLT_MAC_HOST`).
 - **The backup tarball** (next section): the newest and complete copy of the Mac's release secrets.
 - **OneDrive, older** (2026-11-02, hashes checked then): `Work/Bermudez Systems LLC/Inkvolt/Keys/Mac signing and App
   Store Connect/` (both keychains, `.env.local`, the ASC .p8, the GitHub SSH key, a README with restore steps) and
@@ -79,7 +76,7 @@ Python 3.14 (`appcast.py`, `assemble.sh`, `check-strings.sh`).
    `mac/InkvoltPdfKit/Frameworks`, not in git). Then `swift test --package-path mac/InkvoltPdfKit` should pass.
 5. Sparkle 2.10.1 comes through SwiftPM (`InkvoltPdf/Package.resolved`): `swift package resolve --package-path
    mac/InkvoltPdf` puts `sign_update` in `mac/InkvoltPdf/.build/artifacts/sparkle/Sparkle/bin/`.
-6. From the PC: point `mac/tools/mac.sh` at the new Mac with `INKVOLT_MAC_HOST=<ssh host>` (default `ignia-mac`), and
+6. From the PC: point `mac/tools/mac.sh` at the new Mac with `INKVOLT_MAC_HOST=<ssh host>` (default: the current build Mac), and
    make `~/Repos/inkvolt-pc` a worktree of the release clone as before.
 
 ## Dry check: proves the setup, publishes nothing
