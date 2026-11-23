@@ -13,6 +13,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - Unir dos mitades: para un original demasiado grande para el cristal, escanea una mitad y luego la otra con unos 2 o 3 cm de superposición, y elige Unir con la página siguiente… en la primera. Inkvolt Print encuentra dónde se superponen (en cualquier sentido y por cualquier lado) y muestra la página unida; cuando no está seguro, mueve la segunda mitad con las flechas. Deshacer las vuelve a separar.
 - Un escaneo con el nombre de su primera página: {text-date}, {text-title} y {text-number} en el nombre de archivo de un ajuste de escaneo toman una fecha, el título y un número de factura o de pedido del texto de la página. Con Detenerse en las páginas para revisarlas antes de guardar, el nombre aparece junto a Guardar, para cambiarlo antes de guardar.
 - Escanear directo a Word o a texto: un ajuste de escaneo guarda el texto leído en las páginas como documento de Word (.docx), con títulos y párrafos listos para editar y las fotos como imágenes, o como archivo de texto (.txt).
+- Registro de impresión: Ventana › Registro de impresión muestra cada trabajo que imprimió este Mac, de la propia lista de trabajos terminados de macOS, con las páginas de cada mes por impresora y por persona. Se guarda solo en este Mac, durante 13 meses; ahí se desactiva o se borra. Exportar… lo guarda como CSV (una función de Inkvolt Pro).
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

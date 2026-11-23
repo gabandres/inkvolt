@@ -93,6 +93,15 @@ final class AppModel {
     /// What the printers' hand-off to Inkvolt PDF last wrote.
     @ObservationIgnored private var handedOff: SuitePrinters?
     @ObservationIgnored private var handOffLater: Task<Void, Never>?
+    /// The print log (roadmap 4.9): CUPS's own history of finished jobs, read now and then, into `print-log.jsonl` beside the
+    /// state file; demo mode's made-up months in memory (nothing read from cupsd).
+    @ObservationIgnored let printLog: PrintLogKeeper
+    @ObservationIgnored private let jobHistory: (any FinishedJobHistory)?
+    @ObservationIgnored private var readingLog: Task<Void, Never>?
+    /// The print log's switch (on by default).
+    private(set) var printLogOn = true
+    /// Finished jobs read each minute; a read that finds them all new reads CUPS's whole history next.
+    static let logReadLimit = 100
 
     init(demo: Bool) {
         isDemo = demo
@@ -125,6 +134,19 @@ final class AppModel {
             queueControl = LibCups()
             queueSetup = LibCups()
         }
+        if isDemo {
+            let file = PrintLogFile(nil)
+            file.add(PrintLog.demo(Date()), Date())
+            printLog = PrintLogKeeper(file, since: Date())
+            jobHistory = nil
+        } else {
+            // On by default: the first launch that keeps a log logs the jobs finished from then.
+            let off = store.current.printLogOff
+            let since = off ? nil : store.current.printLogSince ?? Date()
+            if !off && store.current.printLogSince == nil { store.change { $0.printLogSince = since } }
+            printLog = PrintLogKeeper(PrintLogFile(Self.dataFolder.appendingPathComponent("print-log.jsonl").path), since: since)
+            jobHistory = LibCups()
+        }
         settings = store.current.alertSettings
         presets = ScanPresets.normalize(store.current.scanPresets)
         tracker = AlertTracker(rules: store.current.alertSettings.rules, shown: store.current.shownAlerts)
@@ -133,6 +155,7 @@ final class AppModel {
         let selected = store.current.selectedUuid
         if CupsQueues.isQueueId(selected) { wantedQueue = selected }
         selectedID = printers.first { $0.id.caseInsensitiveCompare(selected ?? "") == .orderedSame }?.id ?? printers.first?.id
+        printLogOn = printLog.on
     }
 
     /// `~/Library/Containers/<bundle id>/Data/Library/Application Support/InkvoltPrint/state.json` in the sandbox.
@@ -197,6 +220,13 @@ final class AppModel {
                 self.show(self.tracker.release(now: Date())) // held alerts due, quiet hours over
             }
         }
+        readingLog = Task { [weak self] in
+            var full = true
+            repeat {
+                guard let self else { return }
+                full = await self.readPrintLog(full: full)
+            } while (try? await Task.sleep(for: .seconds(60))) != nil
+        }
         readingQueues = Task { [weak self] in
             repeat {
                 guard let self else { return }
@@ -254,6 +284,41 @@ final class AppModel {
             discovery?.restart()
             for p in printers where !p.view.isOnline { p.start() }
         }
+    }
+
+    // MARK: The print log
+
+    /// One read of CUPS's history into the log: the newest `logReadLimit` jobs, or (`full`: at launch, after cupsd couldn't be
+    /// asked, or when every job read was new) all it keeps. Whether the next read should be full.
+    @discardableResult
+    func readPrintLog(full: Bool) async -> Bool {
+        guard printLog.on, let jobHistory else { return full }
+        let limit = full ? PrintLogRecorder.maxOpen : Self.logReadLimit
+        guard let history = await jobHistory.finishedJobs(limit: limit) else { return true }
+        let names = Dictionary((destinations ?? []).map { ($0.name, $0.displayName) }, uniquingKeysWith: { a, _ in a })
+        let keeper = printLog
+        let added = await Task.detached { keeper.read(history) { names[$0] ?? $0.replacingOccurrences(of: "_", with: " ") } }.value
+        if added > 0 { PrintLogWindow.model?.load() }
+        return !full && history.count >= limit && added >= history.count
+    }
+
+    /// The window's switch: on from now (jobs finished while it was off aren't logged), or off.
+    func setPrintLog(on: Bool) {
+        let since = printLog.turn(on)
+        printLogOn = on
+        guard !isDemo else { return }
+        store.change {
+            $0.printLogOff = !on
+            $0.printLogSince = since
+        }
+        if on { Task { await readPrintLog(full: true) } }
+    }
+
+    /// Clear the Log: every job forgotten, and only jobs finished from now logged. False when the file couldn't be deleted.
+    func clearPrintLog() -> Bool {
+        let (cleared, since) = printLog.clear()
+        if cleared && !isDemo { store.change { $0.printLogSince = since } }
+        return cleared
     }
 
     // MARK: The list

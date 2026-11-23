@@ -255,6 +255,16 @@
         }
       }
     },
+    "%@ on %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ en %@"
+          }
+        }
+      }
+    },
     "%@ over the %@ a batch takes": {
       "localizations": {
         "en": {
@@ -267,6 +277,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@ por encima de los %@ que admite un lote"
+          }
+        }
+      }
+    },
+    "%@ · %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@"
           }
         }
       }
@@ -477,6 +497,26 @@
         }
       }
     },
+    "%lld job": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld trabajo"
+          }
+        }
+      }
+    },
+    "%lld jobs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld trabajos"
+          }
+        }
+      }
+    },
     "%lld jobs from other people stay in the queue.": {
       "localizations": {
         "es": {
@@ -515,6 +555,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld de %lld páginas"
+          }
+        }
+      }
+    },
+    "%lld page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld página"
           }
         }
       }
@@ -679,6 +729,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "%lld×"
+          }
+        }
+      }
+    },
+    "(%lld in color)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(%lld a color)"
+          }
+        }
+      }
+    },
+    "(no name)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(sin nombre)"
           }
         }
       }
@@ -1370,6 +1440,26 @@
         }
       }
     },
+    "By person": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por persona"
+          }
+        }
+      }
+    },
+    "By printer": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Por impresora"
+          }
+        }
+      }
+    },
     "Cancel": {
       "localizations": {
         "es": {
@@ -1666,6 +1756,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Borrar"
+          }
+        }
+      }
+    },
+    "Clear the Log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar el registro"
+          }
+        }
+      }
+    },
+    "Clear the Log…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Borrar el registro…"
+          }
+        }
+      }
+    },
+    "Clear the print log?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Borrar el registro de impresión?"
           }
         }
       }
@@ -2160,6 +2280,26 @@
         }
       }
     },
+    "Every job in it is forgotten, on this Mac. This can't be undone.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se olvidan todos sus trabajos en este Mac. No se puede deshacer."
+          }
+        }
+      }
+    },
+    "Every job this Mac printed, from macOS's own list of finished jobs, with month totals. Kept on this Mac only, for 13 months; nothing is sent.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada trabajo que imprimió este Mac, de la propia lista de trabajos terminados de macOS, con totales del mes. Se guarda solo en este Mac, durante 13 meses; no se envía nada."
+          }
+        }
+      }
+    },
     "Every printer on one page, most trouble first": {
       "localizations": {
         "es": {
@@ -2206,6 +2346,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Exportar historial…"
+          }
+        }
+      }
+    },
+    "Export the print log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportar el registro de impresión"
           }
         }
       }
@@ -2512,6 +2662,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Olvidar contraseña"
+          }
+        }
+      }
+    },
+    "Forget every job in the print log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Olvida todos los trabajos del registro de impresión"
           }
         }
       }
@@ -2942,6 +3102,16 @@
         }
       }
     },
+    "Jobs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trabajos"
+          }
+        }
+      }
+    },
     "Join": {
       "localizations": {
         "es": {
@@ -3008,6 +3178,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mantener mis cartuchos funcionando…"
+          }
+        }
+      }
+    },
+    "Keep a log of print jobs on this Mac": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Llevar un registro de los trabajos de impresión en este Mac"
           }
         }
       }
@@ -3294,6 +3474,16 @@
         }
       }
     },
+    "Month": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mes"
+          }
+        }
+      }
+    },
     "Move Down": {
       "localizations": {
         "es": {
@@ -3490,6 +3680,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ningún ajuste seleccionado"
+          }
+        }
+      }
+    },
+    "No print jobs logged yet. Jobs show here once they've printed, also those printed while Inkvolt Print was closed (macOS keeps a list of finished jobs for a while).": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay trabajos registrados. Aparecen aquí una vez impresos, también los que se imprimieron con Inkvolt Print cerrado (macOS guarda una lista de los trabajos terminados durante un tiempo)."
           }
         }
       }
@@ -4112,6 +4312,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Volver a imprimir"
+          }
+        }
+      }
+    },
+    "Print Log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión"
+          }
+        }
+      }
+    },
+    "Print Log — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión — Demo"
           }
         }
       }
@@ -4872,6 +5092,16 @@
         }
       }
     },
+    "Save the whole log as a CSV file for a spreadsheet (Inkvolt Pro)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda todo el registro como un archivo CSV para una hoja de cálculo (Inkvolt Pro)"
+          }
+        }
+      }
+    },
     "Saved %@": {
       "localizations": {
         "es": {
@@ -4894,6 +5124,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Se guardó %@%@ en %@."
+          }
+        }
+      }
+    },
+    "Saved %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se guardó %@."
           }
         }
       }
@@ -5846,6 +6086,16 @@
         }
       }
     },
+    "The latest %lld of this month's %lld jobs are listed; the totals and Export count them all.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se muestran los últimos %lld de los %lld trabajos de este mes; los totales y Exportar los cuentan todos."
+          }
+        }
+      }
+    },
     "The list wasn't saved: %@": {
       "localizations": {
         "es": {
@@ -5928,6 +6178,56 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudieron enviar las fotos a %@: %@"
+          }
+        }
+      }
+    },
+    "The print log couldn't be cleared. Nothing was removed; try again in a moment.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo borrar el registro de impresión. No se quitó nada; vuelve a intentarlo en un momento."
+          }
+        }
+      }
+    },
+    "The print log couldn't be saved: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar el registro de impresión: %@"
+          }
+        }
+      }
+    },
+    "The print log is empty.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de impresión está vacío."
+          }
+        }
+      }
+    },
+    "The print log is off: no more jobs are logged. What's already in it stays until you clear it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de impresión está desactivado: ya no se registran trabajos. Lo que ya tiene se queda hasta que lo borres."
+          }
+        }
+      }
+    },
+    "The print log is on: jobs are logged from now on.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El registro de impresión está activado: los trabajos se registran desde ahora."
           }
         }
       }

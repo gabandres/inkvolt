@@ -297,6 +297,28 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   searchable PDF in the tab while it is on screen (its Save… saves one). Not checked: Word and Pages on this Mac opening the
   file, real letters and forms. PrintCore's `PageText`, `TextParagraph` and `ScanText` share their names with PdfCore's
   (as Windows' two cores do): a file that imports both names PdfCore's in full (`PdfCore.PageText`).
+- **4.9 A print log.** PrintCore `PrintLog` (`PrintLogEntry`, `PrintLogMonth`, `PrintLogTotal`, the month totals, the CSV,
+  `demo`), `PrintLogFile` (`print-log.jsonl` beside the state file, Windows' JSON lines and rules: appended, written again a
+  fifth past 10,000, a file it couldn't read never written over), `PrintLogRecorder` and `PrintLogKeeper`, `FinishedJob` and
+  `FinishedJobAttributes` (the Get-Jobs attributes as hostile input), `FinishedJobHistory`; `ProFeature.printLogExport`;
+  `PrintState.printLogOff`/`printLogSince`; `PrintLogTests` (PC). PrintMac `LibCups.finishedJobs` (IPP Get-Jobs over cupsd's
+  socket for every queue, `which-jobs=completed`, the newest 100 each minute, all it keeps at launch; `jobGroups` shared with
+  job alerts' read). The app: Window › Print Log (⌥⌘L; `PrintLogWindow`: the switch, the month, By printer, By person, the
+  month's jobs, Export… behind Inkvolt Pro, Clear the Log…); `--report … --print-log`. **Mac differences:** the Mac reads
+  CUPS's own history of finished jobs where Windows watches the spooler's notices, so no job is followed while it prints: a
+  job is logged once it has finished, by its id and creation time (`FinishedJob.key`, kept in the file as `Job`), and jobs
+  printed while Inkvolt Print was closed are logged at the next read while CUPS still lists them (Windows logs only while it
+  runs). The switch is a moment (`since`): jobs that finished before the log was turned on (the first launch that keeps one,
+  the switch, Clear) aren't logged, as Windows doesn't log jobs printed before it watched. How it ended: a completed job, or
+  one cancelled or aborted after a page printed, printed; cancelled before, cancelled; aborted before (CUPS gave up), left.
+  Pages are `job-impressions` when CUPS knows them, else the pages printed over the copies; printed is
+  `job-impressions-completed` (copies included), else `job-media-sheets-completed`; color and two-sided come from the job's
+  `print-color-mode` and `sides` (not known when the printing app set them in its driver's own options). The printer is the
+  queue's name as macOS shows it; a job from this Mac (`localhost`) names no computer. cupsd leaves out other users' names
+  and documents: they total under "(not known)". There is no command palette, so the menu item is the way in. The demo's
+  three months come from a generator of its own (Windows' `System.Random` can't be reproduced). The file tests that make a
+  file unreadable or its folder read-only (Windows holds it open) run on the Mac only. Not checked: a person watching a week
+  of real jobs against the printers' own counts, the window by eye and with VoiceOver.
 
 ## Mac differences
 
@@ -1988,8 +2010,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.
-- Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
-  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
+- Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.10 sharing a printer with
   phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN
   to list and join networks, which needs location access and a check of what the sandbox allows).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");

@@ -224,12 +224,13 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     spacing and border; drag one photo onto another to swap), offline, with the usual photo options, and Save as PDF
     (README, "Print photos"; `PhotoProjects`). **Next:** a card printed two-sided and folded, a calendar on A4 in Spanish, on
     paper; the Mac half waits.
-  - **4.9 A print log on this PC.** Done on Windows: every job this PC's spooler sees while the app runs (time, queue,
+  - **4.9 A print log on this PC.** Done on Windows and Mac: every job this PC's spooler sees while the app runs (time, queue,
     document, user and PC, pages and copies, color and two-sided when known, printed or cancelled), month totals per printer
     and per person, kept on this PC only (13 months, 10,000 jobs), on by default with a switch and Clear; the view free, the
     CSV Pro (README, "Print log"; `PrintLog`, `PrintLogRecorder`). Checked on this PC with a job to Microsoft Print to PDF.
-    **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared printer) against the printers' own counts;
-    the Mac half waits (CUPS keeps a page log of its own).
+    The Mac reads CUPS's own history of finished jobs instead (Window › Print Log; jobs printed while the app was closed are
+    logged too; `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person to watch a week of real jobs (a laser, an inkjet, a shared
+    printer) against the printers' own counts, on both.
   - **4.10 Share a USB printer with phones.** Done on Windows, free (the owner, 2026-11-22): a switch per queue printer, off by
     default, private networks only; announced as `_ipp._tcp` with Mopria's and AirPrint's keys, IPP on TCP 9782 (Get-Printer-Attributes,
     Validate-Job, Print-Job with PDF, JPEG, PWG Raster, Apple Raster), printed on the Windows queue (README, "Share a printer with

@@ -63,6 +63,11 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// app-scoped security bookmark, newest last (`BatchPlaceList`): the sandbox lets the command line's `print` and a list
     /// opened later reach them again (roadmap 2.4; no Windows equivalent, Windows has no sandbox). At most `maxBatchPlaces`.
     public var batchPlaces: [BatchPlace] = []
+    /// The print log (roadmap 4.9): off when true (on by default, as Windows' `PrintLog` setting).
+    public var printLogOff = false
+    /// When the print log was turned on (`PrintLogKeeper.since`): CUPS's history is logged from then. Nil before the first
+    /// launch that keeps one, and while it's off.
+    public var printLogSince: Date?
 
     public static let maxBatchPlaces = 200
 
@@ -84,6 +89,8 @@ public struct PrintState: Equatable, Sendable, Codable {
         proKey = try? c.decodeIfPresent(String.self, forKey: .proKey)
         firmware = (try? c.decodeIfPresent([String: FirmwareRecord].self, forKey: .firmware)) ?? [:]
         batchPlaces = (try? c.decodeIfPresent([BatchPlace].self, forKey: .batchPlaces)) ?? []
+        printLogOff = (try? c.decodeIfPresent(Bool.self, forKey: .printLogOff)) ?? false
+        printLogSince = try? c.decodeIfPresent(Date.self, forKey: .printLogSince)
     }
 }
 

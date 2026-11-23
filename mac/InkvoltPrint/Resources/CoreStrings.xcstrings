@@ -122,6 +122,17 @@
         }
       }
     },
+    "(not known)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "(desconocido)"
+          }
+        }
+      }
+    },
     "+{0} more": {
       "extractionState": "manual",
       "localizations": {
@@ -4322,6 +4333,28 @@
         }
       }
     },
+    "Print log as CSV": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión como CSV"
+          }
+        }
+      }
+    },
+    "Print log {0}.csv": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión {0}.csv"
+          }
+        }
+      }
+    },
     "Print network configuration page": {
       "extractionState": "manual",
       "localizations": {
@@ -5018,6 +5051,17 @@
         }
       }
     },
+    "Save the print log, every job with its time, printer, person, pages, color and two-sided, as a CSV file for a spreadsheet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guarda el registro de impresión, cada trabajo con su hora, impresora, persona, páginas, color y doble cara, como un archivo CSV para una hoja de cálculo."
+          }
+        }
+      }
+    },
     "Saved as scanned: too large to straighten, crop or turn": {
       "extractionState": "manual",
       "localizations": {
@@ -5025,6 +5069,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Guardada tal como se escaneó: demasiado grande para enderezarla, recortarla o girarla"
+          }
+        }
+      }
+    },
+    "Saving the print log as CSV is part of Inkvolt Pro. The log and its month totals stay free.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar el registro de impresión como CSV es parte de Inkvolt Pro. El registro y sus totales del mes siguen siendo gratis."
           }
         }
       }
@@ -8283,6 +8338,17 @@
         }
       }
     },
+    "black and white": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "blanco y negro"
+          }
+        }
+      }
+    },
     "black and white, {0} dpi, smaller file": {
       "extractionState": "manual",
       "localizations": {
@@ -8316,6 +8382,17 @@
         }
       }
     },
+    "cancelled": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "cancelado"
+          }
+        }
+      }
+    },
     "check, don't install": {
       "extractionState": "manual",
       "localizations": {
@@ -8323,6 +8400,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "buscar, no instalar"
+          }
+        }
+      }
+    },
+    "color": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "color"
           }
         }
       }
@@ -8989,6 +9077,17 @@
         }
       }
     },
+    "one-sided": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una cara"
+          }
+        }
+      }
+    },
     "open in Inkvolt PDF": {
       "extractionState": "manual",
       "localizations": {
@@ -9288,6 +9387,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "tóner"
+          }
+        }
+      }
+    },
+    "two-sided": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "doble cara"
           }
         }
       }
