@@ -375,6 +375,29 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   on"; the card names iPhones, iPads and other computers (AirPrint), not Android, which Windows' names (not checked with
   macOS's sharing). Not checked: the URL landing on the Printer Sharing row (System Settings was in use on the build Mac),
   a phone printing to a shared queue, the card and the alert on screen (VoiceOver).
+- **4.17 Setting up a new printer's Wi-Fi.** PrintCore `SetupNetworks` (`classify`, `find`, `show`, `setupPage` of a dotted
+  IPv4 string), `WifiNetwork` (`quality(rssi:)`), `SetupCandidate`, `SetupNetworkKind`, `WifiNow`, `WifiLocationError`,
+  `WifiReading`, `SetupStep`, `SetupState`, `SetupText`, `PrinterSetupGuide` (an actor: `look`, `connect`, `returnHome`,
+  `checkBack`, `foundPrinter`; `pause` and `onChange` injected), `DemoWifi`; `PrinterSetupTests` (PC). PrintMac `CoreWifi`
+  (CoreWLAN: the interface's network name, `scanForNetworks(withSSID: nil)` off the main thread, RSSI as quality, open when
+  it supports no security; the gateway from SystemConfiguration's dynamic store for the Wi-Fi interface's service;
+  `reportLines`) and `WifiLocation` (CLLocationManager, asked only from the guide). The app: File › Set Up a New Printer's
+  Wi-Fi… (`PrinterSetupWindow.swift`: the printers' networks with maker, kind, open or not and signal, Use This Network,
+  the steps' words, Open the Printer's Setup Page, Done, Check Again, Add a Printer… and the new printer once found);
+  the entitlement `com.apple.security.personal-information.location` (the owner approved it for this), Info.plist's
+  `NSLocationUsageDescription` and `NSLocationWhenInUseUsageDescription` (Spanish in InfoPlist.xcstrings),
+  `pkg-preflight.sh` expecting both; `--report … --setup-wifi` (demo: each step on the made-up Wi-Fi; else this Mac's
+  Wi-Fi as the guide reads it, no names). **Mac differences:** the app joins and leaves no network: the person does it in
+  macOS's Wi-Fi menu and the guide waits to see it (up to 3 minutes each way; Windows joins an open network itself and
+  goes back by Windows' saved profile), so there is no Connecting step, no temporary profile (`OpenProfile` and its test
+  are Windows only) and no disconnect (a Mac that was on no network is told to leave the printer's); CoreWLAN's
+  `associate(to:password:)` wasn't tried from the sandbox (on the build Mac it would take the Mac off the network its SSH
+  comes over) and Apple documents no sandbox support for it (research file, Q7), so joining in steps is the design, not a
+  fallback; `PrinterSetupGuide` is an actor whose call while another runs is ignored and whose wait stops with its task
+  (Windows serializes calls on a semaphore and takes a token); the menu item is in File (Windows: Add a printer's Set up a
+  new printer… and the palette). Seen on the build Mac: with location access not yet asked (no one at the screen), `scanForNetworks(withSSID: nil)` from the sandbox returned 23 networks, none with its name, and the current network's name came back nil, as the sources say; the Wi-Fi gateway was read (a private address); the installed app carries the entitlement and the usage text. Not checked: a new printer's setup network (no new
+  printer there), the location prompt and the window on screen (no one was at the build Mac's screen to answer the
+  prompt), VoiceOver.
 
 ## Mac differences
 
@@ -2130,8 +2153,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.
 - Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
-  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.17 the new-printer Wi-Fi guide (CoreWLAN
-  to list and join networks, which needs location access and a check of what the sandbox allows).
+  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
 - Inkvolt Print Wave 4 (`print/ROADMAP.md`), done on Windows: 4.12 a camera as a scan source (`CameraSession`,

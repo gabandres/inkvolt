@@ -105,6 +105,7 @@ enum Report {
                 cancelled += ["share: " + PhoneSharing.explanation(model).replacingOccurrences(of: "\n\n", with: " | "),
                               "share: opens \(SystemSettings.printerSharing.absoluteString) and \(SystemSettings.printers.absoluteString)"]
             }
+            if args.contains("--setup-wifi") { cancelled += await setupWifiCheck(model) }
             if args.contains("--strings") { cancelled += ReportStrings.lines() }
             let folder = AppModel.dataFolder
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

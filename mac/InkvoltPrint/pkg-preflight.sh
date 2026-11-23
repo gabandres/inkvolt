@@ -4,7 +4,8 @@
 # - the installer and the app are signed for the App Store, and the app carries its provisioning profile;
 # - the sandbox is on, get-task-allow is off, and the entitlements are only those the app uses (the sandbox, network client
 #   and server, print for macOS's print queues, user-selected files and app-scoped bookmarks for saving scans (a preset's
-#   folder), USB for USB scanners, the app group shared with Inkvolt PDF for the Pro key; App Review
+#   folder), USB for USB scanners, location for Wi-Fi names in the new-printer Wi-Fi guide (roadmap 4.17), the app group
+#   shared with Inkvolt PDF for the Pro key; App Review
 #   refuses unused ones);
 # - Info.plist has the bundle ID, the build number, the category, the Local Network text, Bonjour types and the icon;
 # - the icon, the privacy manifest and demo mode's fixtures are in the bundle (App Review has no printer);
@@ -32,10 +33,10 @@ codesign --verify --strict --deep "$APP" 2>/dev/null || bad "app signature doesn
 ents=$(codesign -d --entitlements - --xml "$APP" 2>/dev/null)
 echo "$ents" | grep -q "com.apple.security.app-sandbox" || bad "sandbox entitlement missing"
 echo "$ents" | grep -q "get-task-allow" && bad "get-task-allow is on (a development build)"
-for e in network.client network.server print files.user-selected.read-write files.bookmarks.app-scope device.usb; do
+for e in network.client network.server print files.user-selected.read-write files.bookmarks.app-scope device.usb personal-information.location; do
   echo "$ents" | grep -q "com.apple.security.$e" || bad "entitlement com.apple.security.$e missing"
 done
-extra=$(echo "$ents" | grep -oE "com\.apple\.security\.[a-z.-]+" | grep -vE "app-sandbox|network\.client|network\.server|^com\.apple\.security\.print$|files\.user-selected\.read-write|device\.usb|files\.bookmarks\.app-scope|application-groups" | sort -u)
+extra=$(echo "$ents" | grep -oE "com\.apple\.security\.[a-z.-]+" | grep -vE "app-sandbox|network\.client|network\.server|^com\.apple\.security\.print$|files\.user-selected\.read-write|device\.usb|files\.bookmarks\.app-scope|personal-information\.location|application-groups" | sort -u)
 [ -z "$extra" ] || bad "entitlements beyond the App Store set: $extra"
 # The app group, exactly the one Inkvolt PDF claims too (the Pro key's shared file), its ID starting with the team ID.
 groups=$(echo "$ents" | tr -d '\n\t' | sed -n 's#.*<key>com\.apple\.security\.application-groups</key><array>##p' | sed 's#</array>.*##' | grep -oE "<string>[^<]*</string>" | sed -E 's#</?string>##g' | tr '\n' ' ')
@@ -45,6 +46,7 @@ groups=$(echo "$ents" | tr -d '\n\t' | sed -n 's#.*<key>com\.apple\.security\.ap
 [ "$(value CFBundleVersion)" = "$BUILD" ] || bad "build number is $(value CFBundleVersion), not $BUILD"
 [ "$(value LSApplicationCategoryType)" = "public.app-category.utilities" ] || bad "category missing"
 [ -n "$(value NSLocalNetworkUsageDescription)" ] || bad "NSLocalNetworkUsageDescription missing"
+[ -n "$(value NSLocationUsageDescription)" ] || bad "NSLocationUsageDescription missing (the location entitlement needs it)"
 [ "$(value NSBonjourServices | grep -c _tcp)" -eq 6 ] || bad "NSBonjourServices doesn't list the six types"
 [ "$(value NSAppTransportSecurity:NSAllowsLocalNetworking)" = "true" ] || bad "NSAllowsLocalNetworking missing"
 [ "$(value CFBundleIconName)" = "AppIcon" ] || bad "CFBundleIconName missing"

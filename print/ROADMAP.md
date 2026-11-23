@@ -245,12 +245,15 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     (File › Share a Printer with Phones…; `PrinterSharing`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"); **Next** there: an
     iPhone printing to a queue the Mac shares.
 - **4.17 Setting up a new printer's Wi-Fi out of the box** (the owner's "middle option", 2026-11-22: Windows' Wi-Fi and the
-  printer's own page, not each maker's protocol). Done on Windows: the printers' setup and Wi-Fi Direct networks nearby, joined on
+  printer's own page, not each maker's protocol). Done on Windows and Mac. On Windows: the printers' setup and Wi-Fi Direct networks nearby, joined on
   a click (an open one with a temporary profile, a secured one in Windows' own list), the printer's setup page opened, back to the
   network the PC was on (or how, when it can't), and the new printer found there; no Wi-Fi password ever passes through the app
   (README, "Set up a new printer's Wi-Fi"; `PrinterSetupGuide`, `SetupNetworks`). Checked: the list read on this PC; joining only
   on a made-up Wi-Fi. **Next:** a person with a new (or reset) HP, Epson, Canon and Brother printer to go through it, and a PC
-  that loses its Wi-Fi profile; the Mac half waits (CoreWLAN needs location access there too).
+  that loses its Wi-Fi profile. On the Mac (File › Set Up a New Printer's Wi-Fi…): the same networks found through CoreWLAN
+  with location access, the person joining and going back in macOS's Wi-Fi menu (a sandboxed app doesn't join networks), the
+  printer's page opened (`SetupNetworks`, `PrinterSetupGuide`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"); **Next** there: a
+  person with a new printer, the location prompt on screen.
 
 ## Where we already win
 

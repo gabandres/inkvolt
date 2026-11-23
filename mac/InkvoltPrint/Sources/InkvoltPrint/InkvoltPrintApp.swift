@@ -28,6 +28,7 @@ struct InkvoltPrintApp: App {
                     .keyboardShortcut("p", modifiers: [.command, .shift])
                 Divider()
                 Button("Share a Printer with Phones…") { PhoneSharing.show(AppModel.shared) }
+                Button("Set Up a New Printer's Wi-Fi…") { PrinterSetupWindow.show(AppModel.shared) }
             }
             CommandGroup(after: .sidebar) {
                 Button("Fleet") {

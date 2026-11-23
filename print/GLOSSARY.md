@@ -176,6 +176,7 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   waits to be told the Wi-Fi) or its **Wi-Fi Direct** network (`SetupNetworks`), its **setup page** (its web server, at the gateway
   that network gives) and **going back** to the network the PC was on, by Windows' saved profile (`PrinterSetupGuide`). **Away**: on
   the printer's network, not back yet. A **secured** network is joined in **Windows' own Wi-Fi list**, never by the app.
+  On the Mac every network is joined, and left, by the person in macOS's **Wi-Fi menu**; the guide waits to see it.
 - **Print log**: the jobs this PC's spooler saw while the app ran, one entry each, kept on this PC only (`PrintLog`, `PrintLogFile`): when,
   the queue, the document's name, the user and PC, pages and copies, color and two-sided when known, and how it **ended**: **printed**
   (the spooler said so, or it had started printing), **cancelled** (deleted before printing; counts no pages) or **left** (went with

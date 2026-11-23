@@ -51,6 +51,40 @@
           }
         }
       }
+    },
+    "NSLocationUsageDescription": {
+      "comment": "Privacy - Location Usage Description",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print reads the names of the Wi-Fi networks nearby only while you set up a new printer's Wi-Fi, to find the printer's own network. macOS gives Wi-Fi names only to apps with location access; your location isn't used or kept."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print lee los nombres de las redes Wi-Fi cercanas solo mientras configuras la Wi-Fi de una impresora nueva, para encontrar la red propia de la impresora. macOS solo da los nombres de las redes Wi-Fi a las aplicaciones con acceso a la ubicación; tu ubicación no se usa ni se guarda."
+          }
+        }
+      }
+    },
+    "NSLocationWhenInUseUsageDescription": {
+      "comment": "Privacy - Location When In Use Usage Description",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print reads the names of the Wi-Fi networks nearby only while you set up a new printer's Wi-Fi, to find the printer's own network. macOS gives Wi-Fi names only to apps with location access; your location isn't used or kept."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print lee los nombres de las redes Wi-Fi cercanas solo mientras configuras la Wi-Fi de una impresora nueva, para encontrar la red propia de la impresora. macOS solo da los nombres de las redes Wi-Fi a las aplicaciones con acceso a la ubicación; tu ubicación no se usa ni se guarda."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

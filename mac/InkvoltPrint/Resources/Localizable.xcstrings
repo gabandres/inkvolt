@@ -2210,6 +2210,16 @@
         }
       }
     },
+    "Enter your Wi-Fi's name and password on the printer's page. When it says it's connecting, click Done.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe el nombre y la contraseña de tu Wi-Fi en la página de la impresora. Cuando diga que se está conectando, haz clic en Listo."
+          }
+        }
+      }
+    },
     "Evens grey or yellowed paper out to white and removes specks; faint writing stays": {
       "localizations": {
         "es": {
@@ -2526,6 +2536,16 @@
         }
       }
     },
+    "For a printer still out of the box: until it's told your Wi-Fi, it offers a network of its own. Join that network in the Wi-Fi menu, enter your Wi-Fi's name and password on the printer's own page, then go back to your network. Inkvolt Print never sees a Wi-Fi password and never changes networks.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para una impresora recién sacada de la caja: hasta que se le indica tu Wi-Fi, ofrece una red propia. Únete a esa red en el menú Wi-Fi, escribe el nombre y la contraseña de tu Wi-Fi en la página de la propia impresora y vuelve a tu red. Inkvolt Print nunca ve una contraseña de Wi-Fi y nunca cambia de red."
+          }
+        }
+      }
+    },
     "For a printer that answers only SNMP and whose administrator changed its read community.": {
       "localizations": {
         "es": {
@@ -2572,6 +2592,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Olvidar contraseña"
+          }
+        }
+      }
+    },
+    "Found on your network: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrada en tu red: %@"
           }
         }
       }
@@ -3274,6 +3304,16 @@
         }
       }
     },
+    "Look Again": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar de nuevo"
+          }
+        }
+      }
+    },
     "Looking at %@…": {
       "localizations": {
         "es": {
@@ -3300,6 +3340,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revisando las impresoras de este Mac…"
+          }
+        }
+      }
+    },
+    "Looking for printers' networks…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando las redes de las impresoras…"
           }
         }
       }
@@ -3874,6 +3924,16 @@
         }
       }
     },
+    "Open Location Services": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Localización"
+          }
+        }
+      }
+    },
     "Open Login Items Settings": {
       "localizations": {
         "es": {
@@ -3980,6 +4040,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir en Inkvolt PDF los PDF que se acaban de guardar"
+          }
+        }
+      }
+    },
+    "Open the Printer's Setup Page": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la página de configuración de la impresora"
           }
         }
       }
@@ -4462,6 +4532,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las impresoras de tu red aparecen solas en tu lista. ¿No ves la tuya? Prueba esto."
+          }
+        }
+      }
+    },
+    "Printers' networks nearby:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Redes de impresoras cercanas:"
           }
         }
       }
@@ -5460,6 +5540,36 @@
         }
       }
     },
+    "Set Up a New Printer's Wi-Fi": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar la Wi-Fi de una impresora nueva"
+          }
+        }
+      }
+    },
+    "Set Up a New Printer's Wi-Fi — Demo": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar la Wi-Fi de una impresora nueva — Demo"
+          }
+        }
+      }
+    },
+    "Set Up a New Printer's Wi-Fi…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar la Wi-Fi de una impresora nueva…"
+          }
+        }
+      }
+    },
     "Set Up in macOS": {
       "localizations": {
         "es": {
@@ -6312,6 +6422,16 @@
         }
       }
     },
+    "The printer joins your Wi-Fi within a minute or two. Add a Printer… finds it if it doesn't show in the list.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora se une a tu Wi-Fi en uno o dos minutos. Agregar una impresora… la encuentra si no aparece en la lista."
+          }
+        }
+      }
+    },
     "The printer's SNMPv3 user with authentication and privacy (authPriv). Every request is signed and encrypted, and only reads.": {
       "localizations": {
         "es": {
@@ -6980,6 +7100,16 @@
         }
       }
     },
+    "Use This Network": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usar esta red"
+          }
+        }
+      }
+    },
     "Use as a Separator Sheet": {
       "localizations": {
         "es": {
@@ -7136,6 +7266,16 @@
         }
       }
     },
+    "Wi-Fi Direct": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Wi-Fi Direct"
+          }
+        }
+      }
+    },
     "Word document (.docx): the text, editable": {
       "localizations": {
         "es": {
@@ -7172,6 +7312,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Alejar"
+          }
+        }
+      }
+    },
+    "asks for a password": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "pide contraseña"
           }
         }
       }
@@ -7306,12 +7456,42 @@
         }
       }
     },
+    "open": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "abierta"
+          }
+        }
+      }
+    },
     "public": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "public"
+          }
+        }
+      }
+    },
+    "setup network": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "red de configuración"
+          }
+        }
+      }
+    },
+    "signal %lld": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "señal %lld"
           }
         }
       }
