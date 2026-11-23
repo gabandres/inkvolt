@@ -20,16 +20,26 @@ public enum PdfWriter {
         }
     }
 
-    /// One scanned page: a JPEG, its resolution, and the words for its text layer (nil or none: no layer).
+    /// One scanned page: a JPEG, its resolution, and the words for its text layer (nil or none: no layer); or, made with
+    /// `blackAndWhite`, a 1-bit image (`bits`) in place of the JPEG, for a small file (roadmap 4.4).
     public struct Page: Sendable {
         public var jpeg: [UInt8]
         public var dpi: Int
         public var words: [Word]?
+        /// The page in black and white; when set, it is the page's image and `jpeg` is unused.
+        public var bits: BitImage?
 
         public init(_ jpeg: [UInt8], dpi: Int, words: [Word]? = nil) {
             self.jpeg = jpeg
             self.dpi = dpi
             self.words = words
+        }
+
+        /// A black-and-white page: written as CCITT G4, or as 1-bit Flate when that is smaller (`PdfWriter.oneBit`).
+        public static func blackAndWhite(_ bits: BitImage, dpi: Int, words: [Word]? = nil) -> Page {
+            var page = Page([], dpi: dpi, words: words)
+            page.bits = bits
+            return page
         }
     }
 
@@ -63,7 +73,7 @@ public enum PdfWriter {
         w.obj(infoId, "<< /Producer (Inkvolt Print) /Title \(textString(title ?? "Scan")) /CreationDate (D:\(creationDate(Date()))Z) >>")
 
         for (p, page) in pages.enumerated() {
-            let (pxW, pxH, components) = try jpegInfo(page.jpeg)
+            let (pxW, pxH, components) = try page.bits.map { ($0.width, $0.height, 1) } ?? jpegInfo(page.jpeg)
             let scale = 72.0 / Double(min(max(page.dpi, 1), 9600))
             let (ptW, ptH) = (Double(pxW) * scale, Double(pxH) * scale)
             let (pageId, imgId, contentId) = (pageIds[p], pageIds[p] + 1, pageIds[p] + 2)
@@ -76,15 +86,33 @@ public enum PdfWriter {
             let fontResource = layer.isEmpty ? "" : " /Font << /F1 \(fontId) 0 R >>"
             w.obj(pageId, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 \(f(ptW)) \(f(ptH))] "
                 + "/Resources << /XObject << /Im0 \(imgId) 0 R >>\(fontResource) >> /Contents \(contentId) 0 R >>")
-            let space = components == 1 ? "/DeviceGray" : components == 4 ? "/DeviceCMYK" : "/DeviceRGB"
-            w.stream(imgId, "<< /Type /XObject /Subtype /Image /Width \(pxW) /Height \(pxH) /ColorSpace \(space) "
-                + "/BitsPerComponent 8 /Filter /DCTDecode /Length \(page.jpeg.count) >>", page.jpeg)
+            if let bits = page.bits {
+                let (filter, data) = try oneBit(bits)
+                w.stream(imgId, "<< /Type /XObject /Subtype /Image /Width \(pxW) /Height \(pxH) /ColorSpace /DeviceGray "
+                    + "/BitsPerComponent 1 \(filter) /Length \(data.count) >>", data)
+            } else {
+                let space = components == 1 ? "/DeviceGray" : components == 4 ? "/DeviceCMYK" : "/DeviceRGB"
+                w.stream(imgId, "<< /Type /XObject /Subtype /Image /Width \(pxW) /Height \(pxH) /ColorSpace \(space) "
+                    + "/BitsPerComponent 8 /Filter /DCTDecode /Length \(page.jpeg.count) >>", page.jpeg)
+            }
             w.stream(contentId, "<< /Length \(contentBytes.count) >>", contentBytes)
         }
         if !font.isEmpty { font.write({ w.obj($0, $1) }, { w.stream($0, $1, $2) }, fontId: fontId, firstId: fontId + 1) }
 
         w.finish(rootId: 1, infoId: infoId)
         return w.out
+    }
+
+    /// A black-and-white image's stream for a /DeviceGray image at 1 bit: the filter entries (with their parameters) and the
+    /// data, CCITT G4 (`CcittG4`) or Flate of the rows (0 black, `Deflate`), whichever is smaller. G4 wins on text; Flate can on
+    /// a page of fine, even patterns (a halftone), where G4's runs are short.
+    /// - Throws: `CancellationError` when `stop` fires.
+    public static func oneBit(_ image: BitImage, stop: BatchStop? = nil) throws -> (filter: String, data: [UInt8]) {
+        let g4 = try CcittG4.encode(image, stop: stop)
+        let flate = Deflate.zlib(image.inverted())
+        return g4.count <= flate.count
+            ? ("/Filter /CCITTFaxDecode /DecodeParms << /K -1 /Columns \(image.width) /Rows \(image.height) >>", g4)
+            : ("/Filter /FlateDecode", flate)
     }
 
     /// A page's words as invisible text; empty when none can be written. Each is stretched to fill its box in its own text

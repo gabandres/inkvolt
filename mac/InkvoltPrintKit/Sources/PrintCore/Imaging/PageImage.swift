@@ -1,11 +1,11 @@
 import Foundation
 
 /// An 8-bit greyscale image, row by row with no padding (0 black, 255 white). The app decodes a downscaled copy of a scan
-/// into one.
-public struct GrayImage: Sendable {
+/// into one; Inkvolt PDF's text recognition cleans a page as one (`ScanCleanup`).
+public struct GrayImage: Sendable, Equatable {
     public let width: Int
     public let height: Int
-    public let pixels: [UInt8]
+    public var pixels: [UInt8]
 
     public init(width: Int, height: Int, pixels: [UInt8]) {
         self.width = width
@@ -13,13 +13,19 @@ public struct GrayImage: Sendable {
         self.pixels = pixels
     }
 
+    public init(_ width: Int, _ height: Int, _ pixels: [UInt8]) {
+        self.init(width: width, height: height, pixels: pixels)
+    }
+
     subscript(x: Int, y: Int) -> UInt8 { pixels[y * width + x] }
 
-    /// The level most of the page has (the median): the paper on a document.
-    static func median(_ img: GrayImage, _ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> Int {
+    /// The level most of the area has (the median): the paper on a document.
+    public static func median(_ img: GrayImage, _ x0: Int, _ y0: Int, _ x1: Int, _ y1: Int) -> Int {
         var histogram = [Int](repeating: 0, count: 256)
-        for y in y0..<y1 {
-            for x in x0..<x1 { histogram[Int(img.pixels[y * img.width + x])] += 1 }
+        img.pixels.withUnsafeBufferPointer { p in
+            for y in y0..<y1 {
+                for x in x0..<x1 { histogram[Int(p[y * img.width + x])] += 1 }
+            }
         }
         let half = (x1 - x0) * (y1 - y0) / 2
         var seen = 0
@@ -88,65 +94,82 @@ public enum Deskew {
     private static let maxInkPixels = 40_000
 
     /// How far the page's content is turned, in degrees, clockwise positive as seen on screen; rotating it by the negative
-    /// straightens it. 0 when the page is straight enough or the answer isn't clear.
-    public static func angle(_ img: GrayImage) -> Double {
+    /// straightens it. 0 when the page is straight enough or the answer isn't clear. `maxAngle` is the largest skew looked
+    /// for.
+    public static func angle(_ img: GrayImage, maxAngle: Double = maxAngle) -> Double { measure(img, maxAngle: maxAngle).angle }
+
+    /// `angle`, and how sharply the ink lines up into lines at it: the best angle's profile score over the average angle's
+    /// (1 for no lines at all; 1.25 or more is a page of lines). Comparing it with the same page turned a quarter tells
+    /// whether its lines run across or down (`ScanCleanup`).
+    public static func measure(_ img: GrayImage, maxAngle: Double = maxAngle) -> (angle: Double, strength: Double) {
         let (x0, y0) = (Int(Double(img.width) * 0.03), Int(Double(img.height) * 0.03))
         let (x1, y1) = (img.width - x0, img.height - y0)
-        if x1 - x0 < 16 || y1 - y0 < 16 { return 0 }
+        if x1 - x0 < 16 || y1 - y0 < 16 || !(maxAngle >= 0.5 && maxAngle <= 45) { return (0, 1) }
         let paper = GrayImage.median(img, x0, y0, x1, y1)
-        if paper < 128 { return 0 }
-        let ink = paper - inkContrast
+        if paper < 128 { return (0, 1) }
+        let ink = UInt8(paper - inkContrast)
 
         // Ink pixels, relative to the centre; evenly thinned out on busy pages.
         var total = 0
-        for y in y0..<y1 {
-            for x in x0..<x1 where Int(img[x, y]) < ink { total += 1 }
+        img.pixels.withUnsafeBufferPointer { p in
+            for y in y0..<y1 {
+                for x in x0..<x1 where p[y * img.width + x] < ink { total += 1 }
+            }
         }
-        if total < minInkPixels { return 0 }
+        if total < minInkPixels { return (0, 1) }
         let step = max(1, total / maxInkPixels)
         let (cx, cy) = (Double(img.width) / 2, Double(img.height) / 2)
-        var xs: [Double] = [], ys: [Double] = []
+        var xs: [Float] = [], ys: [Float] = []
         xs.reserveCapacity(total / step + 1)
         ys.reserveCapacity(total / step + 1)
-        var i = 0
-        for y in y0..<y1 {
-            for x in x0..<x1 where Int(img[x, y]) < ink {
-                if i % step == 0 {
-                    xs.append(Double(x) - cx)
-                    ys.append(Double(y) - cy)
+        img.pixels.withUnsafeBufferPointer { p in
+            var i = 0
+            for y in y0..<y1 {
+                for x in x0..<x1 where p[y * img.width + x] < ink {
+                    if i % step == 0 {
+                        xs.append(Float(Double(x) - cx))
+                        ys.append(Float(Double(y) - cy))
+                    }
+                    i += 1
                 }
-                i += 1
             }
         }
         let diagonal = (Double(img.width) * Double(img.width) + Double(img.height) * Double(img.height)).squareRoot()
         var bins = [Int](repeating: 0, count: Int(diagonal.rounded(.up)) + 2) // bounded: the image's own diagonal
 
         func score(_ degrees: Double) -> Double {
-            for b in bins.indices { bins[b] = 0 }
             let (s, c) = (sin(degrees * .pi / 180), cos(degrees * .pi / 180))
             let offset = bins.count / 2
-            for k in xs.indices {
-                let projected: Double = ys[k] * c - xs[k] * s
-                let bin = Int(projected.rounded(.toNearestOrEven)) + offset // bounded: a pixel's distance from the centre
-                if bin >= 0 && bin < bins.count { bins[bin] += 1 }
+            return bins.withUnsafeMutableBufferPointer { b in
+                for k in 0..<b.count { b[k] = 0 }
+                xs.withUnsafeBufferPointer { px in
+                    ys.withUnsafeBufferPointer { py in
+                        for k in 0..<px.count {
+                            let projected = Double(py[k]) * c - Double(px[k]) * s
+                            let bin = Int(projected.rounded(.toNearestOrEven)) + offset // bounded: a pixel's distance from the centre
+                            if bin >= 0 && bin < b.count { b[bin] += 1 }
+                        }
+                    }
+                }
+                var sum = 0.0
+                for v in b { sum += Double(v) * Double(v) }
+                return sum
             }
-            var sum = 0.0
-            for b in bins { sum += Double(b) * Double(b) }
-            return sum
         }
 
         // Coarse, then fine around the best.
         let coarse = 0.5, fine = 0.05
-        let steps = Int(maxAngle / coarse)
+        let steps = Int(maxAngle / coarse) // bounded: maxAngle is checked above
         var scores = [Double](repeating: 0, count: 2 * steps + 1)
         var best = 0
         for k in scores.indices {
             scores[k] = score(Double(k - steps) * coarse)
             if scores[k] > scores[best] { best = k }
         }
-        if best == 0 || best == scores.count - 1 { return 0 } // at the edge of the range: not a small skew
         let mean = scores.reduce(0, +) / Double(scores.count)
-        if scores[best] < 1.25 * mean { return 0 } // a flat profile: no lines to go by
+        let strength = mean > 0 ? scores[best] / mean : 1
+        if best == 0 || best == scores.count - 1 { return (0, strength) } // at the edge of the range: not a small skew
+        if strength < 1.25 { return (0, strength) } // a flat profile: no lines to go by
 
         var angle = Double(best - steps) * coarse
         var bestScore = scores[best]
@@ -158,7 +181,7 @@ public enum Deskew {
             a += fine
         }
         angle = (angle / fine).rounded(.toNearestOrEven) * fine
-        return abs(angle) < minAngle ? 0 : angle
+        return (abs(angle) < minAngle ? 0 : angle, mean > 0 ? bestScore / mean : strength)
     }
 }
 
@@ -201,12 +224,24 @@ public struct PageEdits: Equatable, Sendable {
     public var deskew = 0.0
     public var crop: CropBox?
     public var filters: PageFilters = []
+    /// The color `.dropColor` drops (roadmap 4.7); set only with that filter (`withFilters(_:drop:)`).
+    public var drop: DropColor?
 
-    public init(quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, filters: PageFilters = []) {
+    /// `drop`: the color a `.dropColor` drops (red when nil); none without that filter.
+    public init(quarterTurns: Int = 0, deskew: Double = 0, crop: CropBox? = nil, filters: PageFilters = [], drop: DropColor? = nil) {
         self.quarterTurns = quarterTurns
         self.deskew = deskew
         self.crop = crop
         self.filters = filters
+        self.drop = filters.contains(.dropColor) ? drop ?? .red : nil
+    }
+
+    /// These edits with `filters` in place of the filters, dropping `drop` (red when nil) when they drop a color.
+    public func withFilters(_ filters: PageFilters, drop: DropColor?) -> PageEdits {
+        var e = self
+        e.filters = filters
+        e.drop = filters.contains(.dropColor) ? drop ?? .red : nil
+        return e
     }
 
     public static let none = PageEdits()
@@ -217,6 +252,18 @@ public struct PageEdits: Equatable, Sendable {
         var e = self
         e.quarterTurns = (((quarterTurns + quarters) % 4) + 4) % 4
         return e
+    }
+
+    /// What the scan's check (`PageUpright.orient`) makes of these edits: straightened by `deskew` and turned `quarterTurns`,
+    /// only on a page nobody has edited yet; nil when nothing changes.
+    public func checked(_ deskew: Double, _ quarterTurns: Int) -> PageEdits? {
+        guard isEmpty, deskew != 0 || quarterTurns % 4 != 0 else { return nil }
+        return PageEdits(quarterTurns: ((quarterTurns % 4) + 4) % 4, deskew: deskew)
+    }
+
+    /// Still turned as the check turned it (`uprightTurns`), not turned back by hand or by Undo.
+    public func turnedUprightBy(_ uprightTurns: Int) -> Bool {
+        uprightTurns % 4 != 0 && quarterTurns == ((uprightTurns % 4) + 4) % 4
     }
 
     /// These edits on a page of this size: past `PageCleanup.maxPixels` none, so the page is saved as scanned, never decoded at
@@ -240,43 +287,41 @@ public struct PageEdits: Equatable, Sendable {
     /// These edits with `filters` in place of their filters (the review's Clean up view). The paper's edge is looked for
     /// (`paperEdge`, `PaperEdge.find` on the page's analysis copy) only when the crop to it is asked for and not there yet;
     /// none found, what was there stays. A page of photos is never cropped to the paper. Dropping the crop to the paper drops
-    /// its crop.
-    public func withFilters(_ filters: PageFilters, photos: Bool, paperEdge: () throws -> CropBox?) rethrows -> PageEdits {
+    /// its crop. `drop`: the color a `.dropColor` drops (nil: the one it dropped, else red; roadmap 4.7).
+    public func withFilters(_ filters: PageFilters, photos: Bool, drop: DropColor? = nil, paperEdge: () throws -> CropBox?) rethrows -> PageEdits {
         var e = self
         let pixels = filters.intersection(.pixelFilters)
         let wantsCrop = filters.contains(.cropToPaper) && !photos
         if wantsCrop == self.filters.contains(.cropToPaper) {
             e.filters = wantsCrop ? pixels.union(.cropToPaper) : pixels
-            return e
-        }
-        if !wantsCrop {
+        } else if !wantsCrop {
             e.crop = nil
             e.filters = pixels
-            return e
-        }
-        if let found = try paperEdge() {
+        } else if let found = try paperEdge() {
             e.crop = found
             e.filters = pixels.union(.cropToPaper)
         } else {
             e.filters = pixels
         }
-        return e
+        return e.withFilters(e.filters, drop: drop ?? self.drop)
     }
 
     /// These edits after a scan's clean up by its settings (`cleanup`), on a page the check kept (not blank or a separator):
     /// all of it on a page, on a page of photos only what suits a print (descreen, restore colors). Only a page with no
     /// filters or crop yet gets it. `paperEdge` (`PaperEdge.find`, measured on the page straightened by `measuredAt` degrees)
     /// crops only a page straightened by that much: one edited during the check, or not straightened, stays whole. Nil when
-    /// nothing changes. The Windows app's `PageEdits.CleanedUp`.
-    public func cleanedUp(_ cleanup: PageFilters, photos: Bool, paperEdge: CropBox?, measuredAt: Double) -> PageEdits? {
+    /// nothing changes. The Windows app's `PageEdits.CleanedUp`. A page scanned in grey (`grey`) has no color to drop; `drop`
+    /// is the color a `.dropColor` drops (red when nil).
+    public func cleanedUp(_ cleanup: PageFilters, photos: Bool, paperEdge: CropBox?, measuredAt: Double, drop: DropColor? = nil,
+                          grey: Bool = false) -> PageEdits? {
         guard !cleanup.isEmpty, filters.isEmpty, crop == nil else { return nil }
         var e = self
-        e.filters = cleanup.intersection(photos ? [.descreen, .restoreColors] : .pixelFilters)
+        var chosen = PageCleanup.for(cleanup, grey: grey).intersection(photos ? [.descreen, .restoreColors] : .pixelFilters)
         if cleanup.contains(.cropToPaper), !photos, deskew == measuredAt, let paperEdge {
             e.crop = paperEdge
-            e.filters.insert(.cropToPaper)
+            chosen.insert(.cropToPaper)
         }
-        return e.filters.isEmpty ? nil : e
+        return chosen.isEmpty ? nil : e.withFilters(chosen, drop: drop)
     }
 }
 
@@ -285,28 +330,39 @@ public enum PageRotate {
     /// `pixels` turned `degrees` clockwise (as seen on screen) about the centre. `channels`: 1 for grey, 3 for BGR or RGB;
     /// rows are `stride` bytes apart. Uncovered corners get `fill`.
     public static func rotate(_ pixels: [UInt8], width: Int, height: Int, stride: Int, channels: Int, degrees: Double, fill: UInt8 = 255) -> [UInt8] {
+        rotate(pixels, width, height, stride, channels, degrees, fill: fill)
+    }
+
+    /// The same, the rows spread over the cores (Inkvolt PDF's text recognition straightens full pages with it).
+    public static func rotate(_ pixels: [UInt8], _ width: Int, _ height: Int, _ stride: Int, _ channels: Int, _ degrees: Double,
+                              fill: UInt8 = 255) -> [UInt8] {
         var result = [UInt8](repeating: fill, count: pixels.count)
         let outside = Double(fill)
         let (s, c) = (sin(degrees * .pi / 180), cos(degrees * .pi / 180))
         let (cx, cy) = (Double(width - 1) / 2, Double(height - 1) / 2)
-        for y in 0..<height {
-            let dy = Double(y) - cy
-            for x in 0..<width {
-                // Where this output pixel comes from in the original.
-                let dx = Double(x) - cx
-                let sx = c * dx + s * dy + cx
-                let sy = -s * dx + c * dy + cy
-                if !(sx > -1 && sy > -1 && sx < Double(width) && sy < Double(height)) { continue } // NaN too
-                let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down))) // bounded: inside the image (the test above)
-                let (fx, fy) = (sx - Double(x0), sy - Double(y0))
-                for ch in 0..<channels {
-                    func at(_ px: Int, _ py: Int) -> Double {
-                        px < 0 || py < 0 || px >= width || py >= height ? outside : Double(pixels[py * stride + px * channels + ch])
+        pixels.withUnsafeBufferPointer { src in
+            result.withUnsafeMutableBufferPointer { dst in
+                let out = dst
+                eachRow(height) { y in
+                    let dy = Double(y) - cy
+                    for x in 0..<width {
+                        // Where this output pixel comes from in the original.
+                        let dx = Double(x) - cx
+                        let sx = c * dx + s * dy + cx
+                        let sy = -s * dx + c * dy + cy
+                        if !(sx > -1 && sy > -1 && sx < Double(width) && sy < Double(height)) { continue } // NaN too
+                        let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down))) // bounded: inside the image (the test above)
+                        let (fx, fy) = (sx - Double(x0), sy - Double(y0))
+                        for ch in 0..<channels {
+                            func at(_ px: Int, _ py: Int) -> Double {
+                                px < 0 || py < 0 || px >= width || py >= height ? outside : Double(src[py * stride + px * channels + ch])
+                            }
+                            let top = at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx
+                            let bottom = at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx
+                            let value = (top * (1 - fy) + bottom * fy).rounded(.toNearestOrEven)
+                            out[y * stride + x * channels + ch] = UInt8(min(max(value, 0), 255))
+                        }
                     }
-                    let top = at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx
-                    let bottom = at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx
-                    let value = (top * (1 - fy) + bottom * fy).rounded(.toNearestOrEven)
-                    result[y * stride + x * channels + ch] = UInt8(min(max(value, 0), 255))
                 }
             }
         }

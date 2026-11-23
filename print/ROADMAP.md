@@ -163,15 +163,17 @@ printers on Windows' IPP class driver, which lacks the makers' extras: 4.2 and 4
 merged; the Mac halves wait for the new Mac. Free unless it says Pro.
 
 - **Batch A (a pile of paper):**
-  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows: fronts, the stack turned over, backs, pages put in
+  - **4.1 Two-sided scanning on a one-sided feeder.** Done on Windows and Mac: fronts, the stack turned over, backs, pages put in
     order, the other order one click away, counts that differ said; a preset option (README, "Two-sided on a one-sided
-    feeder"; `TurnedStack`). **Next:** a person with a one-sided feeder to try both tray kinds; the Mac half waits for the new Mac.
-  - **4.3 Pages turned upright on their own.** Done on Windows: sideways and upside down, only when sure, on by default
-    (every corpus page each way round), one Undo step (`PageUpright`). **Next:** real feeder scans, and pages in scripts it
-    leaves alone; the Mac half waits.
-  - **4.4 Small black-and-white PDFs.** Done on Windows: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
+    feeder"; `TurnedStack`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a person with a one-sided feeder to try
+    both tray kinds, on Windows and on a Mac.
+  - **4.3 Pages turned upright on their own.** Done on Windows and Mac: sideways and upside down, only when sure, on by default
+    (every corpus page each way round), one Undo step (`PageUpright`; the Mac's in `mac/docs/PLAN.md`, "Wave 4").
+    **Next:** real feeder scans, and pages in scripts it leaves alone, on both.
+  - **4.4 Small black-and-white PDFs.** Done on Windows and Mac: 1-bit pages as CCITT G4 (or Flate when smaller) from the core's own
     encoder, read back by MuPDF; a "smaller file" choice per preset; a text page 17 to 60 times smaller than its JPEG
-    (`CcittG4`, `Bilevel`). **Next:** Inkvolt PDF's 4.8 to reuse it; the Mac half waits.
+    (`CcittG4`, `Bilevel`; on the Mac in PrintCore, PDFKit draws them too: `mac/docs/PLAN.md`, "Wave 4"). **Next:** Inkvolt
+    PDF's 4.8 to reuse it, on Windows and Mac.
 - **Batch B:**
   - **4.15 Recent scans.** Done on Windows: the last 20 saves from every scanner, Open, Show in folder, Email again, Print, Remove
     from list, kept on this PC only, gone files dropped (README, "Recent scans"; `RecentScans`). **Next:** the Mac half waits.
@@ -190,12 +192,14 @@ merged; the Mac halves wait for the new Mac. Free unless it says Pro.
     ready. **Next:** the owner to try Set up with Windows' driver on a printer on a maker's driver; the Mac half waits (CUPS
     queues are driverless already).
 - **Batch C:**
-  - **4.7 Drop a color, remove punch holes.** Done on Windows: Clean up's Drop a color (red, green, blue or picked off the page)
+  - **4.7 Drop a color, remove punch holes.** Done on Windows and Mac: Clean up's Drop a color (red, green, blue or picked off the page)
     and Remove punch holes, per scan, per preset and per page, proven on generated scans (README, "Scan clean up";
-    `ColorDropout`, `PunchHoles`). **Next:** real punched sheets from a feeder and a flatbed; the Mac half waits.
-  - **4.8 Join two halves.** Done on Windows: a page's Join with the next page… finds the overlap of two scans of an original
+    `ColorDropout`, `PunchHoles`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** real punched sheets from a feeder and a
+    flatbed, on both.
+  - **4.8 Join two halves.** Done on Windows and Mac: a page's Join with the next page… finds the overlap of two scans of an original
     too big for the glass (either way up, on any side) and joins them into one page; not sure, the second half is placed by hand;
-    one Undo step (README, "Join two halves"; `HalvesJoin`). **Next:** a real A3 drawing on a letter or A4 glass; the Mac half waits.
+    one Undo step (README, "Join two halves"; `HalvesJoin`; the Mac's in `mac/docs/PLAN.md`, "Wave 4"). **Next:** a real A3
+    drawing on a letter or A4 glass, on both.
   - **4.11 Name the file from its contents.** Done on Windows: a preset's file name can hold `{text-date}`, `{text-title}` and
     `{text-number}`, read from the first page (a date in the usual ways of writing it, in English and Spanish; the heading; an
     invoice, order or receipt number), shown and editable in the review before saving (README, "Scan presets"; `TextFinds`).

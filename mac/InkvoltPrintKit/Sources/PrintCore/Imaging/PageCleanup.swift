@@ -23,8 +23,14 @@ public struct PageFilters: OptionSet, Hashable, Sendable, Codable {
     /// Restore a faded print's range and colors (`FadedColors`).
     public static let restoreColors = PageFilters(rawValue: 8)
 
+    /// Drop a pen or form color to white (`ColorDropout`; which color: `PageEdits.drop`). Roadmap 4.7.
+    public static let dropColor = PageFilters(rawValue: 16)
+
+    /// Fill punch holes near the edges with the paper's color (`PunchHoles`). Roadmap 4.7.
+    public static let punchHoles = PageFilters(rawValue: 32)
+
     /// The filters that change pixels.
-    public static let pixelFilters: PageFilters = [.whiten, .descreen, .restoreColors]
+    public static let pixelFilters: PageFilters = [.whiten, .descreen, .restoreColors, .dropColor, .punchHoles]
 
     public static let all: PageFilters = [.cropToPaper, .pixelFilters]
 
@@ -38,15 +44,17 @@ public struct PageFilters: OptionSet, Hashable, Sendable, Codable {
     }
 }
 
-/// What `PageCleanup.apply` gives: the page, what really changed it, and the specks removed.
+/// What `PageCleanup.apply` gives: the page, what really changed it, the specks and punch holes removed.
 public struct CleanedPage: Equatable, Sendable {
     public var pixels: [UInt8]
     public var done: PageFilters
     public var specks: Int
+    public var holes = 0
 }
 
-/// The review's filters on a page's pixels: descreen, then restore colors, then whiten, each on what the one before left.
-/// Pixels in, new pixels out. Rows of width × channels bytes, no padding; 1 = grey, 3 = RGB.
+/// The review's filters on a page's pixels: descreen, then restore colors, then drop a color, then remove punch holes,
+/// then whiten, each on what the one before left. Pixels in, new pixels out. Rows of width × channels bytes, no padding;
+/// 1 = grey, 3 = RGB.
 public enum PageCleanup {
     /// Past this a page is left as it is, with nothing done (a 1200 dpi A3 page is 278 million pixels). The filters take
     /// about five times the page's own memory at their peak.
@@ -62,9 +70,10 @@ public enum PageCleanup {
 
     /// The page cleaned up by `filters`. A page whose pixels don't match its size and channels (1 or 3) is left as it is,
     /// as is one past `maxPixels`.
+    /// `drop`: the color `.dropColor` drops (red when not given).
     /// - Throws: `CancellationError` when `stop` fires.
     public static func apply(_ pixels: [UInt8], width: Int, height: Int, channels: Int, dpi: Int, _ filters: PageFilters,
-                             stop: BatchStop? = nil) throws -> CleanedPage {
+                             stop: BatchStop? = nil, drop: DropColor? = nil) throws -> CleanedPage {
         try stop?.check()
         let unchanged = CleanedPage(pixels: pixels, done: [], specks: 0)
         if filters.isDisjoint(with: .pixelFilters) || tooLarge(width, height) || width < 1 || height < 1 || !(channels == 1 || channels == 3)
@@ -72,20 +81,31 @@ public enum PageCleanup {
         let dpi = scanDpi(dpi)
         var page = pixels
         var done: PageFilters = []
-        var specks = 0
+        var specks = 0, holes = 0
         if filters.contains(.descreen), try Descreen.apply(&page, width, height, channels, dpi, stop) { done.insert(.descreen) }
         if filters.contains(.restoreColors), try FadedColors.restore(&page, width, height, channels, stop) { done.insert(.restoreColors) }
+        if filters.contains(.dropColor), try ColorDropout.apply(&page, width, height, channels, drop ?? .red, stop: stop) { done.insert(.dropColor) }
+        if filters.contains(.punchHoles) {
+            holes = try PunchHoles.remove(&page, width, height, channels, dpi, stop: stop)
+            if holes > 0 { done.insert(.punchHoles) }
+        }
         if filters.contains(.whiten), try PageBackground.whiten(&page, width, height, channels, dpi, specks: &specks, stop) { done.insert(.whiten) }
-        return CleanedPage(pixels: page, done: done, specks: specks)
+        return CleanedPage(pixels: page, done: done, specks: specks, holes: holes)
     }
 
-    /// "cropped to the paper, whitened": what a set of filters does, in the review's words. Empty for none.
-    public static func describe(_ filters: PageFilters) -> String {
+    /// The filters a page gets: a grey page has no color to drop, so `.dropColor` goes (the rest stay).
+    public static func `for`(_ filters: PageFilters, grey: Bool) -> PageFilters { grey ? filters.subtracting(.dropColor) : filters }
+
+    /// "cropped to the paper, whitened, red dropped": what a set of filters does, in the review's words. Empty for none.
+    /// `drop`: the color `.dropColor` drops (red when not given).
+    public static func describe(_ filters: PageFilters, drop: DropColor? = nil) -> String {
         var parts: [String] = []
         if filters.contains(.cropToPaper) { parts.append(loc("cropped to the paper")) }
         if filters.contains(.whiten) { parts.append(loc("whitened")) }
         if filters.contains(.descreen) { parts.append(loc("descreened")) }
         if filters.contains(.restoreColors) { parts.append(loc("colors restored")) }
+        if filters.contains(.dropColor) { parts.append(loc("{0} dropped", (drop ?? .red).name)) }
+        if filters.contains(.punchHoles) { parts.append(loc("punch holes removed")) }
         return parts.joined(separator: ", ")
     }
 }

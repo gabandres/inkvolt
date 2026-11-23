@@ -191,6 +191,83 @@ mac/InkvoltPrintKit --build-system native`.
   Report a Problem's details, recordings, export columns, protocol and parser errors. Not checked: a Mac whose macOS is
   in Spanish, the UI on screen in Spanish.
 
+### Wave 4 (print/ROADMAP.md): what differs and what's left, per item
+
+Ported test-first from the .NET tests (same names in lower camel case); PrintCore on the PC, the app on `buildmac`.
+
+- **4.1 Two-sided scanning on a one-sided feeder.** PrintCore `TurnedStack` (`TurnedStackTests`), the preset's
+  `turnStack` (Windows' field name `TurnStack`), `PresetPlan.turnStack` (`turnsStacks:`, Inkvolt PDF's Scan leaves it off),
+  `ScanChoices.offersTurnStack`; the review's pairing is `ScanPages.pair`/`unpair` with `StackScan` (Windows keeps it in its
+  view model; `aTurnedStacksPagesPairAndUndoInTheReview` is Mac only). The question is an `NSAlert` (Scan the Backs / Only
+  the Fronts); `--report … --turn-stack` answers it yes. **Mac differences:** a negative count reads as none and
+  `separatorBacks` answers nil for flags that don't fit (Windows throws); only patch code sheets are separator sheets (no QR
+  or barcode sheets on the Mac yet); a scan stopped during the backs keeps them in order, as Windows does, but a preset then
+  doesn't save by itself (Windows saves); the review's Undo, which held only clean ups, now also takes the stack's order and
+  Backs in the Other Order back (each one step, as Windows, and each with its own copy of the stack and its marks, as
+  Windows' steps hold its `StackScan`: `ScanPages.swapBacks`/`undoSwap` with `StackSwap`, so a scan since, which lets the
+  review's stack go, loses no sheet's mark), still not turns, crops or moves by hand; the demo's stack comes
+  from the USB demo laser (`DemoScanDevice`, a one-sided feeder; the eSCL demo inkjet's feeder scans both sides). Not
+  checked: a real one-sided feeder, either kind of output tray, the alert and the button on screen, VoiceOver.
+- **4.3 Pages turned upright on their own.** PrintCore `PageUpright` (`find`, `orient`, `straightenBy`, `suitsLanguage`),
+  `PageEdits.checked`/`turnedUprightBy`, `ScannedPage.uprightTurns` and `ScanPages.undoUpright`, the preset's `turnUpright`
+  (on unless turned off, Windows' `TurnUpright`); `UprightTests` (PC), `PageUprightCorpusTests` (PdfCoreTests on the Mac:
+  the OCR corpus's typeset pages fed each way round). Inkvolt PDF's `ScanCleanup`, `Deskew.measure`, `PageRotate`,
+  `PaperLevel`, `Upright` and `GrayImage` moved into PrintCore (Windows has them in the shared core), so the scan review and
+  Recognize Text read a page alike, `Upright` with Windows' newer reading (pictures and rules left out); PdfCore keeps its
+  `CancelToken` wrapper (`ScanCleanup.clean(…cancel:)`, `Despeckle`). `Deskew.angle` is `measure`'s angle now, as on Windows
+  (the Mac's had its own copy). **Mac differences:** the language a page is read in when none is chosen is the Mac's first
+  preferred language (Windows: its OCR's default); `suitsLanguage` asks Foundation's `Locale.Language` for right-to-left
+  where Windows asks CultureInfo; Undo turns back only pages still as the check left them (a turn by hand since stays: the
+  Mac's review has no Undo of its own for turns); a page restored after a crash reads "Edited", not "Turned upright" (the
+  recovery folder keeps no check turns). Not checked: real feeder scans, pages in scripts it leaves alone, the note on
+  screen.
+- **4.4 Small black-and-white PDFs.** PrintCore `BitImage`, `Bilevel`, `CcittG4` (the same bytes as Windows' encoder) and
+  `PdfWriter.Page.blackAndWhite`/`oneBit`, so Inkvolt PDF for Mac's 4.8 can write such pages too; the preset's `smallerFile`
+  (Windows' `SmallerFile`), `ScanPresets.savesSmallerFile`, `PresetPlan.oneBit` (scanned in grey), the summary's "black and
+  white, N dpi, smaller file"; a page's `oneBit`, kept for crash recovery (`KeptPage.oneBit`, as Windows' `ScanKeeper`);
+  PrintMac `ScanImaging.bits` (the saved page decoded grey at full size) and `ScanPdf.Page.bits`.
+  `BlackAndWhitePdfTests` (PC; Windows' T.6 decoder ported as the test's own) and `CcittG4RenderTests` (PdfCoreTests on the
+  Mac: MuPDF reads G4 and Flate pages bit for bit; a corpus text page against its JPEG). **Mac differences:** Flate is
+  PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
+  read back by an inflater the tests write from RFC 1951), where Windows uses .NET's `ZLibStream` and Inkvolt PDF for Mac's
+  exports Apple's Compression; it is only the fallback for pages G4 codes badly (fine, even patterns), so it needn't match
+  zlib's size. The Mac scans no black and white (`ScanColor` is color or grey), so only a preset's smaller file saves one bit
+  (Windows' `ScanChoices.SavesOneBit` has no Mac use); a size refused throws `BitImage.SizeError`; a page that can't be made
+  black and white (past `BitImage.maxPixels`) is saved as its JPEG. `--report … --smaller-file` saves the demo feeder's pages
+  both ways and has PDFKit draw the 1-bit page. Not checked: a real scanner's pages, Preview and other readers on screen, a
+  printed copy.
+- **4.7 Drop a color, remove punch holes.** PrintCore `DropColor`/`ColorDropout`, `PunchHoles`, `PageFilters.dropColor` (16)
+  and `.punchHoles` (32) among the pixel filters (Windows' numbers, so presets read alike), `PageCleanup.apply(…drop:)`,
+  `for(_:grey:)`, `describe(_:drop:)`, `CleanedPage.holes`, `PageEdits.drop` (`withFilters(_:drop:)`, `cleanedUp(…drop:grey:)`;
+  the init sets red with the filter, so a color is never without it), `KeptPage.drop`, the preset's `dropColor` (Windows'
+  `DropColor`, "#RRGGBB"); `CleanUpMarksTests` (PC). The app: the four clean up switches become six (Scan settings, each preset,
+  the review's Clean Up… view) with Color to drop (Red, Green, Blue, a picked color with its swatch); the Clean up view's Pick
+  from the Page shows the page as scanned and takes the colour of the 5 × 5 pixels clicked (grey, black or paper is said and
+  the next click tried); a grey scan is never said to have a colour dropped; the demo glass holds a punched order form
+  when a scan drops a color or removes holes (`DemoScan.punchedForm`); `--report … --cleanup-marks`. **Mac differences:** RGB
+  where Windows has BGR (the tests build their pages as RGB); a page is grey when its JPEG has one component (Windows asks
+  its decoder); the Mac's 2.3 tests that ran `.pixelFilters` on a grey page now name the three 2.3 filters (a grey page has
+  no colour to drop and no holes). Not checked: real punched sheets from a feeder and a flatbed, a real pen's and a form's
+  colours, picking a colour on screen (the crosshair, VoiceOver).
+- **4.8 Join two halves.** PrintCore `HalvesJoin` (`find`: normalized cross-correlation on coarse copies of at most 400
+  pixels a side, every side either way up, the six best refined, sure only when well ahead of the next; `find(…dpi:)` on the
+  full-size halves, through grey copies of about 100 pixels an inch (`analysisFactor`), the placement back in full-size
+  pixels; `previewFactor` for the preview's copies; `join`, `gray`,
+  `shrink`, `fromCopy`/`toCopy`, `edgeToEdge`), `JoinPlacement`, `JoinFound`, `ScanPages.join`/`unjoin` (the joined page keeps
+  the first half's new-file mark); `HalvesJoinTests` (PC). PrintMac `JoinImages` (each half as saved, RGB at full size; the
+  joined page as JPEG). The app: the page's Join with the Next Page… (refused for the last page, separators, photos, pages
+  being checked or at another resolution, each said), a sheet that shows the joined page, arrows to move the second half (a
+  fiftieth of an inch, ⇧ and an arrow key or a ⇧-click a fifth), Turn the Second Half, Other Side, Join (one step of Undo:
+  the halves come back); the second half starts where it was found, sure or not, whatever its score (as Windows); the
+  preview joins copies made once when the sheet opens, the halves side by side at most about 900 pixels (Windows 1600).
+  `--report … --join` joins the demo glass's two halves of a 14-inch plan (`DemoScanSetup.hold`). **Mac differences:** a
+  nudge is a fiftieth of an inch, a fifth with ⇧ (Windows a twentieth and a half: the Mac's preview is smaller, and a
+  fiftieth is a pixel or two of it at 300 dpi); a stop is a `BatchStop` (`CancellationError`); the coarse search's
+  placements are put in a fixed order before the best are taken (Windows' come from parallel rows in any order), so the same
+  halves always give the same answer; the halves are RGB whatever was scanned (a grey and a colour half join), where Windows
+  keeps the channels both have; a join placed past Int's range is refused. Not checked: a real A3 drawing on a letter or A4
+  glass, the sheet on screen (the arrows' keys, VoiceOver).
+
 ## Mac differences
 
 - Numbers from outside that become an Int: Swift's `Int(x)` traps on NaN, infinity or a value out of range
@@ -1242,10 +1319,11 @@ pages read together from its text read once (Windows' search cursor filled a meg
 `SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
 `Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
 (`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
-(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). The scan cleanup's which-way-up test leaves
-out a run of ink rows over 3 times the page's lines' height (the lower middle of runs of 6 rows or more, a tight run cut
-between its bands first), then reads the lines again without it (`Upright.MaxLineRatio`, `MinLineRows`; PrintTests' `UprightTests`, ScanTextTests'
-`APageWithALargeShadedPictureIsTurnedTheRightWayUp`): `ScanCleanup.swift` has the old reading.
+(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). Ported with Inkvolt Print's 4.3 (Wave 4,
+above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
+(`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
+PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
+ported (the Mac's `ExportTestPdf` has no large shaded picture).
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`
@@ -1752,12 +1830,9 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 ## Open
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
-- Inkvolt Print 4.7 (`print/ROADMAP.md`, Wave 4 Batch C): Clean up's Drop a color and Remove punch holes (`ColorDropout`,
-  `PunchHoles`), done on Windows.
 - Inkvolt Print 4.11: a preset's file named from the first page's text (`TextFinds`, `{text-date}`, `{text-title}`,
   `{text-number}`), done on Windows.
 - Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
-- Inkvolt Print 4.8: join two halves of an original too big for the glass (`HalvesJoin`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
 - Inkvolt Print 4.18: a scan preset's PDF/A-2b and password (AES-256, revision 6) (`PdfArchive`, `PdfEncryption`, `IccProfiles` moved to
@@ -1785,7 +1860,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   `AskEditTests`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
-  phrase reading, the scan cleanup's which-way-up rule (`Upright.MaxLineRatio`).
+  phrase reading.
 - Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
   own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
   phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN
