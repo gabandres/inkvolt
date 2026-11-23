@@ -109,7 +109,7 @@ struct RedactTest {
     }
 
     /// The matches of `word` in `text` whose middle lies in one of `marks` (what the redaction blacked out).
-    private static func under(_ word: String, _ text: PageText?, _ marks: [RectD]) -> Int {
+    private static func under(_ word: String, _ text: PdfCore.PageText?, _ marks: [RectD]) -> Int {
         guard let text else { return 0 }
         return text.find(word, matchCase: false, wholeWord: true).filter { hit in
             text.rects(hit.start, hit.end).contains { r in marks.contains { $0.inflate(1).contains(r.centerX, r.centerY) } }

@@ -86,7 +86,7 @@ struct ParagraphEditTest {
         return (try? ContentEditor.read(s.data, s.password, 0)) ?? .empty
     }
 
-    private func paragraph(_ c: DocumentWindowController, _ start: String) -> TextParagraph? {
+    private func paragraph(_ c: DocumentWindowController, _ start: String) -> PdfCore.TextParagraph? {
         read(c).paragraphs.first { $0.text.hasPrefix(start) }
     }
 

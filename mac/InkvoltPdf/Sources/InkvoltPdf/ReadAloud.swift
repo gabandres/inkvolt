@@ -129,7 +129,7 @@ final class ReadAloud {
     private(set) var speaking: SpeechChunk?
     /// Reading a selection: where it ends (nothing after it is read).
     private var end: (page: Int, caret: Int)?
-    private var pageText: PageText?
+    private var pageText: PdfCore.PageText?
 
     init(controller: DocumentWindowController) {
         self.controller = controller

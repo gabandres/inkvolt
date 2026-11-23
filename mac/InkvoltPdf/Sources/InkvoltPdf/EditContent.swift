@@ -196,11 +196,11 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
     func image(page: Int, _ p: PointD) -> PageImage? { content[page]?.imageAt(p.x, p.y) }
     func run(page: Int, _ p: PointD) -> TextRun? { content[page]?.runAt(p.x, p.y, slop: 2) }
     /// The paragraph under a point between its lines (one that is edited as one), or nil.
-    func paragraph(page: Int, _ p: PointD) -> TextParagraph? { content[page]?.paragraphAt(p.x, p.y, slop: 2) }
+    func paragraph(page: Int, _ p: PointD) -> PdfCore.TextParagraph? { content[page]?.paragraphAt(p.x, p.y, slop: 2) }
 
     /// The paragraph a run is edited as: its paragraph when that can be rewritten as one and is more than the run alone
     /// (several lines, or a line drawn in pieces); else nil, and the run is edited on its own.
-    func editableParagraph(_ run: TextRun) -> TextParagraph? {
+    func editableParagraph(_ run: TextRun) -> PdfCore.TextParagraph? {
         guard let p = content[run.pageIndex]?.paragraphOf(run), p.blocked == nil, p.lines.count > 1 || p.runs.count > 1 else { return nil }
         return p
     }
@@ -277,7 +277,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
     // MARK: Paragraphs
 
     /// Opens a paragraph's editor over it (the self-test's text and looks applied at once instead).
-    func editParagraph(_ p: TextParagraph) {
+    func editParagraph(_ p: PdfCore.TextParagraph) {
         guard let pages, p.pageIndex < pages.pageRects.count else { return }
         if let test = testParagraph {
             replace(p, test.text, test.spans)
@@ -317,7 +317,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
 
     /// Rewrites a paragraph: refused with a notice when a character can't be drawn or a look can't be written; asked first
     /// when it would run into what follows; characters drawn from fonts on this Mac said after.
-    func replace(_ p: TextParagraph, _ text: String, _ spans: [TextSpan]?) {
+    func replace(_ p: PdfCore.TextParagraph, _ text: String, _ spans: [TextSpan]?) {
         guard let editor, let controller else { return }
         let check = p.check(text, spans: spans)
         if let problem = check.lookProblem {
