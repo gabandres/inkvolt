@@ -243,8 +243,8 @@ locality) are used in their usual sense: the interface is everything a caller mu
 - **Snapshot area** (`PageViewer.SnapshotArea`, `Core/AreaCopy.cs`): the last box drawn with Snapshot, outlined on its
   page until another tool is chosen or the document changes. Its picture is copied as it is drawn; Copy Text from Area and
   Copy Area as Table copy its words (the page's text there, else the box read by the recognizer). On the Mac
-  (`PdfCore/Export/AreaCopy.swift`, the app's `AreaCopyActions.swift`) it isn't outlined, and stays while the document is
-  unchanged.
+  (`PdfCore/Export/AreaCopy.swift`, the app's `AreaCopyActions.swift`) it isn't outlined; it goes as on Windows, when
+  another tool is chosen or the document changes.
 - **Found address** (`FoundAddress`, `Core/AddressLinks.cs`): a web or email address printed in a page's text that no
   link covers yet, with the address its link would open (`Links.Normalize`) and its box on each line; Links from Addresses
   makes the ticked ones links in one edit. On the Mac: `PdfCore/Annotations/AddressLinks.swift`, the app's

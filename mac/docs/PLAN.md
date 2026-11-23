@@ -544,8 +544,8 @@ From the steps, besides the sections below:
 - 4.6: the text's lines end with LF and a table's rows too (Windows' clipboard has CR LF); a table goes on the pasteboard
   as tab-separated text and as HTML (`.html`, the fragment alone: Windows' CF_HTML header, `ClipboardHtml`, has no Mac
   counterpart, so `TheClipboardsHtmlHeaderPointsAtTheFragment` keeps its HTML and tab checks only). The Snapshot box isn't
-  outlined after it's drawn (Windows outlines it until another tool is chosen): it stays the area to copy while the
-  document is unchanged. Copy Text from Area with no box picks Snapshot and the next box copies words instead of a
+  outlined after it's drawn (Windows outlines it); as there, it and a copy waiting for a box go when another tool is
+  chosen or the document changes (`clearSnapshotArea`). Copy Text from Area with no box picks Snapshot and the next box copies words instead of a
   picture. The notice says Numbers, Excel or Pages where Windows says Excel or Word. Not checked by a person: pasting
   into Numbers and Excel for Mac.
 - 4.1: the dictionary is `NSSpellChecker` (`MacSpelling`, the closest dictionary the Mac has for the language; Add to
@@ -554,7 +554,10 @@ From the steps, besides the sections below:
   checking off) and puts its items at the top of the editor's menu (macOS's own spelling items taken out), so every editor
   follows PdfCore's rules where Windows' plain text boxes use WPF's speller and then drop the words ignored: on the Mac one
   path for all. A text field's field editor is shared by the window, so `SpellingField` clears its underlines when editing
-  ends. Ignore is "Ignore Spelling" (macOS's name), for the session in every editor. The third language tried is the Mac's
+  ends. Ignore is "Ignore Spelling" (macOS's name), for the session in every editor. The document's /Lang is read off
+  the main thread once for each version of its bytes, and not at all with spell check off; an editor opened before it is
+  in uses the interface's language. `SpellChecker` never holds its lock while it asks the dictionary (NSSpellChecker
+  answers on the main thread). The third language tried is the Mac's
   (`Locale.current`) where Windows tries Windows' display language. Not checked by a person: the red underline's look,
   the menu by Control-click and from the keyboard, VoiceOver reading a misspelled word.
 - 4.2: matching is Foundation's (`NSString.range(of:options:)`, case-insensitive unless Match case) where Windows uses the

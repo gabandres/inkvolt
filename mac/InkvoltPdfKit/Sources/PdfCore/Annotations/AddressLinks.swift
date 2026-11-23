@@ -47,6 +47,7 @@ public enum AddressLinks {
                 result.append((m.range.location, m.range.length))
                 continue
             }
+            if m.range.length > maxLength { continue } // a run of characters, not an address (checked before it is trimmed)
             let length = trimmed(value)
             let host = (value as NSString).substring(to: length) as String
             // "www." or "https://" with nothing worth a link after it.
@@ -64,17 +65,28 @@ public enum AddressLinks {
         return result
     }
 
-    /// A web address's length (UTF-16 units) without what a sentence put after it.
+    /// A web address's length (UTF-16 units) without what a sentence put after it. The brackets are counted once and kept
+    /// up to date as the end moves (counting them again for each character trimmed took hours for a long run).
     private static func trimmed(_ value: String) -> Int {
         let u = Array(value.utf16)
         let sentence = Set(".,;:!?'\"*»”’›".utf16)
-        let opener: [UInt16: UInt16] = [41: 40, 93: 91, 125: 123] // ) ( ] [ } {
+        let closer: [UInt16: UInt16] = [40: 41, 91: 93, 123: 125] // ( ) [ ] { }
+        // Closing brackets less opening ones in u[..<end], by closing bracket.
+        var unopened: [UInt16: Int] = [41: 0, 93: 0, 125: 0]
+        for c in u {
+            if let n = unopened[c] {
+                unopened[c] = n + 1
+            } else if let close = closer[c] {
+                unopened[close]! -= 1
+            }
+        }
         var end = u.count
         while end > 0 {
             let c = u[end - 1]
             if sentence.contains(c) {
                 end -= 1
-            } else if let open = opener[c], u[..<end].filter({ $0 == c }).count > u[..<end].filter({ $0 == open }).count {
+            } else if let left = unopened[c], left > 0 {
+                unopened[c] = left - 1
                 end -= 1 // a closing bracket the address didn't open
             } else {
                 break

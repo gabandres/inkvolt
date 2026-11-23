@@ -87,6 +87,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var pendingAreaCopy: AreaCopyKind?
     /// Find and Replace's sheet while it's open (ReplaceSheet.swift), and what the last Replace or Replace All did.
     var replaceSheet: ReplaceSheet?
+    /// The document's /Lang for spell check, by the engine of the bytes it was read from, and the read under way
+    /// (Spelling.swift, `documentLanguage`).
+    var spellingLanguage: (engine: ObjectIdentifier, language: String?)?
+    var spellingLanguageReading: ObjectIdentifier?
     var lastReplace: ReplaceResult?
 
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
@@ -225,6 +229,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         wireSuspectWords()
         sidebar.pageMenuMaker = { [weak self] in self?.pageMenu() }
         document.onContentChanged = { [weak self] change in self?.contentChanged(change) }
+        readDocumentLanguage() // for spell check, off the main thread
         editor.onChanged = { [weak self] in self?.commentsChanged() }
         commentsChanged()
         toolChanged()
@@ -318,6 +323,9 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     /// An edit, undo, redo or reload replaced the engine: the pages, thumbnails, comments and find follow.
     private func contentChanged(_ change: ContentChange) {
         guard let engine = pdf.engine else { return }
+        clearSnapshotArea() // the box was on the document as it was
+        spellingLanguage = nil // read again for these bytes, off the main thread, ready for the next editor
+        readDocumentLanguage()
         // What was being read may be gone or moved: reading stops, as on Windows.
         if readAloud.isActive { readAloud.stop() }
         editor.reload()
@@ -540,6 +548,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
 
     func toolChanged() {
         let tool = pages.tool
+        // The Snapshot box, and a copy waiting for one, last until another tool is chosen (Windows' ClearSnapshotArea).
+        if tool != .snapshot { clearSnapshotArea() }
         var style = pages.styles.style(tool)
         if tool == .textBox { style.color = style.textColor } // the strip's color is the text's
         revealMarkup(for: tool)

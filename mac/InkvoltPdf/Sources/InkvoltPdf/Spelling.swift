@@ -51,8 +51,6 @@ enum SpellCheck {
     private static var byDocument: [String: SpellChecker?] = [:]
     private static var byLanguage: [String: SpellChecker] = [:]
     private static let added = AddedWords()
-    /// Documents' languages by the engine of the bytes they were read from (`DocumentWindowController.documentLanguage`).
-    static var languages: [String: String?] = [:]
 
     /// Settings › "Check spelling as I type".
     static var on: Bool { AppSettings.spellCheck }
@@ -146,16 +144,29 @@ enum SpellCheck {
 }
 
 extension DocumentWindowController {
-    /// The language the document says its text is in (its /Lang), read once for each version of its bytes; nil when it
-    /// says none.
+    /// The language the document says its text is in (its /Lang), as last read for this version of its bytes; nil when
+    /// it says none, while it is being read, or with spell check off (then it isn't read at all).
     var documentLanguage: String? {
-        guard let session = pdf.session else { return nil }
-        let key = "\(ObjectIdentifier(session.engine).hashValue)-\(session.data.count)"
-        if let known = SpellCheck.languages[key] { return known }
-        let language = SpellChecker.documentLanguage(session.data, session.password)
-        if SpellCheck.languages.count > 64 { SpellCheck.languages.removeAll() }
-        SpellCheck.languages[key] = .some(language)
-        return language
+        guard SpellCheck.on, let session = pdf.session else { return nil }
+        if let known = spellingLanguage, known.engine == ObjectIdentifier(session.engine) { return known.language }
+        readDocumentLanguage()
+        return nil
+    }
+
+    /// Reads the document's /Lang off the main thread (opening a large file takes a while), once for each version of its
+    /// bytes, when spell check is on (Windows reads it in a Task.Run).
+    func readDocumentLanguage() {
+        guard SpellCheck.on, let session = pdf.session else { return }
+        let engine = ObjectIdentifier(session.engine)
+        if spellingLanguage?.engine == engine || spellingLanguageReading == engine { return }
+        spellingLanguageReading = engine
+        let (data, password) = (session.data, session.password)
+        Task { @MainActor [weak self] in
+            let language = await Task.detached(priority: .utility) { SpellChecker.documentLanguage(data, password) }.value
+            guard let self, self.spellingLanguageReading == engine else { return }
+            self.spellingLanguageReading = nil
+            self.spellingLanguage = (engine, language)
+        }
     }
 }
 

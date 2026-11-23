@@ -32,6 +32,15 @@ struct AddressLinksTests {
         #expect(Self.found("support@example.com, then") == ["support@example.com"])
     }
 
+    @Test func ARunOfClosingBracketsIsNoAddressAndIsQuicklyPassedOver() {
+        // Each bracket trimmed counted the brackets again: 500,000 took hours. Too long for an address, it is passed over
+        // before any trimming; a long tail under the limit is trimmed at once.
+        let clock = ContinuousClock.now
+        #expect(Self.found("https://example.com/" + String(repeating: ")", count: 500_000)).isEmpty)
+        #expect(Self.found("https://example.com/a(b)" + String(repeating: ")", count: 1_900)) == ["https://example.com/a(b)"])
+        #expect(ContinuousClock.now - clock < .seconds(5))
+    }
+
     private static func pdf() -> [UInt8] {
         Core2Pdf.build([
             "<< /Type /Catalog /Pages 2 0 R >>",

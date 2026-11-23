@@ -23045,6 +23045,17 @@
           }
         }
       }
+    },
+    "Marking the matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcando las coincidencias"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

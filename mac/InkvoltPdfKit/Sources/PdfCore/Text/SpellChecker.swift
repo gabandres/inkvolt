@@ -71,8 +71,7 @@ public final class SpellChecker: @unchecked Sendable {
     public func suggestions(_ word: String) -> [String] {
         let n = word.utf16.count
         if n == 0 || n > Self.maxWordLength { return [] }
-        gate.lock()
-        defer { gate.unlock() }
+        // The dictionary is asked without the lock held: the Mac's answers on the main thread, which may be waiting on it.
         var seen = Set<String>()
         return Array(dictionary.suggest(word).filter { !$0.isEmpty && $0 != word && seen.insert($0).inserted }.prefix(Self.maxSuggestions))
     }
@@ -95,10 +94,8 @@ public final class SpellChecker: @unchecked Sendable {
     public func add(_ word: String) -> Bool {
         let n = word.utf16.count
         if n == 0 || n > Self.maxWordLength { return false }
-        gate.lock()
-        defer { gate.unlock() }
-        if !dictionary.add(word) { return false }
-        known[word] = true
+        if !dictionary.add(word) { return false } // without the lock held (see `suggestions`)
+        gate.withLock { known[word] = true }
         return true
     }
 
@@ -111,13 +108,13 @@ public final class SpellChecker: @unchecked Sendable {
     }
 
     private func knows(_ word: String) -> Bool {
-        gate.lock()
-        defer { gate.unlock() }
-        if ignored.contains(word) { return true }
-        if let k = known[word] { return k }
-        if known.count >= Self.maxKnown { known.removeAll() }
-        let k = dictionary.isKnown(word)
-        known[word] = k
+        let answered: Bool? = gate.withLock { ignored.contains(word) ? true : known[word] }
+        if let answered { return answered }
+        let k = dictionary.isKnown(word) // without the lock held (see `suggestions`)
+        gate.withLock {
+            if known.count >= Self.maxKnown { known.removeAll() }
+            known[word] = k
+        }
         return k
     }
 

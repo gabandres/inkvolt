@@ -18,24 +18,49 @@ extension DocumentWindowController {
             return
         }
         let engine = engine
-        let hits: [HitToMark] = found.compactMap { f in
-            guard let text = try? engine.text(f.page) else { return nil }
-            return HitToMark(f.page, text.rects(f.start, f.end))
-        }
+        let found = found
         let (data, password) = (session.data, session.password)
         let tool: Tool = kind == .highlight ? .highlight : kind == .underline ? .underline : .strikeOut
         let color = pages.styles.style(tool).color ?? SearchMarks.colorOf(kind)
         let author = editor.author
         let query = foundQuery
         startLongTask {
-            let planned: SearchMarksCount
+            // The matches' boxes come from each page's text, read off the main thread (a page not read since the search
+            // takes a moment), with progress and Cancel; then what marking them would do is counted.
+            let sheet = ProgressSheet(title: loc("Marking the matches"), text: loc("Starting…"))
+            if let window = self.window, window.attachedSheet == nil { sheet.begin(on: window) }
+            defer { sheet.end() }
+            let cancel = sheet.token
+            let hits: [HitToMark], planned: SearchMarksCount
             do {
-                planned = try await Task.detached { try SearchMarks.count(data, password, hits, kind) }.value
+                (hits, planned) = try await Task.detached { () throws -> ([HitToMark], SearchMarksCount) in
+                    var hits: [HitToMark] = []
+                    var page = -1
+                    var text: PageText?
+                    for f in found {
+                        try cancel.check()
+                        if f.page != page {
+                            page = f.page
+                            text = try? engine.text(f.page, cancel: cancel)
+                            let shown = f.page
+                            Task { @MainActor in
+                                sheet.update(loc("Page {0} of {1}", CoreLanguage.number(shown + 1), CoreLanguage.number(engine.pageCount)),
+                                             Double(shown) / Double(max(engine.pageCount, 1)))
+                            }
+                        }
+                        if let text { hits.append(HitToMark(f.page, text.rects(f.start, f.end))) }
+                    }
+                    try cancel.check()
+                    return (hits, try SearchMarks.count(data, password, hits, kind))
+                }.value
+            } catch is CancellationError {
+                return
             } catch {
                 Report.progress("Mark All Matches couldn't read the document: \(error)")
                 self.notify(loc("Couldn't mark the matches: the document couldn't be read."))
                 return
             }
+            sheet.end()
             guard self.pdf.session?.data == data else { return } // changed meanwhile: the matches are gone with it
             if planned.marked == 0 {
                 self.notify(planned.alreadyMarked > 0 ? loc("Every match is marked already.") : loc("The search found nothing to mark."))

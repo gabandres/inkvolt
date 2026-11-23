@@ -17,6 +17,12 @@ struct SnapshotArea {
 /// table, tab-separated text and an HTML table, so Numbers, Excel and Pages paste it as cells. Edit › Copy Text from Area,
 /// Copy Area as Table; the snapshot's notice offers Copy text.
 extension DocumentWindowController {
+    /// Forgets the last Snapshot box and a copy waiting for one (another tool was chosen, or the document changed).
+    func clearSnapshotArea() {
+        snapshotArea = nil
+        pendingAreaCopy = nil
+    }
+
     @objc func copyTextFromArea(_ sender: Any?) { copyFromArea(.text) }
     @objc func copyAreaAsTable(_ sender: Any?) { copyFromArea(.table) }
 
