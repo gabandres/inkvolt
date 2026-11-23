@@ -3694,6 +3694,16 @@
         }
       }
     },
+    "Not shared: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin compartir: %@"
+          }
+        }
+      }
+    },
     "Nothing more": {
       "localizations": {
         "es": {
@@ -3880,6 +3890,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Abrir Impresoras y escáneres"
+          }
+        }
+      }
+    },
+    "Open Sharing Settings": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la configuración de Compartir"
           }
         }
       }
@@ -5496,6 +5516,46 @@
           "stringUnit": {
             "state": "translated",
             "value": "Varias fotos en el cristal"
+          }
+        }
+      }
+    },
+    "Share a Printer with Phones": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir una impresora con teléfonos"
+          }
+        }
+      }
+    },
+    "Share a Printer with Phones…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir una impresora con teléfonos…"
+          }
+        }
+      }
+    },
+    "Share with phones": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir con teléfonos"
+          }
+        }
+      }
+    },
+    "Shared now: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartidas ahora: %@"
           }
         }
       }
@@ -7156,6 +7216,26 @@
         }
       }
     },
+    "macOS didn't say whether it shares this printer. Printer Sharing in System Settings › General › Sharing lists the printers it shares.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no dijo si comparte esta impresora. Compartir impresora, en Configuración del Sistema › General › Compartir, muestra las impresoras que comparte."
+          }
+        }
+      }
+    },
+    "macOS doesn't share this printer. To print to it from iPhones, iPads and other computers on this network, turn on Printer Sharing in System Settings › General › Sharing and tick this printer there.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no comparte esta impresora. Para imprimir en ella desde iPhone, iPad y otras computadoras de esta red, activa Compartir impresora en Configuración del Sistema › General › Compartir y marca esta impresora allí."
+          }
+        }
+      }
+    },
     "macOS has no printer set up for this one, so other apps can't print to it.": {
       "localizations": {
         "es": {
@@ -7182,6 +7262,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cola de macOS"
+          }
+        }
+      }
+    },
+    "macOS shares printers itself: turn on Printer Sharing in System Settings › General › Sharing and tick the printers to share. iPhones, iPads and other computers on this network then print to them with AirPrint, with nothing to install. Inkvolt Print runs no server of its own.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS comparte impresoras por sí mismo: activa Compartir impresora en Configuración del Sistema › General › Compartir y marca las impresoras que quieras compartir. Así los iPhone, iPad y otras computadoras de esta red imprimen en ellas con AirPrint, sin instalar nada. Inkvolt Print no ejecuta ningún servidor propio."
+          }
+        }
+      }
+    },
+    "macOS shares this printer: while Printer Sharing is on in System Settings › General › Sharing, iPhones, iPads and other computers on this network can print to it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS comparte esta impresora: mientras Compartir impresora esté activado en Configuración del Sistema › General › Compartir, los iPhone, iPad y otras computadoras de esta red pueden imprimir en ella."
           }
         }
       }

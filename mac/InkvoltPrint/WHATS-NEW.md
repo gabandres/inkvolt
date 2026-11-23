@@ -16,6 +16,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - PDF/A and passwords in scan presets: a PDF preset can save PDF/A, meant to open the same way for years, or put a password on the PDF (AES-256, as Inkvolt PDF protects files). The password is asked the first time the preset saves, and kept in your keychain if you choose.
 - Print a PDF's Layout, under the file list: several pages per sheet (2, 4, 6, 9 or 16), a booklet printed on both sides in the order a folded stack reads, or a poster from 150 to 400 % over sheets that overlap by ¼ in, with cut marks to trim them.
 - A printer's Details say what it answers (IPP, eSCL, AirPrint, Mopria) and whether it needs its maker's driver at all, and warn when a scanner works only through its maker's driver, which a macOS update can leave behind.
+- Share a printer with phones: File › Share a Printer with Phones… and each printer's Share with phones card say whether macOS shares it and open Printer Sharing in System Settings, so iPhones, iPads and other computers on your network print to it with AirPrint.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

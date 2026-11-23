@@ -101,6 +101,10 @@ enum Report {
             cancelled += proCheck(args)
             try? await Task.sleep(for: .seconds(wait))
             cancelled.append(handOffLine(model))
+            if args.contains("--share") { // roadmap 4.10: File › Share a Printer with Phones…'s text and where its buttons go
+                cancelled += ["share: " + PhoneSharing.explanation(model).replacingOccurrences(of: "\n\n", with: " | "),
+                              "share: opens \(SystemSettings.printerSharing.absoluteString) and \(SystemSettings.printers.absoluteString)"]
+            }
             if args.contains("--strings") { cancelled += ReportStrings.lines() }
             let folder = AppModel.dataFolder
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -867,6 +871,7 @@ enum Report {
             if let f = v.firmware { lines.append("  firmware: \(f.display)") }
             for r in PrinterReadiness.rows(p) { lines.append("  \(r.label): \(r.value)") } // roadmap 4.5
             if let warning = PrinterReadiness.scanWarning(p) { lines.append("  scanner warning: \(warning)") }
+            if let sharing = PhoneSharing.word(p) { lines.append("  sharing: \(sharing)") } // roadmap 4.10
             if let n = v.firmwareNotice { lines.append("  firmware notice: \(n.text)") }
             for supply in v.supplies {
                 let s = SupplyText(supply)

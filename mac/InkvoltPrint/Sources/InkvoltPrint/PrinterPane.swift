@@ -102,6 +102,7 @@ struct PrinterPane: View {
                     .accessibilityElement(children: .combine)
                 }
                 if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
+                PrinterSharingCard(printer: printer)
                 if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
                 details
             }

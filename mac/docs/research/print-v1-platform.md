@@ -670,6 +670,25 @@ nothing asks for a key at launch. While `ProCheck.enforced` is off a key unlocks
 **Before enforcement is switched on in the App Store app**, its Pro features need an in-app purchase as well (StoreKit,
 the same features), or they stay free in that copy; and `Pro.howToGet` (price and shop URL) must not reach its UI.
 
+## Q7. Printer Sharing and the new-printer Wi-Fi guide (researched 2026-11-23)
+
+**Printer Sharing (roadmap 4.10).** macOS shares a CUPS queue itself (System Settings › General › Sharing › Printer
+Sharing, then per printer), over IPP and Bonjour; a sandboxed app may run no server for it and changes no cupsd setting
+(Q2: cupsd's admin operations need the admin right), so Inkvolt Print only reads and points:
+
+- Per queue, cupsd says whether it is shared in `printer-is-shared`, one of the attributes `cupsGetDests2` asks for
+  (CUPS's `cups/dest.c`, the `pattrs` list), so it is in each destination's options with no request of our own
+  (`CupsDestination.options`; the job alerts read it already, `othersMayPrint`). Whether Printer Sharing itself is on is
+  cupsd's `_share_printers` server setting, which `cupsAdminGetServerSettings` reads from `/admin/conf/cupsd.conf`
+  (admin only): not read, so the app says what it takes and opens the pane.
+- **Proved on the build Mac (macOS 27.2.1):** System Settings' Sharing pane is the extension
+  `/System/Library/ExtensionKit/Extensions/Sharing.appex`, bundle ID `com.apple.Sharing-Settings.extension`, and its
+  binary holds the anchor `Services_PrinterSharing` (with `Services_ScreenSharing`, `Services_RemoteLogin`…), so
+  `x-apple.systempreferences:com.apple.Sharing-Settings.extension?Services_PrinterSharing` names the Printer Sharing row;
+  Printers & Scanners is `com.apple.Print-Scan-Settings.extension` (`PrinterScannerSettings.appex`). Its Spanish name is
+  "Compartir impresora" (the extension's `PrinterService.loctable`). The URL wasn't opened there (System Settings was
+  open in the owner's wife's session): a person checks that it lands on the row.
+
 ## Open questions
 
 Items 1 to 6, 9 and 10 of the original list were answered on the Mac ("Probe results on a Mac" and the sections above),

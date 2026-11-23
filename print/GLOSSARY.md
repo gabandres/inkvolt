@@ -138,6 +138,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   TWAIN without eSCL) (`DriverReadiness`). **Windows' driver**: Microsoft's IPP class driver, the one Windows Ready Print installs.
   On the Mac: **ready** means it answers IPP with a raster format, so macOS prints to it **driverless** (AirPrint, IPP Everywhere),
   with no can move; a **maker's driver** for a scanner is an ImageCaptureCore module outside `/System`.
+- **Printer Sharing** (Mac, roadmap 4.10): macOS's own sharing of a queue (System Settings › General › Sharing); a queue is
+  **shared** when cupsd says so (`printer-is-shared`; `PrinterSharing`). The Mac app runs no shared printer of its own.
 - **Two-sided by hand**: both sides on a printer that can't print them: the fronts, the stack put back, the backs (`HandDuplexPlan`).
   **Output face**: which way up sheets land in the output tray (`OutputFace`); it decides how the stack goes back (**as it came out**,
   face down, backs last sheet first; **turned over like a page**, face up, backs in order). **Set aside**: an odd last sheet with no

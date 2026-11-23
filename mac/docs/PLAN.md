@@ -361,6 +361,20 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   driver is an ImageCaptureCore module outside `/System` (Apple's AirScan is inside), where Windows asks for WIA or TWAIN;
   4.2's output tray isn't asked for yet (two-sided by hand waits on the Mac). Not checked: a Mac with a maker's scanner
   driver installed (the build Mac has no scanner), the lines on screen (VoiceOver).
+- **4.10 Share a printer with phones.** PrintCore `PrinterSharing` (`canShare`: not a `file:` or PDF writer's queue, a fax,
+  a class, another computer's or a temporary one; `state`: CUPS's `printer-is-shared`), `QueueSharing`;
+  `PrinterSharingTests` (PC). PrintMac `SystemSettings.printerSharing` (the Sharing pane at Printer Sharing, research file
+  Q7). The app (`PrinterSharingCard.swift`): a queue printer's Share with phones card (shared, not shared, or not said,
+  with Open Sharing Settings) and File › Share a Printer with Phones… (how macOS shares printers, which are shared now,
+  Open Sharing Settings and Open Printers & Scanners); `--report … --share` gives its text and where its buttons go, each
+  queue printer's line its sharing. **Mac differences:** no server of ours: macOS's Printer Sharing shares the queue
+  (IPP, Bonjour, AirPrint), so Windows' `PrinterShare`, `SharedPrinter`, `RasterReader`, its mDNS responder and every test
+  of PrinterSharingTests.cs but the one ported have no Mac counterpart; nothing is turned on from the app (a switch per
+  queue would need cupsd's admin right, and the sandbox runs no server); whether Printer Sharing itself is on isn't read
+  (cupsd's `_share_printers`, admin only), so a queue cupsd marks shared is said to be shared "while Printer Sharing is
+  on"; the card names iPhones, iPads and other computers (AirPrint), not Android, which Windows' names (not checked with
+  macOS's sharing). Not checked: the URL landing on the Printer Sharing row (System Settings was in use on the build Mac),
+  a phone printing to a shared queue, the card and the alert on screen (VoiceOver).
 
 ## Mac differences
 
@@ -2116,8 +2130,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.
 - Inkvolt Print's Wave 4 Batch C (`print/ROADMAP.md`), done on Windows: 4.9 the print log (the Mac's would read CUPS's
-  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.10 sharing a printer with
-  phones (macOS's own Printer Sharing does it; a sandboxed app may only point to it); 4.17 the new-printer Wi-Fi guide (CoreWLAN
+  own job history, `cupsGetJobs` with `CUPS_WHICHJOBS_COMPLETED`, rather than watch a spooler); 4.17 the new-printer Wi-Fi guide (CoreWLAN
   to list and join networks, which needs location access and a check of what the sandbox allows).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
