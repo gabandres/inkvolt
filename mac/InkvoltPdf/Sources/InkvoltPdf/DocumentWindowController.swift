@@ -816,7 +816,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             done(testText)
             return
         }
-        let ask = AskController(.text(title), initial: initial, pageCount: engine.pageCount)
+        let ask = AskController(.text(title), initial: initial, pageCount: engine.pageCount, language: documentLanguage)
         ask.done = done
         present(ask, at: rect)
     }

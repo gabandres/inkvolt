@@ -31,6 +31,13 @@ enum AppSettings {
         static let aiTranslateLanguage = "AiTranslateLanguage"
         static let ocrClean = "OcrClean"
         static let ocrSuspects = "OcrSuspects"
+        static let spellCheck = "SpellCheck"
+    }
+
+    /// Settings › "Check spelling as I type" (roadmap 4.1, `Spelling`): on unless turned off.
+    static var spellCheck: Bool {
+        get { bool(Key.spellCheck, true) }
+        set { defaults.set(newValue, forKey: Key.spellCheck) }
     }
 
     /// How many files' last pages are kept (the Windows app's MaxFiles).
@@ -208,6 +215,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
     let recovery = NSButton(checkboxWithTitle: loc("Keep recovery copies of unsaved changes"), target: nil, action: nil)
     let dark = NSButton(checkboxWithTitle: loc("Dark pages (inverted colors for night reading)"), target: nil, action: nil)
     let updates = NSButton(checkboxWithTitle: loc("Check for updates automatically"), target: nil, action: nil)
+    let spelling = NSButton(checkboxWithTitle: loc("Check spelling as I type"), target: nil, action: nil)
     let author = NSTextField(string: "")
     /// Settings › Language (shown while `AppLanguage.spanishReady`): Same as macOS, English, Español, from the next launch.
     let language = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -235,6 +243,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         zoom.addItems(withTitles: AppSettings.zoomModes.map(\.1))
         recovery.toolTip = loc("Offered back if Inkvolt PDF closes unexpectedly (a crash, a power cut)")
         updates.toolTip = loc("Asks Inkvolt PDF's update feed on GitHub whether a newer version is ready. Nothing about you or this Mac is sent.")
+        spelling.toolTip = loc("Underlines the words the Mac's dictionary doesn't know in edited text, notes, text boxes, callouts and form fields, in the document's language (else the app's). Control-click a word for suggestions.")
         author.placeholderString = AppSettings.userName
         author.setAccessibleName(loc("Author name on comments"))
 
@@ -266,6 +275,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             [NSGridCell.emptyContentView, restore],
             [NSGridCell.emptyContentView, dark],
             [NSGridCell.emptyContentView, recovery],
+            [NSGridCell.emptyContentView, spelling],
             [NSGridCell.emptyContentView, updates],
             [NSTextField(labelWithString: loc("Author name on comments:")), author],
             [NSTextField(labelWithString: loc("AI assistant:")), aiRow],
@@ -286,7 +296,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         let spacer = NSView()
         spacer.setContentHuggingPriority(.init(1), for: .horizontal)
         let buttons = NSStackView(views: [reset, spacer])
-        for control in [theme, zoom, language, restore, recovery, dark, updates] as [NSControl] {
+        for control in [theme, zoom, language, restore, recovery, dark, spelling, updates] as [NSControl] {
             control.target = self
             control.action = #selector(changed(_:))
         }
@@ -316,6 +326,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         restore.state = AppSettings.restorePosition ? .on : .off
         recovery.state = AppSettings.keepRecoveryCopies ? .on : .off
         dark.state = AppSettings.darkPages ? .on : .off
+        spelling.state = AppSettings.spellCheck ? .on : .off
         updates.state = updater?.controller.updater.automaticallyChecksForUpdates == true ? .on : .off
         updates.isEnabled = updater != nil
         author.stringValue = AppSettings.authorName.isEmpty ? AppSettings.userName : AppSettings.authorName
@@ -341,6 +352,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         restore.state = .on
         recovery.state = .on
         dark.state = .off
+        spelling.state = .on
         updates.state = .on
         author.stringValue = AppSettings.userName
         saveClicked()
@@ -361,6 +373,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
         AppSettings.restorePosition = restore.state == .on
         AppSettings.keepRecoveryCopies = recovery.state == .on
         AppSettings.setDarkPages(dark.state == .on)
+        AppSettings.spellCheck = spelling.state == .on
         let name = author.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         AppSettings.authorName = name == AppSettings.userName ? "" : name // empty: follow the Mac user's name
         if let updater, updates.isEnabled, !Report.isRunning { updater.controller.updater.automaticallyChecksForUpdates = updates.state == .on }

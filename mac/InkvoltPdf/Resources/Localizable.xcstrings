@@ -22583,6 +22583,83 @@
           }
         }
       }
+    },
+    "No Suggestions": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sin sugerencias"
+          }
+        }
+      }
+    },
+    "Ignore Spelling": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ignorar ortografía"
+          }
+        }
+      }
+    },
+    "Add to Dictionary": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar al diccionario"
+          }
+        }
+      }
+    },
+    "Couldn't add the word": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo agregar la palabra"
+          }
+        }
+      }
+    },
+    "macOS didn't add “{0}” to your dictionary. Try again later.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no agregó “{0}” a tu diccionario. Vuelve a intentarlo más tarde."
+          }
+        }
+      }
+    },
+    "Check spelling as I type": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisar la ortografía mientras escribo"
+          }
+        }
+      }
+    },
+    "Underlines the words the Mac's dictionary doesn't know in edited text, notes, text boxes, callouts and form fields, in the document's language (else the app's). Control-click a word for suggestions.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subraya las palabras que el diccionario del Mac no conoce en el texto editado, las notas, los cuadros de texto, las llamadas y los campos de formulario, en el idioma del documento (si no, en el de la aplicación). Haz clic con la tecla Control pulsada en una palabra para ver sugerencias."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Spell check where you type: edited text, notes, text boxes, callouts, replies and form fields underline misspelled words in red, in the document's language. Control-click a word for suggestions, Ignore Spelling or Add to Dictionary. Turn it off in Settings.
 - Copy Text from Area and Copy Area as Table (Edit menu): draw a box with Snapshot and copy the words in it, read from the picture when the page is a scan. As a table, it pastes into Numbers, Excel or Pages as cells. After a snapshot, Copy text on its message does the same.
 - Links from Addresses (Tools › Annotate): every web and email address written in the document becomes a link you can click. You see the list first and can untick any; addresses that are links already are left alone. Undo removes them all in one step.
 - Mark All Matches (Edit › Find): search for a word or phrase, then highlight, underline or strike out every match at once, each as a comment of its own. Matches marked already aren't marked twice, and Undo takes them all off in one step.

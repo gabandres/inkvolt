@@ -77,6 +77,7 @@ struct TextToolsTest {
         await markAllMatches()
         await linksFromAddresses()
         await copyFromArea()
+        spellCheck()
         lines.append("RESULT: " + "\(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -195,4 +196,50 @@ struct TextToolsTest {
     }
 
     // MARK: Spell check (4.1)
+
+    private mutating func spellCheck() {
+        guard let checker = SpellCheck.checker("en-US") else {
+            check(!AppSettings.spellCheck, "spell check: the Mac has an English dictionary")
+            return
+        }
+        // An editor's text: a misspelling underlined; an address, a number and an acronym left alone.
+        let view = NSTextView(frame: NSRect(x: 0, y: 0, width: 400, height: 60))
+        view.string = "The quikc fox read www.exmaple.com on A4 paper for NASA."
+        SpellCheck.underline(view, checker)
+        func underlined(_ word: String) -> Bool {
+            let r = (view.string as NSString).range(of: word)
+            var effective = NSRange()
+            return view.layoutManager?.temporaryAttribute(.spellingState, atCharacterIndex: r.location, effectiveRange: &effective) != nil
+        }
+        check(underlined("quikc") && !underlined("fox") && !underlined("exmaple") && !underlined("A4") && !underlined("NASA"),
+              "a misspelling is underlined; a known word, an address, A4 and NASA aren't")
+
+        // Its menu: suggestions first, then Ignore Spelling and Add to Dictionary; Ignore holds for the session.
+        let at = (view.string as NSString).range(of: "quikc").location + 2
+        let menu = SpellCheck.menu(NSMenu(), view, at: at, checker) { SpellCheck.underline(view, checker) }
+        let titles = menu.items.map(\.title)
+        check(titles.contains("quick") && titles.contains(loc("Ignore Spelling")) && titles.contains(loc("Add to Dictionary")),
+              "the menu on it: \(titles.prefix(4).joined(separator: ", "))…")
+        if let ignore = menu.items.first(where: { $0.title == loc("Ignore Spelling") }), let action = ignore.action {
+            NSApp.sendAction(action, to: ignore.target, from: ignore)
+        }
+        check(!underlined("quikc") && checker.isIgnored("quikc") && SpellCheck.checker("en-US")?.check("quikc").isEmpty == true,
+              "Ignore Spelling: not underlined again, here or in another editor")
+        // A suggestion replaces the word where it is.
+        view.string = "A wrng word"
+        SpellCheck.underline(view, checker)
+        let fix = SpellCheck.menu(NSMenu(), view, at: 3, checker) { SpellCheck.underline(view, checker) }
+        if let first = fix.items.first, let action = first.action, first.title != loc("No Suggestions") {
+            NSApp.sendAction(action, to: first.target, from: first)
+        }
+        check(view.string != "A wrng word" && view.string.hasPrefix("A ") && view.string.hasSuffix(" word"), "a suggestion replaces the word: “\(view.string)”")
+
+        // Settings › Check spelling as I type, off: nothing is checked.
+        let was = AppSettings.spellCheck
+        AppSettings.spellCheck = false
+        check(SpellCheck.checker("en-US") == nil, "turned off in Settings: no spell checker")
+        AppSettings.spellCheck = was
+    }
+
+    // MARK: Find and Replace (
 }

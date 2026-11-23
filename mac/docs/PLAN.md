@@ -506,6 +506,7 @@ at under "What a person must look at" and in each section.
 | 4.18 | Mark All Matches (roadmap 4.18): Edit › Find › Highlight, Underline and Strike Out All Matches, after a search with the Find bar (`SearchMarks`, `MarkMatches.swift`; `--edit --only-text-tools` drives it) | SearchMarksTests |
 | 4.15 | Links from Addresses (roadmap 4.15): Tools › Annotate › Links from Addresses…, the addresses listed to untick, the ticked ones made links in one step (`AddressLinks`, `Links.putOnTexts`, `LinkAddresses.swift`) | AddressLinksTests |
 | 4.6 | Copy Text from Area and Copy Area as Table (roadmap 4.6): Edit's two commands on the last Snapshot box, or the next one drawn; the snapshot's notice offers Copy text; a box without text read with Vision (`AreaCopy`, `AreaCopyActions.swift`) | AreaCopyTests |
+| 4.1 | Spell check where people type (roadmap 4.1): the paragraph editor, notes, text boxes, callouts, replies, the inspector's text, a run of page text and form fields; suggestions, Ignore Spelling, Add to Dictionary; Settings › Check spelling as I type (`SpellChecker` in PdfCore/Text, the app's `SpellCheck`, `SpellingField`, Spelling.swift) | SpellCheckerTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -546,6 +547,15 @@ From the steps, besides the sections below:
   document is unchanged. Copy Text from Area with no box picks Snapshot and the next box copies words instead of a
   picture. The notice says Numbers, Excel or Pages where Windows says Excel or Word. Not checked by a person: pasting
   into Numbers and Excel for Mac.
+- 4.1: the dictionary is `NSSpellChecker` (`MacSpelling`, the closest dictionary the Mac has for the language; Add to
+  Dictionary is macOS's Learn Spelling, the self-test's kept for its run only). The app draws the underlines itself (a
+  temporary spelling attribute on the editor's layout manager, from `SpellChecker.check`, the editors' own continuous
+  checking off) and puts its items at the top of the editor's menu (macOS's own spelling items taken out), so every editor
+  follows PdfCore's rules where Windows' plain text boxes use WPF's speller and then drop the words ignored: on the Mac one
+  path for all. A text field's field editor is shared by the window, so `SpellingField` clears its underlines when editing
+  ends. Ignore is "Ignore Spelling" (macOS's name), for the session in every editor. The third language tried is the Mac's
+  (`Locale.current`) where Windows tries Windows' display language. Not checked by a person: the red underline's look,
+  the menu by Control-click and from the keyboard, VoiceOver reading a misspelled word.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
   (`HybridXref.MaxStreamBytes`); `PngDecoder` inflates only the bytes its size needs, as Windows' `ReadExactly`.

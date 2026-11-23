@@ -355,8 +355,8 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   - 4.13 Replace pages (keeping bookmarks and links to them). Done on Windows (`PageEditor.Replace`); the Mac's waits.
   - 4.14 Edit page labels (i, ii, then 1, 2; prefixes). Done on Windows (`PageLabels`); the Mac's waits.
 - **Batch A (text):** 4.1 Spell check where people type (edited text, notes, text boxes, callouts, form fields; Windows'
-  own spell checker): Done, Windows (`SpellChecker`, tests `SpellCheckerTests`; the app's `Spelling`); Mac waits
-  (NSSpellChecker behind the same rules). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
+  own spell checker): Done, Windows and Mac (`SpellChecker`, tests `SpellCheckerTests`; the app's `Spelling`; the Mac's
+  NSSpellChecker behind the same rules, its underlines and menu drawn by the app, `SpellCheck`). 4.2 Find & Replace across the document (Replace, Replace All, case and whole word, one undo step,
   the replacements a font can't draw listed): Done, Windows (`TextReplace` over `ContentEditor.ReplaceParagraphIn`, one save
   for all; tests `TextReplaceTests`, pdf.js `ReplacedTextReadsTheSameInPdfJs`; the app's `ReplaceDialog`); Mac waits.
 - **Batch B:**

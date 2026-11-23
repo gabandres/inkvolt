@@ -77,7 +77,9 @@ locality) are used in their usual sense: the interface is everything a caller mu
   what in typed text is a **word** to look up (letters, an apostrophe inside; not numbers, capitals or addresses) and asks
   an `ISpellingDictionary` (Windows' own in the app, a word list in tests); a word it doesn't know is a **misspelling**.
   **Ignore** lasts for the app's session; **Add to dictionary** writes Windows' user dictionary. Its language is the
-  document's (/Lang), else the interface's, else Windows'.
+  document's (/Lang), else the interface's, else Windows'. On the Mac: `PdfCore/Text/SpellChecker.swift` over a
+  `SpellingDictionary` (NSSpellChecker in the app's `SpellCheck`, Spelling.swift, which draws the underlines in every
+  editor and its `SpellingField`); Add to dictionary is macOS's Learn Spelling, and the third language is the Mac's.
 - **Find and Replace** (`Core/TextReplace.cs`; in the app `ReplaceDialog`, `DocumentTab.Replace.cs`): a **match** is found
   in a page's paragraphs as Edit Text & Images groups them, and **replaced** by rewriting its paragraph
   (`ContentEditor.ReplaceParagraphIn`), all of Replace All's in one pass and one save. A **note** says how a replacement went
