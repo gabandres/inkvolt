@@ -81,7 +81,6 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     var lastProblem: String?
     /// The snapshot being made (SnapshotTool.swift): a newer one cancels it, so only the latest reaches the clipboard.
     var snapshotCancel: CancelToken?
-
     // E13 (SplitView.swift): the panes' split view (the main pane's scroll view alone until View › Split View), the second
     // pane while the view is split, how, and which pane navigation acts on.
     let paneSplit = PaneSplitView()
@@ -105,6 +104,8 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     private var findGeneration = 0
     /// The search under way, stopped when another starts or the bar closes.
     private var findCancel: CancelToken?
+    /// The last search's options (Search Folders' result opened here gives its own).
+    private var findOptions = (matchCase: false, wholeWord: false, ignoreAccents: false)
     /// Called when a find has finished (the self-test waits on it).
     var onFindFinished: (() -> Void)?
     /// Extract and Split asked once whether to write a protected document's pages without its password (Windows: per tab).
@@ -1119,12 +1120,21 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         find(query, from: page, matchCase: options.matchCase, wholeWord: options.wholeWord, ignoreAccents: options.ignoreAccents)
     }
 
-    /// Finds `query` on every page (off the main thread), shows the first match from `page` (the current page) on.
-    func find(_ query: String, from page: Int? = nil, matchCase: Bool = false, wholeWord: Bool = false, ignoreAccents: Bool = false) {
+    /// The last search made again with its options (after Mark All Matches changed the document), the view kept where it is.
+    func findAgain(_ query: String) {
+        guard query == foundQuery || foundQuery.isEmpty else { return }
+        find(query, matchCase: findOptions.matchCase, wholeWord: findOptions.wholeWord, ignoreAccents: findOptions.ignoreAccents, jump: false)
+    }
+
+    /// Finds `query` on every page (off the main thread), shows the first match from `page` (the current page) on;
+    /// `jump` false: selects it without scrolling to it.
+    func find(_ query: String, from page: Int? = nil, matchCase: Bool = false, wholeWord: Bool = false, ignoreAccents: Bool = false,
+              jump: Bool = true) {
         findGeneration += 1
         let generation = findGeneration
         findCancel?.cancel()
         findCancel = nil
+        findOptions = (matchCase, wholeWord, ignoreAccents)
         foundQuery = query
         found = []
         findSkipped = ""
@@ -1163,7 +1173,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard generation == self.findGeneration else { return }
-                    self.showFound(results, from: from, skipped: skipped)
+                    self.showFound(results, from: from, skipped: skipped, jump: jump)
                 }
             }
         }
@@ -1180,7 +1190,7 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         return " " + loc("{0} pages took too long to read and weren't searched: {1}.", CoreLanguage.number(pages.count), list)
     }
 
-    private func showFound(_ results: [(page: Int, start: Int, end: Int)], from page: Int, skipped: [Int]) {
+    private func showFound(_ results: [(page: Int, start: Int, end: Int)], from page: Int, skipped: [Int], jump: Bool = true) {
         found = results
         findSkipped = Self.skippedNote(skipped)
         var byPage: [Int: [(start: Int, end: Int)]] = [:]
@@ -1188,6 +1198,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
         for view in documentPanes { view.matches = byPage }
         if results.isEmpty {
             findBar.status = loc("Not found") + findSkipped
+        } else if !jump {
+            foundIndex = results.firstIndex { $0.page >= page } ?? 0
+            for view in documentPanes { view.currentMatch = results[foundIndex] }
+            findBar.status = loc("{0} of {1}", CoreLanguage.number(foundIndex + 1), CoreLanguage.number(results.count)) + findSkipped
         } else {
             foundIndex = (results.firstIndex { $0.page >= page } ?? 0) - 1
             step(1)

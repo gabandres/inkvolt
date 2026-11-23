@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Marcar todas las coincidencias (Edición › Buscar): busca una palabra o frase y resalta, subraya o tacha todas las coincidencias a la vez, cada una como un comentario propio. Las coincidencias ya marcadas no se marcan dos veces, y Deshacer las quita todas en un solo paso.
 
 ## 1.12.1
 - Los cambios posteriores a un archivo firmado ya no pueden esconderse tras los datos de validación que guarda: un cambio en lo que dibuja un comentario escrito dentro de la lista de una página, en un tamaño o giro que heredan las páginas o en el orden de las páginas se muestra ahora como un cambio después de firmar.

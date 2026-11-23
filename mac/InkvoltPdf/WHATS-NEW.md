@@ -6,6 +6,7 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Mark All Matches (Edit › Find): search for a word or phrase, then highlight, underline or strike out every match at once, each as a comment of its own. Matches marked already aren't marked twice, and Undo takes them all off in one step.
 
 ## 1.12.1
 - A signed file's later changes can no longer hide behind the validation data it stores: a change to what a comment written into a page's list draws, to a page size or turn the pages inherit, or to the page order now shows as a change after signing.

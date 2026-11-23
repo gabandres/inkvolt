@@ -26070,6 +26070,39 @@
           }
         }
       }
+    },
+    "Highlight All Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar todas las coincidencias"
+          }
+        }
+      }
+    },
+    "Underline All Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar todas las coincidencias"
+          }
+        }
+      }
+    },
+    "Strike Out All Matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar todas las coincidencias"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

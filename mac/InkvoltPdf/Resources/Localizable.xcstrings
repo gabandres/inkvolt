@@ -22154,6 +22154,149 @@
           }
         }
       }
+    },
+    "Search for the words to mark, then choose it again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Busca las palabras que quieras marcar y vuelve a elegirlo."
+          }
+        }
+      }
+    },
+    "The search found nothing to mark.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La búsqueda no encontró nada que marcar."
+          }
+        }
+      }
+    },
+    "Couldn't mark the matches: the document couldn't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron marcar las coincidencias: no se pudo leer el documento."
+          }
+        }
+      }
+    },
+    "Every match is marked already.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todas las coincidencias ya están marcadas."
+          }
+        }
+      }
+    },
+    "Underline 1 match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar 1 coincidencia"
+          }
+        }
+      }
+    },
+    "Underline {0} matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subrayar {0} coincidencias"
+          }
+        }
+      }
+    },
+    "Strike out 1 match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar 1 coincidencia"
+          }
+        }
+      }
+    },
+    "Strike out {0} matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tachar {0} coincidencias"
+          }
+        }
+      }
+    },
+    "Highlight 1 match": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar 1 coincidencia"
+          }
+        }
+      }
+    },
+    "Highlight {0} matches": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar {0} coincidencias"
+          }
+        }
+      }
+    },
+    "Marked the first {0} of {1} matches; choose it again for the rest.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se marcaron las primeras {0} de {1} coincidencias; vuelve a elegirlo para las demás."
+          }
+        }
+      }
+    },
+    "1 page already had more marks than are read: a match under one of the others may be marked twice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página ya tenía más marcas de las que se leen: una coincidencia bajo alguna de las demás puede quedar marcada dos veces."
+          }
+        }
+      }
+    },
+    "{0} pages already had more marks than are read: a match under one of the others may be marked twice.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas ya tenían más marcas de las que se leen: una coincidencia bajo alguna de las demás puede quedar marcada dos veces."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

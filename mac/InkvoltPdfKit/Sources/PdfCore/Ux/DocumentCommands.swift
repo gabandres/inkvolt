@@ -298,6 +298,11 @@ public enum DocumentCommands {
             c("Find Next", "findNext:", "g"),
             c("Find Previous", "findPrevious:", "g", [.command, .shift]),
             sep,
+            // Mark All Matches (roadmap 4.18; Windows: the Find bar's and the Search pane's Highlight All Matches menu).
+            c("Highlight All Matches", "highlightAllMatches:", needs: [.searchMatches, .idle]),
+            c("Underline All Matches", "underlineAllMatches:", needs: [.searchMatches, .idle]),
+            c("Strike Out All Matches", "strikeOutAllMatches:", needs: [.searchMatches, .idle]),
+            sep,
             // Every PDF of the indexed folders (roadmap 3.5; Windows: Edit › Search Folders…, Ctrl+Alt+Shift+F).
             c("Search Folders…", "showFolderSearch:", "f", [.command, .option, .shift]),
         ])),
