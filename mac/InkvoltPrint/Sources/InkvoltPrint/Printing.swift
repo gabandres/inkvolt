@@ -1,6 +1,7 @@
 import AppKit
 import PDFKit
 import PrintCore
+import PrintMac
 import UniformTypeIdentifiers
 
 /// Printing from Inkvolt Print (the Windows app's Print a PDF and Copy): through macOS's print panel, with the printer's
@@ -8,14 +9,19 @@ import UniformTypeIdentifiers
 /// A network printer macOS has no queue for can still be picked in the panel (macOS lists printers nearby and sets one up).
 @MainActor
 enum Printing {
-    /// Print a PDF…: the user picks the file.
-    static func printPdf(on printer: PrinterModel, app: AppModel) {
+    /// Print a PDF…: the user picks the file, and its layout under the file list (roadmap 4.18: one page per sheet as before,
+    /// several, a booklet or a poster, `SheetPrinting`).
+    static func printPdf(on printer: PrinterModel, app: AppModel) async {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.pdf]
         panel.allowsMultipleSelection = false
         panel.message = String(localized: "Choose a PDF to print on \(printer.name).")
         panel.prompt = String(localized: "Print…")
+        let layout = SheetChoiceView()
+        panel.accessoryView = layout
+        panel.isAccessoryViewDisclosed = true
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        let choice = layout.choice
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let document = PDFDocument(url: url) else {
@@ -28,7 +34,18 @@ enum Printing {
                 return
             }
         }
-        print(document, name: url.deletingPathExtension().lastPathComponent, on: printer, app: app)
+        let name = url.deletingPathExtension().lastPathComponent
+        guard let setup = SheetPrint.setup(choice) else {
+            print(document, name: name, on: printer, app: app)
+            return
+        }
+        var bothSides: Bool? // the queue's say, when it has one; else the panel's printer decides
+        if SheetPrint.twoSided(setup, asked: false), let queue = printer.queueName { bothSides = await LibCups().printsBothSides(queue) }
+        if let problem = sheetProblem(setup, document, bothSides: bothSides) {
+            alert(problem)
+            return
+        }
+        printSheets(document, choice: choice, name: name, on: printer, app: app)
     }
 
     /// Prints a document with the panel, on the printer's queue when it has one. `actualSize`: at its own size (photos laid

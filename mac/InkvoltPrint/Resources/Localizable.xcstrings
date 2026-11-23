@@ -529,6 +529,16 @@
         }
       }
     },
+    "%lld pages per sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld páginas por hoja"
+          }
+        }
+      }
+    },
     "%lld pages were cleaned up (Undo puts them back).": {
       "localizations": {
         "es": {
@@ -1340,6 +1350,16 @@
         }
       }
     },
+    "Booklet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Folleto"
+          }
+        }
+      }
+    },
     "Borderless": {
       "localizations": {
         "es": {
@@ -1956,6 +1976,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recortar…"
+          }
+        }
+      }
+    },
+    "Cut marks": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Marcas de corte"
           }
         }
       }
@@ -3098,6 +3128,16 @@
         }
       }
     },
+    "Layout:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Diseño:"
+          }
+        }
+      }
+    },
     "Leave It Out": {
       "localizations": {
         "es": {
@@ -3564,6 +3604,26 @@
         }
       }
     },
+    "Not printed: a booklet prints on both sides, and this printer's queue says it prints one side only. Choose another layout, or another printer.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se imprimió: un folleto se imprime a doble cara, y la cola de esta impresora dice que imprime una sola cara. Elige otro diseño u otra impresora."
+          }
+        }
+      }
+    },
+    "Not printed: this layout would take more than %lld sheets. Choose fewer pages or a smaller poster.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se imprimió: este diseño ocuparía más de %lld hojas. Elige menos páginas o un póster más pequeño."
+          }
+        }
+      }
+    },
     "Not saved: the preset puts a password on its PDF, and none was entered.": {
       "localizations": {
         "es": {
@@ -3630,6 +3690,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "No se pudo leer un archivo como imagen."
+          }
+        }
+      }
+    },
+    "One page per sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Una página por hoja"
           }
         }
       }
@@ -4112,6 +4182,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conéctala y enciéndela; luego agrégala en Impresoras y escáneres de Configuración del Sistema."
+          }
+        }
+      }
+    },
+    "Poster": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Póster"
           }
         }
       }
@@ -5326,6 +5406,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Configuración…"
+          }
+        }
+      }
+    },
+    "Several pages per sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Varias páginas por hoja"
           }
         }
       }

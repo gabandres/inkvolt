@@ -197,6 +197,18 @@ public struct LibCups: PrintQueues, QueueControl, QueueSetupControl {
         }
     }
 
+    /// Whether the queue prints on both sides (its `sides-supported` holds two-sided-long-edge, `cupsCheckDestSupported`):
+    /// Print a PDF's booklet needs it (roadmap 4.18). Nil when cupsd can't say (no such queue).
+    public func printsBothSides(_ queue: String) async -> Bool? {
+        await Self.run {
+            guard let dest = cupsGetNamedDest(nil, queue, nil) else { return nil }
+            defer { cupsFreeDests(1, dest) }
+            guard let info = cupsCopyDestInfo(nil, dest) else { return nil }
+            defer { cupsFreeDestInfo(info) }
+            return cupsCheckDestSupported(nil, dest, info, "sides", "two-sided-long-edge") != 0
+        }
+    }
+
     /// Jobs not finished yet, every user's (the count is what the queue holds).
     private static func activeJobs(_ queue: String) -> Int? {
         var jobs: UnsafeMutablePointer<cups_job_t>?

@@ -296,6 +296,26 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   them. Found here: PdfEngine draws every page of a document opened with its open password white (Inkvolt PDF's own Protect
   output the same, AES-128 or AES-256; owner-only files draw), so AProtectedScanDrawsAsThePlainOne is off ("Open"). Not
   checked: a protected scan in Acrobat, veraPDF on the PDF/A scan, the password sheet on screen (VoiceOver).
+- **4.18 Print a PDF's pages per sheet, booklet and poster.** PrintCore `Sheets` (`PrintLayout`, `PrintSetup`, `PrintPlan`,
+  `PrintSheet`, `PlacedPage`, `CutMark`, `PrintHandling`, `PrintSizing`, `PagesOrder`: the Windows core's `Core/Sheets`, moved
+  there from Inkvolt PDF, ported over `Placement`, which gains `right`, `bottom`, `intersect`, `inflate`), `SheetPrint`,
+  `SheetChoice`, `PdfLayout`, `SheetRoute`; `SheetPrintTests` (PC, 14). PrintMac `LibCups.printsBothSides` (the queue's
+  `sides-supported`). The app (`SheetPrinting.swift`): Print a PDF's open panel has a Layout row under the file list (one page
+  per sheet as before, several pages per sheet with 2 to 16, a booklet, a poster with its size and cut marks); a layout other
+  than one page per sheet prints `SheetPrintView` through the print panel: the plan laid out for the panel's paper as it
+  changes, each page drawn by PDFKit (vectors, annotations included) into its place, a poster's part clipped to its box, cut
+  marks; more than 1000 sheets (counted on Letter or A4 by region) is refused with Windows' words, a booklet on a queue that
+  says it prints one side only too. `--report … --pdf-layout` prints the sample to PDFs in the container and says where
+  PDFKit finds each page's words. **Mac differences:** Inkvolt PDF for Mac's PdfCore keeps its own `PrintLayout` (Windows
+  moved Inkvolt PDF's into the shared core), so PrintCore's are nested in `Sheets` (PdfCore imports PrintCore, and two
+  `PrintSetup`s at the top level would collide in every file that imports both); `grid` takes a count that isn't a choice
+  as 2 (Windows throws); lengths are in DIPs as on Windows and drawn in points (`SheetPrint.pointsPerUnit`); copies and two
+  sides are the print panel's (macOS makes the copies, so `SheetPrint.order`'s blank back between copies isn't used); a
+  booklet asks the panel for two-sided on the long edge, and a back is drawn half-turned only while the job prints on the
+  long edge (on the short edge it needs no turn); no two-sided by hand, so a booklet on a one-sided queue is refused rather
+  than printed by hand; pages are vectors, not pictures at `renderDpi`; the layout is picked before the panel (Windows: in
+  its Print a PDF view, with a count of the sheets). Not checked: a booklet and a poster on paper (fold, trim), the open
+  panel's Layout row on screen (VoiceOver), a printer with no queue picked in the panel for a booklet.
 
 ## Mac differences
 
@@ -1892,8 +1912,6 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Inkvolt Print 4.14: scan presets saving Word (.docx) and text (.txt) files (`ScanDocx`, `ScanText`, `PageText`), done on Windows.
 - Inkvolt Print 4.16: cards, calendars and collages in Photos (`PhotoProjects`, `PhotoSheet.Lines`/`Texts`; port
   `PhotoProjectsTests`; Foundation's `Calendar` gives the first weekday), done on Windows.
-- Inkvolt Print 4.18's second half: Print a PDF's pages per sheet, booklet and poster (`Sheets/PrintLayout`, moved from
-  Inkvolt PDF, and `SheetPrint`; port `SheetPrintTests`; Inkvolt PDF for Mac's own `PrintLayout` stays as it is), done on Windows.
 - Inkvolt PDF for Mac: `PdfEngine.render` draws every page of a document opened with its open password white (AES-128 and
   AES-256, Inkvolt PDF's own Protect output too; an owner-only file draws; its text reads, and Remove Protection's copy
   draws). Found by Print 4.18's `PrintScanArchiveTests.aProtectedScanDrawsAsThePlainOne`, off until it's fixed.
