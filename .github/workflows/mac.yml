@@ -48,12 +48,5 @@ jobs:
           key: mupdf-${{ runner.os }}-${{ hashFiles('mac/Vendor/mupdf/build.sh', 'mac/Vendor/mupdf/patches/*.patch') }}
       - if: steps.mupdf.outputs.cache-hit != 'true'
         run: sh mac/Vendor/mupdf/build.sh
-      - run: swift build --build-tests --package-path mac/InkvoltPdfKit -Xswiftc -warnings-as-errors # WIP
-      - run: bash mac/tools/wip-stall-sampler.sh # WIP
-      - if: always() # WIP
-        uses: actions/upload-artifact@v4
-        with:
-          name: stall-samples
-          path: ${{ runner.temp }}/sample-*.txt
-          if-no-files-found: ignore
+      - run: swift test --package-path mac/InkvoltPdfKit -Xswiftc -warnings-as-errors
       - run: swift build --package-path mac/InkvoltPdf -c release -Xswiftc -warnings-as-errors # the app

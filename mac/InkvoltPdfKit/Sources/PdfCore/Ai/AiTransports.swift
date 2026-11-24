@@ -364,10 +364,8 @@ final class AiSocketTransport: AiTransport {
                     connection.stateUpdateHandler = { state in
                         switch state {
                         case .ready:
-                            NetTrace.log("client ready \(connection.endpoint) local \(String(describing: connection.currentPath?.localEndpoint))")
                             race.ready(connection)
                         case .waiting(let error), .failed(let error):
-                            NetTrace.log("client \(connection.endpoint) \(state) raw \(error)")
                             // Waiting means retrying later (macOS waits on a refused port): one answer is enough here.
                             race.failed(Self.meaningBeforeReady(error, tls: tlsName != nil))
                             connection.cancel()
@@ -480,7 +478,6 @@ final class AiSocketTransport: AiTransport {
     private func write(_ bytes: [UInt8], _ connection: NWConnection, _ cancel: CancelToken) async throws {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<Void, Error>) in
             connection.send(content: Data(bytes), completion: .contentProcessed { error in
-                NetTrace.log("client \(connection.endpoint) sent \(bytes.count) error \(String(describing: error))")
                 if cancel.isCancelled {
                     c.resume(throwing: CancellationError())
                 } else if let error {
@@ -495,7 +492,6 @@ final class AiSocketTransport: AiTransport {
     private func receive(_ connection: NWConnection, _ cancel: CancelToken) async throws -> (bytes: [UInt8], ended: Bool) {
         try await withCheckedThrowingContinuation { (c: CheckedContinuation<(bytes: [UInt8], ended: Bool), Error>) in
             connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
-                NetTrace.log("client \(connection.endpoint) local \(String(describing: connection.currentPath?.localEndpoint)) receive \(data?.count ?? -1) complete \(complete) error \(String(describing: error)) cancelled \(cancel.isCancelled)")
                 if cancel.isCancelled {
                     c.resume(throwing: CancellationError())
                 } else if let error {
@@ -510,7 +506,6 @@ final class AiSocketTransport: AiTransport {
     /// Moves the body from the connection into the queue, until it ends.
     private static func pump(_ connection: NWConnection, _ reader: AiHttpReader, _ body: AiByteQueue) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
-            NetTrace.log("client \(connection.endpoint) pump \(data?.count ?? -1) complete \(complete) error \(String(describing: error))")
             var reader = reader
             do {
                 if let error { throw Self.meaning(error) }
@@ -807,7 +802,6 @@ public final class AiLoopbackServer: @unchecked Sendable {
         }
         port = Int(UInt16(bigEndian: address.sin_port))
         listener = fd
-        NetTrace.log("server \(port) listening fd \(fd)")
         Self.onThread { [self] in acceptLoop() }
     }
 
@@ -820,7 +814,6 @@ public final class AiLoopbackServer: @unchecked Sendable {
     public func stop() {
         lock.withLock {
             stopped = true
-            NetTrace.log("server \(port) stop, open \(open)")
             for s in open { shutdown(s, SHUT_RDWR) }
         }
         listenerClosed.wait()
@@ -832,11 +825,7 @@ public final class AiLoopbackServer: @unchecked Sendable {
         while !lock.withLock({ stopped }) {
             if poll(&waiting, 1, 50) <= 0 { continue }
             let client = accept(listener, nil, nil)
-            if client < 0 {
-                NetTrace.log("server \(port) accept failed errno \(errno)")
-                continue
-            }
-            NetTrace.log("server \(port) accepted fd \(client)")
+            if client < 0 { continue }
             let keep: Bool = lock.withLock {
                 if stopped { return false }
                 open.append(client)
@@ -848,7 +837,6 @@ public final class AiLoopbackServer: @unchecked Sendable {
             }
             Self.onThread { [self] in serve(client) }
         }
-        NetTrace.log("server \(port) closing listener fd \(listener)")
         Darwin.close(listener)
         listenerClosed.signal()
     }
@@ -867,7 +855,6 @@ public final class AiLoopbackServer: @unchecked Sendable {
     private func finish(_ client: Int32) {
         lock.withLock {
             open.removeAll { $0 == client }
-            NetTrace.log("server \(port) close fd \(client)")
             Darwin.close(client)
         }
     }
@@ -882,10 +869,7 @@ public final class AiLoopbackServer: @unchecked Sendable {
         var wanted = 0
         while headEnd == nil || data.count < headEnd! + 4 + wanted {
             let n = recv(client, &buffer, size, 0)
-            if n <= 0 {
-                NetTrace.log("server \(port) fd \(client) recv \(n) errno \(errno) after \(data.count) bytes")
-                break
-            }
+            if n <= 0 { break }
             data += buffer[0..<n]
             if answersFirstBytes { break }
             if headEnd == nil, let end = Self.headEnd(data) {
@@ -900,18 +884,13 @@ public final class AiLoopbackServer: @unchecked Sendable {
         let body = Array(data[min(end + 4, data.count)...])
         let received = Received(head: String(decoding: data[..<end], as: UTF8.self), body: String(decoding: body, as: UTF8.self), bodyBytes: body)
         lock.withLock { requests.append(received) }
-        NetTrace.log("server \(port) fd \(client) got \(received.requestLine) (\(data.count) bytes)")
         let reply = answer(received)
-        NetTrace.log("server \(port) fd \(client) answers \(reply.pieces.map { $0.count }) bytes")
         for (i, piece) in reply.pieces.enumerated() {
             if i > 0 && reply.pause > 0 { Thread.sleep(forTimeInterval: reply.pause) }
             var at = 0
             while at < piece.count {
                 let n = piece[at...].withUnsafeBytes { Darwin.send(client, $0.baseAddress, $0.count, 0) }
-                if n <= 0 {
-                    NetTrace.log("server \(port) fd \(client) send \(n) errno \(errno) at \(at)")
-                    break
-                }
+                if n <= 0 { break }
                 at += n
             }
         }

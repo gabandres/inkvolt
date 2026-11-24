@@ -330,7 +330,6 @@ public final class LtvClient: @unchecked Sendable {
         } catch let e as LtvFetchError {
             throw e
         } catch {
-            NetTrace.log("ltv \(url) failed: \(error) token \(token.isCancelled) task \(Task.isCancelled)")
             if Task.isCancelled { throw CancellationError() }
             let server = Self.server(url)
             if token.isCancelled || (error as? AiNetError) == .timedOut {
