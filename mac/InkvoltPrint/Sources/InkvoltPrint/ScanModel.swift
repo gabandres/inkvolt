@@ -692,7 +692,7 @@ final class ScanModel {
 
     /// Asks for the stack to be turned over once its `fronts` are scanned (the Windows app's question, a modal alert);
     /// false: only the fronts.
-    private func askTurnStack(_ fronts: Int) async -> Bool {
+    func askTurnStack(_ fronts: Int) async -> Bool {
         if let answerTurnStack { return answerTurnStack(fronts) }
         let alert = NSAlert()
         alert.messageText = fronts == 1 ? String(localized: "Fronts scanned: \(fronts) page.") : String(localized: "Fronts scanned: \(fronts) pages.")

@@ -1,5 +1,6 @@
 import AppKit
 import PdfCore
+import PrintCore
 
 /// Names every dialog control for VoiceOver from the label a sighted person reads beside it (UX review, round 2: the
 /// audit of the sheets and alerts found 88 controls VoiceOver couldn't name, mostly fields and pop-ups after a

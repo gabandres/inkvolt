@@ -111,6 +111,9 @@ enum Report {
     private(set) static var snapshots: String?
     /// `--ux-shots` (with `--snapshots <dir>` and `--synthetic`): only `UxShots`, the UX review's screens and audit.
     private(set) static var uxShots = false
+    /// `--ax-audit` (with `--synthetic`, optionally `--lang es`): `UxShots`' walk through the windows and every dialog in
+    /// light only, each audited for VoiceOver (`AxWalk`) and nothing drawn unless `--snapshots` is given too.
+    private(set) static var axAudit = false
     /// `--ux-main`: with `--ux-shots`, only the main windows, not every dialog.
     private(set) static var uxMainOnly = false
     /// `--ux-dialog <name>`: with `--ux-shots`, only the dialogs whose shot names start with it (a quick re-shoot).
@@ -141,7 +144,8 @@ enum Report {
         edits = args.contains("--edit")
         only = edits ? scenarios.first { args.contains($0.flag) } : nil
         snapshots = value("--snapshots")
-        uxShots = args.contains("--ux-shots")
+        axAudit = args.contains("--ax-audit")
+        uxShots = args.contains("--ux-shots") || axAudit
         uxMainOnly = args.contains("--ux-main")
         uxDialog = value("--ux-dialog")
         recoveryRoot = value("--recovery-root")

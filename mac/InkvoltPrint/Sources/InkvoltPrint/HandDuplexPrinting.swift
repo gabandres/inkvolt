@@ -113,7 +113,7 @@ enum HandDuplexPrinting {
         }
     }
 
-    private static func askCopies(_ file: String) -> Int? {
+    static func askCopies(_ file: String) -> Int? {
         let alert = NSAlert()
         alert.messageText = String(localized: "Print \(file) on both sides by hand")
         alert.informativeText = String(localized: "The fronts print first. Then Inkvolt Print says how to put the stack back in the paper tray for the backs.")

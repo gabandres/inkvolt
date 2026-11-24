@@ -80,7 +80,9 @@ extension UxShots {
 
     /// Sends `trigger` (on the next turn of the run loop, so a modal alert doesn't block this step), then shoots each of
     /// `steps` as its dialog shows.
-    mutating func dialog(_ steps: [Step], audits: Bool, wait: Int = 700, _ trigger: @escaping @MainActor () -> Void) async {
+    /// `skipProgress`: a search's progress sheet comes first (Bookmarks from Headings); the dialog is what follows it.
+    mutating func dialog(_ steps: [Step], audits: Bool, wait: Int = 700, skipProgress: Bool = false,
+                         _ trigger: @escaping @MainActor () -> Void) async {
         if let only = Report.uxDialog, !(steps.first?.name.hasPrefix(only) ?? false) { return }
         let parent = controller.window
         let before = visibleWindows()
@@ -92,7 +94,7 @@ extension UxShots {
             var found: NSWindow? = step.same ? previous : nil
             for _ in 0..<(step.same ? 0 : 60) {
                 await settle(100)
-                if let w = Self.dialogWindow(parent, before), w !== previous {
+                if let w = Self.dialogWindow(parent, before), w !== previous, !(skipProgress && w.windowController is ProgressSheet) {
                     found = w
                     break
                 }
@@ -158,6 +160,7 @@ extension UxShots {
         await one("interleave", NSSelectorFromString("interleavePages:"))
         await one("resize", NSSelectorFromString("resizePages:"))
         await one("page-labels", NSSelectorFromString("editPageLabels:"))
+        await wave4Paper(look, audits: audits, send)
         await one("extract", NSSelectorFromString("extractPages:"))
         await dialog(Step.more("split", look), audits: audits, send(NSSelectorFromString("splitDocument:")))
         await dialog(Step.more("redact-pattern", look), audits: audits, send(NSSelectorFromString("redactByPattern:")))
@@ -172,6 +175,7 @@ extension UxShots {
         await one("ai-summarize-not-set-up", NSSelectorFromString("aiSummarize:"))
         ScanWindowController.useDemoScanners()
         await dialog([Step("scanner-\(look)")], audits: audits, wait: 1500, send(NSSelectorFromString("insertFromScanner:")))
+        await wave4More(look, audits: audits, send)
         await dialog([Step("compare-\(look)")], audits: audits) { CompareWindowController.pick() }
         await dialog(Step.more("batch", look), audits: audits, wait: 1000) { BatchWindowController.show() }
         await dialog([Step("combine-empty-\(look)")], audits: audits, wait: 1000) { _ = CombineWindowController.show() }
@@ -185,8 +189,10 @@ extension UxShots {
         }
         await dialog([Step("progress-\(look)")], audits: audits) { [weak c] in
             guard let c else { return }
-            let sheet = ProgressSheet(title: "Recognize Text", text: "Reading page 2 of 3…") // English: the self-test's sample sheet
-            sheet.update("Reading page 2 of 3…", 0.45) // English: the self-test's sample sheet
+            // The sample sheet in the app's language, as Recognize Text words it (the audit reads it in Spanish too).
+            let reading = loc("Reading page {0} of {1}…", CoreLanguage.number(2), CoreLanguage.number(3))
+            let sheet = ProgressSheet(title: loc("Recognize Text"), text: reading)
+            sheet.update(reading, 0.45)
             UxShots.keep = sheet
             sheet.begin(on: c.window)
         }
