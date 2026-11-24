@@ -30,6 +30,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Share a printer with phones: File › Share a Printer with Phones… and each printer's Share with phones card say whether macOS shares it and open Printer Sharing in System Settings, so iPhones, iPads and other computers on your network print to it with AirPrint.
 - Set up a new printer's Wi-Fi (File › Set Up a New Printer's Wi-Fi…): for a printer still out of the box, Inkvolt Print finds its setup network nearby, you join it in the Wi-Fi menu, enter your Wi-Fi on the printer's own page, and go back to your network. It asks for location access once, because macOS shows Wi-Fi names only to apps that have it; it never sees a Wi-Fi password.
 - A printer whose web page is on a port of its own can be added by that address (for example http://192.168.1.20:8080), and one that announces its page on the network is read there by itself.
+- A printer that refuses its SNMPv3 login now notifies you as that, and shows red in the menu bar's list as on its card. A refusal that may not come from your printer (another device at its address, or one sent by someone else on the network) shows it can't be reached instead, and SNMP Access… lets you save the login anyway.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

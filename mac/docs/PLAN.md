@@ -173,16 +173,25 @@ mac/InkvoltPrintKit --build-system native`.
   (`TheAgentIsDiscoveredThenReadSignedAndEncrypted` counts 1 discovery here, 2 on Windows;
   `AUsersKeysAreWorkedOutOncePerPassphraseNotPerEngine` is Mac only); no `SnmpLogins.rename` in use (the Mac's printer ids
   never change); SNMP Access… is in the sidebar's context menu (no Ctrl+K palette).
-  **Windows ahead, for the Mac to take up:** a refusal on a connection whose login has answered signed is read as
-  offline, not refused (a refusal can't be signed, so anyone on the network can send one), and the next connection's
-  refusal decides; the Mac reads it as refused at once (`aLoginRefusedOnAConnectionReadsAsRefusedNotOffline` takes two
-  checks on Windows). The Mac's refused snapshot raises no alert; Windows' carries `PrinterSnapshot.LoginRefused`
-  (`AlertKind.LoginRefused`, an error). A refusal keeps whether another device answered (the Mac's `setRefused` replaces
-  the phase). A refusal is the printer's only from the engine ID its signed answers came from, remembered with its
-  `SnmpDevice` (`EngineId`), so another device that took the address reads offline and SNMP Access…'s check lets such a
-  refusal be saved anyway (`SnmpLoginCheck.Refused.FromThisPrinter`); once an agent has answered signed, a client takes
-  no refusal from it (`SnmpClient.SignedEngineId`); a refused snapshot keeps offline's hold running, so refusals spoofed
-  every other check can't silence offline. **Other protocols (2026-11-23, Windows' dd508526):** SHA-1 and MD5
+  **The refused state as Windows' (2026-11-23, Windows' 4e63ad92 and 5a2eea81; what was "Windows ahead"):** a refusal
+  is the printer's only from the engine ID its signed answers came from, remembered with its `SnmpDevice` (`engineId`, in
+  the state file, not a secret; the monitor takes it at each signed connection, `SnmpDevice.answered`, `isItsEngine`), so
+  a switch or UPS that took the address, or a printer never read over SNMPv3, is offline (`PrinterSession.connect`; the
+  Fleet page and `status --all` too), and SNMP Access…'s check lets such a refusal be saved anyway
+  (`SnmpLoginCheck.refused(_, fromThisPrinter: false)`, Save Anyway); once an agent has answered signed a client takes no
+  refusal from it (`SnmpClient.signedEngineId`, `SnmpAccessError.engineId`), so a refusal on a connection whose login has
+  answered is offline and the next connection's refusal decides (`aLoginRefusedOnAConnectionReadsAsRefusedNotOffline`
+  takes two checks, as Windows). A refused printer alerts as itself (`AlertKind.loginRefused`, an error, after the error
+  hold; `PrinterSnapshot.loginRefused`, not reachable, so what was known stands); offline's hold runs on through it and
+  offline isn't told once the refusal was (`AlertTracker.outranked`), so refusals spoofed every other check can't silence
+  offline; the menu bar's list shows it red (`TrayText.lineLevel`) and the Fleet page counts it an error, not offline
+  (`FleetReader.refusedStatus`, the app's rows too). A refusal keeps whether another device answered
+  (`PrinterView.anotherDeviceAnswered`, This Is My Printer stays offered: `PrinterMonitor.canAcceptDevice`). Editing SNMP
+  Access…'s fields asks again even when the same login is typed back (Windows' `SnmpLoginSave.Edited`; the sheet's
+  `onChange`). Tests: SnmpLoginTests, SnmpV3Tests, AlertTests, FleetReadTests (Windows' names; Windows'
+  `The_cards_own_offline_state_drops_the_refused_one` reads its view model's source: the Mac's view has one phase, so
+  there's nothing to drop). `--report --snmp` says the engine is remembered from a signed answer and a refusal from it is
+  the printer's. Not checked: the refused alert, the red line and Save Anyway on screen. **Other protocols (2026-11-23, Windows' dd508526):** SHA-1 and MD5
   (HMAC-…-96), AES-192, AES-256 and CBC-DES, the protocol chosen beside each passphrase, kept with the login as Windows
   keeps it; a short AES key lengthened as Blumenthal's draft, then once as Reeder's. `SnmpCrypto` gives hash and HMAC
   (MD5, SHA-1, SHA-256), AES's block (16, 24, 32-byte keys) and DES's block; DES's weak keys are refused by PrintCore
@@ -2341,8 +2350,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   phrase reading.
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
-  P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
+- Inkvolt Print: separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope"); P12's 2.1, 2.2, 3.1 and 3.3 need a
+  real printer or scanner.
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).

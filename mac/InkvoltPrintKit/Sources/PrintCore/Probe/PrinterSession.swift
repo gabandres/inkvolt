@@ -125,7 +125,12 @@ public actor PrinterSession {
         let conn = try await PrinterConnection.open(target.host, transport: recipe.transport, esclHint: target.esclHint, ippHint: target.ippHint,
                                                     pin: recipe.pin, snmp: SnmpDevice.transport(for: target.snmp, recipe.snmp),
                                                     snmpLogin: login, webHint: target.webHint)
-        if !conn.probe.reachable { return conn.probe.snmpRefused.map(SessionStep.refused) ?? .offline }
+        // Identity before a refusal too: refused only from the engine the printer's signed answers came from; from any other (a
+        // switch or UPS that took the address by DHCP, a printer never read over SNMPv3) it is offline, and Fix it… looks for it.
+        if !conn.probe.reachable {
+            guard let why = conn.probe.snmpRefused, target.snmp?.isItsEngine(conn.probe.snmpRefusedBy) == true else { return .offline }
+            return .refused(why)
+        }
         connectedLogin = login
         if identify(target.host, conn.probe.reportedUuids) == .different { return letGo(conn.probe.reportedUuids, host: target.host) }
         if let snmp = conn.probe.snmp, target.snmp?.identify(snmp) == .different { return letGo([], host: target.host, snmp: snmp) }

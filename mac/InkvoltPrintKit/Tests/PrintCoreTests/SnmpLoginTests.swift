@@ -1,4 +1,5 @@
 import Foundation
+import Synchronization
 import Testing
 @testable import PrintCore
 
@@ -154,10 +155,145 @@ struct SnmpLoginTests {
         #expect(await monitor.check())
         agent.spoof.withLock { $0 = (Usm.wrongDigests, agent.agent.engineId) } // the printer's administrator changed its key
         try await Task.sleep(for: SnmpPrinterClient.sharedFor + .milliseconds(100)) // past the read shared by status and supplies
+        // A refusal on a connection whose login answered signed isn't trusted (anyone can send one), so that read is offline;
+        // the next connection discovers the engine again and its refusal decides.
+        #expect(await monitor.check() == false)
+        #expect(await monitor.view.phase != .refused)
         #expect(await monitor.check() == false)
         let view = await monitor.view
-        #expect(view.phase != .offline)
+        #expect(view.phase == .refused)
         #expect(view.statusDetail?.contains("authentication passphrase") == true, "\(view.statusDetail ?? "")")
+    }
+
+    /// Everything a monitor told.
+    final class Events: Sendable {
+        private let list = Mutex<[MonitorEvent]>([])
+        func add(_ e: MonitorEvent) { list.withLock { $0.append(e) } }
+        var snapshots: [PrinterSnapshot] { list.withLock { $0 }.compactMap { if case .observed(let s) = $0 { s } else { nil } } }
+    }
+
+    private static let engine = Array("inkvolt-engine".utf8)
+    private static let engineHex = Digest.hex(engine, uppercase: true)
+
+    private static func monitor(_ snmp: any SnmpTransport, _ known: SnmpDevice, _ login: SnmpLogin, _ events: Events = Events()) -> PrinterMonitor {
+        let recipe = PrinterRecipe(transport: { _, _ in HostRouter([:]) }, snmp: snmp, snmpLogin: { login })
+        return PrinterMonitor(id: printer, name: "Laser", target: PrinterWhere(host, snmp: known), recipe: recipe, accepted: { [] },
+                              acceptUuids: { _ in }, onEvent: { events.add($0) })
+    }
+
+    private static func known() async throws -> SnmpDevice {
+        SnmpDevice.from(try #require(try await SnmpPrinterClient.probe(transport: v3Agent(), host: host, login: v3Login())).identity)
+    }
+
+    @Test func aRefusalSpoofedOnAConnectionNeverShowsThePrinterRefusedOrSilencesItsAlerts() async throws {
+        let agent = SnmpV3Tests.Spoofer(try Self.v3Agent())
+        let events = Events()
+        let monitor = Self.monitor(agent, try await Self.known(), try Self.v3Login(), events)
+        #expect(await monitor.check())
+
+        agent.spoof.withLock { $0 = (Usm.unknownUserNames, Self.engine) } // unsigned, from the printer's own engine ID, by someone else
+        try await Task.sleep(for: SnmpPrinterClient.sharedFor + .milliseconds(100))
+        #expect(await monitor.check() == false)
+        #expect(await monitor.view.phase != .refused) // offline: its offline alert follows as for any printer that stops answering
+        #expect(events.snapshots.last?.reachable == false)
+
+        agent.spoof.withLock { $0 = nil } // gone: connected again, read as itself
+        #expect(await monitor.check())
+        #expect(!events.snapshots.contains { $0.loginRefused != nil })
+    }
+
+    @Test func aRefusalAfterAnotherDeviceAnsweredKeepsItElsewhere() async throws {
+        let known = try await Self.known()
+        let walk = try Fixtures.text("snmp-demo/workgroup-laser.txt").replacingOccurrences(of: "DEMO0005200", with: "OTHER0001")
+        let other = SnmpV3Tests.Spoofer(SnmpAgent(try SnmpAgent.parseWalk(walk), user: Self.user, engineId: Self.engine, crypto: TestSnmpCrypto()))
+        let monitor = Self.monitor(other, known, try Self.v3Login())
+        #expect(await monitor.check() == false)
+        #expect(await monitor.view.phase == .elsewhere)
+        #expect(await monitor.canAcceptDevice)
+
+        other.spoof.withLock { $0 = (Usm.wrongDigests, Self.engine) } // it refuses now, without saying who it is
+        #expect(await monitor.check() == false)
+        let view = await monitor.view
+        #expect(view.phase == .refused)
+        #expect(view.anotherDeviceAnswered) // still the device that answered last: This Is My Printer stays offered
+        #expect(await monitor.canAcceptDevice)
+    }
+
+    /// A switch with SNMPv3 at the address (DHCP gave it the printer's old one): it refuses a user it doesn't know.
+    private static func switchAgent() throws -> SnmpAgent {
+        TestSnmpCrypto.install()
+        return SnmpAgent(try SnmpAgent.parseWalk(".1.3.6.1.2.1.1.5.0 = STRING: \"core-switch\""),
+                         user: SnmpV3User(name: "admin", authPassphrase: "switch-auth-1", privPassphrase: "switch-priv-1"),
+                         engineId: Array("switch-engine".utf8), crypto: TestSnmpCrypto())
+    }
+
+    @Test func aRefusalFromAnEngineNotKnownAsThePrintersIsOfflineNotRefused() async throws {
+        let known = try await Self.known()
+        #expect(known.engineId == Self.engineHex) // remembered from its signed answer
+
+        // Another device's engine: offline, so Fix it… looks for the printer; no refused alert.
+        let events = Events()
+        let monitor = Self.monitor(try Self.switchAgent(), known, try Self.v3Login(), events)
+        #expect(await monitor.check() == false)
+        let view = await monitor.view
+        #expect(view.phase == .offline)
+        #expect(view.statusMessage == "Can't reach the printer")
+        #expect(!events.snapshots.contains { $0.loginRefused != nil })
+
+        // No engine remembered (never read over SNMPv3): even the printer's own refusal can't be told from another device's.
+        let wrong = try Self.v3Login(auth: "wrong-auth-pass")
+        let session = PrinterSession(id: Self.printer, recipe: PrinterRecipe(transport: { _, _ in HostRouter([:]) }, snmp: try Self.v3Agent(),
+                                                                             snmpLogin: { wrong }),
+                                     accepted: { [] }, acceptUuids: { _ in })
+        var unknown = known, another = known
+        unknown.engineId = nil
+        another.engineId = "80001F8880AAAAAAAAAAAAAAAA"
+        guard case .offline = try await session.connect(PrinterWhere(Self.host, snmp: unknown)) else {
+            Issue.record("not offline without an engine")
+            return
+        }
+        guard case .offline = try await session.connect(PrinterWhere(Self.host, snmp: another)) else {
+            Issue.record("not offline from another engine")
+            return
+        }
+        guard case .refused = try await session.connect(PrinterWhere(Self.host, snmp: known)) else {
+            Issue.record("not refused from its engine")
+            return
+        }
+    }
+
+    @Test func aSignedConnectionRemembersThePrintersEngineSoItsRefusalCountsAfter() async throws {
+        let agent = SnmpV3Tests.Spoofer(try Self.v3Agent())
+        var known = try await Self.known()
+        known.engineId = nil // read over v2c before, say
+        let monitor = Self.monitor(agent, known, try Self.v3Login())
+        #expect(await monitor.check())
+        let remembered = try #require(await monitor.target.snmp)
+        #expect(remembered.engineId == Self.engineHex) // kept in state.json when the app remembers it
+        #expect(remembered.serialNumber == known.serialNumber)
+
+        agent.spoof.withLock { $0 = (Usm.wrongDigests, Self.engine) } // its administrator changed the key
+        try await Task.sleep(for: SnmpPrinterClient.sharedFor + .milliseconds(100))
+        #expect(await monitor.check() == false) // on the open connection: offline (anyone can send one)
+        #expect(await monitor.check() == false) // a new connection, its own engine: refused
+        #expect(await monitor.view.phase == .refused)
+
+        // What state.json keeps of it: the engine ID (not a secret), never the login.
+        let json = String(decoding: try JSONEncoder().encode(remembered), as: UTF8.self)
+        #expect(json.contains(Self.engineHex))
+        #expect(!json.contains(Self.user.authPassphrase) && !json.contains(Self.user.privPassphrase) && !json.contains(Self.user.name))
+    }
+
+    @Test func checkingALoginRefusedByAnEngineNotKnownAsThePrintersMayBeSavedAnyway() async throws {
+        let device = try await Self.known()
+        let login = try Self.v3Login(), switchAgent = try Self.switchAgent(), agent = try Self.v3Agent()
+        #expect(await SnmpLoginCheck.check(login, host: Self.host, known: device, transport: switchAgent) == .refused(.unknownUser, fromThisPrinter: false))
+        var noEngine = device
+        noEngine.engineId = nil
+        let wrong = try Self.v3Login(auth: "wrong-auth-pass")
+        #expect(await SnmpLoginCheck.check(wrong, host: Self.host, known: noEngine, transport: agent) == .refused(.wrongAuthKey, fromThisPrinter: false))
+        #expect(await SnmpLoginCheck.check(wrong, host: Self.host, known: nil, transport: agent) == .refused(.wrongAuthKey, fromThisPrinter: false))
+        #expect(await SnmpLoginCheck.check(wrong, host: Self.host, known: device, transport: agent) == .refused(.wrongAuthKey, fromThisPrinter: true))
     }
 
     @Test func aNewLoginIsUsedByTheNextCheckEvenOnAConnectionStillGood() async throws {

@@ -11615,6 +11615,17 @@
           }
         }
       }
+    },
+    "{0} refused its SNMP login": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} rechazó su acceso SNMP"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

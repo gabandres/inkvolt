@@ -23,16 +23,20 @@ public struct ProbeResult: Sendable {
     /// An SNMPv3 agent answered and refused the login's user or keys (nothing else answered); nil otherwise.
     public var snmpRefused: SnmpRefusal?
 
-    public var reachable: Bool { ledm != nil || scanner != nil || ipp != nil || cdm != nil || snmp != nil }
+    /// With `snmpRefused`: the engine ID the refusing agent claimed (hex). The refusal is a remembered printer's only when that
+    /// engine is its own (`SnmpDevice.isItsEngine`).
+    public var snmpRefusedBy: String?
 
-    public var uuid: String? {
-        product?.uuid ?? scanner?.uuid ?? ipp?.str("printer-uuid").map { $0.replacingOccurrences(of: "urn:uuid:", with: "", options: .caseInsensitive) }
-    }
+    public var reachable: Bool { ledm != nil || scanner != nil || ipp != nil || cdm != nil || snmp != nil }
 
     /// The web server's root this probe was made with (`web`, `DeviceHttp`'s `web`), kept only when HP's LEDM or CDM answered
     /// there; nil otherwise (nothing to keep, or nothing of the web server's answered there: a port that isn't its web server,
     /// or one it left), so the next connection asks the default ports.
     public func webRootKept(_ web: URL?) -> URL? { web != nil && (ledm != nil || cdm != nil) ? web : nil }
+
+    public var uuid: String? {
+        product?.uuid ?? scanner?.uuid ?? ipp?.str("printer-uuid").map { $0.replacingOccurrences(of: "urn:uuid:", with: "", options: .caseInsensitive) }
+    }
 
     /// Every UUID the printer reports, one per interface (they normally agree; a scanner may have its own).
     public var reportedUuids: [String?] { [product?.uuid, cdm?.identity.uuid, scanner?.uuid, ipp?.str("printer-uuid")] }
@@ -141,13 +145,13 @@ public final class PrinterConnection: Sendable {
     ///   - ippHint: IPP printer URL from DNS-SD (`rp` TXT + port, https for `_ipps`), tried first.
     ///   - snmp: where SNMP goes when the printer has neither LEDM, CDM nor IPP; nil: SNMP isn't tried.
     ///   - snmpLogin: the printer's SNMP login (its community); nil: `SnmpLogin.public`. Every SNMP read of the connection uses it.
+    ///   - webHint: the printer's web server when it isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD
+    ///     `adminurl`): LEDM, CDM and its pages are asked there (`DeviceHttp`'s `web`).
     public static func open(_ host: String, transport: @escaping HttpTransportFactory, esclHint: URL? = nil, ippHint: URL? = nil,
                             pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil,
                             webHint: URL? = nil)
         async throws -> PrinterConnection {
         let http = DeviceHttp(host: host, transport: transport, pin: pin, web: webHint)
-    ///   - webHint: the printer's web server when it isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD
-    ///     `adminurl`): LEDM, CDM and its pages are asked there (`DeviceHttp`'s `web`).
         let found = try await probe(http, esclHint: esclHint, ippHint: ippHint, snmp: snmp, snmpLogin: snmpLogin)
         return PrinterConnection(http: http, probe: found, snmp: snmp)
     }
@@ -177,12 +181,12 @@ public final class PrinterConnection: Sendable {
         var snmpIdentity: SnmpIdentity?
         let refused = RefusalSeen()
         if l.ledm.tree == nil && l.cdm == nil && i == nil, let snmp {
-            let found = try await SnmpPrinterClient.probe(transport: snmp, host: http.host, login: snmpLogin, refused: { refused.saw($0) })
+            let found = try await SnmpPrinterClient.probe(transport: snmp, host: http.host, login: snmpLogin, refused: { refused.saw($0, by: $1) })
             snmpIdentity = found?.identity
         }
         var result = ProbeResult(host: http.host, ledm: l.ledm.tree, product: l.ledm.product ?? l.cdm?.identity, scanner: s?.0, esclRoot: s?.1,
                                  ipp: i?.0, ippEndpoint: i?.1, cdm: l.cdm, snmp: snmpIdentity)
-        if snmpIdentity == nil { result.snmpRefused = refused.reason }
+        if snmpIdentity == nil { (result.snmpRefused, result.snmpRefusedBy) = (refused.reason, refused.by) }
         return result
     }
 
@@ -349,9 +353,12 @@ public final class PrinterConnection: Sendable {
 
 /// Why the probe's SNMPv3 agent refused, as its callback tells it.
 final class RefusalSeen: Sendable {
-    private let seen = Mutex<SnmpRefusal?>(nil)
+    private let seen = Mutex<(reason: SnmpRefusal, by: String?)?>(nil)
 
-    var reason: SnmpRefusal? { seen.withLock { $0 } }
+    var reason: SnmpRefusal? { seen.withLock { $0?.reason } }
 
-    func saw(_ reason: SnmpRefusal) { seen.withLock { $0 = reason } }
+    /// The engine ID the refusing agent claimed (hex).
+    var by: String? { seen.withLock { $0?.by } }
+
+    func saw(_ reason: SnmpRefusal, by engineId: String? = nil) { seen.withLock { $0 = (reason, engineId) } }
 }

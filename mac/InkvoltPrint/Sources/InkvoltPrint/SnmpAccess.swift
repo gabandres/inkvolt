@@ -59,6 +59,10 @@ final class SnmpAccessModel {
     /// MD5, SHA-1 or DES chosen: old and weak, said beside them.
     var weakChosen: Bool { auth != .sha256 || priv == .des }
 
+    /// Everything typed or chosen, to notice an edit (SNMP Access…'s Save asks again after one, even when the same login is
+    /// typed back: Windows' `SnmpLoginSave.Edited`).
+    var typed: [String] { ["\(kind)", community, userName, authPassphrase, privPassphrase, "\(auth)", "\(priv)"] }
+
     /// Nothing typed for the kind chosen (shown or not): the printer is asked with public.
     var isBlank: Bool {
         kind == .community ? community.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -154,6 +158,7 @@ struct SnmpAccessSheet: View {
             Text(SnmpAccessText.explanation)
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             SnmpAccessFields(model: model)
+                .onChange(of: model.typed) { unanswered = nil } // edited: Save asks again, even with the same login typed back
             if let problem {
                 Text(problem).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
@@ -183,7 +188,10 @@ struct SnmpAccessSheet: View {
             guard model.read() == login else { return } // edited while it was asked: Save asks again
             switch check {
             case .answered: keep(login)
-            case .refused(let why): problem = SnmpAccessText.refusedHint(why)
+            case .refused(let why, true): problem = SnmpAccessText.refusedHint(why)
+            case .refused(let why, false): // an agent not known to be this printer's: it may not be, so Save Anyway may keep it
+                problem = SnmpAccessText.refusedUnknownHint(why)
+                unanswered = login
             case .anotherDevice: problem = SnmpAccessText.anotherDevice
             case .noAnswer:
                 problem = SnmpAccessText.unansweredHint(login)
@@ -205,6 +213,12 @@ enum SnmpAccessText {
 
     /// The printer refused the login: which part, and that nothing was kept.
     static func refusedHint(_ why: SnmpRefusal) -> String { String(localized: "\(SnmpAccessError(why).description) Nothing was changed.") }
+
+    /// A refusal from an agent not known to be the printer's (`SnmpLoginCheck.refused`'s `fromThisPrinter` false): which part,
+    /// and that Save Anyway keeps it.
+    static func refusedUnknownHint(_ why: SnmpRefusal) -> String {
+        String(localized: "\(SnmpAccessError(why).description) But the device that said so couldn't be told to be this printer: it hasn't been read over SNMPv3 yet, or another device has its address. Save Anyway keeps it as it is.")
+    }
 
     /// Nothing answered with the login: what may be wrong, and that Save Anyway keeps it.
     static func unansweredHint(_ login: SnmpLogin) -> String {

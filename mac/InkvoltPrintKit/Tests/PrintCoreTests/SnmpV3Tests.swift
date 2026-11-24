@@ -213,13 +213,62 @@ struct SnmpV3Tests {
         } catch let error as SnmpAccessError {
             #expect(error.reason == reason)
             #expect(!"\(error)".contains(auth) && !"\(error)".contains(priv))
+            #expect(error.engineId == Digest.hex(Self.engine, uppercase: true)) // the engine it came from, as claimed
         }
+        #expect(client.signedEngineId == nil) // never answered signed: not known to be its own
         #expect(agent.v3Log.last == counter)
         #expect(!agent.received.contains { $0.type == .getRequest && !$0.varBinds.isEmpty }) // nothing was read
 
-        let told = Told() // the probe finds nothing, and says why
-        #expect(try await SnmpPrinterClient.probe(transport: agent, host: "192.0.2.14", login: login, refused: { told.set($0) }) == nil)
+        let told = Told() // the probe finds nothing, and says why and which engine said it
+        #expect(try await SnmpPrinterClient.probe(transport: agent, host: "192.0.2.14", login: login, refused: { told.set($0, $1) }) == nil)
         #expect(told.reason == reason)
+        #expect(told.by == Digest.hex(Self.engine, uppercase: true))
+    }
+
+    @Test func anUnsignedRefusalAfterASignedAnswerIsNoAnswerAndTheEngineIsKnown() async throws {
+        let spoofer = Spoofer(try Self.agent())
+        let client = try SnmpClient(transport: spoofer, host: "192.0.2.14", version: .v3, login: Self.login(Self.right), retries: 0)
+        _ = try await client.get([PrinterMib.sysName.appending(0)])
+        #expect(client.signedEngineId == Digest.hex(Self.engine, uppercase: true))
+        spoofer.spoof.withLock { $0 = (Usm.unknownUserNames, Self.engine) } // from its own engine ID, unsigned: someone on the path
+        await #expect(throws: SnmpTimeoutError.self) { try await client.get([PrinterMib.sysName.appending(0)]) }
+    }
+
+    @Test func aProbeWhoseAgentAnsweredSignedIgnoresARefusalSpoofedAfterAndReadsOn() async throws {
+        // The GetNext answered signed; a refusal spoofed for the request after it is ignored, the request sent again and answered.
+        let spoofer = Spoofer(try Self.agent())
+        let told = Told()
+        let printer = try await SnmpPrinterClient.probe(transport: SpoofOnce(spoofer, Self.engine, 2), host: "192.0.2.14", login: Self.login(Self.right),
+                                                        refused: { told.set($0, $1) })
+        #expect(printer != nil)
+        #expect(told.reason == nil)
+        #expect(printer?.identity.engineId == Digest.hex(Self.engine, uppercase: true))
+    }
+
+    /// Sends the `nth` request after discovery to `spoofer` as an unsigned unknownUserNames from `engine`; the rest to the agent.
+    final class SpoofOnce: SnmpTransport {
+        let spoofer: Spoofer
+        let engine: [UInt8]
+        let nth: Int
+        private let sent = Mutex(0)
+
+        init(_ spoofer: Spoofer, _ engine: [UInt8], _ nth: Int) {
+            self.spoofer = spoofer
+            self.engine = engine
+            self.nth = nth
+        }
+
+        func send(_ request: [UInt8], to host: String, timeout: Duration) async throws -> [UInt8]? {
+            let discovery = (try? SnmpV3Message.decode(request))?.engineId.isEmpty ?? true
+            let n: Int = discovery ? 0 : sent.withLock { count -> Int in
+                count += 1
+                return count
+            }
+            guard n == nth else { return try await spoofer.send(request, to: host, timeout: timeout) }
+            spoofer.spoof.withLock { $0 = (Usm.unknownUserNames, engine) }
+            defer { spoofer.spoof.withLock { $0 = nil } }
+            return try await spoofer.send(request, to: host, timeout: timeout)
+        }
     }
 
     @Test func aV3AgentIgnoresV1AndV2cAndACommunityLoginNeverSpeaksV3() async throws {
@@ -272,14 +321,6 @@ struct SnmpV3Tests {
         }
         #expect(spoofer.agent.v3Log.filter { $0 == "discovery" }.count == 1)
         #expect(client.v3.withLock { $0.engine?.boots } == 3)
-    }
-
-    @Test func anUnsignedRefusalFromTheAgentsOwnEngineStillSaysWhich() async throws {
-        let spoofer = Spoofer(try Self.agent())
-        let client = try SnmpClient(transport: spoofer, host: "192.0.2.14", version: .v3, login: Self.login(Self.right), retries: 0)
-        _ = try await client.get([PrinterMib.sysName.appending(0)])
-        spoofer.spoof.withLock { $0 = (Usm.wrongDigests, Self.engine) }
-        await #expect(throws: SnmpAccessError(.wrongAuthKey)) { try await client.get([PrinterMib.sysName.appending(0)]) }
     }
 
     @Test(arguments: [(-1, 0, false), (0, -(Usm.timeWindow + 1), false), (0, -(Usm.timeWindow - 10), true)])
@@ -414,9 +455,10 @@ struct SnmpV3Tests {
 
     /// What a probe's `refused` was told.
     final class Told: Sendable {
-        private let seen = Mutex<SnmpRefusal?>(nil)
-        var reason: SnmpRefusal? { seen.withLock { $0 } }
-        func set(_ reason: SnmpRefusal) { seen.withLock { $0 = reason } }
+        private let seen = Mutex<(reason: SnmpRefusal, by: String?)?>(nil)
+        var reason: SnmpRefusal? { seen.withLock { $0?.reason } }
+        var by: String? { seen.withLock { $0?.by } }
+        func set(_ reason: SnmpRefusal, _ by: String?) { seen.withLock { $0 = (reason, by) } }
     }
 
     /// An agent of the test's own making: each request's reply from `answer`.

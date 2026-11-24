@@ -9,6 +9,8 @@ public enum AlertKind: String, CaseIterable, Comparable, Sendable {
     case firmwareChanged = "FirmwareChanged"
     /// Your own print job (`AlertTracker.observeJobs`): never the menu bar icon's color.
     case jobFailed = "JobFailed", jobStuck = "JobStuck"
+    /// The printer's SNMPv3 agent refuses its login (`PrinterSnapshot.loginRefused`): an error, beside offline.
+    case loginRefused = "LoginRefused"
 
     public static func < (a: AlertKind, b: AlertKind) -> Bool { allCases.firstIndex(of: a)! < allCases.firstIndex(of: b)! }
 }
@@ -32,9 +34,14 @@ public struct PrinterSnapshot: Sendable {
     public var firmwareChange: FirmwareChange?
     /// Days left per supply (`SupplyRow.keyOf(_:)`) where the history can tell: the low-supply alert names them.
     public var daysLeft: [String: Int]?
+    /// Nothing was read because the printer's SNMPv3 agent refused its login (which part): alerted as that, an error, beside
+    /// offline (whose hold runs on through it). Set only with `reachable` false, so what was known of its status and supplies
+    /// stands as for offline.
+    public var loginRefused: SnmpRefusal?
 
     public init(uuid: String, name: String, reachable: Bool, status: PrinterStatus?, supplies: [Consumable]?, firmwareChange: FirmwareChange? = nil,
-                daysLeft: [String: Int]? = nil) {
+                daysLeft: [String: Int]? = nil, loginRefused: SnmpRefusal? = nil) {
+        self.loginRefused = loginRefused
         self.uuid = uuid
         self.name = name
         self.reachable = reachable
@@ -83,6 +90,12 @@ public enum AlertConditions {
     public static func find(_ snap: PrinterSnapshot, _ rules: AlertRules, isActive: (String) -> Bool) -> [AlertCondition] {
         var found: [AlertCondition] = []
         if !snap.reachable {
+            // Refused is unreadable too: offline's hold runs on through it (a spoofed refusal every other check can't reset it),
+            // and the tracker tells offline only when the refusal hasn't been told (`AlertTracker.outranked`).
+            if let why = snap.loginRefused {
+                found.append(AlertCondition(key: AlertKind.loginRefused.rawValue, kind: .loginRefused, title: loc("{0} refused its SNMP login", snap.name),
+                                            body: loc("{0} Choose SNMP Access… in the printer's menu to change it.", SnmpAccessError(why))))
+            }
             found.append(AlertCondition(key: "Offline", kind: .offline, title: loc("{0} is offline", snap.name),
                                         body: loc("Inkvolt Print can't reach it. It may be turned off, asleep or off the network.")))
             return found

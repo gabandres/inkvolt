@@ -8,15 +8,37 @@ public struct SnmpDevice: Equatable, Sendable, Codable {
     public var serialNumber: String?
     public var model: String?
     public var systemName: String?
+    /// Over SNMPv3, the engine ID (hex) its signed answers last came from (`SnmpIdentity.engineId`; not a secret): a refusal
+    /// counts as this printer's only from that engine (`isItsEngine`). Nil until it answered signed.
+    public var engineId: String?
 
-    public init(serialNumber: String?, model: String?, systemName: String?) {
+    public init(serialNumber: String?, model: String?, systemName: String?, engineId: String? = nil) {
         self.serialNumber = serialNumber
         self.model = model
         self.systemName = systemName
+        self.engineId = engineId
     }
 
     public static func from(_ identity: SnmpIdentity) -> SnmpDevice {
-        SnmpDevice(serialNumber: clean(identity.serialNumber), model: clean(identity.model), systemName: clean(identity.systemName))
+        SnmpDevice(serialNumber: clean(identity.serialNumber), model: clean(identity.model), systemName: clean(identity.systemName),
+                   engineId: clean(identity.engineId))
+    }
+
+    /// An SNMPv3 refusal from `engineId` is this printer's: its engine is known (from a signed answer) and is that one. A
+    /// refusal is unsigned and its engine ID only claimed, so any other (an unknown engine, another device that took the
+    /// address, a printer never read over SNMPv3) can't tell the printer refused: it is no answer from it.
+    public func isItsEngine(_ engineId: String?) -> Bool {
+        guard let mine = self.engineId, let id = Self.clean(engineId) else { return false }
+        return mine.caseInsensitiveCompare(id) == .orderedSame
+    }
+
+    /// After a signed answer over SNMPv3 (`answered` its identity) as this printer: the engine it came from is remembered
+    /// (this; or a copy when the engine is new). Nothing changes for v1 and v2c, which have no engine.
+    public func answered(_ answered: SnmpIdentity) -> SnmpDevice {
+        guard let id = Self.clean(answered.engineId), !isItsEngine(id) else { return self }
+        var copy = self
+        copy.engineId = id
+        return copy
     }
 
     /// Where a printer's connection may go over SNMP: `transport` for a printer added as SNMP-only, else nowhere.
