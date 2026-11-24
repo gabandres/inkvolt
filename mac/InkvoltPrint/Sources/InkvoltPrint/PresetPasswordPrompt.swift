@@ -12,9 +12,11 @@ enum PresetPasswordPrompt {
         first.placeholderString = String(localized: "Password")
         // Named for VoiceOver: a placeholder is gone once something is typed (the accessibility audit).
         first.setAccessibilityLabel(String(localized: "Password"))
+        first.cell?.setAccessibilityLabel(String(localized: "Password"))
         let again = NSSecureTextField(frame: NSRect(x: 0, y: 28, width: 300, height: 24))
         again.placeholderString = String(localized: "Type it again")
         again.setAccessibilityLabel(String(localized: "Type it again"))
+        again.cell?.setAccessibilityLabel(String(localized: "Type it again"))
         let remember = NSButton(checkboxWithTitle: String(localized: "Use it for this preset from now on (kept in your keychain)"), target: nil, action: nil)
         remember.frame = NSRect(x: 0, y: 0, width: 300, height: 20)
         let fields = NSView(frame: NSRect(x: 0, y: 0, width: 300, height: 84))

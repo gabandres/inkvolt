@@ -59,6 +59,7 @@ enum HandDuplexPrinting {
         faces.addItems(withTitles: [String(localized: "The sheets came out printed side down"), String(localized: "The sheets came out printed side up")])
         faces.selectItem(at: start == .down ? 0 : 1)
         faces.setAccessibilityLabel(String(localized: "Which way up the sheets came out"))
+        faces.cell?.setAccessibilityLabel(String(localized: "Which way up the sheets came out"))
         let changed = FaceChange { face in alert.informativeText = instructions(file, plan.reload(face)) }
         faces.target = changed
         faces.action = #selector(FaceChange.changed(_:))
@@ -121,6 +122,7 @@ enum HandDuplexPrinting {
         field.integerValue = 1
         field.placeholderString = String(localized: "Copies")
         field.setAccessibilityLabel(String(localized: "Copies"))
+        field.cell?.setAccessibilityLabel(String(localized: "Copies"))
         let label = NSTextField(labelWithString: String(localized: "Copies:"))
         let row = NSStackView(views: [label, field])
         row.frame = NSRect(x: 0, y: 0, width: 200, height: 24)
