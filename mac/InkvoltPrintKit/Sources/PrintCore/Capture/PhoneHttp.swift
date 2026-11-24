@@ -40,11 +40,14 @@ public struct PhoneHttpHead: Equatable, Sendable {
 /// nameless header, two lengths, any transfer coding refused before the session sees it), handed to the `PhoneSession`
 /// with its body read only when the session asks, at most what it allows (a declared length past that refused before a
 /// byte is read), each part within `bodyTimeout`. Answers carry Windows' headers (no-store, nosniff, DENY, no-referrer, the
-/// page's CSP). A body not read, a 413, a request that says close, or HTTP/1.0 closes the connection after the answer;
-/// otherwise it's kept for the next request up to `idleTimeout`.
+/// page's CSP). A body not read, a 413, a request that says close, or HTTP/1.0 closes the connection after the answer
+/// (a body not read is drained first, so the answer isn't lost to a reset); otherwise it's kept for the next request up to
+/// `idleTimeout`.
 public enum PhoneHttp {
     public static let maxRequestLine = 2 * 1024, maxHead = 16 * 1024, maxHeaders = 40
     public static let headTimeout: Duration = .seconds(15), idleTimeout: Duration = .seconds(60), bodyTimeout: Duration = .seconds(10)
+    /// How long a body not taken is read and dropped before the connection closes (`drain`).
+    public static let drainTimeout: Duration = .seconds(5)
     static let chunk = 64 * 1024
     /// Bytes a second a body must keep up after its grace (Windows' Kestrel MinRequestBodyDataRate).
     static let minBodyRate = 1024
@@ -71,12 +74,15 @@ public enum PhoneHttp {
             do {
                 declared = try length(head)
             } catch let r as Refusal {
-                _ = await io.send(response(PhoneReply.empty(r.status), head: head, close: true))
+                // A transfer coding's body has no length: whatever comes within the drain's time.
+                let sent = await io.send(response(PhoneReply.empty(r.status), head: head, close: true))
+                if sent && r.status == 411 { await drain(io, &buffer, Int.max) }
                 return
             } catch {
                 return
             }
             var bodyRead = false
+            var bodyTaken = false
             var broken = false
             let request = PhoneRequest(head.method, head.path, peer: peer, cookie: head.cookie(PhoneSession.cookieName),
                                        fromPage: head.values(PhoneSession.pageHeader.lowercased()).first?.trimmingCharacters(in: .whitespaces) == "1")
@@ -84,13 +90,15 @@ public enum PhoneHttp {
                 bodyRead = true
                 guard declared <= max else { return nil }
                 let body = await readBody(io, &buffer, declared)
-                if body == nil { broken = true }
+                if body == nil { broken = true } else { bodyTaken = true }
                 return body
             }
             if broken { return }
             let wantsClose = head.version == "HTTP/1.0" || head.values("connection").contains { $0.lowercased().contains("close") }
             let close = (!bodyRead && declared > 0) || reply.status == 413 || wantsClose
-            guard await io.send(response(reply, head: head, close: close)), !close else { return }
+            let sent = await io.send(response(reply, head: head, close: close))
+            if sent && close && declared > 0 && !bodyTaken { await drain(io, &buffer, declared) }
+            guard sent, !close else { return }
         }
     }
 
@@ -202,6 +210,22 @@ public enum PhoneHttp {
             body += more
         }
         return body
+    }
+
+    /// What's left of a body that wasn't taken (refused, too long, not wanted), read and dropped after the answer and
+    /// before the connection closes: up to `count` bytes, within `drainTimeout`, never kept. Closing with a body unread makes
+    /// macOS reset the connection, and the phone's browser then loses the answer (a 413 or 429 shown as "The Mac can't be
+    /// reached"); Windows' Kestrel drains the same way.
+    static func drain(_ io: any PhoneConnectionIO, _ buffer: inout [UInt8], _ count: Int) async {
+        let now = min(count, buffer.count)
+        buffer.removeFirst(now)
+        var left = count - now
+        let deadline = ContinuousClock.now + drainTimeout
+        while left > 0 {
+            let time: Duration = deadline - ContinuousClock.now
+            guard time > .zero, let more = await io.receive(max: min(chunk, left), timeout: time), !more.isEmpty else { return }
+            left -= more.count
+        }
     }
 
     /// The answer's bytes: status line, Windows' headers, the body (none for HEAD).

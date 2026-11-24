@@ -478,6 +478,8 @@ struct PhoneScanTests {
         }
 
         var written: String { lock.withLock { String(decoding: out, as: UTF8.self) } }
+        /// Bytes the phone sent that the server never read.
+        var unread: Int { lock.withLock { incoming.reduce(0) { (n: Int, piece: [UInt8]) -> Int in n + piece.count } } }
         var statuses: [Int] {
             written.components(separatedBy: "HTTP/1.1 ").dropFirst().compactMap { Int($0.prefix(3)) }
         }
@@ -540,7 +542,7 @@ struct PhoneScanTests {
         #expect(head.path == "/p/a" && head.cookie("inkvolt-phone") == "xyz" && head.cookie("c") == "2" && head.cookie("d") == nil)
     }
 
-    @Test func aBodyRefusedOrTooLongIsNeverReadAndClosesTheConnection() async {
+    @Test func aBodyRefusedOrTooLongIsNeverTakenAndClosesTheConnection() async {
         let s = PhoneSession("Mac", limits: PhoneLimits(maxPhotoBytes: 1000))
         let pair = FakeConnection([Self.request("POST", s.pagePath + "/pair", ["X-Inkvolt-Phone: 1"])])
         await PhoneHttp.serve(pair, peer: Self.phone, session: s)
@@ -566,6 +568,38 @@ struct PhoneScanTests {
         let head = FakeConnection([Self.request("HEAD", s.pagePath)])
         await PhoneHttp.serve(head, peer: Self.phone, session: s)
         #expect(head.statuses == [200] && head.written.hasSuffix("Content-Length: 0\r\n\r\n"))
+    }
+
+    /// Mac only (the phone-scan check over the build Mac's loopback): a body refused unread is read and dropped after the
+    /// answer, before the close, so macOS doesn't reset the connection and the phone sees the 413 or 403, not "can't be
+    /// reached". Only what was declared is drained, and nothing of it is taken.
+    @Test func aBodyRefusedUnreadIsDrainedBeforeTheConnectionCloses() async {
+        let s = PhoneSession("Mac", limits: PhoneLimits(maxPhotoBytes: 1000))
+        let pair = FakeConnection([Self.request("POST", s.pagePath + "/pair", ["X-Inkvolt-Phone: 1"])])
+        await PhoneHttp.serve(pair, peer: Self.phone, session: s)
+        let cookie = String(pair.written.components(separatedBy: "\(PhoneSession.cookieName)=")[1].prefix { $0 != ";" })
+        let head = Array("POST \(s.pagePath)/photo HTTP/1.1\r\nX-Inkvolt-Phone: 1\r\nCookie: \(PhoneSession.cookieName)=\(cookie)\r\nContent-Length: 5000\r\n\r\n".utf8)
+        let body = [UInt8](repeating: 7, count: 5000)
+        let after: [UInt8] = Array("next".utf8)
+        // Too long: 413, then the 5,000 declared bytes (some with the head, the rest in pieces) are read, and no more.
+        let tooLong = FakeConnection([head + Array(body[..<100]), Array(body[100..<3000]), Array(body[3000...]) + after])
+        await PhoneHttp.serve(tooLong, peer: Self.phone, session: s)
+        #expect(tooLong.statuses == [413])
+        #expect(tooLong.unread == after.count)
+        #expect(s.received == 0)
+        // From another device: 403 unread, then drained.
+        let photo = Self.jpegHeader(800, 600)
+        let strangerHead = Array("POST \(s.pagePath)/photo HTTP/1.1\r\nX-Inkvolt-Phone: 1\r\nContent-Length: \(photo.count)\r\n\r\n".utf8)
+        let other = FakeConnection([strangerHead, photo])
+        await PhoneHttp.serve(other, peer: Self.other, session: s)
+        #expect(other.statuses == [403])
+        #expect(other.unread == 0)
+        #expect(s.received == 0)
+        // A transfer coding: 411, then whatever comes is dropped until the phone stops.
+        let chunked = FakeConnection([Array("POST /p/x HTTP/1.1\r\nTransfer-Encoding: chunked\r\n\r\n".utf8), Array("5\r\nhello\r\n0\r\n\r\n".utf8)])
+        await PhoneHttp.serve(chunked, peer: Self.phone, session: s)
+        #expect(chunked.statuses == [411])
+        #expect(chunked.unread == 0)
     }
 
     @Test func theCertificateIsAnX509ServerCertificateForThisMacsName() {

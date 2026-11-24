@@ -462,7 +462,15 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   off by default; when on, "Automatically allow downloaded signed software" (on by default, and on on the build Mac) lets
   the signed app listen with no question; with that off, macOS asks once "Do you want the application "Inkvolt Print.app"
   to accept incoming network connections?", and Deny leaves the phone unable to reach the page (it says the Mac can't be
-  reached). Listening and accepting don't need Local Network access (TN3179). Not checked: a real phone on Wi-Fi (Safari
+  reached). Listening and accepting don't need Local Network access (TN3179). Checked on the build Mac (2026-11-24,
+  `--phone-hold` and `mac/tools/phone-client.sh`, curl as the page): a wrong code 404, pair without the page's header 403,
+  two photos in as pages, not a photo 415, a chunked body 411, a second device 403, Done, the port closed after (an
+  answer to a body left unread, 411 or 403, reached curl as a reset 3 times in 4: the connection closed with the body's
+  bytes unread and Darwin reset it; fixed: `PhoneHttp.drain` reads and drops such a body after the answer, up to its
+  length within 5 s, as Kestrel does); the Mac
+  closing the window mid-upload cuts the photo's connection (the page says the Mac can't be reached), keeps no page and
+  closes the port; with the app in Spanish the page is too (its language is the app's, not the phone's Accept-Language,
+  as on Windows). No simulator or emulator was driven: T3's device tools had no build-Mac host. Not checked: a real phone on Wi-Fi (Safari
   past the certificate warning, several pages, Done; an Android phone's Chrome), the app's own keychain on a user's Mac
   (the build Mac's account isn't touched: only keychain files of the test's own), the firewall's question with automatic
   allowing off, VoiceOver on the window.
