@@ -2358,8 +2358,21 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   phrase reading.
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner (separator codes, the last code item, on the
-  Mac since 2026-11-23: "Inkvolt Print scope").
+- Inkvolt Print: P12's 2.1, 2.2, 3.1 and 3.3, not started on the Mac (separator codes, the last code item besides these,
+  on the Mac since 2026-11-23: "Inkvolt Print scope"). What fixtures could prove and what needs a device, as of
+  2026-11-23:
+  - 2.2 Scan from the printer's button. The HP half (`LedmWalkupScan`, `ScanToComputer`, the demo's
+    `FakeScanToComputer`; `ScanButtonTests`, 33 tests, about 1,100 lines of .NET with a preset's Scan button setting and a
+    background long poll in the app) can be ported from the demo manifest's documents alone, but every walk-up name in it
+    is Windows' assumption (`LedmWalkupScan.Names`): no HP all-in-one that lists the interface has been recorded (the
+    M234dw's tree lists none), so a port would prove only that it matches an assumption. The ICA half (a scanner's button
+    events through ImageCaptureCore, Windows' WIA events) needs a USB scanner with buttons on the build Mac.
+  - 2.1 Print straight to the printer: the encoders (PWG raster, URF, PCLm) and the route decision are a port that needs no
+    device (Windows checks them against `ippeveprinter`); the page check needs a printer with no queue for it.
+  - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
+    from.
+  - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording
+    confirms them, as on Windows.
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
