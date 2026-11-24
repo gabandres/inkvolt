@@ -93,6 +93,9 @@ struct MeasureTest {
         controller.setZoom(1)
         controller.go(0)
         controller.window?.makeFirstResponder(pages)
+        // Points land where clicked: a click near a measurement made already would snap to its box's edge.
+        let snapping = SnappingOff()
+        defer { snapping.restore() }
         let before = measurements().count
 
         // Distance: two clicks, at real size.

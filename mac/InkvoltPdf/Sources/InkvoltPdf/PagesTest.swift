@@ -291,6 +291,7 @@ struct PagesTest {
             return check(false, "a note and a highlight to move")
         }
         pages.tool = .hand
+        let snapping = SnappingOff() // moved exactly as far as the pointer, not onto another comment's edge
         // Each selected first (a press picks the selected comment before others in the same place).
         pages.select(note.id)
         let n0 = PointD(note.rect.centerX, note.rect.centerY)
@@ -302,6 +303,7 @@ struct PagesTest {
         await press([(0, m0), (0, PointD(m0.x, m0.y + 15)), (0, PointD(m0.x, m0.y + 30))])
         let movedMark = editor.comment(marker.id)?.quadRects.first ?? .zero
         let markPicked = pages.selectedId == marker.id
+        snapping.restore()
         check(abs(movedNote.x - note.rect.x - 40) < 0.6 && abs(movedNote.y - note.rect.y - 20) < 0.6 && noteTitle == Shown.undo(loc("Move"))
               && abs(movedMark.y - marker.quadRects[0].y - 30) < 0.6 && abs(movedMark.x - marker.quadRects[0].x) < 0.6,
               "hand tool moved a note by (\(Int((movedNote.x - note.rect.x).rounded())), \(Int((movedNote.y - note.rect.y).rounded()))) "

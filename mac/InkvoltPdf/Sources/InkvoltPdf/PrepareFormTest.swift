@@ -125,11 +125,8 @@ struct PrepareFormTest {
         lines.append("== prepare form \(name)")
         guard let start = controller.pdf.session?.data else { return finish() }
         // Drags and nudges land where the pointer takes them: no snapping (roadmap 4.19; LayoutTest checks it).
-        let snapping = (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects)
-        AppSettings.snapToGuides = false
-        AppSettings.snapToGrid = false
-        AppSettings.snapToObjects = false
-        defer { (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects) = snapping }
+        let snapping = SnappingOff()
+        defer { snapping.restore() }
         let window = controller.window
 
         // In, through the menu's command.

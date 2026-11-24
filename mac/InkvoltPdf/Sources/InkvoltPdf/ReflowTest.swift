@@ -164,8 +164,10 @@ struct ReflowTest {
         await settle()
         choose(reflowTitle)
         await settle(300)
-        check(!reflow.isShown && reflow.host.isHidden && controller.pages.currentPage == 1 && reflow.web == nil,
-              "View › Reflow again: back to the pages at page \(controller.pages.currentPage + 1), the web view let go")
+        // Edit › Undo works on the document again (NSWindow kept an undo manager of its own once Reflow had none).
+        let undoesDocument = controller.window?.undoManager === controller.pdf.undoBridge
+        check(!reflow.isShown && reflow.host.isHidden && controller.pages.currentPage == 1 && reflow.web == nil && undoesDocument,
+              "View › Reflow again: back to the pages at page \(controller.pages.currentPage + 1), the web view let go, Undo the document's (\(undoesDocument))")
         controller.applyOpeningZoom()
         controller.go(0)
 

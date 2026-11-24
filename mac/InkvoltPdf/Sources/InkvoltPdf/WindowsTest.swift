@@ -114,9 +114,12 @@ struct WindowsTest {
               "the synthetic document's window is known and in use (\(windowsBefore) windows, \(tabsBefore) tabs)")
 
         // A file open once: asked for again by another spelling of its path, its own tab comes forward.
-        let again = await open(URL(fileURLWithPath: synthetic.uppercased()))
+        // The file the document shows now: earlier sections' Save As moved it from where the run made it.
+        let shown = controller.pdf.fileURL?.path ?? synthetic
+        let again = await open(URL(fileURLWithPath: shown.uppercased()))
         check(again === controller && NSDocumentController.shared.documents.count == documentsBefore,
               "a file asked for again (its path in capitals) brings its tab forward, not a second copy")
+        if let again, again !== controller { again.pdf.close() } // a second copy, if one opened, goes
 
         // Asked for twice at once (a double-click repeated): read once.
         NSDocumentController.shared.openDocument(withContentsOf: urls[0], display: true) { _, _, _ in }
