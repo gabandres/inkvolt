@@ -173,6 +173,11 @@ A searchable PDF from Scan may therefore come without words the first time after
 reads the separator sheet's 1.25 in QR code (version 1, level H) on a 100 dpi grey copy (850 × 1100) turned 0°, 4°, 90°,
 180° and −30°, a Code 128 barcode across or down the page, and the printable sheet's QR code beside its bars; nothing in
 the sandbox to ask for. Its payload is `payloadStringValue`; PrintCore's rules decide what counts.
+macOS 15 too (2026-11-24, 15.8.2, CI's macos-15 runner, a diagnostic test): the separator sheet's QR code, and Core Image's
+QR and Code 128 codes made into a CGImage, read with every revision (1 to 4; 4 the default on 15 and 27). What differs on
+15 is Core Image, not Vision: `CIContext().render(_:toBitmap:rowBytes:bounds:format: .L8, colorSpace:)` leaves the QR and
+Code 128 generators' output all white (0 dark pixels of 529 and 101) where 27 draws the modules; `createCGImage` draws them
+on both. Only the tests drew codes that way; the app never renders Core Image into a bitmap for codes.
 
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 

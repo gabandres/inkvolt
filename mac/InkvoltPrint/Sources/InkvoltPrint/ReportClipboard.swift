@@ -27,7 +27,9 @@ extension Report {
             let widest = (0..<pdf.pageCount).compactMap { pdf.page(at: $0) }.map { page -> Double in
                 (page.selection(for: page.bounds(for: .mediaBox))?.selectionsByLine() ?? []).map { $0.bounds(for: page).maxX }.max() ?? 0
             }.max() ?? 0
-            lines.append("  text PDF: widest line ends at \(Int(widest)) pt of \(Int(box.width - 54)) (inside the right margin: \(widest <= box.width - 54 + 1))")
+            let margin: Double = Double(box.width) - 54
+            let inside: Bool = widest <= margin + 1
+            lines.append("  text PDF: widest line ends at \(Int(widest)) pt of \(Int(margin)) (inside the right margin: \(inside))")
         } else {
             lines.append("  text PDF: not made")
         }
