@@ -9,6 +9,8 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 - Una impresora compartida aparece enseguida en iPhone y iPad, aunque ya conozcan varias impresoras; antes, a veces solo aparecía tras desactivar y volver a activar el uso compartido.
 - Desactivar y volver a activar el uso compartido de una impresora la mantiene como la misma impresora, así que los teléfonos ya no la muestran una vez por cada vez.
 - Al escanear con el teléfono o una cámara, se indica que cada página llegó y que se espera la siguiente, en lugar de "Escaneando…".
+- Un trabajo enviado directamente a una impresora de red se sigue durante 2 horas como máximo; luego Inkvolt Print indica que el panel de control de la impresora muestra cómo va. Una impresora cuyo recuento de páginas subía y bajaba se seguía sin fin.
+- El nombre de archivo de un ajuste de escaneo puede rellenar {n} hasta 32 dígitos como máximo (como en {n:D5} o {n:X8}); uno más largo se rechaza en el editor del ajuste en lugar de trabar el guardado del escaneo.
 
 ## 1.9.0
 - Registro de impresión: Registro de impresión, en la barra lateral, muestra cada trabajo que este PC imprimió mientras Inkvolt Print estaba abierto, desde cualquier aplicación, con las páginas de cada mes por impresora y por persona. Se queda en este PC, y puedes desactivarlo o borrarlo. Guardarlo como archivo CSV es parte de Inkvolt Pro.

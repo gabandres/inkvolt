@@ -6,6 +6,7 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Cuatro funciones ya no se bloquean con un archivo o una respuesta hechos para trabarlas: Vínculos a partir de las direcciones en una página con miles de paréntesis seguidos, Sugerir qué eliminar con una respuesta de IA rellena con megabytes de comillas, las guías de las reglas en un archivo grande cuyas páginas comparten un mismo dibujo, y Editar pidiéndolo al eliminar y luego girar páginas de un documento enorme. Ahora cada una termina al momento.
 
 ## 1.18.0
 - Dos documentos lado a lado: Archivo › Nueva ventana (Ctrl+N), Nueva ventana en la lista de accesos directos de la barra de tareas, o arrastra una pestaña fuera de la barra de pestañas y se convierte en una ventana propia, lista para Ajustar de Windows. Arrastra una pestaña sobre las pestañas de otra ventana para moverla allí; conserva su página, sus paneles, lo que puedes deshacer y los cambios sin guardar. Haz clic con el botón derecho en una pestaña para Mover a una ventana nueva y Mover a otra ventana. Un archivo que ya está abierto en una ventana pasa al frente allí en vez de abrirse dos veces, y al cerrar una ventana solo se pregunta por sus propios documentos.

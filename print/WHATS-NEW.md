@@ -8,6 +8,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 - A shared printer shows up on iPhones and iPads right away, even when they already know several other printers; before, it could appear only after sharing was turned off and on.
 - Turning a shared printer's sharing off and on again keeps it the same printer, so phones no longer list it once for each time.
 - Scanning with your phone or a camera says each page is in and that it's waiting for the next one, rather than "Scanning…".
+- A job sent straight to a network printer is followed for 2 hours at most, then Inkvolt Print says the printer's control panel shows how it's going; a printer whose page count kept going back and forth was followed for ever.
+- A scan preset's file name can pad {n} to 32 digits at most (as in {n:D5} or {n:X8}); a longer one is refused in the preset editor instead of stalling the scan's save.
 
 ## 1.9.0
 - Print log: the sidebar's Print log lists every job this PC printed while Inkvolt Print was running, from any app, with each month's pages per printer and per person. It stays on this PC, and you can turn it off or clear it. Saving it as a CSV file is part of Inkvolt Pro.

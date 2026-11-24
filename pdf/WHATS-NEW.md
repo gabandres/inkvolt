@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Four places no longer hang on a file or an answer made to stall them: Links from Addresses on a page with a run of thousands of brackets, Suggest Redactions on an AI answer padded with megabytes of quotes, the rulers' guides on a big file whose pages share one drawing, and Edit by Asking deleting and then turning pages of a huge document. Each now finishes in a moment.
 
 ## 1.18.0
 - Two documents side by side: File › New Window (Ctrl+N), New Window in the taskbar's jump list, or drag a tab out of the tab bar and it becomes a window of its own, ready for Windows Snap. Drag a tab onto another window's tabs to move it there; it keeps its page, panes, undo and unsaved changes. Right-click a tab for Move to New Window and Move to Window. A file already open in one window comes forward there instead of opening twice, and closing a window asks only about its own documents.
