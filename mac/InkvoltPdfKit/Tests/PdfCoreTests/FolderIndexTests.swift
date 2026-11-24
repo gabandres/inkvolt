@@ -260,16 +260,43 @@ final class FolderIndexTests {
     /// 60-unit word first, between, or last is still side by side.
     static let sixty = "pneumonoultramicroscopicsilicovolcanoconiosisandmoreletters" + "x"
 
-    @Test(arguments: [("lantern \(sixty) brass", "by the lantern \(sixty) brass here", true),
-                      ("\(sixty) brass", "by the \(sixty) brass here", true),
-                      ("\(sixty) brass", "by the pre\(sixty) brass here", true),
-                      ("lantern \(sixty)", "by the lantern \(sixty)s here", true),
-                      ("lantern \(sixty) brass", "by the lantern \(sixty) bronze here", false),
-                      ("lantern \(sixty) brass", "by the lantern pneumono brass here", false),
-                      ("\(sixty) brass", "by the pneumono brass here", false)])
+    /// Windows' `LongWords`' second: a word of 61 units ("a" and 30 U+10330) whose term ends a unit early, before a pair.
+    static let pairs: String = "a" + String(repeating: "\u{10330}", count: 30)
+
+    /// The first `units` UTF-16 units of `word` (a pair kept whole where the tests cut it) and the rest.
+    private static func units(_ word: String, _ units: Int) -> (head: String, tail: String) {
+        let all: [UInt16] = Array(word.utf16)
+        return (String(decoding: all[..<units], as: UTF16.self), String(decoding: all[units...], as: UTF16.self))
+    }
+
+    /// Windows' `A_phrase_with_a_word_longer_than_a_term_passes_side_by_side` for `pairs`: the word first, between, last,
+    /// or its end first; a page whose word differs within its first 48 units doesn't pass.
+    static let pairCases: [(query: String, page: String, expected: Bool)] = {
+        let w: String = pairs
+        let page: String = "one \(w) two three"
+        let split: (head: String, tail: String) = units(w, 9)
+        let other: String = "one \(split.head)q\(split.tail) two three"
+        let end: String = units(w, 5).tail
+        var cases: [(query: String, page: String, expected: Bool)] = []
+        for query in ["one \(w) two", "\(w) two", "one \(w)", "\(end) two"] { cases.append((query, page, true)) }
+        for query in ["one \(w) two", "\(w) two", "one \(w)"] { cases.append((query, other, false)) }
+        return cases
+    }()
+
+    static let longCases: [(query: String, page: String, expected: Bool)] = [
+        ("lantern \(sixty) brass", "by the lantern \(sixty) brass here", true),
+        ("\(sixty) brass", "by the \(sixty) brass here", true),
+        ("\(sixty) brass", "by the pre\(sixty) brass here", true),
+        ("lantern \(sixty)", "by the lantern \(sixty)s here", true),
+        ("lantern \(sixty) brass", "by the lantern \(sixty) bronze here", false),
+        ("lantern \(sixty) brass", "by the lantern pneumono brass here", false),
+        ("\(sixty) brass", "by the pneumono brass here", false)] + pairCases
+
+    @Test(arguments: longCases)
     func A_phrase_with_a_word_longer_than_a_term_is_side_by_side(_ c: (query: String, page: String, expected: Bool)) {
         #expect(Self.sixty.utf16.count == 60)
-        #expect(IndexTerms.of(c.query).contains { $0.utf16.count == IndexTerms.maxChars }, "a term cut")
+        #expect(Self.pairs.utf16.count == 61)
+        #expect(IndexTerms.of(c.query).contains { $0.utf16.count >= IndexTerms.maxChars - 1 }, "a term cut")
         let found = !PageText.findIn(c.page, c.query, matchCase: false, wholeWord: false, ignoreAccents: true).isEmpty
         #expect(found == c.expected, "Find")
         #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)) == c.expected)

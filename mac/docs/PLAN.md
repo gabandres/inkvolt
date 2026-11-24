@@ -1662,7 +1662,12 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   (`Cursor.read(_:_:ahead:)`; the Mac's reader read a megabyte on every miss, and its threads took a file's pages one by
   one). A phrase is told on a plain-ASCII page's bytes (`sideBySideAscii`: the last term found with `memmem` where a word
   starts, the words before it read backwards; nil for anything else, a "-\n" or a term that may be cut, which go to
-  `sideBySide`), and a page's run longer than 1,024 units may end in any first term. FolderIndexTests'
+  `sideBySide`), and a page's run longer than 1,024 units may end in any first term. A phrase with a word longer than a
+  term (Windows' 09f2ac7a): a term of 47 units or more may be its word cut (`mayBeCut`; 48, or 47 before a surrogate
+  pair, as `sideBySideAscii` already took it), a term between matches its page word cut the same way (`cutToTerm`), and
+  a first term that may be cut matches anywhere inside its word (Knuth–Morris–Pratt over UTF-16 units; the Mac had
+  taken only 48-unit terms as cut, so a phrase with a 61-unit word cut to 47 before a pair was missed; its `LongWords`
+  case is in `A_phrase_with_a_word_longer_than_a_term_is_side_by_side`). FolderIndexTests'
   `The_quick_phrase_reading_agrees_with_the_full_one` (a seeded SplitMix64 for .NET's `Random(7)`),
   `Pages_of_many_files_and_long_pages_read_back_in_order`, `A_big_files_pages_are_shared_among_the_threads_in_chunks`,
   `A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`, and `Side_by_side_reads_a_phrase_as_terms`

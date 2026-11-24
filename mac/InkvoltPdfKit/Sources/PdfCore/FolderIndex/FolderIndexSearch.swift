@@ -178,24 +178,30 @@ extension FolderIndex {
 
     /// Whether a page has a phrase's terms one right after the other: the first the end of a word, the last the start of
     /// one, those between whole. Whatever Find finds has that (they are the same words, folded), so a page without it
-    /// needs no asking. A query's word longer than a term was cut to its first `maxChars` units (a page's words are read
-    /// whole to `maxRun`): such a term between is the start of its word, and the first is somewhere in its word, whose
-    /// end the cut lost. A page's run longer than `maxRun` may end in any first term (only its start is read).
+    /// needs no asking. A query's word longer than a term was cut to its first `maxChars` units, a unit less to keep a
+    /// pair whole (a page's words are read whole to `maxRun`): a term between is matched by its word's start as it would
+    /// be cut (`cutToTerm`), and a first term that may have been cut (`mayBeCut`) anywhere inside its word (`inside`),
+    /// whose end the cut lost. A page's run longer than `maxRun` may end in any first term (only its start is read).
     static func sideBySide(_ text: String, _ terms: [String]) -> Bool {
-        guard let head = terms.first else { return false }
-        let headCut = head.utf16.count >= IndexTerms.maxChars
+        guard let first = terms.first else { return false }
+        let units: [[UInt16]] = terms.map { (t: String) -> [UInt16] in Array(t.utf16) }
+        let head: [UInt16] = units[0]
+        let headCut: Bool = mayBeCut(first)
+        let skips: [Int] = headCut ? Self.skips(head) : []
         // Every count of terms matched so far that ends at the word before this one: a phrase can start again inside itself.
         var ends: [Int] = []
         var next: [Int] = []
         var found = false
-        IndexTerms.words(PageText.searchTextOf(text)) { word in
+        IndexTerms.words(PageText.searchTextOf(text)) { (piece: String) in
             if found { return }
+            let word: [UInt16] = Array(piece.utf16)
             next.removeAll(keepingCapacity: true)
-            for at in ends where fits(word, terms, at) {
+            for at in ends where fits(word, units, at) {
                 if at + 1 == terms.count { found = true } else { next.append(at + 1) }
             }
             // A run longer than is read (its first maxRun units) may end in the head: its end is unknown here, so it may.
-            if word.utf16.count >= IndexTerms.maxRun - 1 || (headCut ? word.contains(head) : word.hasSuffix(head)) {
+            let long: Bool = word.count >= IndexTerms.maxRun - 1
+            if long || (headCut ? inside(word, head, skips) : endsWith(word, head)) {
                 if terms.count == 1 { found = true } else { next.append(1) }
             }
             swap(&ends, &next)
@@ -203,10 +209,50 @@ extension FolderIndex {
         return found
     }
 
-    private static func fits(_ word: String, _ terms: [String], _ at: Int) -> Bool {
-        let term = terms[at].utf16
-        if at == terms.count - 1 || term.count >= IndexTerms.maxChars { return word.utf16.starts(with: term) }
-        return word.utf16.elementsEqual(term)
+    /// Whether `word` is the phrase's term `at`: the last the start of the word, those between the word cut as a query's
+    /// word is cut to a term.
+    private static func fits(_ word: [UInt16], _ terms: [[UInt16]], _ at: Int) -> Bool {
+        if at == terms.count - 1 { return word.starts(with: terms[at]) }
+        return cutToTerm(word).elementsEqual(terms[at])
+    }
+
+    private static func endsWith(_ word: [UInt16], _ term: [UInt16]) -> Bool {
+        word.count >= term.count && word[(word.count - term.count)...].elementsEqual(term)
+    }
+
+    /// A page's word cut as a query's word is cut to a term: its first `IndexTerms.maxChars` units, a pair never split.
+    private static func cutToTerm(_ word: [UInt16]) -> ArraySlice<UInt16> {
+        let max: Int = IndexTerms.maxChars
+        if word.count <= max { return word[...] }
+        return word[..<(UTF16.isLeadSurrogate(word[max - 1]) ? max - 1 : max)]
+    }
+
+    /// Whether `term` is anywhere in `word`: Knuth–Morris–Pratt, linear in the word (at most `IndexTerms.maxRun`).
+    private static func inside(_ word: [UInt16], _ term: [UInt16], _ skips: [Int]) -> Bool {
+        if term.isEmpty { return true }
+        var matched = 0
+        for c in word {
+            while matched > 0 && term[matched] != c { matched = skips[matched - 1] }
+            if term[matched] == c {
+                matched += 1
+                if matched == term.count { return true }
+            }
+        }
+        return false
+    }
+
+    /// For each start of `term`, the length of its longest proper start that is also its end.
+    private static func skips(_ term: [UInt16]) -> [Int] {
+        var skips: [Int] = [Int](repeating: 0, count: term.count)
+        var k = 0
+        var i = 1
+        while i < term.count {
+            while k > 0 && term[i] != term[k] { k = skips[k - 1] }
+            if term[i] == term[k] { k += 1 }
+            skips[i] = k
+            i += 1
+        }
+        return skips
     }
 
     /// `sideBySide` on a page's UTF-8 when it is quick to tell: the page and the terms plain ASCII (letters and digits are
