@@ -8959,6 +8959,126 @@
           }
         }
       }
+    },
+    "Printing %@ on %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimiendo %1$@ en %2$@"
+          }
+        }
+      }
+    },
+    "Asking the printer whether it can print…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preguntando a la impresora si puede imprimir…"
+          }
+        }
+      }
+    },
+    "Making the pages ready…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando las páginas…"
+          }
+        }
+      }
+    },
+    "Cancelled. Nothing was sent.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelado. No se envió nada."
+          }
+        }
+      }
+    },
+    "Its pages couldn't be made ready on this Mac. Nothing was sent.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron preparar sus páginas en este Mac. No se envió nada."
+          }
+        }
+      }
+    },
+    "Sending the pages to the printer…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviando las páginas a la impresora…"
+          }
+        }
+      }
+    },
+    "Print %@ straight to %@?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿Imprimir %1$@ directamente en %2$@?"
+          }
+        }
+      }
+    },
+    "macOS has no printer set up for it, so Inkvolt Print draws the pages and sends them to the printer itself.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no tiene configurada esta impresora, así que Inkvolt Print prepara las páginas y se las envía él mismo."
+          }
+        }
+      }
+    },
+    "Both sides": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A doble cara"
+          }
+        }
+      }
+    },
+    "Black and white": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Blanco y negro"
+          }
+        }
+      }
+    },
+    "Paper:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Papel:"
+          }
+        }
+      }
+    },
+    "Color:": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Color:"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

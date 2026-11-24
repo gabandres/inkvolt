@@ -104,6 +104,7 @@ enum Report {
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
             if model.isDemo && args.contains("--web-port") { cancelled += await webPortCheck(model) }
+            if model.isDemo && args.contains("--direct-print") { cancelled += await directPrintCheck(model) }
             if args.contains("--history") { cancelled += await historyCheck(model) }
             if args.contains("--print-log") { cancelled += await printLogCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }

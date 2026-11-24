@@ -32,6 +32,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - A printer whose web page is on a port of its own can be added by that address (for example http://192.168.1.20:8080), and one that announces its page on the network is read there by itself.
 - A printer that refuses its SNMPv3 login now notifies you as that, and shows red in the menu bar's list as on its card. A refusal that may not come from your printer (another device at its address, or one sent by someone else on the network) shows it can't be reached instead, and SNMP Access… lets you save the login anyway.
 - Batch scanning splits at QR codes too: a sheet with a QR code or barcode that says PATCHT (as Paperless-ngx prints them) starts a new file, like a patch code sheet. The separator sheet Inkvolt Print saves for you now carries one beside its bars.
+- Print a PDF straight to the printer: a network printer macOS has no printer set up for, that prints without a driver (IPP Everywhere, AirPrint or Mopria), gets the pages from Inkvolt Print itself. Choose copies, paper, both sides and color; a small window follows the job until it's printed, with Cancel.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

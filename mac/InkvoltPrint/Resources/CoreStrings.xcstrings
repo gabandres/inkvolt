@@ -11648,6 +11648,292 @@
           }
         }
       }
+    },
+    "This printer takes none of the formats Inkvolt Print sends without a driver (PWG raster, Apple raster, PCLm).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora no acepta ninguno de los formatos que Inkvolt Print envía sin controlador (PWG raster, Apple raster, PCLm)."
+          }
+        }
+      }
+    },
+    "This printer doesn't print on both sides. Turn two-sided off and print again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora no imprime a doble cara. Desactiva la doble cara e imprime de nuevo."
+          }
+        }
+      }
+    },
+    "Copies must be between 1 and 999.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias deben estar entre 1 y 999."
+          }
+        }
+      }
+    },
+    "The printer doesn't offer that paper. Choose another paper size.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no ofrece ese papel. Elige otro tamaño de papel."
+          }
+        }
+      }
+    },
+    "The printer doesn't offer that print quality. Choose another one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no ofrece esa calidad de impresión. Elige otra."
+          }
+        }
+      }
+    },
+    "The printer doesn't take that paper type. Choose another one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no acepta ese tipo de papel. Elige otro."
+          }
+        }
+      }
+    },
+    "The printer doesn't answer. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no responde. No se envió nada."
+          }
+        }
+      }
+    },
+    "The printer stopped answering while the job was sent. Check it before printing again: it may have the job.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora dejó de responder mientras se enviaba el trabajo. Revísala antes de volver a imprimir: puede que tenga el trabajo."
+          }
+        }
+      }
+    },
+    "The printer isn't taking jobs now.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no está aceptando trabajos ahora."
+          }
+        }
+      }
+    },
+    "The printer wants a signed-in user for printing. Set it up in macOS and print through it, or allow printing without signing in on its web page.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora pide un usuario con sesión iniciada para imprimir. Configúrala en macOS e imprime a través de ella, o permite imprimir sin iniciar sesión en su página web."
+          }
+        }
+      }
+    },
+    "The printer can't take a job this large. Print fewer pages at a time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no acepta un trabajo tan grande. Imprime menos páginas cada vez."
+          }
+        }
+      }
+    },
+    "The printer refused the pages: it didn't take their format or settings. Nothing was printed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora rechazó las páginas: no aceptó su formato o su configuración. No se imprimió nada."
+          }
+        }
+      }
+    },
+    "The printer is busy and took nothing. Try again in a minute.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora está ocupada y no aceptó nada. Inténtalo de nuevo en un minuto."
+          }
+        }
+      }
+    },
+    "Cancelled at the printer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancelado en la impresora"
+          }
+        }
+      }
+    },
+    "The printer refused the job. Nothing was printed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora rechazó el trabajo. No se imprimió nada."
+          }
+        }
+      }
+    },
+    "The printer didn't take the cancel, so the job may still print. Cancel it on the printer's control panel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora."
+          }
+        }
+      }
+    },
+    "Printed, with errors the printer reported": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impreso, con errores que indicó la impresora"
+          }
+        }
+      }
+    },
+    "The printer stopped the job: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora detuvo el trabajo: {0}"
+          }
+        }
+      }
+    },
+    "The printer stopped the job": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora detuvo el trabajo"
+          }
+        }
+      }
+    },
+    "Waiting: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En espera: {0}"
+          }
+        }
+      }
+    },
+    "the printer is stopped": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "la impresora está detenida"
+          }
+        }
+      }
+    },
+    "Printing page {0} of {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimiendo la página {0} de {1}"
+          }
+        }
+      }
+    },
+    "Waiting its turn at the printer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando su turno en la impresora"
+          }
+        }
+      }
+    },
+    "it couldn't read the pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no pudo leer las páginas"
+          }
+        }
+      }
+    },
+    "it holds the job until it's released at the printer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "retiene el trabajo hasta que se libere en la impresora"
+          }
+        }
+      }
+    },
+    "it needs paper, or another paper": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "necesita papel, u otro papel"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

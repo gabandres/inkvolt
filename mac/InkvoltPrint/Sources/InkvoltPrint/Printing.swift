@@ -6,7 +6,9 @@ import UniformTypeIdentifiers
 
 /// Printing from Inkvolt Print (the Windows app's Print a PDF and Copy): through macOS's print panel, with the printer's
 /// macOS queue chosen when it has one, so copies, page ranges, two-sided printing and paper are macOS's and its driver's.
-/// A network printer macOS has no queue for can still be picked in the panel (macOS lists printers nearby and sets one up).
+/// A network printer macOS has no queue for gets Print a PDF's pages straight from Inkvolt Print when it takes a raster
+/// format over IPP (`DirectPrinting`, roadmap 2.1, one page per sheet); otherwise it can still be picked in the panel (macOS
+/// lists printers nearby and sets one up).
 @MainActor
 enum Printing {
     /// Print a PDF…: the user picks the file, and its layout under the file list (roadmap 4.18: one page per sheet as before,
@@ -41,6 +43,11 @@ enum Printing {
         }
         let name = url.deletingPathExtension().lastPathComponent
         guard let setup = SheetPrint.setup(choice) else {
+            // A network printer macOS has no queue for, taking raster over IPP: straight to it (roadmap 2.1).
+            if printer.queueName == nil, let ipp = await DirectPrinting.route(printer) {
+                await DirectPrinting.print(document, name: name, on: printer, ipp: ipp)
+                return
+            }
             print(document, name: name, on: printer, app: app)
             return
         }

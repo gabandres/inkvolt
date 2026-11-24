@@ -61,7 +61,9 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight
   to the printer where there isn't or the person chose it (`PrintRoutes`). Its **plan** is what the printer's attributes allow
-  for one request (`DirectPrintPlan`); a setting the printer can't keep stops the job, never changes quietly.
+  for one request (`DirectPrintPlan`); a setting the printer can't keep stops the job, never changes quietly. On the Mac: a
+  network printer with no macOS queue, from Print a PDF (PrintCore's `Printing/Raster` and `Printing/Direct`, PrintMac's
+  `DirectPrintPages`, the app's `DirectPrinting`); no choice of straight where macOS has a queue.
 - **Print routing** (a printer's): what the tabs that print (Print a PDF, Batch print, Copy, Print photos, the print queue card) know of its
   print route, kept in one place: whether Windows has a queue for it (on the Mac, *set up in macOS*), whether it can be set up,
   whether it takes jobs straight and the person may choose that, the route last decided and which note the Print tab shows.

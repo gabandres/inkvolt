@@ -5,8 +5,9 @@ import Synchronization
 /// opens a socket. Used by demo mode and the tests. A request path maps to a document name by replacing `/` with `_` and
 /// adding `.xml` when there is no extension: `/DevMgmt/ProductStatusDyn.xml` → `DevMgmt_ProductStatusDyn.xml`,
 /// `/eSCL/ScannerCapabilities` → `eSCL_ScannerCapabilities.xml`; HP CDM's `/cdm/...` → `cdm_….json`. An IPP
-/// Get-Printer-Attributes request to `/ipp/print` is answered from `ipp_print.ipp.txt` (`IppText`), and so is
-/// Identify-Printer when that document lists it. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a
+/// Get-Printer-Attributes request to `/ipp/print` is answered from `ipp_print.ipp.txt` (`IppText`), and so are
+/// Identify-Printer and the job operations (Print-Job kept in `printJobs` and completed at once, Get-Job-Attributes, Get-Jobs,
+/// Cancel-Job) when that document's `operations-supported` lists them. Writes (PUT, LEDM POSTs) are accepted and forgotten. Anything without a
 /// document is 404. A scan job that asks for `application/pdf` (a scanner whose capabilities offer only PDF from a source)
 /// gets its pages as a PDF, the JPEGs embedded as they are: one PDF per glass page, the whole feeder batch in one PDF.
 public final class FixtureTransport: HttpTransport {
@@ -20,6 +21,10 @@ public final class FixtureTransport: HttpTransport {
     private let scanArea: (@Sendable (Int, Int) -> [UInt8])?
     private let feederBatch: (@Sendable () -> [[UInt8]]?)?
     private let state = Mutex<(pagesLeft: Int, area: (width: Int, height: Int), batch: [[UInt8]], pdf: Bool, dpi: Int)>((0, (2550, 3300), [], false, 300))
+    private let printed = Mutex<[[UInt8]]>([])
+
+    /// Every Print-Job request received (its attributes and the document after them), in order.
+    public var printJobs: [[UInt8]] { printed.withLock { $0 } }
 
     /// - Parameters:
     ///   - document: document name → bytes, or nil when there is none.
@@ -108,13 +113,33 @@ public final class FixtureTransport: HttpTransport {
             guard let text = document(Self.ippDocumentName(path)) else { return HttpResponse(status: 404) }
             let (operation, id) = try IppCodec.readRequestHeader(request.body ?? [])
             let attributes = try IppText.parse(String(decoding: text, as: UTF8.self))
-            // Get-Printer-Attributes is answered from the document, and Identify-Printer (a no-op here) when the document's
-            // operations-supported lists it; anything else gets server-error-operation-not-supported.
-            let identify = operation == IppCodec.identifyPrinter
-                && attributes.contains { $0.name == "operations-supported" && $0.value == String(IppCodec.identifyPrinter) }
-            let body = operation == IppCodec.getPrinterAttributes ? IppCodec.encodeResponse(status: 0, requestId: id, attributes)
-                : identify ? IppCodec.encodeResponse(status: 0, requestId: id, [])
-                : IppCodec.encodeResponse(status: 0x0501, requestId: id, [])
+            // Get-Printer-Attributes is answered from the document; Identify-Printer (a no-op here), Print-Job (kept in
+            // printJobs, completed at once), Get-Job-Attributes, Get-Jobs (none waiting) and Cancel-Job when the document's
+            // operations-supported lists them; anything else gets server-error-operation-not-supported.
+            let lists = attributes.contains { $0.name == "operations-supported" && $0.value == String(operation) }
+            func job(_ number: Int, _ state: Int) -> [UInt8] {
+                IppCodec.encodeResponse(status: 0, requestId: id, [
+                    IppValue(name: "job-id", tag: IppCodec.integer, value: String(number)),
+                    IppValue(name: "job-state", tag: IppCodec.enumeration, value: String(state)),
+                    IppValue(name: "job-state-reasons", tag: IppCodec.keyword, value: state == 9 ? "job-completed-successfully" : "none"),
+                ], group: IppCodec.jobTag)
+            }
+            let body: [UInt8]
+            if operation == IppCodec.getPrinterAttributes {
+                body = IppCodec.encodeResponse(status: 0, requestId: id, attributes)
+            } else if !lists {
+                body = IppCodec.encodeResponse(status: 0x0501, requestId: id, [])
+            } else if operation == IppCodec.printJob {
+                let count = printed.withLock { jobs in
+                    jobs.append(request.body ?? [])
+                    return jobs.count
+                }
+                body = job(count, 3)
+            } else if operation == IppCodec.getJobAttributes {
+                body = job(1, 9)
+            } else {
+                body = IppCodec.encodeResponse(status: 0, requestId: id, [])
+            }
             return HttpResponse(status: 200, headers: ["Content-Type": "application/ipp"], body: body)
         }
         // LEDM maintenance (internal print jobs, alignment): accepted and forgotten, like settings writes. Nothing prints.
