@@ -25,15 +25,14 @@ extension Trait where Self == OffThePool {
 }
 
 /// A task executor over an operation queue's own threads, not the cooperative pool's: at most one job fewer than the cores
-/// at once, as PrintCore's `offPool` runs the app's page work, so a core stays free for the rest. Utility, below the tests'
-/// own tasks: a test waiting on a time limit needs a moment of a core when its timer fires, and gets it first (at
-/// user-initiated, as `offPool`, the build Mac's full run failed seven to nine timing tests; at utility, none).
+/// at once, as PrintCore's `offPool` runs the app's page work, so a core stays free for the rest. The queue's default
+/// quality of service, the tests' own: above it (user-initiated, as `offPool`) the build Mac's full run failed seven to nine
+/// timing tests; below it (utility) CI's runner left Vision reading no codes and SNMPv3's requests their 1 s.
 final class QueueExecutor: TaskExecutor {
     static let shared = QueueExecutor()
     private let queue: OperationQueue = {
         let q = OperationQueue()
         q.name = "TestTiming.OffThePool"
-        q.qualityOfService = .utility
         q.maxConcurrentOperationCount = max(1, ProcessInfo.processInfo.activeProcessorCount - 1)
         return q
     }()
