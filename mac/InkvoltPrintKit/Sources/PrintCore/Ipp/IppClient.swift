@@ -47,11 +47,39 @@ public final class IppClient: Sendable {
         try await post(IppCodec.encodeIdentifyPrinter(printerUri, userName: userName, actions: actions), timeout: .seconds(10), once: true)
     }
 
-    private func post(_ body: [UInt8], timeout: Duration, once: Bool = false) async throws -> IppResponse {
+    /// Print-Job (RFC 8011 §4.2.1): `file` holds the request (an `IppRequest`'s bytes) followed by the document
+    /// (`DirectJobFile`), uploaded from disk, sent once and never again (a resend would print the job twice), with a time limit
+    /// for a slow printer taking a large raster. Returns the job group of the answer.
+    public func printJob(file: URL, timeout: Duration) async throws -> IppResponse {
+        var request = HttpRequest("POST", endpoint, headers: ["Content-Type": "application/ipp"], timeout: timeout, once: true)
+        request.bodyFile = file
+        let response = try await http.send(request)
+        try DeviceHttp.ensureSuccess(response, "POST", endpoint)
+        return try IppCodec.decode(response.body, group: IppCodec.jobTag)
+    }
+
+    /// Get-Job-Attributes (RFC 8011 §4.3.4): the job group.
+    public func getJobAttributes(_ request: [UInt8]) async throws -> IppResponse {
+        try await post(request, timeout: .seconds(5), group: IppCodec.jobTag)
+    }
+
+    /// Cancel-Job (RFC 8011 §4.3.3), sent once.
+    public func cancelJob(_ request: [UInt8]) async throws -> IppResponse {
+        try await post(request, timeout: .seconds(10), once: true, group: IppCodec.jobTag)
+    }
+
+    /// Get-Jobs (RFC 8011 §4.2.6): the reply's bytes, one job group per job (`IppCodec.decodeGroups`).
+    public func getJobs(_ request: [UInt8]) async throws -> [UInt8] {
+        let response = try await http.send(HttpRequest("POST", endpoint, headers: ["Content-Type": "application/ipp"], body: request, timeout: .seconds(5)))
+        try DeviceHttp.ensureSuccess(response, "POST", endpoint)
+        return response.body
+    }
+
+    private func post(_ body: [UInt8], timeout: Duration, once: Bool = false, group: UInt8 = IppCodec.printerTag) async throws -> IppResponse {
         let request = HttpRequest("POST", endpoint, headers: ["Content-Type": "application/ipp"], body: body, timeout: timeout, once: once)
         let response = try await http.send(request)
         try DeviceHttp.ensureSuccess(response, "POST", endpoint)
-        return try IppCodec.decode(response.body)
+        return try IppCodec.decode(response.body, group: group)
     }
 
     /// Most supplies taken from a printer (a real one has a handful): a reply's bytes hold thousands, one card and history

@@ -17,6 +17,39 @@ public enum IppAttributeValue: Equatable, Sendable {
     /// A dateTime (RFC 8010 §3.9) as the instant it names.
     case date(Date)
     case collection(IppCollection)
+    /// A resolution (RFC 8010 §3.1.9's x, y and units).
+    case resolution(IppResolution)
+    /// A rangeOfInteger.
+    case range(IppRange)
+}
+
+/// A resolution value: cross feed, feed, units (3 dots per inch, 4 per centimetre).
+public struct IppResolution: Equatable, Sendable {
+    public let x: Int
+    public let y: Int
+    public let units: UInt8
+
+    public init(x: Int, y: Int, units: UInt8) {
+        (self.x, self.y, self.units) = (x, y, units)
+    }
+
+    /// Dots per inch across, nil for another unit or a value that isn't one.
+    public var dpi: Int? {
+        guard x == y else { return nil }
+        if units == 3 && (1...4800).contains(x) { return x }
+        if units == 4 && (1...1900).contains(x) { return (Double(x) * 2.54).rounded(.toNearestOrEven).clampedInt }
+        return nil
+    }
+}
+
+/// A rangeOfInteger value.
+public struct IppRange: Equatable, Sendable {
+    public let lower: Int
+    public let upper: Int
+
+    public init(lower: Int, upper: Int) {
+        (self.lower, self.upper) = (lower, upper)
+    }
 }
 
 /// A collection value (RFC 8010 §3.1.6): its members by name, each with one or more values (as `IppResponse`'s).
@@ -82,16 +115,34 @@ public struct IppResponse: Equatable, Sendable {
     public func collections(_ name: String) -> [IppCollection] {
         (attributes[name] ?? []).compactMap { if case .collection(let c) = $0 { c } else { nil } }
     }
+
+    public func resolutions(_ name: String) -> [IppResolution] {
+        (attributes[name] ?? []).compactMap { if case .resolution(let r) = $0 { r } else { nil } }
+    }
+
+    public func range(_ name: String) -> IppRange? {
+        if case .range(let r)? = attributes[name]?.first { return r }
+        return nil
+    }
+
+    public func bool(_ name: String) -> Bool? {
+        if case .boolean(let b)? = attributes[name]?.first { return b }
+        return nil
+    }
 }
 
-/// Minimal IPP encoding (RFC 8010): enough for Get-Printer-Attributes and Identify-Printer.
+/// IPP encoding (RFC 8010): Get-Printer-Attributes and Identify-Printer here, the job operations through `IppRequest`.
 public enum IppCodec {
     public static let getPrinterAttributes: UInt16 = 0x000B
+    /// RFC 8011 §4.2.1, §4.3.3, §4.3.4, §4.2.6.
+    public static let printJob: UInt16 = 0x0002, cancelJob: UInt16 = 0x0008, getJobAttributes: UInt16 = 0x0009, getJobs: UInt16 = 0x000A
+    public static let jobTag: UInt8 = 0x02
+    static let mimeMediaType: UInt8 = 0x49
 
     /// PWG 5100.13 §4.1 (IPP Job and Printer Extensions, Set 3): the printer shows where it is (lights, sound, panel).
     public static let identifyPrinter: UInt16 = 0x003C
 
-    static let operationTag: UInt8 = 0x01, printerTag: UInt8 = 0x04, endTag: UInt8 = 0x03
+    public static let operationTag: UInt8 = 0x01, printerTag: UInt8 = 0x04, endTag: UInt8 = 0x03
     static let integer: UInt8 = 0x21, boolean: UInt8 = 0x22, enumeration: UInt8 = 0x23, octetString: UInt8 = 0x30, resolution: UInt8 = 0x32
     static let rangeOfInteger: UInt8 = 0x33, dateTime: UInt8 = 0x31
     static let begCollection: UInt8 = 0x34, endCollection: UInt8 = 0x37, memberAttrName: UInt8 = 0x4A
@@ -126,16 +177,29 @@ public enum IppCodec {
         return b
     }
 
-    /// Decodes the printer-attributes group, collections included (RFC 8010 §3.1.6: begCollection, memberAttrName and its
-    /// value, endCollection). A truncated or corrupt reply, a collection nested deeper than `maxCollectionDepth` or one left
-    /// open is an `IppFormatError`, never a crash.
-    public static func decode(_ b: [UInt8]) throws -> IppResponse {
+    /// Decodes the printer-attributes group (or `group`: `jobTag` for a job's), collections included (RFC 8010 §3.1.6:
+    /// begCollection, memberAttrName and its value, endCollection). Several groups with the same tag (Get-Jobs' jobs) are
+    /// merged; `decodeGroups` keeps them apart. A truncated or corrupt reply, a collection nested deeper than
+    /// `maxCollectionDepth` or one left open is an `IppFormatError`, never a crash.
+    public static func decode(_ b: [UInt8], group: UInt8 = printerTag) throws -> IppResponse {
+        let (status, groups, _) = try decodeGroups(b)
+        var attributes: [String: [IppAttributeValue]] = [:]
+        for g in groups where g.tag == group {
+            for (name, values) in g.attributes { attributes[name, default: []] += values }
+        }
+        return IppResponse(statusCode: status, attributes: attributes)
+    }
+
+    /// Every attribute group of a response in order (tag and attributes), and where the attributes end: the byte after the
+    /// end-of-attributes tag, where a Print-Job's document starts (nil without one). A request reads the same way, its
+    /// operation id where a response has its status.
+    public static func decodeGroups(_ b: [UInt8]) throws -> (status: UInt16, groups: [(tag: UInt8, attributes: [String: [IppAttributeValue]])], end: Int?) {
         guard b.count >= 9 else { throw IppFormatError("IPP response too short") }
         let status = UInt16(b[2]) << 8 | UInt16(b[3])
-        var attributes: [String: [IppAttributeValue]] = [:]
+        var groups: [(tag: UInt8, attributes: [String: [IppAttributeValue]])] = []
+        var end: Int?
         var i = 8
         var last: String?
-        var group: UInt8 = 0
         // The collections open around the value being read: each one so far, and its current member's name.
         var open: [(collection: IppCollection, member: String?)] = []
         func add(_ value: IppAttributeValue) {
@@ -143,16 +207,19 @@ public enum IppCodec {
                 if let member = open[open.count - 1].member { open[open.count - 1].collection.add(member, value) }
                 return
             }
-            guard let last, group == printerTag else { return }
-            attributes[last, default: []].append(value)
+            guard let last, !groups.isEmpty else { return }
+            groups[groups.count - 1].attributes[last, default: []].append(value)
         }
         while i < b.count {
             let tag = b[i]
             i += 1
-            if tag == endTag { break }
+            if tag == endTag {
+                end = i
+                break
+            }
             if tag < 0x10 {
                 if !open.isEmpty { throw IppFormatError("IPP collection not closed") }
-                group = tag
+                groups.append((tag, [:]))
                 last = nil
                 continue
             }
@@ -194,13 +261,21 @@ public enum IppCodec {
                 decoded = .text(String(decoding: value, as: UTF8.self))
             case dateTime where valueLength == 11:
                 decoded = readDateTime(value).map(IppAttributeValue.date) ?? .bytes(value)
+            case resolution where valueLength == 9:
+                decoded = .resolution(IppResolution(x: int32(value, 0), y: int32(value, 4), units: value[8]))
+            case rangeOfInteger where valueLength == 8:
+                decoded = .range(IppRange(lower: int32(value, 0), upper: int32(value, 4)))
             default:
                 decoded = .bytes(value)
             }
             add(decoded)
         }
         if !open.isEmpty { throw IppFormatError("IPP collection not closed") }
-        return IppResponse(statusCode: status, attributes: attributes)
+        return (status, groups, end)
+    }
+
+    private static func int32(_ v: [UInt8], _ at: Int) -> Int {
+        Int(Int32(bitPattern: UInt32(v[at]) << 24 | UInt32(v[at + 1]) << 16 | UInt32(v[at + 2]) << 8 | UInt32(v[at + 3])))
     }
 
     /// RFC 2579 DateAndTime (RFC 8010 §3.9): year, month, day, hour, minutes, seconds, deciseconds, UTC direction, hours,
@@ -239,12 +314,12 @@ public enum IppCodec {
 
     /// A Get-Printer-Attributes response carrying `printerAttributes` (consecutive values with the same name form one
     /// multi-valued attribute). Demo mode and tests serve printers written in `IppText` with it.
-    public static func encodeResponse(status: UInt16, requestId: Int32, _ printerAttributes: [IppValue]) -> [UInt8] {
+    public static func encodeResponse(status: UInt16, requestId: Int32, _ printerAttributes: [IppValue], group: UInt8 = printerTag) -> [UInt8] {
         var b = header(version: (1, 1), status, requestId)
         b.append(operationTag)
         writeAttribute(&b, charset, "attributes-charset", "utf-8")
         writeAttribute(&b, naturalLanguage, "attributes-natural-language", "en")
-        b.append(printerTag)
+        b.append(group)
         var previous: String?
         for a in printerAttributes {
             writeValue(&b, a.name == previous ? "" : a.name, a)

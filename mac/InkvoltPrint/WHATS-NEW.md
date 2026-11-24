@@ -6,6 +6,7 @@ collects what's done since the last release. Short lines, in the user's words. `
 for line, for the es-MX listing (`listing.json`'s `localizations`): an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- Print a PDF straight to the printer: a network printer macOS has no printer set up for, that prints without a driver (IPP Everywhere, AirPrint or Mopria), gets the pages from Inkvolt Print itself. Choose copies, paper, both sides and color; a small window follows the job until it's printed, with Cancel.
 
 ## 1.4.0
 - Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.

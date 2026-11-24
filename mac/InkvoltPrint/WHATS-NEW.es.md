@@ -6,6 +6,7 @@ versión ya tiene esa localización en App Store Connect). Los mismos encabezado
 línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su español (`PdfStringsTests` lo comprueba).
 
 ## Next
+- Imprimir un PDF directamente en la impresora: una impresora de red que macOS no tiene configurada y que imprime sin controlador (IPP Everywhere, AirPrint o Mopria) recibe las páginas del propio Inkvolt Print. Elige las copias, el papel, la doble cara y el color; una ventana pequeña sigue el trabajo hasta que se imprime, con Cancelar.
 
 ## 1.4.0
 - Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.

@@ -453,6 +453,25 @@ buildmac, macOS 27.2, Inkvolt Print's Release build (sandboxed, the entitlements
 - macOS's cupsd keeps finished jobs' history (`PreserveJobHistory` on, at most `MaxJobs` jobs), so jobs printed while the
   app is closed are still there at its next read; how long it keeps them on a busy Mac: UNVERIFIED.
 
+### Printing straight to a printer's IPP (roadmap 2.1), checked on the Mac (2026-11-23)
+
+buildmac, macOS 27.2, Xcode 27.2; the tests only (PrintMacTests' RasterCupsTests and IppEvePrinterTests), no real printer.
+
+- **The send needs no new entitlement**: Print-Job is an HTTP POST to the printer's own IPP port, through the URLSession
+  transport every other read of a network printer uses (`network.client`, Local Network); cupsd and `com.apple.security.print`
+  aren't involved. Not yet seen from the sandboxed app against a real printer (PLAN P12 2.1).
+- **libcups reads our raster**: `cupsRasterOpen` / `cupsRasterReadHeader2` / `cupsRasterReadPixels` (in `libcups.2`, not
+  deprecated in the macOS SDK; `cupsRasterReadHeader` without the 2 is) take PrintCore's PWG raster (`RaS2`) and Apple raster
+  (`UNIRAST`) with the header fields written (size, resolution, color space `CUPS_CSPACE_SW`/`SRGB`, duplex and tumble,
+  TotalPageCount and the back's transforms in `cupsInteger[0…2]`) and every pixel.
+- **Core Graphics opens our PCLm** as the PDF it is (`CGPDFDocument`) and draws its strips back to the same pixels, Flate
+  and run-length, grey and RGB, into a Device gray or RGB bitmap.
+- **macOS ships CUPS's `ippeveprinter`** (`/usr/bin/ippeveprinter`; `ipptransform` isn't there): `-p <port> -k -d <dir> -n
+  localhost -r off` answers on loopback, announces nothing and keeps each job's document (`-k`). Given `-n 127.0.0.1` it fails
+  to make its IPv6 listener and never answers. It lists `application/PCLm` but none of Mopria's `pclm-*` attributes (as on
+  Windows' WSL run), so a check assumes 600 dpi for PCLm. It keeps the document byte for byte as sent and completes the job
+  after a simulated print (seconds a page, whatever `-s` says).
+
 ### Conclusion: how far the App Store fixer goes
 
 **Can do:**

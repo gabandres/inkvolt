@@ -4224,6 +4224,9 @@ The printer needs to be on and free, with plain paper loaded.</value>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>The printer didn't take the cancel, so the job may still print. Cancel it on the printer's control panel.</value>
   </data>
+  <data name="Direct_FollowedTooLong" xml:space="preserve">
+    <value>Inkvolt Print stopped following the job after 2 hours. The printer's control panel shows how it's going.</value>
+  </data>
   <data name="Direct_NotAnswering" xml:space="preserve">
     <value>The printer doesn't answer. Nothing was sent.</value>
   </data>
