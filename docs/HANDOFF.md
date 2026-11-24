@@ -27,7 +27,10 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0, all Published 2026-11-22 (the
   website's `softwareVersion` 1.9.0 and 1.18.0). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
   `pdf-v1.18.0.0`. The next submission of each must be higher. Every Wave 4 item is Done on Windows in both roadmaps; the
-  Mac halves wait (`mac/docs/PLAN.md`, "Open").
+  Mac halves wait (`mac/docs/PLAN.md`, "Open"). **Inkvolt PDF for Mac 1.13.0 published 2026-11-23** (Wave 4 on the
+  Mac): `pdf-mac-v1.13.0` on `22c18b3e`, notarized DMG sha256 83264265…3f93e0660f, 41,748,931 bytes, not Latest; the
+  appcast (17 releases, each once, Spanish notes) found by an unmodified 1.12.1 (en, es); the installed DMG's full
+  self-test 758/758 in en and es; Homebrew cask `f36e0f5`; website `7ea1d3e` deployed and pushed.
 - **Release gotchas:** a branch merged after `## Next` became `## x.y.z` can put its What's New lines under the released
   version (it happened with 1.17.0; fixed by hand): after each merge during a release, check `## Next` still holds them.
   Each release ran a hostile-input review of the diff since the last tag before packing; keep doing it. The bench needs an

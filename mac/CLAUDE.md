@@ -1,7 +1,7 @@
 # Inkvolt for macOS
 
 Native Swift versions of Inkvolt Print (Mac App Store, app ID 6827219248; latest 1.3.1, build 8, tag
-`print-mac-v1.3.1`) and Inkvolt PDF (notarized DMG with Sparkle; latest 1.12.1). Decisions, scope, layout, Mac
+`print-mac-v1.3.1`) and Inkvolt PDF (notarized DMG with Sparkle; latest 1.13.0). Decisions, scope, layout, Mac
 differences and what's left (P12's hardware items, PLAN's "Open"): `docs/PLAN.md`. Sandbox, entitlements, CUPS and App Review facts with sources:
 `docs/research/print-v1-platform.md`; read it before picking an API, and add what the Mac proves (or disproves) there.
 
