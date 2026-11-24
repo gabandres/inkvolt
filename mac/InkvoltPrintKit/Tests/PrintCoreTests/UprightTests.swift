@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Ported from UprightTests.cs: which way up a straightened page of text is (`Upright`, shared with Inkvolt PDF's Recognize
@@ -8,6 +9,7 @@ import Testing
 /// `PageEdits.checked` are Swift values (nil for "nothing changes"); the language is read with Foundation's `Locale.Language`
 /// where Windows asks CultureInfo. Mac only: theReviewTurnsAPageUprightAndUndoTurnsItBack (`ScanPages`, the Windows view
 /// model's `RecordUpright`).
+@Suite(.offThePool)
 struct UprightTests {
     private static let w = 850, h = 1100
 

@@ -1,11 +1,13 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Ported from CleanUpMarksTests.cs: Clean up's "Drop a color" and "Remove punch holes" (roadmap 4.7), on made-up scans.
 /// Adapted: color pixels are RGB on the Mac (Windows' BGR), so pages are built and read as RGB; .NET's `Random` is a fixed
 /// generator here (other noise, the same kind); the kept page's colour is checked through `KeptPage`'s Codable as Windows
 /// checks it through System.Text.Json.
+@Suite(.offThePool)
 struct CleanUpMarksTests {
     private static let dpi = 300
     typealias RGB = (r: UInt8, g: UInt8, b: UInt8)

@@ -646,7 +646,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - CPU-heavy page work runs through `offPool` (an operation queue, one task fewer than the cores at a time): on Swift's
   cooperative pool, or on every core, it would stall network tasks and their timeouts, as the IPP timing tests showed.
   The image tests run one at a time for the same reason, the fixtures are read once and kept, and the two IPP timing
-  tests time the IPP step alone.
+  tests time the IPP step alone. Since 2026-11-23's scan items (HalvesJoin, Upright, SeparatorCode, the B/W PDF, phone
+  scans) the CPU-heavy suites run off the pool too (`@Suite(.offThePool)`, an operation queue as `offPool`): on CI's 3
+  cores they had held all three pool threads for ~150 s, and every timing test beside them failed.
 - `PrinterSession` is an actor; its clock is a `now` closure, and a dropped connection simply goes (no Dispose).
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).

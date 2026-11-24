@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Batch scanning: patch code and blank separator sheets found on synthetic scans (a letter page at 100 dpi, 850 × 1100,
@@ -7,7 +8,7 @@ import Testing
 /// BatchScanTests.cs (the noise comes from a seeded generator of its own, not .NET's Random). The .NET sheet test reads the
 /// written PDF; PrintCore has the sheet as geometry the Mac draws, so that test checks the geometry and reads its raster back.
 /// One at a time: each page check is a second or more of CPU, and a full set at once starves the timing tests beside them.
-@Suite(.serialized)
+@Suite(.serialized, .offThePool)
 struct BatchScanTests {
     private static let w = 850, h = 1100
     private static let ppi = 100.0

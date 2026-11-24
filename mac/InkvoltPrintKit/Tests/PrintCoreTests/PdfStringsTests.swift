@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestTiming
 
 /// Inkvolt PDF for Mac's Spanish interface (roadmap 3.7), checked here because this target builds on the PC and in the
 /// `mac` CI job, while PdfCoreTests needs MuPDF (the Mac and CI's `pdf` job only). The app and PdfCore show every sentence
@@ -8,6 +9,7 @@ import Testing
 /// PdfCore or Inkvolt Print's `CoreStrings` already has needs no second entry). As `CoreStringsTests` and
 /// `ShownStringsTests` check Inkvolt Print: every key has its Spanish with the same `{0}`, `{1}`…, nothing stale, no key in
 /// two catalogs, and no English literal reaches the interface unwrapped.
+@Suite(.offThePool)
 struct PdfStringsTests {
     static var mac: URL {
         var url = URL(fileURLWithPath: #filePath) // mac/InkvoltPrintKit/Tests/PrintCoreTests/PdfStringsTests.swift

@@ -6,6 +6,7 @@ import TestTiming
 /// Ported from HalvesJoinTests.cs: joining two halves of an original too big for the glass (roadmap 4.8), on made-up scans at
 /// 100 pixels an inch. Adapted: the drawings come from a fixed generator here (.NET's `Random` there: other boxes, the same
 /// kind of drawing); a stop is a `BatchStop`, which throws `CancellationError`.
+@Suite(.offThePool)
 struct HalvesJoinTests {
     private static let ppi = 100.0
 
@@ -94,9 +95,10 @@ struct HalvesJoinTests {
         let original = Self.drawing(w, h, seed: 7)
         let first = Self.part(original, w, h, 0, 0, 1600, h)
         let second = Self.part(original, w, h, 1100, 0, 1600, h)
-        let started = Date()
+        // Its own processor time, not the clock's: beside the other image tests a full run stretched it to 33-40 s (3.5 s alone).
+        let started = Timing.threadSeconds()
         let found = try HalvesJoin.find(Self.gray(1600, h, first), Self.gray(1600, h, second), ppi: 12)
-        #expect(Date().timeIntervalSince(started) < Timing.limit(10))
+        #expect(Timing.threadSeconds() - started < Timing.limit(10))
         #expect(found.placement == JoinPlacement(.right, false, 1100, 0))
     }
 

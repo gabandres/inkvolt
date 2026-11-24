@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Ported from BlackAndWhitePdfTests.cs: small black-and-white PDFs (roadmap 4.4): `CcittG4` read back by a decoder written
@@ -9,6 +10,7 @@ import Testing
 /// own (`Deflate`: one block of fixed Huffman codes), read back by an inflater written here from RFC 1951, where Windows
 /// reads .NET's `ZLibStream` back with itself. Mac only: theFlateCodeReadsBackWhateverItHolds, and the preset tests at the
 /// end (Windows' are in ScanPresetTests: the Mac scans no black and white, so only a smaller file saves one bit).
+@Suite(.offThePool)
 struct BlackAndWhitePdfTests {
     @Test func theCodeTablesAreTheStandardsSizesAndPrefixFree() {
         #expect(CcittG4.whiteTerminating.count == 64)

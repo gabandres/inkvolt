@@ -2,6 +2,7 @@ import CoreImage
 import CoreImage.CIFilterBuiltins
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 @testable import PrintMac
 
@@ -9,6 +10,7 @@ import Testing
 /// SeparatorCodeTests.cs that decode a code drawn on a synthetic scan of a letter page at 100 dpi (850 × 1100), with the same
 /// names. QR codes and Code 128 barcodes are made with Core Image's generators (ZXing's writers on Windows); macOS has no
 /// Code 39 generator, so Code 39 is left to Vision's own reading (not drawn here).
+@Suite(.offThePool)
 struct VisionSeparatorCodesTests {
     private static let w = 850, h = 1100
     private static let ppi = 100.0

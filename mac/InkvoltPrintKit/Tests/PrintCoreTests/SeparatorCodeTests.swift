@@ -1,6 +1,7 @@
 import Foundation
 import Synchronization
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Separator sheets marked with a code saying PATCHT (`SeparatorCodes`): PrintCore's rules on synthetic scans of a letter page
@@ -8,6 +9,7 @@ import Testing
 /// code on the printable sheet. Hostile pages: one crowded with QR corner squares, one far too large, one whose pixels don't
 /// match its size. The same names as the Windows app's SeparatorCodeTests.cs; the cases that decode a code drawn on a page are
 /// PrintMacTests' `VisionSeparatorCodesTests` (Vision reads them there, ZXing on Windows).
+@Suite(.offThePool)
 struct SeparatorCodeTests {
     static let w = 850, h = 1100
     static let ppi = 100.0

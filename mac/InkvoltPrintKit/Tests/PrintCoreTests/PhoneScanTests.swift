@@ -1,10 +1,12 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Ported from PhoneScanTests.cs. Phone as a scanner (roadmap 4.6) and the photo-to-page step it shares with a camera
 /// (4.12): the photo's header read as hostile input, the page found, warped and sized. Adapted: pictures are RGB (Windows'
 /// BGR); the channel is the Mac's `PhotoChannel`; a picture that isn't the size it says throws `PhotoPage.NotAPicture`.
+@Suite(.offThePool)
 struct PhoneScanTests {
     // ---------------------------------------------------------------- photos as hostile input
 

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Ported from PrintLogTests.cs. The print log (roadmap 4.9): CUPS's history of finished jobs into entries
@@ -9,6 +10,7 @@ import Testing
 /// tests are the Get-Jobs attributes' (`FinishedJobAttributes`); a job missing from the spooler's whole list has no
 /// counterpart (CUPS's history says how each job ended), so its test is CUPS's aborted job. Months and the CSV's times are
 /// read in UTC here (Windows' tests take the PC's zone; `DateTimeOffset` carries its own).
+@Suite(.offThePool)
 struct PrintLogTests {
     private static let utc: Calendar = {
         var c = Calendar(identifier: .gregorian)

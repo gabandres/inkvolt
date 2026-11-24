@@ -1,12 +1,13 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Several photos on the glass: rectangles found on synthetic flatbed scans (the whole glass, 8.5 × 11.7 in at 100 dpi, as
 /// the app analyses it: a noisy white lid with prints laid on it, straight or turned) and each one cut out straight. Ported
 /// from GlassPhotoTests.cs (the noise comes from a seeded generator of its own, not .NET's Random).
 /// One at a time: each check is seconds of CPU, like ImagingTests.
-@Suite(.serialized)
+@Suite(.serialized, .offThePool)
 struct GlassPhotoTests {
     private static let w = 850, h = 1170
     private static let ppi = 100.0

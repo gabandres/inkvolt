@@ -1,11 +1,12 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// Blank page and skew detection on synthetic scans: a letter page at 100 dpi (850 × 1100), as the app analyses it. Ported
 /// from ImagingTests.cs (the noise comes from a seeded generator of its own, not .NET's Random).
 /// One at a time: each check is seconds of CPU, and a full set at once starved the timing tests running beside them.
-@Suite(.serialized)
+@Suite(.serialized, .offThePool)
 struct ImagingTests {
     private static let w = 850, h = 1100
 
