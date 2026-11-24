@@ -11,15 +11,19 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   (print straight to a printer with no macOS queue: PWG raster, Apple raster, PCLm against libcups and ippeveprinter),
   Compare's scan alignment, export links and folder-search phrases on the Mac. Mac CI: the Print job's deadline stall is
   fixed (`OffThePool` trait, af218267) and the Vision tests' macOS 15 white page was the test's drawing, not Vision
-  (e43b62fe); CI's `pdf` job still flakes on one `LtvTests` loopback case per run (127.0.0.1 stops answering).
+  (e43b62fe); CI's `pdf` job's loopback flake (127.0.0.1 stops answering) is fixed (13538627: CompareAlignTests held
+  the runner's Swift pool ~11 minutes, now off it; `AiSocketTransport` reads answers as they arrive), Mac CI green.
+  2026-11-24 also: Use Your Phone drains a refused upload so its answer isn't lost to a reset (6f01a905;
+  `mac/tools/phone-client.sh`), and both Mac apps have an accessibility audit (`sh mac/tools/ax-audit.sh`, 37a6fad2;
+  its open findings for a person with VoiceOver in PLAN).
   - The owner's decisions (2026-11-24): the drawing set's speed targets are a known limit (MuPDF's drawing; recheck on a
     MuPDF upgrade); Inkvolt PDF for Mac's work merged after 1.13.0 (Compare alignment, export links, folder phrases, the
     MuPDF patch) waits for the next Mac release; HP's walk-up scan waits for a recording from a printer that offers it;
     the phone scan's TLS key stays in the login keychain (app-scoped by its ACL); the MuPDF inline-image patch is made, on
     the Mac only (`mac/Vendor/mupdf/patches/`; the upstream report in `inline-image-filter-budget.md`, for the owner to file).
-  - **Before the next Inkvolt PDF for Mac release:** pull the release clone `~/Repos/inkvolt` and run
-    `sh mac/Vendor/mupdf/build.sh` there once, so it links the patched MuPDF (until then a slot fails PageCheckTests'
-    inline-picture test, which flags it). Print for Mac 1.4.0 goes on sale by itself once Apple approves; then the website.
+  - The release clone `~/Repos/inkvolt` has the patched MuPDF (pulled and `sh mac/Vendor/mupdf/build.sh` run
+    2026-11-24; the inline-picture test passes against it). Print for Mac 1.4.0 goes on sale by itself once Apple
+    approves; a scheduled check (every 4 hours) then updates the website and this file, and turns itself off.
   - What only a device can do, with what each needs: PLAN's "Open" (P12 2.2 HP walk-up and ICA buttons, 3.1 scanner
     sharing, 3.3 the printer's copier; the Office converter's Microsoft 365 checklist).
 - **Released:** Wave 4 (a market check of 2026-11-21; the owner: "do all of them", release them) is built, reviewed and
