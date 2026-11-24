@@ -360,6 +360,50 @@ extension Report {
         return lines
     }
 
+    /// `--phone-hold <s> [--close-after <s>]`: Use Your Phone's window held open on 127.0.0.1 for a browser or client on
+    /// this Mac (an iOS Simulator's Safari, an Android emulator's Chrome at 10.0.2.2, curl), its whole address written to
+    /// `phone-hold-url.txt` beside the report (the code is the run's own and dies with the window). The window closes when
+    /// the phone taps Done, after `--close-after` seconds (the Mac ending the scan, mid-upload if one is going), or at the
+    /// hold's end; the report says what the window said along the way, the pages that arrived and whether the port closed.
+    static func phoneHoldCheck(_ model: AppModel, hold: Double, closeAfter: Double?) async -> [String] {
+        guard let scan = await demoScanner(model) else { return ["phone hold: no demo inkjet"] }
+        scan.clear()
+        scan.scanWithPhone()
+        var lines = ["phone hold:"]
+        for _ in 0..<100 where PhoneWindow.model == nil && scan.problem == nil { try? await Task.sleep(for: .milliseconds(100)) }
+        guard let window = PhoneWindow.model else { return lines + ["  no phone window: \(scan.problem ?? "")"] }
+        let link = window.link
+        let file = AppModel.dataFolder.appendingPathComponent("phone-hold-url.txt")
+        try? Data((link.url + "\n").utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        lines.append("  window \(PhoneWindow.size.map { "\(Int($0.width)) × \(Int($0.height))" } ?? "not shown"), port \(link.port): " + window.status)
+        var seen: [String] = [window.status]
+        let start = Date()
+        var closedByMac = false
+        while PhoneWindow.model != nil && Date().timeIntervalSince(start) < hold {
+            if let closeAfter, !closedByMac, Date().timeIntervalSince(start) >= closeAfter {
+                closedByMac = true
+                lines.append("  closed on the Mac after \(String(format: "%.0f", closeAfter)) s, \(link.session.received) in: " + window.status)
+                PhoneWindow.close()
+                break
+            }
+            if seen.last != window.status { seen.append(window.status) }
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        if PhoneWindow.model != nil { PhoneWindow.close() }
+        for status in seen.dropFirst() { lines.append("  window: " + status) }
+        for _ in 0..<200 where scan.isScanning { try? await Task.sleep(for: .milliseconds(100)) }
+        let sizes = scan.pages.pages.compactMap { scan.scannedJpeg($0.id).flatMap(ScanImaging.size) }.map { "\($0.width) × \($0.height)" }
+        lines.append("  review: \(scan.pages.pages.count) pages \(sizes) after \(String(format: "%.0f", Date().timeIntervalSince(start))) s:" + scan.status + " " + (scan.problem ?? ""))
+        try? await Task.sleep(for: .milliseconds(500))
+        let after = LoopbackPhone(fingerprint: link.fingerprint)
+        let closed = (try? await after.get(link.url)) == nil
+        after.finish()
+        lines.append("  port closed after: \(closed)")
+        scan.clear()
+        return lines
+    }
+
     static func wordTextCheck(_ model: AppModel) async -> [String] {
         guard let scan = await demoScanner(model) else { return ["word and text: no demo inkjet"] }
         defer { Demo.scanSetup.hold(nil) }

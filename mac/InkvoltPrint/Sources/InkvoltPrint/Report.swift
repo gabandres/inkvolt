@@ -96,6 +96,15 @@ enum Report {
             if model.isDemo && args.contains("--word-text") { cancelled += await wordTextCheck(model) }
             if model.isDemo && args.contains("--camera") { cancelled += await cameraCheck(model) }
             if model.isDemo && args.contains("--phone") { cancelled += await phoneCheck(model) }
+            if model.isDemo, let i = args.firstIndex(of: "--phone-hold") {
+                let seconds: (Int) -> Double? = { j in
+                    guard j < args.count, let s = Double(args[j]), s.isFinite, s >= 0 else { return nil }
+                    return min(s, 3600)
+                }
+                let hold: Double = seconds(i + 1) ?? 120
+                let closeAfter: Double? = args.firstIndex(of: "--close-after").flatMap { (j: Int) -> Double? in seconds(j + 1) }
+                cancelled += await phoneHoldCheck(model, hold: hold, closeAfter: closeAfter)
+            }
             if model.isDemo && args.contains("--recent-scans") { cancelled += await recentScansCheck(model) }
             if args.contains("--clipboard") { cancelled += clipboardCheck() }
             if model.isDemo && args.contains("--hand-duplex") { cancelled += await handDuplexCheck(model) }
