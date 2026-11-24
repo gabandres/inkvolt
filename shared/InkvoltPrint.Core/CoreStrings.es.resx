@@ -3505,6 +3505,9 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Direct_CancelNotTaken" xml:space="preserve">
     <value>La impresora no aceptó la cancelación, así que puede que el trabajo se imprima. Cancélalo en el panel de control de la impresora.</value>
   </data>
+  <data name="Direct_FollowedTooLong" xml:space="preserve">
+    <value>Inkvolt Print dejó de seguir el trabajo después de 2 horas. El panel de control de la impresora muestra cómo va.</value>
+  </data>
   <data name="Direct_NotAnswering" xml:space="preserve">
     <value>La impresora no responde. No se envió nada.</value>
   </data>

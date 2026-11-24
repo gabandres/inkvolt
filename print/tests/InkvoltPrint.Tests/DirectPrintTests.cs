@@ -957,6 +957,22 @@ public partial class DirectPrintTests
     }
 
     [Fact]
+    public async Task A_watch_ends_after_its_longest_when_the_printer_keeps_changing()
+    {
+        var asked = 0;
+        using var http = new DeviceHttp("192.0.2.11", new Answering(_ =>
+            Job(b => b.Enums("job-state", 5).Int("job-impressions-completed", Interlocked.Increment(ref asked) % 2))));
+        var followed = System.Diagnostics.Stopwatch.StartNew();
+        var last = await DirectJob.WatchAsync(new IppClient(http), "ana", 7, null, TimeSpan.FromMilliseconds(5), TimeSpan.FromHours(1),
+            CancellationToken.None, TimeSpan.FromMilliseconds(300)); // the quiet limit is an hour: only the longest ends it
+        Assert.Equal(DirectJobState.Processing, last!.State);
+        Assert.Equal(Core.CoreStrings.Direct_FollowedTooLong, DirectJob.FollowedTooLong(last, followed.Elapsed, TimeSpan.FromMilliseconds(300)));
+        Assert.Null(DirectJob.FollowedTooLong(last, TimeSpan.FromSeconds(60))); // ended sooner: quiet, or no answer
+        Assert.Null(DirectJob.FollowedTooLong(new DirectJobState(DirectJobState.Completed, [], null, 3), TimeSpan.FromHours(3)));
+        Assert.Equal(TimeSpan.FromHours(2), DirectJob.WatchLongest);
+    }
+
+    [Fact]
     public void Photo_names_map_both_ways()
     {
         Assert.Equal("PhotographicGlossy", IppPhotoNames.MediaTypeName("photographic-glossy"));

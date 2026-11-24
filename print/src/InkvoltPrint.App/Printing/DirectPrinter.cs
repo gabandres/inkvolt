@@ -112,8 +112,14 @@ public static class DirectPrinter
         var watched = new Progress<DirectJobState>(s => progress?.Report(DirectJob.Describe(s, impressions)));
         if (state is not null) progress?.Report(DirectJob.Describe(state, impressions));
         var watching = finishOnceSent ? CancellationToken.None : ct;
+        var followed = System.Diagnostics.Stopwatch.StartNew();
         var last = await DirectJob.WatchAsync(target.Ipp, target.User, jobId, watched, WatchEvery, WatchQuiet, watching) ?? state;
         if (watching.IsCancellationRequested) await DirectJob.StopAsync(target.Ipp, target.User, jobId, ct); // says whether the printer took it
+        if (DirectJob.FollowedTooLong(last, followed.Elapsed) is { } tooLong)
+        {
+            Log.Write($"Direct print: job {jobId} still going after {followed.Elapsed}, no longer followed");
+            progress?.Report(tooLong);
+        }
         if (last is { State: DirectJobState.Aborted or DirectJobState.Canceled })
             throw new DirectPrintException(DirectJob.Describe(last, impressions), mayHavePrinted: true);
         return last is { State: DirectJobState.Completed };

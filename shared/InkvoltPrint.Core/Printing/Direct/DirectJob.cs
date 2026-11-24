@@ -166,18 +166,24 @@ public static class DirectJob
         _ => CoreStrings.Direct_Refused,
     };
 
+    /// <summary>The longest a job is followed, however it keeps changing (a printer whose page count goes back and forth): 2 hours.</summary>
+    public static readonly TimeSpan WatchLongest = TimeSpan.FromHours(2);
+
     /// <summary>
     /// Asks how the job is doing every <paramref name="every"/> until it ends, reporting each change, and returns its last
-    /// state. Stops asking (returning what it knows) when <paramref name="ct"/> is cancelled or nothing changes for
-    /// <paramref name="quiet"/>: the printer has the job by then, and its own panel says the rest.
+    /// state. Stops asking (returning what it knows) when <paramref name="ct"/> is cancelled, nothing changes for
+    /// <paramref name="quiet"/>, or after <paramref name="longest"/> in all (<see cref="WatchLongest"/> when null): the printer
+    /// has the job by then, and its own panel says the rest (<see cref="FollowedTooLong"/> says which).
     /// </summary>
     public static async Task<DirectJobState?> WatchAsync(IppClient ipp, string user, int jobId, IProgress<DirectJobState>? progress,
-        TimeSpan every, TimeSpan quiet, CancellationToken ct)
+        TimeSpan every, TimeSpan quiet, CancellationToken ct, TimeSpan? longest = null)
     {
         DirectJobState? last = null;
-        var since = DateTime.UtcNow;
+        var started = DateTime.UtcNow;
+        var since = started;
+        var limit = longest ?? WatchLongest;
         var failures = 0;
-        while (!ct.IsCancellationRequested && DateTime.UtcNow - since < quiet)
+        while (!ct.IsCancellationRequested && DateTime.UtcNow - since < quiet && DateTime.UtcNow - started < limit)
         {
             try
             {
@@ -208,6 +214,13 @@ public static class DirectJob
         }
         return last;
     }
+
+    /// <summary>
+    /// What the end of a watch says when it stopped after <paramref name="longest"/> (<see cref="WatchLongest"/> when null) with
+    /// the job not ended, or null (it ended, went quiet, or stopped answering: its last state says the rest).
+    /// </summary>
+    public static string? FollowedTooLong(DirectJobState? last, TimeSpan followed, TimeSpan? longest = null) =>
+        last is { Ended: true } || followed < (longest ?? WatchLongest) ? null : CoreStrings.Direct_FollowedTooLong;
 
     /// <summary>Cancel-Job, once. True when the printer took it (or the job was already gone).</summary>
     public static async Task<bool> CancelAsync(IppClient ipp, string user, int jobId, CancellationToken ct = default)
