@@ -139,3 +139,24 @@ struct LayoutTest {
         Report.write(lines.joined(separator: "\n"))
     }
 }
+
+/// Snapping off while a self-test section drags or clicks to exact points: it is on by default (roadmap 4.19, as on
+/// Windows), so a move or a measuring point near another comment's edge would land on that edge. `restore()` puts back
+/// what was set; LayoutTest checks the snapping itself.
+@MainActor
+struct SnappingOff {
+    private let guides: Bool, grid: Bool, objects: Bool
+
+    init() {
+        (guides, grid, objects) = (AppSettings.snapToGuides, AppSettings.snapToGrid, AppSettings.snapToObjects)
+        AppSettings.snapToGuides = false
+        AppSettings.snapToGrid = false
+        AppSettings.snapToObjects = false
+    }
+
+    func restore() {
+        AppSettings.snapToGuides = guides
+        AppSettings.snapToGrid = grid
+        AppSettings.snapToObjects = objects
+    }
+}

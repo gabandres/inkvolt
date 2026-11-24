@@ -386,7 +386,9 @@ struct FeatureTest {
         if let s = stamps(.signature).last {
             pages.tool = .hand
             let c = PointD(s.rect.centerX, s.rect.centerY)
+            let snapping = SnappingOff() // moved exactly as far as the pointer
             await press(page, [c, PointD(c.x + 10, c.y + 5), PointD(c.x + 20, c.y + 10)])
+            snapping.restore()
             let moved = stamps(.signature).first { abs($0.rect.x - s.rect.x - 20) < 1 && abs($0.rect.y - s.rect.y - 10) < 1 }
             let title = controller.window?.undoManager?.undoMenuItemTitle ?? ""
             check(moved != nil && title == Shown.undo(loc("Move")), "hand tool moved the initials by (20, 10): “\(title)”")

@@ -237,7 +237,9 @@ struct EditTest {
             return finish()
         }
         let edge = PointD(box0.x + 1, box0.centerY)
+        let snapping = SnappingOff() // moved exactly as far as the pointer, not onto another comment's edge
         await press(page, [edge, PointD(edge.x + 10, edge.y + 8), PointD(edge.x + 30, edge.y + 20)])
+        snapping.restore()
         let moved = editor.comment(rect.id)?.geometry?.box ?? .zero
         check(pages.selectedId == rect.id && abs(moved.x - box0.x - 30) < 0.6 && abs(moved.y - box0.y - 20) < 0.6,
               "hand tool: rectangle selected and moved by (\(Int((moved.x - box0.x).rounded())), \(Int((moved.y - box0.y).rounded())))")
