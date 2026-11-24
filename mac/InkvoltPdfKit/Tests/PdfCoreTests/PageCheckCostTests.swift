@@ -289,4 +289,44 @@ extension PageCheckTests {
         #expect(try engine.render(1, scale: 0.5).pixels.contains { $0 < 64 })
         #expect(try engine.text(1).text.contains("Third"))
     }
+
+    @Test func AnInlinePictureWhoseFiltersInflateThenDiscardIsCutShortWithinTheLimit() throws {
+        // A 1 x 1 inline picture whose data is 4 GB of zeros Flated three times over (a few dozen bytes), decoded by
+        // [/Fl /Fl /Fl /AHx]: ASCIIHex skips white space, NUL among it, so it consumes all 4 GB without writing a byte.
+        // MuPDF runs an inline picture's filters while it parses the content, reading no byte of the file meanwhile, so
+        // neither the stream's clock nor the cookie (Cancel, close) is reached, and the page checks don't see an inline
+        // picture's filters. Red: the render took 9 s, then the page was refused as too slow (the bomb is finite, so a
+        // failing run ends: no Cancel or watchdog could stop it sooner). MuPDF's patch
+        // (Vendor/mupdf/patches/inline-image-filter-budget.patch) stops the filters of one inline picture at 8 times its
+        // size plus 1 MB, as data cut short: the picture draws padded, the page draws and reads, in about 10 ms.
+        let data = HandDeflate.zlib(RunBytes(head: [], count: 4 << 30), times: 3).bytes
+        let content = Array("BT /F1 12 Tf 72 700 Td (Before the picture) Tj ET q 100 0 0 100 100 300 cm ".utf8)
+            + Array("BI /W 1 /H 1 /BPC 8 /CS /G /F [/Fl /Fl /Fl /AHx] ID ".utf8) + data
+            + Array(" EI Q BT /F1 12 Tf 72 100 Td (After the picture) Tj ET".utf8)
+        let file = Self.build([
+            Self.obj("<< /Type /Catalog /Pages 2 0 R >>"),
+            Self.obj("<< /Type /Pages /Kids [3 0 R] /Count 1 >>"),
+            Self.obj("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>"),
+            Self.stream(content),
+            Self.obj("<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"),
+        ])
+        #expect(file.count < 4 << 10, "\(file.count) bytes")
+        let engine = try Self.open(file)
+        defer { engine.close() }
+        for read in ["render", "text"] {
+            var outcome = "read"
+            let took = Self.time {
+                do {
+                    if read == "text" { _ = try engine.text(0, cache: false) } else { _ = try engine.render(0, scale: 0.5) }
+                } catch {
+                    outcome = "\(error)"
+                }
+            }
+            #expect(took < Self.limit + Self.slack, "\(read): \(took) s")
+            #expect(outcome == "read", "\(read)")
+        }
+        #expect(engine.verdictOf(0) == .fine)
+        let text = try engine.text(0).text
+        #expect(text.contains("Before the picture") && text.contains("After the picture"), "\(text)")
+    }
 }
