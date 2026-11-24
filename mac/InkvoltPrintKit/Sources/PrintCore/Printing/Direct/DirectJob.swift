@@ -114,15 +114,19 @@ public enum DirectJob {
         return DirectJobState(state, Array(reasons), message, done)
     }
 
-    /// Sends the job. Returns its id (0 when the printer gave none) and the state it answered with. A refusal before the
-    /// document was read (bad request, unsupported format, busy) has sent nothing; an error after, or no answer, may have.
-    public static func send(_ ipp: IppClient, user: String, jobName: String, _ plan: DirectPrintPlan, document: [UInt8]) async throws -> (jobId: Int, state: DirectJobState?) {
+    /// Sends the job: `upload`, a `DirectJobFile` begun with `printJobRequest`. Returns its id (0 when the printer gave none)
+    /// and the state it answered with. A refusal before the document was read (bad request, unsupported format, busy) has sent
+    /// nothing; an error after, or no answer, may have. Never cut by the caller's cancellation (Windows sends with
+    /// `CancellationToken.None`): a job stopped halfway may print anyway, so once it starts it goes to the end, and a cancel
+    /// after it is Cancel-Job (`stop`). Throws only `DirectPrintError`.
+    public static func send(_ ipp: IppClient, _ upload: DirectJobUpload) async throws -> (jobId: Int, state: DirectJobState?) {
+        let sending = Task.detached { () async throws -> IppResponse in
+            try await ipp.printJob(file: upload.url, timeout: sendTimeout(upload.bytes))
+        }
         let answer: IppResponse
         do {
-            answer = try await ipp.printJob(printJobRequest(ipp.printerUri, user: user, jobName: jobName, plan), document: document,
-                                           timeout: sendTimeout(document.count))
+            answer = try await sending.value
         } catch {
-            if error is CancellationError { throw error }
             throw DirectPrintError(loc("The printer stopped answering while the job was sent. Check it before printing again: it may have the job."),
                                    mayHavePrinted: true)
         }
@@ -130,6 +134,18 @@ public enum DirectJob {
         let id = answer.int("job-id").flatMap { $0 > 0 ? $0 : nil } ?? 0
         return (id, stateOf(answer))
     }
+
+    /// Sends `document` (a whole raster, for the checks): written to a job file of its own first, deleted after.
+    public static func send(_ ipp: IppClient, user: String, jobName: String, _ plan: DirectPrintPlan, document: [UInt8]) async throws -> (jobId: Int, state: DirectJobState?) {
+        let url = DirectJobFile.temporaryUrl()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let file = try DirectJobFile(url, request: printJobRequest(ipp.printerUri, user: user, jobName: jobName, plan))
+        try file.append(document)
+        return try await send(ipp, try file.finish())
+    }
+
+    /// A job past `DirectJobFile.maxBytes`: refused before anything was sent, in the printer's own too-large words.
+    public static func tooLarge() -> DirectPrintError { DirectPrintError(refused(0x0408), mayHavePrinted: false) }
 
     /// The printer didn't answer, or not in a way that can be read: what a request to it throws besides a refusal.
     public static func noAnswer(_ error: any Error) -> Bool {
@@ -181,15 +197,19 @@ public enum DirectJob {
         }
     }
 
+    /// The longest a job is followed, however it keeps changing (a printer whose page count goes back and forth): 2 hours.
+    public static let watchLongest: Duration = .seconds(2 * 60 * 60)
+
     /// Asks how the job is doing every `every` until it ends, reporting each change, and returns its last state. Stops asking
-    /// (returning what it knows) when the task is cancelled or nothing changes for `quiet`: the printer has the job by then,
-    /// and its own panel says the rest.
-    public static func watch(_ ipp: IppClient, user: String, jobId: Int, every: Duration, quiet: Duration,
+    /// (returning what it knows) when the task is cancelled, nothing changes for `quiet`, or after `longest` in all: the
+    /// printer has the job by then, and its own panel says the rest (`followedTooLong` says which).
+    public static func watch(_ ipp: IppClient, user: String, jobId: Int, every: Duration, quiet: Duration, longest: Duration = watchLongest,
                              clock: ContinuousClock = ContinuousClock(), progress: (@Sendable (DirectJobState) -> Void)? = nil) async -> DirectJobState? {
         var last: DirectJobState?
-        var since = clock.now
+        let started = clock.now
+        var since = started
         var failures = 0
-        while !Task.isCancelled && clock.now - since < quiet {
+        while !Task.isCancelled && clock.now - since < quiet && clock.now - started < longest {
             do {
                 let r = try await ipp.getJobAttributes(getJobAttributesRequest(ipp.printerUri, user: user, jobId: jobId))
                 if r.statusCode == 0x0406 { return last ?? DirectJobState(DirectJobState.completed, [], nil, nil) } // gone: done and forgotten
@@ -212,15 +232,27 @@ public enum DirectJob {
         return last
     }
 
-    /// Cancel-Job, once. True when the printer took it (or the job was already gone).
+    /// What the end of a watch says when it stopped after `longest` with the job not ended, or nil (it ended, went quiet, or
+    /// stopped answering: its last state says the rest).
+    public static func followedTooLong(_ last: DirectJobState?, after followed: Duration, longest: Duration = watchLongest) -> String? {
+        guard last?.ended != true, followed >= longest else { return nil }
+        return loc("Inkvolt Print stopped following the job after 2 hours. The printer's control panel shows how it's going.")
+    }
+
+    /// Cancel-Job, once. True when the printer took it (or the job was already gone). Sent whether or not the caller is
+    /// cancelled (Windows' CancelAsync has no token): it's what a cancel asks for.
     public static func cancel(_ ipp: IppClient, user: String, jobId: Int) async -> Bool {
-        do {
-            let r = try await ipp.cancelJob(cancelJobRequest(ipp.printerUri, user: user, jobId: jobId))
-            // client-error-not-possible (it already ended), not-found, gone: nothing left to stop
-            return r.ok || [0x0404, 0x0406, 0x0407].contains(r.statusCode)
-        } catch {
-            return false
+        let request = cancelJobRequest(ipp.printerUri, user: user, jobId: jobId)
+        let asking = Task.detached { () async -> Bool in
+            do {
+                let r = try await ipp.cancelJob(request)
+                // client-error-not-possible (it already ended), not-found, gone: nothing left to stop
+                return r.ok || [0x0404, 0x0406, 0x0407].contains(r.statusCode)
+            } catch {
+                return false
+            }
         }
+        return await asking.value
     }
 
     /// The person cancelled a job the printer has: Cancel-Job, then a `CancellationError` when the printer took it, or a

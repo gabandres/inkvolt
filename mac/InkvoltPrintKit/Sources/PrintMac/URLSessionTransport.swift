@@ -47,13 +47,13 @@ public final class URLSessionTransport: HttpTransport {
         var r = URLRequest(url: request.url)
         r.httpMethod = request.method
         for (name, value) in request.headers { r.setValue(value, forHTTPHeaderField: name) }
-        r.httpBody = request.body.map { Data($0) }
+        if request.bodyFile == nil { r.httpBody = request.body.map { Data($0) } }
         r.timeoutInterval = max(1, Double(request.timeout.components.seconds) + 1)
         let session = request.once ? Self.session(check) : self.session
         defer { if request.once { session.finishTasksAndInvalidate() } }
         do {
             let limit = replyLimit.map { min($0, request.replyLimit) } ?? request.replyLimit
-            let reply = try await bounded(r, session, limit)
+            let reply = try await bounded(r, from: request.bodyFile, session, limit)
             localNetwork?.answered()
             return reply
         } catch let error as DeviceNetworkError {
@@ -86,10 +86,16 @@ public final class URLSessionTransport: HttpTransport {
     }
 
     /// The reply read in the pieces it arrives in (a task delegate counting `didReceive`), given up on (its task cancelled)
-    /// past `limit` bytes, or at once when its length says so.
-    private func bounded(_ r: URLRequest, _ session: URLSession, _ limit: Int) async throws -> HttpResponse {
+    /// past `limit` bytes, or at once when its length says so. A body in `file` is uploaded from it (its length from the file,
+    /// its bytes read as they go out).
+    private func bounded(_ r: URLRequest, from file: URL?, _ session: URLSession, _ limit: Int) async throws -> HttpResponse {
         let reader = BoundedReader(limit: limit)
-        let task = session.dataTask(with: r)
+        let task: URLSessionDataTask
+        if let file {
+            task = session.uploadTask(with: r, fromFile: file)
+        } else {
+            task = session.dataTask(with: r)
+        }
         task.delegate = reader // the session's delegate still answers redirects and certificates
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in

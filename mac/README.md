@@ -47,7 +47,7 @@ open "/Applications/Inkvolt Print.app" --args --report icc --wait 3 --icc       
 open "/Applications/Inkvolt Print.app" --args --report scan --wait 2 --demo --scan     # a demo scan (its feeder sends PDF only), PDF, as sent, clean up (a sheet on the lid, Russian text) and preset saved
 open "/Applications/Inkvolt Print.app" --args --report fw --wait 2 --demo --firmware   # the demo laser's firmware notice, Keep My Cartridges Working, Dismiss
 open "/Applications/Inkvolt Print.app" --args --report wp --wait 2 --demo --web-port   # the demo laser added as http://…:8080: its web root kept, connected there, remembered, let go again
-open "/Applications/Inkvolt Print.app" --args --report dp --wait 2 --demo --direct-print  # Print a PDF straight to the demo inkjet (no queue): route, caps, plan, 3 pages drawn, Print-Job, followed
+open "/Applications/Inkvolt Print.app" --args --report dp --wait 2 --demo --direct-print  # Print a PDF straight to the demo inkjet (no queue): route, caps, plan, 3 pages drawn into the job file, Print-Job, followed; then a Cancel once the job has its id (the printer sees Cancel-Job)
 open "/Applications/Inkvolt Print.app" --args --report h --wait 2 --demo --history     # the supply history: where it's kept, rows, Export history…'s CSV, the Pro gate
 open "/Applications/Inkvolt Print.app" --args --report r --wait 2 --demo --record 192.0.2.11 inkjet  # record a printer (the demo inkjet), files in a temporary folder
 open "/Applications/Inkvolt Print.app" --args --report p --wait 2 --demo --problem-record  # Help › Report a Problem…, Record This Printer, the .zip read back

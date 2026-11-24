@@ -11792,6 +11792,17 @@
         }
       }
     },
+    "Inkvolt Print stopped following the job after 2 hours. The printer's control panel shows how it's going.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print dejó de seguir el trabajo después de 2 horas. El panel de control de la impresora muestra cómo va."
+          }
+        }
+      }
+    },
     "Cancelled at the printer": {
       "extractionState": "manual",
       "localizations": {

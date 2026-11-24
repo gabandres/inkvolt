@@ -35,8 +35,10 @@ enum Printing {
             alert(String(localized: "This file couldn't be opened as a PDF."))
             return
         }
+        var password: String?
         if document.isLocked {
-            guard let password = askPassword(url.lastPathComponent), document.unlock(withPassword: password) else {
+            password = askPassword(url.lastPathComponent)
+            guard let password, document.unlock(withPassword: password) else {
                 if document.isLocked { alert(String(localized: "That password doesn't open \(url.lastPathComponent).")) }
                 return
             }
@@ -45,7 +47,7 @@ enum Printing {
         guard let setup = SheetPrint.setup(choice) else {
             // A network printer macOS has no queue for, taking raster over IPP: straight to it (roadmap 2.1).
             if printer.queueName == nil, let ipp = await DirectPrinting.route(printer) {
-                await DirectPrinting.print(document, name: name, on: printer, ipp: ipp)
+                await DirectPrinting.print(url, password: password, name: name, on: printer, ipp: ipp)
                 return
             }
             print(document, name: name, on: printer, app: app)

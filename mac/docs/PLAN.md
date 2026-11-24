@@ -256,7 +256,10 @@ mac/InkvoltPrintKit --build-system native`.
   differences:** no choice of straight where macOS has a queue (a macOS queue for an IPP printer is driverless already;
   `PrintRoutes.choose` gets `personChoseDirect: false`), so no print routing module (Windows' `PrintRouting`, `PrintRouter`,
   `RouteRead`; PrintRoutingTests and RouteReadTests not ported); a plan's problem is a `DirectPrintProblem` where Windows has
-  an out string; the job's document is one request body built in memory (Windows streams it from a file); the printer that
+  an out string; the job's Print-Job body (its attributes, then each page as it's encoded) goes to a temporary file that
+  URLSession uploads and that's deleted after, as Windows streams its raster file, but a job past 1 GB is refused before
+  anything is sent with the printer's too-large words (`DirectJobFile.maxBytes`; Windows has no limit), and the PDF is
+  opened again from its file off the main thread; the printer that
   wants a signed-in user is sent to Set Up in macOS; Get-Jobs' jobs keep their IPP `job-state` where Windows maps them to the
   spooler's status bits; `DirectPrintTests`' Photo_names_map_both_ways and the AppState file check aren't ported (Windows'
   Print Photos and state file). Proved without a printer as Windows did: libcups' raster reader takes our PWG and Apple
@@ -264,7 +267,12 @@ mac/InkvoltPrintKit --build-system native`.
   `ippeveprinter` (macOS ships it) takes a Print-Job of each format from PrintCore's client and keeps the bytes sent
   (PrintMacTests' RasterCupsTests and IppEvePrinterTests; research file). Tests: RasterEncoderTests and DirectPrintTests
   (Windows' names), DirectPrintPagesTests (Mac only). `--report --demo --direct-print`: the demo inkjet routed straight, its
-  caps and plan, three pages drawn and sent, the job followed. Not on the Mac yet (Open): Copy, Print Photos, Batch print, a
+  caps and plan, three pages drawn into the job file and sent, the job followed; then the window's own flow
+  (`DirectPrinting.run`) cancelled the moment the job has its id, the made-up printer seeing Cancel-Job for it. The review
+  (2026-11-23, fixed as Windows does): Cancel-Job and Print-Job run in tasks of their own, so a cancel neither stops the
+  Cancel-Job it asks for nor cuts a job halfway (it's Cancel-Job once the printer gave an id); "page N of M" counts
+  `DirectPrintPlan.impressions` (Windows' PagesPerCopy × Repeat × Copies) and the state Print-Job answered is used; a watch
+  ends after 2 hours however the printer's count goes (`DirectJob.watchLongest`, Windows too) and says so. Not on the Mac yet (Open): Copy, Print Photos, Batch print, a
   scan preset's print step and Print a PDF's Layouts (several per sheet, booklet, poster) on a printer without a queue still
   go through macOS's print panel; a direct printer's own job list and job alerts (Windows' `DirectJobWatch`,
   `DirectBatchQueue`, `RoutedBatchQueue`, `RoutedJobQueue`; DirectPrintTests.Queues.cs). Not checked: a real printer

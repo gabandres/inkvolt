@@ -7,7 +7,8 @@ import PrintCore
 /// drawn by PDFKit (annotations and filled form fields included, its own /Rotate applied) at the plan's drawing resolution on
 /// the plan's paper, fitted inside the paper's margins and centred, a landscape page on portrait paper turned a quarter
 /// clockwise (`PageFit`, as Print a PDF's macOS route fits pages), white around it; then made grey or RGB as the plan says,
-/// enlarged to the printer's resolution and cut to the job's exact size. One page's pixels are held at a time.
+/// enlarged to the printer's resolution and cut to the job's exact size. One page's pixels are held at a time, and the
+/// encoded pages go to the job's file as they're made (`write`).
 public enum DirectPrintPages {
     /// Why a page couldn't be drawn (Windows' `CoreStrings.Direct_NotDrawn`): nothing was sent.
     public struct NotDrawn: Error {
@@ -15,14 +16,14 @@ public enum DirectPrintPages {
     }
 
     /// The raster document for `pages` of `document` (indices; every page when nil), as `plan` says: its pages, a blank back
-    /// between copies the printer doesn't make where a two-sided copy has an odd count, `plan.repeatCount` times. Checks
-    /// `Task.isCancelled` between pages.
-    public static func document(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan) throws -> [UInt8] {
+    /// between copies the printer doesn't make where a two-sided copy has an odd count, `plan.repeatCount` times. Each page's
+    /// bytes go to `out` as soon as they're encoded (a `DirectJobFile`'s append, which refuses a job past its limit), so the
+    /// document is never held whole. Checks `Task.isCancelled` between pages.
+    public static func write(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan, to out: ([UInt8]) throws -> Void) throws {
         let indices = pages ?? Array(0..<document.pageCount)
         guard !indices.isEmpty else { throw NotDrawn() }
         let perCopy = plan.pagesPerCopy(indices.count)
         let writer = try RasterWriter.forJob(plan.job(perCopy))
-        var out: [UInt8] = []
         var drawn: [Int: RasterPage] = [:] // kept only while a copy repeats, at most a few pages' worth
         let keep = plan.repeatCount > 1 && indices.count <= 4
         for _ in 0..<plan.repeatCount {
@@ -32,15 +33,22 @@ public enum DirectPrintPages {
                 let raster = try drawn[i] ?? Self.page(page, plan: plan, job: writer.job)
                 if keep { drawn[i] = raster }
                 try writer.write(raster)
-                out += writer.drain()
+                try out(writer.drain())
             }
             if perCopy > indices.count {
                 try writer.write(try RasterPage.blank(width: writer.job.widthPixels, height: writer.job.heightPixels, color: writer.job.color))
-                out += writer.drain()
+                try out(writer.drain())
             }
         }
         try writer.finish()
-        return out + writer.drain()
+        try out(writer.drain())
+    }
+
+    /// The whole raster document in memory (the checks' small ones).
+    public static func document(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan) throws -> [UInt8] {
+        var all: [UInt8] = []
+        try write(document, pages: pages, plan: plan) { all += $0 }
+        return all
     }
 
     /// One page, the job's paper in pixels at its resolution and color.

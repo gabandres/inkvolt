@@ -47,11 +47,15 @@ public final class IppClient: Sendable {
         try await post(IppCodec.encodeIdentifyPrinter(printerUri, userName: userName, actions: actions), timeout: .seconds(10), once: true)
     }
 
-    /// Print-Job (RFC 8011 §4.2.1): `request` (an `IppRequest`'s bytes) followed by the document, sent once and never again
-    /// (a resend would print the job twice), with a time limit for a slow printer taking a large raster. Returns the job group
-    /// of the answer.
-    public func printJob(_ request: [UInt8], document: [UInt8], timeout: Duration) async throws -> IppResponse {
-        try await post(request + document, timeout: timeout, once: true, group: IppCodec.jobTag)
+    /// Print-Job (RFC 8011 §4.2.1): `file` holds the request (an `IppRequest`'s bytes) followed by the document
+    /// (`DirectJobFile`), uploaded from disk, sent once and never again (a resend would print the job twice), with a time limit
+    /// for a slow printer taking a large raster. Returns the job group of the answer.
+    public func printJob(file: URL, timeout: Duration) async throws -> IppResponse {
+        var request = HttpRequest("POST", endpoint, headers: ["Content-Type": "application/ipp"], timeout: timeout, once: true)
+        request.bodyFile = file
+        let response = try await http.send(request)
+        try DeviceHttp.ensureSuccess(response, "POST", endpoint)
+        return try IppCodec.decode(response.body, group: IppCodec.jobTag)
     }
 
     /// Get-Job-Attributes (RFC 8011 §4.3.4): the job group.

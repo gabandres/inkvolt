@@ -85,6 +85,10 @@ public struct DirectPrintPlan: Equatable, Sendable {
     /// copy starts on a new sheet.
     public func pagesPerCopy(_ pages: Int) -> Int { twoSided && repeatCount > 1 && pages % 2 == 1 ? pages + 1 : pages }
 
+    /// The sides the printer prints for `pages` pages, as "page N of M" counts them (Windows' `PagesPerCopy(pages) * Repeat *
+    /// Copies`): a blank back between copies sent again included, the copies the printer makes too.
+    public func impressions(_ pages: Int) -> Int { pagesPerCopy(pages) * repeatCount * copies }
+
     /// The plan, or the reason in plain words why this printer can't print the request without a driver.
     public static func choose(_ caps: IppPrintCaps, _ request: DirectPrintRequest) -> Result<DirectPrintPlan, DirectPrintProblem> {
         guard caps.canPrint else { return .failure(.noFormat) }

@@ -111,7 +111,7 @@ public final class FixtureTransport: HttpTransport {
         }
         if method == "POST" && contentType == "application/ipp" {
             guard let text = document(Self.ippDocumentName(path)) else { return HttpResponse(status: 404) }
-            let (operation, id) = try IppCodec.readRequestHeader(request.body ?? [])
+            let (operation, id) = try IppCodec.readRequestHeader(request.bodyBytes())
             let attributes = try IppText.parse(String(decoding: text, as: UTF8.self))
             // Get-Printer-Attributes is answered from the document; Identify-Printer (a no-op here), Print-Job (kept in
             // printJobs, completed at once), Get-Job-Attributes, Get-Jobs (none waiting) and Cancel-Job when the document's
@@ -131,7 +131,7 @@ public final class FixtureTransport: HttpTransport {
                 body = IppCodec.encodeResponse(status: 0x0501, requestId: id, [])
             } else if operation == IppCodec.printJob {
                 let count = printed.withLock { jobs in
-                    jobs.append(request.body ?? [])
+                    jobs.append(request.bodyBytes())
                     return jobs.count
                 }
                 body = job(count, 3)

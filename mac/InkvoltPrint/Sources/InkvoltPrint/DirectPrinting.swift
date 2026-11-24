@@ -22,9 +22,9 @@ enum DirectPrinting {
     /// The account name the printer shows with the job.
     static var user: String { NSUserName() }
 
-    /// Asks the options, then prints `document` on `printer` through `ipp`; problems in plain words, nothing sent before
-    /// the printer was asked whether it can print.
-    static func print(_ document: PDFDocument, name: String, on printer: PrinterModel, ipp: IppClient) async {
+    /// Asks the options, then prints the PDF at `url` (opened with `password` when it has one) on `printer` through `ipp`;
+    /// problems in plain words, nothing sent before the printer was asked whether it can print.
+    static func print(_ url: URL, password: String?, name: String, on printer: PrinterModel, ipp: IppClient) async {
         let caps: IppPrintCaps
         do {
             caps = IppPrintCaps.from(try await ipp.printerAttributes(IppPrintCaps.requested))
@@ -41,68 +41,82 @@ enum DirectPrinting {
             return
         }
         let window = DirectPrintWindow(title: String(localized: "Printing \(name) on \(printer.name)"))
-        let job = Task { await send(document, name: name, plan: plan, ipp: ipp, window: window) }
+        let job = Task {
+            let said = await run(url, password: password, name: name, plan: plan, ipp: ipp) { window.say($0) }
+            window.done(said)
+        }
         window.onCancel = { job.cancel() }
     }
 
-    /// The pages drawn and sent, then followed; what the window says at each step. Cancel before the printer has the job
-    /// sends nothing; after, it asks the printer to cancel (and says when it may still print).
-    private static func send(_ document: PDFDocument, name: String, plan: DirectPrintPlan, ipp: IppClient, window: DirectPrintWindow) async {
-        let pages = document.pageCount
-        window.say(String(localized: "Asking the printer whether it can print…"))
-        if let problem = await printerProblem(ipp) {
-            window.done(problem)
-            return
+    /// The PDF at `url` drawn into a job file and sent, then followed; `say` tells each step, and the end is returned, in
+    /// words true to what happened. Cancel before the printer has the job sends nothing; the sending itself is never cut
+    /// (Windows sends with no cancel: a job cut halfway may print anyway); once the printer has given the job an id, Cancel
+    /// is Cancel-Job (and says when the printer didn't take it). `sent`: the printer has the job (its id, 0 when it gave none).
+    static func run(_ url: URL, password: String?, name: String, plan: DirectPrintPlan, ipp: IppClient,
+                    sent: ((Int) -> Void)? = nil, say: @escaping @MainActor @Sendable (String) -> Void) async -> String {
+        say(String(localized: "Asking the printer whether it can print…"))
+        if let problem = await printerProblem(ipp) { return problem }
+        say(String(localized: "Making the pages ready…"))
+        let file = DirectJobFile.temporaryUrl()
+        defer { try? FileManager.default.removeItem(at: file) }
+        let head = DirectJob.printJobRequest(ipp.printerUri, user: user, jobName: name, plan)
+        let drawn = Task.detached(priority: .userInitiated) { () throws -> (upload: DirectJobUpload, pages: Int) in
+            try draw(url, password: password, plan: plan, into: file, head: head)
         }
-        window.say(String(localized: "Making the pages ready…"))
-        let data = document.dataRepresentation()
-        let drawn = Task.detached(priority: .userInitiated) { () throws -> [UInt8] in
-            guard let data, let copy = PDFDocument(data: data) else { throw DirectPrintPages.NotDrawn() }
-            return try DirectPrintPages.document(copy, plan: plan)
-        }
-        let raster: [UInt8]
+        let made: (upload: DirectJobUpload, pages: Int)
         do {
-            raster = try await withTaskCancellationHandler { try await drawn.value } onCancel: { drawn.cancel() }
+            made = try await withTaskCancellationHandler { try await drawn.value } onCancel: { drawn.cancel() }
         } catch is CancellationError {
-            window.done(String(localized: "Cancelled. Nothing was sent."))
-            return
-        } catch {
-            window.done(String(localized: "Its pages couldn't be made ready on this Mac. Nothing was sent."))
-            return
-        }
-        if Task.isCancelled {
-            window.done(String(localized: "Cancelled. Nothing was sent."))
-            return
-        }
-        window.say(String(localized: "Sending the pages to the printer…"))
-        let id: Int
-        do {
-            id = try await DirectJob.send(ipp, user: user, jobName: name, plan, document: raster).jobId
+            return String(localized: "Cancelled. Nothing was sent.")
         } catch let e as DirectPrintError {
-            window.done(e.message)
-            return
+            return e.message
         } catch {
-            window.done(String(localized: "Cancelled. Nothing was sent."))
-            return
+            return String(localized: "Its pages couldn't be made ready on this Mac. Nothing was sent.")
         }
+        if Task.isCancelled { return String(localized: "Cancelled. Nothing was sent.") }
+        say(String(localized: "Sending the pages to the printer…"))
+        let reply: (jobId: Int, state: DirectJobState?)
+        do {
+            reply = try await DirectJob.send(ipp, made.upload)
+        } catch {
+            return (error as? DirectPrintError)?.message ?? loc("The printer stopped answering while the job was sent. Check it before printing again: it may have the job.")
+        }
+        let (id, answered) = reply
+        sent?(id)
+        // Windows' count: one copy's pages (a blank back included), each copy sent again, each copy the printer makes.
+        let impressions = plan.impressions(made.pages)
         guard id > 0 else {
-            window.done(loc("Waiting its turn at the printer"))
-            return
+            if Task.isCancelled { return String(localized: "The printer already has the job and gave it no number to cancel it by. Cancel it on the printer's control panel.") }
+            return answered.map { DirectJob.describe($0, pages: impressions) } ?? loc("Waiting its turn at the printer")
         }
-        window.say(loc("Waiting its turn at the printer"))
-        let shownPages = pages * plan.repeatCount
-        let last = await DirectJob.watch(ipp, user: user, jobId: id, every: .seconds(2), quiet: .seconds(180)) { state in
-            Task { @MainActor in window.say(DirectJob.describe(state, pages: shownPages)) }
+        if !Task.isCancelled { say(answered.map { DirectJob.describe($0, pages: impressions) } ?? loc("Waiting its turn at the printer")) }
+        let clock = ContinuousClock()
+        let started = clock.now
+        let watched = await DirectJob.watch(ipp, user: user, jobId: id, every: .seconds(2), quiet: .seconds(180)) { state in
+            Task { @MainActor in say(DirectJob.describe(state, pages: impressions)) }
         }
+        let last = watched ?? answered
         if Task.isCancelled {
             do { try await DirectJob.stop(ipp, user: user, jobId: id) } catch let e as DirectPrintError {
-                window.done(e.message)
-                return
+                return e.message
             } catch {}
-            window.done(loc("Cancelled at the printer"))
-            return
+            return loc("Cancelled at the printer")
         }
-        window.done(last.map { DirectJob.describe($0, pages: shownPages) } ?? loc("Waiting its turn at the printer"))
+        if let tooLong = DirectJob.followedTooLong(last, after: clock.now - started) { return tooLong }
+        return last.map { DirectJob.describe($0, pages: impressions) } ?? loc("Waiting its turn at the printer")
+    }
+
+    /// Off the main thread: the PDF opened from its file, its pages drawn into the job file after `head` (Print-Job's
+    /// attributes). Returns the file to upload and the PDF's page count.
+    nonisolated private static func draw(_ url: URL, password: String?, plan: DirectPrintPlan, into file: URL, head: [UInt8]) throws
+        -> (upload: DirectJobUpload, pages: Int) {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        guard let document = PDFDocument(url: url) else { throw DirectPrintPages.NotDrawn() }
+        if document.isLocked, !(password.map { document.unlock(withPassword: $0) } ?? false) { throw DirectPrintPages.NotDrawn() }
+        let job = try DirectJobFile(file, request: head)
+        try DirectPrintPages.write(document, plan: plan) { bytes in try job.append(bytes) }
+        return (try job.finish(), document.pageCount)
     }
 
     /// Why nothing should go to the printer now (stopped, an error, not taking jobs), or nil.

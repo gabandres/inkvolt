@@ -305,6 +305,8 @@ struct DirectPrintTests {
         #expect(plan.job(plan.pagesPerCopy(3)).pages == 8)
         let once = try Self.plan(Self.caps(), Self.request(2, twoSided: true))
         #expect(once.pagesPerCopy(3) == 3) // the printer makes the copies: no blank
+        #expect(plan.impressions(3) == 8) // "page N of M": each copy sent again, a blank back counted
+        #expect(once.impressions(3) == 6) // and the copies the printer makes
     }
 
     @Test func paperByNameSizeDefaultOrBorderless() throws {
@@ -546,6 +548,105 @@ struct DirectPrintTests {
         }
     }
 
+    /// A printer that answers as `Answering` but, as URLSession does, gives up on a request sent from a cancelled task; it keeps
+    /// every operation it answered.
+    private final class CancelAware: HttpTransport {
+        let answer: @Sendable ([UInt8]) -> [UInt8]
+        private let seen = Mutex<[UInt16]>([])
+
+        init(_ answer: @escaping @Sendable ([UInt8]) -> [UInt8]) { self.answer = answer }
+
+        var operations: [UInt16] { seen.withLock { $0 } }
+
+        func send(_ request: HttpRequest) async throws -> HttpResponse {
+            try Task.checkCancellation()
+            let body = request.bodyBytes()
+            let operation: UInt16 = try IppCodec.readRequestHeader(body).operation
+            seen.withLock { $0.append(operation) }
+            return HttpResponse(status: 200, headers: ["Content-Type": "application/ipp"], body: answer(body))
+        }
+    }
+
+    private static func ipp(_ transport: any HttpTransport) -> IppClient {
+        IppClient(DeviceHttp(host: "192.0.2.11", transport: transport), endpoint: URL(string: "http://192.0.2.11:631/ipp/print")!)
+    }
+
+    // The review of P12 2.1: a cancel reaches the printer, a job being sent goes to its end, the job's size is bounded, a
+    // watch ends.
+
+    @Test func aCancelReachesThePrinterFromTheCancelledTask() async {
+        let printer = CancelAware { _ in IppCodec.encodeResponse(status: 0, requestId: 1, []) }
+        let ipp = Self.ipp(printer)
+        let stopping = Task { () async -> any Error in
+            withUnsafeCurrentTask { task in task?.cancel() } // the person's Cancel, as the window's
+            do { try await DirectJob.stop(ipp, user: "ana", jobId: 5) } catch { return error }
+        }
+        #expect(await stopping.value is CancellationError) // the printer took it, not "didn't take the cancel"
+        #expect(printer.operations == [IppCodec.cancelJob])
+    }
+
+    @Test func aJobBeingSentIsntCutByACancel() async throws {
+        let printer = CancelAware { body in
+            IppCodec.encodeResponse(status: 0, requestId: 1, [
+                IppValue(name: "job-id", tag: IppCodec.integer, value: "7"),
+                IppValue(name: "job-state", tag: IppCodec.enumeration, value: "3"),
+            ], group: IppCodec.jobTag)
+        }
+        let ipp = Self.ipp(printer)
+        let plan = Self.plan()
+        let sending = Task { () async throws -> (jobId: Int, state: DirectJobState?) in
+            withUnsafeCurrentTask { task in task?.cancel() }
+            return try await DirectJob.send(ipp, user: "ana", jobName: "test", plan, document: [1, 2, 3])
+        }
+        let (id, state) = try await sending.value
+        #expect(id == 7) // the job went whole: Cancel-Job is what stops it now
+        #expect(state?.state == DirectJobState.pending)
+        #expect(printer.operations == [IppCodec.printJob])
+    }
+
+    @Test func aJobPastItsLimitIsRefusedBeforeAnythingIsSent() throws {
+        #expect(DirectJobFile.maxBytes == 1 << 30)
+        let url = DirectJobFile.temporaryUrl()
+        defer { try? FileManager.default.removeItem(at: url) }
+        let file = try DirectJobFile(url, request: [1, 2, 3, 4], limit: 10)
+        try file.append([5, 6, 7, 8, 9, 10])
+        do {
+            try file.append([11])
+            Issue.record("written past the limit")
+        } catch let e as DirectPrintError {
+            #expect(!e.mayHavePrinted)
+            #expect(e.message == loc("The printer can't take a job this large. Print fewer pages at a time."))
+        }
+        let done = try file.finish()
+        #expect(done.bytes == 10)
+        #expect([UInt8](try Data(contentsOf: url)) == Array(1...10))
+        #expect(throws: (any Error).self) { try DirectJobFile(url, request: [1]) } // never another job's file
+    }
+
+    @Test func aWatchEndsAfterItsLongestWhenThePrinterKeepsChanging() async {
+        let asked = Mutex(0)
+        let printer = CancelAware { _ in
+            let n = asked.withLock { n -> Int in
+                n += 1
+                return n
+            }
+            return IppCodec.encodeResponse(status: 0, requestId: 1, [
+                IppValue(name: "job-state", tag: IppCodec.enumeration, value: "5"),
+                IppValue(name: "job-impressions-completed", tag: IppCodec.integer, value: String(n % 2)),
+            ], group: IppCodec.jobTag)
+        }
+        let clock = ContinuousClock()
+        let started = clock.now
+        let last = await DirectJob.watch(Self.ipp(printer), user: "ana", jobId: 7, every: .milliseconds(5), quiet: .seconds(3600), longest: .milliseconds(300))
+        let followed = clock.now - started // the quiet limit is an hour: only the longest ends it
+        #expect(last?.state == DirectJobState.processing)
+        #expect(DirectJob.followedTooLong(last, after: followed, longest: .milliseconds(300))
+                == loc("Inkvolt Print stopped following the job after 2 hours. The printer's control panel shows how it's going."))
+        #expect(DirectJob.followedTooLong(last, after: .seconds(60)) == nil) // ended sooner: quiet, or no answer
+        #expect(DirectJob.followedTooLong(DirectJobState(9, [], nil, 3), after: .seconds(3 * 60 * 60)) == nil)
+        #expect(DirectJob.watchLongest == .seconds(2 * 60 * 60))
+    }
+
     private static func utc(_ y: Int, _ m: Int, _ d: Int, _ h: Int, _ mi: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -559,7 +660,7 @@ struct DirectPrintTests {
         init(_ answer: @escaping @Sendable ([UInt8]) -> [UInt8]) { self.answer = answer }
 
         func send(_ request: HttpRequest) async throws -> HttpResponse {
-            HttpResponse(status: 200, headers: ["Content-Type": "application/ipp"], body: answer(request.body ?? []))
+            HttpResponse(status: 200, headers: ["Content-Type": "application/ipp"], body: answer(request.bodyBytes()))
         }
     }
 

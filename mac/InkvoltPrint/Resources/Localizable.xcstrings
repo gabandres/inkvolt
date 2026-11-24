@@ -8990,6 +8990,16 @@
         }
       }
     },
+    "The printer already has the job and gave it no number to cancel it by. Cancel it on the printer's control panel.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora ya tiene el trabajo y no le dio un número con el que cancelarlo. Cancélalo en el panel de control de la impresora."
+          }
+        }
+      }
+    },
     "Cancelled. Nothing was sent.": {
       "localizations": {
         "es": {

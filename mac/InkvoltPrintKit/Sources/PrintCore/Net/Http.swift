@@ -8,6 +8,9 @@ public struct HttpRequest: Sendable {
     /// Header names as written; transports send them as given (Authorization included).
     public var headers: [String: String]
     public var body: [UInt8]?
+    /// A body uploaded from this file instead of `body` (Print-Job's raster, Windows' `DocumentContent` over its temporary
+    /// file): never held in memory by the transport.
+    public var bodyFile: URL?
     public var timeout: Duration
     /// A request that changes something on the printer and must never arrive twice: no pooled connection, no resend.
     public var once: Bool
@@ -32,6 +35,13 @@ public struct HttpRequest: Sendable {
     public mutating func allowLongReply() { replyLimit = DeviceHttp.maxScanReplyBytes }
 
     public func header(_ name: String) -> String? { headers.first { $0.key.caseInsensitiveCompare(name) == .orderedSame }?.value }
+
+    /// The whole body, `bodyFile`'s read in: for the made-up printers and the tests' fakes only.
+    public func bodyBytes() -> [UInt8] {
+        if let body { return body }
+        guard let bodyFile, let data = try? Data(contentsOf: bodyFile) else { return [] }
+        return [UInt8](data)
+    }
 }
 
 public struct HttpResponse: Sendable {
