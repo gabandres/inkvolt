@@ -32,7 +32,7 @@ A test that measures time takes its limit through `Timing.limit(_:)` (`Tests/Tes
 the Mac's and the PC's limit, five times longer on CI's busy runner. Work that must end on time (a socket's receive loop, a
 connection's state handler) runs on a thread or serial queue of its own, never GCD's global pool, which a busy machine
 holds for seconds; `PoolHold` in PrintMacTests' TransportTests holds that pool to prove it. A suite whose tests keep a
-core busy for seconds without suspending (whole pages of image work, SNMPv3 keys, scans of the sources) is
+core busy for seconds without suspending, with no clock of its own (whole pages of image work, scans of the sources), is
 `@Suite(.offThePool)` (`Tests/TestTiming/OffThePool.swift`): swift-testing runs every test on Swift's cooperative pool, one
 thread a core, and on CI's 3-core runner three such tests at once stopped every timing test for 1.5 minutes. To see what
 blocks that pool, run the tests on the build Mac with `GITHUB_ACTIONS=1 LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (a pool

@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import TestTiming
 @testable import PrintCore
 
 /// SNMPv3's other protocols beside SHA-256 and AES-128: HMAC-MD5-96 and HMAC-SHA-1-96 (RFC 3414 §6, §7), CBC-DES (RFC 3414
@@ -10,7 +9,6 @@ import TestTiming
 /// pair. Ported from SnmpV3ProtocolTests.cs, the crypto from `TestSnmpCrypto` (the PC has no CryptoKit; PrintMacTests runs
 /// the primitives' vectors with `AppleSnmpCrypto`). Left out: A_protocol_that_isn_t_one_is_refused (Swift's enums hold no
 /// other value).
-@Suite(.offThePool)
 struct SnmpV3ProtocolTests {
     private static let crypto: any SnmpCrypto = TestSnmpCrypto()
     private static let rfcEngine = hex("000000000000000000000002") // RFC 3414 A.3's engine ID
