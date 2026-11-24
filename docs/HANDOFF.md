@@ -30,7 +30,15 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   Mac halves wait (`mac/docs/PLAN.md`, "Open"). **Inkvolt PDF for Mac 1.13.0 published 2026-11-23** (Wave 4 on the
   Mac): `pdf-mac-v1.13.0` on `22c18b3e`, notarized DMG sha256 83264265…3f93e0660f, 41,748,931 bytes, not Latest; the
   appcast (17 releases, each once, Spanish notes) found by an unmodified 1.12.1 (en, es); the installed DMG's full
-  self-test 758/758 in en and es; Homebrew cask `f36e0f5`; website `7ea1d3e` deployed and pushed.
+  self-test 758/758 in en and es; Homebrew cask `f36e0f5`; website `7ea1d3e` deployed and pushed. **Inkvolt Print for
+  Mac 1.4.0 (build 9) submitted 2026-11-23, Waiting for Review** (Wave 4 on the Mac, the hostile-input review's fixes at
+  `2f6bb9a1`): `print-mac-v1.4.0` on `b757e0ed`; preflight OK, uploaded, VALID; listing applied (release after approval,
+  as before; es-MX What's New skipped: the version has no Spanish localization in App Store Connect); review notes name
+  the phone scan's HTTPS page (TCP 9781, only while Use Your Phone…'s window is open), the camera (Use a Camera… only)
+  and location (Set Up a New Printer's Wi-Fi… only). The website waits for Apple's approval (as 1.3.1 did). CI's `build`
+  job on `2f6bb9a1` compiled InkvoltPrintKit but failed its Vision/SNMPv3/timing suites (`t3/mac-ci-test-stall-fix`),
+  so its app step was skipped; the app compiled on the build Mac (release.sh's archive, a Release `build.sh`) and 29
+  `--report --demo` checks of that Release build read as expected.
 - **Release gotchas:** a branch merged after `## Next` became `## x.y.z` can put its What's New lines under the released
   version (it happened with 1.17.0; fixed by hand): after each merge during a release, check `## Next` still holds them.
   Each release ran a hostile-input review of the diff since the last tag before packing; keep doing it. The bench needs an
