@@ -369,8 +369,17 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func windowDidBecomeMain(_ notification: Notification) { WindowHub.shared.activated(self) }
 
     /// Edit › Undo and Redo: the document's session steps; none while Reflow shows (read-only, as Windows' `Reflow.Runs`
-    /// has no Undo). NSWindow answers undo: and redo: before this controller's validateMenuItem is asked.
-    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { reflow?.isShown == true ? nil : pdf.undoBridge }
+    /// has no Undo). NSWindow answers undo: and redo: before this controller's validateMenuItem is asked. Never nil: given
+    /// nil once, NSWindow makes an undo manager of its own and keeps answering with it, so after Reflow Edit › Undo no
+    /// longer reached the document; while Reflow shows it gets an empty one instead.
+    func windowWillReturnUndoManager(_ window: NSWindow) -> UndoManager? { reflow?.isShown == true ? noUndo : pdf.undoBridge }
+
+    /// What Edit › Undo and Redo work on while Reflow shows: nothing is ever registered in it.
+    private let noUndo: UndoManager = {
+        let none = UndoManager()
+        none.disableUndoRegistration()
+        return none
+    }()
 
     // MARK: Content changes
 
