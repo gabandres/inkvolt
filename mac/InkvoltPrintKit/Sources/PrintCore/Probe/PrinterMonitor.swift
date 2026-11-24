@@ -42,6 +42,10 @@ public struct PrinterView: Equatable, Sendable {
     /// says who it is), so This Is My Printer stays offered (Windows' `IsElsewhere` beside `IsRefused`).
     public var anotherDeviceAnswered = false
 
+    /// This Is My Printer is offered: another device answers at the address, or did and now refuses the login. The one
+    /// rule for the pane's button and the monitor's `canAcceptDevice`.
+    public var offersAcceptDevice: Bool { phase == .elsewhere || (phase == .refused && anotherDeviceAnswered) }
+
     public static var connecting: PrinterView { PrinterView(phase: .connecting, statusMessage: loc("Connecting…"), statusDetail: nil, severity: .info, alerts: [],
                                                supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil) }
 
@@ -253,8 +257,7 @@ public actor PrinterMonitor {
 
     /// Another device answers at the address (or did, and now refuses the login): This Is My Printer can take it.
     public var canAcceptDevice: Bool {
-        let there = view.phase == .elsewhere || (view.phase == .refused && view.anotherDeviceAnswered)
-        return there && (!foreignUuids.isEmpty || foreignSnmp != nil)
+        view.offersAcceptDevice && (!foreignUuids.isEmpty || foreignSnmp != nil)
     }
 
     // MARK: Steps

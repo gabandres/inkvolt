@@ -31,8 +31,9 @@ rules (any case, trimmed, at most 64 characters; a copy over 1,700 px read reduc
 corner-square marks not searched for a QR code, counted on a black-and-white copy made as ZXing's hybrid binarizer makes
 it; pixels that don't match the size no code) and the sheet's QR code (version 1, level H, 21 × 21, made once with Core
 Image's generator and kept as its modules: PrintCore has no QR encoder). **Mac difference:** the codes are read by
-Vision's `VNDetectBarcodesRequest` (PrintMac's `VisionSeparatorCodes`, a `SeparatorCodeReader`: QR, Code 128 and Code 39
-with its variants), where Windows uses ZXing.Net; `SeparatorCodeTests` (PrintCore, a fake reader) has Windows' rules and
+Vision's `VNDetectBarcodesRequest` (PrintMac's `VisionSeparatorCodes`, a `SeparatorCodeReader`: QR, Code 128 and plain
+Code 39, no check digit or full-ASCII mode, as ZXing is asked on Windows; Vision returns every QR code on a page where
+ZXing's reader decodes one, so a page with a separator code beside another code splits on the Mac), where Windows uses ZXing.Net; `SeparatorCodeTests` (PrintCore, a fake reader) has Windows' rules and
 names, `VisionSeparatorCodesTests` (PrintMac) the cases that decode a drawn code (Code 128 from Core Image's generator;
 macOS has none for Code 39, so Code 39 is read but not tested). The demo batch has Windows' QR-only sheet (7 pages,
 3 files). Not checked: a printed sheet scanned on a real scanner, a Paperless-ngx separator page, a Code 39 sheet.

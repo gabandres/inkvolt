@@ -216,6 +216,7 @@ struct SnmpLoginTests {
         let view = await monitor.view
         #expect(view.phase == .refused)
         #expect(view.anotherDeviceAnswered) // still the device that answered last: This Is My Printer stays offered
+        #expect(view.offersAcceptDevice) // the pane's button, from the same rule
         #expect(await monitor.canAcceptDevice)
     }
 

@@ -12,7 +12,9 @@ public struct VisionSeparatorCodes: SeparatorCodeReader {
     public func codes(on page: GrayImage, qrCodes: Bool) -> [ReadCode] {
         guard let image = Self.cgImage(page) else { return [] }
         let request = VNDetectBarcodesRequest()
-        var symbologies: [VNBarcodeSymbology] = [.code128, .code39, .code39Checksum, .code39FullASCII, .code39FullASCIIChecksum]
+        // Plain Code 39 only, as Windows' ZXing reads it (no check digit, no full-ASCII mode): a full-ASCII symbol spelling
+        // PATCHT doesn't split a batch here and not on Windows.
+        var symbologies: [VNBarcodeSymbology] = [.code128, .code39]
         if qrCodes { symbologies.append(.qr) }
         request.symbologies = symbologies
         let handler = VNImageRequestHandler(cgImage: image, options: [:])
