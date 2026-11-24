@@ -180,7 +180,7 @@ extension FolderIndex {
     /// one, those between whole. Whatever Find finds has that (they are the same words, folded), so a page without it
     /// needs no asking. A query's word longer than a term was cut to its first `maxChars` units (a page's words are read
     /// whole to `maxRun`): such a term between is the start of its word, and the first is somewhere in its word, whose
-    /// end the cut lost.
+    /// end the cut lost. A page's run longer than `maxRun` may end in any first term (only its start is read).
     static func sideBySide(_ text: String, _ terms: [String]) -> Bool {
         guard let head = terms.first else { return false }
         let headCut = head.utf16.count >= IndexTerms.maxChars
@@ -194,7 +194,8 @@ extension FolderIndex {
             for at in ends where fits(word, terms, at) {
                 if at + 1 == terms.count { found = true } else { next.append(at + 1) }
             }
-            if headCut ? word.contains(head) : word.hasSuffix(head) {
+            // A run longer than is read (its first maxRun units) may end in the head: its end is unknown here, so it may.
+            if word.utf16.count >= IndexTerms.maxRun - 1 || (headCut ? word.contains(head) : word.hasSuffix(head)) {
                 if terms.count == 1 { found = true } else { next.append(1) }
             }
             swap(&ends, &next)
@@ -207,17 +208,115 @@ extension FolderIndex {
         if at == terms.count - 1 || term.count >= IndexTerms.maxChars { return word.utf16.starts(with: term) }
         return word.utf16.elementsEqual(term)
     }
+
+    /// `sideBySide` on a page's UTF-8 when it is quick to tell: the page and the terms plain ASCII (letters and digits are
+    /// then words as `IndexTerms` reads them, lowercased), no word broken at a line's end ("-\n", which Find joins) and no
+    /// term that may be a word cut short. The last term is looked for (`memmem`) where a word starts, and the words before
+    /// it read backwards. Nil when it can't say: ask `sideBySide`. `lowered`: a buffer to reuse, grown to the page.
+    static func sideBySideAscii(_ text: [UInt8], _ terms: [String], _ lowered: inout [UInt8]) -> Bool? {
+        if terms.count < 2 || !text.allSatisfy({ $0 < 0x80 }) { return nil }
+        for t in terms where mayBeCut(t) || t.isEmpty || !t.utf8.allSatisfy({ $0 < 0x80 }) { return nil }
+        let n = text.count
+        var hyphenBreak = false
+        if n >= 2 {
+            for i in 0..<(n - 1) where text[i] == 0x2D && text[i + 1] == 0x0A {
+                hyphenBreak = true
+                break
+            }
+        }
+        if hyphenBreak { return nil }
+        if lowered.count < n { lowered = [UInt8](repeating: 0, count: max(n, lowered.count * 2)) }
+        for i in 0..<n {
+            let b = text[i]
+            lowered[i] = b >= 0x41 && b <= 0x5A ? b + 32 : b
+        }
+        let terms = terms.map { Array($0.utf8) }
+        let last = terms[terms.count - 1]
+        func isWordByte(_ b: UInt8) -> Bool { (b >= 0x61 && b <= 0x7A) || (b >= 0x30 && b <= 0x39) }
+        return lowered.withUnsafeBufferPointer { page -> Bool in
+            last.withUnsafeBufferPointer { needle -> Bool in
+                guard let base = page.baseAddress, let want = needle.baseAddress else { return false }
+                var from = 0
+                while from < n {
+                    guard let hit = memmem(base + from, n - from, want, needle.count) else { return false }
+                    let at: Int = UnsafeRawPointer(base).distance(to: UnsafeRawPointer(hit))
+                    from = at + 1
+                    if at > 0 && isWordByte(page[at - 1]) { continue } // not where a word starts
+                    var end = at
+                    var ok = true
+                    var k = terms.count - 2
+                    while k >= 0 && ok {
+                        while end > 0 && !isWordByte(page[end - 1]) { end -= 1 } // what breaks the words
+                        var start = end
+                        while start > 0 && isWordByte(page[start - 1]) { start -= 1 }
+                        let term = terms[k]
+                        let length = end - start
+                        if length == 0 {
+                            ok = false
+                        } else if k == 0 {
+                            // The first term: the end of its word.
+                            ok = length >= term.count && Self.same(page, end - term.count, term)
+                        } else {
+                            ok = length == term.count && Self.same(page, start, term)
+                        }
+                        end = start
+                        k -= 1
+                    }
+                    if ok { return true }
+                }
+                return false
+            }
+        }
+    }
+
+    private static func same(_ page: UnsafeBufferPointer<UInt8>, _ at: Int, _ term: [UInt8]) -> Bool {
+        for (i, b) in term.enumerated() where page[at + i] != b { return false }
+        return true
+    }
+
+    /// A query's term this long may be its word cut (to `IndexTerms.maxChars`, a unit less to keep a pair whole).
+    private static func mayBeCut(_ term: String) -> Bool { term.utf16.count >= IndexTerms.maxChars - 1 }
+
+    /// Most pages of one file a thread takes at a time.
+    static let confirmChunk = 32
+
+    /// Fewest pages of one file a thread takes at a time, unless the file has fewer in the round.
+    static let confirmChunkMin = 4
+
+    /// Where each chunk of a round starts, and the round's end last: a chunk is pages of one file, at most `confirmChunk`.
+    /// In a round of fewer files than `threads`, a file's pages are shared among them (at least `confirmChunkMin` each), so
+    /// a round of one big PDF keeps every thread at work.
+    static func chunks(_ round: [(file: Int, page: Int)], _ starts: inout [Int], _ threads: Int) {
+        starts.removeAll(keepingCapacity: true)
+        // A round of as many files as threads keeps them at work file by file: a file is cut only into confirmChunk pages.
+        var files = 0
+        for i in round.indices where i == 0 || round[i].file != round[i - 1].file { files += 1 }
+        var i = 0
+        while i < round.count {
+            var end = i + 1
+            while end < round.count && round[end].file == round[i].file { end += 1 }
+            let shared = (end - i + threads - 1) / max(1, threads)
+            let size = files >= threads ? confirmChunk : min(max(shared, confirmChunkMin), confirmChunk)
+            for at in stride(from: i, to: end, by: size) { starts.append(at) }
+            i = end
+        }
+        starts.append(round.count)
+    }
 }
 
 /// Pages looked at together, on several threads; their results then come out in order.
-private let confirmRound = 128
+private let confirmRound = 256
 
-/// Threads confirming pages: a search is what the person is waiting for, but the Mac has other work too.
-private let confirmThreads = max(1, min(6, ProcessInfo.processInfo.activeProcessorCount / 2))
+/// Threads confirming pages: a search is what the person is waiting for, so all but two of the processors (twelve at
+/// most), the two left for the window and the Mac's other work. A phrase of common words reads every page (inflating each
+/// is most of it).
+private let confirmThreads = max(1, min(12, ProcessInfo.processInfo.activeProcessorCount - 2))
 
 /// Runs Find on each proposed page's text, in order of path and page, a round of pages at a time on several threads. The
 /// words of a phrase being on a page says little about their being side by side, so a phrase's pages go through
-/// `sideBySide` first: a page's words in order are read in a tenth of the time Find takes.
+/// `sideBySideAscii` (a plain-ASCII page, on its bytes) or `sideBySide` first: a page's words in order are read in a tenth
+/// of the time Find takes. A file's pages in a round go to the threads in chunks (`FolderIndex.chunks`), its list of pages
+/// read once for them all: a folder of one big PDF keeps every thread at work.
 private final class Confirmer: @unchecked Sendable {
     private let state: FolderIndex.Snapshot
     private let map: FolderIndex.PageMap
@@ -233,6 +332,9 @@ private final class Confirmer: @unchecked Sendable {
     private var listed = 0
     private var done = false
     private var readers: [PageReader] = []
+    private var starts: [Int] = []
+    /// The round's files' lists of pages, read once by whichever thread asks first.
+    private let directories = PageDirectories()
 
     init(_ state: FolderIndex.Snapshot, _ map: FolderIndex.PageMap, _ bits: [UInt64], _ query: String,
          _ options: FolderSearchOptions, _ terms: [String]) {
@@ -255,7 +357,7 @@ private final class Confirmer: @unchecked Sendable {
         }
     }
 
-    /// The next round of pages (up to `confirmRound`) asked of Find on several threads.
+    /// The next round of pages (up to `confirmRound`) asked of Find on several threads, a chunk of a file's pages at a time.
     private func round(_ cancel: CancelToken?) throws {
         var round: [(file: Int, page: Int)] = []
         while round.count < confirmRound && word < bits.count {
@@ -276,21 +378,27 @@ private final class Confirmer: @unchecked Sendable {
             return
         }
         try cancel.check()
+        FolderIndex.chunks(round, &starts, confirmThreads)
+        directories.clear()
         let results = RoundResults(round.count)
-        let threads = min(confirmThreads, round.count)
+        let chunks = starts.count - 1
+        let threads = min(confirmThreads, chunks)
         var pool = readers
-        while pool.count < threads { pool.append(PageReader(state.store.file)) }
+        while pool.count < threads { pool.append(PageReader(state.store.file, directories)) }
         readers = pool
-        let nextIndex = Counter()
+        let nextChunk = Counter()
         let todo = round
+        let bounds = starts
         let readersNow = pool
         DispatchQueue.concurrentPerform(iterations: threads) { t in
             let reader = readersNow[t]
             while true {
-                let i = nextIndex.take()
-                if i >= todo.count || cancel?.isCancelled == true || results.failed { return }
+                let c = nextChunk.take()
+                if c >= chunks || cancel?.isCancelled == true || results.failed { return }
                 do {
-                    results.set(i, try self.check(reader, self.map.files[todo[i].file], todo[i].page))
+                    for i in bounds[c]..<bounds[c + 1] {
+                        results.set(i, try self.check(reader, self.map.files[todo[i].file], todo[i].page))
+                    }
                 } catch {
                     results.fail(error)
                     return
@@ -303,8 +411,12 @@ private final class Confirmer: @unchecked Sendable {
     }
 
     private func check(_ reader: PageReader, _ f: IndexedFile, _ page: Int) throws -> FolderHit? {
-        let text = try reader.page(f, page)
-        if let filter, !FolderIndex.sideBySide(text, filter) { return nil }
+        let bytes = try reader.pageBytes(f, page)
+        // A phrase: told on the bytes of a page of plain ASCII, without making it a string; Find on what is left.
+        let quick: Bool? = filter.flatMap { FolderIndex.sideBySideAscii(bytes, $0, &reader.lowered) }
+        if quick == false { return nil }
+        let text = String(decoding: bytes, as: UTF8.self)
+        if let filter, quick == nil, !FolderIndex.sideBySide(text, filter) { return nil }
         let hits = PageText.findIn(text, query, matchCase: options.matchCase, wholeWord: options.wholeWord, ignoreAccents: options.ignoreAccents)
         guard let first = hits.first else { return nil }
         let shown = PageText.excerptOf(text, first.start, first.end)
@@ -346,31 +458,19 @@ private final class Counter: @unchecked Sendable {
     }
 }
 
-/// Reads one page's kept text, holding on to the last file's list of pages. One thread at a time.
-final class PageReader: @unchecked Sendable {
-    private let cursor: Cursor
-    private var id = -1
-    private var packed: [Int] = []
-    private var plain: [Int] = []
-    private var crcs: [UInt32] = []
-    private var blobs: Int64 = 0
+/// Where a file's pages' packed texts are in the index file: each page's place (from running sums), packed and plain
+/// lengths and CRC.
+struct PageDirectory: Sendable {
+    let offsets: [Int64]
+    let packed: [Int]
+    let plain: [Int]
+    let crcs: [UInt32]
 
-    init(_ file: IndexFileHandle) { cursor = Cursor(file) }
+    /// Bytes a directory of `pages` pages takes at most: the count, and per page two lengths and a CRC (5 bytes each).
+    static func maxLength(_ pages: Int) -> Int { 5 + 15 * pages }
 
-    func page(_ f: IndexedFile, _ page: Int) throws -> String {
-        if f.textLength == 0 { return "" }
-        if f.id != id { try readDirectory(f) }
-        guard page < packed.count else { throw FolderIndexDamaged(why: "A page out of range.") }
-        if packed[page] == 0 { return "" }
-        var at = blobs
-        for i in 0..<page { at += Int64(packed[i]) }
-        guard at + Int64(packed[page]) <= f.textOffset + f.textLength else { throw FolderIndexDamaged(why: "A page out of range.") }
-        let body = Array(try cursor.read(at, packed[page]))
-        return try FolderIndex.unpack(body, plainLength: plain[page], crc: crcs[page])
-    }
-
-    private func readDirectory(_ f: IndexedFile) throws {
-        let head = try cursor.read(f.textOffset, Int(min(f.textLength, 1 << 20)))
+    /// The list of pages at the start of a file's text.
+    static func read(_ head: ArraySlice<UInt8>, _ f: IndexedFile) throws -> PageDirectory {
         var r = VarReader(head)
         let pages = try r.int()
         guard pages == f.pages else { throw FolderIndexDamaged(why: "A file's pages out of range.") }
@@ -384,26 +484,74 @@ final class PageReader: @unchecked Sendable {
             crcs[i] = UInt32(truncatingIfNeeded: try r.long())
             total += Int64(packed[i])
         }
-        let used = Int64(try Self.directoryLength(head, pages))
+        let used = Int64(r.consumed)
         guard used + total <= f.textLength else { throw FolderIndexDamaged(why: "A file's text out of range.") }
-        self.packed = packed
-        self.plain = plain
-        self.crcs = crcs
-        blobs = f.textOffset + used
-        id = f.id
+        var offsets = [Int64](repeating: 0, count: pages)
+        var at = f.textOffset + used
+        for i in 0..<pages {
+            offsets[i] = at
+            at += Int64(packed[i])
+        }
+        return PageDirectory(offsets: offsets, packed: packed, plain: plain, crcs: crcs)
+    }
+}
+
+/// The lists of pages of a round's files, by file id, shared among the threads.
+final class PageDirectories: @unchecked Sendable {
+    private let lock = NSLock()
+    private var known: [Int: PageDirectory] = [:]
+
+    func get(_ id: Int) -> PageDirectory? { lock.withLock { known[id] } }
+
+    /// `directory`, or the one another thread put there first.
+    func add(_ id: Int, _ directory: PageDirectory) -> PageDirectory {
+        lock.withLock {
+            if let first = known[id] { return first }
+            known[id] = directory
+            return directory
+        }
     }
 
-    /// Bytes the directory of `pages` pages takes at the start of `head`.
-    private static func directoryLength(_ head: ArraySlice<UInt8>, _ pages: Int) throws -> Int {
-        var at = head.startIndex
-        for _ in 0..<(1 + FolderIndex.directoryFields * pages) {
-            while true {
-                guard at < head.endIndex else { throw FolderIndexDamaged(why: "A number cut short.") }
-                let b = head[at]
-                at += 1
-                if b < 0x80 { break }
-            }
+    func clear() { lock.withLock { known.removeAll(keepingCapacity: true) } }
+}
+
+/// Reads pages' kept text. A file's list of pages is read once a round, whichever thread asks first (`directories`,
+/// shared); a thread reads a file's text from where it starts, 256 KB at a time, as its pages of a file come one after
+/// another. One thread at a time.
+final class PageReader: @unchecked Sendable {
+    private let cursor: Cursor
+    private let directories: PageDirectories
+    /// Lowercase ASCII of the page last read, for `FolderIndex.sideBySideAscii`; as long as the page.
+    var lowered: [UInt8] = []
+
+    /// What a miss reads of a file's text at most: a chunk's pages are mostly read in one go.
+    private static let ahead = 256 << 10
+
+    init(_ file: IndexFileHandle, _ directories: PageDirectories) {
+        cursor = Cursor(file)
+        self.directories = directories
+    }
+
+    /// A page's kept text as a string.
+    func page(_ f: IndexedFile, _ page: Int) throws -> String { String(decoding: try pageBytes(f, page), as: UTF8.self) }
+
+    /// A page's kept text as UTF-8.
+    func pageBytes(_ f: IndexedFile, _ page: Int) throws -> [UInt8] {
+        if f.textLength == 0 { return [] }
+        var directory = directories.get(f.id)
+        if directory == nil {
+            // Read with the file's text after it (256 KB at most): this thread's pages of the file are then in hand.
+            let head = try cursor.read(f.textOffset, Int(min(f.textLength, Int64(PageDirectory.maxLength(f.pages)))),
+                                       ahead: Int(min(f.textLength, Int64(Self.ahead))))
+            directory = directories.add(f.id, try PageDirectory.read(head, f))
         }
-        return at - head.startIndex
+        guard let directory, page < directory.packed.count else { throw FolderIndexDamaged(why: "A page out of range.") }
+        if directory.packed[page] == 0 { return [] }
+        let at = directory.offsets[page]
+        guard at + Int64(directory.packed[page]) <= f.textOffset + f.textLength else { throw FolderIndexDamaged(why: "A page out of range.") }
+        // On a miss, the rest of the file's text, 256 KB at most.
+        let rest = Int(min(max(0, f.textOffset + f.textLength - at), Int64(Self.ahead)))
+        let body = Array(try cursor.read(at, directory.packed[page], ahead: rest))
+        return try FolderIndex.unpackBytes(body, plainLength: directory.plain[page], crc: directory.crcs[page])
     }
 }

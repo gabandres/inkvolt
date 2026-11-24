@@ -1654,6 +1654,19 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   filed in overlapping pieces of 48, one every 24 units, its first 1,024 units at most, and a query's longer word looks
   up its first 23, so the end of a long run is found as Find finds it (Windows files a long run under its first 48
   only: a search for its end finds nothing there). `IndexTerms.version` 2: indexes made before are built again.
+- **Phrase reading** (Windows' bd81b98e, 13e554c7, 93f82ba4, fbd4b21d, 05074119 and 38123b6b): a search round is 256
+  pages, cut into chunks of one file's pages (`FolderIndex.chunks`: 32 at most; in a round of fewer files than threads,
+  shared among them, 4 at least) for all processors but two (12 at most; the Mac had half, 6 at most). A file's list of
+  pages is read once a round, by whichever thread asks first (`PageDirectories`), each page's place from running sums
+  (the Mac's reader summed the lengths before it for every page), and a thread reads a file's text 256 KB at a time
+  (`Cursor.read(_:_:ahead:)`; the Mac's reader read a megabyte on every miss, and its threads took a file's pages one by
+  one). A phrase is told on a plain-ASCII page's bytes (`sideBySideAscii`: the last term found with `memmem` where a word
+  starts, the words before it read backwards; nil for anything else, a "-\n" or a term that may be cut, which go to
+  `sideBySide`), and a page's run longer than 1,024 units may end in any first term. FolderIndexTests'
+  `The_quick_phrase_reading_agrees_with_the_full_one` (a seeded SplitMix64 for .NET's `Random(7)`),
+  `Pages_of_many_files_and_long_pages_read_back_in_order`, `A_big_files_pages_are_shared_among_the_threads_in_chunks`,
+  `A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`, and `Side_by_side_reads_a_phrase_as_terms`
+  with the quick reading. Not measured on the Mac (Windows' bench has no Mac port: `index-make`, `index-run`).
 - **More bounds:** besides Windows' (512 MB a file, 50,000 pages, 32 M characters of text, the page check, 2 minutes),
   at most 100,000 PDFs a folder (the rest counted as over the limit) and 2 GB for the index file (past it nothing more is
   read until compaction makes room; said as a problem).
@@ -1690,12 +1703,7 @@ then ±0.6 %), then finds skew and shift in that frame as before, kept only when
 the same scan fed sideways.
 
 **Windows ahead, to port:** Compare reads scans with the language's dictionary (which way up, when the cleanup isn't
-sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). Folder search's phrase reading: a file's
-pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
-`SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
-`Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
-(`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
-(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). Ported with Inkvolt Print's 4.3 (Wave 4,
+sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). Ported with Inkvolt Print's 4.3 (Wave 4,
 above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
 (`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
 PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
@@ -2337,8 +2345,7 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
-- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary, folder search's
-  phrase reading.
+- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary.
 - Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
   34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
   through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).
