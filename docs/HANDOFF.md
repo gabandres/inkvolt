@@ -26,7 +26,10 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 - **Released:** Wave 4 (a market check of 2026-11-21; the owner: "do all of them", release them) is built, reviewed and
   in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0, all Published 2026-11-22 (the
   website's `softwareVersion` 1.9.0 and 1.18.0). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
-  `pdf-v1.18.0.0`. The next submission of each must be higher. Every Wave 4 item is Done on Windows in both roadmaps; the
+  `pdf-v1.18.0.0`. **Inkvolt PDF 1.19.0.0 and Inkvolt Print 1.10.0.0 Published 2026-11-24** (the hostile-input review's
+  hang fixes, Print's phone-test fixes, a direct job followed 2 hours at most, a preset's `{n}` padded to 32 digits at most,
+  any standard format, `495b4832`): tags `pdf-v1.19.0.0` (`3afe9263`) and `print-v1.10.0.0` (`7aa7d90d`), GitHub releases,
+  website `softwareVersion` 1.19.0 and 1.10.0. The next submission of each must be higher. Every Wave 4 item is Done on Windows in both roadmaps; the
   Mac halves wait (`mac/docs/PLAN.md`, "Open"). **Inkvolt PDF for Mac 1.13.0 published 2026-11-23** (Wave 4 on the
   Mac): `pdf-mac-v1.13.0` on `22c18b3e`, notarized DMG sha256 83264265…3f93e0660f, 41,748,931 bytes, not Latest; the
   appcast (17 releases, each once, Spanish notes) found by an unmodified 1.12.1 (en, es); the installed DMG's full
