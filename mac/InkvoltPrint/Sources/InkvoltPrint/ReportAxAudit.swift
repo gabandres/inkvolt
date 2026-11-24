@@ -50,7 +50,7 @@ extension Report {
         }
 
         // Modal alerts.
-        await modal(&walk, "Share a Printer with Phones") { PrinterSharingCard.show(model) }
+        await modal(&walk, "Share a Printer with Phones") { PhoneSharing.show(model) }
         await modal(&walk, "Print on Both Sides by Hand: copies") { _ = HandDuplexPrinting.askCopies("Synthetic.pdf") }
         let plan = HandDuplexPlan.plan(Array(0..<5))
         await modal(&walk, "Print on Both Sides by Hand: between the sides") {
