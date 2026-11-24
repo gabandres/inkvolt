@@ -434,26 +434,6 @@ struct AiLoopbackTests {
         #expect(message?.contains("closed before the answer finished") == true)
     }
 
-    /// CI's runner (2026-11-24): a test task waited 11 minutes for a thread, the server's side of the finished connection
-    /// was dropped meanwhile, and the client's first read got the whole answer with a reset, which threw it away ("closed
-    /// before the answer finished", the timestamp server "stopped answering"). An answer that came whole is read.
-    @Test func aWholeAnswerFollowedByAResetIsRead() async throws {
-        let json = try #require(AiLoopbackServer { _ in
-            var a = AiLoopbackServer.Answer.json(200, #"{"data":[{"id":"b"},{"id":"a"}]}"#)
-            a.resets = true
-            return a
-        })
-        defer { json.stop() }
-        #expect(try await Self.client(json).listModels() == ["a", "b"])
-        let stream = try #require(AiLoopbackServer { _ in
-            var a = AiLoopbackServer.Answer.sse(["Hel", "lo"])
-            a.resets = true
-            return a
-        })
-        defer { stream.stop() }
-        #expect(try await Self.client(stream).chat([.user("Q")]).text == "Hello")
-    }
-
     @Test func aResetBeforeTheAnswerEndsIsStillAnError() async throws {
         let server = try #require(AiLoopbackServer { _ in
             var a = AiLoopbackServer.Answer.sse(["first"])

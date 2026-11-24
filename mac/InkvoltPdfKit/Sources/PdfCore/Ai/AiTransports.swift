@@ -444,28 +444,20 @@ final class AiSocketTransport: AiTransport {
     private func exchange(_ request: AiHttpRequest, _ connection: NWConnection, _ cancel: CancelToken) async throws -> AiHttpResponse {
         let id = cancel.register { connection.cancel() }
         defer { cancel.unregister(id) }
-        try await write(head(request) + (request.body ?? []), connection, cancel)
-        var reader = AiHttpReader()
-        var parsed: AiHttpReader.Head?
-        var reset: AiNetError?
-        while parsed == nil {
-            let got = try await receive(connection, cancel)
-            parsed = try reader.head(got.bytes)
-            reset = got.reset
-            if parsed == nil && got.ended { throw got.reset ?? AiNetError.closedEarly }
-        }
+        let answerHead = AiOnce<AiHttpReader.Head>()
         let body = AiByteQueue(onClose: { connection.cancel() })
-        let first = try reader.body([])
-        body.yield(first)
-        if reader.bodyDone {
-            body.finish()
-        } else if let reset {
-            body.finish(reset) // reset before the body was whole
-            connection.cancel()
-        } else {
-            Self.pump(connection, reader, body)
+        // Read from the start, on the connection's own queue: the answer leaves the system's buffers as it arrives,
+        // whether or not this task gets a thread soon. On CI's runner a test task waited 11 minutes for one after its
+        // request went out; the server had answered and closed at once, the system dropped its side meanwhile, and the
+        // read that came at last got a reset that took the answer with it ("closed before the answer finished").
+        Self.pump(connection, AiHttpReader(), headRead: false, answerHead, body, cancel)
+        do {
+            try await write(head(request) + (request.body ?? []), connection, cancel)
+        } catch {
+            // A server may answer before it has read the request; once the answer is whole the connection is cancelled.
+            if !answerHead.succeeded { throw error }
         }
-        let answer = parsed!
+        let answer = try await withCheckedThrowingContinuation { (c: CheckedContinuation<AiHttpReader.Head, Error>) in answerHead.begin(c) }
         return AiHttpResponse(status: answer.status, contentType: answer.headers["content-type"], location: answer.headers["location"], body: body)
     }
 
@@ -494,51 +486,42 @@ final class AiSocketTransport: AiTransport {
         }
     }
 
-    /// What one read gave. `reset`: the connection was reset after these bytes, the last it gives; they still count, so an
-    /// answer they complete is read (a server that closes with our bytes unread resets, and so does one whose side of the
-    /// connection the system dropped while this Mac was too busy to read: CI's runner, 11 minutes on, lost whole answers).
-    struct Received {
-        let bytes: [UInt8]
-        let ended: Bool
-        let reset: AiNetError?
-    }
-
-    private func receive(_ connection: NWConnection, _ cancel: CancelToken) async throws -> Received {
-        try await withCheckedThrowingContinuation { (c: CheckedContinuation<Received, Error>) in
-            connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
-                let bytes: [UInt8] = data.map { [UInt8]($0) } ?? []
-                if cancel.isCancelled {
-                    c.resume(throwing: CancellationError())
-                } else if let error {
-                    let meant = Self.meaning(error)
-                    if meant == .closedEarly && !bytes.isEmpty {
-                        c.resume(returning: Received(bytes: bytes, ended: true, reset: meant))
-                    } else {
-                        c.resume(throwing: meant)
-                    }
-                } else {
-                    c.resume(returning: Received(bytes: bytes, ended: complete, reset: nil))
-                }
-            }
-        }
-    }
-
-    /// Moves the body from the connection into the queue, until it ends.
-    private static func pump(_ connection: NWConnection, _ reader: AiHttpReader, _ body: AiByteQueue) {
+    /// Reads the answer as it arrives: its head into `head` (cancelling until then is `CancellationError`), then its body
+    /// into `body`, until the body is whole or the connection ends. Bytes that come with a reset still count: the answer
+    /// may be whole with them.
+    private static func pump(_ connection: NWConnection, _ reader: AiHttpReader, headRead: Bool, _ head: AiOnce<AiHttpReader.Head>,
+                             _ body: AiByteQueue, _ cancel: CancelToken) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
             var reader = reader
+            var headRead = headRead
             do {
-                // Bytes that came with a reset still count: the body may be whole with them.
-                if let data, !data.isEmpty { body.yield(try reader.body([UInt8](data))) }
-                if let error, !reader.bodyDone { throw Self.meaning(error) }
-                if complete { try reader.connectionEnded() }
-                if reader.bodyDone || complete {
+                if !headRead && cancel.isCancelled { throw CancellationError() }
+                let bytes: [UInt8] = data.map { [UInt8]($0) } ?? []
+                if !headRead {
+                    if let parsed = try reader.head(bytes) {
+                        headRead = true
+                        head.resume(with: .success(parsed))
+                        body.yield(try reader.body([]))
+                    }
+                } else if !bytes.isEmpty {
+                    body.yield(try reader.body(bytes))
+                }
+                if headRead && reader.bodyDone {
                     body.finish()
                     connection.cancel()
                     return
                 }
-                Self.pump(connection, reader, body)
+                if let error { throw Self.meaning(error) }
+                if complete {
+                    if !headRead { throw AiNetError.closedEarly }
+                    try reader.connectionEnded()
+                    body.finish()
+                    connection.cancel()
+                    return
+                }
+                Self.pump(connection, reader, headRead: headRead, head, body, cancel)
             } catch {
+                head.resume(with: .failure(error)) // nothing once the head was read
                 body.finish(error)
                 connection.cancel()
             }
@@ -551,6 +534,14 @@ final class AiOnce<T: Sendable>: @unchecked Sendable {
     private let lock = NSLock()
     private var waiter: CheckedContinuation<T, Error>?
     private var outcome: Result<T, Error>?
+
+    /// Resumed with a value.
+    var succeeded: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        if case .success? = outcome { return true }
+        return false
+    }
 
     func begin(_ c: CheckedContinuation<T, Error>) {
         lock.lock()
@@ -921,6 +912,14 @@ public final class AiLoopbackServer: @unchecked Sendable {
         if reply.resets {
             var linger = Darwin.linger(l_onoff: 1, l_linger: 0) // closing sends a reset
             setsockopt(client, SOL_SOCKET, SO_LINGER, &linger, socklen_t(MemoryLayout<Darwin.linger>.size))
+        } else if !reply.holdOpen {
+            // The answer ends with a half-close, and the socket stays until the client closes (or 30 s, or stop()): closed
+            // at once, with a request byte unread or the client slow to read, the system can reset the connection and drop
+            // the answer before it is read.
+            shutdown(client, SHUT_WR)
+            var wait = timeval(tv_sec: 30, tv_usec: 0)
+            setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &wait, socklen_t(MemoryLayout<timeval>.size))
+            while recv(client, &buffer, size, 0) > 0 {}
         }
         finish(client)
     }
