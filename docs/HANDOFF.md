@@ -5,32 +5,30 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## Current state
 
-- **Mac parity (2026-11-23, the owner: "full feature parity like Windows").** The owner's answers: merge and push
-  reviewed branches; release both Mac apps when parity is done (publish Inkvolt PDF through Sparkle, upload Inkvolt
-  Print to App Store Connect; submitting for review stays the owner's); Inkvolt Print may add the camera, network.server
-  and location entitlements (4.12, 4.6, 4.17); three agents may build on buildmac at once (`INKVOLT_MAC_SLOT`, `mac.sh`).
-  - Merged: master's Mac suites green again (IPP text's resolution and rangeOfInteger); Inkvolt PDF 4.3, 4.4, 4.5, 4.7,
-    4.13, 4.14 (paper commands); 4.1, 4.2, 4.6, 4.15, 4.18 (text tools). Each was reviewed and its findings fixed.
-    The text branch's .NET AddressLinks fix went in before its `tools/test.ps1` run finished: CI's run is its check.
-  - Stopped mid-task, unmerged, each ending in a WIP commit:
-    - `worktree-agent-aa84ff1c642dff326` (Inkvolt Print 4.1, 4.3, 4.4, 4.7, 4.8: five reviewed commits). Its WIP commit
-      fixes the review's findings, unchecked: oneBit kept by the crash restore, each Undo step keeping its own stack and
-      marks, Shift+arrow in the Join sheet, the preview's small copies made once, a found placement used even at
-      score ≤ 0. Mac slot `scan`.
-    - `worktree-agent-a03a36046ff7c05ba` (Inkvolt PDF 4.17 proofreading, begun; 4.12, 4.19, 4.22 not started). Mac
-      slot `layout`.
-  - Next waves: Inkvolt PDF 4.8 (G4 now in the scan branch's PrintCore), 4.9, 4.16, AI 4.10, 4.11, 4.20, 4.21, 4.23,
-    4.24; Inkvolt Print 4.2, 4.5, 4.6, 4.9, 4.10, 4.11, 4.12, 4.13, 4.14, 4.15, 4.16, 4.17, 4.18, then the older "Mac half
-    waits" (`print/ROADMAP.md`: SNMP's other protocols, LEDM, ICA buttons and sharing) and PLAN's "Open".
-
+- **Mac parity done in code (2026-11-23/24; the owner: "full feature parity like Windows").** Every Wave 4 item of both
+  roadmaps is on the Mac, reviewed (each branch, then a whole-release hostile-input pass per app) and merged, plus
+  Inkvolt Print's printer data of 2026-11-20, the printer's web port, SNMP refusals, separator codes (Vision), P12 2.1
+  (print straight to a printer with no macOS queue: PWG raster, Apple raster, PCLm against libcups and ippeveprinter),
+  Compare's scan alignment, export links and folder-search phrases on the Mac. Mac CI: the Print job's deadline stall is
+  fixed (`OffThePool` trait, af218267) and the Vision tests' macOS 15 white page was the test's drawing, not Vision
+  (e43b62fe); CI's `pdf` job still flakes on one `LtvTests` loopback case per run (127.0.0.1 stops answering).
+  - The owner's decisions (2026-11-24): the drawing set's speed targets are a known limit (MuPDF's drawing; recheck on a
+    MuPDF upgrade); Inkvolt PDF for Mac's work merged after 1.13.0 (Compare alignment, export links, folder phrases, the
+    MuPDF patch) waits for the next Mac release; HP's walk-up scan waits for a recording from a printer that offers it;
+    the phone scan's TLS key stays in the login keychain (app-scoped by its ACL); the MuPDF inline-image patch is made, on
+    the Mac only (`mac/Vendor/mupdf/patches/`; the upstream report in `inline-image-filter-budget.md`, for the owner to file).
+  - **Before the next Inkvolt PDF for Mac release:** pull the release clone `~/Repos/inkvolt` and run
+    `sh mac/Vendor/mupdf/build.sh` there once, so it links the patched MuPDF (until then a slot fails PageCheckTests'
+    inline-picture test, which flags it). Print for Mac 1.4.0 goes on sale by itself once Apple approves; then the website.
+  - What only a device can do, with what each needs: PLAN's "Open" (P12 2.2 HP walk-up and ICA buttons, 3.1 scanner
+    sharing, 3.3 the printer's copier; the Office converter's Microsoft 365 checklist).
 - **Released:** Wave 4 (a market check of 2026-11-21; the owner: "do all of them", release them) is built, reviewed and
   in the Store: Inkvolt Print 1.8.0.0 and 1.9.0.0, Inkvolt PDF 1.17.0.0 and 1.18.0.0, all Published 2026-11-22 (the
   website's `softwareVersion` 1.9.0 and 1.18.0). GitHub releases `print-v1.8.0.0`, `print-v1.9.0.0`, `pdf-v1.17.0.0`,
   `pdf-v1.18.0.0`. **Inkvolt PDF 1.19.0.0 and Inkvolt Print 1.10.0.0 Published 2026-11-24** (the hostile-input review's
   hang fixes, Print's phone-test fixes, a direct job followed 2 hours at most, a preset's `{n}` padded to 32 digits at most,
   any standard format, `495b4832`): tags `pdf-v1.19.0.0` (`3afe9263`) and `print-v1.10.0.0` (`7aa7d90d`), GitHub releases,
-  website `softwareVersion` 1.19.0 and 1.10.0. The next submission of each must be higher. Every Wave 4 item is Done on Windows in both roadmaps; the
-  Mac halves wait (`mac/docs/PLAN.md`, "Open"). **Inkvolt PDF for Mac 1.13.0 published 2026-11-23** (Wave 4 on the
+  website `softwareVersion` 1.19.0 and 1.10.0. The next submission of each must be higher. Every Wave 4 item is Done on Windows and on the Mac in both roadmaps. **Inkvolt PDF for Mac 1.13.0 published 2026-11-23** (Wave 4 on the
   Mac): `pdf-mac-v1.13.0` on `22c18b3e`, notarized DMG sha256 83264265…3f93e0660f, 41,748,931 bytes, not Latest; the
   appcast (17 releases, each once, Spanish notes) found by an unmodified 1.12.1 (en, es); the installed DMG's full
   self-test 758/758 in en and es; Homebrew cask `f36e0f5`; website `7ea1d3e` deployed and pushed. **Inkvolt Print for
@@ -61,12 +59,18 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
   code; Android printing untested; its wireless debugging is on, adb runs here), and timing the iPhone's upload.
   Diagnosing mDNS: `pktmon` (elevated) shows each query's questions; a Python listener on 5353 joined to the group shows
   multicast answers. iOS answers a browse from its cache, so it often sends no query when the print sheet opens.
-- **The Mac waits** (owner, 2026-11-17: no Mac any more; all work is Windows). Every Mac half in both roadmaps waits for
-  a new Mac, indefinitely; setting one up: `mac/docs/NEW-MAC.md`. Inkvolt Print's printer-data work of 2026-11-20 is
-  all on the Mac (the web server on its own port since 2026-11-23); SNMP for WSD queues has no Mac counterpart.
-
+- **The build Mac** (`buildmac`, a MacBook Air M5 in the owner's wife's account, `Z:\machines\rules\build-mac.md`): slot
+  worktrees `~/Repos/inkvolt-<slot>` for agents at once (`INKVOLT_MAC_SLOT`; three at a time); spare slots were removed
+  2026-11-24 (`pc` and `windows` kept; the release clone `~/Repos/inkvolt` is only pulled, for releases). It has Xcode 27
+  where CI has Xcode 26: CI's Swift gives up on or can't infer expressions Xcode 27 compiles fast, and its SDK has types
+  that clash with ours (it had a `Picture`): type literals and closures, keep expressions short, name ambiguous types in full.
 ## For the owner: hardware
 
+- On the Macs, in this order: phone as a scanner with a real iPhone and an Android phone (Inkvolt Print for Mac's own HTTPS page, its
+  self-signed certificate, the firewall's question); a password-protected PDF printed on a real printer from Inkvolt PDF
+  for Mac 1.13.0; a booklet and two-sided printing by hand on the M234dw; a camera page; the Wi-Fi guide with a new
+  printer; Print a PDF straight to the M234dw with no Mac queue for it (Cancel during a real job); the Mac windows by
+  eye and with VoiceOver (PLAN's "What a person must look at" and each section's list).
 - Wave 4 on paper and devices: two-sided printing by hand on the M234dw (start with `--hand-duplex`; 1, 2, 5 pages and
   2 copies of 3; each sheet's back right way up); a booklet folded, a poster joined, a card folded; an iPhone and an
   Android printing to a shared printer; Set up a new printer on a new or reset printer; a real punched sheet, an A3
