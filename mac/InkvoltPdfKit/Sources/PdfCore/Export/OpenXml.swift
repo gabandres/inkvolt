@@ -107,6 +107,15 @@ extension OpenXmlParts {
 
     static func appProperties(_ w: XmlOut) { appProperties(w, application: "Inkvolt PDF") }
 
+    /// A part's relationships, and `hyperlinks`: web addresses it links to (outside the package).
+    static func relationships(_ w: XmlOut, _ rels: [(id: String, type: String, target: String)], hyperlinks: [(id: String, uri: String)]) {
+        w.start("Relationships", [("xmlns", "http://schemas.openxmlformats.org/package/2006/relationships")])
+        for (id, type, target) in rels { w.empty("Relationship", [("Id", id), ("Type", type), ("Target", target)]) }
+        let type = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink"
+        for (id, uri) in hyperlinks { w.empty("Relationship", [("Id", id), ("Type", type), ("Target", uri), ("TargetMode", "External")]) }
+        w.end()
+    }
+
     /// Points to twentieths of a point, rounded as .NET's `Math.Round` does.
     static func twips(_ pt: Double) -> String { String(bankersInt(pt * 20)) }
 

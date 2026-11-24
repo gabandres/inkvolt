@@ -15,6 +15,8 @@ public struct ExportSpan: Equatable, Sendable {
     public var mono = false
     /// Where the run is on the page as shown, when something needs that after a page was turned (`DocLayout.analyzeForTags`).
     public var pageBox: RectD?
+    /// Where the run leads when clicked, from the page's link annotations (PowerPoint and HTML carry it); nil for none.
+    public var link: ExportLink?
 
     public init(_ text: String, _ font: String, _ size: Double, _ bold: Bool, _ italic: Bool, _ color: UInt32, _ box: RectD) {
         self.text = text
@@ -26,9 +28,10 @@ public struct ExportSpan: Equatable, Sendable {
         self.box = box
     }
 
-    /// Same look as `other` (text and position aside).
+    /// Same look and link as `other` (text and position aside): one run can hold both.
     public func sameLook(_ other: ExportSpan) -> Bool {
         font == other.font && abs(size - other.size) < 0.25 && bold == other.bold && italic == other.italic && color == other.color
+            && link == other.link
     }
 
     func with(text: String) -> ExportSpan {
@@ -43,6 +46,40 @@ public struct ExportSpan: Equatable, Sendable {
         s.box = box
         return s
     }
+}
+
+/// Where a run of text leads (the Windows app's `ExportLink`): a web or mail address (`uri`, only what `Links.isSafe`
+/// passes), or another exported page (`page`: its place among the exported pages, 0-based; -1 for an address).
+public struct ExportLink: Hashable, Sendable {
+    public let uri: String?
+    public let page: Int
+
+    /// Longest address carried over; a longer one is dropped.
+    public static let maxUri = 2048
+
+    /// Characters an address may not hold as they are (RFC 3986 neither reserves nor allows them): escaped, as .NET's
+    /// `Uri.AbsoluteUri` does.
+    private static let escaped: Set<Unicode.Scalar> = ["\"", "<", ">", "\\", "^", "`", "{", "|", "}"]
+
+    /// A link to `uri` as it must be sent (escaped: `Links.normalize`, then the characters an address can't hold); nil for
+    /// one that isn't http, https or mailto, or is too long.
+    public static func web(_ uri: String?) -> ExportLink? {
+        guard let uri, !uri.isBlank, uri.utf16.count <= maxUri else { return nil }
+        let trimmed = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard Links.isSafe(trimmed), let normalized = Links.normalize(trimmed) else { return nil }
+        var absolute = ""
+        for scalar in normalized.unicodeScalars {
+            if escaped.contains(scalar) {
+                absolute += String(format: "%%%02X", scalar.value)
+            } else {
+                absolute.unicodeScalars.append(scalar)
+            }
+        }
+        return absolute.utf16.count > maxUri ? nil : ExportLink(uri: absolute, page: -1)
+    }
+
+    /// A link to the exported page at `position`.
+    public static func toPage(_ position: Int) -> ExportLink { ExportLink(uri: nil, page: position) }
 }
 
 /// A line of text on a page (page space: points, top-left of the displayed page). Sideways: not left-to-right; `turn`

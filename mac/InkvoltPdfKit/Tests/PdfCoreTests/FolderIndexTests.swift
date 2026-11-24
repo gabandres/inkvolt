@@ -134,6 +134,119 @@ final class FolderIndexTests {
                       ("the the", "and the the end", true)])
     func Side_by_side_reads_a_phrase_as_terms(_ c: (query: String, page: String, expected: Bool)) {
         #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)) == c.expected)
+        // The quick reading of a plain-ASCII page says the same, or leaves it to the full one.
+        let quick = Self.onBytes(c.page, c.query)
+        #expect(quick == nil || quick == c.expected, "quick \(String(describing: quick))")
+        #expect(c.page.unicodeScalars.allSatisfy(\.isASCII) == (quick != nil))
+    }
+
+    private static func onBytes(_ page: String, _ query: String) -> Bool? {
+        var buffer: [UInt8] = []
+        return FolderIndex.sideBySideAscii(Array(page.utf8), IndexTerms.of(query), &buffer)
+    }
+
+    @Test func A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found() {
+        // Only a run's first 1,024 units are read as a word; its end, here the phrase's "the", isn't. A page with an accent
+        // goes the full way, a plain one the quick way: both say yes, as Find does.
+        for lead in ["café ", "cafe "] {
+            let page = lead + String(repeating: "x", count: 1500) + "the lantern glows"
+            #expect(!PageText.findIn(page, "the lantern", matchCase: false, wholeWord: false, ignoreAccents: true).isEmpty)
+            #expect(FolderIndex.sideBySide(page, IndexTerms.of("the lantern")), "\(lead)")
+            #expect(Self.onBytes(page, "the lantern") ?? true, "\(lead)")
+        }
+    }
+
+    /// A seeded generator (SplitMix64) standing in for .NET's `new Random(seed)`: the same pages on every run.
+    private struct Seeded {
+        var state: UInt64
+        mutating func next(_ bound: Int) -> Int {
+            state &+= 0x9E37_79B9_7F4A_7C15
+            var z = state
+            z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+            z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+            return Int((z ^ (z >> 31)) % UInt64(bound))
+        }
+    }
+
+    @Test func The_quick_phrase_reading_agrees_with_the_full_one() {
+        // Pages of a few words, cases and breaks, phrases of their words: every answer the same (or left to the full reading).
+        var rng = Seeded(state: 7)
+        let words = ["the", "lantern", "lanterns", "other", "a", "an", "bathe", "THE", "Lantern", "x1", "1x", "the2"]
+        let breaks = [" ", "  ", "\n", ", ", ". ", "-", "—", "-\n", "'", "\t", "(", "é "]
+        var told = 0
+        for _ in 0..<4000 {
+            var page = ""
+            for _ in 0..<(1 + rng.next(11)) { page += words[rng.next(words.count)] + breaks[rng.next(breaks.count)] }
+            var picked: [String] = []
+            for _ in 0..<(2 + rng.next(2)) { picked.append(words[rng.next(words.count)]) }
+            var query = picked.joined(separator: " ")
+            if rng.next(3) == 0 { query = String(query.dropFirst(rng.next(picked[0].count))) } // the first word's end only
+            if IndexTerms.of(query).count < 2 { continue }
+            let full = FolderIndex.sideBySide(page, IndexTerms.of(query))
+            guard let quick = Self.onBytes(page, query) else { continue }
+            told += 1
+            #expect(quick == full, "\"\(query)\" on \"\(page)\": quick \(quick), full \(full)")
+        }
+        #expect(told > 300, "only \(told) told quickly")
+        #expect(Self.onBytes("by the lan-\ntern", "the lantern") == nil) // a word broken at the line's end: Find joins it
+        #expect(Self.onBytes("by the lantern", "the " + String(repeating: "l", count: 60)) == nil) // a word that may have been cut to a term
+    }
+
+    @Test func A_big_files_pages_are_shared_among_the_threads_in_chunks() {
+        // One PDF's 256 pages in a round: a chunk for each of the threads, not one; small files a chunk each.
+        var starts: [Int] = []
+        let big: [(file: Int, page: Int)] = (0..<256).map { (0, $0) }
+        for threads in [1, 6, 10, 12] {
+            FolderIndex.chunks(big, &starts, threads)
+            #expect(starts.count - 1 == max(threads, 256 / FolderIndex.confirmChunk))
+            #expect(starts.last == 256)
+            #expect(zip(starts, starts.dropFirst()).allSatisfy { (FolderIndex.confirmChunkMin...FolderIndex.confirmChunk).contains($1 - $0) })
+        }
+        FolderIndex.chunks([(0, 0), (0, 1), (1, 0), (2, 0), (2, 1), (2, 2)], &starts, 10)
+        #expect(starts == [0, 2, 3, 6])
+        FolderIndex.chunks((0..<20).map { (0, $0) }, &starts, 10)
+        #expect(starts == [0, 4, 8, 12, 16, 20]) // 4 pages at least: a thread's work is worth handing out
+        // As many files as threads or more: a file a chunk, as long as it is no longer than confirmChunk.
+        FolderIndex.chunks((0..<12).flatMap { f in (0..<20).map { (f, $0) } }, &starts, 10)
+        #expect(starts == (0..<13).map { $0 * 20 })
+        FolderIndex.chunks([], &starts, 10)
+        #expect(starts == [0])
+    }
+
+    @Test func Pages_of_many_files_and_long_pages_read_back_in_order() throws {
+        // Pages read together by file on several threads, a page longer than the reading buffer, a file past a megabyte of
+        // text: each page's own text, in path and page order.
+        let index = try FolderIndex.open(base)
+        defer { index.dispose() }
+        let filler = (0..<12_000).map { "w\($0 % 997)" }.joined(separator: " ")
+        var rng = Seeded(state: 3)
+        // Random letters hardly compress: 40 pages of 60,000 are well past a megabyte kept.
+        let big: [String?] = (0..<40).map { p in
+            var s = [UInt8]()
+            s.reserveCapacity(60_000)
+            for i in 0..<60_000 { s.append(i % 9 == 8 ? 0x20 : UInt8(0x61 + rng.next(26))) }
+            return String(decoding: s, as: UTF8.self) + " page\(p) the lantern"
+        }
+        try commit(index) { b in
+            for f in 0..<40 {
+                add(b, String(format: "f%02d.pdf", f), (0..<(1 + f % 7)).map { p in "page \(p) of file \(f): by the lantern\(p == f % 7 ? " last" : "")" })
+            }
+            add(b, "g-long.pdf", "start " + filler + " by the lantern end")
+            add(b, "h-big.pdf", big)
+        }
+        let hits = try search(index, "the lantern")
+        #expect(hits.count == (0..<40).reduce(0) { $0 + 1 + $1 % 7 } + 1 + 40)
+        let bigLength = index.files["h-big.pdf"]?.textLength ?? 0
+        #expect(bigLength > 1 << 20, "\(bigLength)")
+        let order = hits.map { "\($0.relativePath)#\($0.page)" }
+        let sorted = hits.sorted { $0.relativePath != $1.relativePath ? $0.relativePath < $1.relativePath : $0.page < $1.page }
+        #expect(order == sorted.map { "\($0.relativePath)#\($0.page)" })
+        for h in hits where h.relativePath.hasPrefix("f") {
+            let f = Int(h.relativePath.dropFirst().prefix(2)) ?? -1
+            #expect(h.excerpt.contains("file \(f)"), "\(h.relativePath): \(h.excerpt)")
+        }
+        #expect(hits.contains { $0.relativePath == "h-big.pdf" && $0.page == 39 && $0.excerpt.contains("page39") })
+        #expect(try at(index, "lantern last").filter { $0.hasPrefix("f03") } == ["f03.pdf#4"]) // pages from 1
     }
 
     @Test(arguments: [("bye bye baby", "bye bye bye baby"), ("a a b", "x a a a b y"), ("big big big dog", "big big big big dog"),
@@ -147,16 +260,43 @@ final class FolderIndexTests {
     /// 60-unit word first, between, or last is still side by side.
     static let sixty = "pneumonoultramicroscopicsilicovolcanoconiosisandmoreletters" + "x"
 
-    @Test(arguments: [("lantern \(sixty) brass", "by the lantern \(sixty) brass here", true),
-                      ("\(sixty) brass", "by the \(sixty) brass here", true),
-                      ("\(sixty) brass", "by the pre\(sixty) brass here", true),
-                      ("lantern \(sixty)", "by the lantern \(sixty)s here", true),
-                      ("lantern \(sixty) brass", "by the lantern \(sixty) bronze here", false),
-                      ("lantern \(sixty) brass", "by the lantern pneumono brass here", false),
-                      ("\(sixty) brass", "by the pneumono brass here", false)])
+    /// Windows' `LongWords`' second: a word of 61 units ("a" and 30 U+10330) whose term ends a unit early, before a pair.
+    static let pairs: String = "a" + String(repeating: "\u{10330}", count: 30)
+
+    /// The first `units` UTF-16 units of `word` (a pair kept whole where the tests cut it) and the rest.
+    private static func units(_ word: String, _ units: Int) -> (head: String, tail: String) {
+        let all: [UInt16] = Array(word.utf16)
+        return (String(decoding: all[..<units], as: UTF16.self), String(decoding: all[units...], as: UTF16.self))
+    }
+
+    /// Windows' `A_phrase_with_a_word_longer_than_a_term_passes_side_by_side` for `pairs`: the word first, between, last,
+    /// or its end first; a page whose word differs within its first 48 units doesn't pass.
+    static let pairCases: [(query: String, page: String, expected: Bool)] = {
+        let w: String = pairs
+        let page: String = "one \(w) two three"
+        let split: (head: String, tail: String) = units(w, 9)
+        let other: String = "one \(split.head)q\(split.tail) two three"
+        let end: String = units(w, 5).tail
+        var cases: [(query: String, page: String, expected: Bool)] = []
+        for query in ["one \(w) two", "\(w) two", "one \(w)", "\(end) two"] { cases.append((query, page, true)) }
+        for query in ["one \(w) two", "\(w) two", "one \(w)"] { cases.append((query, other, false)) }
+        return cases
+    }()
+
+    static let longCases: [(query: String, page: String, expected: Bool)] = [
+        ("lantern \(sixty) brass", "by the lantern \(sixty) brass here", true),
+        ("\(sixty) brass", "by the \(sixty) brass here", true),
+        ("\(sixty) brass", "by the pre\(sixty) brass here", true),
+        ("lantern \(sixty)", "by the lantern \(sixty)s here", true),
+        ("lantern \(sixty) brass", "by the lantern \(sixty) bronze here", false),
+        ("lantern \(sixty) brass", "by the lantern pneumono brass here", false),
+        ("\(sixty) brass", "by the pneumono brass here", false)] + pairCases
+
+    @Test(arguments: longCases)
     func A_phrase_with_a_word_longer_than_a_term_is_side_by_side(_ c: (query: String, page: String, expected: Bool)) {
         #expect(Self.sixty.utf16.count == 60)
-        #expect(IndexTerms.of(c.query).contains { $0.utf16.count == IndexTerms.maxChars }, "a term cut")
+        #expect(Self.pairs.utf16.count == 61)
+        #expect(IndexTerms.of(c.query).contains { $0.utf16.count >= IndexTerms.maxChars - 1 }, "a term cut")
         let found = !PageText.findIn(c.page, c.query, matchCase: false, wholeWord: false, ignoreAccents: true).isEmpty
         #expect(found == c.expected, "Find")
         #expect(FolderIndex.sideBySide(c.page, IndexTerms.of(c.query)) == c.expected)

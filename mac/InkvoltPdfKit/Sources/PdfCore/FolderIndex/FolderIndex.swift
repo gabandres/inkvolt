@@ -836,6 +836,11 @@ public final class FolderIndex: @unchecked Sendable {
 
     /// One page's text from what `packPages` wrote.
     static func unpack(_ body: [UInt8], plainLength: Int, crc: UInt32) throws -> String {
+        String(decoding: try unpackBytes(body, plainLength: plainLength, crc: crc), as: UTF8.self)
+    }
+
+    /// One page's text from what `packPages` wrote, as UTF-8.
+    static func unpackBytes(_ body: [UInt8], plainLength: Int, crc: UInt32) throws -> [UInt8] {
         let damaged = FolderIndexDamaged(why: "A page's text doesn't read back.")
         var plain = body
         if body.count != plainLength {
@@ -852,7 +857,7 @@ public final class FolderIndex: @unchecked Sendable {
             plain = out
         }
         guard Crc32.of(plain) == crc else { throw damaged }
-        return String(decoding: plain, as: UTF8.self)
+        return plain
     }
 }
 
@@ -1122,14 +1127,18 @@ final class Cursor {
 
     init(_ file: IndexFileHandle) { self.file = file }
 
-    func read(_ offset: Int64, _ count: Int) throws -> ArraySlice<UInt8> {
+    func read(_ offset: Int64, _ count: Int) throws -> ArraySlice<UInt8> { try read(offset, count, ahead: 1 << 20) }
+
+    /// `count` bytes at `offset`; on a miss, `ahead` bytes from there at most are read (a page's text reads less ahead
+    /// than the terms do: a megabyte a page was most of a search's reading).
+    func read(_ offset: Int64, _ count: Int, ahead: Int) throws -> ArraySlice<UInt8> {
         guard count >= 0, offset >= 0 else { throw FolderIndexDamaged(why: "A block out of range.") }
         if offset >= start && offset + Int64(count) <= start + Int64(buffer.count) {
             let at = Int(offset - start)
             return buffer[at..<(at + count)]
         }
         let size = try file.size()
-        let want = Int(min(Int64(max(count, 1 << 20)), max(0, size - offset)))
+        let want = Int(min(Int64(max(count, ahead)), max(0, size - offset)))
         if want < count { throw FolderIndexDamaged(why: "The index file ends too soon.") }
         buffer = try file.read(want, at: offset)
         start = offset
@@ -1216,6 +1225,9 @@ struct VarReader {
     }
 
     var atEnd: Bool { at >= data.endIndex }
+
+    /// Bytes read so far.
+    var consumed: Int { at - data.startIndex }
 
     mutating func long() throws -> Int64 {
         var value: UInt64 = 0

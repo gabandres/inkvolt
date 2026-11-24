@@ -175,6 +175,46 @@ enum ExportTestPdf {
         return Core1TestPdf.build(objects)
     }
 
+    /// "Read our full guide / to setup and more." on two lines, "guide to setup" linked to https://example.com/: the link's
+    /// /Rect covers both lines whole; with `quads` its /QuadPoints cover only the linked words.
+    static func twoLineLink(quads: Bool) -> [UInt8] {
+        func text(_ x: Double, _ y: Double, _ s: String) -> String { "BT /F1 12 Tf \(x) \(y) Td (\(s)) Tj ET" }
+        let content = [text(72, 700, "Read our full"), text(160, 700, "guide"), text(72, 686, "to setup"), text(130, 686, "and more.")].joined(separator: "\n")
+        let quadPoints = quads ? "/QuadPoints [158 711 190 711 158 698 190 698 70 695 116 695 70 683 116 683]" : ""
+        return RedactionTestPdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> /Annots [6 0 R] >>",
+            RedactionTestPdf.stream(content),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 682 200 714] \(quadPoints) /Border [0 0 0] /A << /S /URI /URI (https://example.com/) >> >>",
+        ])
+    }
+
+    /// The address of `linked`'s web link, and as an export writes it (escaped).
+    static let linkUri = "https://example.com/guide?a=1&b=\"2\"", linkUriEscaped = "https://example.com/guide?a=1&b=%222%22"
+
+    /// Two pages. Page 1: "See the guide for details." with only "guide" linked to `linkUri`; "Next page" linked to page 2;
+    /// "Do not run this" linked to a javascript: address; "Mail us" to a mailto: one. Page 2: "Second page".
+    static func linked() -> [UInt8] {
+        func text(_ x: Double, _ y: Double, _ s: String) -> String { "BT /F1 12 Tf \(x) \(y) Td (\(s)) Tj ET" }
+        let page1 = [text(72, 700, "See the"), text(120, 700, "guide"), text(155, 700, "for details."),
+                     text(72, 650, "Next page"), text(72, 600, "Do not run this"), text(72, 550, "Mail us")].joined(separator: "\n")
+        return RedactionTestPdf.build([
+            "<< /Type /Catalog /Pages 2 0 R >>",
+            "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 7 0 R >> >> /Annots [8 0 R 9 0 R 10 0 R 11 0 R] >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 7 0 R >> >> >>",
+            RedactionTestPdf.stream(page1),
+            RedactionTestPdf.stream(text(72, 700, "Second page")),
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+            "<< /Type /Annot /Subtype /Link /Rect [118 694 152 714] /Border [0 0 0] /A << /S /URI /URI (https://example.com/guide?a=1&b=\"2\") >> >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 644 140 664] /Border [0 0 0] /Dest [4 0 R /XYZ 0 792 0] >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 594 170 614] /Border [0 0 0] /A << /S /URI /URI (javascript:alert\\(1\\)) >> >>",
+            "<< /Type /Annot /Subtype /Link /Rect [70 544 140 564] /Border [0 0 0] /A << /S /URI /URI (mailto:a@example.com) >> >>",
+        ])
+    }
+
     /// An RGB image XObject (ASCII hex, so the file stays text), optionally with a soft mask object number.
     static func image(_ w: Int, _ h: Int, sMask: Int? = nil, _ pixel: (Int, Int) -> (UInt8, UInt8, UInt8)) -> String {
         var hex = ""
@@ -293,9 +333,23 @@ struct OpenXmlPackage {
         let relsPart = (dir.isEmpty ? "" : dir + "/") + "_rels/" + (part as NSString).lastPathComponent + ".rels"
         guard parts[relsPart] != nil else { return [:] }
         var result: [String: String] = [:]
-        for r in Self.elements(try xml(relsPart), "Relationship") {
+        for r in Self.elements(try xml(relsPart), "Relationship") where Self.attr(r, "TargetMode") != "External" {
             let target = Self.attr(r, "Target") ?? ""
             result[Self.attr(r, "Id") ?? ""] = target.hasPrefix("/") ? String(target.dropFirst()) : Self.resolve(dir.isEmpty ? target : dir + "/" + target)
+        }
+        return result
+    }
+
+    /// The addresses outside the package the relationships of `part` link to (hyperlinks, TargetMode External), by id
+    /// (the Open XML SDK's `HyperlinkRelationships`).
+    func hyperlinks(of part: String) throws -> [String: String] {
+        let dir = (part as NSString).deletingLastPathComponent
+        let relsPart = (dir.isEmpty ? "" : dir + "/") + "_rels/" + (part as NSString).lastPathComponent + ".rels"
+        guard parts[relsPart] != nil else { return [:] }
+        var result: [String: String] = [:]
+        for r in Self.elements(try xml(relsPart), "Relationship") where Self.attr(r, "TargetMode") == "External" {
+            #expect(Self.attr(r, "Type") == "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink")
+            result[Self.attr(r, "Id") ?? ""] = Self.attr(r, "Target") ?? ""
         }
         return result
     }

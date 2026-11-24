@@ -34,9 +34,15 @@ extension PdfEngine {
     /// each, rendered as shown, and their labels and lines are left out of the text. Not cached.
     /// `boxesOnly`: pictures and figures say where they are, without their pixels (tagging needs no more). `shapes`: read
     /// the page's simple shapes too (`ExportShapes`); what is neither one nor text is added as a picture.
+    /// `links`: what each of the page's links becomes on the text it covers (`ExportSpan.link`; nil drops one), with its
+    /// /QuadPoints' boxes when it has them (`LinkInfo.quads`); nil reads no links. A character is linked when its middle
+    /// lies in one of the link's boxes. A link without boxes (or with more than `Links.maxQuads`) covers its area only when
+    /// that holds one line of text: an area over two lines also covers the words before the link and after it.
     /// - Throws: `CancellationError` when `cancel` fired; `PdfEngineError` when MuPDF can't read the page.
-    public func exportPage(_ page: Int, images: Bool, cancel: CancelToken? = nil, boxesOnly: Bool = false, shapes: Bool = false) throws -> ExportPage {
+    public func exportPage(_ page: Int, images: Bool, cancel: CancelToken? = nil, boxesOnly: Bool = false, shapes: Bool = false,
+                           links: ((PageLink) -> (to: ExportLink, quads: [RectD])?)? = nil) throws -> ExportPage {
         let read = try exportRead(page, images: images, boxesOnly: boxesOnly, jpegAbovePixels: Self.jpegAbovePixels, cancel: cancel)
+        let areas = try linkAreas(page, links, cancel)
         let g = read.geometry
         var pictures: [ExportImage] = []
         for img in read.images {
@@ -73,6 +79,7 @@ extension PdfEngine {
                 if let drawn, !(drawn == "\u{2212}" && glyph.text == "\u{AF}") { composed[i][k].text = drawn }
             }
         }
+        if !areas.isEmpty { Self.link(&composed, areas, turns: read.lines.map(\.turn)) }
         let verticals = rules.filter { $0.width <= 3 && $0.height > 6 }
         var lines: [ExportLine] = []
         for i in composed.indices where !composed[i].isEmpty {

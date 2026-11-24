@@ -113,6 +113,7 @@ struct CompareTest {
         await formatting()
         await scanned()
         await skippedAsAScanWasRead()
+        await scanAQuarterTurnOff()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }
@@ -170,16 +171,53 @@ struct CompareTest {
         c.close()
     }
 
-    /// A PDF whose one page is a picture (200 dpi) of `pdf`'s first page, as a scanner makes one.
-    static func scanOf(_ pdf: [UInt8]) -> [UInt8]? {
+    /// A PDF whose one page is a picture (200 dpi) of `pdf`'s first page, as a scanner makes one; `sideways`, fed a quarter
+    /// turn clockwise off.
+    static func scanOf(_ pdf: [UInt8], sideways: Bool = false) -> [UInt8]? {
         guard let engine = try? PdfEngine.open(pdf) else { return nil }
         defer { engine.close() }
         let g = engine.page(0)
-        guard let image = try? engine.render(0, scale: 200.0 / 72), let cg = PageRenderer.cgImage(image) else { return nil }
+        guard let image = try? engine.render(0, scale: 200.0 / 72), var cg = PageRenderer.cgImage(image) else { return nil }
+        if sideways {
+            guard let turned = Self.quarterTurned(cg) else { return nil }
+            cg = turned
+        }
         let rep = NSBitmapImageRep(cgImage: cg)
-        rep.size = NSSize(width: g.width, height: g.height) // 200 dpi in the PNG
+        rep.size = sideways ? NSSize(width: g.height, height: g.width) : NSSize(width: g.width, height: g.height) // 200 dpi in the PNG
         guard let png = rep.representation(using: .png, properties: [:]) else { return nil }
         return try? ImageImport.imagesToPdf([(bytes: Array(png), name: "scan.png")])
+    }
+
+    /// `image` turned a quarter turn clockwise.
+    private static func quarterTurned(_ image: CGImage) -> CGImage? {
+        let w = image.width, h = image.height
+        guard let ctx = CGContext(data: nil, width: h, height: w, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue) else { return nil }
+        // Core Graphics' y goes up: turning by −90° about the origin, then moving up by the old width, is clockwise on screen.
+        ctx.translateBy(x: 0, y: CGFloat(w))
+        ctx.rotate(by: -CGFloat.pi / 2)
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
+    }
+
+    /// Roadmap 3.3: two scans of a page, the second fed a quarter turn off: lined up before the overlay (turned 90°, the
+    /// same size), so the page doesn't look different all over.
+    private mutating func scanAQuarterTurnOff() async {
+        lines.append("== Compare: a scan a quarter turn off")
+        let page = Self.styledPdf([[("Scope of work", false)], [("The supplier delivers 12 monthly reports.", false)],
+                                   [("Each report is due on the fifth working day.", false)]])
+        guard let old = Self.scanOf(page), let new = Self.scanOf(page, sideways: true) else {
+            return check(false, "the scans couldn't be made")
+        }
+        let c = CompareWindowController.show(old: CompareSide(name: "upright-scan.pdf", data: old, password: nil),
+                                             new: CompareSide(name: "sideways-scan.pdf", data: new, password: nil))
+        await c.finished()
+        let a = c.rowsView.alignments[0]
+        let turned = a.map { abs($0.angle - 90) < 1 && abs($0.scale - 1) < 0.02 } ?? false
+        let looks = c.items.filter { $0.kind == loc("Looks different") }.count
+        let said = a.map { String(format: "%.1f, %.1f %.2f° ×%.3f", $0.dx, $0.dy, $0.angle, $0.scale) } ?? "none"
+        check(turned && looks == 0, "the sideways scan is lined up turned 90° at the same size (\(said)), nothing looks different (\(looks))")
+        c.close()
     }
 
     /// Roadmap 3.3: the changed version a scan (a picture of the page, no text): its words recognized with Vision first,

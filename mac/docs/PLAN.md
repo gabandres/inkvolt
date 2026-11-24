@@ -912,6 +912,15 @@ From the steps, besides the sections below:
 - E14a: `PageOcr.recognizer(_:options:spelling:)` is a page recognizer through `ScanText` with Recognize Text's choices,
   so the words it marks stay marked (`…SuspectWordsAsRecognizeTextDoes`, Mac only). Not checked: a real scan or Batch run
   with Vision and the Mac's dictionary.
+- E15's links (Windows' 722013bb and its reviews dfc3570d, 1445b1c0, 44e875b5, 05074119): `ExportSpan.link`, read in
+  `PdfEngine.exportPage` (`ExportLinks.swift`: a character linked when its middle is in a link's /QuadPoints' boxes, from
+  `Links.readForExport` through `ExportOptions.source`, or its area when that holds one line; 500 links a page carried,
+  64 boxes a link; a space at a link's edge left out), `ExportLink.web` (http, https and mailto through `Links.normalize`,
+  then quotes, angle brackets, backslashes, carets, backticks, braces and bars escaped as .NET's `Uri.AbsoluteUri` does; at most 2,048 characters), DocLayout's spaces, tabs and
+  joins kept outside a link, HtmlWriter's `<a href rel="noopener noreferrer">` and `#page-N`, PptxWriter's `a:hlinkClick`
+  (external hyperlink relationships, slide jumps). Ported: ExportHtmlTests' 11 link tests and ExportPptxTests' 2, with
+  Windows' names. ExportCorpusTests allows only such links in the HTML (and counts them); the corpus wasn't run (its PDFs
+  aren't on the build Mac). Not checked: a link clicked in PowerPoint for Mac or Keynote.
 - E15: census-p60 page 16's line chart is short stroked segments whose boxes are over 3 pt on the Mac, so they are kept as
   27 pictures where Windows makes them lines. Not checked: the .pptx in PowerPoint for Mac or Keynote.
 - E16: FindAllTests ported, two adapted (the Mac's `findAll` returns its pages and hands them to `onPage` where Windows'
@@ -1005,8 +1014,8 @@ From the steps, besides the sections below:
   Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
   are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
   it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
-  reflow says Recognize Text where Windows adds Scan & OCR. Swift's HtmlWriter has no links yet ("Windows ahead, to
-  port": E15's links), so the column's own links wait for it; `follow` is ported and tested. Not checked by a person: the
+  reflow says Recognize Text where Windows adds Scan & OCR. The column has the PDF's links (E15's, below), followed
+  through `follow` (`ExportLink.web`, as Windows). Not checked by a person: the
   column's look in light and dark, VoiceOver reading it, a trackpad's scrolling, a real web link opening the browser.
 - Mac additions: Prepare Form's arrow-key move (written after 0.45 s) is flushed when the document is asked to close
   (`PdfDocument.canClose`), so ⌘W saves or asks about it; HybridXref's xref stream gives up past 64 MB on both
@@ -1645,6 +1654,24 @@ its text extraction isn't Find's, and Windows' design has no counterpart: the in
   filed in overlapping pieces of 48, one every 24 units, its first 1,024 units at most, and a query's longer word looks
   up its first 23, so the end of a long run is found as Find finds it (Windows files a long run under its first 48
   only: a search for its end finds nothing there). `IndexTerms.version` 2: indexes made before are built again.
+- **Phrase reading** (Windows' bd81b98e, 13e554c7, 93f82ba4, fbd4b21d, 05074119 and 38123b6b): a search round is 256
+  pages, cut into chunks of one file's pages (`FolderIndex.chunks`: 32 at most; in a round of fewer files than threads,
+  shared among them, 4 at least) for all processors but two (12 at most; the Mac had half, 6 at most). A file's list of
+  pages is read once a round, by whichever thread asks first (`PageDirectories`), each page's place from running sums
+  (the Mac's reader summed the lengths before it for every page), and a thread reads a file's text 256 KB at a time
+  (`Cursor.read(_:_:ahead:)`; the Mac's reader read a megabyte on every miss, and its threads took a file's pages one by
+  one). A phrase is told on a plain-ASCII page's bytes (`sideBySideAscii`: the last term found with `memmem` where a word
+  starts, the words before it read backwards; nil for anything else, a "-\n" or a term that may be cut, which go to
+  `sideBySide`), and a page's run longer than 1,024 units may end in any first term. A phrase with a word longer than a
+  term (Windows' 09f2ac7a): a term of 47 units or more may be its word cut (`mayBeCut`; 48, or 47 before a surrogate
+  pair, as `sideBySideAscii` already took it), a term between matches its page word cut the same way (`cutToTerm`), and
+  a first term that may be cut matches anywhere inside its word (Knuth–Morris–Pratt over UTF-16 units; the Mac had
+  taken only 48-unit terms as cut, so a phrase with a 61-unit word cut to 47 before a pair was missed; its `LongWords`
+  case is in `A_phrase_with_a_word_longer_than_a_term_is_side_by_side`). FolderIndexTests'
+  `The_quick_phrase_reading_agrees_with_the_full_one` (a seeded SplitMix64 for .NET's `Random(7)`),
+  `Pages_of_many_files_and_long_pages_read_back_in_order`, `A_big_files_pages_are_shared_among_the_threads_in_chunks`,
+  `A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`, and `Side_by_side_reads_a_phrase_as_terms`
+  with the quick reading. Not measured on the Mac (Windows' bench has no Mac port: `index-make`, `index-run`).
 - **More bounds:** besides Windows' (512 MB a file, 50,000 pages, 32 M characters of text, the page check, 2 minutes),
   at most 100,000 PDFs a folder (the rest counted as over the limit) and 2 GB for the index file (past it nothing more is
   read until compaction makes room; said as a problem).
@@ -1673,16 +1700,15 @@ disk filling up.
 Windows' 3.3 on the Mac's E3 Compare: CompareChangesTests, CompareAlignTests and CompareContractTests ported with their
 names (camelCase), then `CompareLooks`, `CompareMoves`, `CompareScan` and `CompareAlign`.
 
-**Windows ahead, to port:** `CompareAlign` lines up a scan at another size or a quarter turn off
-(`PageAlignment.Scale`, the frames tried per quarter turn, the sizing at 2 pixels; CompareAlignTests'
-`AScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp`, `WhatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
-`AScaledAlignmentGoesThereAndBack`), and Compare reads scans with the language's dictionary. E15's exports carry links
-(`ExportSpan.Link`; ExportHtmlTests' and ExportPptxTests' link tests). Folder search's phrase reading: a file's
-pages read together from its text read once (Windows' search cursor filled a megabyte per page; check the Mac's port), and
-`SideBySideAscii` (FolderIndexTests' `The_quick_phrase_reading_agrees_with_the_full_one`,
-`Pages_of_many_files_and_long_pages_read_back_in_order`), a file's pages 32 at a time to all processors but two
-(`A_big_files_pages_are_shared_among_the_threads_in_chunks`), and a long run's end taken as any phrase head
-(`A_phrase_whose_first_word_ends_a_run_longer_than_is_read_is_still_found`). Ported with Inkvolt Print's 4.3 (Wave 4,
+Windows' scans at another size or a quarter turn off (0950dc5a) are ported: `PageAlignment.scale`, and `CompareAlign`
+tries each quarter turn whose ink box has the old one's proportions on 4-pixel cells, sizes the best at 2 pixels (±5 %,
+then ±0.6 %), then finds skew and shift in that frame as before, kept only when the ink agrees better (CompareAlignTests'
+`aScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp` with Windows' 7 cases, `whatReallyChangedStillShowsOnAScanAQuarterTurnOff`,
+`aScaledAlignmentGoesThereAndBack`; a zero scale stands for .NET's default value). `--only-compare` compares a scan with
+the same scan fed sideways.
+
+**Windows ahead, to port:** Compare reads scans with the language's dictionary (which way up, when the cleanup isn't
+sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). Ported with Inkvolt Print's 4.3 (Wave 4,
 above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
 (`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
 PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
@@ -2324,8 +2350,7 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
-- "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
-  phrase reading.
+- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary.
 - Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
   34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
   through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).

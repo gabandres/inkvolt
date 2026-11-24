@@ -53,13 +53,14 @@ final class PptxWriter {
             ("/ppt/theme/theme1.xml", "application/vnd.openxmlformats-officedocument.theme+xml"),
         ]
         for (i, page) in slides.enumerated() {
-            let slide = SlideXml(page, width, height, lang)
+            let slide = SlideXml(page, width, height, lang, slides.count)
             try entry("ppt/slides/slide\(i + 1).xml", slide.write)
             var seen = Set<String>()
             let pictures = slide.pictures.filter { seen.insert($0).inserted }
+            let jumps: [(id: String, type: String, target: String)] = slide.jumps.map { ($0.id, Self.relBase + "slide", "slide\($0.slide + 1).xml") }
             try entry("ppt/slides/_rels/slide\(i + 1).xml.rels") { w in
                 OpenXmlParts.relationships(w, [("rIdLayout", Self.relBase + "slideLayout", "../slideLayouts/slideLayout\(slide.hasTitle ? 1 : 2).xml")]
-                    + pictures.map { ($0, Self.relBase + "image", self.targets[$0] ?? "") })
+                    + pictures.map { ($0, Self.relBase + "image", self.targets[$0] ?? "") } + jumps, hyperlinks: slide.hyperlinks)
             }
             parts.append(("/ppt/slides/slide\(i + 1).xml", Self.contentBase + "slide+xml"))
         }
@@ -152,13 +153,20 @@ final class PptxWriter {
         let scale: Double
         let title: DocParagraph?
         private var titleUsed = false
+        let slideCount: Int
         private var id = 1
+        private var links: [ExportLink: String] = [:]
         private(set) var pictures: [String] = []
+        /// The web and mail addresses the slide's text links to, by relationship id.
+        private(set) var hyperlinks: [(id: String, uri: String)] = []
+        /// The slides its text jumps to (0-based), by relationship id.
+        private(set) var jumps: [(id: String, slide: Int)] = []
 
         var hasTitle: Bool { title != nil }
 
-        init(_ page: SlidePage, _ slideWidth: Double, _ slideHeight: Double, _ lang: String?) {
+        init(_ page: SlidePage, _ slideWidth: Double, _ slideHeight: Double, _ lang: String?, _ slideCount: Int) {
             self.page = page
+            self.slideCount = slideCount
             self.slideWidth = slideWidth
             self.slideHeight = slideHeight
             self.lang = lang
@@ -489,7 +497,30 @@ final class PptxWriter {
                     w.empty(kind, [("typeface", font), ("pitchFamily", s.mono ? "49" : s.serif ? "18" : "34")])
                 }
             }
+            if let id = linkId(s.link) {
+                var click: [(String, String)] = [("r:id", id)]
+                if s.link?.uri == nil { click.append(("action", "ppaction://hlinksldjump")) }
+                w.empty("a:hlinkClick", click)
+            }
             w.end()
+        }
+
+        /// The relationship id of what a run links to, made on first use; nil for none, an address that isn't http, https
+        /// or mailto (`ExportLink.web`, checked again here) or a slide that isn't there.
+        private func linkId(_ link: ExportLink?) -> String? {
+            guard let link else { return nil }
+            if let known = links[link] { return known }
+            let id = "rIdLink\(links.count + 1)"
+            if let uri = link.uri {
+                guard let safe = ExportLink.web(uri)?.uri else { return nil }
+                hyperlinks.append((id, safe))
+            } else if link.page >= 0 && link.page < slideCount {
+                jumps.append((id, link.page))
+            } else {
+                return nil
+            }
+            links[link] = id
+            return id
         }
 
         private func hundredths(_ size: Double) -> String { String(min(max(bankersInt(size * scale * 100), 100), 400_000)) }

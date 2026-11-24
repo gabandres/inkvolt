@@ -4,8 +4,9 @@ import PrintCore
 /// Writes one self-contained HTML5 file from laid-out pages (the Windows app's `HtmlWriter`): real headings (never
 /// skipping a level), paragraphs, lists, tables and pictures embedded as data, in reading order, with nothing that fixes
 /// the page's width, so it reflows. A running header and footer appear once. Everything from the PDF (text, alt text, the
-/// title) is escaped, and the file has no script, link or request of any kind; its Content-Security-Policy says so as
-/// well, in case a browser ever disagrees.
+/// title) is escaped, and the file has no script or request of any kind; its Content-Security-Policy says so as well, in
+/// case a browser ever disagrees. The PDF's links stay links the reader clicks: to an http, https or mailto address, or to
+/// an exported page ("#page-3").
 enum HtmlWriter {
     private static let style =
         "body{margin:0 auto;max-width:48em;padding:1em;font-family:system-ui,sans-serif;line-height:1.5;overflow-wrap:break-word}"
@@ -244,9 +245,11 @@ enum HtmlWriter {
         return "<img src=\"data:\(type);base64,\(Data(image.data).base64EncodedString())\" alt=\"\(attr(image.alt ?? ""))\" width=\"\(px(box.width))\" height=\"\(px(box.height))\">"
     }
 
-    /// Runs as text with what they stress: strong, em and code. Runs that look alike (or are only space) share the tags.
+    /// Runs as text with what they stress: strong, em and code, inside the link they are (outermost). Runs that look alike
+    /// (or are only space) share the tags.
     private static func inline(_ runs: [ExportSpan], bold: Bool = true) -> String {
         var sb = ""
+        var link: ExportLink?    // the link open: its <a> is written
         var open: [String] = [] // outermost first, always in the order strong, em, code
         func set(_ nb: Bool, _ ni: Bool, _ nm: Bool) {
             // What stays open is the start both have in common; the rest closes inside out, so tags always nest.
@@ -260,15 +263,36 @@ enum HtmlWriter {
         for run in runs {
             let t = text(run.text)
             if t.isEmpty { continue }
-            if run.text.isBlank {
-                sb += t
+            let to = anchor(run.link) == nil ? nil : run.link
+            let space = run.text.isBlank
+            // Space with another link than the one open (none, mostly) closes it first: a link ends on its last word.
+            if to != link && (!space || link != nil) {
+                set(false, false, false)
+                if link != nil { sb += "</a>" }
+                link = space ? nil : to
+                if let opening = anchor(link) { sb += opening }
+            }
+            if space {
+                sb += t // in the stress around it: runs that look alike share the tags
                 continue
             }
             set(bold && run.bold, run.italic, run.mono)
             sb += t
         }
         set(false, false, false)
+        if link != nil { sb += "</a>" }
         return sb
+    }
+
+    /// A link's opening tag: an address the PDF gave (only http, https or mailto, see `ExportLink.web`; checked again
+    /// here, since this is the one thing a reader clicks) or the exported page it jumps to.
+    private static func anchor(_ link: ExportLink?) -> String? {
+        guard let link else { return nil }
+        if let uri = link.uri {
+            guard let safe = ExportLink.web(uri)?.uri else { return nil }
+            return "<a href=\"\(attr(safe))\" rel=\"noopener noreferrer\">"
+        }
+        return link.page >= 0 && link.page < Int.max ? "<a href=\"#page-\(link.page + 1)\">" : nil
     }
 
     /// Text for element content: cleaned and escaped; a line break stays one and a tab becomes a space.

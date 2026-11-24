@@ -118,10 +118,17 @@ struct ExportCorpusTests {
             try Data(html.bytes).write(to: URL(fileURLWithPath: "\(out)/\(name).html"))
             let deckProblems = try OpenXmlPackage(pptx.bytes).validate()
             let page = String(decoding: html.bytes, as: UTF8.self)
-            let active = try NSRegularExpression(pattern: #"<(script|iframe|object|embed|link|base|form|svg|math|video|audio|source|a)|\son\w+\s*=|\s(href|srcset)\s*=|\ssrc="(?!data:image/(png|jpeg);base64,)"#,
-                                                 options: .caseInsensitive).numberOfMatches(in: page, range: NSRange(page.startIndex..., in: page))
+            let whole = NSRange(page.startIndex..., in: page)
+            var active = try NSRegularExpression(pattern: #"<(script|iframe|object|embed|link|base|form|svg|math|video|audio|source)|\son\w+\s*=|\ssrcset\s*=|\ssrc="(?!data:image/(png|jpeg);base64,)"#,
+                                                 options: .caseInsensitive).numberOfMatches(in: page, range: whole)
+            // A link only as <a href> to an http, https or mailto address (with rel="noopener noreferrer") or a #page-N anchor.
+            let anchors = try NSRegularExpression(pattern: #"<a\b[^>]*>"#, options: .caseInsensitive).matches(in: page, range: whole)
+                .compactMap { Range($0.range, in: page).map { String(page[$0]) } }
+            let allowed = try NSRegularExpression(pattern: #"^<a href="((https?://|mailto:)[^"<>\s]*" rel="noopener noreferrer"|#page-[0-9]+")>$"#)
+            active += anchors.filter { allowed.firstMatch(in: $0, range: NSRange($0.startIndex..., in: $0)) == nil }.count
+            active += max(0, try NSRegularExpression(pattern: #"\shref\s*="#, options: .caseInsensitive).numberOfMatches(in: page, range: whole) - anchors.count)
             let mineDeck = try deck(pptx.bytes), mineBlocks = try blocks(page)
-            line += " | pptx \(deckProblems.isEmpty ? "valid" : "INVALID") slides \(mineDeck.slides) | html active \(active) blocks \(mineBlocks.count)"
+            line += " | pptx \(deckProblems.isEmpty ? "valid" : "INVALID") slides \(mineDeck.slides) | html active \(active) links \(anchors.count) blocks \(mineBlocks.count)"
             ok = ok && deckProblems.isEmpty && active == 0 && mineDeck.slides == engine.pageCount
             let windowsDeck = FileManager.default.contents(atPath: "\(Self.folder)/windows/\(name).pptx").map(Array.init)
             let windowsPage = FileManager.default.contents(atPath: "\(Self.folder)/windows/\(name).html").map { String(decoding: $0, as: UTF8.self) }

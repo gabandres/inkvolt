@@ -57,6 +57,82 @@ struct CompareAlignTests {
         #expect(diff.regions.allSatisfy { min($0.width, $0.height) <= 2 }, "left over \(diff.regions), \(a)")
     }
 
+    /// The page scanned `quarter` quarter turns clockwise off, at `size` times its size (on a page that much larger), a
+    /// little crooked by `angle` and off by (`dx`, `dy`) pixels; and where its points really went.
+    private static func rescanned(_ quarter: Int, _ size: Double, _ angle: Double = 0, _ dx: Double = 0, _ dy: Double = 0,
+                                  extra: ((Double, Double) -> Bool)? = nil) -> (image: RenderedImage, truth: PageAlignment) {
+        let sw = Int((Double(w) * size).rounded(.toNearestOrEven)), sh = Int((Double(h) * size).rounded(.toNearestOrEven))
+        let nw = quarter % 2 == 0 ? sw : sh, nh = quarter % 2 == 0 ? sh : sw
+        let cx = Double(w) / 2 / scale, cy = Double(h) / 2 / scale
+        let tx: Double = Double(nw) / 2 / scale - cx + dx / scale
+        let ty: Double = Double(nh) / 2 / scale - cy + dy / scale
+        let truth = PageAlignment(tx, ty, Double(quarter) * 90 + angle, cx, cy, size)
+        var pixels = [UInt8](repeating: 0, count: nw * nh * 3)
+        for y in 0..<nh {
+            for x in 0..<nw {
+                let o = truth.toOld((Double(x) + 0.5) / scale, (Double(y) + 0.5) / scale)
+                let sx = o.x * scale, sy = o.y * scale
+                let v: UInt8 = inked(sx, sy) || extra?(sx, sy) == true ? 30 : 245
+                let i = (y * nw + x) * 3
+                pixels[i] = v
+                pixels[i + 1] = v
+                pixels[i + 2] = v
+            }
+        }
+        return (RenderedImage(nw, nh, pixels), truth)
+    }
+
+    static let rescans: [(Int, Double, Double, Double, Double)] = [
+        (1, 1.0, 0, 0, 0), (2, 1.0, 0.8, 9, -6), (3, 1.0, -1.4, 0, 12), (0, 0.8, 0, 0, 0),
+        (0, 1.3, 1.1, -10, 0), (3, 0.85, 0, 0, 0), (1, 1.2, -2, 7, 7),
+    ]
+
+    @Test(arguments: rescans)
+    func aScanAtAnotherSizeOrAQuarterTurnOffIsLinedUp(_ quarter: Int, _ size: Double, _ angle: Double, _ dx: Double, _ dy: Double) throws {
+        let old = Self.scan()
+        let (changed, truth) = Self.rescanned(quarter, size, angle, dx, dy)
+
+        let a = try CompareAlign.find(old, changed, Self.scale)
+        #expect(abs(a.angle - truth.angle) <= 0.3, "\(a)")
+        #expect(abs(a.scale - size) <= 0.015, "\(a)")
+        // Every corner of the text lands where it really went, to a point or two.
+        let corners: [(Double, Double)] = [(90, 90), (760, 90), (90, 1010), (760, 1010)]
+        for (x, y) in corners {
+            let found = a.toNew(x / Self.scale, y / Self.scale)
+            let was = truth.toNew(x / Self.scale, y / Self.scale)
+            #expect(abs(found.x - was.x) < 2 && abs(found.y - was.y) < 2, "(\(x), \(y)): found \(found), was \(was); \(a)")
+        }
+        let diff = try Self.overlay(old, try Self.aligned(changed, a))
+        #expect(diff.changedShare < 0.005, "left over \(diff.changedShare), \(a)")
+    }
+
+    @Test func whatReallyChangedStillShowsOnAScanAQuarterTurnOff() throws {
+        func stamp(_ x: Double, _ y: Double) -> Bool { x > 500 && x < 580 && y > 1030 && y < 1070 }
+        let (changed, _) = Self.rescanned(1, 0.9, 0.6, 5, -3, extra: stamp)
+        let a = try CompareAlign.find(Self.scan(), changed, Self.scale)
+        let diff = try Self.overlay(Self.scan(), try Self.aligned(changed, a))
+        let large = diff.regions.filter { $0.width * $0.height > 100 }
+        #expect(large.count == 1, "\(diff.regions), \(a)")
+        let region = try #require(large.first)
+        #expect((500...580).contains(region.centerX))
+        #expect((1030...1070).contains(region.centerY))
+    }
+
+    @Test func aScaledAlignmentGoesThereAndBack() {
+        let a = PageAlignment(12, -7, 92.5, 300, 400, 0.8)
+        let there = a.toNew(120, 640)
+        let back = a.toOld(there.x, there.y)
+        #expect(abs(back.x - 120) < 1e-6)
+        #expect(abs(back.y - 640) < 1e-6)
+        #expect(!a.isNone)
+        var larger = PageAlignment.none
+        larger.scale = 1.5
+        #expect(!larger.isNone)
+        // A zero scale (.NET's default value) moves nothing.
+        let zero = PageAlignment(0, 0, 0, 0, 0, 0).toNew(5, 6)
+        #expect(zero.x == 5 && zero.y == 6)
+    }
+
     @Test func whatReallyChangedStillShowsAfterAligning() throws {
         func stamp(_ x: Double, _ y: Double) -> Bool { x > 500 && x < 580 && y > 1030 && y < 1070 }
         let old = Self.scan(), changed = Self.scan(1.2, 10, -6, extra: stamp)

@@ -35,7 +35,8 @@ public struct ExportOptions: Sendable {
     public var recognize: Recognizer?
     /// Called as each page is read or recognized, and once before the file is written (on the exporting thread).
     public var progress: (@Sendable (ExportProgress) -> Void)?
-    /// The PDF itself, for PowerPoint and HTML to read its language and its figures' alternate text; nil goes without them.
+    /// The PDF itself, for PowerPoint and HTML to read its language, its figures' alternate text and its links' /QuadPoints;
+    /// nil goes without them (a link over two lines is then left out).
     public var source: [UInt8]?
     /// The password that opens `source`.
     public var sourcePassword: String?
@@ -106,6 +107,10 @@ public enum DocumentExport {
         let tags = format == .powerPoint || format == .html ? ExportTags.read(options.source, options.sourcePassword) : .none
         let run = Run(engine, pages, images: format == .word || format == .powerPoint || format == .html, shapes: format == .powerPoint, tags: tags,
                       options, cancel)
+        if format == .powerPoint || format == .html {
+            run.links = true
+            run.quads = linkQuads(options.source, options.sourcePassword)
+        }
         var tables = 0
         let saved: Bool
         switch format {
@@ -177,6 +182,13 @@ public enum DocumentExport {
         }
     }
 
+    /// The PDF's links that have /QuadPoints, by page; none when there are no bytes or they don't read (the links then go
+    /// by their areas).
+    private static func linkQuads(_ source: [UInt8]?, _ password: String?) -> [Int: [LinkInfo]] {
+        guard let source, let read = try? Links.readForExport(source, password) else { return [:] } // unreadable: as without the bytes
+        return Dictionary(grouping: read.filter { !$0.quads.isEmpty }, by: \.pageIndex)
+    }
+
     /// Reads the pages one at a time (Word stores each page's pictures as it arrives), counting as it goes.
     private final class Run {
         let engine: PdfEngine
@@ -188,6 +200,17 @@ public enum DocumentExport {
         let cancel: CancelToken?
         var recognized = 0, noText = 0, noTextWithPictures = 0, withShapes = 0, suspectWords = 0
         var unreadable: [ExportProblem] = [], recognitionFailed: [ExportProblem] = []
+        /// Carry the pages' links onto their text: web and mail addresses, and jumps to a page that is exported too (to its
+        /// place among them; a jump to a page left out is dropped).
+        var links = false
+        /// The links with /QuadPoints, by page, from the PDF's own bytes (`ExportOptions.source`): MuPDF gives a link's
+        /// area only, which for a link over two lines also covers the words before and after it.
+        var quads: [Int: [LinkInfo]] = [:]
+        private lazy var position: [Int: Int] = {
+            var position: [Int: Int] = [:]
+            for (i, p) in pages.enumerated() where position[p] == nil { position[p] = i }
+            return position
+        }()
         private var i = 0
 
         init(_ engine: PdfEngine, _ pages: [Int], images: Bool, shapes: Bool = false, tags: ExportTags = .none, _ options: ExportOptions,
@@ -199,6 +222,27 @@ public enum DocumentExport {
             self.tags = tags
             self.options = options
             self.cancel = cancel
+        }
+
+        /// What each link of page `p` becomes, with its /QuadPoints' boxes; nil when links aren't carried.
+        private func linksOn(_ p: Int) -> ((PageLink) -> (to: ExportLink, quads: [RectD])?)? {
+            guard links else { return nil }
+            let position = self.position, onPage = quads[p] ?? []
+            return { l in
+                let to: ExportLink?
+                if let uri = l.uri {
+                    to = ExportLink.web(uri)
+                } else {
+                    to = position[l.pageIndex].map(ExportLink.toPage)
+                }
+                guard let to else { return nil }
+                // The same annotation as MuPDF's: on this page, where it is to a point.
+                let a = l.area
+                let info = onPage.first { q in
+                    abs(q.rect.x - a.x) < 1 && abs(q.rect.y - a.y) < 1 && abs(q.rect.right - a.right) < 1 && abs(q.rect.bottom - a.bottom) < 1
+                }
+                return (to, info?.quads ?? [])
+            }
         }
 
         /// The next page (its number 1-based), or nil after the last (and the writing stage reported).
@@ -216,7 +260,7 @@ public enum DocumentExport {
             var page: ExportPage
             var readable = true
             do {
-                page = tags.onPictures(try engine.exportPage(p, images: images, cancel: cancel, shapes: shapes), p)
+                page = tags.onPictures(try engine.exportPage(p, images: images, cancel: cancel, shapes: shapes, links: linksOn(p)), p)
             } catch let error as PdfEngineError {
                 // A damaged page: export the rest (it stays empty, and the report says so).
                 unreadable.append(ExportProblem(p, error.message))

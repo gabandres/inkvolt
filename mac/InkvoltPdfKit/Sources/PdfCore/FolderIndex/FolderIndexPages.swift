@@ -72,7 +72,7 @@ extension FolderIndex {
     public func pageTexts(_ pages: [(relativePath: String, page: Int)], cancel: CancelToken? = nil) throws -> [String] {
         let state = try acquire()
         defer { state.store.release() }
-        let reader = PageReader(state.store.file)
+        let reader = PageReader(state.store.file, PageDirectories())
         var texts: [String] = []
         texts.reserveCapacity(pages.count)
         for (path, page) in pages {
