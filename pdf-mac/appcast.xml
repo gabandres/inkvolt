@@ -6,6 +6,30 @@
     <description>Inkvolt PDF for macOS updates</description>
     <language>en</language>
     <item>
+      <title>Inkvolt PDF 1.13.0</title>
+      <pubDate>Tue, 24 Nov 2026 00:50:03 GMT</pubDate>
+      <sparkle:version>1.13.0</sparkle:version>
+      <sparkle:shortVersionString>1.13.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>15.0</sparkle:minimumSystemVersion>
+      <description sparkle:format="markdown">The fix for blank pages, and a big release of new tools.
+
+- Fixed: a PDF opened with its password showed every page blank white in Inkvolt PDF for Mac 1.12.1 and earlier (its text could still be searched and copied). Its pages now show.
+- AI tools that use your own AI assistant, each showing what is sent before it goes: Edit by Asking, Summary to Audio, Ask Across Folders and search by meaning (Inkvolt Pro), Suggest Redactions (Inkvolt Pro), and saving an AI answer as a Word document, a PDF or a note.
+- Pages: Replace Pages, Resize Pages, Interleave Pages, Remove Blank Pages, Split at Blank Pages, Page Labels and Bookmarks from Headings.
+- Editing and forms: turn pictures and text to any angle, rulers, guides and a grid, calculated form fields, several fields arranged at once, Find and Replace, spell check where you type, proofreading marks and Mark All Matches.
+- Reading and windows: Reflow (⌘3), two documents side by side in their own windows, Copy Text from Area and Copy Area as Table, links from web and email addresses, and smaller black-and-white scans.
+- Help › What's New lists every change.</description>
+      <description sparkle:format="markdown" xml:lang="es">La corrección de las páginas en blanco y muchas herramientas nuevas.
+
+- Corregido: un PDF abierto con su contraseña mostraba todas las páginas en blanco en Inkvolt PDF para Mac 1.12.1 y anteriores (su texto se podía buscar y copiar). Ahora sus páginas se ven.
+- Herramientas de IA que usan tu propio asistente de IA y muestran lo que se envía antes de enviarlo: Editar pidiéndolo, Resumen en audio, Preguntar en carpetas y la búsqueda por significado (Inkvolt Pro), Sugerir qué eliminar (Inkvolt Pro), y guardar una respuesta de IA como documento de Word, PDF o nota.
+- Páginas: Reemplazar páginas, Cambiar el tamaño de las páginas, Intercalar páginas, Quitar páginas en blanco, Dividir en las páginas en blanco, Etiquetas de página y Marcadores a partir de los títulos.
+- Edición y formularios: girar imágenes y texto a cualquier ángulo, reglas, guías y cuadrícula, campos de formulario calculados, varios campos ordenados a la vez, Buscar y reemplazar, revisión ortográfica mientras escribes, marcas de corrección y Marcar todas las coincidencias.
+- Lectura y ventanas: Redistribuir (⌘3), dos documentos lado a lado en sus propias ventanas, Copiar texto de un área y Copiar área como tabla, vínculos a partir de las direcciones web y de correo, y escaneos en blanco y negro más pequeños.
+- Ayuda › Novedades de Inkvolt PDF enumera cada cambio.</description>
+      <enclosure url="https://github.com/gabandres/inkvolt/releases/download/pdf-mac-v1.13.0/Inkvolt-PDF-1.13.0.dmg" length="41748931" type="application/octet-stream" sparkle:edSignature="dqoTQDSj1WW6BLUC60SQkSRO1imYy4u0gqbhMwhlMUNMm6pulBb087UUbfI0uXldOJgiWj4fi6EE03Lpoy39AQ==" />
+    </item>
+    <item>
       <title>Inkvolt PDF 1.12.1</title>
       <pubDate>Thu, 12 Nov 2026 13:32:44 GMT</pubDate>
       <sparkle:version>1.12.1</sparkle:version>
