@@ -447,16 +447,21 @@ final class AiSocketTransport: AiTransport {
         try await write(head(request) + (request.body ?? []), connection, cancel)
         var reader = AiHttpReader()
         var parsed: AiHttpReader.Head?
+        var reset: AiNetError?
         while parsed == nil {
-            let (bytes, ended) = try await receive(connection, cancel)
-            parsed = try reader.head(bytes)
-            if parsed == nil && ended { throw AiNetError.closedEarly }
+            let got = try await receive(connection, cancel)
+            parsed = try reader.head(got.bytes)
+            reset = got.reset
+            if parsed == nil && got.ended { throw got.reset ?? AiNetError.closedEarly }
         }
         let body = AiByteQueue(onClose: { connection.cancel() })
         let first = try reader.body([])
         body.yield(first)
         if reader.bodyDone {
             body.finish()
+        } else if let reset {
+            body.finish(reset) // reset before the body was whole
+            connection.cancel()
         } else {
             Self.pump(connection, reader, body)
         }
@@ -489,15 +494,30 @@ final class AiSocketTransport: AiTransport {
         }
     }
 
-    private func receive(_ connection: NWConnection, _ cancel: CancelToken) async throws -> (bytes: [UInt8], ended: Bool) {
-        try await withCheckedThrowingContinuation { (c: CheckedContinuation<(bytes: [UInt8], ended: Bool), Error>) in
+    /// What one read gave. `reset`: the connection was reset after these bytes, the last it gives; they still count, so an
+    /// answer they complete is read (a server that closes with our bytes unread resets, and so does one whose side of the
+    /// connection the system dropped while this Mac was too busy to read: CI's runner, 11 minutes on, lost whole answers).
+    struct Received {
+        let bytes: [UInt8]
+        let ended: Bool
+        let reset: AiNetError?
+    }
+
+    private func receive(_ connection: NWConnection, _ cancel: CancelToken) async throws -> Received {
+        try await withCheckedThrowingContinuation { (c: CheckedContinuation<Received, Error>) in
             connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
+                let bytes: [UInt8] = data.map { [UInt8]($0) } ?? []
                 if cancel.isCancelled {
                     c.resume(throwing: CancellationError())
                 } else if let error {
-                    c.resume(throwing: Self.meaning(error))
+                    let meant = Self.meaning(error)
+                    if meant == .closedEarly && !bytes.isEmpty {
+                        c.resume(returning: Received(bytes: bytes, ended: true, reset: meant))
+                    } else {
+                        c.resume(throwing: meant)
+                    }
                 } else {
-                    c.resume(returning: (data.map { [UInt8]($0) } ?? [], complete))
+                    c.resume(returning: Received(bytes: bytes, ended: complete, reset: nil))
                 }
             }
         }
@@ -508,8 +528,9 @@ final class AiSocketTransport: AiTransport {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { data, _, complete, error in
             var reader = reader
             do {
-                if let error { throw Self.meaning(error) }
+                // Bytes that came with a reset still count: the body may be whole with them.
                 if let data, !data.isEmpty { body.yield(try reader.body([UInt8](data))) }
+                if let error, !reader.bodyDone { throw Self.meaning(error) }
                 if complete { try reader.connectionEnded() }
                 if reader.bodyDone || complete {
                     body.finish()
