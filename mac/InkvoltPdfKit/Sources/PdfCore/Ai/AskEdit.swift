@@ -50,6 +50,11 @@ public struct AskEditPlan: Sendable {
     public let steps: [AskEditStep]
     public let refused: [String]
     public let said: String?
+
+    /// A plan as `parse` makes it (and the accessibility audit, its Steps Proposed sheet without a model).
+    public init(steps: [AskEditStep], refused: [String], said: String?) {
+        (self.steps, self.refused, self.said) = (steps, refused, said)
+    }
 }
 
 /// The pages the steps run so far deleted (0-based, of the document as it was asked about), each once: kept in order, so

@@ -1884,6 +1884,23 @@ drawn in bands, one a core. The bench's numbers: `mac/tools/bench/RESULTS.md`.
 
 Built and tested over SSH; nobody saw these on a screen. Each needs a person at a Mac:
 
+- The accessibility audit (2026-11-24, `sh mac/tools/ax-audit.sh [pdf|print|both]` on the build Mac; PrintCore `AxAudit`,
+  `AxAuditTests`; PrintMac `AxWalk`): Inkvolt PDF's `--ax-audit` walks the windows and every dialog of `--ux-shots`
+  (Wave 4's Replace Pages, Remove and Split at Blank Pages, Bookmarks from Headings, Grid Spacing, Scan the Backs, Ask
+  Across Folders, Search by Meaning, Edit by Asking and its Steps Proposed, Summary to Audio, the rulers) and Inkvolt Print's
+  `--report … --demo --ax-audit` its main window and Wave 4's (print log, camera, phone, Wi-Fi setup, Recent Scans, Join,
+  Print Photos, the sharing, turned-stack, hand-duplex and preset-password alerts), in English and Spanish: names,
+  pictures, values, raw keys, English in Spanish, controls VoiceOver can't reach, titles, Tab's order (as the Mac's
+  keyboard setting is: with Full Keyboard Access off, fields and lists only). Inkvolt PDF's first runs: 61 windows each
+  language, fixed the start page's icon and the blank pages' pictures (cells reported though the views were left out),
+  the progress sample's English. Not yet run: Inkvolt Print's audit (the Mac was in use). Open from the PDF runs, for a
+  person with VoiceOver: one toolbar pop-up without a name (an `NSMenuToolbarItem`'s, AppKit's own), Tab never reaching
+  Bookmarks from Headings' preview and Redact by Pattern's two fields, Tab moving up the window in Document Properties,
+  Header & Footer, Watermark, Crop, Page Labels, Split and Batch (some may be the start of the loop, which the walk now
+  counts). Not checkable by a machine: whether names read well aloud, VoiceOver's own order inside SwiftUI, the
+  announcements as things change, popovers (Insert Text, Turn to Angle), Calculation Order's sheet (needs a form with two
+  calculated fields).
+
 - Saved signatures: the Signature menu's pictures beside each saved signature (light and dark mode), the disabled Draw
   and Type Signature with their tooltip when three are saved, Delete a Saved Signature's question, Tools › Place Saved
   Signature, Sign Digitally's Image list; quitting and opening the app again keeps them.

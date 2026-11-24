@@ -13,11 +13,20 @@ extension DocumentWindowController {
         Task { await askReplace(chosen, window) }
     }
 
+    /// The accessibility audit's other PDF (`UxShots`), chosen without the open panel, which is the system's own.
+    static var testReplaceSource: URL?
+
     private func askReplace(_ chosen: [Int], _ window: NSWindow) async {
-        let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.pdf]
-        panel.message = loc("Choose the PDF with the new pages")
-        guard await panel.beginSheetModal(for: window) == .OK, let url = panel.url, let source = loadSource([url]) else { return }
+        var picked = Self.testReplaceSource
+        Self.testReplaceSource = nil
+        if picked == nil {
+            let panel = NSOpenPanel()
+            panel.allowedContentTypes = [.pdf]
+            panel.message = loc("Choose the PDF with the new pages")
+            guard await panel.beginSheetModal(for: window) == .OK else { return }
+            picked = panel.url
+        }
+        guard let url = picked, let source = loadSource([url]) else { return }
         guard let srcEngine = try? PdfEngine.open(source.data, password: source.password) else {
             return pdf.showError(loc("Those pages couldn't be read."), nil)
         }

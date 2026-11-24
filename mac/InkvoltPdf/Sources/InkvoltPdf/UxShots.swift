@@ -1,5 +1,7 @@
 import AppKit
 import PdfCore
+import PrintCore
+import PrintMac
 
 /// The UX review's dev step (`mac/docs/UX-REVIEW.md`): with `--self-test <report> --ux-shots <dir> --synthetic --quit`,
 /// the app's own windows drawn to PNG files without a person at the screen (AppKit's cacheDisplay, the title bar and
@@ -13,6 +15,8 @@ struct UxShots {
     var failures = 0
     var shots = 0
     var findings = 0
+    /// Windows, sheets and alerts audited.
+    var audited = 0
 
     init(controller: DocumentWindowController) { self.controller = controller }
 
@@ -26,6 +30,8 @@ struct UxShots {
 
     /// The whole window (title bar and toolbar too, where AppKit draws them in the frame view) as a PNG.
     mutating func shoot(_ window: NSWindow?, _ name: String) {
+        // `--ax-audit` without `--snapshots`: the audit only, nothing drawn.
+        if Report.axAudit && Report.snapshots == nil { return }
         guard let dir = Report.snapshots, let window, let view = window.contentView?.superview ?? window.contentView else {
             lines.append("FAIL \(name): no window"); failures += 1; return
         }
@@ -62,36 +68,18 @@ struct UxShots {
         return out
     }
 
-    /// Every control under `window` that a person acts on and VoiceOver can't name.
+    /// The accessibility audit of `window` (PrintMac's `AxWalk`, shared with Inkvolt Print): names, pictures, values,
+    /// raw keys and English in Spanish, controls VoiceOver can't reach, the title and the Tab order. Its lines go into
+    /// the report; each finding counts.
     mutating func audit(_ window: NSWindow?, _ name: String) {
-        guard let root = window?.contentView?.superview ?? window?.contentView else { return }
-        var seen = 0
-        var problems: [String] = []
-        func walk(_ element: Any, _ depth: Int) {
-            guard depth < 40, let e = element as? NSAccessibilityProtocol else { return }
-            if let v = element as? NSView, v.isHiddenOrHasHiddenAncestor { return }
-            let role = e.accessibilityRole()?.rawValue ?? ""
-            if e.isAccessibilityElement() && AxAudit.actionRoles.contains(role) {
-                seen += 1
-                let placeholder = (element as? NSTextField)?.placeholderString
-                let kind0 = String(describing: type(of: element)) == "NSButtonCell" && (element as? NSCell)?.controlView.map { String(describing: type(of: $0)) } == "NSTabBarNewTabButton"
-                    ? "_NSThemeNewTab" : String(describing: type(of: element))
-                // The window's own buttons and scroller parts: AppKit names them for VoiceOver outside this process's view.
-                if kind0.hasPrefix("_NSTheme") || kind0 == "NSAccessibilityScrollerPart" || kind0 == "NSToolbarView" { seen -= 1 }
-                else if let why = AxAudit.problem(role: role, label: e.accessibilityLabel(), title: e.accessibilityTitle(), placeholder: placeholder) {
-                    let owner = (element as? NSCell)?.controlView.map { " in \(type(of: $0)) under \(type(of: $0.superview ?? $0))" } ?? ""
-                    let kind = String(describing: type(of: element)) + owner
-                    let tip = (element as? NSView)?.toolTip ?? (element as? NSCell)?.controlView?.toolTip ?? e.accessibilityHelp()
-                    let help = tip.map { " tip \"\($0.prefix(40))\"" } ?? ""
-                    problems.append("\(role) \(kind)\(help): \(why)")
-                }
-            }
-            for child in e.accessibilityChildren() ?? [] { walk(child, depth + 1) }
-        }
-        walk(root, 0)
-        lines.append("AUDIT \(name): \(seen) controls, \(problems.count) without a name")
-        for p in Set(problems).sorted() { lines.append("  FINDING \(name): \(p)") }
-        findings += problems.count
+        // DialogNames names a dialog's controls as it becomes key; a sheet the walk reaches first is named now, as it
+        // will be by the time a person hears it.
+        DialogNames.fill(window?.contentView)
+        var walk = AxWalk(spanish: CoreLanguage.language == "es" ? CoreLanguage.table?.sentences ?? [:] : [:])
+        walk.audit(window, name)
+        lines += walk.lines
+        findings += walk.findings
+        audited += 1
     }
 
     /// The menu bar as a person sees it: each menu's items (submenus indented), with their shortcuts.
@@ -137,7 +125,8 @@ struct UxShots {
             window.contentView?.superview?.layoutSubtreeIfNeeded()
             lines.append("window frame: \(Int(window.frame.width)) x \(Int(window.frame.height)) (asked \(Int(s.width)) x \(Int(s.height)), tabs: \(window.tabbedWindows?.count ?? 0), full screen: \(window.styleMask.contains(.fullScreen)))")
         }
-        for (look, appearance) in Self.looks {
+        // The audit reads the tree, which doesn't change with the look: once, in light.
+        for (look, appearance) in Self.looks where !Report.axAudit || look == "light" {
             NSApp.appearance = NSAppearance(named: appearance)
             size(defaultSize)
             await settle(900)
@@ -210,6 +199,7 @@ struct UxShots {
         }
         NSApp.appearance = nil
         StartWindowController.testRecent = nil
+        lines.append("AX RESULT: \(audited) windows, \(findings) findings (\(CoreLanguage.language))")
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(shots) shots, \(findings) audit findings, \(failures) failed)")
         Report.write(lines.joined(separator: "\n"))
     }

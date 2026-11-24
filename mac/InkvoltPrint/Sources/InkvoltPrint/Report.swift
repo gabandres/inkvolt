@@ -116,6 +116,7 @@ enum Report {
             if model.isDemo && args.contains("--direct-print") { cancelled += await directPrintCheck(model) }
             if args.contains("--history") { cancelled += await historyCheck(model) }
             if args.contains("--print-log") { cancelled += await printLogCheck(model) }
+            if args.contains("--ax-audit") { cancelled += await axAuditCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }

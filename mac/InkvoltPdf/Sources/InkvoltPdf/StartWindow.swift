@@ -148,6 +148,9 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
 
     private func makeContent() -> NSView {
         let icon = NSImageView(image: NSApp.applicationIconImage ?? NSImage())
+        // Decoration: the app's name follows it. AppKit reports the cell, so it is left out too (the accessibility audit).
+        icon.setAccessibilityElement(false)
+        icon.cell?.setAccessibilityElement(false)
         icon.widthAnchor.constraint(equalToConstant: 56).isActive = true
         icon.heightAnchor.constraint(equalToConstant: 56).isActive = true
         let name = NSTextField(labelWithString: "Inkvolt PDF") // English: the app's name

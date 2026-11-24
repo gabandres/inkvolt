@@ -54,9 +54,24 @@ extension DocumentWindowController {
         return PageRenderer.cgImage(image)
     }
 
+    /// The accessibility audit's blank pages (`UxShots`): the list of pictures to tick shown for these pages, without the
+    /// search (the synthetic document has none).
+    static var testBlankPages: [Int]?
+
     private func askBlankPages(split: Bool, _ window: NSWindow) async {
         let count = engine.pageCount
-        guard let (blanks, pictures) = await findBlankPages(), engine.pageCount == count else { return }
+        var result: (pages: [Int], pictures: [NSImage?])?
+        if let pages = Self.testBlankPages {
+            Self.testBlankPages = nil
+            let pictures: [NSImage?] = pages.map { (page: Int) -> NSImage? in
+                guard let cg = Self.thumbnail(engine, page) else { return nil }
+                return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+            }
+            result = (pages, pictures)
+        } else {
+            result = await findBlankPages()
+        }
+        guard let (blanks, pictures) = result, engine.pageCount == count else { return }
         if blanks.isEmpty {
             let alert = NSAlert()
             alert.messageText = loc("No blank pages")
@@ -79,7 +94,9 @@ extension DocumentWindowController {
             image.imageScaling = .scaleProportionallyUpOrDown
             image.widthAnchor.constraint(equalToConstant: 72).isActive = true
             image.heightAnchor.constraint(equalToConstant: 96).isActive = true
-            image.setAccessibilityElement(false) // the checkbox names the page
+            // The checkbox names the page. AppKit reports the cell, so it is left out too (the accessibility audit).
+            image.setAccessibilityElement(false)
+            image.cell?.setAccessibilityElement(false)
             let card = NSStackView(views: [image, box])
             card.orientation = .vertical
             card.spacing = 4
