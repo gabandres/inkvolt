@@ -29,6 +29,8 @@ public struct DiscoveredPrinter: Equatable, Sendable {
     public var txt: [String: String]
     /// Every IPv4 address a service with this UUID announced (`host` is the first). More than one: two devices claim the UUID.
     public var addresses: [String]
+    /// Its web server's root from the IPP service's `adminurl`, when on a port of its own (`DnssdJoin.webRoot`).
+    public var webRoot: URL? = nil
 }
 
 /// The Windows app's `PrinterDiscovery` join, over Bonjour's services only (no Windows association endpoints): one printer
@@ -57,7 +59,8 @@ public enum DiscoveredPrinters {
             }
             return DiscoveredPrinter(uuid: key, name: any?.instance ?? key, model: txt["ty"], host: host, hostName: any?.dnssd.hostName,
                                      esclRoot: scan.flatMap { DnssdJoin.esclRoot($0.dnssd, host: host) }, hasScanner: scan != nil || txt["scan"] == "T",
-                                     ippUri: ippService.flatMap { DnssdJoin.ippUri($0.dnssd, host: host) }, txt: txt, addresses: addresses)
+                                     ippUri: ippService.flatMap { DnssdJoin.ippUri($0.dnssd, host: host) }, txt: txt, addresses: addresses,
+                                     webRoot: ippService.flatMap { DnssdJoin.webRoot($0.dnssd, host: host) })
         }
         return printers.sorted { $0.name.compare($1.name, options: .caseInsensitive, locale: .current) == .orderedAscending }
     }

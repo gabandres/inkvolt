@@ -29,6 +29,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - Los detalles de una impresora dicen a qué responde (IPP, eSCL, AirPrint, Mopria) y si necesita el controlador de su fabricante, y avisan cuando un escáner solo funciona con el controlador de su fabricante, que una actualización de macOS puede dejar atrás.
 - Compartir una impresora con teléfonos: Archivo › Compartir una impresora con teléfonos… y la tarjeta Compartir con teléfonos de cada impresora dicen si macOS la comparte y abren Compartir impresora en Configuración del Sistema, para que los iPhone, iPad y otras computadoras de tu red impriman en ella con AirPrint.
 - Configurar la Wi-Fi de una impresora nueva (Archivo › Configurar la Wi-Fi de una impresora nueva…): para una impresora recién sacada de la caja, Inkvolt Print encuentra su red de configuración cercana, te unes a ella en el menú Wi-Fi, escribes tu Wi-Fi en la página de la propia impresora y vuelves a tu red. Pide acceso a la ubicación una vez, porque macOS solo muestra los nombres de las redes Wi-Fi a las aplicaciones que lo tienen; nunca ve una contraseña de Wi-Fi.
+- Una impresora cuya página web está en un puerto propio se puede agregar por esa dirección (por ejemplo http://192.168.1.20:8080), y una que anuncia su página en la red se lee allí por sí sola.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

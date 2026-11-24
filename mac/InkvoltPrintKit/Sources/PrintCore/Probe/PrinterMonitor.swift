@@ -160,18 +160,31 @@ public actor PrinterMonitor {
     public func announced(_ found: DiscoveredPrinter) async -> Bool {
         guard let host = found.host else { return false }
         if host.caseInsensitiveCompare(target.host) == .orderedSame {
-            if let escl = found.esclRoot { target.esclHint = escl }
-            if let ipp = found.ippUri { target.ippHint = ipp }
+            takeHints(found)
             return view.phase == .offline // mDNS just saw it again; don't wait for the retry
         }
-        let candidate = PrinterWhere(host, esclHint: found.esclRoot, ippHint: found.ippUri)
+        let candidate = PrinterWhere(host, esclHint: found.esclRoot, ippHint: found.ippUri, webHint: found.webRoot)
         guard let check = try? await session.checkAddress(current: target, candidate: candidate, currentAnswers: view.isOnline,
                                                           announcedModel: found.model),
               check == .move, host.caseInsensitiveCompare(target.host) != .orderedSame else { return false }
         target.host = host
         if let escl = found.esclRoot { target.esclHint = escl }
         if let ipp = found.ippUri { target.ippHint = ipp }
+        if let web = found.webRoot { target.webHint = web }
+        takeHints(found)
         return true
+    }
+
+    /// The printer's web server on a port of its own as Add a printer found it again (nil: the default ports; Windows'
+    /// `PrinterViewModel.WebRoot`). True when it changed (the caller restarts `run`, so the next connection asks there).
+    public func setWebHint(_ web: URL?) -> Bool {
+        guard web != target.webHint else { return false }
+        target.webHint = web
+        return true
+    }
+
+    /// An announcement's eSCL and IPP addresses, and its web server on a port of its own (its `adminurl`), when it names them.
+    private func takeHints(_ found: DiscoveredPrinter) {
     }
 
     /// The printer's scanner (eSCL) while it's connected as itself; nil offline, when another device answers at its address,
@@ -267,6 +280,9 @@ public actor PrinterMonitor {
         publish(v)
         if let escl = probe.esclRoot { target.esclHint = escl }
         if let ipp = probe.ippEndpoint { target.ippHint = ipp }
+        // A web root where neither LEDM nor CDM answers any more (the printer moved it back, or another port) is let go: the
+        // next connection asks the default ports (an announcement's adminurl gives it again).
+        target.webHint = probe.webRootKept(target.webHint)
         onEvent(.connected(target, model: probe.model))
     }
 

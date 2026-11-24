@@ -29,6 +29,11 @@ public struct ProbeResult: Sendable {
         product?.uuid ?? scanner?.uuid ?? ipp?.str("printer-uuid").map { $0.replacingOccurrences(of: "urn:uuid:", with: "", options: .caseInsensitive) }
     }
 
+    /// The web server's root this probe was made with (`web`, `DeviceHttp`'s `web`), kept only when HP's LEDM or CDM answered
+    /// there; nil otherwise (nothing to keep, or nothing of the web server's answered there: a port that isn't its web server,
+    /// or one it left), so the next connection asks the default ports.
+    public func webRootKept(_ web: URL?) -> URL? { web != nil && (ledm != nil || cdm != nil) ? web : nil }
+
     /// Every UUID the printer reports, one per interface (they normally agree; a scanner may have its own).
     public var reportedUuids: [String?] { [product?.uuid, cdm?.identity.uuid, scanner?.uuid, ipp?.str("printer-uuid")] }
 
@@ -137,18 +142,23 @@ public final class PrinterConnection: Sendable {
     ///   - snmp: where SNMP goes when the printer has neither LEDM, CDM nor IPP; nil: SNMP isn't tried.
     ///   - snmpLogin: the printer's SNMP login (its community); nil: `SnmpLogin.public`. Every SNMP read of the connection uses it.
     public static func open(_ host: String, transport: @escaping HttpTransportFactory, esclHint: URL? = nil, ippHint: URL? = nil,
-                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil)
+                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil,
+                            webHint: URL? = nil)
         async throws -> PrinterConnection {
-        let http = DeviceHttp(host: host, transport: transport, pin: pin)
+        let http = DeviceHttp(host: host, transport: transport, pin: pin, web: webHint)
+    ///   - webHint: the printer's web server when it isn't on port 80 or 443 (typed in Add a printer, or its DNS-SD
+    ///     `adminurl`): LEDM, CDM and its pages are asked there (`DeviceHttp`'s `web`).
         let found = try await probe(http, esclHint: esclHint, ippHint: ippHint, snmp: snmp, snmpLogin: snmpLogin)
         return PrinterConnection(http: http, probe: found, snmp: snmp)
     }
 
     /// The same network for every host (demo mode, tests).
     public static func open(_ host: String, transport: any HttpTransport, esclHint: URL? = nil, ippHint: URL? = nil,
-                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil)
+                            pin: (any CertificatePin)? = nil, snmp: (any SnmpTransport)? = nil, snmpLogin: SnmpLogin? = nil,
+                            webHint: URL? = nil)
         async throws -> PrinterConnection {
-        try await open(host, transport: { _, _ in transport }, esclHint: esclHint, ippHint: ippHint, pin: pin, snmp: snmp, snmpLogin: snmpLogin)
+        try await open(host, transport: { _, _ in transport }, esclHint: esclHint, ippHint: ippHint, pin: pin, snmp: snmp, snmpLogin: snmpLogin,
+                       webHint: webHint)
     }
 
     /// SNMP is asked only after LEDM, CDM and IPP all stayed silent.
@@ -181,10 +191,16 @@ public final class PrinterConnection: Sendable {
         return (ledm, ledm.tryCdm ? await attempt { try await CdmClient.probe(http) } : nil)
     }
 
-    /// `http://host/eSCL/`, then the DNS-SD hint.
+    /// `http://host/eSCL/`, then the DNS-SD hint. On a web server of its own port the scanner may still be on port 80: both
+    /// are asked.
     private static func probeEscl(_ http: DeviceHttp, hint: URL?) async -> (ScannerCapabilities, URL)? {
         var roots = [URL(string: "/eSCL/", relativeTo: http.httpBase)!.absoluteURL] // a fixed path on the printer's own base
-        if let hint = hint.map(http.onThisPrinter), hint != roots[0] { roots.append(hint) }
+        if http.httpBase.port != nil, var plain = URLComponents(url: http.httpBase, resolvingAgainstBaseURL: false) {
+            plain.port = nil
+            plain.path = "/eSCL/"
+            if let url = plain.url { roots.append(url) }
+        }
+        if let hint = hint.map(http.onThisPrinter), !roots.contains(hint) { roots.append(hint) }
         for root in roots {
             if let caps = await attempt({ try await EsclClient(http, root: root).capabilities() }) { return (caps, root) }
         }
@@ -293,8 +309,8 @@ public final class PrinterConnection: Sendable {
     /// when it was added may have them. A new connection when one answers now and it is the same device (its serial number,
     /// when both tell, agrees with `known`); nil otherwise. The caller switches to it.
     public func tryRicher(_ known: SnmpDevice?, transport: @escaping HttpTransportFactory, esclHint: URL? = nil, ippHint: URL? = nil,
-                          pin: (any CertificatePin)? = nil) async throws -> PrinterConnection? {
-        let richer = try await Self.open(http.host, transport: transport, esclHint: esclHint, ippHint: ippHint, pin: pin)
+                          pin: (any CertificatePin)? = nil, webHint: URL? = nil) async throws -> PrinterConnection? {
+        let richer = try await Self.open(http.host, transport: transport, esclHint: esclHint, ippHint: ippHint, pin: pin, webHint: webHint)
         guard richer.probe.reachable, known?.identify(serialNumber: richer.probe.serialNumber) != .different else { return nil }
         return richer
     }

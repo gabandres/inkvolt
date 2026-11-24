@@ -213,6 +213,19 @@ mac/InkvoltPrintKit --build-system native`.
   and how many queues the last read found. Windows' spooler tests (which notice means a relist, the refresh after lost
   notices) have no Mac counterpart. Not checked: the panel line on screen, a queue added,
   renamed or deleted by hand while the app runs (no queue was changed on the build Mac).
+- **A printer's web server on a port of its own (2026-11-23, Windows' 34eac81a and 58a35482).** A web address typed with
+  its port in Add a printer (`http://host:8080`) is where its web server is (`PrinterAddress.web`; port 631 or an `/ipp/`
+  path is the IPP server, not the web server), and an IPP service's `adminurl` TXT key on a port of its own says the same
+  (`DnssdJoin.webRoot`, only when it names the service's host or address; `DiscoveredPrinter.webRoot`). `DeviceHttp`'s
+  http or https base moves there (its `web`; the admin password goes to that https port), so LEDM, CDM and the web page
+  are asked there, and eSCL on port 80 as well. It travels as `PrinterWhere.webHint` through the session (connect, upgrade
+  from SNMP, a look at another address), the monitor's announcements, Report a Problem's recording and `--record … --web`,
+  and is remembered as `KnownPrinter.webRoot` in the state file and `printers.json` (`SuitePrinter.webRoot`, read back as a
+  scheme and port on the printer's address only). It is kept only where LEDM or CDM answered (`ProbeResult.webRootKept`,
+  on Add and at each connection), so a plain address or a port left resets it. The printer's web page opens there.
+  `PrinterWebPortTests` (Windows' names). `--report --demo --web-port`: the demo laser typed with `:8080`, probed, kept,
+  connected again and remembered, then typed plainly and let go (the made-up network answers on every port). Not checked:
+  a real printer whose web server is on a port of its own, an announced `adminurl` on a real network.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2326,10 +2339,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): scans at another size or a quarter turn off, E15's links, folder search's
   phrase reading.
-- Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
-  34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
-  through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).
-  Not started on the Mac. SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
+- Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
+  2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
 - Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
   P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile

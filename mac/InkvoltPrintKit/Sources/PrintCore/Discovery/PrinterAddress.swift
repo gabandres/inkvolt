@@ -2,11 +2,30 @@ import Foundation
 
 /// What an address typed into Add a printer means: the printer's host and, when it names an IPP printer of its own (an
 /// `ipp://` or `ipps://` URL, or a port given), the IPP URL to ask first. A plain web address (the printer's web page) is
-/// just its host. `error` says why it isn't an address.
+/// just its host; one on a port of its own (`http://host:8080/`) is also where its web server is (`web`: HP's LEDM and CDM,
+/// its pages), as well as an IPP server to try. `error` says why it isn't an address.
 public struct PrinterAddress: Equatable, Sendable {
     public var host: String?
     public var ipp: URL?
     public var error: String?
+    /// The printer's web server when it isn't on port 80 or 443 (`webRoot`); nil otherwise.
+    public var web: URL?
+
+    /// A web address's scheme and port as the root of a printer's web server on `host`, when that port isn't the scheme's
+    /// default; nil for a default port, another scheme or anything that isn't a web address. Only the scheme and port are
+    /// taken: a printer's web server is on the printer, whatever host a link or announcement names.
+    public static func webRoot(_ url: URL?, host: String) -> URL? {
+        guard let url, let c = URLComponents(url: url, resolvingAgainstBaseURL: false), let scheme = c.scheme?.lowercased(),
+              scheme == "http" || scheme == "https", let port = c.port else { return nil }
+        return webRoot(scheme: scheme, port: port, host: host)
+    }
+
+    private static func webRoot(scheme: String, port: Int, host: String) -> URL? {
+        let bare = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        guard port != defaultPort(scheme), (1...65535).contains(port), !bare.isEmpty, validHost(bare) else { return nil }
+        let h = bare.contains(":") ? "[\(bare)]" : bare // an IPv6 literal
+        return URL(string: "\(scheme)://\(h):\(port)/")
+    }
 
     /// IPP Everywhere's path, for a host and port given without one.
     private static let ippPath = "/ipp/print"
@@ -23,7 +42,11 @@ public struct PrinterAddress: Equatable, Sendable {
             case let scheme? where scheme == "http" || scheme == "https":
                 // The printer's web page: its host. On a port of its own, it's the IPP server there.
                 guard let port = url.port, port != defaultPort(scheme) else { return PrinterAddress(host: host) }
-                return PrinterAddress(host: host, ipp: ippUrl(scheme, host, port, url.path))
+                var a = PrinterAddress(host: host, ipp: ippUrl(scheme, host, port, url.path))
+                // Port 631 or a path under /ipp/ names the IPP server (IPP Everywhere's), not the web server: no web root there.
+                let ippPath = url.path.lowercased().hasPrefix("/ipp/") || url.path == "/ipp"
+                a.web = port == 631 || ippPath ? nil : webRoot(scheme: scheme, port: port, host: host)
+                return a
             default:
                 return fail(loc("Use the printer's IP address or name (or an http, https, ipp or ipps address)."))
             }
@@ -64,9 +87,11 @@ public struct PrinterAddress: Equatable, Sendable {
     private static func ippUrl(_ scheme: String, _ host: String, _ port: Int, _ path: String) -> URL? {
         var c = URLComponents()
         c.scheme = scheme
-        c.host = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        let bare = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        c.host = bare
         c.port = port == defaultPort(scheme) ? nil : port
         c.path = path.isEmpty || path == "/" ? ippPath : path
+        if c.url == nil && bare.contains(":") { c.percentEncodedHost = "[\(bare)]" } // Apple's URLComponents wants an IPv6 host in brackets
         return c.url
     }
 }

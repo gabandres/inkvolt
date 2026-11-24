@@ -17,9 +17,12 @@ public struct SuitePrinter: Equatable, Sendable {
     public var queue: String?
     /// Added as SNMP-only: its status is read over SNMP.
     public var snmpOnly: Bool
+    /// Its web server's root when that isn't on port 80 or 443 (`KnownPrinter.webRoot`; Windows' `InkvoltPrinter.WebRoot`).
+    public var webRoot: String?
 
     public init(id: String, name: String, model: String? = nil, host: String, esclRoot: String? = nil, ippUri: String? = nil,
-                hosts: [String] = [], acceptedUuids: [String] = [], queue: String? = nil, snmpOnly: Bool = false) {
+                hosts: [String] = [], acceptedUuids: [String] = [], queue: String? = nil, snmpOnly: Bool = false,
+                webRoot: String? = nil) {
         self.id = id
         self.name = name
         self.model = model
@@ -30,6 +33,7 @@ public struct SuitePrinter: Equatable, Sendable {
         self.acceptedUuids = acceptedUuids
         self.queue = queue
         self.snmpOnly = snmpOnly
+        self.webRoot = webRoot
     }
 
     /// As queue matching sees it.
@@ -75,7 +79,8 @@ public struct SuitePrinters: Equatable, Sendable {
             let accepted = state.acceptedUuids.first { PrinterId.same($0.key, p.uuid) }?.value ?? []
             let hosts = [p.host] + (lookup(hostNames, p.uuid).map { [$0] } ?? [])
             return SuitePrinter(id: p.uuid, name: p.name, model: p.model, host: p.host, esclRoot: p.esclRoot, ippUri: p.ippUri,
-                                hosts: hosts, acceptedUuids: accepted, queue: lookup(queues, p.uuid), snmpOnly: p.snmp != nil)
+                                hosts: hosts, acceptedUuids: accepted, queue: lookup(queues, p.uuid), snmpOnly: p.snmp != nil,
+                                webRoot: p.webRoot)
         }
         return SuitePrinters(Array(list.prefix(maxPrinters)))
     }
@@ -107,7 +112,7 @@ public struct SuitePrinters: Equatable, Sendable {
         let ipp = text(e["ippUri"]).flatMap { web($0, ["http", "https", "ipp", "ipps"]) }
         return SuitePrinter(id: id, name: text(e["name"]) ?? host, model: text(e["model"]), host: host, esclRoot: escl, ippUri: ipp,
                             hosts: names(e["hosts"]), acceptedUuids: names(e["acceptedUuids"]), queue: text(e["queue"]),
-                            snmpOnly: e["snmpOnly"] as? Bool ?? false)
+                            snmpOnly: e["snmpOnly"] as? Bool ?? false, webRoot: webRoot(text(e["webRoot"]), host))
     }
 
     /// A string value, trimmed; nil when empty, too long or not a string.
@@ -118,6 +123,11 @@ public struct SuitePrinters: Equatable, Sendable {
 
     private static func names(_ value: Any?) -> [String] {
         Array(((value as? [Any]) ?? []).compactMap(text).prefix(maxNames))
+    }
+
+    /// A web server's root as `PrinterAddress.webRoot` reads it: a scheme and port on `host` only.
+    private static func webRoot(_ s: String?, _ host: String) -> String? {
+        PrinterAddress.webRoot(s.flatMap { URL(string: $0) }, host: host)?.absoluteString
     }
 
     /// A URL with one of `schemes` and a host, else nil (a file: or javascript: root is never followed).
@@ -136,6 +146,7 @@ public struct SuitePrinters: Equatable, Sendable {
             if let v = p.esclRoot { e["esclRoot"] = v }
             if let v = p.ippUri { e["ippUri"] = v }
             if let v = p.queue { e["queue"] = v }
+            if let v = p.webRoot { e["webRoot"] = v }
             return e
         }
         let root: [String: Any] = ["version": Self.version, "printers": list]
@@ -204,7 +215,8 @@ public enum PrinterCheck {
         -> PrinterHealth? {
         do {
             let conn = try await PrinterConnection.open(p.host, transport: transport, esclHint: p.esclRoot.flatMap { URL(string: $0) },
-                                                        ippHint: p.ippUri.flatMap { URL(string: $0) }, snmp: p.snmpOnly ? snmp : nil)
+                                                        ippHint: p.ippUri.flatMap { URL(string: $0) }, snmp: p.snmpOnly ? snmp : nil,
+                                                        webHint: PrinterAddress.webRoot(p.webRoot.flatMap { URL(string: $0) }, host: p.host))
             guard conn.probe.reachable else { return .offline(notResponding) }
             async let status = conn.status()
             async let supplies = suppliesOrNone(conn)

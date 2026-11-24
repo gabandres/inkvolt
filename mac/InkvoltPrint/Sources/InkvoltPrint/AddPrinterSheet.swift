@@ -136,7 +136,7 @@ final class AddPrinterModel {
         isAddingAddress = true
         Task {
             defer { isAddingAddress = false }
-            let answer = await app.probe(host, ipp: a.ipp, snmpLogin: login)
+            let answer = await app.probe(host, ipp: a.ipp, snmpLogin: login, web: a.web)
             guard let probe = answer, probe.reachable else {
                 let refused = answer?.snmpRefused
                 addressError = AddPrinterText.noAnswer(host) + " " + SnmpAccessText.noAnswerHint(login, refused: refused)
@@ -149,8 +149,10 @@ final class AddPrinterModel {
                     addressError = SnmpAccessText.keychainRefused
                     return
                 }
+                // Added again by a plain address, or its web port no longer answers: the defaults again.
+                listed.setWebRoot(probe.webRootKept(a.web))
                 app.selectedID = listed.id
-            } else if app.add(probe, host: host) == nil {
+            } else if app.add(probe, host: host, web: a.web) == nil {
                 addressError = SnmpAccessText.notAdded
                 return
             }

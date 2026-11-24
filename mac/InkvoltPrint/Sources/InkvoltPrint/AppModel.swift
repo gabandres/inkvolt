@@ -626,8 +626,9 @@ final class AppModel {
     }
 
     /// What answers at `host` (Add a Printer's address), over SNMP with `snmpLogin`: nil when the probe couldn't run.
-    func probe(_ host: String, ipp: URL?, snmpLogin: SnmpLogin) async -> ProbeResult? {
-        try? await PrinterConnection.probe(DeviceHttp(host: host, transport: transport), ippHint: ipp, snmp: snmp, snmpLogin: snmpLogin)
+    /// `web`: its web server when typed with a port of its own (`PrinterAddress.web`), where LEDM and CDM are asked.
+    func probe(_ host: String, ipp: URL?, snmpLogin: SnmpLogin, web: URL? = nil) async -> ProbeResult? {
+        try? await PrinterConnection.probe(DeviceHttp(host: host, transport: transport, web: web), ippHint: ipp, snmp: snmp, snmpLogin: snmpLogin)
     }
 
     /// Keeps a printer's SNMP login (public: nothing kept). False when the Keychain refused; nothing is logged of it.
@@ -647,8 +648,8 @@ final class AppModel {
     /// Lists, remembers and selects the printer that answered at `host`. A printer read over SNMP keeps the login it answered
     /// to (`SnmpIdentity.login`) in the Keychain, never in the state file; one that answered HTTP has no use for it. Nil when
     /// the Keychain refused that login: nothing is added or changed, since the printer would be read with public.
-    func add(_ probe: ProbeResult, host: String) -> PrinterModel? {
-        let known = AddPrinter.knownPrinter(probe, host: host)
+    func add(_ probe: ProbeResult, host: String, web: URL? = nil) -> PrinterModel? {
+        let known = AddPrinter.knownPrinter(probe, host: host, web: web)
         if let answered = probe.snmp, !keepSnmpLogin(known.uuid, answered.loginOrPublic) { return nil }
         store.unforget(known.uuid)
         if let p = printers.first(where: { $0.id.caseInsensitiveCompare(known.uuid) == .orderedSame }) {
@@ -668,7 +669,7 @@ final class AppModel {
     func remember(_ p: PrinterModel, at target: PrinterWhere, model: String?) {
         guard printers.contains(where: { $0 === p }) else { return }
         store.remember(KnownPrinter(uuid: p.id, name: p.name, model: model ?? p.model, host: target.host, esclRoot: target.esclHint?.absoluteString,
-                                    ippUri: target.ippHint?.absoluteString, snmp: target.snmp))
+                                    ippUri: target.ippHint?.absoluteString, snmp: target.snmp, webRoot: target.webHint?.absoluteString))
         handOffPrinters()
     }
 

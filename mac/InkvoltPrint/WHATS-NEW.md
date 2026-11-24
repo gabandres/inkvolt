@@ -29,6 +29,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - A printer's Details say what it answers (IPP, eSCL, AirPrint, Mopria) and whether it needs its maker's driver at all, and warn when a scanner works only through its maker's driver, which a macOS update can leave behind.
 - Share a printer with phones: File › Share a Printer with Phones… and each printer's Share with phones card say whether macOS shares it and open Printer Sharing in System Settings, so iPhones, iPads and other computers on your network print to it with AirPrint.
 - Set up a new printer's Wi-Fi (File › Set Up a New Printer's Wi-Fi…): for a printer still out of the box, Inkvolt Print finds its setup network nearby, you join it in the Wi-Fi menu, enter your Wi-Fi on the printer's own page, and go back to your network. It asks for location access once, because macOS shows Wi-Fi names only to apps that have it; it never sees a Wi-Fi password.
+- A printer whose web page is on a port of its own can be added by that address (for example http://192.168.1.20:8080), and one that announces its page on the network is read there by itself.
 
 ## 1.3.1
 - A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too.

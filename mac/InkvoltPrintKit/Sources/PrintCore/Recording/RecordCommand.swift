@@ -1,6 +1,6 @@
 import Foundation
 
-/// `record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]` (print/ROADMAP.md 1.2;
+/// `record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--web url] [--force]` (print/ROADMAP.md 1.2;
 /// Windows' developer CLI `inkvoltprint record`): records a printer through `PrinterRecorder` into a folder and says what
 /// it kept. Mac differences: the app is sandboxed, so the folder is a plain name inside the app's own recordings folder
 /// (`base`), never a path; the Mac app runs it from `--report` (`--record <address> <folder>`), whose own `--scan` scans
@@ -14,10 +14,12 @@ public struct RecordCommand: Sendable, Equatable {
     public var community = SnmpClient.defaultCommunity
     public var esclHint: URL?
     public var ippHint: URL?
+    /// The printer's web server on a port of its own (Windows' `record --web`), as `PrinterAddress.webRoot` reads it.
+    public var webHint: URL?
     /// An option given without its value (the first one): `run` refuses the command.
     public var missingValue: String?
 
-    public static let usage = "record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]"
+    public static let usage = "record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--web url] [--force]"
 
     public init(host: String, folder: String) {
         self.host = host
@@ -46,6 +48,7 @@ public struct RecordCommand: Sendable, Equatable {
         if let c = value("--community") { command.community = c }
         command.esclHint = value("--escl").flatMap(URL.init(string:))
         command.ippHint = value("--ipp").flatMap(URL.init(string:))
+        command.webHint = PrinterAddress.webRoot(value("--web").flatMap(URL.init(string:)), host: command.host)
         return command
     }
 
@@ -75,6 +78,7 @@ public struct RecordCommand: Sendable, Equatable {
         }
         options.esclHint = esclHint
         options.ippHint = ippHint
+        options.webHint = webHint
         options.scan = scan
         options.who = who
         func clean(_ s: String) -> String { Diagnostics.scrub(s.replacingOccurrences(of: host, with: "[host]"), who) }

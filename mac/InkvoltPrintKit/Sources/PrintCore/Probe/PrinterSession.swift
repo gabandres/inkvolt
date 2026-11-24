@@ -1,18 +1,20 @@
 import Foundation
 
-/// Where a remembered printer is reached: its address, the eSCL and IPP addresses it gave, and (SNMP-only printers) what it
-/// said about itself.
+/// Where a remembered printer is reached: its address, the eSCL and IPP addresses it gave, (SNMP-only printers) what it
+/// said about itself, and its web server when that isn't on port 80 or 443 (`webHint`: scheme and port, on the address in use).
 public struct PrinterWhere: Sendable {
     public var host: String
     public var esclHint: URL?
     public var ippHint: URL?
     public var snmp: SnmpDevice?
+    public var webHint: URL?
 
-    public init(_ host: String, esclHint: URL? = nil, ippHint: URL? = nil, snmp: SnmpDevice? = nil) {
+    public init(_ host: String, esclHint: URL? = nil, ippHint: URL? = nil, snmp: SnmpDevice? = nil, webHint: URL? = nil) {
         self.host = host
         self.esclHint = esclHint
         self.ippHint = ippHint
         self.snmp = snmp
+        self.webHint = webHint
     }
 }
 
@@ -122,7 +124,7 @@ public actor PrinterSession {
         let login = recipe.snmpLogin()
         let conn = try await PrinterConnection.open(target.host, transport: recipe.transport, esclHint: target.esclHint, ippHint: target.ippHint,
                                                     pin: recipe.pin, snmp: SnmpDevice.transport(for: target.snmp, recipe.snmp),
-                                                    snmpLogin: login)
+                                                    snmpLogin: login, webHint: target.webHint)
         if !conn.probe.reachable { return conn.probe.snmpRefused.map(SessionStep.refused) ?? .offline }
         connectedLogin = login
         if identify(target.host, conn.probe.reportedUuids) == .different { return letGo(conn.probe.reportedUuids, host: target.host) }
@@ -157,7 +159,7 @@ public actor PrinterSession {
         upgradeTriedAt = recipe.now()
         if let elsewhere = try await stillThisPrinter(conn, target) { return elsewhere }
         guard let richer = try await conn.tryRicher(target.snmp, transport: recipe.transport, esclHint: target.esclHint, ippHint: target.ippHint,
-                                                    pin: recipe.pin) else { return nil }
+                                                    pin: recipe.pin, webHint: target.webHint) else { return nil }
         if identify(target.host, richer.probe.reportedUuids) == .different { return nil }
         let uuids = PrinterId.valid(richer.probe.reportedUuids, host: target.host)
         if !uuids.isEmpty { acceptUuids(uuids) }
@@ -182,7 +184,8 @@ public actor PrinterSession {
         checkingHost = host
         defer { checkingHost = nil }
         do {
-            let probe = try await PrinterConnection.probe(DeviceHttp(host: host, transport: recipe.transport), esclHint: candidate.esclHint,
+            let http = DeviceHttp(host: host, transport: recipe.transport, web: candidate.webHint ?? current.webHint)
+            let probe = try await PrinterConnection.probe(http, esclHint: candidate.esclHint,
                                                           ippHint: candidate.ippHint, snmp: SnmpDevice.transport(for: current.snmp, recipe.snmp),
                                                           snmpLogin: recipe.snmpLogin())
             let identity: DeviceIdentity

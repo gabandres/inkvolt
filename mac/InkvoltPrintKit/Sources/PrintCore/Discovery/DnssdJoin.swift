@@ -54,6 +54,26 @@ public enum DnssdJoin {
         return url(https ? "https" : "http", host, s.port ?? (https ? 443 : 80), rs.isEmpty ? "" : rs + "/")
     }
 
+    /// The printer's web server from an `_ipp`/`_ipps` service's `adminurl` TXT key (Bonjour Printing 1.2: the printer's
+    /// configuration page), when it is on a port of its own (`PrinterAddress.webRoot`) and names this printer (the service's
+    /// host name or address): its scheme and port on `host`. Nil otherwise.
+    public static func webRoot(_ s: DnssdService, host: String) -> URL? {
+        guard let admin = s.txt["adminurl"], admin.utf8.count <= 2048,
+              let url = URL(string: admin.trimmingCharacters(in: .whitespaces)), let named = URLComponents(url: url, resolvingAgainstBaseURL: false)?.host,
+              sameName(named, s.hostName) || sameName(named, s.ipv4) || sameName(named, host) else { return nil }
+        return PrinterAddress.webRoot(url, host: host)
+    }
+
+    private static func sameName(_ a: String, _ b: String?) -> Bool {
+        guard let b else { return false }
+        func bare(_ s: String) -> String {
+            var s = s.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            while s.hasSuffix(".") { s.removeLast() }
+            return s.lowercased()
+        }
+        return bare(a) == bare(b)
+    }
+
     /// As .NET's UriBuilder: the scheme's default port isn't written, an empty path is "/".
     private static func url(_ scheme: String, _ host: String, _ port: Int, _ path: String) -> URL? {
         var c = URLComponents()
