@@ -209,11 +209,11 @@ public struct ScanPages: Equatable, Sendable {
         return parts.joined(separator: " ")
     }
 
-    /// A two-sided batch: the other side of each patch code sheet among `ids` (one run's pages, in order) belongs to the
+    /// A two-sided batch: the other side of each separator sheet (`SeparatorFound.isSheet`) among `ids` (one run's pages, in order) belongs to the
     /// sheet (`BatchSplit.duplexSeparatorBacks`), so it neither starts the next file nor ends up in it.
     public mutating func separatorBacks(_ ids: [String]) {
         let run = inOrder(ids)
-        let backs = BatchSplit.duplexSeparatorBacks(patch: run.map { $0.separator.kind == .patchCode }, blank: run.map(\.looksBlank))
+        let backs = BatchSplit.duplexSeparatorBacks(patch: run.map { $0.separator.isSheet }, blank: run.map(\.looksBlank))
         for i in backs where !run[i].isSeparator {
             update(run[i].id) { p in
                 p.skipped = false
@@ -271,7 +271,7 @@ public struct ScanPages: Equatable, Sendable {
         let byId = Dictionary(pages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         // A page the review deleted reads as no sheet and not blank: it is never marked.
         let found = all.map { byId[$0] }
-        let sheet = found.map { $0?.separator.kind == .patchCode }
+        let sheet = found.map { $0?.separator.isSheet ?? false }
         let blank = found.map { $0?.looksBlank ?? false }
         var marks: [SheetBackMark] = []
         for i in TurnedStack.separatorBacks(fronts.count, backs.count, reversed: reversed, sheet: sheet, blank: blank) ?? [] {

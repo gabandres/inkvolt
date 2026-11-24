@@ -3653,17 +3653,6 @@
         }
       }
     },
-    "On the Scan tab, choose \"Split into files at: Patch codes\".": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "En la pestaña Escanear, elige \"Dividir en archivos en: Códigos patch\"."
-          }
-        }
-      }
-    },
     "Only an administrator can add printers to this Mac. In Printers & Scanners, click Add Printer, Scanner, or Fax…, then pick “{0}”.": {
       "extractionState": "manual",
       "localizations": {
@@ -4008,28 +3997,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pega la clave que te enviaron."
-          }
-        }
-      }
-    },
-    "Patch codes": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Códigos patch"
-          }
-        }
-      }
-    },
-    "Patch codes or blank pages": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Códigos patch o páginas en blanco"
           }
         }
       }
@@ -9177,28 +9144,6 @@
         }
       }
     },
-    "patch code sheet": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "hoja con código patch"
-          }
-        }
-      }
-    },
-    "patch code sheet or blank page": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "hoja con código patch o página en blanco"
-          }
-        }
-      }
-    },
     "paused [queue problem]": {
       "comment": "queue problem",
       "extractionState": "manual",
@@ -11623,6 +11568,83 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} rechazó su acceso SNMP"
+          }
+        }
+      }
+    },
+    "Patch or QR codes": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Códigos patch o QR"
+          }
+        }
+      }
+    },
+    "Patch or QR codes, or blank pages": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Códigos patch o QR, o páginas en blanco"
+          }
+        }
+      }
+    },
+    "patch or QR code sheet": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hoja con código patch o QR"
+          }
+        }
+      }
+    },
+    "patch or QR code sheet or blank page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hoja con código patch o QR, o página en blanco"
+          }
+        }
+      }
+    },
+    "QR code sheet": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hoja con código QR"
+          }
+        }
+      }
+    },
+    "barcode sheet": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "hoja con código de barras"
+          }
+        }
+      }
+    },
+    "On the Scan tab, choose \"Split into files at: Patch or QR codes\".": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En la pestaña Escanear, elige \"Dividir en archivos en: Códigos patch o QR\"."
           }
         }
       }

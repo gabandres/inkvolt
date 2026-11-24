@@ -168,6 +168,12 @@ the Mac's data volume was 95% full (10 GB free) and CacheDelete was purging (urg
 compiled again for every new test process (99% CPU, 1.1 GB), and Inkvolt PDF's OcrTests hit their 180 s limit the same way.
 A searchable PDF from Scan may therefore come without words the first time after a cache miss (not yet seen in the app).
 
+**Vision's barcode request for separator sheets** (2026-11-23, macOS 27.1, the build Mac, PrintMacTests'
+`VisionSeparatorCodesTests`): `VNDetectBarcodesRequest` limited to `.qr`, `.code128` and the four `.code39` symbologies
+reads the separator sheet's 1.25 in QR code (version 1, level H) on a 100 dpi grey copy (850 × 1100) turned 0°, 4°, 90°,
+180° and −30°, a Code 128 barcode across or down the page, and the printable sheet's QR code beside its bars; nothing in
+the sandbox to ask for. Its payload is `payloadStringValue`; PrintCore's rules decide what counts.
+
 ## Q1. Sandbox entitlements and limits (macOS 15+)
 
 ### Printing

@@ -2,9 +2,9 @@ import Foundation
 
 // `SplitAt` (what starts a new file in a batch scan) is a stored preset setting: Presets/ScanPreset.swift.
 
-/// How a page came to be a separator: a patch code, a blank page, or marked in the review.
+/// How a page came to be a separator: a patch code, a QR code or barcode saying PATCHT, a blank page, or marked in the review.
 public enum SeparatorKind: String, Hashable, Sendable, Codable {
-    case none, patchCode, blankPage, byHand, sheetBack
+    case none, patchCode, blankPage, byHand, sheetBack, qrCode, barcode
 }
 
 /// A separator sheet found on a page: what kind, and for a patch code, which.
@@ -21,6 +21,9 @@ public struct SeparatorFound: Equatable, Sendable, Codable {
 
     public var isSeparator: Bool { kind != .none }
 
+    /// A sheet printed to separate (a patch code, or a code saying PATCHT): in a two-sided scan its other side is part of it.
+    public var isSheet: Bool { kind == .patchCode || kind == .qrCode || kind == .barcode }
+
     /// "Patch T sheet", "blank page", or "".
     public var description: String {
         switch kind {
@@ -28,17 +31,24 @@ public struct SeparatorFound: Equatable, Sendable, Codable {
         case .blankPage: loc("blank page")
         case .byHand: loc("marked by hand")
         case .sheetBack: loc("back of the patch sheet")
+        case .qrCode: loc("QR code sheet")
+        case .barcode: loc("barcode sheet")
         case .none: ""
         }
     }
 }
 
-/// Separator sheets: a page with a separating patch code (`PatchCodes`) or a blank page (`BlankPage`).
+/// Separator sheets: a page with a separating patch code (`PatchCodes`) or a code saying PATCHT (`SeparatorCodes`, read by
+/// `codes`; split at patch codes, it finds both), or a blank page (`BlankPage`).
 public enum Separators {
-    public static func detect(_ img: GrayImage, pixelsPerInch: Double, splitAt: SplitAt) -> SeparatorFound {
-        if splitAt == .patchCode || splitAt == .patchCodeOrBlankPage, let code = PatchCodes.find(img, pixelsPerInch: pixelsPerInch),
-           PatchCodes.separates(code) {
-            return SeparatorFound(.patchCode, code: code)
+    /// - Parameter codes: reads QR codes and barcodes (Vision in the app); nil: patch codes only.
+    public static func detect(_ img: GrayImage, pixelsPerInch: Double, splitAt: SplitAt, codes: (any SeparatorCodeReader)? = nil) -> SeparatorFound {
+        if splitAt == .patchCode || splitAt == .patchCodeOrBlankPage {
+            // An image-control patch (1, 4 or 6) separates nothing, whatever else is on its sheet.
+            if let code = PatchCodes.find(img, pixelsPerInch: pixelsPerInch) {
+                return PatchCodes.separates(code) ? SeparatorFound(.patchCode, code: code) : .none
+            }
+            if let kind = SeparatorCodes.find(img, reader: codes) { return SeparatorFound(kind) }
         }
         if splitAt == .blankPage || splitAt == .patchCodeOrBlankPage, BlankPage.isBlank(img) {
             return SeparatorFound(.blankPage)
@@ -48,9 +58,9 @@ public enum Separators {
 
     public static func label(_ splitAt: SplitAt) -> String {
         switch splitAt {
-        case .patchCode: loc("Patch codes")
+        case .patchCode: loc("Patch or QR codes")
         case .blankPage: loc("Blank pages")
-        case .patchCodeOrBlankPage: loc("Patch codes or blank pages")
+        case .patchCodeOrBlankPage: loc("Patch or QR codes, or blank pages")
         default: loc("Don't split")
         }
     }
@@ -109,12 +119,13 @@ public enum BatchSplit {
         return parts
     }
 
-    /// A two-sided scan's pages come front, back, front, back…: the other side of each patch code sheet belongs to the sheet.
+    /// A two-sided scan's pages come front, back, front, back…: the other side of each separator sheet (a patch code, or a
+    /// code saying PATCHT: `SeparatorFound.isSheet`) belongs to the sheet.
     /// When the run has an even number of pages that order holds, so the other side is the sheet's whatever is on it (light
     /// through a thin sheet can make its back look printed); with an odd number (a scanner that dropped a side) only an other
     /// side that looks blank is taken. Returns the indexes to treat as separators too.
     /// - Parameters:
-    ///   - patch: Each page is a patch code sheet.
+    ///   - patch: Each page is a separator sheet (`SeparatorFound.isSheet`).
     ///   - blank: Each page looks blank.
     public static func duplexSeparatorBacks(patch: [Bool], blank: [Bool]) -> [Int] {
         let paired = patch.count % 2 == 0

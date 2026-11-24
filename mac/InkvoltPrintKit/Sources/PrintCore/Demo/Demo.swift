@@ -164,8 +164,12 @@ public enum DemoScan {
     public static let onLid = 6
     /// The feeder's three pages.
     public static let feeder = [letter, crooked, blank]
-    /// The feeder's batch (the Windows demo's): two pages, a Patch T sheet, then three more (one blank, one crooked).
-    public static let batch = [letter, crooked, separatorSheet, letter, blank, crookedLeft]
+    /// A sheet with nothing on it but a 1.5 in QR code saying PATCHT, a little crooked (as Paperless-ngx prints them).
+    public static let qrSheet = 21
+    /// The feeder's batch (the Windows demo's): three documents: a straight page and a crooked one, a Patch T sheet, a page, a
+    /// blank sheet, the QR sheet, a crooked page. Split at patch or QR codes, that's three files (the blank page skipped); at
+    /// those or blank pages, three too (the blank and the QR sheet are one split).
+    public static let batch = [letter, crooked, separatorSheet, letter, blank, qrSheet, crookedLeft]
 
     /// Page `n` (1 to 6) of a short report of made-up prose (roadmap 4.1 and 4.3); pages 3 and 4 are one sheet fed upside
     /// down. Real letters, so the review can tell which way is up.

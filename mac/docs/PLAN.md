@@ -25,9 +25,17 @@ offline fixer and Set Up in macOS; a menu bar item (the tray's equivalent) with 
 turns it on; demo mode (the made-up environment), so App Review can use the app without a printer; and the roadmap's
 items after 1.0 (P12).
 
-Not on the Mac: HP clean-up (nothing like it on macOS), WIA. Not yet: separator sheets marked with a QR code or barcode
-saying PATCHT and the QR code on the printed sheet (Windows' `SeparatorCodes` through ZXing.Net; on the Mac, Vision's
-barcode request would read them), so the Mac's choice still says "Patch codes" and `SeparatorCodeTests` has no Mac port.
+Not on the Mac: HP clean-up (nothing like it on macOS), WIA. Separator sheets marked with a QR code or barcode saying
+PATCHT, and the QR code on the printed sheet (2026-11-23, Windows' 4236623b): PrintCore's `SeparatorCodes` has Windows'
+rules (any case, trimmed, at most 64 characters; a copy over 1,700 px read reduced; a page with more than 3,000 QR
+corner-square marks not searched for a QR code, counted on a black-and-white copy made as ZXing's hybrid binarizer makes
+it; pixels that don't match the size no code) and the sheet's QR code (version 1, level H, 21 × 21, made once with Core
+Image's generator and kept as its modules: PrintCore has no QR encoder). **Mac difference:** the codes are read by
+Vision's `VNDetectBarcodesRequest` (PrintMac's `VisionSeparatorCodes`, a `SeparatorCodeReader`: QR, Code 128 and Code 39
+with its variants), where Windows uses ZXing.Net; `SeparatorCodeTests` (PrintCore, a fake reader) has Windows' rules and
+names, `VisionSeparatorCodesTests` (PrintMac) the cases that decode a drawn code (Code 128 from Core Image's generator;
+macOS has none for Code 39, so Code 39 is read but not tested). The demo batch has Windows' QR-only sheet (7 pages,
+3 files). Not checked: a printed sheet scanned on a real scanner, a Paperless-ngx separator page, a Code 39 sheet.
 
 ## Layout
 
@@ -2350,8 +2358,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   phrase reading.
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope"); P12's 2.1, 2.2, 3.1 and 3.3 need a
-  real printer or scanner.
+- Inkvolt Print: P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner (separator codes, the last code item, on the
+  Mac since 2026-11-23: "Inkvolt Print scope").
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).

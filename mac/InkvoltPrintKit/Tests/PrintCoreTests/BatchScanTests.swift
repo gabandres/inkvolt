@@ -237,7 +237,7 @@ struct BatchScanTests {
         #expect(presets[0].splitAt == .patchCode)
         #expect(presets[0].keepSeparators)
         #expect(presets[1].splitAt == .none)
-        #expect(ScanPresetText.summary(presets[0]).contains("a new file at each patch code sheet"))
+        #expect(ScanPresetText.summary(presets[0]).contains("a new file at each patch or QR code sheet"))
         #expect(!ScanPresetText.summary(presets[1]).contains("new file"))
     }
 
