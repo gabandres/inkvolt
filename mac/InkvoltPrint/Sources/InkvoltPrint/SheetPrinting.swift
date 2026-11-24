@@ -24,12 +24,13 @@ final class SheetPrintView: NSView {
     private var paper = NSSize(width: 612, height: 792)
     private var paperUnits = (816.0, 1056.0)
 
-    init(document: PDFDocument, choice: SheetChoice, setup: Sheets.PrintSetup, info: NSPrintInfo) {
+    /// `sizes`: each page's as `sizes(_:)` reads them (`measure`), one a page.
+    init(document: PDFDocument, sizes measured: [(Double, Double)], choice: SheetChoice, setup: Sheets.PrintSetup, info: NSPrintInfo) {
         self.document = document
         self.choice = choice
         self.setup = setup
         fallbackInfo = info
-        sizes = Self.sizes(document).map(SheetPrint.bounded)
+        sizes = measured.map(SheetPrint.bounded)
         plan = SheetPrint.plan(sizes, 816, 1056, setup)
         super.init(frame: NSRect(x: 0, y: 0, width: 612, height: 792))
         layOut()
@@ -40,8 +41,16 @@ final class SheetPrintView: NSView {
 
     override var isFlipped: Bool { true }
 
+    /// `sizes(_:)`, read off the main thread for a long PDF so the app doesn't stop meanwhile (nothing else touches the
+    /// document while the print waits on this).
+    static func measure(_ document: PDFDocument) async -> [(Double, Double)] {
+        if document.pageCount <= 200 { return sizes(document) }
+        let held = MeasuredDocument(document)
+        return await Task.detached(priority: .userInitiated) { () -> [(Double, Double)] in SheetPrintView.sizes(held.document) }.value
+    }
+
     /// Each page's size as shown (its crop box, turned by its rotation), in DIPs.
-    static func sizes(_ document: PDFDocument) -> [(Double, Double)] {
+    nonisolated static func sizes(_ document: PDFDocument) -> [(Double, Double)] {
         (0..<document.pageCount).map { i in
             guard let page = document.page(at: i) else { return (816, 1056) }
             let box = page.bounds(for: .cropBox)
@@ -140,6 +149,12 @@ final class SheetPrintView: NSView {
     }
 }
 
+/// A document handed to the task that measures its pages (`SheetPrintView.measure`), used by nothing else until it's done.
+private final class MeasuredDocument: @unchecked Sendable {
+    let document: PDFDocument
+    init(_ document: PDFDocument) { self.document = document }
+}
+
 /// Print a PDF's Layout choice, in the open panel where the PDF is picked (an accessory under the file list).
 @MainActor
 final class SheetChoiceView: NSView {
@@ -188,12 +203,18 @@ final class SheetChoiceView: NSView {
 }
 
 extension Printing {
+    /// A layout past `SheetPrint.maxSides`, refused.
+    static var tooManySheets: String {
+        String(localized: "Not printed: this layout would take more than \(SheetPrint.maxSides) sheets. Choose fewer pages or a smaller poster.")
+    }
+
     /// Why a laid-out job can't print as chosen (nil: it can): too many sheets (`SheetPrint.tooMany`, counted on Letter or
     /// A4 by region), or a booklet on a queue that prints one side only when two-sided by hand isn't offered (`byHand`).
-    static func sheetProblem(_ setup: Sheets.PrintSetup, _ document: PDFDocument, bothSides: Bool?, byHand: Bool) -> String? {
+    /// `sizes`: each page's, as `SheetPrintView.measure` reads them.
+    static func sheetProblem(_ setup: Sheets.PrintSetup, _ sizes: [(Double, Double)], bothSides: Bool?, byHand: Bool) -> String? {
         let paper = SheetPrint.guessPaper(metric: Locale.current.measurementSystem == .metric)
-        if SheetPrint.tooMany(setup, SheetPrintView.sizes(document), (paper.width, paper.height), copies: 1) {
-            return String(localized: "Not printed: this layout would take more than \(SheetPrint.maxSides) sheets. Choose fewer pages or a smaller poster.")
+        if SheetPrint.tooMany(setup, pages: sizes.count) || SheetPrint.tooMany(setup, sizes, (paper.width, paper.height), copies: 1) {
+            return tooManySheets
         }
         if SheetPrint.route(setup, asked: false, printerTwoSided: bothSides ?? true, byHand: byHand) == .noBothSides {
             return String(localized: "Not printed: a booklet prints on both sides, and this printer's queue says it prints one side only. Choose another layout, or another printer.")
@@ -203,10 +224,10 @@ extension Printing {
 
     /// The laid-out job: the print panel over `SheetPrintView`, on the printer's queue when it has one; a booklet asks for
     /// two-sided on the long edge (the panel can change it). `save`: written to that PDF instead (the report's checks, and
-    /// a booklet by hand's sides), on `paper` (points) when given.
+    /// a booklet by hand's sides), on `paper` (points) when given. `sizes`: the pages' as already measured (else read here).
     @discardableResult
     static func printSheets(_ document: PDFDocument, choice: SheetChoice, name: String, on printer: PrinterModel?, app: AppModel?,
-                            save: URL? = nil, paper: NSSize? = nil) -> SheetPrintView? {
+                            save: URL? = nil, paper: NSSize? = nil, sizes: [(Double, Double)]? = nil) -> SheetPrintView? {
         guard let setup = SheetPrint.setup(choice) else { return nil }
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         if let printer, let app, let target = macPrinter(for: printer, app: app) { info.printer = target }
@@ -225,7 +246,7 @@ extension Printing {
         } else {
             info.jobDisposition = .spool
         }
-        let view = SheetPrintView(document: document, choice: choice, setup: setup, info: info)
+        let view = SheetPrintView(document: document, sizes: sizes ?? SheetPrintView.sizes(document), choice: choice, setup: setup, info: info)
         let operation = NSPrintOperation(view: view, printInfo: info)
         operation.jobTitle = name
         operation.showsPrintPanel = save == nil
@@ -255,7 +276,7 @@ extension Report {
                 lines.append("  \(name): nothing written (plan \(view?.plan.sheetCount ?? -1) sheets)")
                 continue
             }
-            lines.append("  \(name): \(printed.pageCount) sheets (plan \(view?.plan.sheetCount ?? -1)), problem: \(Printing.sheetProblem(SheetPrint.setup(choice)!, document, bothSides: nil, byHand: false) ?? "none")")
+            lines.append("  \(name): \(printed.pageCount) sheets (plan \(view?.plan.sheetCount ?? -1)), problem: \(Printing.sheetProblem(SheetPrint.setup(choice)!, SheetPrintView.sizes(document), bothSides: nil, byHand: false) ?? "none")")
             for s in 0..<min(printed.pageCount, 2) {
                 guard let sheet = printed.page(at: s) else { continue }
                 let bounds = sheet.bounds(for: .mediaBox)

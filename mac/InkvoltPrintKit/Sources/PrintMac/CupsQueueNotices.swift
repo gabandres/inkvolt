@@ -87,7 +87,9 @@ public final class CupsQueueNotices: Sendable {
                     notice()
                 }
             case .gone:
-                // The lease ended or cupsd restarted: subscribe again, and read the queues (events may have been missed).
+                // The lease ended, cupsd restarted or its numbers ran out: subscribe again (the old one cancelled, if still
+                // there), and read the queues (events may have been missed).
+                cancel(current)
                 id = subscribe(shared)
                 sequence = 1
                 notice()
@@ -223,11 +225,20 @@ public final class CupsQueueNotices: Sendable {
         while let a = attribute {
             if ippGetGroupTag(a) == IPP_TAG_EVENT_NOTIFICATION, let name = ippGetName(a), String(cString: name) == "notify-sequence-number" {
                 count += 1
-                next = max(next, ippGetInteger(a, 0) + 1)
+                // The last number 32 bits hold: no next one to ask for, so subscribe again (as when the lease ended).
+                guard let after = nextSequence(after: ippGetInteger(a, 0), atLeast: next) else { return .gone }
+                next = after
             }
             attribute = ippNextAttribute(response)
         }
         return .events(count: count, next: next)
+    }
+
+    /// The sequence number to ask for after an event numbered `seen` (RFC 3996's notify-sequence-number), never below
+    /// `next`; nil when `seen` is `Int32.max`, the last one there is (cupsd's answer can't make `seen + 1` overflow).
+    static func nextSequence(after seen: Int32, atLeast next: Int32) -> Int32? {
+        guard seen < Int32.max else { return nil }
+        return max(next, seen + 1)
     }
 
     private static func cancel(_ id: Int32) {

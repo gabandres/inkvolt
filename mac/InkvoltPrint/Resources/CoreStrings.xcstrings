@@ -9513,6 +9513,17 @@
         }
       }
     },
+    "{0} asks for more than {1} digits.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} pide más de {1} dígitos."
+          }
+        }
+      }
+    },
     "{0} blank page left out": {
       "extractionState": "manual",
       "localizations": {

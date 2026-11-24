@@ -67,7 +67,9 @@ public enum FileNameTemplate {
                     return loc("{0} isn't a date or time format.", "{\(part.text):\(f)}")
                 }
             case "n":
-                break
+                if let f = part.format, DotNetFormat.tooWide(f) {
+                    return loc("{0} asks for more than {1} digits.", "{\(part.text):\(f)}", String(DotNetFormat.maxDigits))
+                }
             case "preset", "printer", "pages", "text-title", "text-number":
                 if part.format != nil { return loc("{0} takes no format.", "{\(part.text)}") }
             default:
@@ -75,6 +77,12 @@ public enum FileNameTemplate {
             }
         }
         return error
+    }
+
+    /// The template pads `{n}` past `DotNetFormat.maxDigits` (`{n:D99}`): `problem` refuses it, `ScanPresets.normalize`
+    /// puts back a stored one's default, and a name never pads it (the token stays as typed).
+    public static func padsTooWide(_ template: String?) -> Bool {
+        parse(template ?? "").parts.contains { $0.kind == .token && $0.text.lowercased() == "n" && $0.format.map(DotNetFormat.tooWide) == true }
     }
 
     /// The template as one safe file name (no extension). Unknown tokens stay as typed.
@@ -347,9 +355,22 @@ enum DotNetFormat {
         return out
     }
 
-    /// A whole number in a .NET format: custom (`0` pads, `#` doesn't, other characters as they are) or `D<n>`. Nil
-    /// otherwise.
+    /// The most digits `D<n>` pads a number to (Windows' `FileNameTemplate.MaxDigits`): a name is cut long before, and a
+    /// template's `{n:D9999999999}` must never ask for gigabytes of zeros.
+    static let maxDigits = 32
+
+    /// A `D<n>` format padding past `maxDigits` (any count of digits after the D, so one too big for an Int too).
+    static func tooWide(_ format: String) -> Bool {
+        guard let first = format.first, first == "D" || first == "d" else { return false }
+        let digits = format.dropFirst()
+        guard !digits.isEmpty, digits.allSatisfy({ (c: Character) -> Bool in c.isASCII && c.isNumber }) else { return false }
+        return Int(digits).map { $0 > maxDigits } ?? true // past Int's range: too wide too
+    }
+
+    /// A whole number in a .NET format: custom (`0` pads, `#` doesn't, other characters as they are) or `D<n>` (`n` up to
+    /// `maxDigits`). Nil otherwise.
     static func number(_ value: Int, _ format: String) -> String? {
+        if tooWide(format) { return nil }
         if let first = format.first, first == "D" || first == "d", let width = Int(format.dropFirst()) ?? (format.count == 1 ? 0 : nil) {
             let s = String(abs(value))
             return (value < 0 ? "-" : "") + (s.count >= width ? s : String(repeating: "0", count: width - s.count) + s)

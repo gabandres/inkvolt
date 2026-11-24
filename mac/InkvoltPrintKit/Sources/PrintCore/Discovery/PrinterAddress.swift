@@ -22,8 +22,7 @@ public struct PrinterAddress: Equatable, Sendable {
 
     private static func webRoot(scheme: String, port: Int, host: String) -> URL? {
         let bare = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-        guard port != defaultPort(scheme), (1...65535).contains(port), !bare.isEmpty, validHost(bare) else { return nil }
-        let h = bare.contains(":") ? "[\(bare)]" : bare // an IPv6 literal
+        guard port != defaultPort(scheme), (1...65535).contains(port), !bare.isEmpty, validHost(bare), let h = urlHost(bare) else { return nil }
         return URL(string: "\(scheme)://\(h):\(port)/")
     }
 
@@ -35,7 +34,8 @@ public struct PrinterAddress: Equatable, Sendable {
         if text.isEmpty { return fail(loc("Type the printer's IP address or name.")) }
         let invalid = fail(loc("\"{0}\" is not a valid address.", text))
         if text.contains("://") {
-            guard let url = URLComponents(string: text), let host = url.host, !host.isEmpty, validPort(url.port) else { return invalid }
+            guard let url = URLComponents(string: text), let host = url.host, !host.isEmpty, validPort(url.port),
+                  !host.contains(":") || validHost(host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))) else { return invalid }
             switch url.scheme?.lowercased() {
             case "ipp": return PrinterAddress(host: host, ipp: ippUrl("http", host, url.port ?? 631, url.path))
             case "ipps": return PrinterAddress(host: host, ipp: ippUrl("https", host, url.port ?? 631, url.path))
@@ -73,9 +73,29 @@ public struct PrinterAddress: Equatable, Sendable {
 
     private static func validPort(_ port: Int?) -> Bool { port.map { (0...65535).contains($0) } ?? true }
 
-    /// As .NET's Uri.CheckHostName: an IPv4 or IPv6 address, or a DNS name.
+    /// `host` as a web address writes it: an IPv6 literal in brackets, its zone (`fe80::1%en0`, a link-local address's
+    /// network interface) with its `%` written `%25` (RFC 6874); a name or IPv4 address as it is. Nil for an IPv6 literal
+    /// that isn't one (`validHost`), so no URL is ever made from it.
+    public static func urlHost(_ host: String) -> String? {
+        let bare = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        guard !bare.isEmpty else { return nil }
+        guard bare.contains(":") else { return bare }
+        guard validHost(bare) else { return nil }
+        return "[" + bare.replacingOccurrences(of: "%", with: "%25") + "]"
+    }
+
+    /// As .NET's Uri.CheckHostName: an IPv4 or IPv6 address, or a DNS name. An IPv6 address may name its zone after a `%`
+    /// (letters, digits, `-`, `.`, `_`, `~`: RFC 6874's unreserved characters), which .NET drops and the Mac keeps.
     private static func validHost(_ host: String) -> Bool {
-        if host.contains(":") { return host.allSatisfy { $0.isHexDigit || $0 == ":" || $0 == "." || $0 == "%" } }
+        if host.contains(":") {
+            let parts = host.split(separator: "%", maxSplits: 1, omittingEmptySubsequences: false)
+            guard let address = parts.first, !address.isEmpty,
+                  address.allSatisfy({ (c: Character) -> Bool in c.isASCII && (c.isHexDigit || c == ":" || c == ".") }) else { return false }
+            guard parts.count == 2 else { return true }
+            let zone = parts[1]
+            return !zone.isEmpty && zone.count <= 64
+                && zone.allSatisfy { (c: Character) -> Bool in c.isASCII && (c.isLetter || c.isNumber || c == "-" || c == "." || c == "_" || c == "~") }
+        }
         let labels = host.split(separator: ".", omittingEmptySubsequences: false)
         return labels.allSatisfy { label in
             !label.isEmpty && label.count <= 63 && label.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-" || $0 == "_") }
@@ -85,13 +105,14 @@ public struct PrinterAddress: Equatable, Sendable {
     /// ipp:// is IPP over http, ipps:// over https; both default to port 631 (RFC 8010 §4, RFC 7472). The default port of
     /// the scheme isn't written, as .NET's Uri does.
     private static func ippUrl(_ scheme: String, _ host: String, _ port: Int, _ path: String) -> URL? {
+        // An IPv6 host goes in as a URL writes it (`urlHost`): Apple's URLComponents wants the brackets, and traps on a `%`
+        // that isn't an escape (a zone's).
+        guard let h = urlHost(host) else { return nil }
         var c = URLComponents()
         c.scheme = scheme
-        let bare = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-        c.host = bare
+        if h.hasPrefix("[") { c.percentEncodedHost = h } else { c.host = h }
         c.port = port == defaultPort(scheme) ? nil : port
         c.path = path.isEmpty || path == "/" ? ippPath : path
-        if c.url == nil && bare.contains(":") { c.percentEncodedHost = "[\(bare)]" } // Apple's URLComponents wants an IPv6 host in brackets
         return c.url
     }
 }

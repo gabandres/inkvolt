@@ -56,10 +56,42 @@ struct FileNameTemplateTests {
         ("{date", "A { has no closing }. Type {{ for a brace."),
         ("a } b", "A } has no opening {. Type }} for a brace."),
         ("{preset:x}", "{preset} takes no format."),
-        ("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}."),
+        ("{n:D32}", nil),
+        ("{n:D33}", "{n:D33} asks for more than 32 digits."),
+        ("{n:D9999999999}", "{n:D9999999999} asks for more than 32 digits."),
+        ("{n:d99999999999999999999999}", "{n:d99999999999999999999999} asks for more than 32 digits."),
+        ("{}","Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}."),
     ] as [(String, String?)])
     func validates(_ template: String, _ problem: String?) {
         #expect(FileNameTemplate.problem(template) == problem)
+    }
+
+    /// A `D` width past 32 digits is never padded (the hostile-input review: `{n:D9999999999}` asked for 10 GB of zeros):
+    /// the token stays as typed, as Windows does.
+    @Test func numberPaddingIsBounded() {
+        var ctx = Self.ctx
+        ctx.number = 7
+        #expect(FileNameTemplate.fileName("{n:D32}", ctx) == String(repeating: "0", count: 31) + "7")
+        #expect(FileNameTemplate.fileName("{n:D100}", ctx) == "{n-D100}") // a width that, padded, wouldn't hurt the run
+        #expect(FileNameTemplate.fileName("{n:D33}", ctx) == "{n-D33}")
+        #expect(FileNameTemplate.padsTooWide("Scan {n:D33}"))
+        #expect(!FileNameTemplate.padsTooWide("Scan {n:D3} {date:D99}"))
+    }
+
+    /// A stored preset can't bring back what the editor refuses: a template padding past 32 digits gets the default, and a
+    /// counter past Windows' int is brought down to it, then counts on from 1 (`reserve` never overflows).
+    @Test func storedNumberingIsBounded() {
+        var p = ScanPreset()
+        p.name = "P"
+        p.fileName = "{n:D9999999999}"
+        p.subfolder = "Scans/{n:D99}"
+        p.nextNumber = Int.max
+        var list = ScanPresets.normalize(ScanPresetSettings(items: [p]))
+        #expect(list[0].fileName == ScanPresets.defaultFileName)
+        #expect(list[0].subfolder == "")
+        #expect(list[0].nextNumber == ScanPresets.maxNextNumber)
+        #expect(ScanPresets.reserve(&list, list[0].id) == ScanPresets.maxNextNumber)
+        #expect(ScanPresets.reserve(&list, list[0].id) == 1)
     }
 
     @Test func unknownTokensStayAsTyped() {

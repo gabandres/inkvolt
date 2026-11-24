@@ -260,6 +260,9 @@ public enum ScanPresets {
     public static let currentVersion = 1
 
     public static let defaultFileName = "{preset} {date} {time}"
+    /// The largest `{n}` a preset counts to (Windows' int), then 1 again: a stored `NextNumber` past it is brought down to
+    /// it, so `reserve`'s next number never overflows.
+    public static let maxNextNumber = Int(Int32.max)
     public static let maxNameLength = 60
     private static let maxResolution = 1200, minResolution = 75
 
@@ -317,8 +320,11 @@ public enum ScanPresets {
             if !p.folder.isKnown || noCustomPath { p.folder = .documents }
             p.resolution = min(max(p.resolution, minResolution), maxResolution)
             if !ScanChoices.pageSizes.contains(where: { $0.key == p.pageSize }) { p.pageSize = nil }
-            if p.fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { p.fileName = defaultFileName }
-            p.nextNumber = max(1, p.nextNumber)
+            if p.fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || FileNameTemplate.padsTooWide(p.fileName) {
+                p.fileName = defaultFileName
+            }
+            if FileNameTemplate.padsTooWide(p.subfolder) { p.subfolder = "" }
+            p.nextNumber = min(max(1, p.nextNumber), maxNextNumber)
             p.name = uniqueName(list.map(\.name), p.name)
             ids.insert(p.id)
             list.append(p)
@@ -397,8 +403,8 @@ public enum ScanPresets {
     /// preset never get the same number. Nil when the preset isn't in the list.
     public static func reserve(_ list: inout [ScanPreset], _ id: String) -> Int? {
         guard let i = list.firstIndex(where: { $0.id == id }) else { return nil }
-        let n = list[i].nextNumber
-        list[i].nextNumber = n + 1
+        let n = min(max(1, list[i].nextNumber), maxNextNumber)
+        list[i].nextNumber = n < maxNextNumber ? n + 1 : 1 // past Windows' int: 1 again, never an overflow
         return n
     }
 
