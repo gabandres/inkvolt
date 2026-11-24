@@ -44,17 +44,30 @@ struct VisionSeparatorCodesTests {
         }
     }
 
-    /// A Core Image generator's output as modules, true for dark, without the white it draws around them.
+    /// A Core Image generator's output as modules, true for dark, without the white it draws around them. Made into a CGImage
+    /// and drawn into a grey bitmap: on macOS 15 (CI's runner, 15.8.2) `CIContext.render(_:toBitmap:…format: .L8…)` leaves
+    /// the generators' codes all white, while `createCGImage` draws them on both 15 and 27.
     private static func modules(_ image: CIImage?) -> [[Bool]] {
-        guard let image else { return [[false]] }
-        let iw = Int(image.extent.width), ih = Int(image.extent.height)
+        guard let image, let cg = CIContext().createCGImage(image, from: image.extent) else {
+            Issue.record("Core Image made no image")
+            return [[false]]
+        }
+        let iw = cg.width, ih = cg.height
         var pixels = [UInt8](repeating: 255, count: iw * ih)
-        CIContext().render(image, toBitmap: &pixels, rowBytes: iw, bounds: image.extent, format: .L8, colorSpace: nil)
-        let rows = (0..<ih).map { y in (0..<iw).map { pixels[y * iw + $0] < 128 } }
-        let dark = rows.indices.filter { rows[$0].contains(true) }
-        let columns = (0..<iw).filter { x in rows.contains { $0[x] } }
-        guard let top = dark.first, let bottom = dark.last, let left = columns.first, let right = columns.last else { return [[false]] }
-        return (top...bottom).map { Array(rows[$0][left...right]) }
+        let drawn: Bool = pixels.withUnsafeMutableBytes { (raw: UnsafeMutableRawBufferPointer) -> Bool in
+            guard let context = CGContext(data: raw.baseAddress, width: iw, height: ih, bitsPerComponent: 8, bytesPerRow: iw,
+                                          space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+            context.draw(cg, in: CGRect(x: 0, y: 0, width: iw, height: ih))
+            return true
+        }
+        let rows: [[Bool]] = (0..<ih).map { (y: Int) -> [Bool] in (0..<iw).map { (x: Int) -> Bool in pixels[y * iw + x] < 128 } }
+        let dark: [Int] = rows.indices.filter { (y: Int) -> Bool in rows[y].contains(true) }
+        let columns: [Int] = (0..<iw).filter { (x: Int) -> Bool in rows.contains { (row: [Bool]) -> Bool in row[x] } }
+        guard drawn, let top = dark.first, let bottom = dark.last, let left = columns.first, let right = columns.last else {
+            Issue.record("Core Image's code drew no dark module")
+            return [[false]]
+        }
+        return (top...bottom).map { (y: Int) -> [Bool] in Array(rows[y][left...right]) }
     }
 
     private static func qr(_ text: String) -> [[Bool]] {
