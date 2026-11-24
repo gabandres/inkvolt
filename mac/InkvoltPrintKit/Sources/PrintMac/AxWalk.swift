@@ -154,7 +154,7 @@ public struct AxWalk {
         return responder as? NSView
     }
 
-    /// Presses Tab round `window` (at most 80 times, until focus comes back to where it started) and lists the stops.
+    /// Presses Tab round `window` (at most 80 times, until focus comes back to a stop already seen) and lists the stops.
     private mutating func tabOrder(_ window: NSWindow, _ name: String) {
         guard let root = window.contentView?.superview ?? window.contentView else { return }
         let height = root.bounds.height
@@ -166,7 +166,9 @@ public struct AxWalk {
         var focusable: [NSView] = []
         func collect(_ v: NSView) {
             guard !v.isHidden else { return }
-            if v.canBecomeKeyView, !(v is NSClipView), !Self.isSystems(v), (v as? NSControl)?.isEnabled ?? true, v.frame.width > 1 {
+            // A text view (not a field's editor) takes Tab as text, as AppKit means it to (Control-Tab leaves it): not a stop.
+            let typesTab = (v as? NSTextView).map { (t: NSTextView) -> Bool in !t.isFieldEditor } ?? false
+            if v.canBecomeKeyView, !typesTab, !(v is NSClipView), !Self.isSystems(v), (v as? NSControl)?.isEnabled ?? true, v.frame.width > 1 {
                 focusable.append(v)
             }
             for sub in v.subviews { collect(sub) }
@@ -184,8 +186,10 @@ public struct AxWalk {
                                            isARepeat: false, keyCode: 48) else { break }
             window.sendEvent(e)
             guard let now = Self.focused(window) else { stuck += 1; if stuck > 2 { break }; continue }
-            if let first = stops.first, now === first { break }
             if let last = stops.last, now === last { stuck += 1; if stuck > 2 { break }; continue }
+            // Back on any stop already seen: the order has gone round (its start may not be in it, as a SwiftUI first control).
+            if stops.contains(where: { (s: NSView) -> Bool in s === now }) { break }
+            stuck = 0
             stops.append(now)
         }
         if let start { window.makeFirstResponder(start) }

@@ -23,7 +23,9 @@ struct ShownStringsTests {
     static let englishFiles: Set<String> = [
         // `--report`: the dev aid's report, read by the developer and in bug reports.
         "Report.swift", "ReportBatchPrint.swift", "ReportProblem.swift", "ReportRecording.swift", "ReportSnmp.swift",
-        "ReportStrings.swift",
+        "ReportStrings.swift", "ReportAxAudit.swift",
+        // The accessibility audit's findings (`--ax-audit`), read by the developer like the report.
+        "AxWalk.swift",
         // The command lines (`status --all`, `print`, `record`) write English whatever the Mac's language.
         "BatchPrintCommandLine.swift", "BatchPrintCommand.swift", "FleetCommand.swift", "RecordCommand.swift",
     ]
