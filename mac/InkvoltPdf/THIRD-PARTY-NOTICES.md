@@ -7,7 +7,7 @@ Vision, ImageCaptureCore, Security).
 
 | Component | Version | License | Copyright | Source |
 |---|---|---|---|---|
-| MuPDF (built from source as a static library, `mac/Vendor/mupdf/build.sh`) | 1.25.2 | AGPL-3.0-only | Artifex Software, Inc. | https://mupdf.com, https://github.com/ArtifexSoftware/mupdf |
+| MuPDF (built from source as a static library, `mac/Vendor/mupdf/build.sh`, with Inkvolt's patch `mac/Vendor/mupdf/patches/inline-image-filter-budget.patch`) | 1.25.2 | AGPL-3.0-only | Artifex Software, Inc. | https://mupdf.com, https://github.com/ArtifexSoftware/mupdf |
 | Sparkle (updates) | 2.10.1 | MIT, with the external licenses in its LICENSE file (bsdiff: BSD-2-Clause; sais-lite: MIT; ed25519: zlib) | Andy Matuschak and the Sparkle Project contributors | https://github.com/sparkle-project/Sparkle |
 | InkvoltPrintKit (Inkvolt Print's scanning and What's New code, in this repository) | | MIT | Bermudez Systems LLC | https://github.com/gabandres/inkvolt |
 
