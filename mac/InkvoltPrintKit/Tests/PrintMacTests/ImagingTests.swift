@@ -4,11 +4,12 @@ import ImageIO
 import PDFKit
 import PrintCore
 import Testing
+import TestTiming
 @testable import PrintMac
 
 /// PrintMac's page and photo drawing: scanned pages turned, cropped and straightened, searchable PDFs, photo sheets. One at
 /// a time, the work on `offPool`: it's seconds of CPU, and on a small CI runner it starved the IPP timing tests beside it.
-@Suite(.serialized)
+@Suite(.serialized, .offThePool)
 struct MacImagingTests {
     private static func cgImage(_ jpeg: [UInt8]) throws -> CGImage {
         let source = try #require(CGImageSourceCreateWithData(Data(jpeg) as CFData, nil))

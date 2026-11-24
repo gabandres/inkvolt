@@ -6,6 +6,7 @@ import TestTiming
 /// Ported from HalvesJoinTests.cs: joining two halves of an original too big for the glass (roadmap 4.8), on made-up scans at
 /// 100 pixels an inch. Adapted: the drawings come from a fixed generator here (.NET's `Random` there: other boxes, the same
 /// kind of drawing); a stop is a `BatchStop`, which throws `CancellationError`.
+@Suite(.offThePool)
 struct HalvesJoinTests {
     private static let ppi = 100.0
 

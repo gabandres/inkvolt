@@ -7,7 +7,7 @@ import Testing
 /// pages come from a seeded generator of their own (not .NET's Random), and colour pages are RGB as the Mac renders them
 /// (Windows' are BGR). What the filters do for a recognizer: pdf/tools/ocr-corpus, cleanup (Windows).
 /// One at a time: each check is seconds of CPU, and the huge page's timing would suffer beside the others.
-@Suite(.serialized)
+@Suite(.serialized, .offThePool)
 struct PageCleanupTests {
     private static let dpi = 300
 
