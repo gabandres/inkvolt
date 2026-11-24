@@ -692,8 +692,14 @@ final class ScanModel {
 
     /// Asks for the stack to be turned over once its `fronts` are scanned (the Windows app's question, a modal alert);
     /// false: only the fronts.
-    func askTurnStack(_ fronts: Int) async -> Bool {
+    private func askTurnStack(_ fronts: Int) async -> Bool {
         if let answerTurnStack { return answerTurnStack(fronts) }
+        return turnStackQuestion(fronts)
+    }
+
+    /// The question itself (the accessibility audit opens it from a run-loop call, not a task: a modal alert run inside a
+    /// main-actor task holds the main queue, so nothing queued after it could end the alert).
+    func turnStackQuestion(_ fronts: Int) -> Bool {
         let alert = NSAlert()
         alert.messageText = fronts == 1 ? String(localized: "Fronts scanned: \(fronts) page.") : String(localized: "Fronts scanned: \(fronts) pages.")
         alert.informativeText = fronts == 1

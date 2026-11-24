@@ -43,14 +43,14 @@ extension Report {
                 walk.note("Join Two Halves: no page scanned to join", finding: true)
             }
             scan.clear()
-            await modal(&walk, "a turned stack's question") { Task { @MainActor in _ = await scan.askTurnStack(3) } }
+            await modal(&walk, "a turned stack's question") { _ = scan.turnStackQuestion(3) }
             await hosted(&walk, "Print Photos", PhotosView(printer: scan.owner, app: model), wait: 1500)
         } else {
             walk.note("scanner windows: no demo inkjet", finding: true)
         }
 
         // Modal alerts.
-        await modal(&walk, "Share a Printer with Phones") { PrinterSharingCard.show(model) }
+        await modal(&walk, "Share a Printer with Phones") { PhoneSharing.show(model) }
         await modal(&walk, "Print on Both Sides by Hand: copies") { _ = HandDuplexPrinting.askCopies("Synthetic.pdf") }
         let plan = HandDuplexPlan.plan(Array(0..<5))
         await modal(&walk, "Print on Both Sides by Hand: between the sides") {

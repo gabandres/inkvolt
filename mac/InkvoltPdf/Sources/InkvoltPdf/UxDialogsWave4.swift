@@ -19,6 +19,8 @@ extension UxShots {
             c?.window?.makeKeyAndOrderFront(nil)
             NSApp.sendAction(NSSelectorFromString("replacePages:"), to: c, from: nil)
         }
+        // A command that beeped before its sheet leaves the step's choice unused: it mustn't reach a later one.
+        DocumentWindowController.testReplaceSource = nil
         let blanks: [(String, String)] = [("remove-blank", "removeBlankPages:"), ("split-blank", "splitAtBlankPages:")]
         for (name, action) in blanks {
             await dialog([Step("\(name)-\(look)")], audits: audits) { [weak c] in
@@ -26,6 +28,7 @@ extension UxShots {
                 c?.window?.makeKeyAndOrderFront(nil)
                 NSApp.sendAction(NSSelectorFromString(action), to: c, from: nil)
             }
+            DocumentWindowController.testBlankPages = nil
         }
         await dialog([Step("headings-\(look)")], audits: audits, wait: 900, skipProgress: true, send(NSSelectorFromString("bookmarksFromHeadings:")))
         await dialog([Step("grid-spacing-\(look)")], audits: audits, send(NSSelectorFromString("chooseGridSpacing:")))

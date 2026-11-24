@@ -1893,11 +1893,15 @@ Built and tested over SSH; nobody saw these on a screen. Each needs a person at 
   pictures, values, raw keys, English in Spanish, controls VoiceOver can't reach, titles, Tab's order (as the Mac's
   keyboard setting is: with Full Keyboard Access off, fields and lists only). Inkvolt PDF's first runs: 61 windows each
   language, fixed the start page's icon and the blank pages' pictures (cells reported though the views were left out),
-  the progress sample's English. Not yet run: Inkvolt Print's audit (the Mac was in use). Open from the PDF runs, for a
-  person with VoiceOver: one toolbar pop-up without a name (an `NSMenuToolbarItem`'s, AppKit's own), Tab never reaching
-  Bookmarks from Headings' preview and Redact by Pattern's two fields, Tab moving up the window in Document Properties,
-  Header & Footer, Watermark, Crop, Page Labels, Split and Batch (some may be the start of the loop, which the walk now
-  counts). Not checkable by a machine: whether names read well aloud, VoiceOver's own order inside SwiftUI, the
+  the progress sample's English. After the review's walk fix (a loop ends on any stop seen again): 5 findings in English,
+  10 in Spanish. Inkvolt Print's (14 windows each language): its first run hung on the turned stack's question (opened
+  inside a main-actor Task, its runModal held the main queue; now opened from a run-loop call), then named the alerts'
+  fields on their cells (preset password, hand duplex's copies and sides): 15 findings each language. Open, for a person
+  with VoiceOver: one toolbar pop-up without a name (an `NSMenuToolbarItem`'s, AppKit's own); Tab never reaching Redact by
+  Pattern's two fields, and in Spanish only the page thumbnails and Batch's actions and two fields (a wider layout?);
+  Print's SwiftUI sheets (Recent Scans, Join Two Halves, Print Photos) with no title; Tab never reaching the print log's,
+  the Wi-Fi setup's and the main window's lists; SwiftUI's hosted buttons, lists and switches the walk sees outside the
+  tree (SwiftUI gives VoiceOver its own elements: likely the walk's limit, a person confirms). Not checkable by a machine: whether names read well aloud, VoiceOver's own order inside SwiftUI, the
   announcements as things change, popovers (Insert Text, Turn to Angle), Calculation Order's sheet (needs a form with two
   calculated fields).
 

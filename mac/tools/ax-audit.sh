@@ -14,6 +14,18 @@ print_report="$HOME/Library/Containers/com.bermudezsystems.InkvoltPrint/Data/Lib
 if [ "$which" != print ]; then
     checks=$(defaults read "$pdf_domain" SUEnableAutomaticChecks 2>/dev/null || echo unset)
     update=$(defaults read "$pdf_domain" SUAutomaticallyUpdate 2>/dev/null || echo unset)
+    # The automatic checks as they were (unset: Info.plist's default; `defaults read` says a bool as 0 or 1), also when
+    # the run is interrupted or fails.
+    restore() {
+        case $2 in
+            unset) defaults delete "$pdf_domain" "$1" 2>/dev/null || true ;;
+            1) defaults write "$pdf_domain" "$1" -bool YES ;;
+            *) defaults write "$pdf_domain" "$1" -bool NO ;;
+        esac
+    }
+    restore_both() { restore SUEnableAutomaticChecks "$checks"; restore SUAutomaticallyUpdate "$update"; }
+    trap restore_both EXIT
+    trap 'exit 130' INT TERM
     defaults write "$pdf_domain" SUEnableAutomaticChecks -bool NO
     defaults write "$pdf_domain" SUAutomaticallyUpdate -bool NO
     for lang in en es; do
@@ -22,23 +34,15 @@ if [ "$which" != print ]; then
         echo "== Inkvolt PDF ($lang)"
         grep -E "FINDING|^FAIL|AX RESULT" "$out/pdf-$lang.txt" || true
     done
-    # The automatic checks as they were (unset: Info.plist's default; `defaults read` says a bool as 0 or 1).
-    restore() {
-        case $2 in
-            unset) defaults delete "$pdf_domain" "$1" ;;
-            1) defaults write "$pdf_domain" "$1" -bool YES ;;
-            *) defaults write "$pdf_domain" "$1" -bool NO ;;
-        esac
-    }
-    restore SUEnableAutomaticChecks "$checks"
-    restore SUAutomaticallyUpdate "$update"
+    restore_both
+    trap - EXIT
 fi
 if [ "$which" != pdf ]; then
     for lang in en es; do
         rm -f "$print_report/report-ax-$lang.txt"
         open -W -n -a "/Applications/Inkvolt Print.app" --args --report "ax-$lang" --wait 1 --lang "$lang" --demo --ax-audit
-        cp "$print_report/report-ax-$lang.txt" "$out/print-$lang.txt"
         echo "== Inkvolt Print ($lang)"
+        cp "$print_report/report-ax-$lang.txt" "$out/print-$lang.txt" 2>/dev/null || { echo "no report (the run ended without one)"; continue; }
         grep -E "FINDING|AX RESULT|ax audit" "$out/print-$lang.txt" || true
     done
 fi
