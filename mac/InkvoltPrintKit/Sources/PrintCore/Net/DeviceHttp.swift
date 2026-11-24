@@ -70,19 +70,31 @@ public final class DeviceHttp: Sendable {
     private let transport: any HttpTransport
     private let basicAuth = Mutex<String?>(nil)
 
-    public init(host: String, transport: HttpTransportFactory, pin: (any CertificatePin)? = nil) {
+    /// - Parameter web: the printer's web server when it isn't on port 80 or 443 (`PrinterAddress.webRoot`): its scheme and
+    ///   port only, on `host`. Its http or https base (LEDM, CDM, the web pages) moves there; nil: the defaults.
+    public init(host: String, transport: HttpTransportFactory, pin: (any CertificatePin)? = nil, web: URL? = nil) {
         self.host = host
         let h = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host // an IPv6 literal
-        httpBase = URL(string: "http://\(h)/")!
-        httpsBase = URL(string: "https://\(h)/")!
+        httpBase = URL(string: "http://\(h)\(Self.portText(web, "http"))/")!
+        httpsBase = URL(string: "https://\(h)\(Self.portText(web, "https"))/")!
         certificates = CertificateCheck(pin: pin)
         self.transport = transport(host, certificates)
     }
 
     /// A fixed transport for every host (demo mode, tests).
-    public convenience init(host: String, transport: any HttpTransport, pin: (any CertificatePin)? = nil) {
-        self.init(host: host, transport: { _, _ in transport }, pin: pin)
+    public convenience init(host: String, transport: any HttpTransport, pin: (any CertificatePin)? = nil, web: URL? = nil) {
+        self.init(host: host, transport: { _, _ in transport }, pin: pin, web: web)
     }
+
+    /// ":port" when `web` is a `scheme` address on a port other than the scheme's default; "" otherwise.
+    private static func portText(_ web: URL?, _ scheme: String) -> String {
+        guard let web, web.scheme?.lowercased() == scheme, let c = URLComponents(url: web, resolvingAgainstBaseURL: false),
+              let port = c.port, (1...65535).contains(port), port != (scheme == "https" ? 443 : 80) else { return "" }
+        return ":\(port)"
+    }
+
+    /// The web server's HTTPS port (443 unless it's on a port of its own).
+    private var webTlsPort: Int { httpsBase.port ?? 443 }
 
     public var hasCredentials: Bool { basicAuth.withLock { $0 != nil } }
 
@@ -140,8 +152,8 @@ public final class DeviceHttp: Sendable {
             throw DeviceNetworkError.failed("Not asked: \(request.url.scheme ?? "an") address that isn't on this printer.")
         }
         var request = request
-        // The admin password belongs to the web server (HTTPS on 443), never to another TLS port such as IPPS on 631.
-        if let auth = basicAuth.withLock({ $0 }), request.url.scheme == "https", (request.url.port ?? 443) == 443 {
+        // The admin password belongs to the web server (HTTPS on 443, or its own port), never to another TLS port such as IPPS on 631.
+        if let auth = basicAuth.withLock({ $0 }), request.url.scheme == "https", (request.url.port ?? 443) == webTlsPort {
             request.headers["Authorization"] = "Basic \(auth)"
         }
         if request.once { request.headers["Connection"] = "close" }

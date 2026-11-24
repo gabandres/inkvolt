@@ -523,12 +523,12 @@ public enum ScanPresetText {
         return p.subfolder.trimmingCharacters(in: .whitespaces).isEmpty ? root : "\(root)/\(sub)"
     }
 
-    /// "patch code sheet", "blank page", "patch code sheet or blank page".
+    /// "patch or QR code sheet", "blank page", "patch or QR code sheet or blank page".
     public static func splitText(_ s: SplitAt) -> String {
         switch s {
         case .blankPage: loc("blank page")
-        case .patchCodeOrBlankPage: loc("patch code sheet or blank page")
-        default: loc("patch code sheet")
+        case .patchCodeOrBlankPage: loc("patch or QR code sheet or blank page")
+        default: loc("patch or QR code sheet")
         }
     }
 

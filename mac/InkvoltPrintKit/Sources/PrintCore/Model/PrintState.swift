@@ -13,9 +13,12 @@ public struct KnownPrinter: Equatable, Sendable, Codable {
     public var ippUri: String?
     /// Set for a printer that answered only SNMP when it was added: what it said about itself. Only these are read over SNMP.
     public var snmp: SnmpDevice?
+    /// Its web server's root when that isn't on port 80 or 443 (`PrinterAddress.webRoot`; the Windows app's
+    /// `KnownPrinter.WebRoot`): typed with its port, or from its `adminurl`, kept only while LEDM or CDM answers there.
+    public var webRoot: String?
 
     public init(uuid: String, name: String, model: String? = nil, host: String, esclRoot: String? = nil, ippUri: String? = nil,
-                snmp: SnmpDevice? = nil) {
+                snmp: SnmpDevice? = nil, webRoot: String? = nil) {
         self.uuid = uuid
         self.name = name
         self.model = model
@@ -23,11 +26,13 @@ public struct KnownPrinter: Equatable, Sendable, Codable {
         self.esclRoot = esclRoot
         self.ippUri = ippUri
         self.snmp = snmp
+        self.webRoot = webRoot
     }
 
-    /// Where the printer session reaches it.
+    /// Where the printer session reaches it. The web root is read back as a scheme and port on its address only.
     public var target: PrinterWhere {
-        PrinterWhere(host, esclHint: esclRoot.flatMap { URL(string: $0) }, ippHint: ippUri.flatMap { URL(string: $0) }, snmp: snmp)
+        PrinterWhere(host, esclHint: esclRoot.flatMap { URL(string: $0) }, ippHint: ippUri.flatMap { URL(string: $0) }, snmp: snmp,
+                     webHint: PrinterAddress.webRoot(webRoot.flatMap { URL(string: $0) }, host: host))
     }
 }
 

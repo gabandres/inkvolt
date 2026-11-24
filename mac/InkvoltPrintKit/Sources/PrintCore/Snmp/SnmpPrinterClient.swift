@@ -11,6 +11,8 @@ public struct SnmpIdentity: Equatable, Sendable {
     public var location: String?
     public var serialNumber: String?
     public var login: SnmpLogin?
+    /// Over SNMPv3, the engine ID (hex) of the agent that answered, signed: its own (`SnmpClient.signedEngineId`). Not a secret.
+    public var engineId: String?
     /// SNMPv3: the probe's session with the agent (its engine and keys), which the printer's reader and identity checks go
     /// on with instead of discovering it again. Not part of who answered (`==` leaves it out).
     var session: SnmpV3Session?
@@ -18,7 +20,7 @@ public struct SnmpIdentity: Equatable, Sendable {
     public static func == (a: SnmpIdentity, b: SnmpIdentity) -> Bool {
         a.version == b.version && a.deviceIndex == b.deviceIndex && a.deviceDescription == b.deviceDescription
             && a.systemDescription == b.systemDescription && a.systemName == b.systemName && a.location == b.location
-            && a.serialNumber == b.serialNumber && a.login == b.login
+            && a.serialNumber == b.serialNumber && a.login == b.login && a.engineId == b.engineId
     }
 
     public init(version: SnmpVersion, deviceIndex: UInt32, deviceDescription: String?, systemDescription: String?, systemName: String?,
@@ -87,15 +89,17 @@ public actor SnmpPrinterClient {
     /// - Parameters:
     ///   - login: the printer's own login (`SnmpLogins`); nil: `SnmpLogin.public`. With an SNMPv3 user only v3 is asked
     ///     (authPriv), never v1 or v2c.
-    ///   - refused: told why an SNMPv3 agent refused the user or its keys (the probe then finds nothing).
+    ///   - refused: told why an SNMPv3 agent refused the user or its keys, and that agent's engine ID
+    ///     (`SnmpAccessError.engineId`); the probe then finds nothing. Never after the agent answered signed
+    ///     (`SnmpClient.signedEngineId`).
     public static func probe(transport: any SnmpTransport, host: String, login: SnmpLogin? = nil,
-                             refused: (@Sendable (SnmpRefusal) -> Void)? = nil) async throws -> SnmpPrinterClient? {
+                             refused: (@Sendable (SnmpRefusal, String?) -> Void)? = nil) async throws -> SnmpPrinterClient? {
         try await probe(transport, host, login, nil, refused)
     }
 
     /// `probe`, going on with an SNMPv3 `session` from an earlier probe of the printer (its identity checks).
     static func probe(_ transport: any SnmpTransport, _ host: String, _ login: SnmpLogin?, _ session: SnmpV3Session?,
-                      _ refused: (@Sendable (SnmpRefusal) -> Void)?) async throws -> SnmpPrinterClient? {
+                      _ refused: (@Sendable (SnmpRefusal, String?) -> Void)?) async throws -> SnmpPrinterClient? {
         if login?.user != nil {
             let v3 = await identify(transport, host, .v3, login, session, refused)
             try Task.checkCancellation()
@@ -145,7 +149,7 @@ public actor SnmpPrinterClient {
     }
 
     private static func identify(_ transport: any SnmpTransport, _ host: String, _ version: SnmpVersion, _ login: SnmpLogin?,
-                                 _ session: SnmpV3Session?, _ refused: (@Sendable (SnmpRefusal) -> Void)?) async -> SnmpIdentity? {
+                                 _ session: SnmpV3Session?, _ refused: (@Sendable (SnmpRefusal, String?) -> Void)?) async -> SnmpIdentity? {
         do {
             let client = makeClient(transport, host, version, login, session, probeTimeout)
             let next = try await client.getNext([PrinterMib.sysDescr, PrinterMib.sysName, PrinterMib.sysLocation, PrinterMib.hrPrinterStatus])
@@ -155,10 +159,13 @@ public actor SnmpPrinterClient {
             var identity = SnmpIdentity(version: version, deviceIndex: index[0], deviceDescription: more[0].value.text,
                                         systemDescription: text(0, PrinterMib.sysDescr), systemName: text(1, PrinterMib.sysName),
                                         location: text(2, PrinterMib.sysLocation), serialNumber: more[1].value.text, login: login)
-            if version == .v3 { identity.session = client.v3 }
+            if version == .v3 {
+                identity.session = client.v3
+                identity.engineId = client.signedEngineId
+            }
             return identity
         } catch let error as SnmpAccessError {
-            refused?(error.reason)
+            refused?(error.reason, error.engineId)
             return nil
         } catch {
             return nil

@@ -24,6 +24,8 @@ public enum DemoScanPage {
             reportPage(page - DemoScan.reportPage(0), upsideDown: DemoScan.isUpsideDown(page), context, w, h)
         } else if page == DemoScan.separatorSheet {
             separatorSheet(context, w, h)
+        } else if page == DemoScan.qrSheet {
+            qrSheet(context, w, h)
         } else if page == DemoScan.photos {
             photos(context, w, h)
         } else if page == DemoScan.onLid {
@@ -61,12 +63,32 @@ public enum DemoScanPage {
         guard let sheet = SeparatorSheet.page(.patchT, widthIn: 8.5, heightIn: 11) else { return }
         let scale = CGFloat(w) / CGFloat(sheet.width)
         context.setFillColor(CGColor(gray: 0.08, alpha: 1))
-        for bar in sheet.bars {
+        for bar in sheet.bars + sheet.qr {
             context.fill(CGRect(x: CGFloat(bar.x) * scale, y: CGFloat(bar.y) * scale, width: CGFloat(bar.width) * scale, height: CGFloat(bar.height) * scale))
         }
         for line in sheet.lines {
             let x: CGFloat = 0.5 * 150
             draw(line.text, size: CGFloat(line.size) * scale, bold: false, at: CGPoint(x: x, y: CGFloat(line.baseline) * scale), context)
+        }
+    }
+
+    /// A sheet with nothing on it but a 1.5 in QR code saying PATCHT (`SeparatorCodes.qrModules`), turned 2° (the Windows
+    /// demo's `QrSheetPage`): 2 in from the top, centred.
+    private static func qrSheet(_ context: CGContext, _ w: Int, _ h: Int) {
+        let inch = CGFloat(w) / 8.5
+        context.translateBy(x: CGFloat(w) / 2, y: CGFloat(h) / 2)
+        context.rotate(by: 2 * .pi / 180)
+        context.translateBy(x: -CGFloat(w) / 2, y: -CGFloat(h) / 2)
+        let modules = SeparatorCodes.qrModules()
+        let size: CGFloat = 1.5 * inch / CGFloat(modules[0].count)
+        let left: CGFloat = (CGFloat(w) - 1.5 * inch) / 2
+        let top: CGFloat = CGFloat(h) - 2 * inch // Core Graphics' y runs up: the code's top row 2 in below the page's top
+        context.setFillColor(CGColor(gray: 0.11, alpha: 1))
+        for (y, row) in modules.enumerated() {
+            for (x, dark) in row.enumerated() where dark {
+                let cell = CGRect(x: left + CGFloat(x) * size, y: top - CGFloat(y + 1) * size, width: size + 0.2, height: size + 0.2)
+                context.fill(cell)
+            }
         }
     }
 

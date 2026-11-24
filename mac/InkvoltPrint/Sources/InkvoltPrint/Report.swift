@@ -19,7 +19,7 @@ import PrintMac
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue; every report ends with the
 /// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`);
-/// `--record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--force]` records a printer
+/// `--record <address> <folder> [--record-scan] [--community name] [--escl url] [--ipp url] [--web url] [--force]` records a printer
 /// (`RecordCommand`, roadmap 1.2) into `Recordings/<folder>` in the container (demo mode: the made-up printers, into a
 /// temporary folder); `--problem` opens Help › Report a Problem… and lists its details, `--problem-record` also runs its
 /// Record This Printer and reads the .zip back (`problemCheck`); `--fleet [fix] [status]` shows the Fleet page and lists its
@@ -103,6 +103,7 @@ enum Report {
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
+            if model.isDemo && args.contains("--web-port") { cancelled += await webPortCheck(model) }
             if args.contains("--history") { cancelled += await historyCheck(model) }
             if args.contains("--print-log") { cancelled += await printLogCheck(model) }
             if args.contains("--papers") { cancelled += await papersCheck(model) }

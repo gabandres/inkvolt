@@ -132,8 +132,10 @@ extension FleetFacts {
         var f = FleetFacts(id, name, kind)
         f.model = view.model
         f.connection = connection
-        f.reachable = view.isOnline || waiting
+        let refused = view.phase == .refused // it answers: an error of its own, not counted offline (as `FleetReader`)
+        f.reachable = view.isOnline || waiting || refused
         f.status = waiting ? .unavailable(view.statusMessage)
+            : refused ? FleetReader.refusedStatus
             : PrinterStatus(code: "", message: view.statusMessage, severity: view.severity, alerts: view.alerts)
         f.supplies = live.isEmpty ? known?.supplies ?? [] : live
         f.pages = view.usage?.totalImpressions ?? known?.pages

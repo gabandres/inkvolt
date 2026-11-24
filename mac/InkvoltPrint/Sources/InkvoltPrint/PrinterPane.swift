@@ -252,7 +252,7 @@ struct StatusCard: View {
             }
             HStack {
                 if printer.needsFixing { Button("Fix It…") { fixing = true } }
-                if v.phase == .elsewhere { Button("This Is My Printer…") { confirmAccept = true } }
+                if v.offersAcceptDevice { Button("This Is My Printer…") { confirmAccept = true } }
             }
             if let notice = v.firmwareNotice { FirmwareNoticeView(printer: printer, notice: notice, openSettings: openSettings) }
         }

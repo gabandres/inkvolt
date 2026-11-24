@@ -116,11 +116,12 @@ public enum AddPrinter {
     }
 
     /// What the printer list remembers for a printer added from what answered at `host`: its id (its UUID, else one from the
-    /// address), and for one that answered only SNMP, what it said about itself (only these are read over SNMP).
-    public static func knownPrinter(_ probe: ProbeResult, host: String) -> KnownPrinter {
+    /// address), for one that answered only SNMP, what it said about itself (only these are read over SNMP), and its web server
+    /// on a port of its own (`web`, the probe's) when LEDM or CDM answered there (`ProbeResult.webRootKept`).
+    public static func knownPrinter(_ probe: ProbeResult, host: String, web: URL? = nil) -> KnownPrinter {
         KnownPrinter(uuid: PrinterId.normalize(probe.uuid, host: host), name: probe.model ?? host, model: probe.model, host: host,
                      esclRoot: probe.esclRoot?.absoluteString, ippUri: probe.ippEndpoint?.absoluteString,
-                     snmp: probe.snmp.map(SnmpDevice.from))
+                     snmp: probe.snmp.map(SnmpDevice.from), webRoot: probe.webRootKept(web)?.absoluteString)
     }
 }
 

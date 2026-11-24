@@ -193,7 +193,7 @@ public final class AlertTracker {
 
     /// Whether a snapshot shows this kind of problem at all (else what was known stands).
     private static func observable(_ kind: AlertKind, _ snap: PrinterSnapshot) -> Bool {
-        kind == .offline || (snap.reachable && (kind == .firmwareChanged || (AlertCondition.isSupply(kind) ? snap.supplies != nil : snap.status != nil)))
+        kind == .offline || kind == .loginRefused || (snap.reachable && (kind == .firmwareChanged || (AlertCondition.isSupply(kind) ? snap.supplies != nil : snap.status != nil)))
     }
 
     /// Alerts due and not shown yet: called after each check and on a timer (quiet hours ending).
@@ -226,8 +226,13 @@ public final class AlertTracker {
         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
     }
 
-    /// An empty cartridge is also low, a full waste box also almost full: tell the worse one only.
+    /// An empty cartridge is also low, a full waste box also almost full: tell the worse one only. A printer whose refused
+    /// login was told is also unreadable: offline isn't told on top of it.
     private func outranked(_ uuid: String, _ t: Track) -> Bool {
+        if t.kind == .offline {
+            guard let refused = printers[uuid]?.tracks[AlertKind.loginRefused.rawValue] else { return false }
+            return refused.present && refused.confirmed
+        }
         let worse: AlertKind?
         switch t.kind {
         case .supplyLow: worse = .supplyEmpty
@@ -278,7 +283,13 @@ public final class AlertTracker {
         current(uuid).filter { AlertCondition.level(of: $0.kind) > .ok }.sorted {
             let (a, b) = (AlertCondition.level(of: $0.kind), AlertCondition.level(of: $1.kind))
             return a != b ? a > b : $0.kind < $1.kind
-        }.first.map { $0.kind == .offline ? loc("Offline") : $0.condition!.title }
+        }.first.map { t in
+            switch t.kind {
+            case .offline: loc("Offline")
+            case .loginRefused: loc("The printer refused its SNMP login")
+            default: t.condition!.title
+            }
+        }
     }
 
     /// Keys of the alerts shown that are still going on, per printer: kept across restarts.
@@ -352,8 +363,17 @@ extension TrayText {
     /// A printer's line in the menu: the tracker's level, except that a printer not answering right now shows grey at once
     /// (the icon waits for the offline hold); its worst ongoing problem, else its status.
     public static func line(name: String, tracked: AlertLevel, problem: String?, view: PrinterView) -> PrinterLine {
-        let notAnswering = view.phase == .offline || view.phase == .elsewhere
-        return PrinterLine(name: name, level: max(tracked, notAnswering ? .offline : .ok), text: problem ?? view.statusMessage)
+        let online = view.phase == .online, connecting = view.phase == .connecting
+        let level = lineLevel(tracked, online: online, connecting: connecting, refused: view.phase == .refused)
+        return PrinterLine(name: name, level: level, text: problem ?? view.statusMessage)
+    }
+
+    /// A printer's level in the menu: its ongoing alerts (`alerted`), or what its card shows now when that is worse: grey at
+    /// once when it isn't answering (connecting is neither), red at once when its SNMP login is refused (an error, as on the
+    /// card and the Fleet page, not offline). The icon waits for the holds (`AlertTracker.overall`). Windows' `TrayText.LineLevel`.
+    public static func lineLevel(_ alerted: AlertLevel, online: Bool, connecting: Bool, refused: Bool) -> AlertLevel {
+        let now: AlertLevel = online || connecting ? .ok : refused ? .error : .offline
+        return max(alerted, now)
     }
 
     /// One alert: its own title and text. Several at once: a line each.

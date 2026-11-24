@@ -8949,6 +8949,16 @@
           }
         }
       }
+    },
+    "%@ But the device that said so couldn't be told to be this printer: it hasn't been read over SNMPv3 yet, or another device has its address. Save Anyway keeps it as it is.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ Pero no se pudo saber si el dispositivo que lo dijo es esta impresora: aún no se ha leído por SNMPv3, u otro dispositivo tiene su dirección. Guardar de todos modos lo guarda tal como está."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

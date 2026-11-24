@@ -82,6 +82,13 @@ extension Report {
             checks.append("\(check)")
         }
         lines.append("  SNMP Access… check (right, wrong auth, public): \(checks.joined(separator: ", "))")
+        // A refusal is the printer's only from the engine its signed answers came from (SnmpDevice.isItsEngine).
+        if let signed = try? await SnmpPrinterClient.probe(transport: agent, host: Demo.snmpHost, login: login),
+           let wrong = try? SnmpLogin.forUser(user.name, "wrong auth 2026", user.privPassphrase) {
+            let known = SnmpDevice.from(signed.identity)
+            let own = await SnmpLoginCheck.check(wrong, host: Demo.snmpHost, known: known, transport: agent)
+            lines.append("  engine remembered from a signed answer: \(yes(known.engineId != nil)); a refusal from it: \(own)")
+        }
         lines.append("  SNMPv3 protocols: " + (await protocolsCheck(walk, engine)))
         lines.append("  SNMPv3 Keychain: " + keychainV3Check(login))
         let store = MemorySnmpLogins()

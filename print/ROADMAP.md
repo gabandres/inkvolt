@@ -97,7 +97,8 @@ What each is: the README's feature table. What waits for real hardware: the READ
 - **2.2 Scan from the printer's button.** Done on Windows: HP's Scan to Computer over LEDM, and a Windows scanner's
   button events through WIA; off by default. Every walk-up name is an assumption (`LedmWalkupScan.Names`) until an HP
   all-in-one that lists the interface is recorded (the M234dw doesn't). **Mac half waits** (ICA's button events; the HP
-  part a port of `LedmWalkupScan` and `ScanToComputer`).
+  part a port of `LedmWalkupScan` and `ScanToComputer`; what fixtures can prove and what needs a device:
+  `mac/docs/PLAN.md`, "Open").
 - **2.3 Scan cleanup and a Unicode OCR layer.** Done, Windows and Mac. Word error rates:
   [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md) (`ocr-corpus cleanup`). Known limits: a white sheet
   under a white lid shows no edge and stays whole; a dark lid isn't cropped; pdf.js (and PDFKit) find each word of a
@@ -127,7 +128,8 @@ What each is: the README's feature table. What waits for real hardware: the READ
   Public). **Mac half waits** (an ICA scanner shared the same way).
 - **3.2 SNMPv3 and a community per printer.** Done on Windows (a community per printer; SNMPv3 with SHA-256/SHA-1/MD5
   and AES-128/192/256/DES; SNMP access… asks the printer first; a refused login is its own state) and on the Mac (the
-  community, SNMPv3 with the same protocols since 2026-11-23, the refused state). Which key extension a maker's agent
+  community, SNMPv3 with the same protocols and the refused state as Windows', a refusal the printer's only from its own
+  engine, since 2026-11-23). Which key extension a maker's agent
   uses for AES-192/256 after MD5 or SHA-1 isn't published: Blumenthal's is tried, then Reeder's once; a real printer
   confirms it.
 - **3.3 The printer's own copier, copy extras.** Done on Windows. The copier writes only the start, because

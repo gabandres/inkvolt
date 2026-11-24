@@ -38,6 +38,13 @@ public struct PrinterView: Equatable, Sendable {
     /// A network printer's answer for roadmap 4.5 (`DriverReadiness`): whether it prints and scans with no maker's driver;
     /// nil before it connects, and for a queue printer.
     public var readiness: DriverReadiness.Readiness? = nil
+    /// Another device answered at the printer's address last: kept while its agent refuses the login (a refusing agent never
+    /// says who it is), so This Is My Printer stays offered (Windows' `IsElsewhere` beside `IsRefused`).
+    public var anotherDeviceAnswered = false
+
+    /// This Is My Printer is offered: another device answers at the address, or did and now refuses the login. The one
+    /// rule for the pane's button and the monitor's `canAcceptDevice`.
+    public var offersAcceptDevice: Bool { phase == .elsewhere || (phase == .refused && anotherDeviceAnswered) }
 
     public static var connecting: PrinterView { PrinterView(phase: .connecting, statusMessage: loc("Connecting…"), statusDetail: nil, severity: .info, alerts: [],
                                                supplies: [], usage: nil, model: nil, interfaces: [], firmware: nil, location: nil) }
@@ -148,7 +155,7 @@ public actor PrinterMonitor {
             } catch is CancellationError {
                 return
             } catch {
-                setOffline(error)
+                setOffline()
                 if (try? await Task.sleep(for: retryDelay)) == nil { return }
             }
         }
@@ -160,18 +167,31 @@ public actor PrinterMonitor {
     public func announced(_ found: DiscoveredPrinter) async -> Bool {
         guard let host = found.host else { return false }
         if host.caseInsensitiveCompare(target.host) == .orderedSame {
-            if let escl = found.esclRoot { target.esclHint = escl }
-            if let ipp = found.ippUri { target.ippHint = ipp }
+            takeHints(found)
             return view.phase == .offline // mDNS just saw it again; don't wait for the retry
         }
-        let candidate = PrinterWhere(host, esclHint: found.esclRoot, ippHint: found.ippUri)
+        let candidate = PrinterWhere(host, esclHint: found.esclRoot, ippHint: found.ippUri, webHint: found.webRoot)
         guard let check = try? await session.checkAddress(current: target, candidate: candidate, currentAnswers: view.isOnline,
                                                           announcedModel: found.model),
               check == .move, host.caseInsensitiveCompare(target.host) != .orderedSame else { return false }
         target.host = host
+        takeHints(found)
+        return true
+    }
+
+    /// The printer's web server on a port of its own as Add a printer found it again (nil: the default ports; Windows'
+    /// `PrinterViewModel.WebRoot`). True when it changed (the caller restarts `run`, so the next connection asks there).
+    public func setWebHint(_ web: URL?) -> Bool {
+        guard web != target.webHint else { return false }
+        target.webHint = web
+        return true
+    }
+
+    /// An announcement's eSCL and IPP addresses, and its web server on a port of its own (its `adminurl`), when it names them.
+    private func takeHints(_ found: DiscoveredPrinter) {
         if let escl = found.esclRoot { target.esclHint = escl }
         if let ipp = found.ippUri { target.ippHint = ipp }
-        return true
+        if let web = found.webRoot { target.webHint = web }
     }
 
     /// The printer's scanner (eSCL) while it's connected as itself; nil offline, when another device answers at its address,
@@ -202,7 +222,7 @@ public actor PrinterMonitor {
         } catch is CancellationError {
             return view.isOnline
         } catch {
-            setOffline(error)
+            setOffline()
             return false
         }
     }
@@ -219,7 +239,7 @@ public actor PrinterMonitor {
     /// "This is my printer": the device at the address counts as this printer from now on. True when there was one to accept
     /// (the caller restarts `run`).
     public func acceptDevice(_ accept: @Sendable ([String]) -> Void) -> Bool {
-        guard view.phase == .elsewhere, !foreignUuids.isEmpty || foreignSnmp != nil else { return false }
+        guard canAcceptDevice else { return false }
         if !foreignUuids.isEmpty { accept(foreignUuids) }
         if let snmp = foreignSnmp { target.snmp = SnmpDevice.from(snmp) }
         foreignUuids = []
@@ -230,8 +250,14 @@ public actor PrinterMonitor {
         v.statusDetail = nil
         v.statusPanel = nil
         v.severity = .info
+        v.anotherDeviceAnswered = false
         publish(v)
         return true
+    }
+
+    /// Another device answers at the address (or did, and now refuses the login): This Is My Printer can take it.
+    public var canAcceptDevice: Bool {
+        view.offersAcceptDevice && (!foreignUuids.isEmpty || foreignSnmp != nil)
     }
 
     // MARK: Steps
@@ -267,6 +293,12 @@ public actor PrinterMonitor {
         publish(v)
         if let escl = probe.esclRoot { target.esclHint = escl }
         if let ipp = probe.ippEndpoint { target.ippHint = ipp }
+        // A web root where neither LEDM nor CDM answers any more (the printer moved it back, or another port) is let go: the
+        // next connection asks the default ports (an announcement's adminurl gives it again).
+        target.webHint = probe.webRootKept(target.webHint)
+        // Over SNMPv3 the engine that answered signed, as this printer, is remembered (the app keeps the target when it
+        // connects): a later refusal is the printer's only from it.
+        if let known = target.snmp, let said = probe.snmp { target.snmp = known.answered(said) }
         onEvent(.connected(target, model: probe.model))
     }
 
@@ -285,6 +317,7 @@ public actor PrinterMonitor {
         }
         var v = view
         v.phase = .online
+        v.anotherDeviceAnswered = false
         if !status.isUnavailable {
             // An unusable reply (printer waking up) keeps the last good status instead of flashing an error.
             v.statusMessage = status.message
@@ -304,13 +337,12 @@ public actor PrinterMonitor {
         return true
     }
 
-    /// A connection or read failed: offline, unless an SNMPv3 agent refused the login (a printer that answers isn't offline).
-    private func setOffline(_ error: any Error) {
-        if let refused = error as? SnmpAccessError { setRefused(refused.reason) } else { setOffline() }
-    }
-
-    /// The printer's SNMPv3 agent refused its login: its own state, saying which part, with where to change it. The printer
-    /// answers, so no offline alert follows (the snapshot is reachable, with nothing read).
+    /// The printer's SNMPv3 agent refused its login when connecting (from its own engine: `PrinterSession.connect`): its own
+    /// state, saying which part, with where to change it. Its alert is that refusal, an error, not offline (the snapshot reads
+    /// nothing, so what was known of its status and supplies stands as for offline). Whether another device answered stays
+    /// as it was: a refusing agent never said who it is. A refusal on a connection whose login has answered signed isn't
+    /// trusted (a refusal can't be signed, so anyone on the network can send one): that read is offline, and the next
+    /// connection's refusal decides.
     private func setRefused(_ why: SnmpRefusal) {
         var v = view
         v.phase = .refused
@@ -321,7 +353,7 @@ public actor PrinterMonitor {
         v.alerts = []
         if let shown = history?.current() { v.supplyHistory = shown }
         publish(v)
-        onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: true, status: nil, supplies: nil)))
+        onEvent(.observed(PrinterSnapshot(uuid: id, name: name, reachable: false, status: nil, supplies: nil, loginRefused: why)))
     }
 
     private func setOffline() {
@@ -332,6 +364,7 @@ public actor PrinterMonitor {
     private func setOffline(_ message: String, _ detail: String, phase: PrinterView.Phase = .offline) {
         var v = view
         v.phase = phase
+        v.anotherDeviceAnswered = phase == .elsewhere
         v.statusMessage = message
         v.statusDetail = detail
         v.statusPanel = nil

@@ -25,9 +25,18 @@ offline fixer and Set Up in macOS; a menu bar item (the tray's equivalent) with 
 turns it on; demo mode (the made-up environment), so App Review can use the app without a printer; and the roadmap's
 items after 1.0 (P12).
 
-Not on the Mac: HP clean-up (nothing like it on macOS), WIA. Not yet: separator sheets marked with a QR code or barcode
-saying PATCHT and the QR code on the printed sheet (Windows' `SeparatorCodes` through ZXing.Net; on the Mac, Vision's
-barcode request would read them), so the Mac's choice still says "Patch codes" and `SeparatorCodeTests` has no Mac port.
+Not on the Mac: HP clean-up (nothing like it on macOS), WIA. Separator sheets marked with a QR code or barcode saying
+PATCHT, and the QR code on the printed sheet (2026-11-23, Windows' 4236623b): PrintCore's `SeparatorCodes` has Windows'
+rules (any case, trimmed, at most 64 characters; a copy over 1,700 px read reduced; a page with more than 3,000 QR
+corner-square marks not searched for a QR code, counted on a black-and-white copy made as ZXing's hybrid binarizer makes
+it; pixels that don't match the size no code) and the sheet's QR code (version 1, level H, 21 × 21, made once with Core
+Image's generator and kept as its modules: PrintCore has no QR encoder). **Mac difference:** the codes are read by
+Vision's `VNDetectBarcodesRequest` (PrintMac's `VisionSeparatorCodes`, a `SeparatorCodeReader`: QR, Code 128 and plain
+Code 39, no check digit or full-ASCII mode, as ZXing is asked on Windows; Vision returns every QR code on a page where
+ZXing's reader decodes one, so a page with a separator code beside another code splits on the Mac), where Windows uses ZXing.Net; `SeparatorCodeTests` (PrintCore, a fake reader) has Windows' rules and
+names, `VisionSeparatorCodesTests` (PrintMac) the cases that decode a drawn code (Code 128 from Core Image's generator;
+macOS has none for Code 39, so Code 39 is read but not tested). The demo batch has Windows' QR-only sheet (7 pages,
+3 files). Not checked: a printed sheet scanned on a real scanner, a Paperless-ngx separator page, a Code 39 sheet.
 
 ## Layout
 
@@ -173,16 +182,25 @@ mac/InkvoltPrintKit --build-system native`.
   (`TheAgentIsDiscoveredThenReadSignedAndEncrypted` counts 1 discovery here, 2 on Windows;
   `AUsersKeysAreWorkedOutOncePerPassphraseNotPerEngine` is Mac only); no `SnmpLogins.rename` in use (the Mac's printer ids
   never change); SNMP Access… is in the sidebar's context menu (no Ctrl+K palette).
-  **Windows ahead, for the Mac to take up:** a refusal on a connection whose login has answered signed is read as
-  offline, not refused (a refusal can't be signed, so anyone on the network can send one), and the next connection's
-  refusal decides; the Mac reads it as refused at once (`aLoginRefusedOnAConnectionReadsAsRefusedNotOffline` takes two
-  checks on Windows). The Mac's refused snapshot raises no alert; Windows' carries `PrinterSnapshot.LoginRefused`
-  (`AlertKind.LoginRefused`, an error). A refusal keeps whether another device answered (the Mac's `setRefused` replaces
-  the phase). A refusal is the printer's only from the engine ID its signed answers came from, remembered with its
-  `SnmpDevice` (`EngineId`), so another device that took the address reads offline and SNMP Access…'s check lets such a
-  refusal be saved anyway (`SnmpLoginCheck.Refused.FromThisPrinter`); once an agent has answered signed, a client takes
-  no refusal from it (`SnmpClient.SignedEngineId`); a refused snapshot keeps offline's hold running, so refusals spoofed
-  every other check can't silence offline. **Other protocols (2026-11-23, Windows' dd508526):** SHA-1 and MD5
+  **The refused state as Windows' (2026-11-23, Windows' 4e63ad92 and 5a2eea81; what was "Windows ahead"):** a refusal
+  is the printer's only from the engine ID its signed answers came from, remembered with its `SnmpDevice` (`engineId`, in
+  the state file, not a secret; the monitor takes it at each signed connection, `SnmpDevice.answered`, `isItsEngine`), so
+  a switch or UPS that took the address, or a printer never read over SNMPv3, is offline (`PrinterSession.connect`; the
+  Fleet page and `status --all` too), and SNMP Access…'s check lets such a refusal be saved anyway
+  (`SnmpLoginCheck.refused(_, fromThisPrinter: false)`, Save Anyway); once an agent has answered signed a client takes no
+  refusal from it (`SnmpClient.signedEngineId`, `SnmpAccessError.engineId`), so a refusal on a connection whose login has
+  answered is offline and the next connection's refusal decides (`aLoginRefusedOnAConnectionReadsAsRefusedNotOffline`
+  takes two checks, as Windows). A refused printer alerts as itself (`AlertKind.loginRefused`, an error, after the error
+  hold; `PrinterSnapshot.loginRefused`, not reachable, so what was known stands); offline's hold runs on through it and
+  offline isn't told once the refusal was (`AlertTracker.outranked`), so refusals spoofed every other check can't silence
+  offline; the menu bar's list shows it red (`TrayText.lineLevel`) and the Fleet page counts it an error, not offline
+  (`FleetReader.refusedStatus`, the app's rows too). A refusal keeps whether another device answered
+  (`PrinterView.anotherDeviceAnswered`, This Is My Printer stays offered: `PrinterMonitor.canAcceptDevice`). Editing SNMP
+  Access…'s fields asks again even when the same login is typed back (Windows' `SnmpLoginSave.Edited`; the sheet's
+  `onChange`). Tests: SnmpLoginTests, SnmpV3Tests, AlertTests, FleetReadTests (Windows' names; Windows'
+  `The_cards_own_offline_state_drops_the_refused_one` reads its view model's source: the Mac's view has one phase, so
+  there's nothing to drop). `--report --snmp` says the engine is remembered from a signed answer and a refusal from it is
+  the printer's. Not checked: the refused alert, the red line and Save Anyway on screen. **Other protocols (2026-11-23, Windows' dd508526):** SHA-1 and MD5
   (HMAC-…-96), AES-192, AES-256 and CBC-DES, the protocol chosen beside each passphrase, kept with the login as Windows
   keeps it; a short AES key lengthened as Blumenthal's draft, then once as Reeder's. `SnmpCrypto` gives hash and HMAC
   (MD5, SHA-1, SHA-256), AES's block (16, 24, 32-byte keys) and DES's block; DES's weak keys are refused by PrintCore
@@ -213,6 +231,19 @@ mac/InkvoltPrintKit --build-system native`.
   and how many queues the last read found. Windows' spooler tests (which notice means a relist, the refresh after lost
   notices) have no Mac counterpart. Not checked: the panel line on screen, a queue added,
   renamed or deleted by hand while the app runs (no queue was changed on the build Mac).
+- **A printer's web server on a port of its own (2026-11-23, Windows' 34eac81a and 58a35482).** A web address typed with
+  its port in Add a printer (`http://host:8080`) is where its web server is (`PrinterAddress.web`; port 631 or an `/ipp/`
+  path is the IPP server, not the web server), and an IPP service's `adminurl` TXT key on a port of its own says the same
+  (`DnssdJoin.webRoot`, only when it names the service's host or address; `DiscoveredPrinter.webRoot`). `DeviceHttp`'s
+  http or https base moves there (its `web`; the admin password goes to that https port), so LEDM, CDM and the web page
+  are asked there, and eSCL on port 80 as well. It travels as `PrinterWhere.webHint` through the session (connect, upgrade
+  from SNMP, a look at another address), the monitor's announcements, Report a Problem's recording and `--record … --web`,
+  and is remembered as `KnownPrinter.webRoot` in the state file and `printers.json` (`SuitePrinter.webRoot`, read back as a
+  scheme and port on the printer's address only). It is kept only where LEDM or CDM answered (`ProbeResult.webRootKept`,
+  on Add and at each connection), so a plain address or a port left resets it. The printer's web page opens there.
+  `PrinterWebPortTests` (Windows' names). `--report --demo --web-port`: the demo laser typed with `:8080`, probed, kept,
+  connected again and remembered, then typed plainly and let go (the made-up network answers on every port). Not checked:
+  a real printer whose web server is on a port of its own, an announced `adminurl` on a real network.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2351,12 +2382,23 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary.
-- Inkvolt Print's printer-data work of 2026-11-20, what's left: a printer's web server on a port of its own (Windows'
-  34eac81a and 58a35482: `PrinterAddress.web`, DnssdJoin's `adminurl`, DeviceHttp's web base, `PrinterWhere.webHint`
-  through the session, the monitor, the recorder and the state file, `ProbeResult.webRootKept`; `PrinterWebPortTests`).
-  Not started on the Mac. SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: SNMP's "Windows ahead" (P12, 3.2); separator codes (QR code or barcode, PATCHT; "Inkvolt Print scope");
-  P12's 2.1, 2.2, 3.1 and 3.3 need a real printer or scanner.
+- Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
+  2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
+- Inkvolt Print: P12's 2.1, 2.2, 3.1 and 3.3, not started on the Mac (separator codes, the last code item besides these,
+  on the Mac since 2026-11-23: "Inkvolt Print scope"). What fixtures could prove and what needs a device, as of
+  2026-11-23:
+  - 2.2 Scan from the printer's button. The HP half (`LedmWalkupScan`, `ScanToComputer`, the demo's
+    `FakeScanToComputer`; `ScanButtonTests`, 33 tests, about 1,100 lines of .NET with a preset's Scan button setting and a
+    background long poll in the app) can be ported from the demo manifest's documents alone, but every walk-up name in it
+    is Windows' assumption (`LedmWalkupScan.Names`): no HP all-in-one that lists the interface has been recorded (the
+    M234dw's tree lists none), so a port would prove only that it matches an assumption. The ICA half (a scanner's button
+    events through ImageCaptureCore, Windows' WIA events) needs a USB scanner with buttons on the build Mac.
+  - 2.1 Print straight to the printer: the encoders (PWG raster, URF, PCLm) and the route decision are a port that needs no
+    device (Windows checks them against `ippeveprinter`); the page check needs a printer with no queue for it.
+  - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
+    from.
+  - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording
+    confirms them, as on Windows.
 - An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
   file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).

@@ -10,6 +10,9 @@ struct V3Engine: Sendable {
     private(set) var other: Usm.Keys?
     private(set) var boots: Int
     private var time: Int
+    /// It answered a request, signed with the user's keys localized to `id`: the ID is its own, and no refusal is taken from
+    /// it after.
+    var answered = false
     /// RFC 3414 §2.3's latestReceivedEngineTime.
     private var latest: Int
     private var at: ContinuousClock.Instant
@@ -126,7 +129,10 @@ extension SnmpClient {
             let (reply, answer) = try await exchange(message.sign(engine.keys, crypto), messageId: messageId, engine: engine, crypto)
             if answer.type == .response {
                 if answer.requestId != pdu.requestId { continue } // signed, but not this request's answer: ask again
-                v3.withLock { $0.engine?.saw(boots: reply.engineBoots, time: reply.engineTime) } // in its window (read)
+                v3.withLock { state in
+                    state.engine?.saw(boots: reply.engineBoots, time: reply.engineTime) // in its window (read)
+                    state.engine?.answered = true
+                }
                 return answer
             }
             let said = answer.varBinds.first?.name
@@ -134,7 +140,7 @@ extension SnmpClient {
                 v3.withLock { $0.engine?.takeOther() } // the agent may lengthen the privacy key the other way: ask again with that one
                 continue
             }
-            guard said == Usm.notInTimeWindows else { throw SnmpAccessError(Self.refusal(said)) }
+            guard said == Usm.notInTimeWindows else { throw SnmpAccessError(Self.refusal(said), engineId: Digest.hex(engine.id, uppercase: true)) }
             // Signed (read lets no other through): the engine's own clock, taken once a request; again, it's no answer.
             if resynchronized { break }
             resynchronized = true
@@ -155,12 +161,17 @@ extension SnmpClient {
 
     /// A report this manager acts on (RFC 3414 §3.2, §4): before the engine is known, only discovery's unknownEngineID
     /// (unsigned: there are no keys yet); after, a notInTimeWindow only signed (the clock is set from it), or a refusal from
-    /// the engine discovered, signed or not (an agent can't sign for a user or key it refuses). Any other report could come
-    /// from anyone on the network: no answer.
+    /// the engine discovered, signed or not (an agent can't sign for a user or key it refuses), until the engine has answered
+    /// signed: it took the login then, so a refusal after is anyone's on the network. Any other report: no answer.
     private static func actedOn(_ reply: SnmpV3Message, _ counter: Oid?, _ engine: V3Engine?) -> Bool {
         guard let engine else { return counter == Usm.unknownEngineIds && !reply.authenticated }
         if counter == Usm.notInTimeWindows { return reply.authenticated }
-        return reply.engineId == engine.id && refusals.contains { $0.counter == counter }
+        return !engine.answered && reply.engineId == engine.id && refusals.contains { $0.counter == counter }
+    }
+
+    /// The engine ID (hex) of the agent once it has answered signed (`V3Engine.answered`); nil before, and over v1 and v2c.
+    public var signedEngineId: String? {
+        v3.withLock { state in state.engine.flatMap { $0.answered ? Digest.hex($0.id, uppercase: true) : nil } }
     }
 
     /// RFC 3414 §4: an empty request, neither signed nor encrypted; the agent reports its engine ID, boots and time.

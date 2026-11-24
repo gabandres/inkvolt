@@ -540,7 +540,8 @@ final class ScanModel {
         guard let gray = try? ScanImaging.analysis(jpeg) else { return nil }
         let fullWidth = ScanImaging.size(jpeg)?.width ?? gray.width
         let ppi = Double(gray.width) * Double(dpi) / Double(max(fullWidth, 1))
-        let separator = c.splitAt == .none ? SeparatorFound.none : Separators.detect(gray, pixelsPerInch: ppi, splitAt: c.splitAt)
+        let separator = c.splitAt == .none ? SeparatorFound.none
+            : Separators.detect(gray, pixelsPerInch: ppi, splitAt: c.splitAt, codes: VisionSeparatorCodes())
         let looksBlank = separator.kind == .blankPage || BlankPage.isBlank(gray)
         let blank = c.skipBlank && looksBlank && !separator.isSeparator
         let photos = c.findPhotos && !blank && !separator.isSeparator ? PhotoFinder.find(gray, pixelsPerInch: ppi) : nil

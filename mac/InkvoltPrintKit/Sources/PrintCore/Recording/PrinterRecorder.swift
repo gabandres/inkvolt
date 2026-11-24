@@ -13,6 +13,8 @@ public struct RecordOptions: Sendable {
     /// eSCL and IPP addresses from DNS-SD, when the printer's aren't the usual ones (as `PrinterConnection.open`).
     public var esclHint: URL?
     public var ippHint: URL?
+    /// The printer's web server on a port of its own (Windows' `record --web`), as `PrinterAddress.webRoot` reads it.
+    public var webHint: URL?
     /// Also one glass page and, when the feeder holds paper, its pages (kept as JPEG, as scanned: never scrubbed).
     public var scan = false
     /// The address the recording calls the printer by (`FixtureScrubber.placeholderHost`).
@@ -87,7 +89,7 @@ public enum PrinterRecorder {
 
         let login = options.login ?? .public
         let connection = try await PrinterConnection.open(host, transport: capture, esclHint: options.esclHint, ippHint: options.ippHint, snmp: snmp,
-                                                          snmpLogin: login)
+                                                          snmpLogin: login, webHint: options.webHint)
         let probe = connection.probe
         if !probe.reachable && snmp == nil { throw RecordingError(description: "Nothing answered at \(host).") }
 

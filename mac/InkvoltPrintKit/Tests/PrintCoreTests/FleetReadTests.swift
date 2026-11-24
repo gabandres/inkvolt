@@ -148,18 +148,58 @@ extension ProGated {
         let printer: KnownPrinter
         let http: any HttpTransport
         let snmp: any SnmpTransport
+        var login: SnmpLogin? = nil
 
         var remembered: [KnownPrinter] { [printer] }
         var forgotten: [String] { [] }
         func accepted(_ id: String) -> [String] { [] }
         func firmware(_ id: String) -> String? { nil }
         func recipe(_ p: KnownPrinter) -> PrinterRecipe {
-            let http = http
-            return PrinterRecipe(transport: { _, _ in http }, snmp: snmp)
+            let http = http, login = login
+            return PrinterRecipe(transport: { _, _ in http }, snmp: snmp, snmpLogin: { login })
         }
         func destinations() async throws -> [CupsDestination]? { [] }
         func scanners() async throws -> [SystemScanner]? { [] }
         var history: SupplyHistoryStore? { nil }
+    }
+
+    // MARK: A refused SNMP login
+
+    private static let v3User = SnmpV3User(name: "reader", authPassphrase: "authpass-2026", privPassphrase: "privpass-2026")
+
+    @Test func A_printer_whose_SNMPv3_agent_refuses_its_login_says_so_not_cant_reach() async throws {
+        TestSnmpCrypto.install()
+        let host = "192.0.2.14"
+        let agent = SnmpAgent(try SnmpAgent.parseWalk(Fixtures.text("snmp-demo/workgroup-laser.txt")), user: Self.v3User,
+                              engineId: Array("inkvolt-engine".utf8), crypto: TestSnmpCrypto())
+        // Read signed over SNMPv3 before: its engine is remembered, so a refusal from it is its own.
+        let known = KnownPrinter(uuid: PrinterId.normalize(nil, host: host), name: "SNMP printer", host: host,
+                                 snmp: SnmpDevice(serialNumber: "DEMO0005200", model: nil, systemName: nil,
+                                                  engineId: Digest.hex(Array("inkvolt-engine".utf8), uppercase: true)))
+        let wrong = try SnmpLogin.forUser(Self.v3User.name, "wrong-auth-pass", Self.v3User.privPassphrase)
+        let read = try await FleetReader.readAll(OnePrinterMac(printer: known, http: HostRouter([:]), snmp: agent, login: wrong), now: Self.now)
+        let printer = try #require(read.printers.first)
+        #expect(printer.status == "The printer refused its SNMP login")
+        #expect(printer.trouble == .error) // it answers: an error of its own, not counted offline
+        #expect(!FleetPage.summary(read.printers).contains("reached")) // "1 with an error", not "can't be reached"
+    }
+
+    @Test func A_refusal_from_an_engine_not_known_as_the_printers_reads_as_cant_reach() async throws {
+        // The printer moved by DHCP; a switch with SNMPv3 took its old address and refuses the user it doesn't know.
+        TestSnmpCrypto.install()
+        let host = "192.0.2.14"
+        let login = try SnmpLogin.forUser(Self.v3User.name, Self.v3User.authPassphrase, Self.v3User.privPassphrase)
+        let device = SnmpAgent(try SnmpAgent.parseWalk(".1.3.6.1.2.1.1.5.0 = STRING: \"core-switch\""),
+                               user: SnmpV3User(name: "admin", authPassphrase: "switch-auth-1", privPassphrase: "switch-priv-1"),
+                               engineId: Array("switch-engine".utf8), crypto: TestSnmpCrypto())
+        for engine in [Digest.hex(Array("inkvolt-engine".utf8), uppercase: true), nil] { // the printer's own engine remembered, or none yet
+            let known = KnownPrinter(uuid: PrinterId.normalize(nil, host: host), name: "SNMP printer", host: host,
+                                     snmp: SnmpDevice(serialNumber: "DEMO0005200", model: nil, systemName: nil, engineId: engine))
+            let read = try await FleetReader.readAll(OnePrinterMac(printer: known, http: HostRouter([:]), snmp: device, login: login), now: Self.now)
+            let printer = try #require(read.printers.first)
+            #expect(printer.trouble == .offline)
+            #expect(printer.status != "The printer refused its SNMP login")
+        }
     }
 
     // MARK: Printers that misbehave

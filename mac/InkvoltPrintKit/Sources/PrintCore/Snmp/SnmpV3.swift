@@ -387,8 +387,18 @@ public enum SnmpRefusal: Sendable, Equatable {
 /// An SNMPv3 agent refused the user or its keys (`reason`). The description names neither.
 public struct SnmpAccessError: Error, Equatable, CustomStringConvertible {
     public let reason: SnmpRefusal
+    /// The engine ID of the agent that refused, in hex, as discovered (unsigned: any device can claim one); nil when not from
+    /// an agent. A refusal is this printer's only when that engine is the one its signed answers came from
+    /// (`SnmpDevice.isItsEngine`).
+    public let engineId: String?
 
-    public init(_ reason: SnmpRefusal) { self.reason = reason }
+    public init(_ reason: SnmpRefusal, engineId: String? = nil) {
+        self.reason = reason
+        self.engineId = engineId
+    }
+
+    /// Which part was refused (the engine it came from isn't part of what it says).
+    public static func == (a: SnmpAccessError, b: SnmpAccessError) -> Bool { a.reason == b.reason }
 
     public var description: String {
         switch reason {

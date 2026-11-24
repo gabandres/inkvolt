@@ -234,6 +234,75 @@ struct AlertTests {
         #expect(t.observe(Self.seen(Self.ready, Self.toner(10)), now: Self.minutes(30)).isEmpty)
     }
 
+    private static func refused(_ why: SnmpRefusal) -> PrinterSnapshot {
+        var s = unreachable()
+        s.loginRefused = why
+        return s
+    }
+
+    @Test func aRefusedSNMPLoginAlertsAsItselfNotOfflineAndKeepsWhatWasKnown() throws {
+        let t = Self.tracker(Self.rules { $0.offline = false }) // offline alerts off: a refusal still alerts
+        #expect(t.observe(Self.seen(Self.ready, Self.toner(10)), now: Self.t0).count == 1)
+        #expect(t.observe(Self.unreachable(), now: Self.minutes(5)).isEmpty)
+        let refused = Self.refused(.wrongAuthKey)
+        #expect(t.observe(refused, now: Self.minutes(6)).isEmpty)
+        let notices = t.observe(refused, now: Self.minutes(8)) // after the error's hold, not offline's
+        try #require(notices.count == 1)
+        #expect(notices[0].kind == .loginRefused)
+        #expect(notices[0].title == "Office laser refused its SNMP login")
+        #expect(notices[0].body.contains("authentication passphrase"))
+        #expect(t.level(Self.laser) == .error)
+        #expect(t.problem(Self.laser) == "The printer refused its SNMP login")
+        #expect(t.observe(refused, now: Self.minutes(40)).isEmpty) // once
+        // SNMP Access… fixed it: the refusal clears, and the low toner known from before doesn't alert again.
+        #expect(t.observe(Self.seen(Self.ready, Self.toner(10)), now: Self.minutes(45)).isEmpty)
+        #expect(t.observe(Self.seen(Self.ready, Self.toner(10)), now: Self.minutes(60)).isEmpty)
+        #expect(t.level(Self.laser) == .warning)
+    }
+
+    @Test func refusedAndOfflineByTurnsStillAlertOfflineAtItsTime() throws {
+        // A v3 printer that is really off, with someone on the path spoofing a refusal every other reconnect: neither resets
+        // the other's hold; offline fires at its time.
+        let t = Self.tracker()
+        let refused = Self.refused(.unknownUser)
+        #expect(t.observe(Self.unreachable(), now: Self.t0).isEmpty)
+        #expect(t.observe(refused, now: Self.minutes(5)).isEmpty)
+        #expect(t.observe(Self.unreachable(), now: Self.minutes(10)).isEmpty)
+        let notices = t.observe(refused, now: Self.minutes(15))
+        try #require(notices.count == 1)
+        #expect(notices[0].kind == .offline)
+        #expect(t.observe(Self.unreachable(), now: Self.minutes(20)).isEmpty) // once
+        #expect(t.observe(refused, now: Self.minutes(25)).isEmpty)
+        #expect(t.level(Self.laser) == .offline)
+    }
+
+    @Test func aRefusalThatSettlesAlertsOnceNotAgainAsOffline() throws {
+        let t = Self.tracker()
+        let refused = Self.refused(.wrongAuthKey)
+        #expect(t.observe(refused, now: Self.t0).isEmpty)
+        let notices = t.observe(refused, now: Self.minutes(2))
+        try #require(notices.count == 1)
+        #expect(notices[0].kind == .loginRefused)
+        #expect(t.observe(refused, now: Self.minutes(20)).isEmpty) // past offline's hold: the refusal said it already
+        #expect(t.observe(refused, now: Self.minutes(60)).isEmpty)
+        #expect(t.level(Self.laser) == .error)
+        #expect(t.problem(Self.laser) == "The printer refused its SNMP login")
+        // Fixed and read again: nothing more to tell.
+        #expect(t.observe(Self.seen(Self.ready), now: Self.minutes(65)).isEmpty)
+        #expect(t.level(Self.laser) == .ok)
+    }
+
+    @Test(arguments: [
+        (AlertLevel.ok, false, false, false, AlertLevel.offline), // not answering: grey at once
+        (.ok, false, false, true, .error), // refused: red, as on its card and the Fleet page
+        (.ok, false, true, true, .ok), // connecting: neither
+        (.warning, false, false, false, .warning), // a low toner outranks offline
+        (.error, true, false, false, .error),
+    ] as [(AlertLevel, Bool, Bool, Bool, AlertLevel)])
+    func theTrayMenuShowsAPrinterAsItsCardDoes(_ alerted: AlertLevel, _ online: Bool, _ connecting: Bool, _ refused: Bool, _ shown: AlertLevel) {
+        #expect(TrayText.lineLevel(alerted, online: online, connecting: connecting, refused: refused) == shown)
+    }
+
     @Test func offlineAlertsCanBeTurnedOffButTheIconStillShowsIt() {
         let t = Self.tracker(Self.rules { $0.offline = false })
         _ = t.observe(Self.unreachable(), now: Self.t0)

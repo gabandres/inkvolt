@@ -171,7 +171,7 @@ public enum FleetReader {
         let target = p.target
         let step = try await session.connect(target)
         if case .elsewhere = step { return elsewhere(p) }
-        if case .refused = step { return silent(p, mac, snmpRefused) } // it answers: not "can't reach"
+        if case .refused = step { return refused(p, mac) }
         guard case .connected(let conn, _) = step else { return silent(p, mac, cantReach) }
         let reading: PrinterReading
         switch try await session.read(target) {
@@ -203,6 +203,20 @@ public enum FleetReader {
         f.status = .offline(differentDevice)
         return f
     }
+
+    /// The printer's SNMPv3 agent refused its login (from its own engine: `PrinterSession.connect`): it answers, so not
+    /// offline but an error of its own line (SNMP Access… is the fix, not another address); nothing read, so its supplies are
+    /// the last known.
+    private static func refused(_ p: KnownPrinter, _ mac: any FleetMac) -> FleetFacts {
+        var f = silent(p, mac, snmpRefused)
+        f.reachable = true
+        f.status = refusedStatus
+        f.oldSupplies = true
+        return f
+    }
+
+    /// A refused SNMP login as the Fleet page's status (the app's own rows say the same).
+    public static var refusedStatus: PrinterStatus { PrinterStatus(code: "snmpLoginRefused", message: snmpRefused, severity: .error, alerts: []) }
 
     private static func silent(_ p: KnownPrinter, _ mac: any FleetMac, _ why: String) -> FleetFacts {
         let known = lastKnown(p.uuid, mac)

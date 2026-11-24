@@ -4,7 +4,7 @@ import Foundation
 import PrintCore
 
 /// The separator sheet (`SeparatorSheet.page`) as a one-page vector PDF, to print at actual size: the Windows app's
-/// `Core/Pdf/SeparatorSheet`. The bars are filled rectangles, black; the text is centred.
+/// `Core/Pdf/SeparatorSheet`. The bars and the QR code's modules are filled rectangles, black; the text is centred.
 public enum SeparatorSheetPdf {
     public static func write(_ sheet: SeparatorSheetPage) -> Data? {
         let data = NSMutableData()
@@ -14,7 +14,7 @@ public enum SeparatorSheetPdf {
                                                                            kCGPDFContextCreator as String: "Inkvolt Print"] as CFDictionary) else { return nil }
         context.beginPDFPage(nil)
         context.setFillColor(CGColor(gray: 0, alpha: 1))
-        for bar in sheet.bars { context.fill(CGRect(x: bar.x, y: bar.y, width: bar.width, height: bar.height)) }
+        for bar in sheet.bars + sheet.qr { context.fill(CGRect(x: bar.x, y: bar.y, width: bar.width, height: bar.height)) }
         for line in sheet.lines {
             let font = CTFontCreateWithName("Helvetica" as CFString, CGFloat(line.size), nil)
             let text = CTLineCreateWithAttributedString(NSAttributedString(string: line.text, attributes: [

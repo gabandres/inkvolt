@@ -20,6 +20,8 @@ final class PrinterModel: Identifiable {
     private(set) var hostName: String?
     /// The IPP URL Bonjour announced (or the one remembered), for setting it up in macOS when its session reads it another way.
     @ObservationIgnored private(set) var ippHint: URL?
+    /// Its web server when that isn't on port 80 or 443 (`KnownPrinter.webRoot`), as its connections last kept it.
+    @ObservationIgnored private(set) var webRoot: URL?
     /// The CUPS queue its print jobs go through: a queue printer's own, or the one macOS has for a network printer.
     var queueName: String?
     private(set) var view = PrinterView.connecting
@@ -56,6 +58,7 @@ final class PrinterModel: Identifiable {
         model = known.model
         host = known.host
         ippHint = known.ippUri.flatMap { URL(string: $0) }
+        webRoot = known.target.webHint
         readOverSnmp = known.snmp != nil
         self.app = app
         let (stream, continuation) = AsyncStream.makeStream(of: MonitorEvent.self)
@@ -148,6 +151,7 @@ final class PrinterModel: Identifiable {
         options.login = app.snmpLogins.usable(id) // asked as its readings are; never written into the recording
         options.esclHint = await monitor?.target.esclHint // Windows' EsclRoot: the eSCL root DNS-SD or a connection found
         options.ippHint = ippHint
+        options.webHint = webRoot
         return try await ReportRecording.run(host, parent: app.recordingsFolder, options, now: Date())
     }
 
@@ -268,6 +272,14 @@ final class PrinterModel: Identifiable {
     }
 
     /// Starts (or restarts) the monitor's connection loop.
+    /// Its web server on a port of its own as Add a printer found it again (nil: the default ports): connected again there.
+    func setWebRoot(_ web: URL?) {
+        guard let monitor else { return }
+        Task {
+            if await monitor.setWebHint(web) { start() }
+        }
+    }
+
     func start() {
         guard let monitor, polling == nil else { return }
         running?.cancel()
@@ -368,6 +380,8 @@ final class PrinterModel: Identifiable {
     /// The printer's web page (its embedded web server), where a printer Inkvolt Print doesn't set up keeps its settings.
     var webPage: URL? {
         guard isNetwork, !host.isEmpty else { return nil }
+        // On a port of its own, its web server there (on the address in use).
+        if let webRoot, let there = PrinterAddress.webRoot(webRoot, host: host) { return there }
         return URL(string: "https://\(host.contains(":") ? "[\(host)]" : host)/")
     }
 
@@ -382,6 +396,7 @@ final class PrinterModel: Identifiable {
         case .connected(let target, let model):
             follow(target.host)
             readOverSnmp = target.snmp != nil
+            webRoot = target.webHint
             app.remember(self, at: target, model: model)
         }
     }
