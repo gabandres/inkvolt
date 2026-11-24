@@ -138,8 +138,9 @@ enum HandDuplexPrinting {
     /// on the long edge, so each turned back is drawn half-turned: `SheetPrint.halfTurned`), then sent by hand as `run` sends a
     /// file, the prompt naming a set-aside sheet by the document's page on it (`SheetPrint.sideNumbers`), never its side's
     /// number. The sides' file is deleted once the backs are sent or stopped. The summary, or nil when nothing was sent (said).
+    /// `sizes`: the pages' as Print a PDF measured them (else read here).
     static func printSheets(_ document: PDFDocument, choice: SheetChoice, name: String, on printer: PrinterModel, app: AppModel,
-                            copies given: Int? = nil) async -> BatchPrintSummary? {
+                            copies given: Int? = nil, sizes: [(Double, Double)]? = nil) async -> BatchPrintSummary? {
         guard let copies = given ?? askCopies(name) else { return nil }
         guard let queue = batchQueue(printer, app: app), let info = try? await queue.read() else {
             Printing.alert(String(localized: "This printer has no macOS print queue to print through."))
@@ -154,7 +155,7 @@ enum HandDuplexPrinting {
         let url = folder.appendingPathComponent(name + ".pdf")
         guard (try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)) != nil,
               let view = Printing.printSheets(document, choice: choice, name: name, on: nil, app: nil, save: url,
-                                              paper: NSSize(width: points.width, height: points.height)),
+                                              paper: NSSize(width: points.width, height: points.height), sizes: sizes),
               let sides = PDFDocument(url: url), sides.pageCount == view.plan.sheetCount else {
             Printing.alert(String(localized: "macOS couldn't prepare the pages for printing."))
             return nil

@@ -816,6 +816,16 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - Local Network access has no API: `LocalNetworkSignal` is told by the transports and Bonjour (denied: URLSession's -1009
   whose network path says `localNetworkDenied`, `EHOSTUNREACH` on UDP, `PolicyDenied`; allowed: any answer). Denied shows a
   banner with a link to System Settings; once allowed, discovery and the offline printers start again at once.
+- An IPv6 address typed with its zone (`[fe80::1%25en0]`, `ipp://[fe80::1%25en0]/`; hostile-input review, 2026-11-23,
+  where Apple's URLComponents trapped on the `%`) keeps it: the printer's host is `fe80::1%en0`, and its IPP and web
+  addresses write it `%25` (`PrinterAddress.urlHost`, which `DeviceHttp` uses too; a host no URL can hold gets the base
+  `unusable.invalid`, never a trap). Windows drops the zone (.NET's `Uri.Host`). A zone that isn't RFC 6874's unreserved
+  characters is no address. Not checked: connecting to a link-local printer by its zone (the transports' scope, above).
+  The same review: Print a PDF's layouts refuse a PDF past `SheetPrint.maxSides` on its page count first
+  (`SheetPrint.tooMany(_:pages:)`), then measure its pages once (off the main thread past 200 pages); `{n:D<n>}` pads to
+  32 digits at most in both apps (`FileNameTemplate.padsTooWide`, refused by `problem` and `normalize`) and a preset's
+  counter goes from Int32.max back to 1; the queue notices subscribe again when cupsd's sequence numbers reach Int32.max; a
+  recovery list naming a page twice restores it once (`ScanPages(restoring:)`, `TurnedStack.inPlaces`).
 - A scanned page past `PageCleanup.maxPixels` (300 M pixels by its header, read without decoding; hostile-input review,
   2026-11-06): saved as the scanner sent it with no edit at all, where Windows drops only its filters and still turns,
   straightens and crops it at full size (a JPEG claiming 65,500 × 65,500 is 17 GB as RGBA, twice over for PageRotate).
@@ -946,7 +956,7 @@ at under "What a person must look at" and in each section.
 | E16 | Speed on huge files (roadmap 3.6): the benchmark, then Find across long documents | FindAllTests |
 | 2.3 | USB scanners, the Mac's leftovers (roadmap 2.3): leaving out blank pages, scan presets, the scanners Inkvolt Print remembers | UsbScannerTests (PrintCore; the WIA and TWAIN ones stay with Windows) |
 | 3.7 | Spanish interface (roadmap 3.7's Mac line) and What's New in Spanish for both Mac apps | PdfStringsTests, ShownStringsTests, CoreStringsTests (PrintCore's target: the PC and the mac job) |
-| 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process | PageCheckTests |
+| 3.6b | A hostile file's time: page checks (Windows' `PageChecks`, 2026-11-05), in process; inline pictures' filters through MuPDF's patch `inline-image-filter-budget.patch` (2026-11-23) | PageCheckTests |
 | 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests |
 | 3.3 | Compare: Office files, scans and formatting (roadmap 3.3's Mac line), on E3's Compare Files | CompareChangesTests, CompareAlignTests, CompareContractTests (and CompareTests, E3's, unchanged) |
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
@@ -1608,6 +1618,13 @@ takes (`inkv_cookie_limit`, `inkv_cookie_stopped`). **Mac difference:** no check
   tiles) read for ever after the stop. While a call reads a page's content, one allocation is at most 4 bytes for each
   pixel allowed: an inline picture (`BI … ID … EI`) is decoded whole while the content is parsed, and a JPEG 2000 one as
   it is read, both before the guard sees them, so one larger than the cap is refused before it decodes.
+  An inline picture's filters run inside that one parse, reading no byte of the file and never looking at the cookie,
+  and the page checks don't see them: `/F [/Fl /Fl /Fl /AHx]` over a few dozen bytes inflated 4 GB of zeros that
+  ASCIIHex skips as white space (9 s for a 1 x 1 picture, and Cancel couldn't stop it). Since 2026-11-23 the Mac's
+  MuPDF has one patch, `Vendor/mupdf/patches/inline-image-filter-budget.patch` (applied by `build.sh`; the report for
+  MuPDF's tracker beside it, `inline-image-filter-budget.md`): what all the filters of one inline picture produce is
+  stopped at 8 times its decoded size plus 1 MB, as data cut short (the picture pads, the page draws and reads, in
+  10 ms). **Mac difference:** Windows' prebuilt MuPDFCore has no such patch; its check process ends such a page at 10 s.
   A guard device (`inkv_guard`) in front of the list, text, export and draw devices looks at the clock with each
   drawing call (every 64 calls, and before every picture, shading, tile and group: nested forms drawn a billion times
   read no bytes) and refuses a picture, or its soft mask, of more than `PdfEngine.maxPicturePixels` (268 M pixels,
@@ -2435,7 +2452,5 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     from.
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording
     confirms them, as on Windows.
-- An inline picture whose filters inflate then discard isn't bounded in time (a MuPDF patch: the owner's call; "A hostile
-  file's time").
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

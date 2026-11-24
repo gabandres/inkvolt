@@ -45,23 +45,37 @@
     "",
     "Local Network: macOS asks for Local Network access at first launch. The app uses it to find printers with Bonjour (the service types listed in NSBonjourServices) and to read them over HTTP and HTTPS (IPP, and HP's own LEDM and CDM interfaces) and over SNMP. If access is denied, the app says so and links to System Settings.",
     "",
-    "Entitlements: com.apple.security.network.client for those connections; com.apple.security.network.server only to receive the UDP replies to the SNMP requests the app sends to printers on port 161 (how it reads a printer's status and supply levels, and how the network search finds printers: one request to the subnet's broadcast address). The app runs no server and accepts no incoming connections; every exchange starts with a request from the app. In the App Sandbox, receiving those UDP replies needs this entitlement: we tested a sandboxed build without it, and the request went out but receiving the printer's reply failed with EPERM; com.apple.security.print to read the printers set up in macOS (their CUPS queues: USB printers and printers shared from other computers are listed with their status) and to cancel the user's own print jobs, through libcups; com.apple.security.files.user-selected.read-write to save scans where the user chooses in the save panel; com.apple.security.files.bookmarks.app-scope to remember the folder the user chose for a scan preset; com.apple.security.device.usb to scan with USB scanners through ImageCaptureCore; com.apple.security.application-groups (AE6TTXW92K.com.bermudezsystems.inkvolt, our team's group) to keep an optional Inkvolt Pro licence key in one file that our other app, Inkvolt PDF, reads too, so a key entered in either app counts in both, and a list of the printers it knows (their names and network addresses, no keys or settings) that Inkvolt PDF reads to show a printer's status in its print panel. No key is needed: everything in the app works without one, and the app sells nothing.",
+    "Entitlements: com.apple.security.network.client for those connections; com.apple.security.network.server for two things: (1) to receive the UDP replies to the SNMP requests the app sends to printers on port 161 (how it reads a printer's status and supply levels, and how the network search finds printers: one request to the subnet's broadcast address); in the App Sandbox, receiving those replies needs this entitlement: we tested a sandboxed build without it, and the request went out but receiving the printer's reply failed with EPERM; (2) new in 1.4.0, scanning with a phone: Scan tab › Use Your Phone… opens a window with a QR code, and only while that window is open the app serves one HTTPS page on TCP port 9781 of the local network, where the user's phone takes photos of pages and sends them to the app (only the first phone to open the page can send; closing the window stops the server). Nothing listens at any other time; com.apple.security.print to read the printers set up in macOS (their CUPS queues: USB printers and printers shared from other computers are listed with their status) and to cancel the user's own print jobs, through libcups; com.apple.security.files.user-selected.read-write to save scans where the user chooses in the save panel; com.apple.security.files.bookmarks.app-scope to remember the folder the user chose for a scan preset; com.apple.security.device.usb to scan with USB scanners through ImageCaptureCore; com.apple.security.application-groups (AE6TTXW92K.com.bermudezsystems.inkvolt, our team's group) to keep an optional Inkvolt Pro licence key in one file that our other app, Inkvolt PDF, reads too, so a key entered in either app counts in both, and a list of the printers it knows (their names and network addresses, no keys or settings) that Inkvolt PDF reads to show a printer's status in its print panel. No key is needed: everything in the app works without one, and the app sells nothing. New in 1.4.0: com.apple.security.device.camera to scan with a camera (Scan tab › Use a Camera…, a webcam, document camera or iPhone through Continuity Camera): macOS asks for camera access only when that window opens; frames are kept only as the pages the user captures, nothing is recorded or sent; com.apple.security.personal-information.location for File › Set Up a New Printer's Wi-Fi…: macOS gives Wi-Fi network names only to apps with location access, so the app asks for it only from that guide (never at launch or anywhere else), to find a new printer's setup network nearby; the location itself is never read, used or kept, and the app never joins a network or sees a Wi-Fi password. Both usage descriptions say so (English and Spanish).",
     "",
     "The app collects no data. Everything it remembers stays in its container on the Mac."
   ],
   "screenshots": ["01-laser.png", "02-dark-cdm.png", "03-inkjet.png", "04-office.png", "05-snmp.png", "06-scan.png", "07-photos.png", "08-print-photos.png"],
   "reviewContactFrom": "com.bermudezsystems.inkvolt",
   "whatsNew": [
-    "New in Inkvolt Print 1.3.1:",
+    "New in Inkvolt Print 1.4.0:",
     "",
-    "• A scan named COM0 or LPT0 gets an underscore, like the other names Windows keeps for its devices, so it opens on a PC too."
+    "• Scan with a camera: Use a Camera… takes pages from your webcam, document camera or iPhone. Use Your Phone… takes photos of pages from any phone's browser, over your own Wi-Fi, while its window is open.",
+    "• Smarter scans: both sides on a one-sided feeder, pages turned upright on their own, a pen's color or punch holes cleaned away, two halves of a large original joined, and batches split at QR codes.",
+    "• Scan presets save Word or text files, smaller black-and-white PDFs, PDF/A or password-protected PDFs, and can name the file from the page's text.",
+    "• Recent Scans…: the last 20 scans, to open, email or print again.",
+    "• More ways to print: the clipboard (⇧⌘V), both sides by hand on a one-sided printer, several pages per sheet, booklets and posters, and cards, calendars and collages in Print Photos.",
+    "• Window › Print Log: every job this Mac printed, with each month's pages per printer and per person.",
+    "• Set up a new printer's Wi-Fi, see whether a printer needs its maker's driver, and share a printer with iPhones and iPads.",
+    "• Pages left on more printers, the printer's own panel message, more SNMPv3 options, and printers added or removed in macOS shown within seconds."
   ],
   "localizations": {
     "es-MX": {
       "whatsNew": [
-        "Novedades de Inkvolt Print 1.3.1:",
+        "Novedades de Inkvolt Print 1.4.0:",
         "",
-        "• Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC."
+        "• Escanear con una cámara: Usar una cámara… toma páginas de tu cámara web, tu cámara de documentos o tu iPhone. Usar tu teléfono… toma fotos de páginas desde el navegador de cualquier teléfono, por tu propia red Wi-Fi, mientras su ventana está abierta.",
+        "• Escaneos más inteligentes: ambas caras en un alimentador de una cara, páginas puestas al derecho solas, el color de un bolígrafo o las perforaciones limpiados, dos mitades de un original grande unidas y lotes divididos en códigos QR.",
+        "• Los ajustes de escaneo guardan archivos de Word o de texto, PDF más pequeños en blanco y negro, PDF/A o PDF con contraseña, y pueden nombrar el archivo con el texto de la página.",
+        "• Escaneos recientes…: los últimos 20 escaneos, para abrirlos, enviarlos por correo o imprimirlos de nuevo.",
+        "• Más formas de imprimir: el portapapeles (⇧⌘V), a doble cara a mano en una impresora de una cara, varias páginas por hoja, folletos y pósteres, y tarjetas, calendarios y collages en Imprimir fotos.",
+        "• Ventana › Registro de impresión: cada trabajo que imprimió este Mac, con las páginas de cada mes por impresora y por persona.",
+        "• Configura la Wi-Fi de una impresora nueva, mira si una impresora necesita el controlador de su fabricante y comparte una impresora con iPhone y iPad.",
+        "• Páginas restantes en más impresoras, el mensaje del panel de la impresora, más opciones de SNMPv3, y las impresoras agregadas o quitadas en macOS aparecen en segundos."
       ]
     }
   }

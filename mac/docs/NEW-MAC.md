@@ -72,7 +72,7 @@ Python 3.14 (`appcast.py`, `assemble.sh`, `check-strings.sh`).
 2. Homebrew, then `brew install gh node python`. `asc*.mjs` use only Node's own crypto: no `npm install`.
 3. `git clone https://github.com/gabandres/inkvolt.git ~/Repos/inkvolt` (the release clone; the scripts fall back to its
    `.env.local` from a worktree).
-4. MuPDF: `sh mac/Vendor/mupdf/build.sh` (1.25.2, cloned into `~/build-artifacts/mupdf`, the XCFramework into
+4. MuPDF: `sh mac/Vendor/mupdf/build.sh` (1.25.2 with `patches/`, cloned into `~/build-artifacts/mupdf`, the XCFramework into
    `mac/InkvoltPdfKit/Frameworks`, not in git). Then `swift test --package-path mac/InkvoltPdfKit` should pass.
 5. Sparkle 2.10.1 comes through SwiftPM (`InkvoltPdf/Package.resolved`): `swift package resolve --package-path
    mac/InkvoltPdf` puts `sign_update` in `mac/InkvoltPdf/.build/artifacts/sparkle/Sparkle/bin/`.

@@ -6,6 +6,9 @@ versión ya tiene esa localización en App Store Connect). Los mismos encabezado
 línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su español (`PdfStringsTests` lo comprueba).
 
 ## Next
+- Imprimir un PDF directamente en la impresora: una impresora de red que macOS no tiene configurada y que imprime sin controlador (IPP Everywhere, AirPrint o Mopria) recibe las páginas del propio Inkvolt Print. Elige las copias, el papel, la doble cara y el color; una ventana pequeña sigue el trabajo hasta que se imprime, con Cancelar.
+
+## 1.4.0
 - Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.
 - Páginas puestas al derecho solas: una página que entra al revés o de lado se gira cuando su texto muestra con claridad cuál es la parte de arriba, y dice Puesta al derecho. Deshacer las deja como estaban; Poner las páginas al derecho, en la configuración de escaneo y en cada ajuste de escaneo, lo desactiva.
 - Archivo más pequeño (blanco y negro) en un ajuste de escaneo: las páginas de su PDF se guardan en blanco y negro, así que una página de texto ocupa una décima parte o menos.
@@ -32,7 +35,6 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - Una impresora cuya página web está en un puerto propio se puede agregar por esa dirección (por ejemplo http://192.168.1.20:8080), y una que anuncia su página en la red se lee allí por sí sola.
 - Una impresora que rechaza su acceso SNMPv3 ahora te avisa de eso, y aparece en rojo en la lista de la barra de menús como en su tarjeta. Un rechazo que puede no venir de tu impresora (otro dispositivo en su dirección, o uno enviado por otra persona en la red) muestra en cambio que no se puede conectar, y Acceso SNMP… te deja guardar el acceso de todos modos.
 - El escaneo en lote también divide en códigos QR: una hoja con un código QR o un código de barras que dice PATCHT (como los que imprime Paperless-ngx) empieza un archivo nuevo, igual que una hoja con código patch. La hoja separadora que Inkvolt Print guarda para ti ahora lleva uno junto a sus barras.
-- Imprimir un PDF directamente en la impresora: una impresora de red que macOS no tiene configurada y que imprime sin controlador (IPP Everywhere, AirPrint o Mopria) recibe las páginas del propio Inkvolt Print. Elige las copias, el papel, la doble cara y el color; una ventana pequeña sigue el trabajo hasta que se imprime, con Cancelar.
 
 ## 1.3.1
 - Un escaneo llamado COM0 o LPT0 recibe un guion bajo, como los demás nombres que Windows reserva para sus dispositivos, para que también se abra en una PC.

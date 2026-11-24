@@ -34,6 +34,22 @@ struct DeviceHttpLimitsTests {
         FileManager.default.contents(atPath: Fixtures.root.appendingPathComponent("m234dw").appendingPathComponent(name).path).map { Array($0) }
     }
 
+    /// A link-local IPv6 host with its zone is written `%25` in the printer's web addresses; a host no web address can hold
+    /// gets a base that never answers, not a trap (the hostile-input review: `URL(string:)!`).
+    @Test func A_zoned_or_unwritable_host_makes_a_base_without_trapping() {
+        for host in ["fe80::1%en0", "[fe80::1%en0]"] {
+            let http = DeviceHttp(host: host, transport: Serving([1]))
+            #expect(http.httpBase.absoluteString == "http://[fe80::1%25en0]/")
+            #expect(http.httpsBase.absoluteString == "https://[fe80::1%25en0]/")
+        }
+        for host in ["fe80::1%e/n", "printer name/with spaces"] {
+            let http = DeviceHttp(host: host, transport: Serving([1]))
+            #expect(http.httpBase.host != nil)
+        }
+        let web = DeviceHttp(host: "fe80::1%en0", transport: Serving([1]), web: URL(string: "http://[fe80::1%25en0]:8080/"))
+        #expect(web.httpBase.absoluteString == "http://[fe80::1%25en0]:8080/")
+    }
+
     @Test(arguments: ["http://192.0.2.200/secret.xml", "https://192.0.2.200/secret.xml", "http://192.0.2.10.evil.example/secret.xml",
                       "http://user@192.0.2.200/secret.xml"])
     func A_request_to_another_computer_isnt_sent(_ url: String) async throws {

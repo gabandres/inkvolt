@@ -45,7 +45,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: mac/InkvoltPdfKit/Frameworks
-          key: mupdf-${{ runner.os }}-${{ hashFiles('mac/Vendor/mupdf/build.sh') }}
+          key: mupdf-${{ runner.os }}-${{ hashFiles('mac/Vendor/mupdf/build.sh', 'mac/Vendor/mupdf/patches/*.patch') }}
       - if: steps.mupdf.outputs.cache-hit != 'true'
         run: sh mac/Vendor/mupdf/build.sh
       - run: swift test --package-path mac/InkvoltPdfKit -Xswiftc -warnings-as-errors

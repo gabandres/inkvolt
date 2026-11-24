@@ -53,21 +53,28 @@ enum Printing {
             print(document, name: name, on: printer, app: app)
             return
         }
+        // Past the limit on its page count alone: refused before any page is measured (a huge PDF's pages take a while).
+        if SheetPrint.tooMany(setup, pages: document.pageCount) {
+            alert(tooManySheets)
+            return
+        }
         var bothSides: Bool? // the queue's say (demo mode's made-up ones too), when it has one; else the panel's printer decides
         if SheetPrint.twoSided(setup, asked: false) { bothSides = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
         let byHand = HandDuplex.offered(bothSides)
-        if let problem = sheetProblem(setup, document, bothSides: bothSides, byHand: byHand) {
+        let sizes = await SheetPrintView.measure(document) // once, for the limit and the layout
+        if let problem = sheetProblem(setup, sizes, bothSides: bothSides, byHand: byHand) {
             alert(problem)
             return
         }
         // A booklet on a queue that prints one side: by hand, as Windows' SheetPrinting.PrintAsync (roadmap 4.2).
         if SheetPrint.route(setup, asked: false, printerTwoSided: bothSides ?? true, byHand: byHand) == .byHand {
-            if let message = await HandDuplexPrinting.printSheets(document, choice: choice, name: name, on: printer, app: app)?.items.first?.message {
+            if let message = await HandDuplexPrinting.printSheets(document, choice: choice, name: name, on: printer, app: app,
+                                                                  sizes: sizes)?.items.first?.message {
                 alert(message)
             }
             return
         }
-        printSheets(document, choice: choice, name: name, on: printer, app: app)
+        printSheets(document, choice: choice, name: name, on: printer, app: app, sizes: sizes)
     }
 
     /// Prints a document with the panel, on the printer's queue when it has one. `actualSize`: at its own size (photos laid

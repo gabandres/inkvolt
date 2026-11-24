@@ -116,6 +116,26 @@ public enum SheetPrint {
         count(setup, sizes, paper, copies: copies, twoSided: false).sides > maxSides
     }
 
+    /// The fewest sides `pages` pages take in this layout, whatever their sizes: pages per sheet's ⌈pages ÷ per sheet⌉, a
+    /// booklet's two sides for each four pages, at least one side a page otherwise (a poster's tiles).
+    public static func fewestSides(_ setup: Sheets.PrintSetup, pages: Int) -> Int {
+        let n = max(0, pages)
+        switch setup.handling {
+        case .pagesPerSheet:
+            let k = Sheets.PrintSetup.perSheet(setup.pagesPerSheet)
+            return n / k + (n % k == 0 ? 0 : 1) // never n + k − 1, which a count near Int.max would overflow
+        case .booklet: return n / 4 * 2 + (n % 4 == 0 ? 0 : 2)
+        case .poster, .fit: return n
+        }
+    }
+
+    /// The job is too big on its page count alone (`fewestSides` past `maxSides`: more than 16,000 pages 16 to a sheet, a
+    /// booklet of more than 2,000, a poster of more than 1,000): refused before any page is measured, which a huge PDF
+    /// would make slow.
+    public static func tooMany(_ setup: Sheets.PrintSetup, pages: Int) -> Bool {
+        fewestSides(setup, pages: pages) > maxSides
+    }
+
     /// Whether the job prints on both sides: a booklet always (it can't be folded otherwise), a poster never (its sheets are
     /// trimmed and joined edge to edge), pages per sheet as asked.
     public static func twoSided(_ setup: Sheets.PrintSetup, asked: Bool) -> Bool {

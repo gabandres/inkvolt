@@ -21,6 +21,16 @@ struct CupsQueueNoticesTests {
         #expect(pace?.isRunning == false)
     }
 
+    /// The next event asked for: past the last one seen, never back; at Int32.max there's none (the hostile-input review:
+    /// `+ 1` overflowed), so the loop subscribes again.
+    @Test func theNextSequenceNeverOverflows() {
+        #expect(CupsQueueNotices.nextSequence(after: 5, atLeast: 1) == 6)
+        #expect(CupsQueueNotices.nextSequence(after: 2, atLeast: 9) == 9)
+        #expect(CupsQueueNotices.nextSequence(after: Int32.max - 1, atLeast: 1) == Int32.max)
+        #expect(CupsQueueNotices.nextSequence(after: Int32.max, atLeast: 1) == nil)
+        #expect(CupsQueueNotices.nextSequence(after: Int32.min, atLeast: 1) == 1)
+    }
+
     @Test func stopStopsThem() {
         let notices = CupsQueueNotices(interval: { () -> Duration? in nil }) {}
         notices.stop()

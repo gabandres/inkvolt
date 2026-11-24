@@ -227,6 +227,41 @@ struct NetworkSearchTests {
         #expect(a.ipp?.absoluteString == ipp)
     }
 
+    /// A link-local IPv6 address with its zone (the network interface after `%`, typed `%25` as RFC 6874 has it) keeps it:
+    /// the IPP and web addresses write it `%25` (the hostile-input review: Apple's URLComponents trapped on the `%` of
+    /// `fe80::1%en0`). Windows drops the zone instead (.NET's Uri.Host).
+    @Test(arguments: [
+        ("ipp://[fe80::1%25en0]/", "fe80::1%en0", "http://[fe80::1%25en0]:631/ipp/print", nil),
+        ("ipps://[fe80::1%25en0]:8631/ipp/print", "fe80::1%en0", "https://[fe80::1%25en0]:8631/ipp/print", nil),
+        ("[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", nil),
+        ("http://[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", "http://[fe80::1%25a]:8080/"),
+        ("[fe80::1%25en0]", "fe80::1%en0", nil, nil),
+    ] as [(String, String, String?, String?)])
+    func A_zoned_IPv6_address_keeps_its_zone(_ typed: String, _ host: String, _ ipp: String?, _ web: String?) {
+        let a = PrinterAddress.parse(typed)
+        #expect(a.error == nil)
+        #expect(a.host?.trimmingCharacters(in: CharacterSet(charactersIn: "[]")) == host)
+        #expect(a.ipp?.absoluteString == ipp)
+        #expect(a.web?.absoluteString == web)
+    }
+
+    /// A zone that isn't one (empty, or a character a zone can't hold) is no address, never a URL made from it.
+    @Test(arguments: ["ipp://[fe80::1%25]/", "ipp://[fe80::1%25a%2Fb]/", "[fe80::1%25a%2Fb]:8080", "[fe80::1%25]:8080"])
+    func A_zone_that_isnt_one_is_no_address(_ typed: String) {
+        let a = PrinterAddress.parse(typed)
+        #expect(a.error != nil)
+        #expect(a.ipp == nil)
+    }
+
+    @Test func A_URL_host_writes_an_IPv6_zone_as_an_escape() {
+        #expect(PrinterAddress.urlHost("fe80::1%en0") == "[fe80::1%25en0]")
+        #expect(PrinterAddress.urlHost("[fe80::1%en0]") == "[fe80::1%25en0]")
+        #expect(PrinterAddress.urlHost("2001:db8::1") == "[2001:db8::1]")
+        #expect(PrinterAddress.urlHost("printer.local") == "printer.local")
+        #expect(PrinterAddress.urlHost("fe80::1%e/n") == nil)
+        #expect(PrinterAddress.urlHost("fe80::1%") == nil)
+    }
+
     @Test(arguments: ["", "   ", "not an address", "ftp://printer.local/", "host:99999", "http://"])
     func nonsenseIsSaidToBeNoAddress(_ typed: String) {
         let a = PrinterAddress.parse(typed)

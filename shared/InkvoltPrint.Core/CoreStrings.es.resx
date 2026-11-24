@@ -2746,6 +2746,9 @@ La impresora debe estar encendida y libre, con papel normal cargado.</value>
   <data name="Preset_BadDateFormat" xml:space="preserve">
     <value>{0} no es un formato de fecha u hora que .NET entienda.</value>
   </data>
+  <data name="Preset_NumberTooWide" xml:space="preserve">
+    <value>{0} pide más de {1} dígitos.</value>
+  </data>
   <data name="Preset_TokenNoFormat" xml:space="preserve">
     <value>{0} no admite formato.</value>
   </data>
