@@ -19,6 +19,7 @@ let package = Package(
         .target(name: "ScriptLimits", linkerSettings: [.linkedFramework("JavaScriptCore")]),
         .target(name: "PdfCore", dependencies: ["MuPDFShim", "ScriptLimits", .product(name: "PrintCore", package: "InkvoltPrintKit")]),
         .testTarget(name: "PdfCoreTests", dependencies: ["PdfCore", .product(name: "PrintCore", package: "InkvoltPrintKit"),
-                                                         .product(name: "PrintMac", package: "InkvoltPrintKit")]),
+                                                         .product(name: "PrintMac", package: "InkvoltPrintKit"),
+                                                         .product(name: "TestTiming", package: "InkvoltPrintKit")]),
     ]
 )

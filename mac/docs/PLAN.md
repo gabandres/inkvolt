@@ -682,7 +682,10 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   The image tests run one at a time for the same reason, the fixtures are read once and kept, and the two IPP timing
   tests time the IPP step alone. Since 2026-11-23's scan items (HalvesJoin, Upright, SeparatorCode, the B/W PDF, phone
   scans) the CPU-heavy suites run off the pool too (`@Suite(.offThePool)`, an operation queue as `offPool`): on CI's 3
-  cores they had held all three pool threads for ~150 s, and every timing test beside them failed.
+  cores they had held all three pool threads for ~150 s, and every timing test beside them failed. InkvoltPdfKit's
+  CompareAlignTests too (2026-11-24, sampled on CI: its cases held the three threads 11 minutes, and LtvTests or
+  AiLoopbackTests lost one answer a run, read with a reset after the server's side was dropped; the transport keeps
+  bytes that come with a reset when the answer is whole).
 - `PrinterSession` is an actor; its clock is a `now` closure, and a dropped connection simply goes (no Dispose).
 - `SnmpPrinterClient` is an actor; a caller's cancellation doesn't stop waiting for a shared read (each read times out on
   its own, 1 s per request).

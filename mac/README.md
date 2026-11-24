@@ -35,7 +35,9 @@ holds for seconds; `PoolHold` in PrintMacTests' TransportTests holds that pool t
 core busy for seconds without suspending is `@Suite(.offThePool)` (`Tests/TestTiming/OffThePool.swift`; whole pages of
 image work, scans of the sources, at utility), or `.offThePoolOnTime` when that work keeps time itself (SNMPv3's 1 s
 requests): swift-testing runs every test on Swift's cooperative pool, one thread a core, and on CI's 3-core runner three
-such tests at once stopped every timing test for 1.5 minutes. To see what
+such tests at once stopped every timing test for 1.5 minutes. InkvoltPdfKit's tests take the trait through InkvoltPrintKit's
+`TestTiming` product (CompareAlignTests: its cases held all three threads for 11 minutes in CI's debug build, and a
+loopback answer read that late came with a reset; `AiSocketTransport` now keeps such an answer). To see what
 blocks that pool, run the tests on the build Mac with `GITHUB_ACTIONS=1 LIBDISPATCH_COOPERATIVE_POOL_STRICT=1` (a pool
 narrower than CI's) and `sample` the test process.
 
