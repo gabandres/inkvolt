@@ -65,14 +65,17 @@ public static class FileNameTemplate
     }
 
     /// <summary>
-    /// The most digits <c>{n:D&lt;n&gt;}</c> pads a number to: a name is cut long before, and .NET's <c>D999999999</c> would
-    /// make a string of a billion zeros.
+    /// The most digits <c>{n:D&lt;n&gt;}</c> (or another standard format's precision) pads a number to: a name is cut long
+    /// before, and .NET's <c>D999999999</c>, <c>X999999999</c>, <c>N999999999</c>… would make a string of a billion digits.
     /// </summary>
     public const int MaxDigits = 32;
 
-    /// <summary>A <c>D&lt;n&gt;</c> format padding past <see cref="MaxDigits"/> (any count of digits after the D).</summary>
+    /// <summary>
+    /// A standard number format (one letter, then its precision: <c>D</c>, <c>X</c>, <c>N</c>, <c>F</c>, <c>E</c>, <c>B</c>,
+    /// <c>C</c>, <c>P</c>…) whose precision is past <see cref="MaxDigits"/> (any count of digits after the letter).
+    /// </summary>
     internal static bool TooWide(string format) =>
-        format.Length > 1 && format[0] is 'D' or 'd' && format.AsSpan(1).IndexOfAnyExceptInRange('0', '9') < 0
+        format.Length > 1 && char.IsAsciiLetter(format[0]) && format.AsSpan(1).IndexOfAnyExceptInRange('0', '9') < 0
         && (!int.TryParse(format.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var width) || width > MaxDigits);
 
     /// <summary>

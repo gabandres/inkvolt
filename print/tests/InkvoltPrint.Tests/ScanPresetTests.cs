@@ -68,6 +68,9 @@ public class FileNameTemplateTests
     [InlineData("{n:D33}", "{n:D33} asks for more than 32 digits.")]
     [InlineData("{n:D9999999999}", "{n:D9999999999} asks for more than 32 digits.")]
     [InlineData("{n:d99999999999999999999999}", "{n:d99999999999999999999999} asks for more than 32 digits.")]
+    [InlineData("{n:X999999999}", "{n:X999999999} asks for more than 32 digits.")]
+    [InlineData("{n:N33}", "{n:N33} asks for more than 32 digits.")]
+    [InlineData("{n:X8} {n:F2} {n:E3}", null)]
     [InlineData("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}.")]
     public void Validates(string template, string? problem) => Assert.Equal(problem, FileNameTemplate.Problem(template));
 
@@ -83,6 +86,28 @@ public class FileNameTemplateTests
         Assert.Equal("{n-D33}", FileNameTemplate.FileName("{n:D33}", Ctx));
         Assert.True(FileNameTemplate.PadsTooWide("Scan {n:D33}"));
         Assert.False(FileNameTemplate.PadsTooWide("Scan {n:D3} {date:D99}"));
+    }
+
+    /// <summary>
+    /// Every standard format's precision is bounded as <c>D</c>'s is (the release review of 1.10.0.0: <c>{n:X999999999}</c>,
+    /// <c>N</c>, <c>F</c>, <c>E</c>, <c>B</c>, <c>C</c> and <c>P</c> each still made a string of a billion characters, 2 GB in 1.8 s).
+    /// </summary>
+    [Theory]
+    [InlineData("X")]
+    [InlineData("x")]
+    [InlineData("N")]
+    [InlineData("F")]
+    [InlineData("E")]
+    [InlineData("B")]
+    [InlineData("C")]
+    [InlineData("P")]
+    public void EveryFormatsPrecisionIsBounded(string letter)
+    {
+        var started = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal($"{{n-{letter}999999999}}", FileNameTemplate.FileName($"{{n:{letter}999999999}}", Ctx));
+        Assert.True(FileNameTemplate.PadsTooWide($"Scan {{n:{letter}33}}"));
+        Assert.False(FileNameTemplate.PadsTooWide($"Scan {{n:{letter}32}}"));
+        Assert.True(started.ElapsedMilliseconds < 500, $"{started.ElapsedMilliseconds} ms");
     }
 
     [Fact]
