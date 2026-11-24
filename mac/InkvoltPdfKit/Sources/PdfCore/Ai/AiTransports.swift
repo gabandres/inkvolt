@@ -451,13 +451,21 @@ final class AiSocketTransport: AiTransport {
         // request went out; the server had answered and closed at once, the system dropped its side meanwhile, and the
         // read that came at last got a reset that took the answer with it ("closed before the answer finished").
         Self.pump(connection, AiHttpReader(), headRead: false, answerHead, body, cancel)
+        var sendError: Error?
         do {
             try await write(head(request) + (request.body ?? []), connection, cancel)
         } catch {
-            // A server may answer before it has read the request; once the answer is whole the connection is cancelled.
-            if !answerHead.succeeded { throw error }
+            // A server may answer before it has read the request (a 413 on a large one) and close: the send fails, but
+            // the answer's head may still be on its way in pieces, so it's waited for; the send's error only when it fails
+            // too (the failed connection ends the read, and the cancel hook still bounds it).
+            sendError = error
         }
-        let answer = try await withCheckedThrowingContinuation { (c: CheckedContinuation<AiHttpReader.Head, Error>) in answerHead.begin(c) }
+        let answer: AiHttpReader.Head
+        do {
+            answer = try await withCheckedThrowingContinuation { (c: CheckedContinuation<AiHttpReader.Head, Error>) in answerHead.begin(c) }
+        } catch {
+            throw sendError ?? error
+        }
         return AiHttpResponse(status: answer.status, contentType: answer.headers["content-type"], location: answer.headers["location"], body: body)
     }
 
