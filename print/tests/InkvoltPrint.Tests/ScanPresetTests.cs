@@ -64,8 +64,26 @@ public class FileNameTemplateTests
     [InlineData("{date", "A { has no closing }. Type {{ for a brace.")]
     [InlineData("a } b", "A } has no opening {. Type }} for a brace.")]
     [InlineData("{preset:x}", "{preset} takes no format.")]
+    [InlineData("{n:D32}", null)]
+    [InlineData("{n:D33}", "{n:D33} asks for more than 32 digits.")]
+    [InlineData("{n:D9999999999}", "{n:D9999999999} asks for more than 32 digits.")]
+    [InlineData("{n:d99999999999999999999999}", "{n:d99999999999999999999999} asks for more than 32 digits.")]
     [InlineData("{}", "Unknown token {}. Use {date}, {time}, {preset}, {printer}, {n}, {pages}, {text-date}, {text-title} or {text-number}.")]
     public void Validates(string template, string? problem) => Assert.Equal(problem, FileNameTemplate.Problem(template));
+
+    /// <summary>
+    /// A <c>D</c> width past 32 digits is never padded (the hostile-input review: <c>{n:D999999999}</c> made a string of a
+    /// billion zeros): the token stays as typed.
+    /// </summary>
+    [Fact]
+    public void NumberPaddingIsBounded()
+    {
+        Assert.Equal(new string('0', 31) + "7", FileNameTemplate.FileName("{n:D32}", Ctx));
+        Assert.Equal("{n-D100}", FileNameTemplate.FileName("{n:D100}", Ctx)); // a width that, padded, wouldn't hurt the run
+        Assert.Equal("{n-D33}", FileNameTemplate.FileName("{n:D33}", Ctx));
+        Assert.True(FileNameTemplate.PadsTooWide("Scan {n:D33}"));
+        Assert.False(FileNameTemplate.PadsTooWide("Scan {n:D3} {date:D99}"));
+    }
 
     [Fact]
     public void UnknownTokensStayAsTyped() => Assert.Equal("{pagez} Receipt", FileNameTemplate.FileName("{pagez} {preset}", Ctx));
@@ -231,6 +249,21 @@ public class ScanPresetListTests
         Assert.Equal(3, list[2].NextNumber);
         Assert.Equal(1, list[0].NextNumber);
         Assert.Null(ScanPresets.Reserve(list, "gone"));
+    }
+
+    /// <summary>
+    /// A stored preset can't bring back what the editor refuses: a template padding past 32 digits gets the default; a
+    /// counter at int's end counts on from 1, never a negative number.
+    /// </summary>
+    [Fact]
+    public void StoredNumberingIsBounded()
+    {
+        var stored = new ScanPreset { Name = "P", FileName = "{n:D999999999}", Subfolder = "Scans/{n:D99}", NextNumber = int.MaxValue };
+        var list = ScanPresets.Normalize(new ScanPresetSettings { Items = [stored] });
+        Assert.Equal(ScanPresets.DefaultFileName, list[0].FileName);
+        Assert.Equal("", list[0].Subfolder);
+        Assert.Equal(int.MaxValue, ScanPresets.Reserve(list, list[0].Id));
+        Assert.Equal(1, ScanPresets.Reserve(list, list[0].Id));
     }
 
     [Fact]

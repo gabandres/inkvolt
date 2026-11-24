@@ -23,6 +23,14 @@ extension Report {
         let again = await model.probe(p.host, ipp: plain.ipp, snmpLogin: .public, web: plain.web)
         p.setWebRoot(again?.webRootKept(plain.web))
         lines.append("  typed as a plain address: \(await connectedWith(p, model) { $0 == nil }), web page \(p.webPage?.absoluteString ?? "none")")
+        // A link-local address with its zone, as Add a printer takes it (the hostile-input review: it trapped); no printer is
+        // there, so the probe finds none.
+        for zoned in ["[fe80::1%25en0]", "ipp://[fe80::1%25en0]/", "[fe80::1%25a]:8080"] {
+            let z = PrinterAddress.parse(zoned)
+            var probed = "not asked"
+            if let host = z.host { probed = await model.probe(host, ipp: z.ipp, snmpLogin: .public, web: z.web)?.reachable == true ? "reached" : "no answer" }
+            lines.append("  typed \(zoned): host \(z.host ?? "none"), IPP \(z.ipp?.absoluteString ?? "none"), \(probed)")
+        }
         return lines
     }
 

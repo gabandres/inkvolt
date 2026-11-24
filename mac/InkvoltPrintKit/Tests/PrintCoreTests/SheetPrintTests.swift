@@ -121,6 +121,29 @@ struct SheetPrintTests {
         #expect(!SheetPrint.tooMany(four, Self.pages(40), Self.letter, copies: 100))
     }
 
+    /// A huge PDF is refused on its page count before a page is measured (the hostile-input review: every page's bounds were
+    /// read on the main thread, twice, first): never more than the sides counted on any paper, and past the limit just
+    /// where the limits say.
+    @Test func aJobPastTheLimitIsRefusedOnItsPageCount() {
+        let sixteen = Self.setup(SheetChoice(.pagesPerSheet, pagesPerSheet: 16)), two = Self.setup(SheetChoice(.pagesPerSheet, pagesPerSheet: 2))
+        let booklet = Self.setup(SheetChoice(.booklet)), poster = Self.setup(SheetChoice(.poster))
+        #expect(!SheetPrint.tooMany(sixteen, pages: 16_000))
+        #expect(SheetPrint.tooMany(sixteen, pages: 16_001))
+        #expect(SheetPrint.tooMany(two, pages: 2_001))
+        #expect(!SheetPrint.tooMany(booklet, pages: 2_000))
+        #expect(SheetPrint.tooMany(booklet, pages: 2_001))
+        #expect(!SheetPrint.tooMany(poster, pages: 1_000))
+        #expect(SheetPrint.tooMany(poster, pages: 1_001))
+        #expect(SheetPrint.tooMany(sixteen, pages: Int.max))
+        #expect(!SheetPrint.tooMany(booklet, pages: -1))
+        for setup in [sixteen, two, booklet, poster] {
+            for n in [1, 2, 3, 4, 5, 7, 8, 9, 17, 33] {
+                #expect(SheetPrint.fewestSides(setup, pages: n) <= SheetPrint.count(setup, Self.pages(n), Self.letter, copies: 1, twoSided: false).sides)
+            }
+        }
+        #expect(SheetPrint.fewestSides(booklet, pages: 9) == SheetPrint.count(booklet, Self.pages(9), Self.letter, copies: 1, twoSided: false).sides)
+    }
+
     @Test func aPosterOnTinyPaperIsCountedPastTheLimitNeverWrapped() {
         // A 200 in page at 400 % on a sheet about 2 DIPs wide inside its margins: 50,000 tiles a side, 2.5 billion sheets, which
         // an int wraps to a negative count (no sheets, and under every limit).

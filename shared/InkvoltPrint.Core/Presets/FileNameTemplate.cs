@@ -52,6 +52,7 @@ public static class FileNameTemplate
                     }
                     break;
                 case "n":
+                    if (part.Format is { } nf && TooWide(nf)) return string.Format(CoreStrings.Preset_NumberTooWide, $"{{{part.Text}:{nf}}}", MaxDigits);
                     break;
                 case "preset" or "printer" or "pages" or "text-title" or "text-number":
                     if (part.Format is not null) return string.Format(CoreStrings.Preset_TokenNoFormat, $"{{{part.Text}}}");
@@ -62,6 +63,24 @@ public static class FileNameTemplate
         }
         return error;
     }
+
+    /// <summary>
+    /// The most digits <c>{n:D&lt;n&gt;}</c> pads a number to: a name is cut long before, and .NET's <c>D999999999</c> would
+    /// make a string of a billion zeros.
+    /// </summary>
+    public const int MaxDigits = 32;
+
+    /// <summary>A <c>D&lt;n&gt;</c> format padding past <see cref="MaxDigits"/> (any count of digits after the D).</summary>
+    internal static bool TooWide(string format) =>
+        format.Length > 1 && format[0] is 'D' or 'd' && format.AsSpan(1).IndexOfAnyExceptInRange('0', '9') < 0
+        && (!int.TryParse(format.AsSpan(1), NumberStyles.None, CultureInfo.InvariantCulture, out var width) || width > MaxDigits);
+
+    /// <summary>
+    /// The template pads <c>{n}</c> past <see cref="MaxDigits"/>: <see cref="Problem"/> refuses it, <see cref="ScanPresets.Normalize"/>
+    /// puts back a stored one's default, and a name never pads it (the token stays as typed).
+    /// </summary>
+    public static bool PadsTooWide(string? template) =>
+        Parse(template ?? "", out _).Any(p => p.Kind == Kind.Token && p.Text.Equals("n", StringComparison.OrdinalIgnoreCase) && p.Format is { } f && TooWide(f));
 
     /// <summary>The template as one safe file name (no extension). Unknown tokens stay as typed.</summary>
     public static string FileName(string? template, NameContext ctx)
@@ -196,6 +215,7 @@ public static class FileNameTemplate
             {
                 "date" => ctx.Now.ToString(token.Format ?? DefaultDate, culture),
                 "time" => ctx.Now.ToString(token.Format ?? DefaultTime, culture),
+                "n" when token.Format is { } nf && TooWide(nf) => Literal(token),
                 "n" => ctx.Number.ToString(token.Format ?? "0", culture),
                 "preset" when token.Format is null => ctx.Preset,
                 "printer" when token.Format is null => ctx.Printer,

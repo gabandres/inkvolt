@@ -63,6 +63,12 @@ struct TurnedStackTests {
         #expect(TurnedStack.inPlaces(current, f + b).joined(separator: " ") == "earlier F1 F2 F3 b3 b1 later")
     }
 
+    /// A page the list holds twice takes its place in the order once; its other place keeps it as it is.
+    @Test func aPageHeldTwiceIsPlacedOnce() {
+        #expect(TurnedStack.inPlaces(["a", "b", "a", "x"], ["b", "a"]) == ["b", "a", "a", "x"])
+        #expect(TurnedStack.inPlaces(["a", "a", "a"], ["a"]) == ["a", "a", "a"])
+    }
+
     @Test func aSeparatorSheetsOtherSideIsItsRealBackNotTheNextPage() {
         // Four sheets, the first a patch sheet; the backs pass took two (sheets 4 and 3). Paired by position, the patch
         // sheet's "back" would be front 2, a page of the document; really its back wasn't scanned, so nothing is taken.

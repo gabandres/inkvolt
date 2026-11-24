@@ -62,7 +62,8 @@ public enum TurnedStack {
     }
 
     /// `current` with the pages of `order` it holds put in that order, in the places they hold now; every other page stays
-    /// where it is. (Undo puts a stack back as scanned with its fronts, then its backs.)
+    /// where it is. (Undo puts a stack back as scanned with its fronts, then its backs.) A page `current` holds twice (a
+    /// recovery list's hand edit) takes its place in `order` once; its other places keep it as it is.
     public static func inPlaces<T: Hashable>(_ current: [T], _ order: [T]) -> [T] {
         let here = Set(current)
         var seen = Set<T>()
@@ -70,7 +71,7 @@ public enum TurnedStack {
         let mine = Set(wanted)
         var next = 0
         return current.map { page in
-            guard mine.contains(page) else { return page }
+            guard mine.contains(page), next < wanted.count else { return page }
             defer { next += 1 }
             return wanted[next]
         }

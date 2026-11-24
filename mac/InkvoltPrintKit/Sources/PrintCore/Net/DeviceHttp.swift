@@ -64,6 +64,8 @@ public final class DeviceHttp: Sendable {
     public static let maxScanReplyBytes = 1 << 30
 
     public let host: String
+    /// The base's host when `host` can't be written in a web address: `.invalid` never resolves (RFC 2606).
+    static let unusable = "unusable.invalid"
     public let httpBase: URL
     public let httpsBase: URL
     public let certificates: CertificateCheck
@@ -74,9 +76,11 @@ public final class DeviceHttp: Sendable {
     ///   port only, on `host`. Its http or https base (LEDM, CDM, the web pages) moves there; nil: the defaults.
     public init(host: String, transport: HttpTransportFactory, pin: (any CertificatePin)? = nil, web: URL? = nil) {
         self.host = host
-        let h = host.contains(":") && !host.hasPrefix("[") ? "[\(host)]" : host // an IPv6 literal
-        httpBase = URL(string: "http://\(h)\(Self.portText(web, "http"))/")!
-        httpsBase = URL(string: "https://\(h)\(Self.portText(web, "https"))/")!
+        // An IPv6 literal in brackets, its zone's `%` as `%25`; a host no web address can name gets one that never answers
+        // (`unusable`), so asking it fails as any unreachable printer does.
+        let h = PrinterAddress.urlHost(host) ?? Self.unusable
+        httpBase = URL(string: "http://\(h)\(Self.portText(web, "http"))/") ?? URL(string: "http://\(Self.unusable)/")!
+        httpsBase = URL(string: "https://\(h)\(Self.portText(web, "https"))/") ?? URL(string: "https://\(Self.unusable)/")!
         certificates = CertificateCheck(pin: pin)
         self.transport = transport(host, certificates)
     }

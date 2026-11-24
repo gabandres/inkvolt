@@ -782,6 +782,16 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
 - Local Network access has no API: `LocalNetworkSignal` is told by the transports and Bonjour (denied: URLSession's -1009
   whose network path says `localNetworkDenied`, `EHOSTUNREACH` on UDP, `PolicyDenied`; allowed: any answer). Denied shows a
   banner with a link to System Settings; once allowed, discovery and the offline printers start again at once.
+- An IPv6 address typed with its zone (`[fe80::1%25en0]`, `ipp://[fe80::1%25en0]/`; hostile-input review, 2026-11-23,
+  where Apple's URLComponents trapped on the `%`) keeps it: the printer's host is `fe80::1%en0`, and its IPP and web
+  addresses write it `%25` (`PrinterAddress.urlHost`, which `DeviceHttp` uses too; a host no URL can hold gets the base
+  `unusable.invalid`, never a trap). Windows drops the zone (.NET's `Uri.Host`). A zone that isn't RFC 6874's unreserved
+  characters is no address. Not checked: connecting to a link-local printer by its zone (the transports' scope, above).
+  The same review: Print a PDF's layouts refuse a PDF past `SheetPrint.maxSides` on its page count first
+  (`SheetPrint.tooMany(_:pages:)`), then measure its pages once (off the main thread past 200 pages); `{n:D<n>}` pads to
+  32 digits at most in both apps (`FileNameTemplate.padsTooWide`, refused by `problem` and `normalize`) and a preset's
+  counter goes from Int32.max back to 1; the queue notices subscribe again when cupsd's sequence numbers reach Int32.max; a
+  recovery list naming a page twice restores it once (`ScanPages(restoring:)`, `TurnedStack.inPlaces`).
 - A scanned page past `PageCleanup.maxPixels` (300 M pixels by its header, read without decoding; hostile-input review,
   2026-11-06): saved as the scanner sent it with no edit at all, where Windows drops only its filters and still turns,
   straightens and crops it at full size (a JPEG claiming 65,500 × 65,500 is 17 GB as RGBA, twice over for PageRotate).

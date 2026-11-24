@@ -448,7 +448,10 @@ public struct ScanPages: Equatable, Sendable {
 
     /// The pages a scan left over (the app quit or crashed before they were saved), as they were.
     public init(restoring scan: KeptScan) {
-        pages = scan.pages.map { k in
+        // A page is its file: a list naming one twice (a hand edit) keeps its first place only, as every page's id is one.
+        var seen = Set<String>()
+        let kept = scan.pages.filter { seen.insert($0.file).inserted }
+        pages = kept.map { k in
             var p = ScannedPage(id: k.file, dpi: k.dpi, edits: k.edits, skipped: k.skipped, looksBlank: k.looksBlank ?? k.skipped, analysed: true,
                                 separator: k.separator ?? .none, startsFile: k.startsFile, photos: k.photos, ocrLanguage: k.ocrLanguage)
             p.oneBit = k.oneBit ?? false

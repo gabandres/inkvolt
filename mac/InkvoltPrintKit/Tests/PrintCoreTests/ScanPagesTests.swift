@@ -100,6 +100,18 @@ struct ScanPagesTests {
         #expect(back.toSave.map(\.id) == ["p1.jpg"])
     }
 
+    /// A recovery list naming a page twice (a hand edit) restores it once, in its first place, so ordering the pages (a turned
+    /// stack's undo, `reorder`) never meets one id twice (the hostile-input review: `TurnedStack.inPlaces` ran past its end).
+    @Test func aPageListedTwiceIsRestoredOnce() {
+        let kept = KeptScan(printerId: Demo.uuid, printerName: "Demo printer", savedUtc: Date(timeIntervalSince1970: 0),
+                            pages: [KeptPage("p1.jpg", dpi: 300, ocr: false), KeptPage("p2.jpg", dpi: 300, ocr: false),
+                                    KeptPage("p1.jpg", dpi: 300, ocr: false)])
+        var back = ScanPages(restoring: kept)
+        #expect(back.pages.map(\.id) == ["p1.jpg", "p2.jpg"])
+        back.reorder(["p2.jpg", "p1.jpg"])
+        #expect(back.pages.map(\.id) == ["p2.jpg", "p1.jpg"])
+    }
+
     // MARK: Batches
 
     private static let patch = SeparatorFound(.patchCode, code: .patchT)
