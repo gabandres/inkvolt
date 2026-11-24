@@ -5,6 +5,8 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+
+## 1.10.0
 - A shared printer shows up on iPhones and iPads right away, even when they already know several other printers; before, it could appear only after sharing was turned off and on.
 - Turning a shared printer's sharing off and on again keeps it the same printer, so phones no longer list it once for each time.
 - Scanning with your phone or a camera says each page is in and that it's waiting for the next one, rather than "Scanning…".
