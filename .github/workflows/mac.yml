@@ -49,4 +49,6 @@ jobs:
       - if: steps.mupdf.outputs.cache-hit != 'true'
         run: sh mac/Vendor/mupdf/build.sh
       - run: swift test --package-path mac/InkvoltPdfKit -Xswiftc -warnings-as-errors
+        env:
+          INKVOLT_NET_TRACE: 1 # WIP
       - run: swift build --package-path mac/InkvoltPdf -c release -Xswiftc -warnings-as-errors # the app
