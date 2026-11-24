@@ -1,11 +1,13 @@
 import Foundation
 import Synchronization
 import Testing
+import TestTiming
 @testable import PrintCore
 
 /// A community per printer (roadmap 3.2): the login kept through its store's seam (memory here; the Keychain in the app),
 /// the made-up agent answering only to the right community, every read of the printer using it, and none of it reaching
 /// state.json or a log line. Ported from print/tests/InkvoltPrint.Tests/SnmpLoginTests.cs.
+@Suite(.offThePoolOnTime)
 struct SnmpLoginTests {
     private static let printer = "12345678-1234-4abc-8def-123456789abc", host = "192.0.2.14", secret = "kx9-office ro"
 
