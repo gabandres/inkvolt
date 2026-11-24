@@ -73,15 +73,19 @@ struct DirectPrintTests {
         let body = r.finished()
         let at = try #require(Self.index(of: [0x34, 0, 9], in: body)) // media-col, the job group's only attribute
         #expect(body[at - 1] == IppCodec.jobTag)
-        let expected: [UInt8] =
-            [0x34, 0, 9] + Array("media-col".utf8) + [0, 0] +          // begCollection "media-col"
-            [0x4A, 0, 0, 0, 10] + Array("media-size".utf8) +           // memberAttrName "media-size"
-            [0x34, 0, 0, 0, 0] +                                       // its value: a collection
-            [0x4A, 0, 0, 0, 11] + Array("x-dimension".utf8) +
-            [0x21, 0, 0, 0, 4, 0, 0, 0, 1] +                           // integer 1
-            [0x37, 0, 0, 0, 0] +                                       // end of media-size
-            [0x37, 0, 0, 0, 0] +                                       // end of media-col
-            [0x03]
+        // One append per piece: Xcode 26's Swift gives up on the sum written as one expression.
+        var expected: [UInt8] = [0x34, 0, 9]
+        expected += Array("media-col".utf8)
+        expected += [0, 0] as [UInt8]                                  // begCollection "media-col"
+        expected += [0x4A, 0, 0, 0, 10] as [UInt8]
+        expected += Array("media-size".utf8)                           // memberAttrName "media-size"
+        expected += [0x34, 0, 0, 0, 0] as [UInt8]                      // its value: a collection
+        expected += [0x4A, 0, 0, 0, 11] as [UInt8]
+        expected += Array("x-dimension".utf8)
+        expected += [0x21, 0, 0, 0, 4, 0, 0, 0, 1] as [UInt8]          // integer 1
+        expected += [0x37, 0, 0, 0, 0] as [UInt8]                      // end of media-size
+        expected += [0x37, 0, 0, 0, 0] as [UInt8]                      // end of media-col
+        expected += [0x03] as [UInt8]
         #expect(Array(body[at...]) == expected)
     }
 

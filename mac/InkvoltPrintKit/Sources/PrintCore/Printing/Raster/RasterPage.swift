@@ -82,17 +82,17 @@ public struct RasterPage: Sendable, Equatable {
         }
         let channels = Self.channels(color)
         var pixels = [UInt8](repeating: 0, count: width * height * channels)
-        pixels.withUnsafeMutableBufferPointer { out in
+        pixels.withUnsafeMutableBufferPointer { (out: inout UnsafeMutableBufferPointer<UInt8>) -> Void in
             var o = 0
             for y in 0..<height {
                 let row = y * stride
                 for x in 0..<width {
                     let b = Int(bgra[row + x * 4]), g = Int(bgra[row + x * 4 + 1]), r = Int(bgra[row + x * 4 + 2])
                     if channels == 1 {
-                        out[o] = UInt8((77 * r + 150 * g + 29 * b + 128) >> 8)
+                        out[o] = luma(r, g, b)
                         o += 1
                     } else if grey {
-                        let level = UInt8((77 * r + 150 * g + 29 * b + 128) >> 8)
+                        let level: UInt8 = luma(r, g, b)
                         (out[o], out[o + 1], out[o + 2]) = (level, level, level)
                         o += 3
                     } else {
@@ -103,6 +103,12 @@ public struct RasterPage: Sendable, Equatable {
             }
         }
         return try RasterPage(width: width, height: height, color: color, pixels: pixels)
+    }
+
+    /// Grey from RGB with ITU-R BT.601 weights, rounded.
+    private static func luma(_ r: Int, _ g: Int, _ b: Int) -> UInt8 {
+        let sum: Int = 77 * r + 150 * g + 29 * b + 128
+        return UInt8(sum >> 8)
     }
 
     public static func fromBgra(width: Int, height: Int, stride: Int, _ bgra: [UInt8], color: RasterColor, grey: Bool = false) throws -> RasterPage {
