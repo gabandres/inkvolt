@@ -179,8 +179,8 @@ public static partial class ScanPresets
                     ? raw.Folder : PresetFolder.Documents,
                 Resolution = Math.Clamp(raw.Resolution, MinResolution, MaxResolution),
                 PageSize = ScanChoices.PageSizes.Any(s => s.Key == raw.PageSize) ? raw.PageSize : null,
-                Subfolder = raw.Subfolder ?? "",
-                FileName = string.IsNullOrWhiteSpace(raw.FileName) ? DefaultFileName : raw.FileName,
+                Subfolder = FileNameTemplate.PadsTooWide(raw.Subfolder) ? "" : raw.Subfolder ?? "",
+                FileName = string.IsNullOrWhiteSpace(raw.FileName) || FileNameTemplate.PadsTooWide(raw.FileName) ? DefaultFileName : raw.FileName,
                 NextNumber = Math.Max(1, raw.NextNumber),
             };
             p = p with { Name = UniqueName(list.Select(x => x.Name), p.Name) };
@@ -207,8 +207,8 @@ public static partial class ScanPresets
         for (var i = 0; i < list.Count; i++)
         {
             if (list[i].Id != id) continue;
-            var n = list[i].NextNumber;
-            list[i] = list[i] with { NextNumber = n + 1 };
+            var n = Math.Max(1, list[i].NextNumber);
+            list[i] = list[i] with { NextNumber = n < int.MaxValue ? n + 1 : 1 }; // past int: 1 again, never a negative number
             return n;
         }
         return null;

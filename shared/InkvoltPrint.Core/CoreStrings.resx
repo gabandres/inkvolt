@@ -3418,6 +3418,10 @@ The printer needs to be on and free, with plain paper loaded.</value>
     <value>{0} isn't a date or time format .NET understands.</value>
     <comment>{0} = the token typed, e.g. {date:qq}</comment>
   </data>
+  <data name="Preset_NumberTooWide" xml:space="preserve">
+    <value>{0} asks for more than {1} digits.</value>
+    <comment>{0} = the token typed, e.g. {n:D99}; {1} = the most digits, 32</comment>
+  </data>
   <data name="Preset_TokenNoFormat" xml:space="preserve">
     <value>{0} takes no format.</value>
     <comment>{0} = the token typed, e.g. {preset}</comment>
