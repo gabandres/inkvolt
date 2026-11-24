@@ -434,6 +434,18 @@ struct AiLoopbackTests {
         #expect(message?.contains("closed before the answer finished") == true)
     }
 
+    @Test func aResetBeforeTheAnswerEndsIsStillAnError() async throws {
+        let server = try #require(AiLoopbackServer { _ in
+            var a = AiLoopbackServer.Answer.sse(["first"])
+            a.pieces.removeLast(2)
+            a.resets = true
+            return a
+        })
+        defer { server.stop() }
+        let message = await aiMessage { _ = try await Self.client(server).chat([.user("Q")]) }
+        #expect(message?.contains("closed before the answer finished") == true, "\(message ?? "no message")")
+    }
+
     @Test func plainHttpFromAnHttpsEndpointFailsSecurely() async throws {
         let server = try #require(AiLoopbackServer(answersFirstBytes: true) { _ in .raw("HTTP/1.1 400 Bad Request\r\n\r\nnot tls") })
         defer { server.stop() }

@@ -1,9 +1,13 @@
 import Foundation
 import Testing
+import TestTiming
 @testable import PdfCore
 
 /// Ported from CompareAlignTests.cs (roadmap 3.3): scans lined up before the overlay, what looks different besides the
-/// words, and both in the annotated copy.
+/// words, and both in the annotated copy. Off the pool (`OffThePool`): its cases line up whole pages for seconds each
+/// without suspending (minutes in a debug build on CI's runner), and on that runner's 3 cores they held all three of
+/// the pool's threads for 11 minutes (sampled on CI, 2026-11-24), so every test waiting for one stood still meanwhile.
+@Suite(.offThePool)
 struct CompareAlignTests {
     private static let scale = 100.0 / 72
     private static let w = 850, h = 1100

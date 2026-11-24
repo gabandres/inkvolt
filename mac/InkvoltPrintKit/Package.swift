@@ -4,7 +4,8 @@ import PackageDescription
 // PrintCore: Inkvolt Print's protocols and rules, ported from shared/InkvoltPrint.Core. Foundation only, so it builds
 // and tests on the Windows PC too; the tests read the .NET fixtures in place (print/tests/InkvoltPrint.Tests/Fixtures).
 // PrintMac: the adapters to Apple's frameworks (URLSession, sockets, Bonjour, libcups), so it exists only when building on a Mac.
-var products: [Product] = [.library(name: "PrintCore", targets: ["PrintCore"])]
+var products: [Product] = [.library(name: "PrintCore", targets: ["PrintCore"]),
+                           .library(name: "TestTiming", targets: ["TestTiming"])] // for InkvoltPdfKit's tests too
 var targets: [Target] = [
     .target(name: "PrintCore"),
     // Time limits in the tests (CI's runner gets more), shared by both test targets.

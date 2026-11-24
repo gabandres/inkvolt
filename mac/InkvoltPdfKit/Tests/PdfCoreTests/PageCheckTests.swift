@@ -2,6 +2,7 @@ import Compression
 import Foundation
 import PrintCore
 import Testing
+import TestTiming
 @testable import PdfCore
 
 /// Ported from PageCheckTests.cs: MuPDF's own inflating, bounded by time, and its pictures by size. Windows draws a page
@@ -508,7 +509,9 @@ struct PageCheckTests {
         }
     }
 
-    @Test func UnregisteringWaitsForAHandlerCancelIsRunning() {
+    /// Off the pool (`OffThePool`): 2,000 rounds that each wait on a semaphore for GCD held one of the pool's threads for
+    /// 12 minutes on CI's runner.
+    @Test(.offThePool) func UnregisteringWaitsForAHandlerCancelIsRunning() {
         // A call's handler aborts its cookie, which the call frees once it has unregistered it; cancel() on another
         // thread may be running the handler right then. Hammered: the handler looks at its cookie twice, a little apart;
         // every other time the call ends just as the handler starts, else whenever it happens to.
