@@ -139,6 +139,8 @@ public class SpellCheckerTests
     {
         Assert.Equal(["fr-CA", "es-MX", "en-US"], SpellChecker.Languages("fr-CA", "es", "es-MX"));
         Assert.Equal(["es-ES", "en-GB", "en-US"], SpellChecker.Languages(null, "es", "en-GB"));
+        Assert.Equal(["pt-BR", "en-GB", "en-US"], SpellChecker.Languages(null, "pt-BR", "en-GB"));
+        Assert.Equal(["fr-CA", "pt-BR", "en-US"], SpellChecker.Languages("fr-CA", "pt-BR", "pt-BR"));
         Assert.Equal(["en-GB", "en-US"], SpellChecker.Languages("", "en", "en-GB"));
         Assert.Equal(["en-US", "de-DE"], SpellChecker.Languages("en-us", "en", "de-DE"));
     }

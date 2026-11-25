@@ -69,10 +69,12 @@ public static class CommandBarLayout
     public const string DrawsIn = "Comment";
 
     /// <summary>
-    /// Fill &amp; Sign's priority: a key group (it keeps the bar labeled) in English; in Spanish, where "Llenar y firmar" is
-    /// the bar's longest label, under <see cref="KeepsLabels"/>, so it goes into "…" before the other labels do.
+    /// Fill &amp; Sign's priority: a key group (it keeps the bar labeled) in English; in Spanish ("Llenar y firmar") and
+    /// Brazilian Portuguese ("Preencher e assinar"), the bar's longest label, under <see cref="KeepsLabels"/>, so it goes
+    /// into "…" before the other labels do.
     /// </summary>
-    public static int FillSignPriority(System.Globalization.CultureInfo culture) => culture.TwoLetterISOLanguageName == "es" ? 75 : 86;
+    public static int FillSignPriority(System.Globalization.CultureInfo culture) =>
+        culture.TwoLetterISOLanguageName is "es" or "pt" ? 75 : 86;
 
     /// <summary>
     /// Convert's colored file types (Word, Excel, PowerPoint, PDF/A): a filled page (Segoe Fluent Icons' PageSolid), so

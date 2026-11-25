@@ -224,7 +224,7 @@ public sealed partial class SpellChecker(ISpellingDictionary dictionary, bool sk
         Add(document);
         var ui = Tag(interfaceLanguage)?.Split('-')[0];
         if (ui is not null && Tag(windows) is { } w && w.Split('-')[0] == ui) Add(w);
-        else Add(ui switch { "en" => "en-US", "es" => "es-ES", _ => ui });
+        else Add(ui switch { "en" => "en-US", "es" => "es-ES", "pt" => "pt-BR", _ => ui });
         Add(windows);
         Add("en-US");
         return result;

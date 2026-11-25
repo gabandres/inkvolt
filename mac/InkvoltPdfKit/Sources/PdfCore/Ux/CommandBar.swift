@@ -73,9 +73,12 @@ public enum CommandBar {
     /// From this priority a group stays on the bar, labeled, while the others go into the overflow.
     public static let keepsLabels = 80
 
-    /// Fill & Sign's priority: a key group in English; in Spanish, where "Llenar y firmar" is the bar's longest label,
-    /// under `keepsLabels`, so it goes into the overflow before the other groups (the owner, 2026-11-08).
-    public static func fillSignPriority(language: String) -> Int { language == "es" ? 75 : 86 }
+    /// Fill & Sign's priority: a key group in English; in Spanish ("Llenar y firmar") and Brazilian Portuguese
+    /// ("Preencher e assinar"), the bar's longest label, under `keepsLabels`, so it goes into the overflow before the
+    /// other groups (the owner, 2026-11-08).
+    public static func fillSignPriority(language: String) -> Int {
+        language == "es" || language == "pt-BR" || language == "pt" ? 75 : 86
+    }
 
     /// Whether a click runs the item at once: an at-once item clicked without Option (Windows' Shift+click asks first).
     public static func runsAtOnce(_ item: Item, option: Bool) -> Bool { item.atOnce && !option }
