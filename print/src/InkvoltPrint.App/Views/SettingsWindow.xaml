@@ -32,6 +32,8 @@
                                      Checked="Language_Checked" Language="en" />
                         <RadioButton Content="{x:Static loc:Strings.Settings_LanguageSpanish}" Tag="es" GroupName="language" Margin="0,6,0,0"
                                      Checked="Language_Checked" Language="es" />
+                        <RadioButton Content="{x:Static loc:Strings.Settings_LanguagePortugueseBrazil}" Tag="pt-BR" GroupName="language" Margin="0,6,0,0"
+                                     Checked="Language_Checked" Language="pt-BR" />
                     </StackPanel>
                     <TextBlock Style="{StaticResource Caption}" Margin="0,4,0,0" TextWrapping="Wrap"
                                Text="{x:Static loc:Strings.Settings_LanguageRestart}" />

@@ -16,6 +16,9 @@
   <data name="Settings_LanguageSpanish" xml:space="preserve">
     <value>Español</value>
   </data>
+  <data name="Settings_LanguagePortugueseBrazil" xml:space="preserve">
+    <value>Português (Brasil)</value>
+  </data>
   <data name="Settings_LanguageRestart" xml:space="preserve">
     <value>Se aplica la próxima vez que se inicie Inkvolt Print.</value>
   </data>

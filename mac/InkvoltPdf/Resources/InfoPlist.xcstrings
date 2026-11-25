@@ -4,59 +4,178 @@
     "CFBundleName": {
       "comment": "Bundle name",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF" } },
-        "es": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF" } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF"
+          }
+        }
       }
     },
     "Excel Workbook": {
       "comment": "A document type the app opens (CFBundleTypeName)",
       "localizations": {
-        "es": { "stringUnit": { "state": "translated", "value": "Libro de Excel" } }
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Libro de Excel"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pasta de trabalho do Excel"
+          }
+        }
       }
     },
     "NSAppleEventsUsageDescription": {
       "comment": "Privacy - AppleEvents Sending Usage Description",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF asks Microsoft Word, Excel or PowerPoint to save a copy of an Office file you open or convert as a PDF. The copy is removed afterwards, and documents you have open aren't touched." } },
-        "es": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF pide a Microsoft Word, Excel o PowerPoint que guarden como PDF una copia del archivo de Office que abres o conviertes. La copia se borra después, y los documentos que tienes abiertos no se tocan." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF asks Microsoft Word, Excel or PowerPoint to save a copy of an Office file you open or convert as a PDF. The copy is removed afterwards, and documents you have open aren't touched."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF pide a Microsoft Word, Excel o PowerPoint que guarden como PDF una copia del archivo de Office que abres o conviertes. La copia se borra después, y los documentos que tienes abiertos no se tocan."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Inkvolt PDF solicita ao Microsoft Word, Excel ou PowerPoint que salve como PDF uma cópia do arquivo do Office que você abre ou converte. A cópia é removida depois, e os documentos que você tem abertos não são alterados."
+          }
+        }
       }
     },
     "NSHumanReadableCopyright": {
       "comment": "Copyright (human-readable)",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; uses MuPDF © Artifex Software." } },
-        "es": { "stringUnit": { "state": "translated", "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; usa MuPDF © Artifex Software." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; uses MuPDF © Artifex Software."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; usa MuPDF © Artifex Software."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "© 2026 Bermudez Systems LLC. AGPL-3.0; usa MuPDF © Artifex Software."
+          }
+        }
       }
     },
     "NSLocalNetworkUsageDescription": {
       "comment": "Privacy - Local Network Usage Description",
       "localizations": {
-        "en": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF looks for scanners on your network for File › Scan, asks the printer you print to for its status when Inkvolt Print knows it, and connects to an AI server on your network only if you set one up." } },
-        "es": { "stringUnit": { "state": "translated", "value": "Inkvolt PDF busca escáneres en tu red para Archivo › Escanear, pide su estado a la impresora a la que imprimes cuando Inkvolt Print la conoce y se conecta a un servidor de IA de tu red solo si configuras uno." } }
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF looks for scanners on your network for File › Scan, asks the printer you print to for its status when Inkvolt Print knows it, and connects to an AI server on your network only if you set one up."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt PDF busca escáneres en tu red para Archivo › Escanear, pide su estado a la impresora a la que imprimes cuando Inkvolt Print la conoce y se conecta a un servidor de IA de tu red solo si configuras uno."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Inkvolt PDF procura scanners na sua rede para Arquivo › Digitalizar, solicita o status à impressora para a qual você imprime quando o Inkvolt Print a conhece e se conecta a um servidor de IA na sua rede apenas se você configurar um."
+          }
+        }
       }
     },
     "PDF Document": {
       "comment": "A document type the app opens (CFBundleTypeName)",
       "localizations": {
-        "es": { "stringUnit": { "state": "translated", "value": "Documento PDF" } }
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento PDF"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento PDF"
+          }
+        }
       }
     },
     "PowerPoint Presentation": {
       "comment": "A document type the app opens (CFBundleTypeName)",
       "localizations": {
-        "es": { "stringUnit": { "state": "translated", "value": "Presentación de PowerPoint" } }
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Presentación de PowerPoint"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apresentação do PowerPoint"
+          }
+        }
       }
     },
     "Web Page": {
       "comment": "A document type the app opens (CFBundleTypeName)",
       "localizations": {
-        "es": { "stringUnit": { "state": "translated", "value": "Página web" } }
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página web"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página da web"
+          }
+        }
       }
     },
     "Word Document": {
       "comment": "A document type the app opens (CFBundleTypeName)",
       "localizations": {
-        "es": { "stringUnit": { "state": "translated", "value": "Documento de Word" } }
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento de Word"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Documento do Word"
+          }
+        }
       }
     }
   },

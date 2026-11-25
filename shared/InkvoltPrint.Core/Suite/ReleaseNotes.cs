@@ -49,7 +49,18 @@ public static class ReleaseNotes
     /// it has entries, else <paramref name="english"/>.
     /// </summary>
     public static IReadOnlyList<ReleaseNote> For(string english, string? spanish, System.Globalization.CultureInfo ui) =>
-        ui.TwoLetterISOLanguageName == "es" && spanish is not null && Parse(spanish) is { Count: > 0 } es ? es : Parse(english);
+        For(english, spanish, null, ui);
+
+    /// <summary>
+    /// The notes in the interface language: <paramref name="portugueseBrazil"/> (WHATS-NEW.pt-BR.md) for <c>pt-BR</c>,
+    /// <paramref name="spanish"/> (WHATS-NEW.es.md) for Spanish, else <paramref name="english"/>.
+    /// </summary>
+    public static IReadOnlyList<ReleaseNote> For(string english, string? spanish, string? portugueseBrazil, System.Globalization.CultureInfo ui)
+    {
+        if (ui.Name.Equals("pt-BR", StringComparison.OrdinalIgnoreCase) && portugueseBrazil is not null && Parse(portugueseBrazil) is { Count: > 0 } ptBr)
+            return ptBr;
+        return ui.TwoLetterISOLanguageName == "es" && spanish is not null && Parse(spanish) is { Count: > 0 } es ? es : Parse(english);
+    }
 
     public static string Format(IEnumerable<ReleaseNote> notes) =>
         string.Join(Environment.NewLine + Environment.NewLine,

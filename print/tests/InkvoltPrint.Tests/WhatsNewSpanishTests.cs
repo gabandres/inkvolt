@@ -47,14 +47,17 @@ public class WhatsNewSpanishTests
     [Theory]
     [InlineData("es", "Nuevo")]
     [InlineData("es-PR", "Nuevo")]
+    [InlineData("pt-BR", "Novidade")]
+    [InlineData("pt-PT", "New")]
     [InlineData("en", "New")]
     [InlineData("en-US", "New")]
     public void The_notes_follow_the_interface_language(string culture, string first)
     {
         const string english = "## 1.1.0\n- New\n";
         const string spanish = "## 1.1.0\n- Nuevo\n";
+        const string portuguese = "## 1.1.0\n- Novidade\n";
 
-        Assert.Equal(first, ReleaseNotes.For(english, spanish, new CultureInfo(culture))[0].Items[0]);
+        Assert.Equal(first, ReleaseNotes.For(english, spanish, portuguese, new CultureInfo(culture))[0].Items[0]);
     }
 
     [Theory]
@@ -63,6 +66,26 @@ public class WhatsNewSpanishTests
     [InlineData("## Next\n- Nada todavía\n")]
     public void Spanish_notes_missing_or_empty_fall_back_to_english(string? spanish) =>
         Assert.Equal("New", ReleaseNotes.For("## 1.1.0\n- New\n", spanish, new CultureInfo("es"))[0].Items[0]);
+
+    [Fact]
+    public void Every_heading_and_line_has_its_portuguese()
+    {
+        var english = Outline(Read("WHATS-NEW.md"));
+        var portuguese = Outline(Read("WHATS-NEW.pt-BR.md"));
+
+        Assert.Equal(english, portuguese);
+        Assert.Contains(("Next", english[0].Lines), portuguese);
+    }
+
+    [Fact]
+    public void Every_portuguese_line_is_translated()
+    {
+        var english = ReleaseNotes.Parse(Read("WHATS-NEW.md")).SelectMany(n => n.Items).ToHashSet();
+        var portuguese = ReleaseNotes.Parse(Read("WHATS-NEW.pt-BR.md")).SelectMany(n => n.Items).ToList();
+
+        Assert.All(portuguese, line => Assert.DoesNotContain(line, english));
+        Assert.All(portuguese, line => Assert.True(line.Length > 20, line));
+    }
 
     [Fact]
     public void The_real_spanish_notes_are_shown_in_spanish()

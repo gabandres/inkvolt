@@ -17,21 +17,24 @@ struct PdfStringsTests {
         return url
     }
 
-    /// A catalog's keys and their Spanish ("" when it has none).
-    static func catalog(_ path: String) -> [String: String] {
+    /// A catalog's keys and their translation in `lang` ("" when it has none).
+    static func catalog(_ path: String, _ lang: String) -> [String: String] {
         guard let data = try? Data(contentsOf: mac.appendingPathComponent(path)),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let strings = json["strings"] as? [String: [String: Any]] else { return [:] }
         return strings.mapValues { entry in
-            let es = (entry["localizations"] as? [String: Any])?["es"] as? [String: Any]
-            let unit = es?["stringUnit"] as? [String: Any]
+            let loc = (entry["localizations"] as? [String: Any])?[lang] as? [String: Any]
+            let unit = loc?["stringUnit"] as? [String: Any]
             return unit?["state"] as? String == "translated" ? unit?["value"] as? String ?? "" : ""
         }
     }
 
-    static let pdfStrings = catalog("InkvoltPdf/Resources/PdfStrings.xcstrings")
-    static let localizable = catalog("InkvoltPdf/Resources/Localizable.xcstrings")
-    static let coreStrings = catalog("InkvoltPrint/Resources/CoreStrings.xcstrings")
+    static let pdfStrings = catalog("InkvoltPdf/Resources/PdfStrings.xcstrings", "es")
+    static let localizable = catalog("InkvoltPdf/Resources/Localizable.xcstrings", "es")
+    static let coreStrings = catalog("InkvoltPrint/Resources/CoreStrings.xcstrings", "es")
+    static let pdfStringsPtBr = catalog("InkvoltPdf/Resources/PdfStrings.xcstrings", "pt-BR")
+    static let localizablePtBr = catalog("InkvoltPdf/Resources/Localizable.xcstrings", "pt-BR")
+    static let coreStringsPtBr = catalog("InkvoltPrint/Resources/CoreStrings.xcstrings", "pt-BR")
 
     static let coreRoot = "InkvoltPdfKit/Sources/PdfCore"
     static let appRoot = "InkvoltPdf/Sources/InkvoltPdf"
@@ -79,16 +82,23 @@ struct PdfStringsTests {
         #expect(Self.appKeys["Calibrate Scale from a Known Length"] == Self.toolTable, "the tools' titles weren't read")
     }
 
-    @Test func Every_sentence_PdfCore_asks_for_is_in_PdfStrings_with_its_Spanish() {
-        let missing = Self.coreKeys.keys.filter { (Self.pdfStrings[$0] ?? "").isEmpty }.sorted()
-        #expect(missing.isEmpty, "No Spanish for \(missing.count): \(missing.prefix(60).map { "\($0) (\(Self.coreKeys[$0]!))" })")
+    @Test func Every_sentence_PdfCore_asks_for_is_in_PdfStrings_with_its_translations() {
+        for (lang, table) in [("es", Self.pdfStrings), ("pt-BR", Self.pdfStringsPtBr)] {
+            let missing = Self.coreKeys.keys.filter { (table[$0] ?? "").isEmpty }.sorted()
+            #expect(missing.isEmpty, "No \(lang) for \(missing.count): \(missing.prefix(60).map { "\($0) (\(Self.coreKeys[$0]!))" })")
+        }
     }
 
-    @Test func Every_sentence_the_app_asks_for_has_its_Spanish() {
-        let missing = Self.appKeys.keys.filter {
-            (Self.localizable[$0] ?? Self.pdfStrings[$0] ?? Self.coreStrings[$0] ?? "").isEmpty
-        }.sorted()
-        #expect(missing.isEmpty, "No Spanish for \(missing.count): \(missing.prefix(60).map { "\($0) (\(Self.appKeys[$0]!))" })")
+    @Test func Every_sentence_the_app_asks_for_has_its_translations() {
+        for (lang, local, pdf, core) in [
+            ("es", Self.localizable, Self.pdfStrings, Self.coreStrings),
+            ("pt-BR", Self.localizablePtBr, Self.pdfStringsPtBr, Self.coreStringsPtBr),
+        ] {
+            let missing = Self.appKeys.keys.filter {
+                (local[$0] ?? pdf[$0] ?? core[$0] ?? "").isEmpty
+            }.sorted()
+            #expect(missing.isEmpty, "No \(lang) for \(missing.count): \(missing.prefix(60).map { "\($0) (\(Self.appKeys[$0]!))" })")
+        }
     }
 
     @Test func The_catalogs_hold_nothing_the_sources_no_longer_ask_for() {
@@ -98,22 +108,25 @@ struct PdfStringsTests {
         #expect(staleApp.isEmpty, "Localizable: not asked for by the app: \(staleApp.prefix(40))")
     }
 
-    /// One Spanish per sentence: the app's catalog doesn't repeat PdfCore's (the app installs both as one table).
+    /// One translation per sentence: the app's catalog doesn't repeat PdfCore's (the app installs both as one table).
     @Test func No_sentence_is_in_both_catalogs() {
         let both = Set(Self.localizable.keys).intersection(Self.pdfStrings.keys).sorted()
         #expect(both.isEmpty, "In Localizable and PdfStrings: \(both.prefix(40))")
     }
 
-    @Test func Each_Spanish_sentence_keeps_its_placeholders() {
-        for (name, table) in [("PdfStrings", Self.pdfStrings), ("Localizable", Self.localizable)] {
-            let wrong = table.filter { key, es in
-                !es.isEmpty && CoreStringsTests.placeholders(CoreStringsTests.english(key)) != CoreStringsTests.placeholders(es)
+    @Test func Each_translated_sentence_keeps_its_placeholders() {
+        for (name, table) in [
+            ("PdfStrings (es)", Self.pdfStrings), ("Localizable (es)", Self.localizable),
+            ("PdfStrings (pt-BR)", Self.pdfStringsPtBr), ("Localizable (pt-BR)", Self.localizablePtBr),
+        ] {
+            let wrong = table.filter { key, tr in
+                !tr.isEmpty && CoreStringsTests.placeholders(CoreStringsTests.english(key)) != CoreStringsTests.placeholders(tr)
             }.keys.sorted()
             #expect(wrong.isEmpty, "\(name): placeholders differ: \(wrong.prefix(20))")
         }
     }
 
-    // MARK: What's New in Spanish
+    // MARK: What's New in Spanish and Brazilian Portuguese
 
     /// Each `## ` heading of a What's New file with its number of `- ` lines, in order.
     static func sections(_ path: String) -> [String] {
@@ -129,13 +142,13 @@ struct PdfStringsTests {
         return out.map { "\($0.0): \($0.1)" }
     }
 
-    /// Both Mac apps' What's New in Spanish (shown when the app runs in Spanish; Inkvolt Print's for the App Store's es-MX
-    /// listing): every version the English has, with as many lines, so an English line added without its Spanish fails.
+    /// Both Mac apps' What's New in Spanish and Brazilian Portuguese: every version the English has, with as many lines.
     @Test(arguments: ["InkvoltPdf", "InkvoltPrint"])
-    func Whats_New_in_Spanish_has_every_version_and_line(_ app: String) {
+    func Whats_New_translations_have_every_version_and_line(_ app: String) {
         let english = Self.sections("\(app)/WHATS-NEW.md")
         #expect(!english.isEmpty)
         #expect(Self.sections("\(app)/WHATS-NEW.es.md") == english)
+        #expect(Self.sections("\(app)/WHATS-NEW.pt-BR.md") == english)
     }
 
     // MARK: Unwrapped English

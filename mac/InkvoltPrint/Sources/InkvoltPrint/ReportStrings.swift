@@ -10,25 +10,28 @@ import PrintCore
 enum ReportStrings {
     static func lines() -> [String] {
         var lines = ["language: \(AppLanguage.current) (macOS offers \(Bundle.main.localizations.sorted().joined(separator: ", "))); "
-            + "locale \(Locale.current.identifier); Spanish ready \(AppLanguage.spanishReady); Settings › Language \(AppLanguage.choice.rawValue)"]
+            + "locale \(Locale.current.identifier); Spanish ready \(AppLanguage.spanishReady); Portuguese ready \(AppLanguage.portugueseReady); Settings › Language \(AppLanguage.choice.rawValue)"]
         var missing = 0
         let catalogs = catalogKeys()
-        for table in ["Localizable", "CoreStrings"] {
-            // Not the compiled English table: Xcode writes into it only the keys whose English differs from the key.
-            guard let catalog = catalogs[table], !catalog.isEmpty else {
-                missing += 1
-                lines.append("  \(table): the catalog's keys are not in the bundle (CatalogKeys.json)")
-                continue
+        let targets = AppLanguage.current == "en" ? ["es", "pt-BR"] : [AppLanguage.current]
+        for lang in targets {
+            for table in ["Localizable", "CoreStrings"] {
+                // Not the compiled English table: Xcode writes into it only the keys whose English differs from the key.
+                guard let catalog = catalogs[table], !catalog.isEmpty else {
+                    missing += 1
+                    lines.append("  \(table): the catalog's keys are not in the bundle (CatalogKeys.json)")
+                    continue
+                }
+                let translated = keys(table, lang)
+                let left = catalog.subtracting(translated).sorted()
+                missing += left.count
+                lines.append("  \(table) (\(lang)): \(catalog.count - left.count) of the catalog's \(catalog.count) sentences, \(left.count) without")
+                lines += left.prefix(40).map { "    untranslated (\(lang)): \($0)" }
             }
-            let spanish = keys(table, "es")
-            let left = catalog.subtracting(spanish).sorted()
-            missing += left.count
-            lines.append("  \(table): \(catalog.count - left.count) of the catalog's \(catalog.count) sentences in Spanish, \(left.count) without")
-            lines += left.prefix(40).map { "    untranslated: \($0)" }
         }
         let asked = CoreLanguage.untranslated
         missing += asked.count
-        lines += asked.map { "  asked without Spanish: \($0)" }
+        lines += asked.map { "  asked without translation: \($0)" }
         let number = 1_234_567.89.formatted(.number.precision(.fractionLength(2)))
         let date = Date(timeIntervalSince1970: 1_793_000_000).formatted(date: .long, time: .shortened)
         lines.append("  formats: \(number); \(date)")

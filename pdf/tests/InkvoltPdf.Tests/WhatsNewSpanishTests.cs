@@ -45,6 +45,26 @@ public class WhatsNewSpanishTests
     }
 
     [Fact]
+    public void Every_heading_and_line_has_its_portuguese()
+    {
+        var english = Outline(Read("WHATS-NEW.md"));
+        var portuguese = Outline(Read("WHATS-NEW.pt-BR.md"));
+
+        Assert.Equal(english, portuguese);
+        Assert.Contains(("Next", english[0].Lines), portuguese);
+    }
+
+    [Fact]
+    public void Every_portuguese_line_is_translated()
+    {
+        var english = ReleaseNotes.Parse(Read("WHATS-NEW.md")).SelectMany(n => n.Items).ToHashSet();
+        var portuguese = ReleaseNotes.Parse(Read("WHATS-NEW.pt-BR.md")).SelectMany(n => n.Items).ToList();
+
+        Assert.All(portuguese, line => Assert.DoesNotContain(line, english));
+        Assert.All(portuguese, line => Assert.True(line.Length > 20, line));
+    }
+
+    [Fact]
     public void The_real_spanish_notes_are_shown_in_spanish()
     {
         var notes = ReleaseNotes.For(Read("WHATS-NEW.md"), Read("WHATS-NEW.es.md"), new CultureInfo("es-PR"));

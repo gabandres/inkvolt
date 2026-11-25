@@ -13,9 +13,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- ThemeMode (Fluent) is marked experimental in WPF -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
-    <!-- The interface is in English and Spanish (Strings.es.resx): keep only those of the packages' translated resource
-         assemblies (the rest would add ~8 MB) -->
-    <SatelliteResourceLanguages>en;es</SatelliteResourceLanguages>
+    <!-- The interface is in English, Spanish (Strings.es.resx) and Brazilian Portuguese (Strings.pt-BR.resx): keep only those
+         of the packages' translated resource assemblies (the rest would add ~8 MB) -->
+    <SatelliteResourceLanguages>en;es;pt-BR</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\InkvoltPdf.Core\InkvoltPdf.Core.csproj" />
@@ -63,6 +63,7 @@
     <!-- Help > What's New (AppHelp) -->
     <Resource Include="..\..\WHATS-NEW.md" Link="WHATS-NEW.md" />
     <Resource Include="..\..\WHATS-NEW.es.md" Link="WHATS-NEW.es.md" />
+    <Resource Include="..\..\WHATS-NEW.pt-BR.md" Link="WHATS-NEW.pt-BR.md" />
   </ItemGroup>
   <ItemGroup>
     <!-- WebView2 SDK (BSD-3-Clause): PDF from Web Page, rendered by the WebView2 runtime that Windows provides (not bundled) -->

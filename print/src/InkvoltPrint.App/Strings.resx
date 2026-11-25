@@ -19,6 +19,10 @@
     <value>Español</value>
     <comment>Always the language's own name</comment>
   </data>
+  <data name="Settings_LanguagePortugueseBrazil" xml:space="preserve">
+    <value>Português (Brasil)</value>
+    <comment>Always the language's own name</comment>
+  </data>
   <data name="Settings_LanguageRestart" xml:space="preserve">
     <value>Takes effect the next time Inkvolt Print starts.</value>
   </data>

@@ -47,11 +47,13 @@ groups=$(echo "$ents" | tr -d '\n\t' | sed -n 's#.*<key>com\.apple\.security\.ap
 [ "$(value CFBundleVersion)" = "$BUILD" ] || bad "build number is $(value CFBundleVersion), not $BUILD"
 [ "$(value LSApplicationCategoryType)" = "public.app-category.utilities" ] || bad "category missing"
 [ -n "$(value NSLocalNetworkUsageDescription)" ] || bad "NSLocalNetworkUsageDescription missing"
-# The location entitlement needs both usage texts (CLLocationManager's when-in-use request shows the second), in English and Spanish.
+# The location entitlement needs both usage texts (CLLocationManager's when-in-use request shows the second), in English, Spanish and Brazilian Portuguese.
 es="$APP/Contents/Resources/es.lproj/InfoPlist.strings"
+ptbr="$APP/Contents/Resources/pt-BR.lproj/InfoPlist.strings"
 for k in NSLocationUsageDescription NSLocationWhenInUseUsageDescription; do
   [ -n "$(value $k)" ] || bad "$k missing (the location entitlement needs it)"
   [ -n "$(plutil -extract $k raw -o - "$es" 2>/dev/null)" ] || bad "$k has no Spanish text in es.lproj/InfoPlist.strings"
+  [ -n "$(plutil -extract $k raw -o - "$ptbr" 2>/dev/null)" ] || bad "$k has no Brazilian Portuguese text in pt-BR.lproj/InfoPlist.strings"
 done
 [ -n "$(value NSCameraUsageDescription)" ] || bad "NSCameraUsageDescription missing (the camera entitlement needs it)"
 [ "$(value NSBonjourServices | grep -c _tcp)" -eq 6 ] || bad "NSBonjourServices doesn't list the six types"

@@ -8,24 +8,27 @@ import PrintCore
 /// sentences asked for that had no Spanish (`CoreLanguage.untranslated`). A run in Spanish (`--lang es`, or
 /// `-AppleLanguages '(es)'`) passes only when nothing is missing; in English the catalogs are counted the same way.
 enum ReportStrings {
-    /// The language, the catalogs against their Spanish, the formats: written as the run starts.
+    /// The language, the catalogs against their translations, the formats: written as the run starts.
     static func catalogLines() -> (lines: [String], missing: Int) {
         var lines = ["strings: language \(AppLanguage.current) (macOS offers \(Set(Bundle.main.localizations).sorted().joined(separator: ", "))); "
-            + "locale \(Locale.current.identifier); Spanish ready \(AppLanguage.spanishReady); Settings › Language \(AppLanguage.choice.rawValue)"]
+            + "locale \(Locale.current.identifier); Spanish ready \(AppLanguage.spanishReady); Portuguese ready \(AppLanguage.portugueseReady); Settings › Language \(AppLanguage.choice.rawValue)"]
         var missing = 0
         let catalogs = catalogKeys()
-        for table in AppLanguage.tables {
-            // Not the compiled English table: xcstringstool writes into it only the keys whose English differs from the key.
-            guard let catalog = catalogs[table], !catalog.isEmpty else {
-                missing += 1
-                lines.append("  \(table): the catalog's keys are not in the bundle (CatalogKeys.json)")
-                continue
+        let targets = AppLanguage.current == "en" ? ["es", "pt-BR"] : [AppLanguage.current]
+        for lang in targets {
+            for table in AppLanguage.tables {
+                // Not the compiled English table: xcstringstool writes into it only the keys whose English differs from the key.
+                guard let catalog = catalogs[table], !catalog.isEmpty else {
+                    missing += 1
+                    lines.append("  \(table): the catalog's keys are not in the bundle (CatalogKeys.json)")
+                    continue
+                }
+                let translated = Set(AppLanguage.sentences(table, lang).keys)
+                let left = catalog.subtracting(translated).sorted()
+                missing += left.count
+                lines.append("  \(table) (\(lang)): \(catalog.count - left.count) of the catalog's \(catalog.count) sentences, \(left.count) without")
+                lines += left.prefix(40).map { "    untranslated (\(lang)): \($0)" }
             }
-            let spanish = Set(AppLanguage.sentences(table, "es").keys)
-            let left = catalog.subtracting(spanish).sorted()
-            missing += left.count
-            lines.append("  \(table): \(catalog.count - left.count) of the catalog's \(catalog.count) sentences in Spanish, \(left.count) without")
-            lines += left.prefix(40).map { "    untranslated: \($0)" }
         }
         let number = 1_234_567.89.formatted(.number.precision(.fractionLength(2)))
         let date = Date(timeIntervalSince1970: 1_793_000_000).formatted(date: .long, time: .shortened)
@@ -33,10 +36,10 @@ enum ReportStrings {
         return (lines, missing)
     }
 
-    /// What was asked for during the run without Spanish, and the verdict: written as the run ends.
+    /// What was asked for during the run without translation, and the verdict: written as the run ends.
     static func endLines(catalogMissing: Int) -> [String] {
         let asked = CoreLanguage.untranslated
-        var lines = asked.prefix(60).map { "  asked without Spanish: \($0)" }
+        var lines = asked.prefix(60).map { "  asked without translation: \($0)" }
         let missing = catalogMissing + asked.count
         lines.append("\(missing == 0 ? "PASS" : "FAIL") strings: \(missing == 0 ? "complete" : "\(missing) untranslated") (\(AppLanguage.current))")
         return lines

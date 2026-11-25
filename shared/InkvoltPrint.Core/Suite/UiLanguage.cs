@@ -5,16 +5,17 @@ namespace InkvoltPrint.Core.Suite;
 /// <summary>The interface language a person picked in Settings: Windows' own, or one of the languages the app is written in.</summary>
 public enum UiLanguageChoice
 {
-    /// <summary>Follow Windows' display language (the default): Spanish for any Spanish, English for the rest.</summary>
+    /// <summary>Follow Windows' display language (the default): Spanish for any Spanish, Brazilian Portuguese for pt-BR, English for the rest.</summary>
     Windows,
     English,
     Spanish,
+    PortugueseBrazil,
 }
 
 /// <summary>
-/// Which language an Inkvolt app's interface is shown in: the choice saved in its settings (<c>null</c>, <c>"en"</c> or
-/// <c>"es"</c>), or a dev aid's <c>--lang</c>, against Windows' display language. Pure, so it is tested here; each app
-/// sets its culture from it once, at start-up, before any window (a change applies the next time it starts).
+/// Which language an Inkvolt app's interface is shown in: the choice saved in its settings (<c>null</c>, <c>"en"</c>,
+/// <c>"es"</c> or <c>"pt-BR"</c>), or a dev aid's <c>--lang</c>, against Windows' display language. Pure, so it is tested
+/// here; each app sets its culture from it once, at start-up, before any window (a change applies the next time it starts).
 /// </summary>
 public static class UiLanguage
 {
@@ -24,31 +25,43 @@ public static class UiLanguage
     /// <summary>Plain Spanish, one for every Spanish-speaking market (as the Store listing).</summary>
     public static readonly CultureInfo Spanish = CultureInfo.GetCultureInfo("es");
 
-    /// <summary>The saved value read back: <c>"en"</c>, <c>"es"</c> (any case, or a region such as <c>es-PR</c>); anything else follows Windows.</summary>
-    public static UiLanguageChoice Parse(string? saved) => Language(saved) switch
+    /// <summary>Brazilian Portuguese (pt-BR); other Portuguese variants such as pt-PT stay English.</summary>
+    public static readonly CultureInfo PortugueseBrazil = CultureInfo.GetCultureInfo("pt-BR");
+
+    /// <summary>The saved value read back: <c>"en"</c>, <c>"es"</c> (any case, or a region such as <c>es-PR</c>), or <c>"pt-BR"</c>; anything else follows Windows.</summary>
+    public static UiLanguageChoice Parse(string? saved)
     {
-        "en" => UiLanguageChoice.English,
-        "es" => UiLanguageChoice.Spanish,
-        _ => UiLanguageChoice.Windows,
-    };
+        if (IsBrazilianPortuguese(saved)) return UiLanguageChoice.PortugueseBrazil;
+        return Language(saved) switch
+        {
+            "en" => UiLanguageChoice.English,
+            "es" => UiLanguageChoice.Spanish,
+            _ => UiLanguageChoice.Windows,
+        };
+    }
 
     /// <summary>What settings keep for a choice: <c>null</c> for Windows' language, so a file without it follows Windows.</summary>
     public static string? Save(UiLanguageChoice choice) => choice switch
     {
         UiLanguageChoice.English => "en",
         UiLanguageChoice.Spanish => "es",
+        UiLanguageChoice.PortugueseBrazil => "pt-BR",
         _ => null,
     };
 
     /// <summary>
     /// The culture the interface's text comes from: the choice, or for <see cref="UiLanguageChoice.Windows"/> Spanish when
-    /// Windows' display language is any Spanish (es, es-ES, es-419, es-PR…) and English for every other.
+    /// Windows' display language is any Spanish (es, es-ES, es-419, es-PR…), Brazilian Portuguese when it is pt-BR (not pt-PT),
+    /// and English for every other.
     /// </summary>
     public static CultureInfo Resolve(UiLanguageChoice choice, CultureInfo windowsDisplay) => choice switch
     {
         UiLanguageChoice.English => English,
         UiLanguageChoice.Spanish => Spanish,
-        _ => Language(windowsDisplay.Name) == "es" ? Spanish : English,
+        UiLanguageChoice.PortugueseBrazil => PortugueseBrazil,
+        _ => Language(windowsDisplay.Name) == "es" ? Spanish
+            : IsBrazilianPortuguese(windowsDisplay.Name) ? PortugueseBrazil
+            : English,
     };
 
     /// <summary>A dev aid's <c>--lang</c> value wins over the saved choice; then the saved choice; then Windows.</summary>
@@ -76,6 +89,16 @@ public static class UiLanguage
             }
         }
         return regional;
+    }
+
+    private static bool IsBrazilianPortuguese(string? tag)
+    {
+        var t = tag?.Trim();
+        if (string.IsNullOrEmpty(t)) return false;
+        var parts = t.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length >= 2
+            && parts[0].Equals("pt", StringComparison.OrdinalIgnoreCase)
+            && parts[^1].Equals("br", StringComparison.OrdinalIgnoreCase);
     }
 
     private static string? Language(string? tag)

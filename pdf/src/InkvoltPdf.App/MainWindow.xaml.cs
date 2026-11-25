@@ -2501,14 +2501,13 @@ public partial class MainWindow : Window
         dlg.HideCancel();
         string[] themes = ["System", "Light", "Dark"];
         var theme = dlg.AddChoice(Strings.Settings_Theme, [Strings.Settings_ThemeSystem, Strings.Settings_ThemeLight, Strings.Settings_ThemeDark], Array.IndexOf(themes, ThemeOf(s.Theme)));
-        // The interface's language, at the next start (AppLanguage reads it once, before the first window). Hidden until the
-        // Spanish is complete (AppLanguage.SpanishReady).
-        string[] languages = ["", "en", "es"];
+        // The interface's language, at the next start (AppLanguage reads it once, before the first window).
+        string[] languages = ["", "en", "es", "pt-BR"];
         ComboBox? language = null;
-        if (AppLanguage.SpanishReady)
+        if (AppLanguage.SpanishReady || AppLanguage.PortugueseReady)
         {
             language = dlg.AddChoice(Strings.Settings_Language,
-                [Strings.Settings_LanguageWindows, Strings.Settings_LanguageEnglish, Strings.Settings_LanguageSpanish],
+                [Strings.Settings_LanguageWindows, Strings.Settings_LanguageEnglish, Strings.Settings_LanguageSpanish, Strings.Settings_LanguagePortugueseBrazil],
                 Math.Max(0, Array.IndexOf(languages, LanguageOf(s.Language))));
             dlg.AddNote(Strings.Settings_LanguageRestart);
         }
