@@ -18,14 +18,24 @@ public static class PdfLanguage
     public static void Use(CultureInfo culture) => PdfStrings.Culture = culture;
 
     /// <summary>
-    /// The interface's language: a dev aid's <c>--lang</c>, else the saved choice (<c>null</c>, <c>"en"</c> or <c>"es"</c>),
-    /// else Windows' display language (Spanish for any es-*). While the Spanish isn't complete (<paramref name="spanishReady"/>
-    /// false) only <c>--lang</c> can pick it: a saved choice or a Spanish Windows still get English.
+    /// The interface's language: a dev aid's <c>--lang</c>, else the saved choice (<c>null</c>, <c>"en"</c>, <c>"es"</c>
+    /// or <c>"pt-BR"</c>), else Windows' display language. While a language isn't ready only <c>--lang</c> can pick it.
     /// </summary>
-    public static CultureInfo Choose(bool spanishReady, string? argument, string? saved, CultureInfo windowsDisplay)
+    public static CultureInfo Choose(bool spanishReady, string? argument, string? saved, CultureInfo windowsDisplay) =>
+        Choose(spanishReady, portugueseReady: false, argument, saved, windowsDisplay);
+
+    /// <summary>
+    /// The interface's language: a dev aid's <c>--lang</c>, else the saved choice (<c>null</c>, <c>"en"</c>, <c>"es"</c>
+    /// or <c>"pt-BR"</c>), else Windows' display language (Spanish for any es-*, Brazilian Portuguese for pt-BR).
+    /// </summary>
+    public static CultureInfo Choose(bool spanishReady, bool portugueseReady, string? argument, string? saved, CultureInfo windowsDisplay)
     {
-        if (spanishReady) return UiLanguage.Resolve(argument, saved, windowsDisplay);
-        return UiLanguage.Parse(argument) is UiLanguageChoice.Windows ? UiLanguage.English : UiLanguage.Resolve(argument, null, windowsDisplay);
+        if (UiLanguage.Parse(argument) is not UiLanguageChoice.Windows)
+            return UiLanguage.Resolve(argument, null, windowsDisplay);
+        var resolved = UiLanguage.Resolve(null, saved, windowsDisplay);
+        if (resolved.Name == UiLanguage.Spanish.Name && !spanishReady) return UiLanguage.English;
+        if (resolved.Name == UiLanguage.PortugueseBrazil.Name && !portugueseReady) return UiLanguage.English;
+        return resolved;
     }
 
 #pragma warning disable CA2255 // a library's module initializer on purpose: the default (English) must hold before any caller asks

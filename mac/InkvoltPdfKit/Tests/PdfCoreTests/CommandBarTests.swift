@@ -91,6 +91,7 @@ struct CommandBarTests {
     @Test func InSpanishFillAndSignGoesFirst() {
         // "Llenar y firmar" is the longest label: it goes into » before the other labeled groups (the owner, 2026-11-08).
         #expect(CommandBar.fillSignPriority(language: "es") < CommandBar.keepsLabels)
+        #expect(CommandBar.fillSignPriority(language: "pt-BR") < CommandBar.keepsLabels)
         #expect(CommandBar.fillSignPriority(language: "en") >= CommandBar.keepsLabels)
     }
 

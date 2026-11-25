@@ -13,7 +13,7 @@ import SwiftUI
 extension Report {
     static func axAuditCheck(_ model: AppModel) async -> [String] {
         guard model.isDemo else { return ["ax audit: demo mode only (--demo)"] }
-        let spanish: [String: String] = AppLanguage.current == "es"
+        let spanish: [String: String] = AppLanguage.current != "en"
             ? AxWalk.table("Localizable").merging(AxWalk.table("CoreStrings")) { (first: String, _: String) -> String in first } : [:]
         var walk = AxWalk(spanish: spanish)
         try? await Task.sleep(for: .seconds(2))

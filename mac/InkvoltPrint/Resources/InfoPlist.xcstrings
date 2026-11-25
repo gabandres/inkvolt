@@ -15,6 +15,12 @@
             "state": "translated",
             "value": "Inkvolt Print"
           }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print"
+          }
         }
       }
     },
@@ -32,6 +38,12 @@
             "state": "translated",
             "value": "Inkvolt Print usa la cámara solo mientras escaneas con ella: cada página que capturas se convierte en una página escaneada en este Mac. No se graba ni se envía nada."
           }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Inkvolt Print usa a câmera somente enquanto você digitaliza com ela: cada página capturada se torna uma página digitalizada neste Mac. Nada é gravado ou enviado."
+          }
         }
       }
     },
@@ -45,6 +57,12 @@
           }
         },
         "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "© 2026 Bermudez Systems LLC"
+          }
+        },
+        "pt-BR": {
           "stringUnit": {
             "state": "translated",
             "value": "© 2026 Bermudez Systems LLC"
@@ -66,6 +84,12 @@
             "state": "translated",
             "value": "Inkvolt Print encuentra tus impresoras y escáneres en esta red y lee su estado, su tinta y su tóner."
           }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Inkvolt Print encontra suas impressoras e scanners nesta rede e lê o estado, a tinta e o toner deles."
+          }
         }
       }
     },
@@ -83,6 +107,12 @@
             "state": "translated",
             "value": "Inkvolt Print lee los nombres de las redes Wi-Fi cercanas solo mientras configuras la Wi-Fi de una impresora nueva, para encontrar la red propia de la impresora. macOS solo da los nombres de las redes Wi-Fi a las aplicaciones con acceso a la ubicación; tu ubicación no se usa ni se guarda."
           }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Inkvolt Print lê os nomes das redes Wi-Fi próximas somente enquanto você configura o Wi-Fi de uma nova impressora, para encontrar a rede própria da impressora. O macOS fornece os nomes de Wi-Fi apenas para aplicativos com acesso à localização; sua localização não é usada nem mantida."
+          }
         }
       }
     },
@@ -99,6 +129,12 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inkvolt Print lee los nombres de las redes Wi-Fi cercanas solo mientras configuras la Wi-Fi de una impresora nueva, para encontrar la red propia de la impresora. macOS solo da los nombres de las redes Wi-Fi a las aplicaciones con acceso a la ubicación; tu ubicación no se usa ni se guarda."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Inkvolt Print lê os nomes das redes Wi-Fi próximas somente enquanto você configura o Wi-Fi de uma nova impressora, para encontrar a rede própria da impressora. O macOS fornece os nomes de Wi-Fi apenas para aplicativos com acesso à localização; sua localização não é usada nem mantida."
           }
         }
       }

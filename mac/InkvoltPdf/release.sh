@@ -95,6 +95,7 @@ sh ./assemble.sh "$APP" || exit 92
 # What's New: each release has its notes (a heading for 1.0 is "## 1.0.0").
 case "$VERSION" in *.*.*) notes="$VERSION" ;; *) notes="$VERSION.0" ;; esac
 grep -q "^## $notes\$" WHATS-NEW.es.md || echo "warning: WHATS-NEW.es.md has no '## $notes' heading: What's New in Spanish will show nothing for this version" >&2
+grep -q "^## $notes\$" WHATS-NEW.pt-BR.md || echo "warning: WHATS-NEW.pt-BR.md has no '## $notes' heading: What's New in Brazilian Portuguese will show nothing for this version" >&2
 grep -q "^## $notes\$" WHATS-NEW.md || echo "warning: WHATS-NEW.md has no '## $notes' heading: What's New will show nothing for this version" >&2
 plutil -replace CFBundleShortVersionString -string "$VERSION" "$APP/Contents/Info.plist" || exit 92
 plutil -replace CFBundleVersion -string "$VERSION" "$APP/Contents/Info.plist" || exit 92

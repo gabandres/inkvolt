@@ -10,7 +10,8 @@ enum WhatsNew {
     static var version: String { Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.0.0" }
 
     /// Where the notes are read from (the self-test may point elsewhere).
-    static var notesURL: URL? = (AppLanguage.current == "es" ? Bundle.main.url(forResource: "WHATS-NEW.es", withExtension: "md") : nil)
+    static var notesURL: URL? = (AppLanguage.current == "es" ? Bundle.main.url(forResource: "WHATS-NEW.es", withExtension: "md")
+        : AppLanguage.current == "pt-BR" ? Bundle.main.url(forResource: "WHATS-NEW.pt-BR", withExtension: "md") : nil)
         ?? Bundle.main.url(forResource: "WHATS-NEW", withExtension: "md")
 
     /// Every versioned entry of this build's notes, newest first (none when the file is missing).

@@ -123,6 +123,8 @@ struct SpellCheckerTests {
     @Test func TheDocumentsLanguageComesFirstThenTheInterfacesInWindowsRegion() {
         #expect(SpellChecker.languages("fr-CA", "es", "es-MX") == ["fr-CA", "es-MX", "en-US"])
         #expect(SpellChecker.languages(nil, "es", "en-GB") == ["es-ES", "en-GB", "en-US"])
+        #expect(SpellChecker.languages(nil, "pt-BR", "en-GB") == ["pt-BR", "en-GB", "en-US"])
+        #expect(SpellChecker.languages("fr-CA", "pt-BR", "pt-BR") == ["fr-CA", "pt-BR", "en-US"])
         #expect(SpellChecker.languages("", "en", "en-GB") == ["en-GB", "en-US"])
         #expect(SpellChecker.languages("en-us", "en", "de-DE") == ["en-US", "de-DE"])
     }

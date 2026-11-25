@@ -47,13 +47,18 @@ private struct GeneralSettings: View {
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
             }
-            // Hidden until Spanish is complete (AppLanguage.spanishReady), as on Windows.
-            if AppLanguage.spanishReady {
+            // Hidden until a translation is ready, as on Windows.
+            if AppLanguage.spanishReady || AppLanguage.portugueseReady {
                 Section {
                     Picker("Language", selection: $language) {
                         Text("Same as macOS").tag(AppLanguage.Choice.system)
                         Text(verbatim: "English").tag(AppLanguage.Choice.english)
-                        Text(verbatim: "Español").tag(AppLanguage.Choice.spanish)
+                        if AppLanguage.spanishReady {
+                            Text(verbatim: "Español").tag(AppLanguage.Choice.spanish)
+                        }
+                        if AppLanguage.portugueseReady {
+                            Text(verbatim: "Português (Brasil)").tag(AppLanguage.Choice.portugueseBrazil)
+                        }
                     }
                     .onChange(of: language) { _, choice in AppLanguage.save(choice) }
                     Text("Takes effect the next time Inkvolt Print starts.")

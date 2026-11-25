@@ -19,21 +19,28 @@ public partial class LocalizationTests
     };
 
     [Theory]
-    [InlineData(true, null, null, "es-PR", "es")] // Same as Windows: any Spanish
-    [InlineData(true, null, null, "es-419", "es")]
-    [InlineData(true, null, null, "en-US", "en")]
-    [InlineData(true, null, null, "fr-FR", "en")]
-    [InlineData(true, null, "es", "en-US", "es")] // the saved choice beats Windows
-    [InlineData(true, null, "en", "es-ES", "en")]
-    [InlineData(true, "en", "es", "es-MX", "en")] // --lang beats both
-    [InlineData(true, "xx", null, "es-MX", "es")] // an unknown --lang is ignored
-    [InlineData(false, null, null, "es-ES", "en")] // not ready: a Spanish Windows stays English
-    [InlineData(false, null, "es", "es-ES", "en")] // not ready: a saved choice is ignored
-    [InlineData(false, "es", null, "en-US", "es")] // not ready: only the dev aid's --lang picks Spanish
-    [InlineData(false, "xx", "es", "es-ES", "en")]
-    public void TheLanguage_FollowsTheDevArgument_ThenTheChoice_ThenWindows(bool ready, string? argument, string? saved, string windows, string expected)
+    [InlineData(true, true, null, null, "es-PR", "es")] // Same as Windows: any Spanish
+    [InlineData(true, true, null, null, "es-419", "es")]
+    [InlineData(true, true, null, null, "pt-BR", "pt-BR")] // Same as Windows: exact pt-BR only
+    [InlineData(true, true, null, null, "pt-PT", "en")]
+    [InlineData(true, true, null, null, "en-US", "en")]
+    [InlineData(true, true, null, null, "fr-FR", "en")]
+    [InlineData(true, true, null, "es", "en-US", "es")] // the saved choice beats Windows
+    [InlineData(true, true, null, "pt-BR", "en-US", "pt-BR")]
+    [InlineData(true, true, null, "en", "es-ES", "en")]
+    [InlineData(true, true, "en", "es", "es-MX", "en")] // --lang beats both
+    [InlineData(true, true, "pt-BR", "es", "en-US", "pt-BR")]
+    [InlineData(true, true, "xx", null, "es-MX", "es")] // an unknown --lang is ignored
+    [InlineData(false, true, null, null, "es-ES", "en")] // not ready: a Spanish Windows stays English
+    [InlineData(false, true, null, "es", "es-ES", "en")] // not ready: a saved choice is ignored
+    [InlineData(false, true, "es", null, "en-US", "es")] // not ready: only the dev aid's --lang picks Spanish
+    [InlineData(false, true, "xx", "es", "es-ES", "en")]
+    [InlineData(true, false, null, null, "pt-BR", "en")]
+    [InlineData(true, false, null, "pt-BR", "pt-BR", "en")]
+    [InlineData(true, false, "pt-BR", null, "en-US", "pt-BR")]
+    public void TheLanguage_FollowsTheDevArgument_ThenTheChoice_ThenWindows(bool spanishReady, bool portugueseReady, string? argument, string? saved, string windows, string expected)
     {
-        Assert.Equal(expected, PdfLanguage.Choose(ready, argument, saved, CultureInfo.GetCultureInfo(windows)).Name);
+        Assert.Equal(expected, PdfLanguage.Choose(spanishReady, portugueseReady, argument, saved, CultureInfo.GetCultureInfo(windows)).Name);
     }
 
     [Theory]
@@ -74,32 +81,39 @@ public partial class LocalizationTests
 
     [Theory]
     [MemberData(nameof(ResourcePairs))]
-    public void EveryString_IsInBothLanguages_NonEmpty_WithTheSamePlaceholders(string neutral)
+    public void EveryString_IsInAllLanguages_NonEmpty_WithTheSamePlaceholders(string neutral)
     {
         var english = Read(neutral);
-        var spanish = Read(neutral.Replace(".resx", ".es.resx"));
-        Assert.Empty(english.Keys.Except(spanish.Keys)); // missing in Spanish
-        Assert.Empty(spanish.Keys.Except(english.Keys)); // left over in Spanish
-        var problems = new List<string>();
-        foreach (var (key, en) in english)
+        var translations = new (string Name, Dictionary<string, string> Map)[]
         {
-            var es = spanish[key];
-            if (string.IsNullOrWhiteSpace(en) || string.IsNullOrWhiteSpace(es))
+            ("Spanish", Read(neutral.Replace(".resx", ".es.resx"))),
+            ("Portuguese (Brazil)", Read(neutral.Replace(".resx", ".pt-BR.resx"))),
+        };
+        var problems = new List<string>();
+        foreach (var (lang, translated) in translations)
+        {
+            Assert.Empty(english.Keys.Except(translated.Keys)); // missing
+            Assert.Empty(translated.Keys.Except(english.Keys)); // left over
+            foreach (var (key, en) in english)
             {
-                problems.Add($"{key}: empty in {(string.IsNullOrWhiteSpace(en) ? "English" : "Spanish")}");
-                continue;
+                var tr = translated[key];
+                if (string.IsNullOrWhiteSpace(en) || string.IsNullOrWhiteSpace(tr))
+                {
+                    problems.Add($"{lang} {key}: empty in {(string.IsNullOrWhiteSpace(en) ? "English" : lang)}");
+                    continue;
+                }
+                if (!Placeholders(en).SequenceEqual(Placeholders(tr)))
+                    problems.Add($"{lang} {key}: placeholders {string.Join(" ", Placeholders(en))} vs {string.Join(" ", Placeholders(tr))}");
+                // A separator (" and ", "  ·  ") keeps its spaces in both languages.
+                if (char.IsWhiteSpace(en[0]) != char.IsWhiteSpace(tr[0]) || char.IsWhiteSpace(en[^1]) != char.IsWhiteSpace(tr[^1]))
+                    problems.Add($"{lang} {key}: spaces at the ends differ between English and {lang}");
+                // string.Format must accept both, whatever their format specifiers ({0:t}, {0:N0}).
+                var args = Enumerable.Range(0, 10).Select(_ => (object)new AnyValue()).ToArray();
+                foreach (var text in (string[])[en, tr])
+                    if (Placeholders(text).Count > 0)
+                        try { _ = string.Format(CultureInfo.InvariantCulture, text, args); }
+                        catch (FormatException) { problems.Add($"{lang} {key}: not a valid format string: {text}"); }
             }
-            if (!Placeholders(en).SequenceEqual(Placeholders(es)))
-                problems.Add($"{key}: placeholders {string.Join(" ", Placeholders(en))} vs {string.Join(" ", Placeholders(es))}");
-            // A separator (" and ", "  ·  ") keeps its spaces in both languages.
-            if (char.IsWhiteSpace(en[0]) != char.IsWhiteSpace(es[0]) || char.IsWhiteSpace(en[^1]) != char.IsWhiteSpace(es[^1]))
-                problems.Add($"{key}: spaces at the ends differ between English and Spanish");
-            // string.Format must accept both, whatever their format specifiers ({0:t}, {0:N0}).
-            var args = Enumerable.Range(0, 10).Select(_ => (object)new AnyValue()).ToArray();
-            foreach (var text in (string[])[en, es])
-                if (Placeholders(text).Count > 0)
-                    try { _ = string.Format(CultureInfo.InvariantCulture, text, args); }
-                    catch (FormatException) { problems.Add($"{key}: not a valid format string: {text}"); }
         }
         Assert.True(problems.Count == 0, string.Join("\n", problems));
     }
@@ -108,7 +122,7 @@ public partial class LocalizationTests
     [MemberData(nameof(ResourcePairs))]
     public void Keys_AreUnique_AndUsableAsNames(string neutral)
     {
-        foreach (var path in (string[])[neutral, neutral.Replace(".resx", ".es.resx")])
+        foreach (var path in (string[])[neutral, neutral.Replace(".resx", ".es.resx"), neutral.Replace(".resx", ".pt-BR.resx")])
         {
             var names = XDocument.Load(Path.Combine(Root(), path)).Root!.Elements("data").Select(d => (string)d.Attribute("name")!).ToList();
             Assert.Equal(names.Count, names.Distinct().Count());
@@ -133,25 +147,30 @@ public partial class LocalizationTests
     }
 
     [Fact]
-    public void Spanish_ComesFromTheSatelliteAssembly()
+    public void Translations_ComeFromTheSatelliteAssemblies()
     {
         Assert.Equal("1 opción cambió desde que se abrió Configuración",
             PdfStrings.ResourceManager.GetString(nameof(PdfStrings.Settings_SummaryOne), UiLanguage.Spanish));
+        Assert.Equal("1 opção alterada desde que Configurações foi aberto",
+            PdfStrings.ResourceManager.GetString(nameof(PdfStrings.Settings_SummaryOne), UiLanguage.PortugueseBrazil));
     }
 
     /// <summary>
-    /// Spanish isn't English left as it was: at most a few strings read the same in both (product names, units, paper
+    /// Translations aren't English left as it was: at most a few strings read the same in both (product names, units, paper
     /// sizes, punctuation-only formats).
     /// </summary>
     [Theory]
     [MemberData(nameof(ResourcePairs))]
-    public void Spanish_IsTranslated(string neutral)
+    public void Translations_AreTranslated(string neutral)
     {
         var english = Read(neutral);
-        var spanish = Read(neutral.Replace(".resx", ".es.resx"));
-        var same = english.Where(e => e.Value == spanish[e.Key] && e.Value.Count(char.IsLetter) > 3
-                                      && !e.Value.Contains("Inkvolt", StringComparison.Ordinal)).Select(e => e.Key).ToList();
-        Assert.True(same.Count <= 25, $"{same.Count} strings left in English: {string.Join(", ", same)}");
+        foreach (var suffix in (string[])[".es.resx", ".pt-BR.resx"])
+        {
+            var translated = Read(neutral.Replace(".resx", suffix));
+            var same = english.Where(e => e.Value == translated[e.Key] && e.Value.Count(char.IsLetter) > 3
+                                          && !e.Value.Contains("Inkvolt", StringComparison.Ordinal)).Select(e => e.Key).ToList();
+            Assert.True(same.Count <= 25, $"{suffix}: {same.Count} strings left in English: {string.Join(", ", same)}");
+        }
     }
 
     /// <summary>A value any format specifier accepts.</summary>

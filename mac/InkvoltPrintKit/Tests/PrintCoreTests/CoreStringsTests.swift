@@ -6,8 +6,8 @@ import Testing
 /// `loc("…")` in the sources is in the app's `CoreStrings.xcstrings` with its Spanish, the same `{0}`, `{1}`… and nothing
 /// the sources no longer ask for; the text then reads in Spanish once the table is installed, and in English without it.
 struct CoreStringsTests {
-    /// mac/InkvoltPrint/Resources/CoreStrings.xcstrings, read in place: each key's Spanish ("" when it has none).
-    static let spanish: [String: String] = {
+    /// mac/InkvoltPrint/Resources/CoreStrings.xcstrings, read in place for `lang` ("" when a key has none).
+    static func catalog(_ lang: String) -> [String: String] {
         var url = URL(fileURLWithPath: #filePath) // mac/InkvoltPrintKit/Tests/PrintCoreTests/CoreStringsTests.swift
         for _ in 0..<4 { url.deleteLastPathComponent() }
         let file = url.appendingPathComponent("InkvoltPrint/Resources/CoreStrings.xcstrings")
@@ -15,11 +15,14 @@ struct CoreStringsTests {
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let strings = json["strings"] as? [String: [String: Any]] else { return [:] }
         return strings.mapValues { entry in
-            let es = (entry["localizations"] as? [String: Any])?["es"] as? [String: Any]
-            let unit = es?["stringUnit"] as? [String: Any]
+            let loc = (entry["localizations"] as? [String: Any])?[lang] as? [String: Any]
+            let unit = loc?["stringUnit"] as? [String: Any]
             return unit?["state"] as? String == "translated" ? unit?["value"] as? String ?? "" : ""
         }
-    }()
+    }
+
+    static let spanish: [String: String] = catalog("es")
+    static let portuguese: [String: String] = catalog("pt-BR")
 
     /// Every key `loc` is called with in PrintCore's and PrintMac's sources: `loc("english")`, or `english [context]`.
     static let keysInSources: [String: String] = {
@@ -132,10 +135,13 @@ struct CoreStringsTests {
         #expect(Self.placeholders("Recibo {fecha} {n:000}") != Self.placeholders("Receipt {date} {n:000}"))
     }
 
-    @Test func Every_sentence_the_sources_ask_for_is_in_the_catalog_with_its_Spanish() {
+    @Test func Every_sentence_the_sources_ask_for_is_in_the_catalog_with_its_translations() {
         #expect(!Self.spanish.isEmpty, "CoreStrings.xcstrings not found or not read")
-        let missing = Self.keysInSources.keys.filter { (Self.spanish[$0] ?? "").isEmpty }.sorted()
-        #expect(missing.isEmpty, "No Spanish for \(missing.count): \(missing.prefix(40).map { "\($0) (\(Self.keysInSources[$0]!))" })")
+        #expect(!Self.portuguese.isEmpty, "CoreStrings.xcstrings not found or not read for pt-BR")
+        for (lang, table) in [("es", Self.spanish), ("pt-BR", Self.portuguese)] {
+            let missing = Self.keysInSources.keys.filter { (table[$0] ?? "").isEmpty }.sorted()
+            #expect(missing.isEmpty, "No \(lang) for \(missing.count): \(missing.prefix(40).map { "\($0) (\(Self.keysInSources[$0]!))" })")
+        }
     }
 
     @Test func The_catalog_has_nothing_the_sources_no_longer_ask_for() {
@@ -143,11 +149,13 @@ struct CoreStringsTests {
         #expect(stale.isEmpty, "Not asked for by any loc(): \(stale.prefix(40))")
     }
 
-    @Test func Each_Spanish_sentence_keeps_its_placeholders() {
-        let wrong = Self.spanish.filter { key, es in
-            !es.isEmpty && Self.placeholders(Self.english(key)) != Self.placeholders(es)
-        }.keys.sorted()
-        #expect(wrong.isEmpty, "Placeholders differ: \(wrong.prefix(20))")
+    @Test func Each_translated_sentence_keeps_its_placeholders() {
+        for (lang, table) in [("es", Self.spanish), ("pt-BR", Self.portuguese)] {
+            let wrong = table.filter { key, tr in
+                !tr.isEmpty && Self.placeholders(Self.english(key)) != Self.placeholders(tr)
+            }.keys.sorted()
+            #expect(wrong.isEmpty, "\(lang) placeholders differ: \(wrong.prefix(20))")
+        }
     }
 
     /// A key's English: the key, less its `[context]`.
@@ -188,6 +196,11 @@ struct CoreStringsTests {
         .init(language: "es", sentences: spanish.filter { !$0.value.isEmpty })
     }
 
+    /// The catalog's Brazilian Portuguese as the app installs it.
+    static var portugueseTable: CoreLanguage.Table {
+        .init(language: "pt-BR", sentences: portuguese.filter { !$0.value.isEmpty })
+    }
+
     @Test func Without_a_table_text_is_English_and_with_one_Spanish() {
         let supply = Consumable(name: "Black toner", kind: "toner", colorCode: "K", percentRemaining: 12, state: "low",
                                 estimatedPagesRemaining: 12_000)
@@ -219,6 +232,22 @@ struct CoreStringsTests {
     func Supply_colours_agree_with_their_kind(_ english: String, _ spanish: String) {
         let table = Self.spanishTable
         CoreLanguage.withTable(table) { #expect(SupplyNames.display(english) == spanish) }
+        #expect(table.untranslated.isEmpty)
+    }
+
+    /// Same grammatical gender agreement in Brazilian Portuguese ("tinta preta", "toner preto", "cartucho de tinta preto").
+    @Test(arguments: [
+        ("Black ink", "Tinta preta"), ("Yellow ink", "Tinta amarela"), ("Photo black ink", "Tinta preta fotográfica"),
+        ("Matte black ink", "Tinta preta fosca"), ("Cyan ink", "Tinta ciano"), ("Gray ink", "Tinta cinza"),
+        ("Tri-color ink", "Tinta tricolor"), ("Magenta ink", "Tinta magenta"),
+        ("Black toner", "Toner preto"), ("Yellow toner", "Toner amarelo"), ("Photo black toner", "Toner preto fotográfico"),
+        ("Matte black toner", "Toner preto fosco"), ("Black ink cartridge", "Cartucho de tinta preto"),
+        ("Photo black ink cartridge", "Cartucho de tinta preto fotográfico"), ("Yellow ink tank", "Tanque de tinta amarelo"),
+        ("Black drum", "Tambor preto"),
+    ])
+    func Supply_colours_agree_with_their_kind_in_Portuguese(_ english: String, _ portuguese: String) {
+        let table = Self.portugueseTable
+        CoreLanguage.withTable(table) { #expect(SupplyNames.display(english) == portuguese) }
         #expect(table.untranslated.isEmpty)
     }
 

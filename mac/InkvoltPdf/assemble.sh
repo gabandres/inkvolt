@@ -27,8 +27,8 @@ cp Info.plist "$app/Contents/Info.plist"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 iconutil -c icns assets/AppIcon.iconset -o "$app/Contents/Resources/AppIcon.icns"         # CFBundleIconFile
 iconutil -c icns assets/PdfDocument.iconset -o "$app/Contents/Resources/PdfDocument.icns" # CFBundleTypeIconFile
-cp WHATS-NEW.md WHATS-NEW.es.md THIRD-PARTY-NOTICES.md "$app/Contents/Resources/"
-# The interface in English and Spanish (AppLanguage): the String Catalogs compiled into en.lproj and es.lproj (the app's
+cp WHATS-NEW.md WHATS-NEW.es.md WHATS-NEW.pt-BR.md THIRD-PARTY-NOTICES.md "$app/Contents/Resources/"
+# The interface in English, Spanish and Brazilian Portuguese (AppLanguage): the String Catalogs compiled into en.lproj, es.lproj and pt-BR.lproj (the app's
 # own text, PdfCore's, Inkvolt Print's CoreStrings for what PrintCore shows, Info.plist's), and every key of the three
 # sentence catalogs for the self-test's --strings check (catalog-keys.py).
 for catalog in Resources/Localizable.xcstrings Resources/PdfStrings.xcstrings Resources/InfoPlist.xcstrings     ../InkvoltPrint/Resources/CoreStrings.xcstrings; do

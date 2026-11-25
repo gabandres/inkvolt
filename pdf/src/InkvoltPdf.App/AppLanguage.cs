@@ -7,7 +7,7 @@ namespace InkvoltPdf.App;
 
 /// <summary>
 /// The interface's language, chosen once at start-up (Settings › Language applies the next time the app starts): the dev
-/// aids' <c>--lang en|es</c>, else the saved choice (<see cref="AppSettings.Language"/>), else Windows' display language
+/// aids' <c>--lang en|es|pt-BR</c>, else the saved choice (<see cref="AppSettings.Language"/>), else Windows' display language
 /// (<see cref="UiLanguage"/>). Text comes from <see cref="Strings"/>, Core's PdfStrings and the shared library's
 /// CoreStrings (scanners, printers) in that language. Numbers and dates keep Windows' regional format (CurrentCulture),
 /// WPF's bindings included, in the interface's language when Windows' format is in another (UiLanguage.FormatCulture).
@@ -16,15 +16,19 @@ namespace InkvoltPdf.App;
 public static class AppLanguage
 {
     /// <summary>
-    /// The Spanish translation is complete (every string in Strings.es.resx and PdfStrings.es.resx; LocalizationTests). When
-    /// false, the interface is always English, Settings › Language is hidden and a saved choice is ignored (only the dev
-    /// aids' <c>--lang</c> still picks a language): the switch for a language whose strings are still being written.
+    /// The Spanish translation is complete (every string in Strings.es.resx and PdfStrings.es.resx; LocalizationTests).
     /// </summary>
     public static bool SpanishReady => true;
 
     /// <summary>
+    /// The Brazilian Portuguese translation is complete (every string in Strings.pt-BR.resx and PdfStrings.pt-BR.resx;
+    /// LocalizationTests).
+    /// </summary>
+    public static bool PortugueseReady => true;
+
+    /// <summary>
     /// How much wider than in English a dialog laid out for English words is made for the interface's language: 1 in English,
-    /// 1.15 in Spanish, whose sentences and button labels run about a fifth longer.
+    /// 1.15 in Spanish and Portuguese, whose sentences and button labels run about a fifth longer.
     /// </summary>
     public static double TextWidth => Current.TwoLetterISOLanguageName == "en" ? 1 : 1.15;
 
@@ -44,7 +48,7 @@ public static class AppLanguage
     public static void Apply(string? saved, string[] args)
     {
         var argument = Array.IndexOf(args, "--lang") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
-        Use(Core.PdfLanguage.Choose(SpanishReady, argument, saved, WindowsDisplay));
+        Use(Core.PdfLanguage.Choose(SpanishReady, PortugueseReady, argument, saved, WindowsDisplay));
         // Dates and numbers: Windows' regional format, in the interface's language when the two differ (UiLanguage.FormatCulture).
         var format = UiLanguage.FormatCulture(Current, CultureInfo.CurrentCulture);
         if (!ReferenceEquals(format, CultureInfo.CurrentCulture))

@@ -330,7 +330,7 @@ final class SettingsWindowController: NSWindowController, NSWindowDelegate, NSTe
             [NSTextField(labelWithString: loc("App theme:")), theme],
             [NSTextField(labelWithString: loc("Open documents at:")), zoom],
         ]
-        if AppLanguage.spanishReady { rows.append([NSTextField(labelWithString: loc("Language:")), languageRow]) }
+        if AppLanguage.spanishReady || AppLanguage.portugueseReady { rows.append([NSTextField(labelWithString: loc("Language:")), languageRow]) }
         rows += [
             [NSGridCell.emptyContentView, restore],
             [NSGridCell.emptyContentView, dark],

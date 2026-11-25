@@ -20,6 +20,10 @@
     <value>Español</value>
     <comment>Settings › Language: always shown in Spanish, whatever the interface's language</comment>
   </data>
+  <data name="Settings_LanguagePortugueseBrazil" xml:space="preserve">
+    <value>Português (Brasil)</value>
+    <comment>Settings › Language: always shown in Brazilian Portuguese, whatever the interface's language</comment>
+  </data>
   <data name="Settings_LanguageRestart" xml:space="preserve">
     <value>Takes effect the next time Inkvolt PDF starts.</value>
     <comment>Settings › Language, under the choice</comment>

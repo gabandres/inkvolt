@@ -63,13 +63,13 @@ Set-StrictMode -Version Latest
 $apps = @{
     Pdf   = @{
         Folder = 'pdf'; Name = 'InkvoltPdf'; IdentityName = 'BermudezSystems.InkvoltPDF'; DisplayName = 'Inkvolt PDF'
-        # MuPDF's and HarfBuzz's native libraries; the Spanish interface's satellites (the app's and Core's)
-        Required = @('MuPDFWrapper.dll', 'libHarfBuzzSharp.dll', 'es\InkvoltPdf.resources.dll', 'es\InkvoltPdf.Core.resources.dll')
+        # MuPDF's and HarfBuzz's native libraries; the Spanish and Brazilian Portuguese interface satellites (the app's and Core's)
+        Required = @('MuPDFWrapper.dll', 'libHarfBuzzSharp.dll', 'es\InkvoltPdf.resources.dll', 'es\InkvoltPdf.Core.resources.dll', 'pt-BR\InkvoltPdf.resources.dll', 'pt-BR\InkvoltPdf.Core.resources.dll')
         Extras = @('THIRD-PARTY-NOTICES.md')
     }
     Print = @{
         Folder = 'print'; Name = 'InkvoltPrint'; IdentityName = 'BermudezSystems.InkvoltPrint'; DisplayName = 'Inkvolt Print'
-        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'zxing.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll')
+        Required = @('Microsoft.Windows.SDK.NET.dll', 'WinRT.Runtime.dll', 'CommunityToolkit.Mvvm.dll', 'zxing.dll', 'es\InkvoltPrint.resources.dll', 'es\InkvoltPrint.Core.resources.dll', 'pt-BR\InkvoltPrint.resources.dll', 'pt-BR\InkvoltPrint.Core.resources.dll')
         Extras = @('THIRD-PARTY-NOTICES.md', 'LICENSE')
     }
 }
@@ -97,6 +97,10 @@ if (-not (Select-String -Path $notesFile -Pattern "^## $([regex]::Escape($notesV
 $notesEs = Join-Path $appRoot 'WHATS-NEW.es.md'
 if ((Test-Path $notesEs) -and -not (Select-String -Path $notesEs -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
     Write-Warning "$notesEs has no '## $notesVersion' heading: What's New in Spanish will show nothing for this update (rename '## Next')."
+}
+$notesPtBr = Join-Path $appRoot 'WHATS-NEW.pt-BR.md'
+if ((Test-Path $notesPtBr) -and -not (Select-String -Path $notesPtBr -Pattern "^## $([regex]::Escape($notesVersion))\s*$" -Quiet)) {
+    Write-Warning "$notesPtBr has no '## $notesVersion' heading: What's New in Brazilian Portuguese will show nothing for this update (rename '## Next')."
 }
 if ($IncludeHpCleanup -and $App -ne 'Print') { throw '-IncludeHpCleanup is for Inkvolt Print (-App Print).' }
 if ($IncludeHpCleanup) { Write-Warning 'HP clean-up included: for sideloading only, not for Store upload (see print/packaging/README.md).' }

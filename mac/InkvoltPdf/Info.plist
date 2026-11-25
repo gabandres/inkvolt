@@ -8,6 +8,7 @@
 	<array>
 		<string>en</string>
 		<string>es</string>
+		<string>pt-BR</string>
 	</array>
 	<key>CFBundleDisplayName</key>
 	<string>Inkvolt PDF</string>

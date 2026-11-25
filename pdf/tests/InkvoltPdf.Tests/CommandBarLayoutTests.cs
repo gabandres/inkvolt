@@ -274,6 +274,7 @@ public class CommandBarLayoutTests
     {
         // The owner (2026-11-08): keep "Llenar y firmar", and let it go into "…" sooner rather than drop every label.
         Assert.True(CommandBarLayout.FillSignPriority(new System.Globalization.CultureInfo("es")) < CommandBarLayout.KeepsLabels);
+        Assert.True(CommandBarLayout.FillSignPriority(new System.Globalization.CultureInfo("pt-BR")) < CommandBarLayout.KeepsLabels);
         Assert.True(CommandBarLayout.FillSignPriority(System.Globalization.CultureInfo.InvariantCulture) >= CommandBarLayout.KeepsLabels);
         var (compact, shown) = FitBar(Spanish, 985, InSpanish); // 1700 DIPs: Scan & OCR and Redo give way
         Assert.False(compact);

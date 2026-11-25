@@ -77,6 +77,20 @@
         "• Configura la Wi-Fi de una impresora nueva, mira si una impresora necesita el controlador de su fabricante y comparte una impresora con iPhone y iPad.",
         "• Páginas restantes en más impresoras, el mensaje del panel de la impresora, más opciones de SNMPv3, y las impresoras agregadas o quitadas en macOS aparecen en segundos."
       ]
+    },
+    "pt-BR": {
+      "whatsNew": [
+        "Novidades do Inkvolt Print 1.4.0:",
+        "",
+        "• Digitalize com uma câmera: Usar uma câmera… captura páginas da sua webcam, câmera de documentos ou iPhone. Usar seu telefone… tira fotos de páginas pelo navegador de qualquer telefone, pela sua própria rede Wi-Fi, enquanto a janela estiver aberta.",
+        "• Digitalizações mais inteligentes: frente e verso em um alimentador de um lado, páginas colocadas na vertical sozinhas, remoção de cor de caneta ou furos de perfurador, união de duas metades de um original grande e divisão de lotes em códigos QR.",
+        "• Predefinições de digitalização salvam arquivos Word ou texto, PDFs menores em preto e branco, PDF/A ou PDFs protegidos por senha, e podem nomear o arquivo a partir do texto da página.",
+        "• Digitalizações recentes…: as últimas 20 digitalizações, para abrir, enviar por e-mail ou imprimir novamente.",
+        "• Mais formas de imprimir: área de transferência (⇧⌘V), frente e verso manualmente em uma impressora de um lado, várias páginas por folha, livretos e pôsteres, além de cartões, calendários e colagens em Imprimir fotos.",
+        "• Janela › Registro de impressão: todos os trabalhos que este Mac imprimiu, com as páginas de cada mês por impressora e por pessoa.",
+        "• Configure o Wi-Fi de uma impressora nova, veja se uma impressora precisa do driver do fabricante e compartilhe uma impressora com iPhones e iPads.",
+        "• Páginas restantes em mais impressoras, a mensagem do painel da impressora, mais opções de SNMPv3, e impressoras adicionadas ou removidas no macOS exibidas em segundos."
+      ]
     }
   }
 }

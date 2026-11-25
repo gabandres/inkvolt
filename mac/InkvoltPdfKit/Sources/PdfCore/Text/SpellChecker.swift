@@ -227,7 +227,7 @@ public final class SpellChecker: @unchecked Sendable {
         if let ui, let w = Self.tag(system), w.split(separator: "-")[0] == ui {
             add(w)
         } else {
-            add(ui == "en" ? "en-US" : ui == "es" ? "es-ES" : ui)
+            add(ui == "en" ? "en-US" : ui == "es" ? "es-ES" : ui == "pt" ? "pt-BR" : ui)
         }
         add(system)
         add("en-US")

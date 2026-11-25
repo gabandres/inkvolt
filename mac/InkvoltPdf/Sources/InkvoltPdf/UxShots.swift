@@ -75,7 +75,7 @@ struct UxShots {
         // DialogNames names a dialog's controls as it becomes key; a sheet the walk reaches first is named now, as it
         // will be by the time a person hears it.
         DialogNames.fill(window?.contentView)
-        var walk = AxWalk(spanish: CoreLanguage.language == "es" ? CoreLanguage.table?.sentences ?? [:] : [:])
+        var walk = AxWalk(spanish: CoreLanguage.language != "en" ? CoreLanguage.table?.sentences ?? [:] : [:])
         walk.audit(window, name)
         lines += walk.lines
         findings += walk.findings

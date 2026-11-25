@@ -87,7 +87,8 @@ Get-Key 'HKCU:\Software\RegisteredApplications' | Set-ItemProperty -Name 'Inkvol
 
 # The right-click verb, in Windows' language (the words are the package's: packaging\Strings\<language>\Resources.resw).
 # Each launch hands its file to the running copy (--convert-to, see ConvertCommand); Player shows it for any selection.
-$lang = if ((Get-UICulture).TwoLetterISOLanguageName -eq 'es') { 'es' } else { 'en-us' }
+$ui = Get-UICulture
+$lang = if ($ui.TwoLetterISOLanguageName -eq 'es') { 'es' } elseif ($ui.Name -eq 'pt-BR') { 'pt-BR' } else { 'en-us' }
 $label = ([xml](Get-Content (Join-Path $PSScriptRoot "packaging\Strings\$lang\Resources.resw") -Raw -Encoding utf8)).root.data |
     Where-Object name -eq 'ConvertToWordVerb' | ForEach-Object value
 Get-Key "$convertVerb\command" | Set-ItemProperty -Name '(default)' -Value "`"$exe`" --convert-to word `"%1`""

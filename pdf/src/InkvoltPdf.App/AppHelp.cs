@@ -20,15 +20,15 @@ internal static class AppHelp
     private static string Version => typeof(AppHelp).Assembly.GetName().Version?.ToString(3) ?? "0.0.0";
 
     /// <summary>
-    /// Every versioned entry of this build's notes, newest first, in the interface language (WHATS-NEW.es.md when it is Spanish);
-    /// none if the resource is missing.
+    /// Every versioned entry of this build's notes, newest first, in the interface language (WHATS-NEW.es.md when Spanish,
+    /// WHATS-NEW.pt-BR.md when Brazilian Portuguese); none if the resource is missing.
     /// </summary>
     public static IReadOnlyList<ReleaseNote> Notes()
     {
         try
         {
             var english = Resource("WHATS-NEW.md");
-            return english is null ? [] : ReleaseNotes.For(english, Resource("WHATS-NEW.es.md"), AppLanguage.Current);
+            return english is null ? [] : ReleaseNotes.For(english, Resource("WHATS-NEW.es.md"), Resource("WHATS-NEW.pt-BR.md"), AppLanguage.Current);
         }
         catch (IOException ex)
         {
