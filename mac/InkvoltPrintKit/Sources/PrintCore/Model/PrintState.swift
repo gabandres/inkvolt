@@ -76,6 +76,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// The last saved scans, newest first (roadmap 4.15, `RecentScans`; the Windows app's `AppState.RecentScans`): kept in
     /// this file, on this Mac only, each with a bookmark of where it was saved.
     public var recentScans: [RecentScan] = []
+    /// The printers the person set to print straight to the printer over their macOS queue (roadmap 2.1, `PrintRouting`; the
+    /// Windows app's `AppState.DirectPrinters`), by id.
+    public var directPrinters: [String] = []
 
     public static let maxBatchPlaces = 200
 
@@ -100,7 +103,16 @@ public struct PrintState: Equatable, Sendable, Codable {
         printLogOff = (try? c.decodeIfPresent(Bool.self, forKey: .printLogOff)) ?? false
         printLogSince = try? c.decodeIfPresent(Date.self, forKey: .printLogSince)
         recentScans = RecentScans.clean((try? c.decodeIfPresent([RecentScan?].self, forKey: .recentScans)) ?? [])
+        // A hand edit may leave anything there: only the ids that are text count.
+        directPrinters = ((try? c.decodeIfPresent([TextOnly].self, forKey: .directPrinters)) ?? []).compactMap(\.text)
     }
+}
+
+/// One value of a list a person may have edited: its text, or nil when it's anything else (a number, null).
+private struct TextOnly: Decodable {
+    var text: String?
+
+    init(from decoder: any Decoder) throws { text = try? decoder.singleValueContainer().decode(String.self) }
 }
 
 /// The state, shared by the app and the TLS handshakes that store certificate pins (from any thread), and its file: saved
@@ -179,7 +191,18 @@ public final class StateStore: Sendable {
             s.printers.removeAll { same($0.uuid, id) }
             for key in s.firmware.keys where same(key, id) { s.firmware[key] = nil }
             if !s.forgottenUuids.contains(where: { same($0, id) }) { s.forgottenUuids.append(id) }
+            s.directPrinters.removeAll { same($0, id) }
             if s.selectedUuid.map({ same($0, id) }) == true { s.selectedUuid = nil }
+        }
+    }
+
+    /// The person chose straight to the printer for it (`PrintRouting.choseDirect`).
+    public func printsDirect(_ id: String) -> Bool { read { $0.directPrinters.contains { same($0, id) } } }
+
+    public func setPrintsDirect(_ id: String, _ direct: Bool) {
+        change { s in
+            s.directPrinters.removeAll { same($0, id) }
+            if direct { s.directPrinters.append(id) }
         }
     }
 
@@ -220,6 +243,10 @@ public final class StateStore: Sendable {
                 s.firmware[newId] = record
             }
             s.noFirmwareNotify = s.noFirmwareNotify.map { same($0, oldId) ? newId : $0 }
+            if s.directPrinters.contains(where: { same($0, oldId) }) {
+                s.directPrinters.removeAll { same($0, oldId) || same($0, newId) }
+                s.directPrinters.append(newId)
+            }
             if s.selectedUuid.map({ same($0, oldId) }) == true { s.selectedUuid = newId }
         }
     }

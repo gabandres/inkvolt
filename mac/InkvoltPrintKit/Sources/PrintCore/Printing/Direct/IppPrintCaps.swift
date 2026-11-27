@@ -66,6 +66,23 @@ public final class IppCapsCache: Sendable {
     public func forget() { state.withLock { $0 = (nil, nil) } }
 }
 
+/// A printer's `IppCapsCache` for its current connection: the same cache while the connection's client is the same, a new one
+/// after a reconnect (a new client). Held per printer by the app; asked from any thread.
+public final class IppCapsCaches: Sendable {
+    private let kept = Mutex<(ipp: IppClient, cache: IppCapsCache)?>(nil)
+
+    public init() {}
+
+    public func cache(for ipp: IppClient) -> IppCapsCache {
+        kept.withLock { k in
+            if let k, k.ipp === ipp { return k.cache }
+            let cache = IppCapsCache({ IppPrintCaps.from(try await ipp.printerAttributes(IppPrintCaps.requested)) })
+            k = (ipp, cache)
+            return cache
+        }
+    }
+}
+
 /// What a printer says it takes for driverless printing, read from Get-Printer-Attributes (PWG 5100.14 IPP Everywhere,
 /// PWG 5102.4, Apple's `urf-supported`, Mopria's `pclm-*`). Everything a printer says is hostile input: lists are cut to a
 /// few hundred values, sizes and resolutions outside what paper and printers have are left out.

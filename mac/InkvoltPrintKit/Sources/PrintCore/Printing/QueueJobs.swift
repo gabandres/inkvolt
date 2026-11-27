@@ -20,9 +20,11 @@ public struct QueueJob: Equatable, Sendable, Identifiable {
     public var finished: Date?
     /// The computer it came from, when the reader knows (`job-originating-host-name`; `cupsGetJobs2` doesn't say).
     public var machine: String?
+    /// Why it failed in the printer's words, for a job a printer listed itself (`DirectJobWatch`); nil: macOS's queue.
+    public var problem: String?
 
     public init(id: Int, name: String, pages: Int? = nil, pagesPrinted: Int = 0, state: JobState, submitted: Date, owner: String,
-                bytes: Int64 = 0, finished: Date? = nil, machine: String? = nil) {
+                bytes: Int64 = 0, finished: Date? = nil, machine: String? = nil, problem: String? = nil) {
         self.id = id
         self.name = name
         self.pages = pages
@@ -33,6 +35,7 @@ public struct QueueJob: Equatable, Sendable, Identifiable {
         self.bytes = bytes
         self.finished = finished
         self.machine = machine
+        self.problem = problem
     }
 }
 

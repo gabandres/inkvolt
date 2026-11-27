@@ -237,7 +237,7 @@ struct DirectPrintTests {
 
     // ---- the plan ----
 
-    private static func caps(_ change: ((inout IppPrintCaps) -> Void)? = nil) -> IppPrintCaps {
+    static func caps(_ change: ((inout IppPrintCaps) -> Void)? = nil) -> IppPrintCaps {
         let letter = DirectPaper("na_letter_8.5x11in", 21590, 27940, 423, 423, 423, 423)
         var c = IppPrintCaps()
         c.formats = [.pwgRaster, .urf, .pclm]
@@ -527,7 +527,7 @@ struct DirectPrintTests {
         let end = try #require(try IppCodec.decodeGroups(sent).end) // the request's attributes end where the document begins
         #expect(Array(sent[end...]) == document)
         let seen = Mutex<[DirectJobState]>([])
-        let last = await DirectJob.watch(ipp, user: "ana", jobId: id, every: .milliseconds(10), quiet: .seconds(5)) { s in seen.withLock { $0.append(s) } }
+        let last = await DirectJob.watch(ipp, user: "ana", jobId: id, every: .milliseconds(10), quiet: .seconds(5), progress: { s in seen.withLock { $0.append(s) } })
         #expect(last?.state == DirectJobState.completed)
         #expect(seen.withLock { $0.count } == 1)
         #expect(await DirectJob.cancel(ipp, user: "ana", jobId: id))
@@ -658,7 +658,7 @@ struct DirectPrintTests {
     }
 
     /// A printer that answers every request with `answer(body)`.
-    private struct Answering: HttpTransport {
+    struct Answering: HttpTransport {
         let answer: @Sendable ([UInt8]) -> [UInt8]
 
         init(_ answer: @escaping @Sendable ([UInt8]) -> [UInt8]) { self.answer = answer }
@@ -670,21 +670,21 @@ struct DirectPrintTests {
 
     // ---- building replies ----
 
-    private static func printer(_ attrs: (B) -> Void) -> [UInt8] {
+    static func printer(_ attrs: (B) -> Void) -> [UInt8] {
         response(0) { b in
             b.group(4)
             attrs(b)
         }
     }
 
-    private static func job(_ attrs: (B) -> Void) -> [UInt8] {
+    static func job(_ attrs: (B) -> Void) -> [UInt8] {
         response(0) { b in
             b.group(IppCodec.jobTag)
             attrs(b)
         }
     }
 
-    private static func response(_ status: UInt16, _ attrs: (B) -> Void) -> [UInt8] {
+    static func response(_ status: UInt16, _ attrs: (B) -> Void) -> [UInt8] {
         let b = B()
         b.bytes = [2, 0, UInt8(status >> 8), UInt8(status & 0xFF), 0, 0, 0, 1, 1]
         attrs(b)

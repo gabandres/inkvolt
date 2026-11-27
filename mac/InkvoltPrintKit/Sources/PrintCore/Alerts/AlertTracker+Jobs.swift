@@ -179,7 +179,7 @@ extension AlertTracker {
             t.failedSince = since
             if now.timeIntervalSince(since) >= rules.errorHold {
                 t.due = .jobFailed
-                t.reason = JobRules.reason(job.state)
+                t.reason = job.problem ?? JobRules.reason(job.state)
             }
         }
     }

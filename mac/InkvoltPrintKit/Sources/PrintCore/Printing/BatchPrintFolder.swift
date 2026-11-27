@@ -146,7 +146,7 @@ public enum BatchPrintFolder {
                 do {
                     switch try await within(options.print.queueTimeout, { try await queue.problem() }) {
                     case .done(let said): problem = said
-                    case .late: problem = loc("macOS doesn't answer about the printer.")
+                    case .late: problem = queue.noAnswer
                     }
                 } catch is CancellationError {
                     break
