@@ -17,7 +17,8 @@ import PrintMac
 /// `--photo-job` sends Print Photos' job (one sheet, the queue's photo choices) to each printer's macOS queue held, reads
 /// back what cupsd took and cancels it (nothing prints); `--idcard` copies an ID card (both sides from its glass) without printing;
 /// with `--demo`, `--scan-button [press]` turns the demo HP laser's and USB laser's scan buttons on, presses them with `press`
-/// and turns them off (`scanButtonCheck`, roadmap 2.2); `--fix [all]` runs the
+/// and turns them off (`scanButtonCheck`, roadmap 2.2); `--copy-printer` asks the demo HP laser to copy by itself, as Copy on
+/// the Printer… does (`copyPrinterCheck`, roadmap 3.3: the made-up printer takes the PUT and forgets it); `--fix [all]` runs the
 /// offline fixer on the office laser (and its repairs); `--setup-probe` asks cupsd to create a queue (a test one, deleted at
 /// at once: `CupsSetupProbe`); with `--demo`, `--setup` sets up a demo printer that has no queue; every report ends with the
 /// Inkvolt Pro line, and `--pro-window`, `--pro-key <key>`, `--pro-remove <key>` check Help › Inkvolt Pro… (`proCheck`);
@@ -113,6 +114,7 @@ enum Report {
             if args.contains("--photo-projects") { cancelled += await photoProjectsCheck(model) }
             if model.isDemo && args.contains("--photos") { cancelled += await photosCheck(model) }
             if model.isDemo && args.contains("--idcard") { cancelled += await idCardCheck(model) }
+            if model.isDemo && args.contains("--copy-printer") { cancelled += await copyPrinterCheck(model) }
             if model.isDemo, let at = args.firstIndex(of: "--scan-button") {
                 cancelled += await scanButtonCheck(model, press: at + 1 < args.count && args[at + 1] == "press")
             }

@@ -98,7 +98,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | Done (the test file's header lists what was adapted) |
 | P10 | The app: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode, then the rest of the Windows 1.0 feature table (batch scans, glass photos and their boxes by hand, the ID card copy, Set Up in macOS, Print Photos' queue papers, borderless, paper type, quality and color) | DemoTests, BatchScanTests, GlassPhotoTests and the table's others | Done. Not checked by a person: anything on paper (separator sheet, ID card, Print Photos borderless), the Photos sheet's dragging and keys, a feeder (batches and two-sided separator backs were checked in demo mode only), a real USB scanner |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots (`--snapshot`) | | Done (live since 1.0). Listing, review notes and What's New go through `asc-listing.mjs` (README). Entitlements: sandbox, network client and server, `print`, `files.user-selected.read-write`, `files.bookmarks.app-scope`, `device.usb`, the app group; the preflight and the review notes say why each |
-| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 3.2, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 3.1 and 3.3, which need a real printer or scanner; 2.2's hardware checks (below) |
+| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 3.2, 3.3, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 3.1, which needs a real scanner; 2.2's and 3.3's hardware checks (below) |
 
 ### P12: what differs and what's left, per item
 
@@ -355,6 +355,25 @@ mac/InkvoltPrintKit --build-system native`.
   Computer (none recorded; the walk-up names may be wrong, and then nothing is offered or written), a USB scanner with a
   button on the build Mac (whether macOS sends its presses to Inkvolt Print, and which setting makes it the target), the
   section on screen and with VoiceOver, quitting while a printer doesn't answer.
+- **3.3 The printer's own copier (2026-11-27).** PrintCore: `Ledm/LedmCopy` (the start's element names and values,
+  `startNames` CopyState / StartCopy and `startValues` start / startCopy, are Windows' assumption, ported as they are; only a
+  `readWrite` entry with an explicit start command counts; the whole `elementXPath` followed), `Ledm/PrinterCopier` (two
+  GETs to find it, then the Dyn read again and one PUT of the start alone over HTTPS, sent once: `LedmClient.putOnce`;
+  refusals, busy and no answer in words, never resent), `Printing/CopyRoute` (Windows' rules). Record a printer saves both
+  copy documents. The app: the Print menu's Copy on the Printer… when the printer offers a start (`PrinterModel.printerCopier`,
+  looked for on each connection as itself), a sheet saying where the pages go and that the printer's own panel settings
+  apply, Copy, the outcome, and the admin password asked in the sheet when the printer wants it (`PrinterCopySheet`).
+  `--report … --demo --copy-printer`. Tests: PrinterCopyTests (Windows' 18, same names). **What the M234dw says**
+  (2026-11-27, GETs only): its tree lists CopyConfigCap and CopyConfigDyn and both answer (the recorded fixtures have
+  neither), but every Cap entry is a walk-up default (DefaultLighterDarker, DefaultMediaSizeName, DefaultMediaType,
+  DefaultNumberOfCopies, DefaultOptimize, DefaultReduceEnlargeCustom, all `readWrite`) and the Dyn holds only those: no
+  start, so the M234dw offers no copy started by an app (`LedmCopy.read` is nil: nothing offered, nothing sent).
+  **Mac differences:** the Mac has no Copy tab, so the printer's own copier is a sheet of its own in the Print menu, and
+  Windows' page copy through the PC (copies, collate, 2-up and 4-up, the preview) isn't on the Mac (the ID card copy is):
+  the refusals say to copy from the printer's control panel instead of choosing Through this PC, and `CopyRoute.controls`
+  and `blocker` are Windows' rules no Mac screen uses yet; the PUT starts with an XML declaration and declares only the
+  namespaces it uses (Windows also declares the Dyn root's `dd`). Not checked: a printer whose Cap offers a start, a real
+  copy, the sheet on screen and with VoiceOver.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2565,7 +2584,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: P12's 3.1 and 3.3 not started on the Mac (2.1 done 2026-11-27, 2.2 ported 2026-11-27: P12 above; separator codes, the last code item besides these,
+- Inkvolt Print: P12's 3.1 not started on the Mac (2.1 done 2026-11-27; 2.2 and 3.3 ported 2026-11-27: P12 above; separator codes, the last code item besides these,
   on the Mac since 2026-11-23: "Inkvolt Print scope"). What needs a device:
   - 2.2 Scan from the printer's button. Every walk-up name is Windows' assumption (`LedmWalkupScan.names`): no HP
     all-in-one that lists the interface has been recorded (the M234dw's tree lists none, read again 2026-11-27), so the
@@ -2577,7 +2596,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     window and the Print menu's choice.
   - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
     from.
-  - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording
-    confirms them, as on Windows.
+  - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
+    recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
+    defaults, no start (2026-11-27), so it isn't offered there.
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

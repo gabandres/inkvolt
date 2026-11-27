@@ -3581,6 +3581,17 @@
         }
       }
     },
+    "Not sent: the printer's copy settings couldn't be read. Try again, or copy from the printer's control panel.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se envió: no se pudo leer la configuración de copia de la impresora. Vuelve a intentarlo o copia desde el panel de control de la impresora."
+          }
+        }
+      }
+    },
     "Not sent: the run's limit of sheets. It's back in the folder.": {
       "extractionState": "manual",
       "localizations": {
@@ -6498,6 +6509,17 @@
         }
       }
     },
+    "The printer didn't answer, so it may already be copying. Check its control panel before copying again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no respondió, así que puede que ya esté copiando. Revisa su panel de control antes de volver a copiar."
+          }
+        }
+      }
+    },
     "The printer didn't answer, so the request may have started anyway. Check the printer before trying again.": {
       "extractionState": "manual",
       "localizations": {
@@ -6586,6 +6608,17 @@
         }
       }
     },
+    "The printer doesn't take copy requests from apps after all. Copy from its control panel instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Al final, la impresora no acepta solicitudes de copia de las aplicaciones. Copia desde su panel de control."
+          }
+        }
+      }
+    },
     "The printer doesn't take SNMPv3 with authentication and privacy for this user.": {
       "extractionState": "manual",
       "localizations": {
@@ -6615,6 +6648,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La impresora está ocupada y no lo inició. Vuelve a intentarlo cuando esté inactiva."
+          }
+        }
+      }
+    },
+    "The printer is busy and didn't start the copy. Try again when it's idle.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora está ocupada y no empezó la copia. Vuelve a intentarlo cuando esté inactiva."
           }
         }
       }
@@ -6824,6 +6868,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La impresora aceptó el cambio, pero no dijo qué conservó. Revisa la configuración de actualización del firmware en su página web."
+          }
+        }
+      }
+    },
+    "The printer turned the copy down. Copy from its control panel instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora rechazó la copia. Copia desde su panel de control."
           }
         }
       }

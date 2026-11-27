@@ -224,6 +224,7 @@ final class PrinterModel: Identifiable {
         if v.phase == .elsewhere {
             guard buttonConnection != nil else { return }
             buttonConnection = nil
+            printerCopier = nil
             let button = scanButton
             Task { await button.usePrinter(nil) }
             return
@@ -235,8 +236,15 @@ final class PrinterModel: Identifiable {
             // A password kept for this printer goes along with the POST (over HTTPS only), as its settings' writes do.
             if !conn.http.hasCredentials, let password = PrinterPasswords.password(for: self.id) { conn.http.setCredentials(user: "admin", password: password) }
             await self.scanButton.usePrinter(conn)
+            // The printer's own copier (roadmap 3.3), looked for on the same connection by reading only.
+            let copier = await PrinterCopier.detect(conn)
+            if conn === self.buttonConnection { self.printerCopier = copier }
         }
     }
+
+    /// The printer copies by itself (HP LEDM, roadmap 3.3): Copy on the Printer… in its Print menu. Nil: it doesn't offer it
+    /// in the names Inkvolt Print knows, or isn't connected as itself.
+    private(set) var printerCopier: PrinterCopier?
 
     /// The admin password the Scan tab asked for when the printer wanted it to add this Mac: kept in the Keychain (as the
     /// Settings tab's), sent with the next POST over HTTPS, and the button turned off and on to try again.

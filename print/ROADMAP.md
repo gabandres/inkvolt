@@ -143,7 +143,11 @@ What each is: the README's feature table. What waits for real hardware: the READ
 - **3.3 The printer's own copier, copy extras.** Done on Windows. The copier writes only the start, because
   `CopyConfigDyn` holds the panel's walk-up defaults and nothing captured shows when a copy has finished to put them back;
   the start's names (`LedmCopy.StartNames`, `StartValues`) are an assumption until a recording confirms them, so *Through
-  this PC* stays the default. **Mac half waits** (PrintCore's copy, the LEDM request and the layout).
+  this PC* stays the default. The M234dw (read 2026-11-27, GETs only) answers both copy documents, but they hold only the
+  panel's walk-up defaults (copies, size, type, lighter/darker, optimize, reduce/enlarge) and no start, so it offers no
+  copy started from an app. **Mac** (2026-11-27): the printer's own copier (Windows' `LedmCopy`, `PrinterCopier` and their
+  tests ported), Copy on the Printer… in the Print menu; the Mac has no page copy through the computer yet (2.1's Copy), so
+  the copy extras (2-up, 4-up, collate, the preview) are Windows only (`mac/docs/PLAN.md` P12 3.3).
 - **3.4 Job notifications.** Done, Windows (the spooler, and the printer's own job list when it prints straight) and Mac
   (IPP Get-Jobs over cupsd's socket). Decisions: stuck is told once per episode, again only after real progress, at most
   3 times per job; failed once per job; a resubmitted job (same id, another submit time) is new; only your first job is

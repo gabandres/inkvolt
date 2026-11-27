@@ -8,6 +8,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 ## Next
 - Print a PDF straight to the printer: a network printer macOS has no printer set up for, that prints without a driver (IPP Everywhere, AirPrint or Mopria), gets the pages from Inkvolt Print itself. Choose copies, paper, both sides and color; a small window follows the job until it's printed, with Cancel.
 - Scan from the printer's button: on an HP printer that offers Scan to Computer, turn it on in the Scan tab and this Mac appears on the printer's panel; choose it there and press Scan, and your chosen scan preset runs here while Inkvolt Print or its menu bar icon is running. A USB scanner's button does the same when macOS sends its presses to Inkvolt Print; a printer with neither says so.
+- Copy with the printer itself: an HP printer that takes copy requests copies on its own when you press Copy in the Print menu's Copy on the Printer…, with the settings on its control panel, and needs no macOS queue.
 
 ## 1.4.0
 - Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.

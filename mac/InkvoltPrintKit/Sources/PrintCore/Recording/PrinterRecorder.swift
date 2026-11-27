@@ -154,12 +154,14 @@ public enum PrinterRecorder {
                             scrubbed: Dictionary(uniqueKeysWithValues: scrubber.counts.map { ($0.kind, $0.count) }), notKept: notKept)
     }
 
-    /// The LEDM documents the app reads by type: status, supplies, usage, settings (with their Cap documents), events.
+    /// The LEDM documents the app reads by type: status, supplies, usage, settings (with their Cap documents), events, and the
+    /// copy settings (`LedmCopy`: never captured yet, so a recording is what confirms their element names).
     private static func ledmResources() -> [String] {
         var seen = Set<String>()
         let fixed = [LedmResource.productStatusDyn, LedmResource.productConfigDyn, LedmResource.productConfigCap, LedmResource.consumableConfigDyn,
                      LedmResource.productUsageDyn, LedmResource.printConfigDyn, LedmResource.printConfigCap, LedmResource.mediaHandlingDyn,
-                     LedmResource.mediaHandlingCap, LedmResource.eventTable, "ledm:hpLedmProductStatusCap", "ledm:hpLedmEventMgmtCap"]
+                     LedmResource.mediaHandlingCap, LedmResource.eventTable, "ledm:hpLedmProductStatusCap", "ledm:hpLedmEventMgmtCap",
+                     LedmCopy.capResource, LedmCopy.dynResource]
         return (fixed + LedmSettingCatalog.all.flatMap { [$0.dynResource, $0.capResource] }).filter { seen.insert($0).inserted }
     }
 
