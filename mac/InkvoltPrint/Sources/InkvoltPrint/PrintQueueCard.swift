@@ -5,7 +5,8 @@ import PrintMac
 import SwiftUI
 
 /// The printer's CUPS queue on its pane (the Windows app's `PrintJobsViewModel`): its jobs, read every few seconds only while
-/// the card is on screen, with Cancel for the user's own jobs and Cancel My Jobs.
+/// the card is on screen, with Cancel for the user's own jobs and Cancel My Jobs. While a network printer's jobs go straight to
+/// it (roadmap 2.1, the last route decided), the printer's own job list instead (`PrinterJobs`), cancelled with Cancel-Job.
 @MainActor @Observable
 final class PrintJobsModel {
     static let interval: Duration = .seconds(3)
@@ -17,18 +18,49 @@ final class PrintJobsModel {
     var message: String?
     private(set) var cancelling: Set<Int> = []
 
-    let queue: String
+    let queue: String?
+    /// The network printer whose own list is read while its jobs go straight; nil for a queue printer.
+    @ObservationIgnored private let printer: PrinterModel?
     @ObservationIgnored private let app: AppModel
     @ObservationIgnored private var gate = RefreshGate()
 
-    init(queue: String, app: AppModel) {
+    init(queue: String?, printer: PrinterModel?, app: AppModel) {
         self.queue = queue
+        self.printer = printer
         self.app = app
+    }
+
+    /// The printer's IPP client while its jobs go straight (the last route decided, as job alerts follow it).
+    private func direct() async -> IppClient? {
+        guard let printer, let choice = try? await printer.routing?.router.forWatching(), choice.route == .direct else { return nil }
+        return choice.ipp
+    }
+
+    /// The list now: the printer's own while its jobs go straight, else the macOS queue's; nil when it couldn't be read.
+    private func list() async -> [QueueJob]? {
+        if let ipp = await direct() {
+            guard let answer = try? await ipp.getJobs(PrinterJobs.getJobsRequest(ipp.printerUri, user: DirectPrinting.user)) else { return nil }
+            return try? PrinterJobs.parse(answer, now: Date())
+        }
+        guard let queue else { return nil }
+        return await app.queues.jobs(queue)
+    }
+
+    /// Cancels one job where it is: Cancel-Job on the printer, or the macOS queue.
+    private func cancelJob(_ id: Int) async throws {
+        if let ipp = await direct() {
+            if !(await DirectJob.cancel(ipp, user: DirectPrinting.user, jobId: id)) {
+                throw PrintJobCancelError(String(localized: "The printer didn't take the cancel. Cancel it on the printer's control panel."))
+            }
+            return
+        }
+        guard let queue else { return }
+        try await app.queues.cancel(queue, job: id)
     }
 
     var user: String { app.queues.user }
     func isMine(_ j: QueueJob) -> Bool { QueueJobText.isOwner(j.owner, user) }
-    var offline: Bool { app.queueOffline(queue) }
+    var offline: Bool { queue.map(app.queueOffline) ?? false }
     var mine: [QueueJob] { jobs.filter { isMine($0) && !cancelling.contains($0.id) && !QueueJobText.isDone($0.state) } }
 
     /// Reads until the card goes (its task is cancelled).
@@ -38,9 +70,10 @@ final class PrintJobsModel {
 
     func refresh() async {
         let ticket = gate.begin()
-        guard let read = await app.queues.jobs(queue) else {
+        guard let read = await list() else {
             if gate.failed(ticket) {
-                loadError = String(localized: "macOS's printing system isn't answering about this queue. Trying again every few seconds.")
+                loadError = printer?.route == .direct ? String(localized: "The printer isn't answering about its jobs. Trying again every few seconds.")
+                    : String(localized: "macOS's printing system isn't answering about this queue. Trying again every few seconds.")
                 isLoaded = true
                 jobs = []
             }
@@ -57,7 +90,7 @@ final class PrintJobsModel {
         message = nil
         cancelling.insert(j.id)
         do {
-            try await app.queues.cancel(queue, job: j.id)
+            try await cancelJob(j.id)
         } catch let e as PrintJobCancelError {
             message = "\"\(j.name)\": \(e.message)"
             cancelling.remove(j.id)
@@ -75,7 +108,7 @@ final class PrintJobsModel {
         for j in list {
             cancelling.insert(j.id)
             do {
-                try await app.queues.cancel(queue, job: j.id)
+                try await cancelJob(j.id)
             } catch {
                 failed += 1
                 cancelling.remove(j.id)
@@ -90,7 +123,13 @@ struct PrintQueueCard: View {
     @State private var model: PrintJobsModel
     @State private var confirmMine = false
 
-    init(queue: String, app: AppModel) { _model = State(initialValue: PrintJobsModel(queue: queue, app: app)) }
+    init(queue: String?, printer: PrinterModel? = nil, app: AppModel) {
+        _model = State(initialValue: PrintJobsModel(queue: queue, printer: printer, app: app))
+        note = printer?.routeNote.text
+    }
+
+    /// Where its pages go when that isn't the macOS queue (the Print tab's route note).
+    private let note: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -104,6 +143,9 @@ struct PrintQueueCard: View {
                     Button(model.mine.count == 1 ? String(localized: "Cancel My Job…") : String(localized: "Cancel My Jobs…")) { confirmMine = true }
                 }
                 Button("Open Printers & Scanners") { NSWorkspace.shared.open(SystemSettings.printers) }
+            }
+            if let note {
+                Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             if let error = model.loadError {
                 Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)

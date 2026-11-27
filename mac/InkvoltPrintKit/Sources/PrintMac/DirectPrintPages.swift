@@ -8,8 +8,17 @@ import PrintCore
 /// the plan's paper, fitted inside the paper's margins and centred, a landscape page on portrait paper turned a quarter
 /// clockwise (`PageFit`, as Print a PDF's macOS route fits pages), white around it; then made grey or RGB as the plan says,
 /// enlarged to the printer's resolution and cut to the job's exact size. One page's pixels are held at a time, and the
-/// encoded pages go to the job's file as they're made (`write`).
+/// encoded pages go to the job's file as they're made (`write`). A sheet already laid out for the paper (Print photos, an
+/// ID card copy, Print a PDF's layouts: `Layout.sheet`) goes on the whole paper at its own size, as Windows' paginators lay
+/// out on the whole paper.
 public enum DirectPrintPages {
+    /// How a page goes on the paper: inside the printer's margins, sized as asked (Print a PDF, Copy, a batch's files); or a
+    /// sheet laid out for this paper, on all of it at its own size (only a larger one shrinks), centred.
+    public enum Layout: Sendable, Equatable {
+        case fitted(PageSizing)
+        case sheet
+    }
+
     /// Why a page couldn't be drawn (Windows' `CoreStrings.Direct_NotDrawn`): nothing was sent.
     public struct NotDrawn: Error {
         public init() {}
@@ -18,8 +27,9 @@ public enum DirectPrintPages {
     /// The raster document for `pages` of `document` (indices; every page when nil), as `plan` says: its pages, a blank back
     /// between copies the printer doesn't make where a two-sided copy has an odd count, `plan.repeatCount` times. Each page's
     /// bytes go to `out` as soon as they're encoded (a `DirectJobFile`'s append, which refuses a job past its limit), so the
-    /// document is never held whole. Checks `Task.isCancelled` between pages.
-    public static func write(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan, to out: ([UInt8]) throws -> Void) throws {
+    /// document is never held whole. Checks `Task.isCancelled` and `stop` between pages.
+    public static func write(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan, layout: Layout = .fitted(.fitToPaper),
+                             stop: BatchStop? = nil, to out: ([UInt8]) throws -> Void) throws {
         let indices = pages ?? Array(0..<document.pageCount)
         guard !indices.isEmpty else { throw NotDrawn() }
         let perCopy = plan.pagesPerCopy(indices.count)
@@ -28,9 +38,9 @@ public enum DirectPrintPages {
         let keep = plan.repeatCount > 1 && indices.count <= 4
         for _ in 0..<plan.repeatCount {
             for i in indices {
-                if Task.isCancelled { throw CancellationError() }
+                if Task.isCancelled || stop?.isStopped == true { throw CancellationError() }
                 guard let page = document.page(at: i) else { throw NotDrawn() }
-                let raster = try drawn[i] ?? Self.page(page, plan: plan, job: writer.job)
+                let raster = try drawn[i] ?? Self.page(page, plan: plan, job: writer.job, layout: layout)
                 if keep { drawn[i] = raster }
                 try writer.write(raster)
                 try out(writer.drain())
@@ -45,20 +55,21 @@ public enum DirectPrintPages {
     }
 
     /// The whole raster document in memory (the checks' small ones).
-    public static func document(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan) throws -> [UInt8] {
+    public static func document(_ document: PDFDocument, pages: [Int]? = nil, plan: DirectPrintPlan, layout: Layout = .fitted(.fitToPaper)) throws -> [UInt8] {
         var all: [UInt8] = []
-        try write(document, pages: pages, plan: plan) { all += $0 }
+        try write(document, pages: pages, plan: plan, layout: layout) { all += $0 }
         return all
     }
 
     /// One page, the job's paper in pixels at its resolution and color.
-    public static func page(_ page: PDFPage, plan: DirectPrintPlan, job: RasterJob) throws -> RasterPage {
+    public static func page(_ page: PDFPage, plan: DirectPrintPlan, job: RasterJob, layout: Layout = .fitted(.fitToPaper)) throws -> RasterPage {
         let dpi = plan.renderDpi
         let paper = plan.paper
         let (w, h) = (RasterJob.pixels(paper.widthHmm, dpi), RasterJob.pixels(paper.heightHmm, dpi))
         guard w > 0, h > 0, w * h <= RasterPage.maxPixels else { throw NotDrawn() }
         let px = { (hmm: Int) in Double(hmm) * Double(dpi) / 2540 }
-        let (left, top, right, bottom) = (px(paper.left), px(paper.top), px(paper.right), px(paper.bottom))
+        let sheet = layout == .sheet
+        let (left, top, right, bottom) = sheet ? (0.0, 0.0, 0.0, 0.0) : (px(paper.left), px(paper.top), px(paper.right), px(paper.bottom))
         let (areaW, areaH) = (Double(w) - left - right, Double(h) - top - bottom)
         guard areaW > 1, areaH > 1 else { throw NotDrawn() }
         let box = page.bounds(for: .cropBox)
@@ -67,7 +78,8 @@ public enum DirectPrintPages {
         guard pageW > 0, pageH > 0 else { throw NotDrawn() }
         // Placed in pixels (the page's points at the drawing resolution), so PageFit's same-size rule sees like for like.
         let toPixels = Double(dpi) / 72
-        let place = PageFit.place(pageW * toPixels, pageH * toPixels, areaW, areaH, .fitToPaper)
+        let sizing: PageSizing = if case .fitted(let s) = layout { s } else { .actualSize }
+        let place = PageFit.place(pageW * toPixels, pageH * toPixels, areaW, areaH, sizing)
         let scale = place.rotated ? place.at.width / pageH : place.at.width / pageW // pixels per point
 
         let stride = w * 4

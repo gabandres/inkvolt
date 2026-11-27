@@ -92,11 +92,11 @@ enum HandDuplexPrinting {
         app.isDemo ? .down : await CupsBatchQueue.outputFace(queue)
     }
 
-    /// Whether `printer`'s queue can't print both sides (two-sided by hand is offered then); nil when not known.
+    /// Whether `printer` prints both sides where its jobs go now (its queue, or the printer itself when they go straight:
+    /// `PrinterModel.batchQueue`); two-sided by hand is offered when it doesn't. Nil when not known.
     static func queueTwoSided(_ printer: PrinterModel, app: AppModel) async -> Bool? {
-        guard let name = printer.queueName else { return nil }
-        let queue: (any BatchQueue)? = app.isDemo ? DemoBatchQueue.named(name) : CupsBatchQueue(queue: name)
-        return try? await queue?.read()?.canTwoSided
+        guard let queue = printer.batchQueue() else { return nil }
+        return try? await queue.read()?.canTwoSided
     }
 
     /// Print a PDF on Both Sides by Hand…: the user picks the file and the copies; it goes straight to the queue as Batch
@@ -144,7 +144,7 @@ enum HandDuplexPrinting {
     static func printSheets(_ document: PDFDocument, choice: SheetChoice, name: String, on printer: PrinterModel, app: AppModel,
                             copies given: Int? = nil, sizes: [(Double, Double)]? = nil) async -> BatchPrintSummary? {
         guard let copies = given ?? askCopies(name) else { return nil }
-        guard let queue = batchQueue(printer, app: app), let info = try? await queue.read() else {
+        guard let queue = printer.batchQueue(), let info = try? await queue.read() else {
             Printing.alert(String(localized: "This printer has no macOS print queue to print through."))
             return nil
         }
@@ -167,15 +167,11 @@ enum HandDuplexPrinting {
         return await run(url, copies: copies, on: printer, app: app, pageNumbers: names)
     }
 
-    /// `printer`'s queue as Batch Print sends to it (demo mode's made-up ones), or nil when it has none.
-    private static func batchQueue(_ printer: PrinterModel, app: AppModel) -> (any BatchQueue)? {
-        printer.queueName.flatMap { (n: String) -> (any BatchQueue)? in app.isDemo ? DemoBatchQueue.named(n) : CupsBatchQueue(queue: n) }
-    }
-
-    /// `url` printed by hand on `printer`'s queue; the summary, or nil when there's no queue (said). `pageNumbers`: the
-    /// document's page each of the file's pages shows, for the prompt (`BatchPrintLine.pageNumbers`).
+    /// `url` printed by hand where `printer`'s jobs go (its queue, or straight to it: `PrinterModel.batchQueue`); the summary,
+    /// or nil when there's nowhere to print (said). `pageNumbers`: the document's page each of the file's pages shows, for the
+    /// prompt (`BatchPrintLine.pageNumbers`).
     static func run(_ url: URL, copies: Int, on printer: PrinterModel, app: AppModel, pageNumbers: [Int]? = nil) async -> BatchPrintSummary? {
-        guard let name = printer.queueName, let queue = batchQueue(printer, app: app) else {
+        guard let queue = printer.batchQueue() else {
             Printing.alert(String(localized: "This printer has no macOS print queue to print through."))
             return nil
         }
@@ -193,7 +189,9 @@ enum HandDuplexPrinting {
             return nil
         }
         var options = BatchPrintOptions()
-        options.turnStack = turnStack(queue: name, printerFace: await printerFace(name, app: app))
+        // The face chosen last is kept per queue; a printer printed to straight keeps it under its own id.
+        let face: OutputFace? = if let name = printer.queueName { await printerFace(name, app: app) } else { nil }
+        options.turnStack = turnStack(queue: printer.queueName ?? printer.id, printerFace: face)
         let chosen = options
         return await Task.detached { await BatchPrintRunner.run([line], queue, documents, options: chosen) }.value
     }

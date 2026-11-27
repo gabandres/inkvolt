@@ -24,6 +24,20 @@ final class PrinterModel: Identifiable {
     @ObservationIgnored private(set) var webRoot: URL?
     /// The CUPS queue its print jobs go through: a queue printer's own, or the one macOS has for a network printer.
     var queueName: String?
+    /// A network printer's print routing (roadmap 2.1, `PrintRouting`): its macOS queue, or straight to it. Nil for a queue
+    /// printer or a scanner of its own (they print through their queue).
+    @ObservationIgnored private(set) var routing: PrintRouting?
+    /// What the Print menu and the print queue card show of the routing, kept in step with it (`PrinterRouting.swift`).
+    var route: PrintRoute = .none
+    var routeNote: PrintRouteNote = .none
+    var canChooseDirect = false
+    var choseDirect = false
+    /// The printer's attributes for driverless printing, read once a connection and kept a while.
+    @ObservationIgnored let directCaps = IppCapsCaches()
+    /// Its own job list as job alerts read it while its jobs go straight (`DirectJobWatch`: one per printer).
+    @ObservationIgnored let jobWatch = DirectJobWatch()
+    /// Whether its macOS queue could take jobs at the last look (`PrintRoutes.queueWorks`), to decide again when that changes.
+    @ObservationIgnored var queueWorked: Bool?
     private(set) var view = PrinterView.connecting
     /// When it last gave a reading (its monitor's, or its queue's), for the Fleet page; a scanner of its own's is the page's now.
     @ObservationIgnored private(set) var lastReading: Date?
@@ -43,7 +57,7 @@ final class PrinterModel: Identifiable {
     /// A queue printer's readings going into its history off the main thread, one after another.
     @ObservationIgnored private var historyStep: Task<Void, Never>?
     @ObservationIgnored private var stopped = false
-    @ObservationIgnored private unowned let app: AppModel
+    @ObservationIgnored unowned let app: AppModel
     @ObservationIgnored private var running: Task<Void, Never>?
     @ObservationIgnored private var events: Task<Void, Never>?
     /// The window is closed: the printer is checked now and then instead of watched live.
@@ -74,6 +88,7 @@ final class PrinterModel: Identifiable {
         events = Task { [weak self] in
             for await event in stream { self?.handle(event) }
         }
+        routing = makeRouting()
     }
 
     /// A scanner of its own: a USB scanner macOS has a driver for that belongs to no printer on the list.
@@ -398,6 +413,7 @@ final class PrinterModel: Identifiable {
             readOverSnmp = target.snmp != nil
             webRoot = target.webHint
             app.remember(self, at: target, model: model)
+            routing?.decide() // a connection: whether it takes jobs straight may have changed
         }
     }
 
