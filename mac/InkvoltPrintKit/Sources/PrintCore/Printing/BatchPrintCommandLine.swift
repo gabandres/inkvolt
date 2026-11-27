@@ -72,7 +72,9 @@ public enum BatchPrintCommandLine {
           --allow-network      a list may open files on other computers (it's refused otherwise)
           --quiet              only problems, and the last line
 
-        --printer is a macOS print queue's name (lpstat -p lists them) or its name as System Settings shows it.
+        --printer is a macOS print queue's name (lpstat -p lists them) or its name as System Settings shows it, a printer's
+        name in Inkvolt Print (its queue, or straight to it when it has none or Print straight to the printer is chosen for
+        it), or a printer's address, ipp://host/ipp/print or ipps://host/ipp/print, to print straight to it with no macOS queue.
         --paper is the queue's paper name (lpoptions -p <queue> -l lists them), as the Batch Print window saves it.
         A file that needs a password gets the one in the environment variable \(passwordVariable), once, and is otherwise skipped.
         "Sent" means macOS's print queue has it. The App Store's sandbox lets the command read and write only the files and

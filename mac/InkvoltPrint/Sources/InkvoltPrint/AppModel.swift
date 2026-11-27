@@ -449,25 +449,51 @@ final class AppModel {
     /// own snapshot from the same read is there (`PrinterModel.observed`: a queue printer's may wait on its printer); the
     /// notices due now. `tracker`: the report's own; nil, the app's as it is then. A queue cupsd can't list now is skipped,
     /// never read as empty; `heard` gets each queue's jobs as read (nil: not listed) and the state followed.
+    /// A network printer whose jobs go straight (roadmap 2.1) is read from its own job list instead (`PrinterModel.jobQueue`:
+    /// the last route decided, never both lists); one the printer won't list now is skipped too.
     func readJobs(into own: AlertTracker? = nil, now: Date,
                   heard: (PrinterModel, String, [QueueJob]?, JobQueueState?) -> Void = { _, _, _, _ in }) async -> [AlertNotice] {
         let me = jobOwner
         var told: [AlertNotice] = []
         for p in printers {
-            guard let queue = p.queueName else { continue }
-            let d = destinations?.first { $0.name.caseInsensitiveCompare(queue) == .orderedSame }
-            var state: JobQueueState?
-            if let d {
+            let read = QueueRead()
+            let macOS: @Sendable () async throws -> JobQueueState? = { @MainActor [weak self] in
+                guard let self, let queue = p.queueName else { return nil }
+                guard let d = destinations?.first(where: { $0.name.caseInsensitiveCompare(queue) == .orderedSame }) else { return nil }
                 let jobs = await queues.alertJobs(queue)
-                state = jobs.map { JobQueueState.of(d, jobs: $0, now: now) }
-                heard(p, queue, jobs, state)
-                guard jobs != nil else { continue }
+                let state = jobs.map { JobQueueState.of(d, jobs: $0, now: now) }
+                read.heard = (queue, jobs, state)
+                guard jobs != nil else { throw QueueRead.NotListed() }
+                return state
             }
+            var state: JobQueueState?
+            do {
+                if let routed = p.jobQueue(macOS) {
+                    let choice = try? await p.routing?.router.forWatching()
+                    guard p.queueName != nil || choice?.route == .direct && choice?.ipp != nil else { continue } // nowhere to print: as before
+                    state = try await routed.read()
+                } else {
+                    guard p.queueName != nil else { continue }
+                    state = try await macOS()
+                }
+            } catch {
+                // A queue cupsd can't list now, or a printer that won't list its jobs: skipped, never read as empty.
+                if let h = read.heard { heard(p, h.queue, h.jobs, h.state) }
+                continue
+            }
+            if let h = read.heard { heard(p, h.queue, h.jobs, h.state) }
             await p.observed()
             guard printers.contains(where: { $0 === p }) else { continue } // removed meanwhile
             told += (own ?? tracker).observeJobs(p.id, printerName: p.name, state, me: me, now: now)
         }
         return told
+    }
+
+    /// What one job alerts' read of a macOS queue heard, for `readJobs`' `heard`.
+    @MainActor
+    final class QueueRead {
+        struct NotListed: Error {}
+        var heard: (queue: String, jobs: [QueueJob]?, state: JobQueueState?)?
     }
 
     /// The printer list module's change, made: queue printers added and removed, the selection moved.
@@ -510,7 +536,7 @@ final class AppModel {
         let real = destinations.filter(CupsQueues.isRealQueue)
         for p in printers where p.isNetwork {
             let own = real.first { CupsQueues.claim($0, claims)?.id == p.id }?.name
-            if own != p.queueName { p.queueName = own }
+            p.claimed(queue: own)
         }
         handOffPrinters()
     }

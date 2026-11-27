@@ -62,9 +62,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight
   to the printer where there isn't, the person chose it, or Windows can't use the queue's driver (`PrintRoutes`; the driver check is
   `QueueDriver`, asked by `PrintRouter` only when the printer takes jobs straight). Its **plan** is what the printer's attributes allow
-  for one request (`DirectPrintPlan`); a setting the printer can't keep stops the job, never changes quietly. On the Mac: a
-  network printer with no macOS queue, from Print a PDF (PrintCore's `Printing/Raster` and `Printing/Direct`, PrintMac's
-  `DirectPrintPages`, the app's `DirectPrinting`); no choice of straight where macOS has a queue.
+  for one request (`DirectPrintPlan`); a setting the printer can't keep stops the job, never changes quietly. On the Mac the
+  same routes, a queue macOS can't print through being one cupsd stopped because its driver or filter failed (a paused
+  queue, or one rejecting jobs, keeps its route: `PrintRoutes.queueWorks`), for every print and the command line's `print` (PrintCore's `Printing/Raster` and `Printing/Direct`, PrintMac's
+  `DirectPrintPages` and `DirectPrinter`, the app's `DirectPrinting`).
 - **Print routing** (a printer's): what the tabs that print (Print a PDF, Batch print, Copy, Print photos, the print queue card) know of its
   print route, kept in one place: whether Windows has a queue for it (on the Mac, *set up in macOS*), whether it can be set up,
   whether it takes jobs straight and the person may choose that, the route last decided and which note the Print tab shows.

@@ -125,7 +125,7 @@ public final class CupsBatchQueue: BatchQueue {
         let file = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-batch-\(UUID().uuidString).pdf")
         defer { try? FileManager.default.removeItem(at: file) }
         try Self.checkRoom(file, pages: job.pages.count)
-        let pages = try await Self.draw(document, job, into: file, progress: progress, stop)
+        let pages = try await Self.drawPages(document, job, into: file, progress: progress, stop)
         try stop.check()
 
         // Handed over held: nothing prints until the job's options are read back and kept.
@@ -190,7 +190,7 @@ public final class CupsBatchQueue: BatchQueue {
     }
 
     /// Draws each page and writes it into a PDF at its size, one page in memory at a time. Returns the pages written.
-    private static func draw(_ document: any BatchDocument, _ job: BatchPrintJob, into file: URL, progress: (@Sendable (String) -> Void)?,
+    static func drawPages(_ document: any BatchDocument, _ job: BatchPrintJob, into file: URL, progress: (@Sendable (String) -> Void)?,
                              _ stop: BatchStop) async throws -> Int {
         guard let consumer = CGDataConsumer(url: file as CFURL), let pdf = CGContext(consumer: consumer, mediaBox: nil, nil) else {
             throw BatchFileError(loc("The file's pages can't be prepared on this Mac's disk."))

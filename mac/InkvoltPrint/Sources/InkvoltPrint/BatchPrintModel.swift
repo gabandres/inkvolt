@@ -171,9 +171,13 @@ final class BatchPrintModel {
             choices = DemoBatchQueue.all.map { BatchQueueChoice(id: $0.destination.name, name: $0.name) }
         } else {
             choices = (app.destinations ?? []).filter(CupsQueues.isRealQueue).map { BatchQueueChoice(id: $0.name, name: $0.displayName) }
+            // A network printer macOS has no queue for prints straight to the printer (roadmap 2.1), when it takes jobs so.
+            choices += app.printers.filter { $0.isNetwork && $0.queueName == nil }
+                .map { BatchQueueChoice(id: Self.printerPrefix + $0.id, name: $0.name) }
         }
-        // The printer shown in the main window, when it has a queue.
-        let shown = app.isDemo ? "Office_color_MFP" : app.selected?.queueName
+        // The printer shown in the main window: its queue, or the printer itself.
+        let selected = app.selected
+        let shown = app.isDemo ? "Office_color_MFP" : selected?.queueName ?? selected.map { Self.printerPrefix + $0.id }
         queueId = choices.first { $0.id == shown }?.id ?? choices.first?.id
     }
 
@@ -183,9 +187,20 @@ final class BatchPrintModel {
         if let keep, choices.contains(where: { $0.id == keep }) { queueId = keep }
     }
 
+    /// A choice that is a network printer with no macOS queue: this, then its id.
+    static let printerPrefix = "printer:"
+
+    /// Where the batch goes: the queue chosen, routed through its network printer when one claims it (straight to the printer
+    /// when the router says so, file by file: `RoutedBatchQueue`), or a network printer with no queue, straight.
     func queue() -> (any BatchQueue)? {
         guard let id = queueId else { return nil }
-        return app.isDemo ? DemoBatchQueue.named(id) : CupsBatchQueue(queue: id)
+        if app.isDemo { return DemoBatchQueue.named(id) }
+        if id.hasPrefix(Self.printerPrefix) {
+            let printerId = String(id.dropFirst(Self.printerPrefix.count))
+            return app.printers.first { $0.id == printerId }?.batchQueue()
+        }
+        if let owner = app.printers.first(where: { $0.isNetwork && $0.queueName == id }) { return owner.batchQueue() }
+        return CupsBatchQueue(queue: id)
     }
 
     private func readQueue() {
@@ -372,7 +387,8 @@ final class BatchPrintModel {
         let documents = documents
         var options = BatchPrintOptions()
         if let id = queueId, lines.contains(where: \.byHand) {
-            options.turnStack = HandDuplexPrinting.turnStack(queue: id, printerFace: await HandDuplexPrinting.printerFace(id, app: app))
+            let face: OutputFace? = id.hasPrefix(Self.printerPrefix) ? nil : await HandDuplexPrinting.printerFace(id, app: app)
+            options.turnStack = HandDuplexPrinting.turnStack(queue: id, printerFace: face)
         }
         let chosen = options
         let summary = await Task.detached { await BatchPrintRunner.run(lines, queue, documents, options: chosen, progress: progressing, stop) }.value

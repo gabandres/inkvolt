@@ -93,10 +93,13 @@ What each is: the README's feature table. What waits for real hardware: the READ
   decision per printer (`PrintRouter`). Re-check against CUPS's `ippeveprinter` (WSL) with `InkvoltPrint.exe
   --direct-print` (`DevDirectPrint`; `--read-pclm` reads PCLm back with Windows' engine; ippeveprinter drops every
   `pclm-*` attribute, so its PCLm run assumes 600 dpi). Open: the M234dw printing a page from a PC with no queue for it.
-  **Mac, in part** (2026-11-23): PrintCore has the same encoders, plan and job (Windows' tests ported), proved against
-  libcups' raster reader, Core Graphics (PCLm) and the `ippeveprinter` macOS ships; Print a PDF goes straight to a network
-  printer macOS has no queue for. Copy, Photos, batches, a preset's print step, Layouts and a direct printer's job alerts
-  still go through the CUPS queue or macOS's panel (mac/docs/PLAN.md P12 2.1).
+  **Done on the Mac** (2026-11-23, the rest 2026-11-27): PrintCore has the same encoders, plan, job and print routing
+  (`PrintRouting`, `PrintRouter`; Windows' tests ported), proved against libcups' raster reader, Core Graphics (PCLm) and the
+  `ippeveprinter` macOS ships; Print a PDF and its layouts, Copy, Photos, batches, a preset's print step and job alerts go
+  straight to a network printer macOS has no queue for, one set to print straight in the Print menu, or one whose macOS
+  queue cupsd stopped when its driver failed, and `print --printer` takes a printer's name or an `ipp://` address as on
+  Windows (mac/docs/PLAN.md P12 2.1); the M234dw printed a page straight from the
+  build Mac (PWG raster). Open on the Mac: the app's own prints on a real printer.
 - **2.2 Scan from the printer's button.** Done on Windows: HP's Scan to Computer over LEDM, and a Windows scanner's
   button events through WIA; off by default. Every walk-up name is an assumption (`LedmWalkupScan.Names`) until an HP
   all-in-one that lists the interface is recorded (the M234dw doesn't). **Mac half waits** (ICA's button events; the HP

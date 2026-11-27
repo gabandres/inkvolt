@@ -78,7 +78,7 @@ enum Report {
             var cancelled: [String] = []
             if let queue = cancelIn {
                 try? await Task.sleep(for: .seconds(3))
-                let jobs = PrintJobsModel(queue: queue, app: model)
+                let jobs = PrintJobsModel(queue: queue, printer: nil, app: model)
                 await jobs.refresh()
                 let mine = jobs.mine.count
                 await jobs.cancelMine()

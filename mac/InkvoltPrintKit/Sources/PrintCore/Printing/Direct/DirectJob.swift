@@ -204,12 +204,13 @@ public enum DirectJob {
     /// (returning what it knows) when the task is cancelled, nothing changes for `quiet`, or after `longest` in all: the
     /// printer has the job by then, and its own panel says the rest (`followedTooLong` says which).
     public static func watch(_ ipp: IppClient, user: String, jobId: Int, every: Duration, quiet: Duration, longest: Duration = watchLongest,
-                             clock: ContinuousClock = ContinuousClock(), progress: (@Sendable (DirectJobState) -> Void)? = nil) async -> DirectJobState? {
+                             clock: ContinuousClock = ContinuousClock(), stopped: (@Sendable () -> Bool)? = nil,
+                             progress: (@Sendable (DirectJobState) -> Void)? = nil) async -> DirectJobState? {
         var last: DirectJobState?
         let started = clock.now
         var since = started
         var failures = 0
-        while !Task.isCancelled && clock.now - since < quiet && clock.now - started < longest {
+        while !Task.isCancelled && stopped?() != true && clock.now - since < quiet && clock.now - started < longest {
             do {
                 let r = try await ipp.getJobAttributes(getJobAttributesRequest(ipp.printerUri, user: user, jobId: jobId))
                 if r.statusCode == 0x0406 { return last ?? DirectJobState(DirectJobState.completed, [], nil, nil) } // gone: done and forgotten
@@ -223,7 +224,7 @@ public enum DirectJob {
                 }
                 failures = 0
             } catch {
-                if Task.isCancelled { break }
+                if Task.isCancelled || stopped?() == true { break }
                 failures += 1
                 if failures >= 5 { break } // the printer stopped answering about it: it has the job
             }
@@ -304,9 +305,8 @@ public enum PrintRoute: Sendable, Equatable {
 
 public enum PrintRoutes {
     /// The queue stays the default where one exists; straight to the printer when there is none, or when the person chose it
-    /// for this printer. Either needs the printer to take one of the raster formats. Mac difference: the app never passes
-    /// `personChoseDirect` (no choice is offered: a macOS queue for an IPP printer is already driverless, AirPrint or IPP
-    /// Everywhere, where a Windows queue may carry a maker's driver that fails).
+    /// for this printer (`PrintRouting.choseDirect`). Either needs the printer to take one of the raster formats. A queue
+    /// macOS can't use gives way to the printer too (`PrintRouter`, `queueWorks`).
     public static func choose(hasQueue: Bool, printerTakesRaster: Bool, personChoseDirect: Bool) -> PrintRoute {
         if printerTakesRaster && (personChoseDirect || !hasQueue) { return .direct }
         return hasQueue ? .queue : .none
@@ -336,11 +336,21 @@ public enum PrinterJobs {
         return r.finished()
     }
 
-    /// The jobs in a Get-Jobs answer in the card's order (oldest first); `now` stands in for a job's missing creation time.
-    public static func parse(_ answer: [UInt8], now: Date) throws -> [QueueJob] {
+    /// One job of a Get-Jobs answer: as the card lists it, its state, and the printer's times for it where it gave them.
+    public struct Listed: Sendable {
+        public var job: QueueJob
+        public var state: DirectJobState
+        public var created: Date?
+        public var ended: Date?
+    }
+
+    /// The jobs in a Get-Jobs answer as the printer listed them, at most `maxJobs`. A job's missing creation time is
+    /// `Date.distantPast` in `Listed.job`: the caller says what stands in for it. Throws `DirectPrintError` when the printer
+    /// refused the request, `IppFormatError` when the answer can't be read.
+    public static func read(_ answer: [UInt8]) throws -> [Listed] {
         let (status, groups, _) = try IppCodec.decodeGroups(answer)
         if status >= 0x0100 { throw DirectPrintError(DirectJob.refused(status), mayHavePrinted: false, ippStatus: status) }
-        var jobs: [QueueJob] = []
+        var jobs: [Listed] = []
         for g in groups where g.tag == IppCodec.jobTag {
             let job = IppResponse(statusCode: status, attributes: g.attributes)
             guard let id = job.int("job-id"), id > 0, let state = DirectJob.stateOf(job), let jobState = JobState(rawValue: state.state) else { continue }
@@ -351,11 +361,22 @@ public enum PrinterJobs {
             if case .date(let d)? = g.attributes["date-time-at-creation"]?.first { created = d }
             var ended: Date?
             if case .date(let d)? = g.attributes["date-time-at-completed"]?.first { ended = d }
-            jobs.append(QueueJob(id: id, name: short(name, 120), pages: pages, pagesPrinted: state.pagesDone ?? 0, state: jobState,
-                                 submitted: created ?? now, owner: short(owner, 60), finished: ended, machine: host(job.str("job-originating-host-name"))))
+            let listed = QueueJob(id: id, name: short(name, 120), pages: pages, pagesPrinted: state.pagesDone ?? 0, state: jobState,
+                                  submitted: created ?? .distantPast, owner: short(owner, 60), finished: ended,
+                                  machine: host(job.str("job-originating-host-name")))
+            jobs.append(Listed(job: listed, state: state, created: created, ended: ended))
             if jobs.count >= maxJobs { break }
         }
-        return QueueJobText.order(jobs)
+        return jobs
+    }
+
+    /// The jobs in a Get-Jobs answer in the card's order (oldest first); `now` stands in for a job's missing creation time.
+    public static func parse(_ answer: [UInt8], now: Date) throws -> [QueueJob] {
+        QueueJobText.order(try read(answer).map { l in
+            var job = l.job
+            if l.created == nil { job.submitted = now }
+            return job
+        })
     }
 
     /// The computer a job came from, where the printer names it; an address, `localhost` or anything that isn't a plain host

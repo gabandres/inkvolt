@@ -6,9 +6,9 @@ import UniformTypeIdentifiers
 
 /// Printing from Inkvolt Print (the Windows app's Print a PDF and Copy): through macOS's print panel, with the printer's
 /// macOS queue chosen when it has one, so copies, page ranges, two-sided printing and paper are macOS's and its driver's.
-/// A network printer macOS has no queue for gets Print a PDF's pages straight from Inkvolt Print when it takes a raster
-/// format over IPP (`DirectPrinting`, roadmap 2.1, one page per sheet); otherwise it can still be picked in the panel (macOS
-/// lists printers nearby and sets one up).
+/// A network printer whose jobs go straight (no macOS queue, the person chose it, or macOS can't use its queue; roadmap 2.1)
+/// gets every print's pages from Inkvolt Print itself when it takes a raster format over IPP (`DirectPrinting`); otherwise it
+/// can still be picked in the panel (macOS lists printers nearby and sets one up).
 @MainActor
 enum Printing {
     /// Print a PDF…: the user picks the file, and its layout under the file list (roadmap 4.18: one page per sheet as before,
@@ -44,13 +44,14 @@ enum Printing {
             }
         }
         let name = url.deletingPathExtension().lastPathComponent
+        // Straight to the printer when the router sends this print there (roadmap 2.1).
+        let direct = await DirectPrinting.route(printer)
         guard let setup = SheetPrint.setup(choice) else {
-            // A network printer macOS has no queue for, taking raster over IPP: straight to it (roadmap 2.1).
-            if printer.queueName == nil, let ipp = await DirectPrinting.route(printer) {
-                await DirectPrinting.print(url, password: password, name: name, on: printer, ipp: ipp)
+            if let direct {
+                await DirectPrinting.printFile(url, password: password, name: name, on: printer, ipp: direct)
                 return
             }
-            print(document, name: name, on: printer, app: app)
+            panel(document, name: name, on: printer, app: app)
             return
         }
         // Past the limit on its page count alone: refused before any page is measured (a huge PDF's pages take a while).
@@ -58,7 +59,7 @@ enum Printing {
             alert(tooManySheets)
             return
         }
-        var bothSides: Bool? // the queue's say (demo mode's made-up ones too), when it has one; else the panel's printer decides
+        var bothSides: Bool? // the queue's or the printer's say (demo mode's made-up ones too); else the panel's printer decides
         if SheetPrint.twoSided(setup, asked: false) { bothSides = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
         let byHand = HandDuplex.offered(bothSides)
         let sizes = await SheetPrintView.measure(document) // once, for the limit and the layout
@@ -74,12 +75,32 @@ enum Printing {
             }
             return
         }
+        if let direct {
+            await DirectPrinting.printSheets(document, choice: choice, name: name, on: printer, ipp: direct, sizes: sizes)
+            return
+        }
         printSheets(document, choice: choice, name: name, on: printer, app: app, sizes: sizes)
     }
 
-    /// Prints a document with the panel, on the printer's queue when it has one. `actualSize`: at its own size (photos laid
+    /// Prints a document the app made or opened (Copy, a preset's print step, an ID card, the clipboard, a recent scan, Print
+    /// Photos through the panel): straight to the printer when the router sends this print there (`DirectPrinting`: a page at
+    /// its own size on `paper` is a sheet laid out for it), else with the panel. `actualSize`: at its own size (photos laid
     /// out for `paper`), else each page fitted to the paper.
     static func print(_ document: PDFDocument, name: String, on printer: PrinterModel, app: AppModel, actualSize: Bool = false,
+                      paper: NSSize? = nil, borderless: Bool = false) {
+        Task {
+            if let ipp = await DirectPrinting.route(printer) {
+                let layout: DirectPrintPages.Layout = !actualSize ? .fitted(.fitToPaper) : paper != nil ? .sheet : .fitted(.actualSize)
+                await DirectPrinting.printDocument(document, name: name, on: printer, ipp: ipp, layout: layout,
+                                                   paper: paper.map { (width: Double($0.width) / 72, height: Double($0.height) / 72) }, borderless: borderless)
+                return
+            }
+            panel(document, name: name, on: printer, app: app, actualSize: actualSize, paper: paper, borderless: borderless)
+        }
+    }
+
+    /// Prints a document with the panel, on the printer's queue when it has one.
+    static func panel(_ document: PDFDocument, name: String, on printer: PrinterModel, app: AppModel, actualSize: Bool = false,
                       paper: NSSize? = nil, borderless: Bool = false) {
         let info = NSPrintInfo.shared.copy() as! NSPrintInfo
         info.jobDisposition = .spool

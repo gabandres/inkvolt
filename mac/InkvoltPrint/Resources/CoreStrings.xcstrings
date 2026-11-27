@@ -11956,6 +11956,94 @@
           }
         }
       }
+    },
+    "Its pages couldn't be made ready on this Mac. Nothing was sent.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudieron preparar sus páginas en este Mac. No se envió nada."
+          }
+        }
+      }
+    },
+    "Making the pages ready…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preparando las páginas…"
+          }
+        }
+      }
+    },
+    "Sending the pages to the printer…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviando las páginas a la impresora…"
+          }
+        }
+      }
+    },
+    "No macOS queue for this printer: pages go straight to it over the network (IPP Everywhere).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora no tiene cola de macOS: las páginas van directamente a ella por la red (IPP Everywhere)."
+          }
+        }
+      }
+    },
+    "Pages go straight to the printer over the network, not through its macOS queue.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas van directamente a la impresora por la red, no por su cola de macOS."
+          }
+        }
+      }
+    },
+    "Print straight to the printer (no macOS queue)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir directamente en la impresora (sin cola de macOS)"
+          }
+        }
+      }
+    },
+    "Sends the pages over the network as the printer's own raster format (IPP Everywhere), without its macOS queue. Also for Copy and Photos.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Envía las páginas por la red en el formato de imagen de la propia impresora (IPP Everywhere), sin su cola de macOS. También para Copiar y Fotos."
+          }
+        }
+      }
+    },
+    "Pages go straight to the printer over the network: macOS can't print through its queue for this printer (its driver failed).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas van directamente a la impresora por la red: macOS no puede imprimir por su cola para esta impresora (falló su controlador)."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -259,6 +259,14 @@ final class PhotosModel {
             return
         }
         let title = photos.count == 1 ? photos[0].name : "\(photos.count) photos"
+        // Straight to the printer when the router sends this print there (roadmap 2.1): the sheets on their own paper, a card
+        // with a message on both sides where the printer prints them.
+        if let ipp = await DirectPrinting.route(printer) {
+            let card = PhotosModel.cardTwoSided(sheets, queueTwoSided: await HandDuplexPrinting.queueTwoSided(printer, app: app))
+            await DirectPrinting.printData(data, name: title, on: printer, ipp: ipp, layout: .sheet, paper: (width: sheet.width, height: sheet.height),
+                                           borderless: borderless && paper.borderless != nil, bothSides: card == true)
+            return
+        }
         if printsToQueue, let queue = printer.queueName {
             await send(data, title: title, sheets: sheets.count, to: queue)
             return

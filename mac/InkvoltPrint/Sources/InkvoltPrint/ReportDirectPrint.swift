@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 import PDFKit
@@ -5,11 +6,11 @@ import PrintCore
 import PrintMac
 import Synchronization
 
-/// `--report --demo --direct-print`: Print a PDF's straight route (roadmap 2.1) through the app's own code, with no dialog: the
+/// `--report --demo --direct-print`: the straight route (roadmap 2.1) through the app's own code, with no dialog: the
 /// demo inkjet (no macOS queue, IPP with PWG and Apple raster) is routed straight, its caps read, a plan made for two copies
 /// on both sides, the printer asked whether it can print, a made-up three-page PDF drawn (`DirectPrintPages`) and sent with
-/// Print-Job, then followed with Get-Job-Attributes. The made-up network keeps the job and completes it at once (as Windows'
-/// FixtureHandler); nothing prints.
+/// Print-Job, then followed with Get-Job-Attributes; then each kind of print and Batch print the same way, and job alerts'
+/// read (`kindsCheck`). The made-up network keeps the job and completes it at once (as Windows' FixtureHandler); nothing prints.
 extension Report {
     static func directPrintCheck(_ model: AppModel) async -> [String] {
         guard let p = model.printers.first(where: { $0.id == Demo.inkjetUuid }) else { return ["direct print: no demo inkjet"] }
@@ -63,7 +64,73 @@ extension Report {
         } catch {
             lines.append("  Print-Job: \(error)")
         }
-        return lines + (await cancelCheck(model, ipp: ipp, plan: plan, pdf: pdf))
+        return lines + (await cancelCheck(model, ipp: ipp, plan: plan, pdf: pdf)) + (await kindsCheck(model, p, ipp: ipp, pdf: pdf))
+    }
+
+    /// Every kind of print straight to the demo inkjet through the app's own route and job flow (roadmap 2.1): the Print tab's
+    /// note and choice, Print a PDF and Copy (pages fitted inside the margins), a booklet laid out on the printer's paper
+    /// (`SheetPrintView`, both sides), Print Photos' 4 × 6 sheet borderless, Batch print through the printer's routed queue
+    /// (`RoutedBatchQueue` to `DirectBatchQueue`), and job alerts' read of the printer's own list (`RoutedJobQueue`).
+    private static func kindsCheck(_ model: AppModel, _ p: PrinterModel, ipp: IppClient, pdf: Data) async -> [String] {
+        var lines = ["  print tab: note \(p.routeNote) (\(p.routeNote.text ?? "none")), choice offered \(p.canChooseDirect)"]
+        guard let caps = try? await p.directCaps.cache(for: ipp).get() else { return lines + ["  kinds: the printer's attributes not read"] }
+        func send(_ kind: String, _ data: Data, _ layout: DirectPrintPages.Layout, _ request: DirectPrintRequest) async -> String {
+            let url = DirectJobFile.temporaryUrl().deletingPathExtension().appendingPathExtension("pdf")
+            defer { try? FileManager.default.removeItem(at: url) }
+            guard (try? data.write(to: url)) != nil else { return "  \(kind): not written" }
+            guard case .success(let plan) = DirectPrintPlan.choose(caps, request) else { return "  \(kind): the printer can't keep \(request)" }
+            let said = await DirectPrinting.run(url, password: nil, name: "Inkvolt \(kind) check", plan: plan, ipp: ipp, layout: layout, say: { _ in })
+            return "  \(kind): \(plan.paper.name)\(plan.paper.borderless ? " borderless" : ""), \(plan.twoSided ? "both sides" : "one side"), \(said)"
+        }
+        lines.append(await send("print a PDF", pdf, .fitted(.fitToPaper), DirectPrintRequest()))
+        lines.append(await send("copy", pdf, .fitted(.fitToPaper), DirectPrintRequest(copies: 2)))
+        // A booklet laid out on the plan's paper, as DirectPrinting.printSheets does.
+        if case .success(let plan) = DirectPrintPlan.choose(caps, DirectPrintRequest(copies: 1, twoSided: true)),
+           let document = PDFDocument(data: Data(BatchPrintSamples.pdf(8, "Sample"))) {
+            let url = DirectJobFile.temporaryUrl().deletingPathExtension().appendingPathExtension("pdf")
+            defer { try? FileManager.default.removeItem(at: url) }
+            let paper = NSSize(width: plan.paper.widthInches * 72, height: plan.paper.heightInches * 72)
+            let view = Printing.printSheets(document, choice: SheetChoice(.booklet), name: "booklet", on: nil, app: nil, save: url, paper: paper)
+            if let sheets = try? Data(contentsOf: url) {
+                lines.append(await send("booklet (\(view?.plan.sheetCount ?? 0) sides)", sheets, .sheet, DirectPrintRequest(copies: 1, twoSided: true)))
+            } else {
+                lines.append("  booklet: not laid out")
+            }
+        }
+        var photo = DirectPrintRequest()
+        (photo.paperInches, photo.borderless) = ((4, 6), true)
+        if let sheet = samplePdf(pages: 1, width: 288, height: 432) { lines.append(await send("photos 4x6", sheet, .sheet, photo)) }
+
+        // Batch print: two files through the printer's own queue, routed straight.
+        if let queue = p.batchQueue() {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-direct-batch-\(UUID().uuidString)", isDirectory: true)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let documents = MacBatchDocuments()
+            var batch: [BatchPrintLine] = []
+            let info = try? await queue.read()
+            for (name, pages) in [("a.pdf", 2), ("b.pdf", 3)] {
+                let path = folder.appendingPathComponent(name).path
+                FileManager.default.createFile(atPath: path, contents: Data(BatchPrintSamples.pdf(pages, name)))
+                if let measure = try? await BatchMeasurer.measure(path, offered: nil, documents, ask: nil) {
+                    batch.append(BatchPrintLine(path, BatchPrintSettings(), measure, info ?? nil))
+                }
+            }
+            let summary = await Task.detached { await BatchPrintRunner.run(batch, queue, documents) }.value
+            lines.append("  batch: \(info.map { _ in "papers read" } ?? "no papers"), \(summary.items.map { "\($0.name) \($0.state)" }.joined(separator: ", ")); \(summary.text)")
+        } else {
+            lines.append("  batch: no queue")
+        }
+        // Job alerts: the printer's own list while its jobs go straight.
+        if let jobs = p.jobQueue({ nil }) {
+            do {
+                let state = try await jobs.read()
+                lines.append("  job alerts read: the printer's list, \(state?.jobs.count ?? -1) job(s)")
+            } catch {
+                lines.append("  job alerts read: failed (\(error))")
+            }
+        }
+        return lines
     }
 
     /// The app's own job flow (`DirectPrinting.run`, the window's) cancelled the moment the printer has given the job its
@@ -82,18 +149,18 @@ extension Report {
         return ["  cancel once the job has its id: \(said)", "  the printer saw: \(seen.operations.joined(separator: ", "))"]
     }
 
-    /// A made-up Letter PDF: each page a heading bar and a box, so its raster has runs and edges.
-    private static func samplePdf(pages: Int) -> Data? {
+    /// A made-up PDF (Letter unless given): each page a heading bar and a box, so its raster has runs and edges.
+    private static func samplePdf(pages: Int, width: CGFloat = 612, height: CGFloat = 792) -> Data? {
         let data = NSMutableData()
-        var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+        var box = CGRect(x: 0, y: 0, width: width, height: height)
         guard let consumer = CGDataConsumer(data: data as CFMutableData), let context = CGContext(consumer: consumer, mediaBox: &box, nil) else { return nil }
         for i in 0..<pages {
             context.beginPDFPage(nil)
             context.setFillColor(CGColor(red: 0.1, green: 0.3, blue: 0.7, alpha: 1))
-            context.fill(CGRect(x: 72, y: 700, width: 468, height: 36))
+            context.fill(CGRect(x: width * 0.12, y: height * 0.88, width: width * 0.76, height: height * 0.05))
             context.setStrokeColor(CGColor(gray: 0, alpha: 1))
             context.setLineWidth(2)
-            context.stroke(CGRect(x: 72 + CGFloat(i) * 40, y: 300, width: 200, height: 200))
+            context.stroke(CGRect(x: width * 0.12 + CGFloat(i) * 40, y: height * 0.38, width: width / 3, height: width / 3))
             context.endPDFPage()
         }
         context.closePDF()

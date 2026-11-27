@@ -222,6 +222,24 @@ public protocol BatchQueue: Sendable {
     ///   sent), `CancellationError` (stopped before the point of no return).
     func send(_ document: any BatchDocument, _ job: BatchPrintJob, progress: (@Sendable (String) -> Void)?, onSpooling: @escaping @Sendable () -> Void,
               _ stop: BatchStop) async throws -> BatchReceipt
+    /// What the batch says when `problem` doesn't answer in time: macOS's queue by default, the printer's own silence for one
+    /// printed to straight.
+    var noAnswer: String { get }
+    /// How long a job has to reach its point of no return and be handed over.
+    func sendLimit(_ job: BatchPrintJob, _ options: BatchPrintOptions) -> Duration
+    /// Once past the point of no return the job ends by itself (a printer followed until it says so): the batch waits for it
+    /// however long it takes, rather than giving up at `sendLimit`.
+    var endsOnItsOwnOnceSpooling: Bool { get }
+}
+
+extension BatchQueue {
+    public var noAnswer: String { loc("macOS doesn't answer about the printer.") }
+
+    public func sendLimit(_ job: BatchPrintJob, _ options: BatchPrintOptions) -> Duration {
+        options.sendTimeout + options.sendTimePerPage * job.pages.count
+    }
+
+    public var endsOnItsOwnOnceSpooling: Bool { false }
 }
 
 /// Stop for a batch (.NET's CancellationToken): set by the window's Stop, read between files and between pages. A child stops
@@ -760,18 +778,22 @@ public enum BatchPrintRunner {
     /// result. Throws what the queue threw.
     private static func sendJob(_ queue: any BatchQueue, _ document: any BatchDocument, _ job: BatchPrintJob, _ options: BatchPrintOptions,
                                 _ progress: (@Sendable (BatchPrintProgress) -> Void)?, _ index: Int, _ stop: BatchStop) async throws -> Result<BatchReceipt, Failed> {
-        let limit = options.sendTimeout + options.sendTimePerPage * job.pages.count
         let spooling = Atomic(false)
         // Its own stop: the queue takes it up to the point of no return, and a job past it has to finish; a drawing that
         // hung is told to stop, and sends nothing if it ever wakes up.
         let sendStop = BatchStop(parent: stop)
         let report = progress.map(Self.relay(index))
         let onSpooling: @Sendable () -> Void = { spooling.store(true, ordering: .releasing) }
-        let sending: @Sendable () async throws -> BatchReceipt = { try await queue.send(document, job, progress: report, onSpooling: onSpooling, sendStop) }
-        switch try await within(limit, sending) {
+        let sending = Task { try await queue.send(document, job, progress: report, onSpooling: onSpooling, sendStop) }
+        // A queue that routes each call (RoutedBatchQueue) answers for the route of this file's ready check, just before.
+        let limit = queue.sendLimit(job, options)
+        switch try await within(limit, { try await sending.value }) {
         case .done(let r): return .success(r)
         case .late:
+            // A printer followed to the job's end: once it has the job, the batch waits for it however long it prints.
+            if spooling.load(ordering: .acquiring) && queue.endsOnItsOwnOnceSpooling { return .success(try await sending.value) }
             sendStop.stop()
+            sending.cancel()
             let spooled = spooling.load(ordering: .acquiring)
             return .failure(Failed(outcome: Outcome(state: .failed, message: spooled ? loc("macOS didn't finish taking it in time: check the queue before sending it again.")
                 : loc("It took too long to draw: it may be damaged. Not printed."), stop: spooled ? loc("The printer's queue stopped taking jobs.") : nil, unsure: spooled)))
@@ -845,7 +867,7 @@ public enum BatchPrintRunner {
             do {
                 switch try await within(options.queueTimeout, { try await queue.problem() }) {
                 case .done(let said): problem = said
-                case .late: problem = loc("macOS doesn't answer about the printer.")
+                case .late: problem = queue.noAnswer
                 }
             } catch is CancellationError {
                 throw CancellationError()
