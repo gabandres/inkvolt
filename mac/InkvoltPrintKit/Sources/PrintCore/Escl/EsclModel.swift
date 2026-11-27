@@ -181,15 +181,44 @@ public struct ScanRequest: Equatable, Sendable {
     /// Region in 1/300 inch. Nil = the source's full area, clamped to device max.
     public var width: Int?
     public var height: Int?
+    /// Where the region starts from the source's top left, in 1/300 inch (an eSCL client's ScanRegion; the Windows Core's
+    /// `XOffset`, `YOffset`). Nil = 0.
+    public var xOffset: Int?
+    public var yOffset: Int?
 
     public init(source: ScanSource = .platen, color: ScanColor = .color, resolution: Int = 300, intent: String = "Document", width: Int? = nil,
-                height: Int? = nil) {
+                height: Int? = nil, xOffset: Int? = nil, yOffset: Int? = nil) {
         self.source = source
         self.color = color
         self.resolution = resolution
         self.intent = intent
         self.width = width
         self.height = height
+        self.xOffset = xOffset
+        self.yOffset = yOffset
+    }
+}
+
+/// The area of a source a scan asks ImageCaptureCore for (the Windows Core's `WiaCapabilities.Plan`, the driver's part of
+/// a request): in inches from the source's top left, the offset kept inside the source and the size cut to what's left of
+/// it after the offset. PrintMac's `SystemScanDevice` sets it as the unit's scan area.
+public struct ScanArea: Equatable, Sendable {
+    public var x: Double, y: Double, width: Double, height: Double
+
+    public init(x: Double, y: Double, width: Double, height: Double) {
+        self.x = x
+        self.y = y
+        self.width = width
+        self.height = height
+    }
+
+    /// `request`'s area on a source `sourceWidth` × `sourceHeight` inches.
+    public static func of(_ request: ScanRequest, sourceWidth: Double, sourceHeight: Double) -> ScanArea {
+        let w = sourceWidth.isFinite ? max(sourceWidth, 0) : 0, h = sourceHeight.isFinite ? max(sourceHeight, 0) : 0
+        let x = min(Double(max(request.xOffset ?? 0, 0)) / 300, w), y = min(Double(max(request.yOffset ?? 0, 0)) / 300, h)
+        let width = min(request.width.map { Double(max($0, 0)) / 300 } ?? w, w - x)
+        let height = min(request.height.map { Double(max($0, 0)) / 300 } ?? h, h - y)
+        return ScanArea(x: x, y: y, width: width, height: height)
     }
 }
 

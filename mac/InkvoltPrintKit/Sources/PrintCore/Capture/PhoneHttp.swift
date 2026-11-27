@@ -7,6 +7,38 @@ public protocol PhoneConnectionIO: Sendable {
     func send(_ bytes: [UInt8]) async -> Bool
 }
 
+/// What answers the requests one connection brings (`PhoneHttp.serve`): the phone page (`PhoneSession`), or a shared
+/// scanner's eSCL (`SharedScanner`). `readBody` reads the request's body, at most the bytes it's given (nil when there are
+/// more, or the connection broke).
+public protocol HttpService: Sendable {
+    func handle(_ head: PhoneHttpHead, peer: String, readBody: (Int) async -> [UInt8]?) async -> PhoneReply
+}
+
+extension PhoneSession: HttpService {
+    public func handle(_ head: PhoneHttpHead, peer: String, readBody: (Int) async -> [UInt8]?) async -> PhoneReply {
+        let request = PhoneRequest(head.method, head.path, peer: peer, cookie: head.cookie(PhoneSession.cookieName),
+                                   fromPage: head.values(PhoneSession.pageHeader.lowercased()).first?.trimmingCharacters(in: .whitespaces) == "1")
+        return await handle(request, readBody: readBody)
+    }
+}
+
+extension SharedScanner: HttpService {
+    /// A request off the wire: a body is read only for a POST, at most `ShareXml.maxSettingsBytes` (a longer one is 413,
+    /// unread); every answer is the scanner's, with eSCL's headers.
+    public func handle(_ head: PhoneHttpHead, peer: String, readBody: (Int) async -> [UInt8]?) async -> PhoneReply {
+        var body: [UInt8] = []
+        if head.method == "POST" || head.method == "PUT" {
+            guard let read = await readBody(ShareXml.maxSettingsBytes) else { return .empty(413) }
+            body = read
+        }
+        let reply = await handle(ShareRequest(head.method, head.path, body: body, peer: peer, authority: head.values("host").first))
+        var out = PhoneReply(reply.status, contentType: reply.contentType, body: reply.body)
+        out.location = reply.location
+        out.retryAfterSeconds = reply.retryAfterSeconds
+        return out
+    }
+}
+
 /// A request's head as read off the wire, before anything is answered.
 public struct PhoneHttpHead: Equatable, Sendable {
     public var method: String
@@ -57,9 +89,15 @@ public enum PhoneHttp {
         public let status: Int
     }
 
-    /// Serves requests on `io` from `peer` until the connection closes, an answer closes it, or the task is cancelled (the
-    /// server closed).
+    /// Serves the phone page's requests on `io` from `peer` until the connection closes, an answer closes it, or the task is
+    /// cancelled (the server closed).
     public static func serve(_ io: any PhoneConnectionIO, peer: String, session: PhoneSession) async {
+        await serve(io, peer: peer, service: session)
+    }
+
+    /// Serves `service`'s requests on `io` from `peer` (the phone page, or a shared scanner's eSCL) until the connection
+    /// closes, an answer closes it, or the task is cancelled (the server closed).
+    public static func serve(_ io: any PhoneConnectionIO, peer: String, service: any HttpService) async {
         var buffer: [UInt8] = []
         while !Task.isCancelled {
             let head: PhoneHttpHead
@@ -84,9 +122,7 @@ public enum PhoneHttp {
             var bodyRead = false
             var bodyTaken = false
             var broken = false
-            let request = PhoneRequest(head.method, head.path, peer: peer, cookie: head.cookie(PhoneSession.cookieName),
-                                       fromPage: head.values(PhoneSession.pageHeader.lowercased()).first?.trimmingCharacters(in: .whitespaces) == "1")
-            let reply = await session.handle(request) { max in
+            let reply = await service.handle(head, peer: peer) { max in
                 bodyRead = true
                 guard declared <= max else { return nil }
                 let body = await readBody(io, &buffer, declared)
@@ -236,6 +272,7 @@ public enum PhoneHttp {
         if let csp = reply.contentSecurityPolicy { lines.append("Content-Security-Policy: \(csp)") }
         if let cookie = reply.setCookie { lines.append("Set-Cookie: \(cookie)") }
         if let seconds = reply.retryAfterSeconds { lines.append("Retry-After: \(seconds)") }
+        if let location = reply.location { lines.append("Location: \(location)") }
         let body = isHead ? [] : reply.body ?? []
         if let type = reply.contentType, !body.isEmpty { lines.append("Content-Type: \(type)") }
         lines.append("Content-Length: \(body.count)")
@@ -246,11 +283,13 @@ public enum PhoneHttp {
     static func reason(_ status: Int) -> String {
         switch status {
         case 200: "OK"
+        case 201: "Created"
         case 400: "Bad Request"
         case 403: "Forbidden"
         case 404: "Not Found"
         case 405: "Method Not Allowed"
         case 408: "Request Timeout"
+        case 409: "Conflict"
         case 410: "Gone"
         case 411: "Length Required"
         case 413: "Payload Too Large"
@@ -258,6 +297,7 @@ public enum PhoneHttp {
         case 415: "Unsupported Media Type"
         case 429: "Too Many Requests"
         case 431: "Request Header Fields Too Large"
+        case 503: "Service Unavailable"
         case 505: "HTTP Version Not Supported"
         default: "Error"
         }

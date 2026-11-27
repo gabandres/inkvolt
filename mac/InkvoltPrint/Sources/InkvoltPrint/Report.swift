@@ -33,7 +33,8 @@ import PrintMac
 /// every printer's queue as job alerts do and lists the alerts a tracker of its own would raise (`jobsCheck`, roadmap 3.4); `--snmp` checks SNMP access
 /// (`snmpCheck`, roadmap 3.2: the Keychain store, the made-up agent's community and its SNMPv3 user); with `--demo`, `--extras`
 /// checks files handed in, presets from outside, Help, the command palette, the rating request and the notifications'
-/// buttons (`extrasCheck`). A
+/// buttons (`extrasCheck`); `--share-scanner [name]
+/// [--hold s]` shares a scanner on the network (`shareScannerCheck`, roadmap 3.1). A
 /// queue printer's lines say where its status and levels came from (roadmap 3.6). For checking a build over
 /// SSH, where no one may be at the screen. Addresses are masked to their last
 /// part, so a report can be pasted into a chat.
@@ -160,6 +161,11 @@ enum Report {
             }
             if model.isDemo, let i = args.firstIndex(of: "--fix") {
                 cancelled += await fixCheck(model, repairAll: i + 1 < args.count && args[i + 1] == "all")
+            }
+            if let i = args.firstIndex(of: "--share-scanner") {
+                let name = i + 1 < args.count && !args[i + 1].hasPrefix("--") ? args[i + 1] : nil
+                let hold = args.firstIndex(of: "--hold").flatMap { $0 + 1 < args.count ? Int(args[$0 + 1]) : nil } ?? 0
+                cancelled += await shareScannerCheck(model, name: name, hold: hold)
             }
             cancelled += proCheck(args)
             try? await Task.sleep(for: .seconds(wait))

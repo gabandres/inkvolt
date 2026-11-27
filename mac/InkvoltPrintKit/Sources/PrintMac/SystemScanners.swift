@@ -15,6 +15,8 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     private let browser = ICDeviceBrowser()
     private var devices: [String: ICScannerDevice] = [:]
+    /// One driver of each device while it's listed: a device has one delegate, so a second wrapper would take its pages.
+    private var drivers: [String: SystemScanDevice] = [:]
     private var pending: Task<Void, Never>?
     private let onChange: @MainActor ([SystemScanner]) -> Void
 
@@ -42,13 +44,19 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     /// Every scanner ICC lists, network ones too (for checks: the app scans those over eSCL).
     public var allDevices: [(scanner: SystemScanner, device: SystemScanDevice)] {
-        devices.map { id, d in (Self.scanner(id, d), SystemScanDevice(d)) }
+        devices.keys.compactMap { id in device(id).map { (Self.scanner(id, devices[id]!), $0) } }
     }
 
     public func stop() { browser.stop() }
 
-    /// The scanner to scan with (a session is opened when it's first used).
-    public func device(_ id: String) -> SystemScanDevice? { devices[id].map(SystemScanDevice.init) }
+    /// The scanner to scan with (a session is opened when it's first used): the same one while the device is listed.
+    public func device(_ id: String) -> SystemScanDevice? {
+        if let kept = drivers[id] { return kept }
+        guard let d = devices[id] else { return nil }
+        let driver = SystemScanDevice(d)
+        drivers[id] = driver
+        return driver
+    }
 
     public var list: [SystemScanner] {
         devices.map { id, d in Self.scanner(id, d) }
@@ -63,6 +71,7 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     public func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {
         guard let scanner = device as? ICScannerDevice, let id = scanner.persistentIDString ?? scanner.name else { return }
+        if devices[id] !== scanner { drivers[id] = nil }
         devices[id] = scanner
         changed()
     }
@@ -70,6 +79,7 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
     public func deviceBrowser(_ browser: ICDeviceBrowser, didRemove device: ICDevice, moreGoing: Bool) {
         guard let id = device.persistentIDString ?? device.name else { return }
         devices[id] = nil
+        drivers[id] = nil
         changed()
     }
 
@@ -161,6 +171,8 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
     }
 
     private func run(_ request: ScanRequest, _ continuation: AsyncThrowingStream<[UInt8], any Error>.Continuation) async throws {
+        // One scan at a time on a device: a second would take the first one's pages.
+        if pages != nil { throw ScanError(loc("Someone else is using the scanner. Try again in a moment.")) }
         try await open()
         try await select(request.source == .platen ? .flatbed : .documentFeeder)
         let unit = scanner.selectedFunctionalUnit
@@ -170,10 +182,9 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         unit.pixelDataType = request.color == .color ? .RGB : .gray
         unit.bitDepth = .depth8Bits
         let size = unit.physicalSize
-        var width = CGFloat(size.width), height = CGFloat(size.height)
-        if let w = request.width { width = min(CGFloat(w) / 300, width) }
-        if let h = request.height { height = min(CGFloat(h) / 300, height) }
-        unit.scanArea = NSRect(x: 0, y: 0, width: width, height: height)
+        // The request's region, its offset kept inside the source (a shared scanner's client may ask for one).
+        let area = ScanArea.of(request, sourceWidth: Double(size.width), sourceHeight: Double(size.height))
+        unit.scanArea = NSRect(x: area.x, y: area.y, width: area.width, height: area.height)
         if let feeder = unit as? ICScannerFunctionalUnitDocumentFeeder {
             feeder.documentType = .typeDefault
             if feeder.supportsDuplexScanning { feeder.duplexScanningEnabled = request.source == .adfDuplex }

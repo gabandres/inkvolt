@@ -172,6 +172,7 @@ private struct ScanSettings: View {
                     PhoneButton(scan: scan)
                 }
             }
+            ScannerShareCard(printer: scan.owner)
         }
         .formStyle(.grouped)
         .disabled(scan.isSaving)

@@ -27,6 +27,9 @@ public struct ListedPrinter: Equatable, Sendable {
     public var scanner: SystemScanner?
     /// Scanned pages not saved yet: a scanner on its own with them stays on the list.
     public var hasUnsavedScans = false
+    /// Shared on the network (roadmap 3.1): a scanner on its own stays on the list while it's off or unplugged, so its card
+    /// can still turn sharing off (Windows keeps the entry's known scanner).
+    public var isShared = false
 
     public init(id: String, kind: ListedKind, name: String, model: String? = nil, hosts: [String] = [], acceptedUuids: [String] = [],
                 destination: CupsDestination? = nil) {
@@ -149,7 +152,7 @@ public enum PrinterList {
     }
 
     /// USB scanners: each goes to the queue printer it belongs to (`ScannerMatch`), one no printer claims is listed on its
-    /// own; a scanner of its own goes when macOS drops it, unless it holds pages not saved yet; a hidden one stays hidden
+    /// own; a scanner of its own goes when macOS drops it, unless it holds pages not saved yet or is shared; a hidden one stays hidden
     /// until macOS no longer has it.
     private static func scannerPart(_ scanners: [SystemScanner], _ listed: [ListedPrinter], _ forgotten: [String], _ change: inout PrinterListChange) {
         var list = listed // the queue part's list: queues gone are out, new ones in
@@ -165,7 +168,7 @@ public enum PrinterList {
         var seen = Set<String>()
         let wanted = own.filter { s in !forgotten.contains { same($0, ScannerMatch.id(for: s)) } && seen.insert(ScannerMatch.id(for: s)).inserted }
         let ids = Set(wanted.map(ScannerMatch.id(for:)))
-        for gone in list where gone.kind == .scanner && !ids.contains(gone.id) && !gone.hasUnsavedScans {
+        for gone in list where gone.kind == .scanner && !ids.contains(gone.id) && !gone.hasUnsavedScans && !gone.isShared {
             list.removeAll { $0.id == gone.id }
             change.removed.append(gone.id)
             if same(change.selected, gone.id) { change.selected = list.first?.id }

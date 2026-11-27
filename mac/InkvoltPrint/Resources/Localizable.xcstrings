@@ -10009,6 +10009,39 @@
           }
         }
       }
+    },
+    "Share on the network": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir en la red"
+          }
+        }
+      }
+    },
+    "Share this scanner on the network": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compartir este escáner en la red"
+          }
+        }
+      }
+    },
+    "Certificate fingerprint (SHA-256), to compare where a device shows it:": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Huella digital del certificado (SHA-256), para compararla donde un dispositivo la muestre:"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

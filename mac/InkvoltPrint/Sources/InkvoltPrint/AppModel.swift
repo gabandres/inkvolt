@@ -537,6 +537,7 @@ final class AppModel {
             if p.isScannerOnly, let s = p.systemScanner {
                 var l = ListedPrinter.forScanner(s)
                 l.hasUnsavedScans = p.unsavedPages > 0
+                l.isShared = scannerShare.isShared(s.id)
                 return l
             }
             if p.isQueue, let d = p.destination { return .forQueue(d) }
@@ -563,8 +564,13 @@ final class AppModel {
         }
         if change.selected != selectedID { selectedID = change.selected }
         if let given = change.systemScanners {
-            for p in printers where p.isQueue { p.systemScanner = given[p.id] ?? nil }
+            for p in printers where p.isQueue {
+                let scanner = given[p.id] ?? nil
+                p.systemScanner = scanner
+                if let scanner { p.knownScanner = scanner }
+            }
         }
+        offerToShare()
         // Each network printer's own queue, for its print queue card.
         let claims = PrinterList.claims(listed)
         let real = destinations.filter(CupsQueues.isRealQueue)
@@ -640,9 +646,89 @@ final class AppModel {
         store.change { $0.presetFolders[id] = bookmark }
     }
 
-    /// The scanner to scan with: ImageCaptureCore's device, or demo mode's made-up one.
-    func scanDevice(for s: SystemScanner) -> (any ScanDevice)? {
-        isDemo ? DemoScanDevice(s) : systemScanners?.device(s.id)
+    /// The scanner to scan with: ImageCaptureCore's device, or demo mode's made-up one, held as one `ConnectedScanner` per
+    /// scanner while it's listed, so the Scan tab and the shared scanner (roadmap 3.1) take turns on it.
+    func scanDevice(for s: SystemScanner) -> ConnectedScanner? {
+        guard isListed(s) else { return nil }
+        if let held = connectedScanners[s.id] { return held }
+        guard let device: any ScanDevice = isDemo ? DemoScanDevice(s) : systemScanners?.device(s.id) else { return nil }
+        let held = ConnectedScanner(s, device: device)
+        connectedScanners[s.id] = held
+        return held
+    }
+
+    /// macOS lists the scanner now (connected and on).
+    func isListed(_ s: SystemScanner) -> Bool { scannerList?.contains { $0.id == s.id } == true }
+
+    // MARK: Scanner sharing (roadmap 3.1)
+
+    /// The scanner shared on the network: off until the person turns it on; its choice kept in the state file (in demo mode,
+    /// on 127.0.0.1 for this Mac only, with a keychain of the run's own).
+    @ObservationIgnored private(set) lazy var scannerShare: ScannerShare = {
+        let log = shareLog
+        let env: ShareEnvironment
+        if isDemo, let keychain = try? KeychainFile() {
+            shareKeychain = keychain
+            env = .thisMacOnly(NetworkShareHost(), certificates: PhoneCertificateKeychain(keychain: keychain.keychain))
+        } else {
+            env = ShareEnvironment(host: NetworkShareHost(), networks: SystemShareNetworks(), advertiser: BonjourShareAdvertiser(),
+                                   certificates: PhoneCertificateKeychain())
+        }
+        let store = self.store
+        let share = ScannerShare(env, computerName: Host.current().localizedName ?? "Mac", choice: store.current.scannerShare,
+                                 save: { choice in store.change { $0.scannerShare = choice } }, log: { log.add($0) })
+        share.onChange { [weak self] in Task { @MainActor in self?.shareChanged() } }
+        return share
+    }()
+    @ObservationIgnored private var shareKeychain: KeychainFile?
+    @ObservationIgnored private var connectedScanners: [String: ConnectedScanner] = [:]
+    /// What the share did, in plain words (no device's address): the report's.
+    @ObservationIgnored let shareLog = ShareLog()
+    /// Bumped whenever the share's state changes (the Scan tab's card reads it).
+    private(set) var shareRevision = 0
+
+    @ObservationIgnored private var sharedSeen: String?
+
+    private func shareChanged() {
+        shareRevision += 1
+        // A scanner of its own that's shared stays listed while it's unplugged (and goes once sharing is off): the list is
+        // read again when which scanner is shared changes (not on every word from the share, which a list change sends).
+        let shared = scannerShare.choice.deviceId
+        guard shared != sharedSeen else { return }
+        sharedSeen = shared
+        reconcile()
+    }
+
+    /// The shared scanner gets its connected scanner whenever the list changes (nil: it's gone); scanners no longer listed
+    /// are let go.
+    private func offerToShare() {
+        let listed = Set(scannerList?.map(\.id) ?? [])
+        connectedScanners = connectedScanners.filter { listed.contains($0.key) }
+        guard let shared = scannerShare.choice.deviceId else { return }
+        let scanner = scannerList?.first { $0.id.caseInsensitiveCompare(shared) == .orderedSame }.flatMap { scanDevice(for: $0) }
+        let share = scannerShare
+        Task { await share.offer(shared, scanner) }
+    }
+
+    /// The card's switch: on shares the entry's connected scanner (one at a time), off stops sharing.
+    func setSharing(_ on: Bool, _ scanner: SystemScanner) {
+        let share = scannerShare
+        let connected = scanDevice(for: scanner)
+        Task {
+            if on { _ = await share.turnOn(connected) } else { await share.stop() }
+            shareChanged()
+        }
+    }
+
+    /// What closes sharing when the app quits (off the main thread, which waits for it): the port closes and the
+    /// announcement ends, the choice kept for the next start; nil when nothing was ever shared this run.
+    func sharingCloser() -> (@Sendable () async -> Void)? {
+        guard scannerShare.isOn || scannerShare.state != .off else { return nil }
+        let share = scannerShare, keychain = shareKeychain
+        return {
+            await share.close()
+            keychain?.delete()
+        }
     }
 
     /// The queue's printer can't be reached, as macOS says.
@@ -737,6 +823,9 @@ final class AppModel {
     func remove(_ p: PrinterModel) {
         _ = p.closeButton() // sealed first: its choice never comes back; this Mac then comes off its panel
         p.stop()
+        // Its scanner, if shared, stops being shared: added again, it isn't shared again by itself.
+        let share = scannerShare, scanners = [p.systemScanner?.id, p.knownScanner?.id]
+        Task { await share.forget(scanners) }
         let listed = !p.isNetwork ? nil : ListedPrinter(id: p.id, kind: .network, name: p.name, model: p.model,
                                                       hosts: [p.host] + (p.hostName.map { [$0] } ?? []), acceptedUuids: store.accepted(p.id))
         // A network printer's own queues go with it, so none shows up as a printer of its own.

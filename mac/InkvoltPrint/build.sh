@@ -3,6 +3,7 @@
 # /Applications. For development on the Mac; release.sh makes App Store builds.
 #   ./build.sh          Release configuration
 #   ./build.sh debug    Debug configuration
+#   NO_INSTALL=1 ./build.sh   built and signed in build/DerivedData only (a slot's build while another drives /Applications')
 # Signs with the Apple Development identity in ~/Library/Keychains/inkvolt-dev.keychain-db (dev-cert.sh), unlocked with
 # DEV_KEYCHAIN_PASSWORD from .env.local (INKVOLT_ENV names another; the release clone's from a worktree), so macOS keeps the app's Screen Recording and Local Network permissions from one
 # build to the next. Without it, or with SIGN_IDENTITY=-, signs ad-hoc: a new app to macOS each time, which asks again.
@@ -35,6 +36,11 @@ xcodebuild -project InkvoltPrint.xcodeproj -scheme InkvoltPrint -configuration "
   OTHER_CODE_SIGN_FLAGS="$flags"
 app="build/DerivedData/Build/Products/$config/Inkvolt Print.app"
 codesign --verify --strict "$app"
+# NO_INSTALL=1: built and signed only, run from where it is (`open -n "$app"`), while another session drives the installed one.
+if [ -n "${NO_INSTALL:-}" ]; then
+  echo "Built $PWD/$app ($config), not installed"
+  exit 0
+fi
 
 pkill -x "Inkvolt Print" 2>/dev/null || true
 rm -rf "/Applications/Inkvolt Print.app"

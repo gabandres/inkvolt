@@ -12,20 +12,26 @@ public struct CapturedPhoto: Sendable {
     }
 }
 
-/// The photos between a capture source and its scan (the Mac's counterpart of the bounded `Channel` Windows' sessions use):
-/// at most `capacity` held, one reader. `tryWrite` refuses when full (a camera's Capture), `write` waits for room (a
-/// phone's upload, while the Mac makes pages of earlier ones); `finish` ends it: what's held is still read, then `read`
-/// gives nil, and writes are refused.
-public final class PhotoChannel: @unchecked Sendable {
+/// The photos between a capture source and its scan.
+public typealias PhotoChannel = BoundedChannel<CapturedPhoto>
+
+/// Items between one writer and one reader (the Mac's counterpart of the bounded `Channel` Windows uses: a capture's photos,
+/// a shared scanner's pages): at most `capacity` held, one reader. `tryWrite` refuses when full (a camera's Capture), `write`
+/// waits for room (a phone's upload, while the Mac makes pages of earlier ones; a scanner's next page, while the client
+/// reads the last); `finish` ends it: what's held is still read, then `read` gives nil, and writes are refused.
+public final class BoundedChannel<Item: Sendable>: @unchecked Sendable {
     public let capacity: Int
     private let lock = NSLock()
-    private var items: [CapturedPhoto] = []
+    private var items: [Item] = []
     private var finished = false
-    private var reader: (id: Int, continuation: CheckedContinuation<CapturedPhoto?, Never>)?
-    private var writers: [(id: Int, photo: CapturedPhoto, continuation: CheckedContinuation<Bool, Never>)] = []
+    private var reader: (id: Int, continuation: CheckedContinuation<Item?, Never>)?
+    private var writers: [(id: Int, photo: Item, continuation: CheckedContinuation<Bool, Never>)] = []
     private var nextId = 0
 
     public init(capacity: Int) { self.capacity = max(1, capacity) }
+
+    /// What a write does, decided under the lock.
+    private enum WriteThen { case kept, refused, handed(CheckedContinuation<Item?, Never>), waits }
 
     /// Photos held now.
     public var count: Int { lock.withLock { items.count } }
@@ -33,9 +39,8 @@ public final class PhotoChannel: @unchecked Sendable {
     public var isFinished: Bool { lock.withLock { finished } }
 
     /// Holds `photo` when there's room and it isn't finished; false otherwise.
-    public func tryWrite(_ photo: CapturedPhoto) -> Bool {
-        enum Then { case refused, kept, handed(CheckedContinuation<CapturedPhoto?, Never>) }
-        let then: Then = lock.withLock {
+    public func tryWrite(_ photo: Item) -> Bool {
+        let then: WriteThen = lock.withLock {
             if finished || items.count >= capacity { return .refused }
             if let r = reader {
                 reader = nil
@@ -45,7 +50,7 @@ public final class PhotoChannel: @unchecked Sendable {
             return .kept
         }
         switch then {
-        case .refused: return false
+        case .refused, .waits: return false
         case .kept: return true
         case .handed(let r):
             r.resume(returning: photo)
@@ -55,15 +60,14 @@ public final class PhotoChannel: @unchecked Sendable {
 
     /// Holds `photo`, waiting while the channel is full; false when it's finished (before or while waiting) or the task is
     /// cancelled.
-    public func write(_ photo: CapturedPhoto) async -> Bool {
+    public func write(_ photo: Item) async -> Bool {
         let id = lock.withLock { () -> Int in
             nextId += 1
             return nextId
         }
         return await withTaskCancellationHandler {
             await withCheckedContinuation { (c: CheckedContinuation<Bool, Never>) in
-                enum Then { case kept, refused, handed(CheckedContinuation<CapturedPhoto?, Never>), waits }
-                let then: Then = lock.withLock {
+                let then: WriteThen = lock.withLock {
                     if finished || Task.isCancelled { return .refused }
                     if let r = reader {
                         reader = nil
@@ -95,8 +99,8 @@ public final class PhotoChannel: @unchecked Sendable {
     }
 
     /// The next photo without waiting, or nil.
-    public func tryRead() -> CapturedPhoto? {
-        let (photo, woken): (CapturedPhoto?, CheckedContinuation<Bool, Never>?) = lock.withLock {
+    public func tryRead() -> Item? {
+        let (photo, woken): (Item?, CheckedContinuation<Bool, Never>?) = lock.withLock {
             guard !items.isEmpty else { return (nil, nil) }
             let photo = items.removeFirst()
             return (photo, admitWriter())
@@ -106,14 +110,14 @@ public final class PhotoChannel: @unchecked Sendable {
     }
 
     /// The next photo, waiting for one; nil once it's finished and everything held was read, or the task is cancelled.
-    public func read() async -> CapturedPhoto? {
+    public func read() async -> Item? {
         let id = lock.withLock { () -> Int in
             nextId += 1
             return nextId
         }
         return await withTaskCancellationHandler {
-            await withCheckedContinuation { (c: CheckedContinuation<CapturedPhoto?, Never>) in
-                let (photo, woken, done): (CapturedPhoto?, CheckedContinuation<Bool, Never>?, Bool) = lock.withLock {
+            await withCheckedContinuation { (c: CheckedContinuation<Item?, Never>) in
+                let (photo, woken, done): (Item?, CheckedContinuation<Bool, Never>?, Bool) = lock.withLock {
                     if !items.isEmpty {
                         let photo = items.removeFirst()
                         return (photo, admitWriter(), false)
@@ -130,7 +134,7 @@ public final class PhotoChannel: @unchecked Sendable {
                 if let photo { c.resume(returning: photo) } else if done { c.resume(returning: nil) }
             }
         } onCancel: {
-            let waiting = lock.withLock { () -> CheckedContinuation<CapturedPhoto?, Never>? in
+            let waiting = lock.withLock { () -> CheckedContinuation<Item?, Never>? in
                 guard let r = reader, r.id == id else { return nil }
                 reader = nil
                 return r.continuation
@@ -141,7 +145,7 @@ public final class PhotoChannel: @unchecked Sendable {
 
     /// No more photos: the reader gets what's held, then nil; waiting writers are refused.
     public func finish() {
-        let (r, ws): (CheckedContinuation<CapturedPhoto?, Never>?, [CheckedContinuation<Bool, Never>]) = lock.withLock {
+        let (r, ws): (CheckedContinuation<Item?, Never>?, [CheckedContinuation<Bool, Never>]) = lock.withLock {
             guard !finished else { return (nil, []) }
             finished = true
             let ws = writers.map(\.continuation)
