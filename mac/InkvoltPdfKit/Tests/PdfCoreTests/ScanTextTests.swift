@@ -392,4 +392,41 @@ struct ScanTextTests {
         let plain = try PageOcr.recognizer(TwoWordReader(), options: RecognizeOptions(clean: false, checkWords: false))(engine, 0, nil)
         #expect(plain.allSatisfy { $0.suspect.isEmpty })
     }
+
+    /// Reads a page as Vision reads one: real words when the lines are the right way up (the ink starts in the image's top
+    /// half: the digits page's lines are at its top), else more "words" of letters than that, which pass for words without
+    /// a dictionary.
+    final class WayUpReader: TextRecognizer, @unchecked Sendable {
+        var language: String? { "en-US" }
+
+        func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] {
+            let (width, height) = (image.width, image.height)
+            let gray = ScanCleanup.toGray(image.pixels, width, height)
+            guard let top = (0..<height).first(where: { y in (0..<width).contains { gray[y * width + $0] < 128 } }) else { return [] }
+            let words = top < height / 2 ? ["quick", "brown", "fox"] : ["xod", "umorq", "ʞɔinb", "sdunf", "ezop", "hwol"]
+            return words.enumerated().map { i, w in OcrWord(w, RectD(Double(100 + i * 150), Double(top), 120, 40)) }
+        }
+    }
+
+    /// Mac only (Windows' `PageOcr.Recognize`, Compare's reading of a scan, has no test of its own): Compare reads a scan
+    /// cleaned and with the language's dictionary, so a page the cleanup isn't sure of is read the way up its words are
+    /// real, not turned over to the reading with more letters; without the dictionary, words read upside down pass for
+    /// words and the page is read upside down.
+    @Test func compareReadsAScanTheWayUpTheLanguagesDictionarySays() throws {
+        let engine = try PdfEngine.open(Core2Pdf.build(Self.digitsPageObjects))
+        defer { engine.close() }
+        let image = try engine.render(0, scale: 300.0 / 72)
+        try #require(!(try ScanCleanup.clean(image.pixels, image.width, image.height, 3, 300)).uprightSure,
+                     "the cleanup can't tell which way up a page of digits is")
+
+        let dictionary = SuspectWordsTests.Dictionary("quick", "brown", "fox")
+        let read = try PageOcr.compareRecognizer(WayUpReader(), spelling: dictionary)(engine, 0, nil)
+        #expect(read.map(\.text) == ["quick", "brown", "fox"])
+        #expect(read.allSatisfy { $0.suspect.isEmpty }) // no suspect words marked
+        let page = try PdfCore.ScanText.recognize(engine, 0, WayUpReader(), RecognizeOptions(checkWords: false), spelling: dictionary)
+        #expect(page.quarterTurns == 0)
+
+        let guessed = try PageOcr.compareRecognizer(WayUpReader(), spelling: nil)(engine, 0, nil)
+        #expect(guessed.count == 6, "read turned over: \(guessed.map(\.text))")
+    }
 }

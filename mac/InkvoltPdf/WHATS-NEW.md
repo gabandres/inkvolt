@@ -9,6 +9,7 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - Search Folders finds a phrase of common words with less reading: a file's pages are read together and shared among the Mac's processors, and a page of plain text is told quickly. A phrase that starts at the end of a run of letters and digits over 1,024 long (a long code or hash) is found too.
 - Export to PowerPoint and HTML keeps the PDF's links: web and email links still open, and a link to another page goes to that slide or that part of the page. Only the words the link covers are linked. Reflow's column has the PDF's links too.
 - Compare Files lines up a scanned page that was scanned at another size or a quarter turn off (sideways or upside down) with the other version before showing what looks different, so the same page no longer looks different all over.
+- Compare Files straightens a scanned page and turns it the right way up before reading its words, as Recognize Text does. When it can't tell which way up a page goes, it reads the page both ways and keeps the reading with real words in your language, so a page scanned upside down is compared by its words.
 - A page with a tiny picture built to unpack gigabytes (a damaged or malicious PDF) no longer takes seconds and then says "This page took too long to read": it shows at once.
 
 ## 1.13.0
