@@ -1807,8 +1807,17 @@ the same scan fed sideways.
 sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). Ported with Inkvolt Print's 4.3 (Wave 4,
 above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
 (`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
-PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
-ported (the Mac's `ExportTestPdf` has no large shaded picture).
+PrintCoreTests' `UprightTests` run on the PC), and ScanTextTests' `aPageWithALargeShadedPictureIsTurnedTheRightWayUp`
+(the Mac's `ExportTestPdf` already had Windows' picture, 40 × 30 drawn at 160 × 120 points).
+
+- **That page isn't sure the right way up, or turned 270°, on the Mac** (a known issue in the test, which fails if it
+  goes away): it is turned the right way up all four ways, as on Windows. macOS's Arial (the Mac's `ExportTestPdf` embeds
+  it; PDFsharp embeds Windows') draws two rows of ink, under the first paragraph's first line and over the second bullet's
+  ascenders, at 18 and 16 pixels where Windows' draws 15 (at 100 dpi), just past the 3 % of the fullest row (15.06) that
+  keeps a line going: the lines measured with them have 1.39 times more ink above than below (706 to 509; Windows 669 to
+  435, 1.54), under the 1.4 that is sure. Turned 90° or 180° the Mac's measure says sure. Not a difference in the cleanup
+  (the same code, and the same numbers from the same rows); Windows' result rests on those rows as much (15 against
+  15.06). A page the cleanup isn't sure of is read both ways.
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`

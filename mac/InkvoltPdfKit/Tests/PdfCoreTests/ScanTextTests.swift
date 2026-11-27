@@ -74,6 +74,26 @@ struct ScanTextTests {
         #expect(abs(x0 - 123) <= 1.0 && abs(y0 - 73) <= 1.0, "\(x0), \(y0)")
     }
 
+    @Test(arguments: [0, 90, 180, 270])
+    func aPageWithALargeShadedPictureIsTurnedTheRightWayUp(_ turned: Int) throws {
+        // The export test page: headings, a list, a ruled table and a large shaded picture. The picture, as a "line" of its
+        // own, outweighed the text and the page was read upside down, and sure of it.
+        let pdf = try PdfEngine.open(ExportTestPdf.make())
+        defer { pdf.close() }
+        let page = try pdf.render(0, scale: 300.0 / 72)
+        let quarters = turned / 90
+        let (w, h) = quarters % 2 == 0 ? (page.width, page.height) : (page.height, page.width)
+        let scan = ScanCleanup.turn(page.pixels, page.width, page.height, 3, quarters)
+        let cleaned = try ScanCleanup.clean(scan, w, h, 3, 300)
+        #expect((quarters + cleaned.quarterTurns) % 4 == 0, "turned \(turned)°, set upright by \(cleaned.quarterTurns) quarter turns")
+        guard turned == 0 || turned == 270 else { return #expect(cleaned.uprightSure) }
+        // Mac difference (PLAN, Compare): macOS's Arial draws two rows of this page's ink, under a paragraph's descenders
+        // and over a bullet's ascenders, at 18 and 16 pixels where Windows' draws 15, just past the 3% of the fullest row
+        // (15.06) that keeps a line going; the lines measured with them say 1.39 more ink above, under the 1.4 that is
+        // sure. The page is still turned the right way up, and read both ways with the dictionary to be sure.
+        withKnownIssue("macOS's Arial: 1.39 more ink above the lines than below, under 1.4") { #expect(cleaned.uprightSure) }
+    }
+
     @Test(.enabled(if: ScanCorpus.runs)) func anUpsideDownSkewedScanIsReadUprightAndItsWordsLandWhereTheyAre() throws {
         let pdf = try PdfEngine.open(Self.turnedScan())
         defer { pdf.close() }
