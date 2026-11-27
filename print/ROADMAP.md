@@ -102,9 +102,11 @@ What each is: the README's feature table. What waits for real hardware: the READ
   build Mac (PWG raster). Open on the Mac: the app's own prints on a real printer.
 - **2.2 Scan from the printer's button.** Done on Windows: HP's Scan to Computer over LEDM, and a Windows scanner's
   button events through WIA; off by default. Every walk-up name is an assumption (`LedmWalkupScan.Names`) until an HP
-  all-in-one that lists the interface is recorded (the M234dw doesn't). **Mac half waits** (ICA's button events; the HP
-  part a port of `LedmWalkupScan` and `ScanToComputer`; what fixtures can prove and what needs a device:
-  `mac/docs/PLAN.md`, "Open").
+  all-in-one that lists the interface is recorded (the M234dw doesn't, read again 2026-11-27). **Mac** (2026-11-27): the
+  same HP part (Windows' tests and walk-up names ported), the scan tab's section, the long poll shared with the status, and
+  a USB scanner's button through ImageCaptureCore, which lists no buttons and names none pressed, so every USB scanner is
+  offered a Scan button. Open on the Mac: a scanner with a button on the build Mac (whether macOS sends its presses to
+  Inkvolt Print), and the HP printer as on Windows (`mac/docs/PLAN.md` P12 2.2).
 - **2.3 Scan cleanup and a Unicode OCR layer.** Done, Windows and Mac. Word error rates:
   [RESULTS-cleanup.md](../pdf/tools/ocr-corpus/RESULTS-cleanup.md) (`ocr-corpus cleanup`). Known limits: a white sheet
   under a white lid shows no edge and stays whole; a dark lid isn't cropped; pdf.js (and PDFKit) find each word of a

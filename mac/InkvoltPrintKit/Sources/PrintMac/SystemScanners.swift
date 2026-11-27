@@ -75,6 +75,30 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     public func didRemove(_ device: ICDevice) {}
 
+    // MARK: Buttons (roadmap 2.2)
+
+    private var listeners: [Int: (device: String, pressed: @Sendable () -> Void)] = [:]
+    private var nextListener = 0
+
+    /// A scanner's button was pressed and this app is the target macOS sends that device's presses to: ImageCaptureCore
+    /// says so through the browser while no session is open on the device (with one open, the SDK has no delegate method
+    /// left that says it; macOS 15's headers name only this one). It doesn't say which button: every press counts as Scan.
+    public func deviceBrowser(_ browser: ICDeviceBrowser, requestsSelect device: ICDevice) {
+        guard let id = device.persistentIDString ?? device.name else { return }
+        for listener in listeners.values where listener.device == id { listener.pressed() }
+    }
+
+    /// Hears `device`'s button presses until the result is called (stops hearing).
+    func listen(_ device: String, _ pressed: @escaping @Sendable () -> Void) -> @MainActor @Sendable () -> Void {
+        nextListener += 1
+        let id = nextListener
+        listeners[id] = (device, pressed)
+        return { [weak self] in self?.listeners[id] = nil }
+    }
+
+    /// The listeners hearing buttons now (the report's check).
+    public var buttonListeners: Int { listeners.count }
+
     private func changed() {
         pending?.cancel()
         pending = Task {
@@ -261,5 +285,51 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         case -9924: return loc("The scan was stopped.")
         default: return loc("The scanner stopped: {0}", (error as NSError).localizedDescription)
         }
+    }
+}
+
+/// A USB scanner's buttons through ImageCaptureCore (roadmap 2.2's driver half; Windows' WIA button events): presses come
+/// through `SystemScanners`' browser, only while this app runs and only when macOS sends the scanner's presses to it.
+/// ImageCaptureCore doesn't say which buttons a scanner has, nor which was pressed, so every press is a Scan press and the app
+/// offers it for every USB scanner it drives. Not proved on a scanner with buttons (none on the build Mac).
+public final class IcaScannerButtons: ScannerButtons {
+    private let scanners: SystemScanners
+
+    @MainActor
+    public init(_ scanners: SystemScanners) { self.scanners = scanners }
+
+    private final class Watch: ButtonWatch {
+        private let claim: WorkClaim<Stopper>
+
+        init(_ claim: WorkClaim<Stopper>) { self.claim = claim }
+
+        func stop() {
+            guard let stopper = claim.abandon() else { return }
+            Task { @MainActor in stopper.stop() }
+        }
+    }
+
+    /// The listener's undo, kept for whoever owns the watch (`WorkClaim`: a registration that lands after its watch was
+    /// stopped is undone at once, never left hearing presses nobody asked for).
+    final class Stopper: Sendable {
+        private let undo: @MainActor @Sendable () -> Void
+
+        init(_ undo: @escaping @MainActor @Sendable () -> Void) { self.undo = undo }
+
+        @MainActor func stop() { undo() }
+    }
+
+    /// ImageCaptureCore doesn't list a scanner's buttons: every USB scanner is taken to have a Scan button.
+    public func buttons(for deviceId: String) -> [String]? { ["scan"] }
+
+    public func watchButtons(_ deviceId: String, _ buttons: [String], pressed: @escaping @Sendable () -> Void) async throws -> any ButtonWatch {
+        guard buttons.contains(where: { ScannerButtonNames.name($0) == "scan" }) else { return NoButtons() }
+        let claim = WorkClaim<Stopper> { stopper in Task { @MainActor in stopper.stop() } }
+        let scanners = self.scanners
+        await MainActor.run {
+            let undo = scanners.listen(deviceId, pressed)
+            _ = claim.deliver(Stopper(undo))
+        }
+        return Watch(claim)
     }
 }

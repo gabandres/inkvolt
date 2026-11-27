@@ -77,11 +77,10 @@ final class AppModel {
     @ObservationIgnored private var systemScanners: SystemScanners?
     @ObservationIgnored private var madeButtons: (any ScannerButtons)?
 
-    /// The USB scanners' buttons (roadmap 2.2): demo mode's made-up scanners' (ImageCaptureCore's presses come with the
-    /// driver half).
+    /// The USB scanners' buttons (roadmap 2.2): ImageCaptureCore's presses, or demo mode's made-up scanners'.
     var scannerButtons: any ScannerButtons {
         if let madeButtons { return madeButtons }
-        if isDemo { madeButtons = Demo.scannerButtons }
+        if isDemo { madeButtons = Demo.scannerButtons } else if let systemScanners { madeButtons = IcaScannerButtons(systemScanners) }
         return madeButtons ?? FakeScannerButtons([])
     }
 
