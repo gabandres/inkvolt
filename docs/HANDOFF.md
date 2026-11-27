@@ -5,6 +5,15 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## Current state
 
+- **Windows hotfix: printing through a queue whose driver Windows can't load (2026-11-27, 09a33387).** After that night's
+  Windows updates (this PC: Windows 11 on Arm, Insider Dev 26340), every Microsoft IPP Class Driver queue here failed with
+  "PrintTicket provider failed to bind to printer. Win32 error: The system cannot find the file specified" in every app
+  (Print to PDF still worked; PrintService/Admin events 318 and 232). Inkvolt Print 1.10.1 routes such a print straight to
+  the printer over IPP (`QueueDriver`, `PrintRouter` `queueWorks`); Inkvolt PDF 1.19.1 says so before its print dialog and
+  hands the document to Inkvolt Print (`--queue`). Both submitted to the Store 2026-11-27 (bench skipped: no engine
+  change); GitHub releases `print-v1.10.1.0`, `pdf-v1.19.1.0` (add `-Published` once Published), website `softwareVersion`
+  then. Mac unaffected (macOS printing, no Windows driver): no Mac release. This PC's queues stay broken until they're
+  removed and added again (or a restart/spooler restart, which needs the owner): the owner's call.
 - **Mac parity done in code (2026-11-23/24; the owner: "full feature parity like Windows").** Every Wave 4 item of both
   roadmaps is on the Mac, reviewed (each branch, then a whole-release hostile-input pass per app) and merged, plus
   Inkvolt Print's printer data of 2026-11-20, the printer's web port, SNMP refusals, separator codes (Vision), P12 2.1
