@@ -342,6 +342,17 @@
         }
       }
     },
+    "A computer named {0} is already on the printer's panel, put there by other software (HP's, perhaps), so Inkvolt Print doesn't add it twice. Close that software or restart the printer, then turn this off and on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ya hay una computadora llamada {0} en el panel de la impresora, agregada por otro programa (quizá el de HP), así que Inkvolt Print no la agrega dos veces. Cierra ese programa o reinicia la impresora y luego desactiva y vuelve a activar esta opción."
+          }
+        }
+      }
+    },
     "A cover is open": {
       "extractionState": "manual",
       "localizations": {
@@ -569,6 +580,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Volver a agregar “{0}”"
+          }
+        }
+      }
+    },
+    "Adding this Mac to the printer's panel…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregando este Mac al panel de la impresora…"
           }
         }
       }
@@ -2950,6 +2972,17 @@
         }
       }
     },
+    "macOS didn't let Inkvolt Print hear this scanner's button. Scan from this tab instead, or turn this off and on to try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS no dejó que Inkvolt Print escuchara el botón de este escáner. Escanea desde esta pestaña o desactiva y vuelve a activar esta opción para intentarlo de nuevo."
+          }
+        }
+      }
+    },
     "Magenta [supply color, feminine]": {
       "comment": "supply color, feminine",
       "extractionState": "manual",
@@ -3292,6 +3325,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "No hay fotos marcadas: todo el escaneo se guarda como una sola imagen. Arrastra sobre una foto para marcarla."
+          }
+        }
+      }
+    },
+    "no preset yet (make one with Manage Presets…)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ningún ajuste todavía (crea uno con Administrar ajustes…)"
           }
         }
       }
@@ -3649,6 +3693,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "En espera"
+          }
+        }
+      }
+    },
+    "On the printer's panel: Scan to Computer › {0}. Pressing Scan there runs {1} here while Inkvolt Print or its menu bar icon is running.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En el panel de la impresora: Escanear a computadora › {0}. Al pulsar Escanear allí, se ejecuta {1} aquí mientras Inkvolt Print o su icono en la barra de menús estén abiertos."
           }
         }
       }
@@ -5048,6 +5103,28 @@
         }
       }
     },
+    "Scan here when the scanner's button is pressed": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear aquí al pulsar el botón del escáner"
+          }
+        }
+      }
+    },
+    "Show this Mac on the printer's panel": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar este Mac en el panel de la impresora"
+          }
+        }
+      }
+    },
     "SNMPv3 is part of Inkvolt Pro.": {
       "extractionState": "manual",
       "localizations": {
@@ -5699,6 +5776,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Algo sigue respondiendo en su dirección antigua, {0}. "
+          }
+        }
+      }
+    },
+    "Something went wrong while adding this Mac to the printer's panel. Turn this off and on to try again, or scan from this tab.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algo salió mal al agregar este Mac al panel de la impresora. Desactiva y vuelve a activar esta opción para intentarlo de nuevo, o escanea desde esta pestaña."
           }
         }
       }
@@ -6377,6 +6465,17 @@
         }
       }
     },
+    "The printer asks for its admin password before it adds this Mac. Enter it with Enter the Admin Password…, and Inkvolt Print tries again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora pide su contraseña de administrador antes de agregar este Mac. Escríbela con Escribir la contraseña de administrador… e Inkvolt Print lo vuelve a intentar."
+          }
+        }
+      }
+    },
     "The printer couldn't read the request: check the SNMPv3 privacy passphrase and its protocol.": {
       "extractionState": "manual",
       "localizations": {
@@ -6384,6 +6483,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La impresora no pudo leer la solicitud: revisa la frase de contraseña de privacidad de SNMPv3 y su protocolo."
+          }
+        }
+      }
+    },
+    "The printer didn't add this Mac to its panel. It may not take computers added this way; scan from this tab instead.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no agregó este Mac a su panel. Puede que no acepte computadoras agregadas de esta forma; escanea desde esta pestaña."
           }
         }
       }
@@ -6549,6 +6659,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La impresora no responde"
+          }
+        }
+      }
+    },
+    "The printer isn't answering, or answered with an error. Inkvolt Print tries again and puts this Mac back on its panel when it can.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no responde o respondió con un error. Inkvolt Print lo vuelve a intentar y pondrá este Mac en su panel en cuanto pueda."
           }
         }
       }
@@ -7563,6 +7684,17 @@
         }
       }
     },
+    "This printer's own Scan button can't send scans here: it offers neither HP's Scan to Computer nor a scan button macOS can report.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El botón Escanear de la impresora no puede enviar escaneos aquí: no ofrece Escanear a computadora de HP ni un botón de escaneo que macOS pueda informar."
+          }
+        }
+      }
+    },
     "This run has sent {0}, and the next file would pass the {1} it may send.": {
       "extractionState": "manual",
       "localizations": {
@@ -7851,6 +7983,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Da la vuelta a las páginas para imprimir a doble cara manualmente"
+          }
+        }
+      }
+    },
+    "Turn this on to add this Mac ({0}) to the printer's panel under Scan to Computer. Choosing it there then scans here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actívalo para agregar este Mac ({0}) al panel de la impresora en Escanear a computadora. Al elegirlo allí, se escanea aquí."
+          }
+        }
+      }
+    },
+    "Turn this on to scan here when the scanner's button sends a scan to this Mac.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actívalo para escanear aquí cuando el botón del escáner envíe un escaneo a este Mac."
           }
         }
       }
@@ -8202,6 +8356,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Cuando se acabe el papel"
+          }
+        }
+      }
+    },
+    "When the scanner's button sends a scan to this Mac, {0} runs here while Inkvolt Print or its menu bar icon is running.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cuando el botón del escáner envíe un escaneo a este Mac, se ejecuta {0} aquí mientras Inkvolt Print o su icono en la barra de menús estén abiertos."
           }
         }
       }

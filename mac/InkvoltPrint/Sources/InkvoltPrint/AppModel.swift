@@ -3,6 +3,7 @@ import Observation
 import PrintCore
 import PrintMac
 import Synchronization
+import SystemConfiguration
 
 /// The app: the printer list (network printers, and queue printers from macOS's CUPS queues), discovery, Local Network
 /// access, and the menu bar's alerts. One per process, made at launch
@@ -74,6 +75,40 @@ final class AppModel {
     var paneRequest: PaneRequest?
     /// macOS's USB scanners (ImageCaptureCore); made up in demo mode.
     @ObservationIgnored private var systemScanners: SystemScanners?
+    @ObservationIgnored private var madeButtons: (any ScannerButtons)?
+
+    /// The USB scanners' buttons (roadmap 2.2): demo mode's made-up scanners' (ImageCaptureCore's presses come with the
+    /// driver half).
+    var scannerButtons: any ScannerButtons {
+        if let madeButtons { return madeButtons }
+        if isDemo { madeButtons = Demo.scannerButtons }
+        return madeButtons ?? FakeScannerButtons([])
+    }
+
+    /// The name this Mac goes on a printer's panel by (Scan to Computer, roadmap 2.2): its computer name (Sharing's), the
+    /// demo's made up.
+    var panelName: String {
+        if let madePanelName { return madePanelName }
+        let name = isDemo ? "DEMO-MAC" : SCDynamicStoreCopyComputerName(nil, nil).map { $0 as String } ?? ProcessInfo.processInfo.hostName
+        madePanelName = LedmWalkupScan.panelName(name)
+        return madePanelName ?? "Mac"
+    }
+
+    @ObservationIgnored private var madePanelName: String?
+
+    /// Takes this Mac off every printer's panel before quitting (Scan to Computer), within `limit`; nothing to wait for when
+    /// no printer's scan button is on.
+    func closeScanButtons(limit: Duration = .seconds(3)) async {
+        let closing = printers.compactMap { $0.closeButton() }
+        guard !closing.isEmpty else { return }
+        await withTaskGroup(of: Void.self) { group in
+            group.addTask { for task in closing { await task.value } }
+            group.addTask { try? await Task.sleep(for: limit) }
+            await group.next()
+            group.cancelAll()
+        }
+        for task in closing { task.cancel() } // past the limit: given up (the next run finds its destination by its marker)
+    }
     /// The scanners as last listed; nil before the first list.
     @ObservationIgnored private var scannerList: [SystemScanner]?
     /// The queues as last read; nil before the first read, or when cupsd couldn't be asked.
@@ -701,6 +736,7 @@ final class AppModel {
 
     /// Removed from Inkvolt Print (not from macOS): discovery won't list it again.
     func remove(_ p: PrinterModel) {
+        _ = p.closeButton() // sealed first: its choice never comes back; this Mac then comes off its panel
         p.stop()
         let listed = !p.isNetwork ? nil : ListedPrinter(id: p.id, kind: .network, name: p.name, model: p.model,
                                                       hosts: [p.host] + (p.hostName.map { [$0] } ?? []), acceptedUuids: store.accepted(p.id))

@@ -5,6 +5,16 @@ public struct LedmEvent: Equatable, Sendable {
     public var agingStamp: String?
     public var resourceType: String?
     public var resourceUri: String?
+    /// Every payload's resource, in order (an event may name more than one: a destination and the event document, say).
+    public var uris: [String] = []
+
+    public init(category: String, agingStamp: String?, resourceType: String? = nil, resourceUri: String? = nil, uris: [String] = []) {
+        self.category = category
+        self.agingStamp = agingStamp
+        self.resourceType = resourceType
+        self.resourceUri = resourceUri
+        self.uris = uris
+    }
 }
 
 /// HP LEDM documents (`/DevMgmt/…`, `/EventMgmt/…`) → the app's model.
@@ -89,10 +99,14 @@ public enum LedmParsers {
             scanImages: scanner.map { $0.children.reduce(0) { $0 + ($1.value.asInt ?? 0) } })
     }
 
+    /// Events read from one table, and payloads read from one event: a table is the printer's reply, so both are bounded.
+    static let maxEvents = 64, maxPayloads = 8
+
     public static func parseEventTable(_ root: XmlElement) -> [LedmEvent] {
-        root.kids("Event").map { e in
+        root.kids("Event").prefix(maxEvents).map { e in
             LedmEvent(category: e.kidValue("UnqualifiedEventCategory") ?? "unknown", agingStamp: e.kidValue("AgingStamp"),
-                      resourceType: e.kid("Payload")?.kidValue("ResourceType"), resourceUri: e.kid("Payload")?.kidValue("ResourceURI"))
+                      resourceType: e.kid("Payload")?.kidValue("ResourceType"), resourceUri: e.kid("Payload")?.kidValue("ResourceURI"),
+                      uris: e.kids("Payload").prefix(maxPayloads).compactMap { $0.kidValue("ResourceURI") })
         }
     }
 

@@ -98,6 +98,7 @@ public enum PrinterRecorder {
         if let ledm = connection.ledm {
             for resource in ledmResources() { _ = await quietly { try await ledm.get(resource) } }
             _ = await quietly { try await ledm.firmwareUpdate() }
+            await walkupScan(ledm)
         }
         if let cdm = connection.cdm {
             for path in [CdmPaths.identity, CdmPaths.supplies, CdmPaths.systemStatus, CdmPaths.printStatus, CdmPaths.alerts] {
@@ -233,6 +234,24 @@ public enum PrinterRecorder {
     }
 
     /// A read that may fail: offline, a refusal, garbage. Cancellation still ends the recording.
+    /// Documents read from a walk-up interface's manifest, at most.
+    private static let maxWalkupDocuments = 16
+
+    /// The walk-up scan interface (Scan to Computer, `LedmWalkupScan`: never captured yet, so a recording is what confirms its
+    /// names): every `SupportedIfc` the tree lists whose type names a walk-up interface, its manifest, and each document the
+    /// manifest lists (the destination list with the computers on it, the event document, its Cap). GETs only, as the whole
+    /// recording: nothing is added to the printer's list.
+    private static func walkupScan(_ ledm: LedmClient) async {
+        guard let tree = await quietly({ try await ledm.tree() }) ?? nil else { return }
+        let walkup = tree.interfaces.filter { $0.key.range(of: "Walkup", options: .caseInsensitive) != nil }.sorted { $0.key < $1.key }.prefix(4)
+        for (_, manifestPath) in walkup {
+            guard LedmWalkupScan.isLocalPath(manifestPath), let manifest = await quietly({ try await ledm.get(path: manifestPath) }) ?? nil else { continue }
+            var seen = Set<String>()
+            let paths = LedmManifest.entries(manifest).map(\.path).filter { LedmWalkupScan.isLocalPath($0) && seen.insert($0).inserted }
+            for path in paths.prefix(maxWalkupDocuments) { _ = await quietly { try await ledm.get(path: path) } }
+        }
+    }
+
     private static func quietly<T>(_ read: () async throws -> T) async -> T? {
         do { return try await read() } catch { return nil }
     }

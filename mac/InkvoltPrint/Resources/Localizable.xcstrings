@@ -2464,6 +2464,16 @@
         }
       }
     },
+    "Enter the Admin Password…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribir la contraseña de administrador…"
+          }
+        }
+      }
+    },
     "Enter your Wi-Fi's name and password on the printer's page. When it says it's connecting, click Done.": {
       "localizations": {
         "es": {
@@ -5484,6 +5494,26 @@
         }
       }
     },
+    "Runs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta"
+          }
+        }
+      }
+    },
+    "Scan from the printer's button": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear desde el botón de la impresora"
+          }
+        }
+      }
+    },
     "SNMP Access for %@": {
       "localizations": {
         "es": {
@@ -7138,6 +7168,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "El escaneo no terminó: el escáner dejó de responder."
+          }
+        }
+      }
+    },
+    "The scan preset a press of the printer's button runs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El ajuste de escaneo que se ejecuta al pulsar el botón de la impresora"
           }
         }
       }

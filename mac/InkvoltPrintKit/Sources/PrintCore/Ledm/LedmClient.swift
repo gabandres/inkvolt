@@ -9,6 +9,7 @@ public final class LedmClient: Sendable {
 
     public let http: DeviceHttp
     private let cache = Mutex<(tree: DiscoveryTree?, caps: [String: XmlElement])>((nil, [:]))
+    private let feed = Mutex<LedmEventFeed?>(nil)
 
     public init(_ http: DeviceHttp) { self.http = http }
 
@@ -48,10 +49,35 @@ public final class LedmClient: Sendable {
         try await http.getBytesOrNil(try http.http(path)).map { try DeviceXml.load($0) }
     }
 
-    /// Yields each time the printer's event table changes. Uses the device's delayed-reply long poll (`?timeout=` +
-    /// `If-None-Match`), so an idle printer costs one request per minute, not a poll loop. The first table is yielded
-    /// immediately; an empty list is yielded once when the printer stops answering. Ends when the consumer stops.
+    /// Yields each time the printer's event table changes, through the connection's one `events` feed (so the status and
+    /// Scan to Computer share one long poll). The first table comes at once; an empty list comes once when the printer stops
+    /// answering. Ends when the consumer stops.
     public func watchEvents() -> AsyncStream<[LedmEvent]> {
+        let tables = events.subscribe()
+        return AsyncStream { continuation in
+            let task = Task {
+                for await table in tables { continuation.yield(table.events) }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// The printer's EventTable, read once for everyone watching this connection (`LedmEventFeed`).
+    public var events: LedmEventFeed {
+        feed.withLock { kept in
+            if let kept { return kept }
+            let made = LedmEventFeed { [weak self] in
+                guard let self else { return AsyncStream { $0.finish() } }
+                return self.pollTables()
+            }
+            kept = made
+            return made
+        }
+    }
+
+    /// The long poll itself, as a stream that ends when its consumer stops.
+    private func pollTables() -> AsyncStream<LedmEventTable> {
         AsyncStream { continuation in
             let task = Task {
                 await self.runWatch { continuation.yield($0) }
@@ -61,7 +87,10 @@ public final class LedmClient: Sendable {
         }
     }
 
-    private func runWatch(_ yield: @Sendable ([LedmEvent]) -> Void) async {
+    /// The device's delayed reply (`?timeout=` + `If-None-Match`), so an idle printer costs one request per minute, not a poll
+    /// loop. The first table at once; an unanswered one (`answered` false) once per outage. Ends at once when the tree lists
+    /// no EventTable.
+    private func runWatch(_ yield: @Sendable (LedmEventTable) -> Void) async {
         guard let path = try? await tree()?.uri(for: LedmResource.eventTable) else { return }
         var etag: String?
         var backoff: Duration = .seconds(2)
@@ -72,6 +101,7 @@ public final class LedmClient: Sendable {
             var events: [LedmEvent]?
             var failed = false
             var notModified = false
+            var recovered = false
             let started = clock.now
             do {
                 var request = HttpRequest("GET", etag == nil ? try http.http(path) : try http.http("\(path)?timeout=\(wait)"),
@@ -87,8 +117,11 @@ public final class LedmClient: Sendable {
                 }
                 backoff = .seconds(2)
                 if wasFailing {
+                    // Back: a table read now is the fresh start the watchers need, under its own ETag; a 304 on the old one
+                    // says nothing, so the whole table is read next, at once (not after the no-ETag pause below).
                     wasFailing = false
-                    etag = nil
+                    recovered = true
+                    if events == nil { etag = nil }
                 }
             } catch is CancellationError {
                 return
@@ -96,18 +129,18 @@ public final class LedmClient: Sendable {
                 failed = true
             }
 
-            if let events { yield(events) }
+            if let events { yield(LedmEventTable(events, answered: true)) }
             do {
                 if failed {
                     // Tell the caller once per outage so it can re-read status (and show "offline").
-                    if !wasFailing { yield([]) }
+                    if !wasFailing { yield(LedmEventTable([], answered: false)) }
                     wasFailing = true
                     try await Task.sleep(for: backoff)
                     backoff = min(backoff * 2, .seconds(30))
                 } else if notModified && clock.now - started < .seconds(1) {
                     // Firmware that ignores ?timeout= answers 304 at once; don't spin.
                     try await Task.sleep(for: .seconds(5))
-                } else if etag == nil {
+                } else if etag == nil && !recovered {
                     // Device gave no ETag: long poll impossible, fall back to a slow refresh.
                     try await Task.sleep(for: .seconds(30))
                 }
