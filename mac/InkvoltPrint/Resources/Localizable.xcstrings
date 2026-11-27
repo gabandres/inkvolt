@@ -9040,16 +9040,6 @@
         }
       }
     },
-    "macOS has no printer set up for it, so Inkvolt Print draws the pages and sends them to the printer itself.": {
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "macOS no tiene configurada esta impresora, así que Inkvolt Print prepara las páginas y se las envía él mismo."
-          }
-        }
-      }
-    },
     "Both sides": {
       "localizations": {
         "es": {
@@ -9086,6 +9076,36 @@
           "stringUnit": {
             "state": "translated",
             "value": "Color:"
+          }
+        }
+      }
+    },
+    "Inkvolt Print draws the pages and sends them to the printer itself, not through a macOS queue.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print prepara las páginas y se las envía él mismo a la impresora, sin pasar por una cola de macOS."
+          }
+        }
+      }
+    },
+    "The printer didn't take the cancel. Cancel it on the printer's control panel.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no aceptó la cancelación. Cancélalo en el panel de control de la impresora."
+          }
+        }
+      }
+    },
+    "The printer isn't answering about its jobs. Trying again every few seconds.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La impresora no responde sobre sus trabajos. Se vuelve a intentar cada pocos segundos."
           }
         }
       }

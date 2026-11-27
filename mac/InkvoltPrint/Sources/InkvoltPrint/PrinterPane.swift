@@ -45,10 +45,17 @@ struct PrinterPane: View {
             }
         }
         .sheet(isPresented: $copyingCard) { IdCardCopySheet(printer: printer, app: app) }
-        .task(id: printer.queueName) { twoSided = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
+        .task(id: "\(printer.queueName ?? "")|\(printer.route == .direct)") { twoSided = await HandDuplexPrinting.queueTwoSided(printer, app: app) }
         .toolbar {
             if !printer.isScannerOnly { ToolbarItem {
                 Menu {
+                    // Where the pages go (roadmap 2.1): the route's note, and the choice where the printer has a queue too.
+                    if let note = printer.routeNote.text { Text(note) }
+                    if printer.canChooseDirect {
+                        Toggle(PrintRouteNote.chooseText, isOn: Binding(get: { printer.choseDirect }, set: { printer.chooseDirect($0) }))
+                            .help(PrintRouteNote.chooseTip)
+                    }
+                    if printer.routeNote.text != nil || printer.canChooseDirect { Divider() }
                     Button("Print a PDF…") { Task { await Printing.printPdf(on: printer, app: app) } }
                     if HandDuplex.offered(twoSided) {
                         Button("Print a PDF on Both Sides by Hand…") { HandDuplexPrinting.printPdf(on: printer, app: app) }
@@ -65,7 +72,8 @@ struct PrinterPane: View {
                 } label: {
                     Label("Print", systemImage: "printer")
                 }
-                .help(printer.queueName == nil ? String(localized: "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)")
+                .help(printer.route == .direct ? printer.routeNote.text ?? String(localized: "Print on \(printer.name)")
+                      : printer.queueName == nil ? String(localized: "Print (choose the printer in the print panel: macOS has no printer set up for this one yet)")
                       : String(localized: "Print on \(printer.name)"))
             } }
             if printer.canScan || !leftOver.isEmpty || printer.hasDeviceSettings {
@@ -111,7 +119,11 @@ struct PrinterPane: View {
                     }
                     .accessibilityElement(children: .combine)
                 }
-                if let queue = printer.queueName { PrintQueueCard(queue: queue, app: app).id(queue) }
+                if printer.queueName != nil || printer.route == .direct {
+                    // Straight to the printer (roadmap 2.1): the printer's own job list, with the route's note.
+                    PrintQueueCard(queue: printer.queueName, printer: printer.isNetwork ? printer : nil, app: app)
+                        .id("\(printer.queueName ?? "")|\(printer.route == .direct)|\(printer.routeNote)")
+                }
                 PrinterSharingCard(printer: printer)
                 if printer.isNetwork && printer.view.isOnline { MaintenanceCard(printer: printer).id(printer.id) }
                 details
