@@ -98,7 +98,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | Done (the test file's header lists what was adapted) |
 | P10 | The app: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode, then the rest of the Windows 1.0 feature table (batch scans, glass photos and their boxes by hand, the ID card copy, Set Up in macOS, Print Photos' queue papers, borderless, paper type, quality and color) | DemoTests, BatchScanTests, GlassPhotoTests and the table's others | Done. Not checked by a person: anything on paper (separator sheet, ID card, Print Photos borderless), the Photos sheet's dragging and keys, a feeder (batches and two-sided separator backs were checked in demo mode only), a real USB scanner |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots (`--snapshot`) | | Done (live since 1.0). Listing, review notes and What's New go through `asc-listing.mjs` (README). Entitlements: sandbox, network client and server, `print`, `files.user-selected.read-write`, `files.bookmarks.app-scope`, `device.usb`, the app group; the preflight and the review notes say why each |
-| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.3, 2.4, 2.6, 3.2, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac), and 2.1's encoders, plan and Print a PDF. Left: 2.1's other prints (Copy, Photos, batches, a preset's print step, job alerts), 2.2, 3.1, 3.3, which need a real printer or scanner |
+| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.3, 2.4, 2.6, 3.2, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 2.2, 3.1, 3.3, which need a real printer or scanner |
 
 ### P12: what differs and what's left, per item
 
@@ -253,9 +253,7 @@ mac/InkvoltPrintKit --build-system native`.
   attributes, asks the printer whether it can print, draws the pages off the main thread (PrintMac's `DirectPrintPages`:
   PDFKit at the plan's drawing resolution, fitted inside the paper's margins, a landscape page turned a quarter) and sends
   them with Print-Job; a small window follows the job to its end, with Cancel (the app's `DirectPrinting`). **Mac
-  differences:** no choice of straight where macOS has a queue (a macOS queue for an IPP printer is driverless already;
-  `PrintRoutes.choose` gets `personChoseDirect: false`), so no print routing module (Windows' `PrintRouting`, `PrintRouter`,
-  `RouteRead`; PrintRoutingTests and RouteReadTests not ported); a plan's problem is a `DirectPrintProblem` where Windows has
+  differences:** a plan's problem is a `DirectPrintProblem` where Windows has
   an out string; the job's Print-Job body (its attributes, then each page as it's encoded) goes to a temporary file that
   URLSession uploads and that's deleted after, as Windows streams its raster file, but a job past 1 GB is refused before
   anything is sent with the printer's too-large words (`DirectJobFile.maxBytes`; Windows has no limit), and the PDF is
@@ -272,12 +270,48 @@ mac/InkvoltPrintKit --build-system native`.
   (2026-11-23, fixed as Windows does): Cancel-Job and Print-Job run in tasks of their own, so a cancel neither stops the
   Cancel-Job it asks for nor cuts a job halfway (it's Cancel-Job once the printer gave an id); "page N of M" counts
   `DirectPrintPlan.impressions` (Windows' PagesPerCopy × Repeat × Copies) and the state Print-Job answered is used; a watch
-  ends after 2 hours however the printer's count goes (`DirectJob.watchLongest`, Windows too) and says so. Not on the Mac yet (Open): Copy, Print Photos, Batch print, a
-  scan preset's print step and Print a PDF's Layouts (several per sheet, booklet, poster) on a printer without a queue still
-  go through macOS's print panel; a direct printer's own job list and job alerts (Windows' `DirectJobWatch`,
-  `DirectBatchQueue`, `RoutedBatchQueue`, `RoutedJobQueue`; DirectPrintTests.Queues.cs). Not checked: a real printer
-  printing from a Mac with no queue for it (the M234dw: PCLm, PWG and Apple raster), the options dialog and the progress
-  window on screen and with VoiceOver, Cancel mid-job on a real printer, a long document's memory.
+  ends after 2 hours however the printer's count goes (`DirectJob.watchLongest`, Windows too) and says so.
+  **The rest of 2.1 (2026-11-27).** Print routing as Windows has it (PrintCore's `PrintRouting`, `PrintRouter` with
+  `RoutedBatchQueue` and `RoutedJobQueue`, `RouteRead`; PrintRoutingTests, RouteReadTests and DirectPrintTests.Queues.cs
+  ported under Windows' names): a network printer's jobs go to its macOS queue, straight to it when it has none, when the
+  person chose that (the Print menu's Print straight to the printer (no macOS queue), shown where the printer has a queue and
+  takes jobs straight, kept per printer in the state file's `directPrinters`, Windows' `DirectPrinters`), or when macOS can't
+  use its queue (Windows' broken driver, master 09a33387: `RouteChoice.queueBroken`, `PrintRouteNote.directQueueBroken`).
+  The Print menu and the print queue card say where the pages go (`PrintRouteNote.text`, Windows' words with macOS's queue).
+  Every print goes where the router says, decided afresh for each: Print a PDF (one page a sheet; its Layouts laid out by
+  `SheetPrintView` on the paper the printer's plan chose and printed on the whole sheet, a booklet asking for both sides and
+  going by hand on a printer that prints one side), Copy, a scan preset's print step, an ID card copy, the clipboard, a
+  recent scan and a separator sheet (`Printing.print`), Print Photos (the sheets on their own paper, borderless where asked,
+  a card with a message on both sides), Batch print (a network printer with no queue is listed; a queue a network printer
+  claims is routed file by file: `DirectBatchQueue` through PrintMac's `DirectBatchJobs`, each job followed to its end before
+  the next) and two-sided by hand (its fronts and backs through the same routed queue, `PrinterModel.batchQueue`). Every
+  kind goes through PrintMac's `DirectPrinter` (Windows' `DirectPrinter.PrintAsync`: the PDF drawn into the job file,
+  Print-Job, followed, Cancel-Job; a batch's job finishes whatever Stop says once sent), with `DirectPrintPages.Layout`
+  saying whether a page is fitted inside the printer's margins (`.fitted(sizing)`) or is a sheet laid out for the whole paper
+  (`.sheet`, as Windows' paginators lay out on the whole paper). Job alerts read a direct printer's own job list
+  (`DirectJobWatch`, following the last route decided), and the print queue card lists it with Cancel-Job. The batch runner
+  now asks the queue for its no-answer words, its time limit and whether a job sent ends on its own (`BatchQueue.noAnswer`,
+  `sendLimit`, `endsOnItsOwnOnceSpooling`, Windows' `IBatchQueue`). **Mac differences:** a queue that doesn't work is one
+  macOS no longer lists, has stopped (paused in Printers & Scanners, or stopped by its error policy after a failed job) or
+  isn't accepting jobs (`cupsreject`), as the last read of the queues says (`PrintRoutes.queueWorks`), where Windows asks the
+  PrintTicket provider: a paused queue's jobs go straight while it's paused, and the note says why; `PrintRouting`'s calls
+  return the decision's task (Swift's starts once the caller yields: its tests await it, RouteReadTests wait for a read to
+  start) and its listeners are closures (`listen`), Windows' event; the router's lookups are async (the app reads its
+  printers on the main actor); a direct printer's job list says no other computer prints there, so a job that doesn't name
+  its computer, or names it by address (the printer names this Mac so), is yours when its user is, as on Windows (a macOS
+  queue's rule is stricter); a failed direct job's alert gives the printer's words (`QueueJob.problem`, Windows'
+  `Problem`); the command line's `print` still prints to a macOS queue (BatchPrinterLookup and its two tests not ported); a
+  layout's copies are made by the printer or sent again as one job, where macOS's panel made them. Tests: PrintRoutingTests
+  (and the Mac's queue check), RouteReadTests, DirectPrintTests+Queues (and the state file's choice); PrintMac's
+  DirectPrinterTests send each layout, a stop before sending and a batch to `ippeveprinter`, and read its job lists; its
+  opt-in `INKVOLT_DIRECT_PRINTER=ipp://…` sends one page to a real printer (2026-11-27, the build Mac and the HP M234dw
+  with no queue used: PWG raster at 300 dpi on Letter, followed to Printed).
+  `--report --demo --direct-print` then sends each kind to the demo inkjet through the app's own route (`kindsCheck`: the
+  note, Print a PDF, Copy, a booklet laid out on the printer's paper, a 4 × 6 photo sheet borderless, a batch of two files
+  through the printer's routed queue, job alerts' read; all printed, 2026-11-27). Not checked: the app's own prints on a
+  real printer (the M234dw printed DirectPrinter's page; its PCLm and Apple raster weren't tried), the options dialog, the progress window, the
+  Print menu's choice and the card's note on screen and with VoiceOver, Cancel mid-job on a real printer, a long document's
+  memory, a queue paused in Printers & Scanners giving way to the printer.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2470,7 +2504,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary.
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
-- Inkvolt Print: P12's 2.2, 3.1 and 3.3 not started on the Mac, 2.1 in part (separator codes, the last code item besides these,
+- Inkvolt Print: P12's 2.2, 3.1 and 3.3 not started on the Mac (2.1 done 2026-11-27; separator codes, the last code item besides these,
   on the Mac since 2026-11-23: "Inkvolt Print scope"). What fixtures could prove and what needs a device, as of
   2026-11-23:
   - 2.2 Scan from the printer's button. The HP half (`LedmWalkupScan`, `ScanToComputer`, the demo's
@@ -2479,10 +2513,9 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     is Windows' assumption (`LedmWalkupScan.Names`): no HP all-in-one that lists the interface has been recorded (the
     M234dw's tree lists none), so a port would prove only that it matches an assumption. The ICA half (a scanner's button
     events through ImageCaptureCore, Windows' WIA events) needs a USB scanner with buttons on the build Mac.
-  - 2.1 Print straight to the printer: done for Print a PDF (encoders, plan, job, the app; P12 above). Left: Copy, Print
-    Photos, Batch print, a preset's print step and Print a PDF's Layouts straight to a printer without a queue, and a direct
-    printer's job list and alerts (ports of Windows' DirectBatchQueue and DirectJobWatch with DirectPrintTests.Queues.cs);
-    the page check needs a printer with no queue for it.
+  - 2.1 Print straight to the printer: done (P12 above; the M234dw printed a page straight from the build Mac). Left: the
+    app's own prints on a real printer, and a paused queue giving way to it; on screen, the options dialog, the progress
+    window and the Print menu's choice.
   - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
     from.
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.StartNames`) are an assumption until a recording

@@ -97,6 +97,27 @@ struct DirectPrinterTests {
         #expect(!state.othersMayPrint)
     }
 
+    /// Opt-in, a real printer (never run by default): `INKVOLT_DIRECT_PRINTER=ipp://<address>/ipp/print` sends one page
+    /// reading "Inkvolt Mac test page 1" straight to it through `DirectPrinter`, the printer's own format first, and follows
+    /// it to its end. The address stays in the environment, never in the repo (mac/CLAUDE.md, device data).
+    @Test(.enabled(if: ProcessInfo.processInfo.environment["INKVOLT_DIRECT_PRINTER"] != nil))
+    func oneTestPagePrintsOnARealPrinter() async throws {
+        let given = try #require(ProcessInfo.processInfo.environment["INKVOLT_DIRECT_PRINTER"].flatMap(URL.init(string:)))
+        let scheme = given.scheme == "ipps" ? "https" : "http"
+        let endpoint = try #require(URL(string: "\(scheme)://\(given.host ?? ""):\(given.port ?? 631)\(given.path)"))
+        let ipp = IppClient(DeviceHttp(host: given.host ?? "", transport: URLSessionTransport.factory(localNetwork: nil)), endpoint: endpoint)
+        let caps = IppPrintCaps.from(try await ipp.printerAttributes(IppPrintCaps.requested))
+        let plan = try DirectPrintPlan.choose(caps, DirectPrintRequest()).get()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-mac-test-\(UUID().uuidString).pdf")
+        try Data(BatchPrintSamples.pdf(1, "Inkvolt Mac test")).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let outcome = try await DirectPrinter.print(ipp, user: "inkvolt", jobName: "Inkvolt Mac test", plan: plan, pdf: url, layout: .fitted(.fitToPaper),
+                                                    every: .seconds(1), quiet: .seconds(120))
+        print("real printer: \(plan.documentFormat) at \(plan.dpi) dpi, \(plan.paper.name), job \(outcome.jobId): \(outcome.words)")
+        #expect(outcome.jobId > 0)
+        #expect(outcome.printed, "\(outcome.words)")
+    }
+
     /// Set once from any thread.
     final class Flag: Sendable {
         private let value = Mutex(false)
