@@ -7,6 +7,9 @@ here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own wor
 
 ## Next
 
+## 1.19.1
+- Cuando una actualización de Windows deja roto el controlador de una impresora (y Windows ya no puede imprimir en ella desde ninguna app), Imprimir te lo dice antes de abrir el cuadro de impresión, te explica cómo arreglar la impresora y te ofrece imprimir el documento con Inkvolt Print, que lo envía directamente a una impresora de red.
+
 ## 1.19.0
 - Cuatro funciones ya no se bloquean con un archivo o una respuesta hechos para trabarlas: Vínculos a partir de las direcciones en una página con miles de paréntesis seguidos, Sugerir qué eliminar con una respuesta de IA rellena con megabytes de comillas, las guías de las reglas en un archivo grande cuyas páginas comparten un mismo dibujo, y Editar pidiéndolo al eliminar y luego girar páginas de un documento enorme. Ahora cada una termina al momento.
 

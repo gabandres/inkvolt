@@ -585,6 +585,52 @@ public partial class DirectPrintTests
     }
 
     [Fact]
+    public async Task A_queue_whose_driver_Windows_cant_use_gives_way_to_the_printer_when_it_takes_jobs_straight()
+    {
+        IppClient? ipp = Client();
+        var works = false;
+        var asked = new List<string>();
+        var router = new PrintRouter(() => Task.FromResult<string?>("Office laser"), () => ipp, () => false,
+            queue => { asked.Add(queue); return Task.FromResult(works); });
+
+        // The driver can't be loaded (a Windows update broke it): straight to the printer, the queue still named.
+        var broken = await router.ChooseAsync();
+        Assert.Equal((PrintRoute.Direct, "Office laser", true), (broken.Route, broken.Queue, broken.QueueBroken));
+        Assert.Equal(["Office laser"], asked);
+
+        // The driver works again: back to the queue.
+        works = true;
+        var mended = await router.ChooseAsync();
+        Assert.Equal((PrintRoute.Queue, false), (mended.Route, mended.QueueBroken));
+
+        // The person chose straight to the printer: the driver isn't asked about, and it isn't the driver's doing.
+        var chosen = await new PrintRouter(() => Task.FromResult<string?>("Office laser"), () => ipp, () => true,
+            _ => throw new InvalidOperationException("not asked")).ChooseAsync();
+        Assert.Equal((PrintRoute.Direct, false), (chosen.Route, chosen.QueueBroken));
+
+        // No other way to the printer: the queue it is (printing then says what's wrong with the driver), and it isn't asked.
+        ipp = null;
+        asked.Clear();
+        works = false;
+        Assert.Equal(PrintRoute.Queue, (await router.ChooseAsync()).Route);
+        Assert.Empty(asked);
+    }
+
+    [Fact]
+    public async Task The_print_tab_says_pages_go_straight_because_the_queue_driver_isnt_working()
+    {
+        var works = false;
+        var routing = new PrintRouting(() => Task.FromResult<string?>("Office laser"), () => Client(), hasAddress: true, choseDirect: false, _ => { },
+            queueWorks: _ => Task.FromResult(works));
+        await routing.DecideAsync();
+        Assert.Equal((PrintRoute.Direct, PrintRouteNote.DirectQueueBroken), (routing.Route, routing.Note));
+        Assert.True(routing.HasQueue);
+        works = true;
+        await routing.DecideAsync();
+        Assert.Equal((PrintRoute.Queue, PrintRouteNote.None), (routing.Route, routing.Note));
+    }
+
+    [Fact]
     public async Task A_batch_goes_where_the_router_decides_and_answers_for_that_route()
     {
         using var folder = new BatchFolder();

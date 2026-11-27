@@ -6,8 +6,10 @@ namespace InkvoltPrint.Core.Printing.Direct;
 /// <summary>
 /// One decision of where a printer's jobs go (<see cref="PrintRoutes.Choose"/>), with what it was made from: the Windows queue
 /// found (null: none) and the printer's IPP client when it takes a raster format (null: it doesn't, or isn't connected).
+/// <paramref name="QueueBroken"/>: the queue's driver can't be used (Windows can't make a print ticket for it), so the jobs
+/// go straight to the printer though the person didn't choose that.
 /// </summary>
-public sealed record RouteChoice(PrintRoute Route, string? Queue, IppClient? Ipp)
+public sealed record RouteChoice(PrintRoute Route, string? Queue, IppClient? Ipp, bool QueueBroken = false)
 {
     public static readonly RouteChoice None = new(PrintRoute.None, null, null);
 }
@@ -20,7 +22,12 @@ public sealed record RouteChoice(PrintRoute Route, string? Queue, IppClient? Ipp
 /// person's choice), so the last decision stays current. Callbacks run where the caller's context resumes (no
 /// <c>ConfigureAwait(false)</c>): the app's read its view state.
 /// </summary>
-public sealed class PrintRouter(Func<Task<string?>> findQueue, Func<IppClient?> rasterIpp, Func<bool> personChoseDirect)
+/// <param name="queueWorks">
+/// Whether a queue's driver can be used (null: taken as yes). Asked only when the jobs would go to the queue and the printer
+/// takes them straight too: a queue whose driver Windows can't load (a Windows update that broke it) then gives way to the printer.
+/// </param>
+public sealed class PrintRouter(Func<Task<string?>> findQueue, Func<IppClient?> rasterIpp, Func<bool> personChoseDirect,
+    Func<string, Task<bool>>? queueWorks = null)
 {
     private volatile RouteChoice? _last;
 
@@ -32,7 +39,9 @@ public sealed class PrintRouter(Func<Task<string?>> findQueue, Func<IppClient?> 
     {
         var queue = await findQueue();
         var ipp = rasterIpp();
-        var choice = new RouteChoice(PrintRoutes.Choose(queue is not null, ipp is not null, personChoseDirect()), queue, ipp);
+        var route = PrintRoutes.Choose(queue is not null, ipp is not null, personChoseDirect());
+        var broken = route == PrintRoute.Queue && ipp is not null && queueWorks is not null && !await queueWorks(queue!);
+        var choice = new RouteChoice(broken ? PrintRoute.Direct : route, queue, ipp, broken);
         _last = choice;
         return choice;
     }

@@ -89,19 +89,7 @@ internal static class PrinterCheck
         using var budget = new CancellationTokenSource(Budget);
         try
         {
-            var known = await Task.Run(() => InkvoltPrinters.Load(), budget.Token);
-            if (known.Printers.Count == 0) return null;
-            string? container = null;
-            try
-            {
-                var queues = await QueuesAsync().WaitAsync(budget.Token);
-                container = queues.FirstOrDefault(q => string.Equals(q.Name, queue.Name, StringComparison.OrdinalIgnoreCase))?.ContainerId;
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
-            {
-                Log.Write($"Printer check: queue list unavailable: {ex.Message}");
-            }
-            if (QueueMatch.Match(queue with { ContainerId = container ?? queue.ContainerId }, known) is not { } printer) return null;
+            if (await MatchAsync(queue, budget.Token) is not { } printer) return null;
             PrinterHealth health;
             try
             {
@@ -122,6 +110,38 @@ internal static class PrinterCheck
             Log.Write($"Printer check failed: {ex.GetType().Name}: {ex.Message}");
             return null;
         }
+    }
+
+    /// <summary>The Inkvolt Print printer behind <paramref name="queue"/> (no status asked), or null; within <see cref="Budget"/>.</summary>
+    public static async Task<InkvoltPrinter?> KnownPrinterAsync(QueueInfo queue)
+    {
+        using var budget = new CancellationTokenSource(Budget);
+        try
+        {
+            return await MatchAsync(queue, budget.Token);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            Log.Write($"Printer check: no match ({ex.GetType().Name})");
+            return null;
+        }
+    }
+
+    private static async Task<InkvoltPrinter?> MatchAsync(QueueInfo queue, CancellationToken ct)
+    {
+        var known = await Task.Run(() => InkvoltPrinters.Load(), ct);
+        if (known.Printers.Count == 0) return null;
+        string? container = null;
+        try
+        {
+            var queues = await QueuesAsync().WaitAsync(ct);
+            container = queues.FirstOrDefault(q => string.Equals(q.Name, queue.Name, StringComparison.OrdinalIgnoreCase))?.ContainerId;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not OutOfMemoryException)
+        {
+            Log.Write($"Printer check: queue list unavailable: {ex.Message}");
+        }
+        return QueueMatch.Match(queue with { ContainerId = container ?? queue.ContainerId }, known);
     }
 
     private static Task<IReadOnlyList<WindowsQueue>> QueuesAsync()

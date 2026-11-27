@@ -4674,4 +4674,11 @@ Los archivos se quedan donde están.</value>
   <data name="Scan_PasswordUnusable" xml:space="preserve">
     <value>No se guardó: la contraseña guardada para este ajuste estaba vacía y no se escribió una nueva.</value>
   </data>
+  <data name="Print_RouteDirectQueueBroken" xml:space="preserve">
+    <value>Las páginas van directamente a la impresora por la red: el controlador de Windows para esta impresora no funciona.</value>
+  </data>
+  <data name="Print_DriverBroken" xml:space="preserve">
+    <value>El controlador de Windows para {0} no funciona, así que Windows no puede imprimir en ella. Quita la impresora en Configuración de Windows › Bluetooth y dispositivos › Impresoras y escáneres y vuelve a agregarla, o reinicia el PC.</value>
+    <comment>{0} = printer name</comment>
+  </data>
 </root>

@@ -101,6 +101,20 @@ public static class Prompt
         root.Children.Add(footer);
         root.Children.Add(top);
         win.Content = root;
+        // Buttons whose words don't fit the usual width (three long ones, or a longer language) widen the prompt, not cut the words.
+        win.Loaded += (_, _) =>
+        {
+            bar.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            var short_ = bar.DesiredSize.Width - bar.ActualWidth;
+            if (short_ <= 0.5) return;
+            win.Dispatcher.BeginInvoke(() =>
+            {
+                // Kept within the main screen's work area (no taskbar under it).
+                var area = SystemParameters.WorkArea;
+                win.Width = Math.Min(win.ActualWidth + short_, area.Width);
+                win.Left = Math.Clamp(win.Left - short_ / 2, area.Left, Math.Max(area.Left, area.Right - win.Width));
+            }, System.Windows.Threading.DispatcherPriority.Loaded); // set in Loaded itself, the width doesn't take
+        };
         win.ShowDialog();
         return result;
     }

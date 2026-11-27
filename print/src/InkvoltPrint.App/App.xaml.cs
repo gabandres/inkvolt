@@ -207,8 +207,9 @@ public partial class App : Application
             vm.Presets.Changed += () => PresetJumpList.Update(this, vm.Presets.Items);
         }
 
-        // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer.
-        if (FirstPdf(args) is { } pdf) _ = _vm.OpenPdfAsync(pdf);
+        // "Open with Inkvolt Print" / InkvoltPrint.exe file.pdf → straight to Print for the last-used printer, or for the printer of
+        // the queue after --queue (Inkvolt PDF hands a document over when Windows can't use that queue's driver).
+        if (FirstPdf(args) is { } pdf) _ = _vm.OpenPdfAsync(pdf, QueueArg(args));
         else if (demo && args.Contains("--sample-pdf")) // a made-up PDF, on the --printer n (DevPressPrint)
             _ = DevPressPrint.OpenSampleAsync(_vm, int.TryParse(args.SkipWhile(a => a != "--printer").Skip(1).FirstOrDefault(), out var sp) ? sp : 0,
                 int.TryParse(args.SkipWhile(a => a != "--sample-pdf").Skip(1).FirstOrDefault(), out var sn) ? Math.Clamp(sn, 1, 64) : 3);
@@ -274,6 +275,9 @@ public partial class App : Application
         var code = await Task.Run(() => StatusCommand.RunAsync(args));
         Environment.Exit(code);
     }
+
+    private static string? QueueArg(string[] args) =>
+        Array.IndexOf(args, "--queue") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
 
     private static string? PresetArg(string[] args) =>
         Array.IndexOf(args, "--preset") is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
@@ -347,7 +351,7 @@ public partial class App : Application
             w.Topmost = true; // Windows won't let a background process steal focus; flash to the top instead
             w.Topmost = false;
         }
-        if (FirstPdf(args) is { } pdf && _vm is not null) _ = _vm.OpenPdfAsync(pdf);
+        if (FirstPdf(args) is { } pdf && _vm is not null) _ = _vm.OpenPdfAsync(pdf, QueueArg(args));
         else if (Pictures(args) is { Count: > 0 } pictures && _vm is not null) _ = _vm.OpenPhotosAsync(pictures);
         if (PresetArg(args) is { } preset && _vm is not null) _ = _vm.RunPresetWhenReadyAsync(preset);
     }

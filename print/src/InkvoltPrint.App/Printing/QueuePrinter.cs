@@ -11,6 +11,9 @@ using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.App.Printing;
 
+/// <summary>Windows can't use the print queue's driver; the message says what to do, the inner exception is Windows' own.</summary>
+public sealed class QueueDriverException(string message, Exception inner) : Exception(message, inner);
+
 public sealed record PrintOptions(IReadOnlyList<int> Pages, int Copies, bool TwoSided, string JobName, PageSizing Sizing = PageSizing.ActualSize);
 
 /// <summary>A page drawn and kept as a JPEG file of its job (<see cref="PrintImages.Save"/>), with its size in inches.</summary>
@@ -26,6 +29,30 @@ public static class QueuePrinter
     public const int RenderDpi = 300;
 
     public static PrintQueue Open(string queueName) => new(new LocalPrintServer(), queueName);
+
+    /// <summary>
+    /// Whether Windows can use the queue's driver (<see cref="QueueDriver"/>); when it can't, the print router sends the job straight
+    /// to the printer where it takes jobs that way. Logged when it can't.
+    /// </summary>
+    public static Task<bool> DriverWorksAsync(string queueName) => Task.Run(() =>
+    {
+        lock (DriverChecks)
+        {
+            // Asked at every decision (a batch asks for each file, more than once): an answer is kept a while, and logged when
+            // the driver breaks or mends, not each time.
+            var known = DriverChecks.TryGetValue(queueName, out var last);
+            if (known && DateTime.UtcNow - last.At < DriverCheckFresh) return last.Works;
+            var problem = QueueDriver.Problem(queueName);
+            var works = problem is null;
+            if (known ? works != last.Works : !works)
+                Log.Write(works ? $"Windows queue {queueName}: its driver works again" : $"Windows queue {queueName}: its driver isn't working ({problem})");
+            DriverChecks[queueName] = (DateTime.UtcNow, works);
+            return works;
+        }
+    });
+
+    private static readonly TimeSpan DriverCheckFresh = TimeSpan.FromSeconds(30);
+    private static readonly Dictionary<string, (DateTime At, bool Works)> DriverChecks = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>
     /// The installed queue whose port is this host: "192.0.2.10", "IP_192.0.2.10" (Standard TCP/IP) or
@@ -160,7 +187,10 @@ public static class QueuePrinter
             catch (Exception ex)
             {
                 System.Diagnostics.Trace.WriteLine($"spool: FAILED {ex}");
-                done.SetException(ex);
+                // Windows can't load the queue's driver: say so in words the person can act on (the cause stays inside, for the log).
+                done.SetException(QueueDriver.IsProviderFailure(ex) && QueueDriver.Problem(queueName) is not null
+                    ? new QueueDriverException(string.Format(Strings.Print_DriverBroken, queueName), ex)
+                    : ex);
             }
         })
         { IsBackground = true, Name = "Inkvolt Print spool" };

@@ -6,6 +6,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.10.1
+- When a Windows update leaves a printer's driver broken, printing no longer fails with "PrintTicket provider failed to bind to printer": the pages go straight to the printer over the network, and the Print tab says why. A printer that can't take pages that way gets a message saying how to fix it in Windows.
+
 ## 1.10.0
 - A shared printer shows up on iPhones and iPads right away, even when they already know several other printers; before, it could appear only after sharing was turned off and on.
 - Turning a shared printer's sharing off and on again keeps it the same printer, so phones no longer list it once for each time.

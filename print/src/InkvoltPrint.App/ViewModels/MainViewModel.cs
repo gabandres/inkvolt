@@ -909,11 +909,41 @@ public sealed partial class MainViewModel : ObservableObject, IDisposable
         return Selected is { CanPrint: true } p ? p : null;
     }
 
-    public Task OpenPdfAsync(string path)
+    /// <param name="queue">
+    /// The Windows queue it was meant for (Inkvolt PDF hands a document over when Windows can't use that queue's driver): its printer
+    /// is selected when it's in the list, so the print goes there (straight to the printer, <see cref="Core.Printing.Direct.PrintRouter"/>).
+    /// </param>
+    public async Task OpenPdfAsync(string path, string? queue = null)
     {
-        if (Printer() is { } p) return p.OpenPdfAsync(path);
+        if (queue is not null)
+        {
+            var meant = await PrinterWithQueueAsync(queue);
+            Log.Write(meant is null ? $"A PDF handed over for {queue}: no printer here prints through it" : $"A PDF handed over for {queue}: {meant.Name}");
+            if (meant is not null) Selected = meant;
+        }
+        if (Printer() is { } p)
+        {
+            await p.OpenPdfAsync(path);
+            return;
+        }
         Prompt.Tell(string.Format(Strings.Main_NoPrinterForPdf, System.IO.Path.GetFileName(path)));
-        return Task.CompletedTask;
+    }
+
+    /// <summary>The printer that prints through the Windows queue <paramref name="queue"/>, or null.</summary>
+    private async Task<PrinterViewModel?> PrinterWithQueueAsync(string queue)
+    {
+        foreach (var printer in Printers.Where(p => p.CanPrint).ToList())
+        {
+            try
+            {
+                if (string.Equals(await printer.FindQueueAsync(), queue, StringComparison.OrdinalIgnoreCase)) return printer;
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException)
+            {
+                Log.Write($"[{printer.Name}] queue lookup for a handed-over PDF: {ex.Message}");
+            }
+        }
+        return null;
     }
 
     /// <summary>"Open with" / InkvoltPrint.exe photo.jpg …: the pictures go to the selected printer's Photos tab.</summary>

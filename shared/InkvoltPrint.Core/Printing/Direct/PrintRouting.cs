@@ -13,6 +13,9 @@ public enum PrintRouteNote
 
     /// <summary>Straight to the printer as the person chose, though Windows has a queue for it.</summary>
     DirectChosen,
+
+    /// <summary>Straight to the printer: Windows has a queue for it, but the queue's driver isn't working.</summary>
+    DirectQueueBroken,
 }
 
 /// <summary>
@@ -38,14 +41,15 @@ public sealed class PrintRouting
     /// <param name="hasAddress">A network printer: it can be set up in Windows by its address.</param>
     /// <param name="choseDirect">The person's choice as remembered for this printer.</param>
     /// <param name="rememberChoice">Keeps a new choice (<see cref="ChooseDirectAsync"/>).</param>
+    /// <param name="queueWorks">Whether a queue's driver can be used (<see cref="PrintRouter"/>); null: taken as yes.</param>
     public PrintRouting(Func<Task<string?>> findQueue, Func<IppClient?> rasterIpp, bool hasAddress, bool choseDirect, Action<bool> rememberChoice,
-        Action<string>? log = null)
+        Action<string>? log = null, Func<string, Task<bool>>? queueWorks = null)
     {
         _hasAddress = hasAddress;
         _rememberChoice = rememberChoice;
         _log = log;
         ChoseDirect = choseDirect;
-        Router = new PrintRouter(findQueue, rasterIpp, () => ChoseDirect);
+        Router = new PrintRouter(findQueue, rasterIpp, () => ChoseDirect, queueWorks);
     }
 
     /// <summary>Decides where each print, batch and job alert goes (<see cref="PrintRouter"/>), with the person's choice kept here.</summary>
@@ -156,7 +160,9 @@ public sealed class PrintRouting
         _takesDirect = choice.Ipp is not null;
         CanChooseDirect = _takesDirect && queue;
         Route = choice.Route;
-        Note = choice.Route != PrintRoute.Direct ? PrintRouteNote.None : queue ? PrintRouteNote.DirectChosen : PrintRouteNote.Direct;
+        Note = choice.Route != PrintRoute.Direct ? PrintRouteNote.None
+            : choice.QueueBroken ? PrintRouteNote.DirectQueueBroken
+            : queue ? PrintRouteNote.DirectChosen : PrintRouteNote.Direct;
         if (Current != before) Tell();
     }
 

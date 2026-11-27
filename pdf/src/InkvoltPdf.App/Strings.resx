@@ -13152,4 +13152,26 @@ Download the Tesseract engine and {0} from github.com/tesseract-ocr ({1})? Only 
   <data name="AskEdit_Changed" xml:space="preserve">
     <value>The document changed while the AI assistant was answering, so its steps no longer fit. Nothing was done: ask again.</value>
   </data>
+  <data name="Print_DriverBrokenTitle" xml:space="preserve">
+    <value>Windows can't print to {0}</value>
+    <comment>{0} = printer name</comment>
+  </data>
+  <data name="Print_DriverBrokenBody" xml:space="preserve">
+    <value>Windows can't use this printer's driver, so no app on this PC can print to it through Windows until it's fixed.</value>
+  </data>
+  <data name="Print_DriverBrokenHandOver" xml:space="preserve">
+    <value>Inkvolt Print can send the document straight to the printer over the network. To fix it, remove the printer in Windows Settings › Bluetooth &amp; devices › Printers &amp; scanners and add it again, or restart the PC.</value>
+  </data>
+  <data name="Print_DriverBrokenFix" xml:space="preserve">
+    <value>To fix it, remove the printer in Windows Settings › Bluetooth &amp; devices › Printers &amp; scanners and add it again, or restart the PC. Or print to another printer.</value>
+  </data>
+  <data name="Print_WithInkvoltPrint" xml:space="preserve">
+    <value>Print with Inkvolt Print</value>
+  </data>
+  <data name="Print_ChooseAnotherPrinter" xml:space="preserve">
+    <value>Choose another printer</value>
+  </data>
+  <data name="Print_HandOverFailed" xml:space="preserve">
+    <value>The document couldn't be made ready for Inkvolt Print. Save it, then try again.</value>
+  </data>
 </root>

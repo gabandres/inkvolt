@@ -26,6 +26,8 @@ public static class FileActions
     {
         // Let a value still being typed land first: the dialog takes focus, which would commit it mid-print.
         if (!await tab.SettleAsync()) return;
+        // A default printer whose driver Windows can't use fails in the dialog too: said first, with a way around it.
+        if (!await PrintDriverCheck.ProceedAsync(owner, tab, await Task.Run(PrintDriverCheck.DefaultQueue), chosen: false)) return;
         PrintSetup? chosen = null;
         if (ModernPrint.Available)
         {
@@ -78,6 +80,7 @@ public static class FileActions
         };
         PrinterCheck.Prewarm(); // the default printer's status, while the dialog is open
         if (dlg.ShowDialog() != true || !await tab.SettleAsync()) return;
+        if (!await PrintDriverCheck.ProceedAsync(owner, tab, PrinterCheck.Describe(dlg.PrintQueue), chosen: true)) return;
         if (!await ConfirmPrinterReady(owner, PrinterCheck.Describe(dlg.PrintQueue))) return;
         count = tab.PageView.PageCount;
 

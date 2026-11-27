@@ -60,7 +60,8 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
 - **Printing straight to the printer** (driverless printing, roadmap 2.1): a job sent to the printer over IPP with no Windows
   queue or driver, as raster pages the printer reads itself: PWG raster, Apple raster (URF) or PCLm (`Core/Printing/Raster`).
   Its **print route** is where Print a PDF, Copy and Print photos send a job: the Windows queue where there is one, straight
-  to the printer where there isn't or the person chose it (`PrintRoutes`). Its **plan** is what the printer's attributes allow
+  to the printer where there isn't, the person chose it, or Windows can't use the queue's driver (`PrintRoutes`; the driver check is
+  `QueueDriver`, asked by `PrintRouter` only when the printer takes jobs straight). Its **plan** is what the printer's attributes allow
   for one request (`DirectPrintPlan`); a setting the printer can't keep stops the job, never changes quietly. On the Mac: a
   network printer with no macOS queue, from Print a PDF (PrintCore's `Printing/Raster` and `Printing/Direct`, PrintMac's
   `DirectPrintPages`, the app's `DirectPrinting`); no choice of straight where macOS has a queue.

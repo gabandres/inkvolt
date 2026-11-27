@@ -6,6 +6,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.19.1
+- When a Windows update leaves a printer's driver broken (Windows then can't print to it from any app), printing says so before the print dialog opens, explains how to fix the printer, and offers to print the document with Inkvolt Print, which sends it straight to a network printer.
+
 ## 1.19.0
 - Four places no longer hang on a file or an answer made to stall them: Links from Addresses on a page with a run of thousands of brackets, Suggest Redactions on an AI answer padded with megabytes of quotes, the rulers' guides on a big file whose pages share one drawing, and Edit by Asking deleting and then turning pages of a huge document. Each now finishes in a moment.
 

@@ -60,7 +60,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
         _remember = remember;
         _pc = pc;
         Routing = new Core.Printing.Direct.PrintRouting(FindQueueAsync, () => DirectIpp, hasAddress: host is not null, state.GetPrintDirect(uuid),
-            direct => state.SetPrintDirect(uuid, direct), line => Log.Write(line));
+            direct => state.SetPrintDirect(uuid, direct), line => Log.Write(line), Printing.QueuePrinter.DriverWorksAsync);
         Routing.Changed += RoutingChanged;
         if (host is not null)
             _monitor = new PrinterMonitor(uuid, () => Name, new PrinterWhere(host, esclRoot),

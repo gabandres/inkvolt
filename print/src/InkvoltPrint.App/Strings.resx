@@ -5587,4 +5587,11 @@ The files stay where they are.</value>
   <data name="Scan_PasswordUnusable" xml:space="preserve">
     <value>Not saved: the password kept for this preset was empty, and no new one was entered.</value>
   </data>
+  <data name="Print_RouteDirectQueueBroken" xml:space="preserve">
+    <value>Pages go straight to the printer over the network: Windows' driver for this printer isn't working.</value>
+  </data>
+  <data name="Print_DriverBroken" xml:space="preserve">
+    <value>Windows' driver for {0} isn't working, so Windows can't print to it. Remove the printer in Windows Settings › Bluetooth &amp; devices › Printers &amp; scanners and add it again, or restart the PC.</value>
+    <comment>{0} = printer name</comment>
+  </data>
 </root>

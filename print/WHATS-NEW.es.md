@@ -7,6 +7,9 @@ Spanish here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's
 
 ## Next
 
+## 1.10.1
+- Cuando una actualización de Windows deja roto el controlador de una impresora, imprimir ya no falla con "PrintTicket provider failed to bind to printer": las páginas van directamente a la impresora por la red y la pestaña Imprimir te dice por qué. Si la impresora no acepta páginas así, un mensaje te explica cómo arreglarla en Windows.
+
 ## 1.10.0
 - Una impresora compartida aparece enseguida en iPhone y iPad, aunque ya conozcan varias impresoras; antes, a veces solo aparecía tras desactivar y volver a activar el uso compartido.
 - Desactivar y volver a activar el uso compartido de una impresora la mantiene como la misma impresora, así que los teléfonos ya no la muestran una vez por cada vez.

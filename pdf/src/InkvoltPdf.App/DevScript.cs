@@ -59,7 +59,7 @@ namespace InkvoltPdf.App;
 /// window N · closewindow</c>; after newwindow, tearoff and window N the steps run in that window. Reflow (4.16):
 /// <c>reflow on|off · reflowstate</c> (its page, zoom, look and first words) <c>· reflowscroll N</c> (the view itself to
 /// page N) <c>· reflowlink url</c> (as if clicked) <c>· reflowshot out.png · reflowcan Cmd,Cmd</c> (whether they can run). Prompts and file
-/// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· windows · dialogok Cmd …
+/// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· printdriver queue</c> (Print's check of that queue's driver and its prompt) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (Fluent's high-contrast resources on the window, no bar colors, and the page view's
@@ -1371,6 +1371,14 @@ internal static class DevScript
                 window.Activate();
                 await FileActions.Print(window, tab!, arg.Contains("options"));
                 log.Add($"printdialog: modern={ModernPrint.Available}");
+                break;
+            }
+            case "printdriver":
+            {
+                // printdriver queue name: Print's check of a queue's driver (PrintDriverCheck), as for a printer chosen in the
+                // dialog; answer its prompt with "answer". Logs whether printing would go on.
+                var proceed = await PrintDriverCheck.ProceedAsync(window, tab!, new InkvoltPrint.Core.Suite.QueueInfo(arg, null), chosen: false);
+                log.Add($"printdriver: {arg}: proceed={proceed}");
                 break;
             }
             case "printhandling":

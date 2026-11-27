@@ -13133,4 +13133,26 @@ Resuélvelo primero en la impresora, o imprime de todos modos: el trabajo espera
   <data name="AskEdit_Changed" xml:space="preserve">
     <value>El documento cambió mientras el asistente de IA respondía, así que sus pasos ya no corresponden. No se hizo nada: vuelve a pedirlo.</value>
   </data>
+  <data name="Print_DriverBrokenTitle" xml:space="preserve">
+    <value>Windows no puede imprimir en {0}</value>
+    <comment>{0} = printer name</comment>
+  </data>
+  <data name="Print_DriverBrokenBody" xml:space="preserve">
+    <value>Windows no puede usar el controlador de esta impresora, así que ninguna app de este PC puede imprimir en ella a través de Windows hasta que se arregle.</value>
+  </data>
+  <data name="Print_DriverBrokenHandOver" xml:space="preserve">
+    <value>Inkvolt Print puede enviar el documento directamente a la impresora por la red. Para arreglarlo, quita la impresora en Configuración de Windows › Bluetooth y dispositivos › Impresoras y escáneres y vuelve a agregarla, o reinicia el PC.</value>
+  </data>
+  <data name="Print_DriverBrokenFix" xml:space="preserve">
+    <value>Para arreglarlo, quita la impresora en Configuración de Windows › Bluetooth y dispositivos › Impresoras y escáneres y vuelve a agregarla, o reinicia el PC. O imprime en otra impresora.</value>
+  </data>
+  <data name="Print_WithInkvoltPrint" xml:space="preserve">
+    <value>Imprimir con Inkvolt Print</value>
+  </data>
+  <data name="Print_ChooseAnotherPrinter" xml:space="preserve">
+    <value>Elegir otra impresora</value>
+  </data>
+  <data name="Print_HandOverFailed" xml:space="preserve">
+    <value>No se pudo preparar el documento para Inkvolt Print. Guárdalo y vuelve a intentarlo.</value>
+  </data>
 </root>

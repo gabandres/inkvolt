@@ -367,6 +367,7 @@ public sealed partial class PrintViewModel(Func<Task<PrintTarget?>> findTarget, 
     {
         PrintRouteNote.Direct => Strings.Print_RouteDirect,
         PrintRouteNote.DirectChosen => Strings.Print_RouteDirectChosen,
+        PrintRouteNote.DirectQueueBroken => Strings.Print_RouteDirectQueueBroken,
         _ => null,
     };
 
