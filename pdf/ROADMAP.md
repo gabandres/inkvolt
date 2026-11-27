@@ -266,7 +266,8 @@ lined up for shift, skew, size and a quarter turn before the overlay (`CompareAl
 the PDFs in the tests' `Data`, `INKVOLTPDF_WORD` makes them again): a contract and its edited .docx with 30 planted changes
 list all 30, none extra.
 - **Not checked:** a real scan; on the Mac, a real .docx through LibreOffice against Word's PDF.
-- **Mac:** another size or a quarter turn in `CompareAlign` (2026-11-20) isn't ported.
+- **Mac:** all of it, another size or a quarter turn in `CompareAlign` and the scans read with the language's dictionary
+  (which way up, when the cleanup isn't sure) included; the scans are read with Vision (`mac/docs/PLAN.md`, "Compare").
 
 ### 3.4 Long-term validation for signatures
 Done, Windows and Mac. Sign Digitally and Add Verification Information store OCSP answers or CRLs for the whole chain

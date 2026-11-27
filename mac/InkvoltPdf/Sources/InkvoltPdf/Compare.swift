@@ -325,8 +325,10 @@ final class CompareWindowController: NSWindowController, NSWindowDelegate, NSTab
             scanNote = Pro.locked(.compareOfficeAndScans)
             return read
         }
-        let language = SavedOcr.language
-        let recognize = Self.testRecognizer ?? PageOcr.recognizer(VisionRecognizer(languages: language.map { [$0] }))
+        // Each scan cleaned first (straight, upright), and read with the language's dictionary, which says which way up a
+        // page the cleanup isn't sure of reads (Windows' PageOcr.Recognize).
+        let reader = VisionRecognizer(languages: SavedOcr.language.map { [$0] })
+        let recognize = Self.testRecognizer ?? PageOcr.compareRecognizer(reader, spelling: MacSpelling(language: reader.language))
         let skip = skipToken
         skipButton.isHidden = false
         defer { skipButton.isHidden = true }

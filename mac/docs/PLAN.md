@@ -1803,12 +1803,27 @@ then ±0.6 %), then finds skew and shift in that frame as before, kept only when
 `aScaledAlignmentGoesThereAndBack`; a zero scale stands for .NET's default value). `--only-compare` compares a scan with
 the same scan fed sideways.
 
-**Windows ahead, to port:** Compare reads scans with the language's dictionary (which way up, when the cleanup isn't
-sure; the Mac reads with Vision, whose own reading of a sideways page isn't checked). Ported with Inkvolt Print's 4.3 (Wave 4,
-above): the scan cleanup's which-way-up test leaving out a run of ink rows over 3 times the page's lines' height
-(`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on Windows in the shared core, and
-PrintCoreTests' `UprightTests` run on the PC); ScanTextTests' `APageWithALargeShadedPictureIsTurnedTheRightWayUp` isn't
-ported (the Mac's `ExportTestPdf` has no large shaded picture).
+Windows' scans read with the language's dictionary (0950dc5a's `PageOcr.Recognize`) are ported (2026-11-27):
+`PageOcr.compareRecognizer` reads each scanned page through `ScanText` cleaned (straight, upright), no suspect words
+marked, nothing written back, with Recognize Text's language's dictionary (`MacSpelling`), which says which way up a page
+reads when the cleanup isn't sure: without it, words read upside down pass for words. Before, the Mac's Compare handed
+Vision the page as rendered. ScanTextTests' `compareReadsAScanTheWayUpTheLanguagesDictionarySays` (Mac only: Windows has
+no test of `PageOcr.Recognize`); `--only-compare` compares a typed page with a scan of it fed upside down, read with
+Vision (only the amount changed). Vision alone turned out to read that page the right way up as well (the case passes
+with the page handed to it as rendered), so the self-test checks the cleaned reading's words, not the dictionary. Ported with Inkvolt Print's 4.3 (Wave 4, above): the scan cleanup's which-way-up test leaving out a run of ink rows
+over 3 times the page's lines' height (`Upright.maxLineRatio`, `minLineRows`; `ScanCleanup` now lives in PrintCore, as on
+Windows in the shared core, and PrintCoreTests' `UprightTests` run on the PC), and ScanTextTests'
+`aPageWithALargeShadedPictureIsTurnedTheRightWayUp` (the Mac's `ExportTestPdf` already had Windows' picture, 40 × 30 drawn
+at 160 × 120 points).
+
+- **That page isn't sure the right way up, or turned 270°, on the Mac** (a known issue in the test, which fails if it
+  goes away): it is turned the right way up all four ways, as on Windows. macOS's Arial (the Mac's `ExportTestPdf` embeds
+  it; PDFsharp embeds Windows') draws two rows of ink, under the first paragraph's first line and over the second bullet's
+  ascenders, at 18 and 16 pixels where Windows' draws 15 (at 100 dpi), just past the 3 % of the fullest row (15.06) that
+  keeps a line going: the lines measured with them have 1.39 times more ink above than below (706 to 509; Windows 669 to
+  435, 1.54), under the 1.4 that is sure. Turned 90° or 180° the Mac's measure says sure. Not a difference in the cleanup
+  (the same code, and the same numbers from the same rows); Windows' result rests on those rows as much (15 against
+  15.06). A page the cleanup isn't sure of is read both ways, the dictionary deciding.
 
 **Mac differences.**
 - **Office files through E12's converter** (Microsoft's app when installed, else LibreOffice): `Converting.pdfForCompare` runs E12's `OfficeConversion`
@@ -1816,11 +1831,15 @@ ported (the Mac's `ExportTestPdf` has no large shaded picture).
   progress sheet, and nothing is opened. Without either the message says so.
   LibreOffice lays a .docx out a little differently from Word, so an Office file is best compared with a PDF LibreOffice
   made too (or two Office files): against Word's PDF, line breaks and fonts may differ. **Not checked:** a real .docx.
-- **Scans read with Vision**, in Recognize Text's language (`SavedOcr.language`), through `PageOcr.recognizer` (each page
-  rendered at 300 dpi within 60 million pixels, under the page checks), one page at a time, on this Mac; Compare Without
-  Reading Them stops it (the pages read so far count). A page Vision fails on counts as not read, and the summary says how
-  many. Vision's boxes are upright (no angle), so `CompareScan.pageTextOf` gets angle 0; a skewed scan still reads in
-  Vision's line order. Windows' recognizer skipping a line (`couldBeALostLine`) is kept as the heuristic it is.
+- **Scans read with Vision**, in Recognize Text's language (`SavedOcr.language`), through `PageOcr.compareRecognizer` (each
+  page rendered at 300 dpi within 60 million pixels, under the page checks, and cleaned by `ScanText`), one page at a time,
+  on this Mac; Compare Without Reading Them stops it (the pages read so far count). A page Vision fails on counts as not
+  read, and the summary says how many. The words come back on the page as scanned, each at the page's skew and quarter
+  turns (`ScanFrame`), which `CompareScan.pageTextOf` reads along. Without a Mac dictionary for the language
+  (`MacSpelling` nil) a page the cleanup isn't sure of is turned over only for clearly more words of three letters or more,
+  as Windows without one. Windows rereads the lines its recognizer left out (`MissedLines`, `RereadMissed`); the Mac's
+  `ScanText` has no rereading (Recognize Text's difference, above). Windows' recognizer skipping a line
+  (`couldBeALostLine`) is kept as the heuristic it is.
 - **The compare read** (`PdfEngine.comparePage`, Windows' `GetComparePage`): the shim's `inkv_compare_page` reads the page's
   own content (no annotations), as `inkv_page_chars` does, with each character's font, size and color and the pictures'
   boxes (no pixels, no paths); the text is the same as `text`'s (theLooksLineUpWithThePageTextOnEveryPage). It keeps the
@@ -2467,7 +2486,6 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 
 No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
-- "Windows ahead, to port" (under Compare): Compare's scans read with the language's dictionary.
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
 - Inkvolt Print: P12's 2.2, 3.1 and 3.3 not started on the Mac, 2.1 in part (separator codes, the last code item besides these,

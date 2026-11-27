@@ -112,6 +112,7 @@ struct CompareTest {
         c.close()
         await formatting()
         await scanned()
+        await scannedUpsideDown()
         await skippedAsAScanWasRead()
         await scanAQuarterTurnOff()
         lines.append("RESULT: \(failures == 0 ? "PASS" : "FAIL") (\(lines.filter { $0.hasPrefix("PASS") }.count) passed, \(failures) failed)")
@@ -172,13 +173,13 @@ struct CompareTest {
     }
 
     /// A PDF whose one page is a picture (200 dpi) of `pdf`'s first page, as a scanner makes one; `sideways`, fed a quarter
-    /// turn clockwise off.
-    static func scanOf(_ pdf: [UInt8], sideways: Bool = false) -> [UInt8]? {
+    /// turn clockwise off; `upsideDown`, fed upside down.
+    static func scanOf(_ pdf: [UInt8], sideways: Bool = false, upsideDown: Bool = false) -> [UInt8]? {
         guard let engine = try? PdfEngine.open(pdf) else { return nil }
         defer { engine.close() }
         let g = engine.page(0)
         guard let image = try? engine.render(0, scale: 200.0 / 72), var cg = PageRenderer.cgImage(image) else { return nil }
-        if sideways {
+        for _ in 0..<((sideways ? 1 : 0) + (upsideDown ? 2 : 0)) {
             guard let turned = Self.quarterTurned(cg) else { return nil }
             cg = turned
         }
@@ -237,6 +238,28 @@ struct CompareTest {
               "the scan's words were recognized: \(c.scanNote ?? "no note")")
         check(amount?.newText == "15" && amount?.readFromScan == true && r?.formatted == 0 && r?.pairsWithoutText == 0,
               "the changed amount on the scan is listed as read from it, no formatting said: \(c.summary.stringValue)")
+        c.close()
+    }
+
+    /// Windows' Compare reading: a scan fed upside down is cleaned (turned upright, and read both ways with the language's
+    /// dictionary when the cleanup isn't sure) before Vision reads it, and its words land where they are on the page as
+    /// scanned. Vision alone reads this page the right way up too (the case passes with the page handed to it as rendered):
+    /// the dictionary's part is ScanTextTests' compareReadsAScanTheWayUpTheLanguagesDictionarySays.
+    private mutating func scannedUpsideDown() async {
+        lines.append("== Compare: a scan fed upside down")
+        let old = Self.styledPdf([[("Scope of work", false)], [("The supplier delivers 12 monthly reports.", false)]])
+        guard let new = Self.scanOf(Self.styledPdf([[("Scope of work", false)], [("The supplier delivers 15 monthly reports.", false)]]),
+                                    upsideDown: true) else {
+            return check(false, "the scan couldn't be made")
+        }
+        let c = CompareWindowController.show(old: CompareSide(name: "typed.pdf", data: old, password: nil),
+                                             new: CompareSide(name: "upside-down-scan.pdf", data: new, password: nil))
+        await c.finished()
+        let changes = c.result?.changes ?? []
+        let amount = changes.first { $0.kind == .changed && $0.oldText == "12" }
+        let said = changes.map { "\($0.kind): \($0.oldText) → \($0.newText)" }.joined(separator: "; ")
+        check(amount?.newText == "15" && amount?.readFromScan == true && changes.count == 1,
+              "the upside-down scan is read the right way up: only the amount changed (\(said))")
         c.close()
     }
 

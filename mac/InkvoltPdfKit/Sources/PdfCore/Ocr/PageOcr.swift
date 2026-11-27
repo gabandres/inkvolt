@@ -74,6 +74,14 @@ public enum PageOcr {
         return { engine, page, cancel in try ScanText.recognize(engine, page, reader, read, spelling: spelling, cancel: cancel).words }
     }
 
+    /// Compare's recognizer for scanned pages (the Windows app's `PageOcr.Recognize`): each page cleaned first (straight
+    /// and upright) through `ScanText`, no suspect words marked, nothing written back. `spelling`, the language's
+    /// dictionary, says which way up a page the cleanup isn't sure of reads: without it, words read upside down pass for
+    /// words.
+    public static func compareRecognizer(_ reader: some TextRecognizer, spelling: (any Spelling)?) -> Recognizer {
+        recognizer(reader, options: RecognizeOptions(clean: true, checkWords: false), spelling: spelling)
+    }
+
     /// OCR of `pages`: pages that already have text are skipped, and pages the engine refuses (`skipped` says which);
     /// words mostly inside an `exclude` area (blacked-out redactions) are dropped. `progress` gets (pages done, pages to do).
     /// - Throws: `CancellationError` when `cancel` fires; the recognizer's errors.
