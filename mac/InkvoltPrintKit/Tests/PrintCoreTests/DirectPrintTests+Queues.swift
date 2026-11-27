@@ -5,8 +5,7 @@ import Testing
 
 /// Ported from DirectPrintTests.Queues.cs: roadmap 2.1's last uses of a queue: Batch print (2.4) a job per file straight to the
 /// printer (`DirectBatchQueue`), job alerts (3.4) on the printer's own job list (`DirectJobWatch`), and the one route decision
-/// (`PrintRouter`, `RoutedBatchQueue`, `RoutedJobQueue`). Left out: the command line's printer (BatchPrinterLookup and
-/// The_state_file_gives_the_command_line_…: the Mac's `print` command prints to a macOS queue, PLAN P12 2.1). Mac differences:
+/// (`PrintRouter`, `RoutedBatchQueue`, `RoutedJobQueue`), and the command line's printer (`BatchPrinterLookup`). Mac differences:
 /// a direct printer's job list says no other computer prints there, so a job that doesn't say where it came from is yours as
 /// on Windows (`DirectJobWatch`); a queue that doesn't work is one macOS can't use (`PrintRoutes.queueWorks`).
 extension DirectPrintTests {
@@ -548,25 +547,77 @@ extension DirectPrintTests {
         #expect(try await problem { _ in Self.printer { b in b.enums("printer-state", 3); b.kw("printer-state-reasons", "moving-to-paused") } } == nil)
     }
 
-    // ---- the person's choice, kept (Windows' The_state_file_gives_the_command_line_the_print_straight_choice…) ----
+    // ---- the command line's printer ----
 
-    @Test func theStateFileKeepsThePrintStraightChoicePerPrinter() throws {
+    static let inkjet = KnownPrinter(uuid: "uuid-inkjet", name: "Office inkjet", model: "Inkjet 5000", host: "192.0.2.20",
+                                     ippUri: "http://192.0.2.20:631/ipp/print")
+
+    static func state(_ printers: [KnownPrinter] = [inkjet], direct: [String] = []) -> PrintState {
+        var s = PrintState()
+        s.printers = printers
+        s.directPrinters = direct
+        return s
+    }
+
+    @Test func theCommandLinePrintsStraightToAPrinterWithNoQueueOrSetToPrintStraight() throws {
+        let known = Self.state()
+        let ownQueue = CupsDestination(name: "Inkjet_queue", options: ["device-uri": "ipp://192.0.2.20/ipp/print", "printer-info": "Inkjet queue"])
+        let pdf = CupsDestination(name: "Save_as_PDF", options: ["device-uri": "cups-pdf:/", "printer-info": "Save as PDF"])
+        let endpoint = URL(string: "http://192.0.2.20:631/ipp/print")!
+
+        // No queue for it: straight, with the pins Inkvolt Print keeps for it.
+        #expect(try BatchPrinterLookup.find("office INKJET", destinations: [pdf], known: known) == .direct(endpoint: endpoint, name: "Office inkjet", printer: Self.inkjet))
+        // Its queue: the queue, as the window does; set to print straight: straight.
+        #expect(try BatchPrinterLookup.find("Office inkjet", destinations: [ownQueue, pdf], known: known) == .queue("Inkjet_queue"))
+        #expect(try BatchPrinterLookup.find("Inkjet queue", destinations: [ownQueue], known: known) == .queue("Inkjet_queue")) // the name macOS shows
+        if case .direct = try BatchPrinterLookup.find("Office inkjet", destinations: [ownQueue], known: Self.state(direct: ["UUID-INKJET"])) {} else {
+            Issue.record("set to print straight: not straight")
+        }
+        // Never reached over IPP and no queue: nothing to print through, said before anything is read.
+        var never = Self.inkjet
+        never.ippUri = nil
+        #expect(throws: BatchCommandError.self) { try BatchPrinterLookup.find("Office inkjet", destinations: [], known: Self.state([never])) }
+        do {
+            _ = try BatchPrinterLookup.find("Office inkjet", destinations: [], known: Self.state([never]))
+        } catch let e as BatchCommandError {
+            #expect(e.message.contains("hasn't reached it over IPP"))
+        }
+        #expect(throws: BatchCommandError.self) { try BatchPrinterLookup.find("Save_as_PDF", destinations: [pdf], known: known) } // virtual, as before
+
+        // An address: that printer, straight; ipp is IPP over http on 631, ipps over https.
+        #expect(try BatchPrinterLookup.find("ipp://192.0.2.20/ipp/print", destinations: [], known: known) == .direct(endpoint: endpoint, name: "192.0.2.20", printer: Self.inkjet))
+        #expect(try BatchPrinterLookup.find("ipps://192.0.2.30:8631/ipp/print", destinations: [], known: known)
+                == .direct(endpoint: URL(string: "https://192.0.2.30:8631/ipp/print")!, name: "192.0.2.30", printer: nil))
+        #expect(try BatchPrinterLookup.find("ipp://192.0.2.31/ipp/print", destinations: [], known: known)
+                == .direct(endpoint: URL(string: "http://192.0.2.31:631/ipp/print")!, name: "192.0.2.31", printer: nil))
+        for hostile in ["http://192.0.2.20/", "ipp://user:secret@192.0.2.20/ipp/print", "ipp://192.0.2.20/ipp/print?x=1", "ipp://", "file://c:/x", "ipp://192.0.2.20/#a"] {
+            #expect(throws: BatchCommandError.self, "\(hostile)") { try BatchPrinterLookup.find(hostile, destinations: [], known: known) }
+        }
+    }
+
+    @Test func theStateFileGivesTheCommandLineThePrintStraightChoiceAndPinsReadOnly() throws {
+        let known = try JSONDecoder().decode(PrintState.self, from: Data("""
+            { "printers": [ { "uuid": "uuid-inkjet", "name": "Office inkjet", "host": "192.0.2.20", "ippUri": "https://192.0.2.20:631/ipp/print" } ],
+              "directPrinters": [ "uuid-inkjet", 7, null ],
+              "certificatePins": { "uuid-inkjet:631": "AB12", "uuid-inkjet": "CD34" } }
+            """.utf8))
+        #expect(known.directPrinters == ["uuid-inkjet"])
+        let pins = ReadOnlyPins(known, "uuid-inkjet")
+        #expect(pins.get(631) == "AB12" && pins.get(443) == "CD34")
+        #expect(pins.setIfAbsent(631, "FFFF") == "AB12") // a pin that's there must match
+        #expect(pins.setIfAbsent(8631, "EEEE") == "EEEE") // none: taken this once
+        #expect(pins.get(8631) == nil) // and not kept: the command line writes nothing
+        #expect(try JSONDecoder().decode(PrintState.self, from: Data(#"{ "directPrinters": "x" }"#.utf8)).directPrinters.isEmpty)
+
+        // The choice kept, renamed with its printer and forgotten with it (the app's side of the same list).
         let store = StateStore(memory: PrintState())
         store.setPrintsDirect("uuid-inkjet", true)
         store.setPrintsDirect("uuid-inkjet", true)
-        #expect(store.printsDirect("UUID-INKJET"))
-        #expect(store.current.directPrinters == ["uuid-inkjet"])
+        #expect(store.printsDirect("UUID-INKJET") && store.current.directPrinters == ["uuid-inkjet"])
         store.rename("uuid-inkjet", "uuid-new")
         #expect(store.printsDirect("uuid-new") && !store.printsDirect("uuid-inkjet"))
-        store.setPrintsDirect("uuid-new", false)
-        #expect(!store.printsDirect("uuid-new"))
-        store.setPrintsDirect("uuid-gone", true)
-        store.remove("uuid-gone")
+        store.remove("uuid-new")
         #expect(store.current.directPrinters.isEmpty)
-
-        let parsed = try JSONDecoder().decode(PrintState.self, from: Data(#"{ "directPrinters": [ "uuid-inkjet", 7, null ] }"#.utf8))
-        #expect(parsed.directPrinters == ["uuid-inkjet"])
-        #expect(try JSONDecoder().decode(PrintState.self, from: Data(#"{ "directPrinters": "x" }"#.utf8)).directPrinters.isEmpty)
     }
 
     // ---- one route decision ----

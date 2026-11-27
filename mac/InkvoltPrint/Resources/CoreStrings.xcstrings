@@ -12012,17 +12012,6 @@
         }
       }
     },
-    "Pages go straight to the printer over the network: macOS's queue for this printer isn't taking jobs.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Las páginas van directamente a la impresora por la red: la cola de macOS para esta impresora no acepta trabajos."
-          }
-        }
-      }
-    },
     "Print straight to the printer (no macOS queue)": {
       "extractionState": "manual",
       "localizations": {
@@ -12041,6 +12030,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Envía las páginas por la red en el formato de imagen de la propia impresora (IPP Everywhere), sin su cola de macOS. También para Copiar y Fotos."
+          }
+        }
+      }
+    },
+    "Pages go straight to the printer over the network: macOS can't print through its queue for this printer (its driver failed).": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas van directamente a la impresora por la red: macOS no puede imprimir por su cola para esta impresora (falló su controlador)."
           }
         }
       }

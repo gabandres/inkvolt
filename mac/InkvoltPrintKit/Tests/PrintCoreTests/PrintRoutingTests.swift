@@ -302,15 +302,33 @@ struct PrintRoutingTests {
 
     // ---- the Mac's queue check (Windows' QueueDriver) ----
 
-    @Test func aMacQueueWorksWhenItsListedNotStoppedAndAcceptingJobs() {
-        func queue(_ options: [String: String]) -> CupsDestination { CupsDestination(name: "Office_laser", options: options) }
-        #expect(PrintRoutes.queueWorks(queue(["printer-state": "3", "printer-is-accepting-jobs": "true"])))
-        #expect(PrintRoutes.queueWorks(queue(["printer-state": "4"]))) // printing: fine
-        #expect(PrintRoutes.queueWorks(queue([:]))) // says nothing: taken as working
-        #expect(!PrintRoutes.queueWorks(nil)) // macOS no longer lists it
-        #expect(!PrintRoutes.queueWorks(queue(["printer-state": "5"]))) // paused, or stopped by macOS on a failed job
-        #expect(!PrintRoutes.queueWorks(queue(["printer-state": "3", "printer-is-accepting-jobs": "false"]))) // cupsreject
-        #expect(!PrintRoutes.queueWorks(queue(["printer-type": String(CupsDestination.TypeBit.rejecting)])))
+    static func queue(_ options: [String: String]) -> CupsDestination { CupsDestination(name: "Office_laser", options: options) }
+
+    @Test func aMacQueueWorksWhenItsListedAndPrinting() {
+        #expect(PrintRoutes.queueWorks(Self.queue(["printer-state": "3", "printer-is-accepting-jobs": "true"])))
+        #expect(PrintRoutes.queueWorks(Self.queue(["printer-state": "4"]))) // printing: fine
+        #expect(PrintRoutes.queueWorks(Self.queue([:]))) // says nothing: taken as working
+    }
+
+    @Test func aPausedQueueIsTheQueuesRouteStill() {
+        // Paused in Printers & Scanners on purpose: its jobs wait there, as on Windows; never printed around it.
+        #expect(PrintRoutes.queueWorks(Self.queue(["printer-state": "5", "printer-state-reasons": "paused", "printer-state-message": "Paused"])))
+    }
+
+    @Test func aQueueSetToRejectJobsIsTheQueuesRouteStill() {
+        #expect(PrintRoutes.queueWorks(Self.queue(["printer-state": "3", "printer-is-accepting-jobs": "false"]))) // cupsreject
+        #expect(PrintRoutes.queueWorks(Self.queue(["printer-type": String(CupsDestination.TypeBit.rejecting)])))
+    }
+
+    @Test func aQueueStoppedByAFailedFilterGivesWay() {
+        #expect(!PrintRoutes.queueWorks(Self.queue(["printer-state": "5", "printer-state-reasons": "paused,cups-missing-filter-warning"])))
+        #expect(!PrintRoutes.queueWorks(Self.queue(["printer-state": "5", "printer-state-reasons": "cups-filter-failed"])))
+        #expect(!PrintRoutes.queueWorks(Self.queue(["printer-state": "5", "printer-state-reasons": "paused", "printer-state-message": "Filter failed"])))
+        #expect(PrintRoutes.queueWorks(Self.queue(["printer-state": "3", "printer-state-reasons": "cups-missing-filter-warning"]))) // not stopped: it prints
+    }
+
+    @Test func aQueueMacOSNoLongerListsGivesWay() {
+        #expect(!PrintRoutes.queueWorks(nil))
     }
 }
 

@@ -28,7 +28,7 @@ enum PrintCommand {
         interrupt.resume()
         defer { interrupt.cancel() }
 
-        let host = MacPrintHost(demo: model.isDemo)
+        let host = MacPrintHost(demo: model.isDemo, known: model.store.current)
         let done = Done()
         Task.detached {
             let code = await BatchPrintCommandLine.run(given, host, stop, output: { Self.write(FileHandle.standardOutput, $0) },
@@ -54,10 +54,14 @@ enum PrintCommand {
     }
 }
 
-/// This Mac's side of `print`: PDFKit and Image I/O, and a printer by its macOS queue's name or the name System Settings
-/// shows; demo mode's made-up queues.
+/// This Mac's side of `print`: PDFKit and Image I/O, and the printer a name stands for (`BatchPrinterLookup` decides, roadmap
+/// 2.1): its macOS queue (by its name or the name System Settings shows), or straight to it over IPP with the certificate pins
+/// Inkvolt Print keeps for it, read only (an `ipp://` or `ipps://` address, a remembered printer with no queue or set to print
+/// straight); demo mode's made-up queues.
 struct MacPrintHost: BatchPrintHost {
     let demo: Bool
+    /// The app's state when the command started: the printers it remembers, their pins, the print straight choices.
+    var known = PrintState()
     var documents: any BatchDocuments { MacBatchDocuments() }
 
     func findPrinter(_ name: String) async throws -> any BatchQueue {
@@ -66,7 +70,18 @@ struct MacPrintHost: BatchPrintHost {
             let names = DemoBatchQueue.all.map(\.name).joined(separator: ", ")
             throw BatchCommandError("There is no printer \"\(BatchPrintText.clean(name))\" in the demo (its queues: \(names)).")
         }
-        if let queue = await CupsBatchQueue.named(name) { return queue }
-        throw BatchCommandError("There is no printer \"\(BatchPrintText.clean(name))\": lpstat -p lists this Mac's print queues.")
+        // An address given needs no queue list.
+        let destinations = name.contains("://") ? [] : await LibCups().destinations() ?? []
+        switch try BatchPrinterLookup.find(name, destinations: destinations, known: known) {
+        case .queue(let queue):
+            return CupsBatchQueue(queue: queue)
+        case .direct(let endpoint, let shown, let printer):
+            // Lives as long as the command: the process ends with the batch.
+            let http = DeviceHttp(host: endpoint.host ?? "", transport: URLSessionTransport.factory(localNetwork: nil),
+                                  pin: printer.map { ReadOnlyPins(known, $0.uuid) })
+            let ipp = IppClient(http, endpoint: endpoint)
+            let caps = IppCapsCache({ IppPrintCaps.from(try await ipp.printerAttributes(IppPrintCaps.requested)) })
+            return DirectBatchQueue(shown, ipp: ipp, caps: caps, send: DirectBatchJobs.send(ipp, caps: caps, user: DirectPrinting.user))
+        }
     }
 }

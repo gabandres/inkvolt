@@ -3,9 +3,9 @@ import Synchronization
 
 /// One decision of where a printer's jobs go (`PrintRoutes.choose`), with what it was made from: the macOS queue found (nil:
 /// none) and the printer's IPP client when it takes a raster format (nil: it doesn't, or isn't connected). `queueBroken`: the
-/// queue can't be used (macOS lost it, stopped it, or it isn't taking jobs: `PrintRoutes.queueWorks`), so the jobs go straight
+/// queue can't print (macOS lost it, or stopped it when its driver failed: `PrintRoutes.queueWorks`), so the jobs go straight
 /// to the printer though the person didn't choose that. Windows' `RouteChoice`, where a broken queue is one whose driver
-/// Windows can't load.
+/// Windows can't load; on the Mac, one cupsd stopped because its filter or driver failed.
 public struct RouteChoice: Sendable {
     public var route: PrintRoute
     public var queue: String?
@@ -20,13 +20,18 @@ public struct RouteChoice: Sendable {
 }
 
 extension PrintRoutes {
-    /// Whether a macOS queue can take a job now (the Mac's counterpart of Windows' `QueueDriver`, a driver Windows can load):
-    /// macOS still lists it, it isn't stopped (`printer-state` 5: paused in Printers & Scanners, or stopped by macOS on a job
-    /// that failed, its error policy), and it's accepting jobs (`cupsreject`, or the `rejecting` type bit). Nil: the queue
-    /// is gone.
+    /// Whether macOS can print through a queue (the Mac's counterpart of Windows' `QueueDriver`, a driver Windows can load):
+    /// false when macOS no longer lists it (nil), or cupsd stopped it (`printer-state` 5) because its driver failed: a filter
+    /// missing or failing (`cups-missing-filter`, `cups-filter-failed`, a "Filter failed" message), its PPD gone. A queue
+    /// someone paused in Printers & Scanners or set to reject jobs (`cupsreject`) works: they did that on purpose, its jobs
+    /// wait there as on Windows, and printing around it would print what someone tried to hold.
     public static func queueWorks(_ destination: CupsDestination?) -> Bool {
         guard let d = destination else { return false }
-        return d.state != 5 && d.isAcceptingJobs
+        guard d.state == 5 else { return true }
+        let failed = ["cups-missing-filter", "cups-filter-failed", "cups-insecure-filter"]
+        if d.reasons.contains(where: { r in failed.contains { r == $0 || r.hasPrefix($0 + "-") } }) { return false }
+        let said = (d.options["printer-state-message"] ?? "").lowercased()
+        return !["filter failed", "missing filter", "unable to open ppd"].contains { said.contains($0) }
     }
 }
 

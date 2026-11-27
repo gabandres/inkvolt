@@ -9,7 +9,7 @@ public enum PrintRouteNote: Sendable, Equatable {
     case direct
     /// Straight to the printer as the person chose, though macOS has a queue for it.
     case directChosen
-    /// Straight to the printer: macOS has a queue for it, but the queue can't take jobs (gone, stopped, or not accepting them).
+    /// Straight to the printer: macOS has a queue for it, but can't print through it (its driver or filter failed).
     case directQueueBroken
 }
 
@@ -196,7 +196,7 @@ extension PrintRouteNote {
         case .none: nil
         case .direct: loc("No macOS queue for this printer: pages go straight to it over the network (IPP Everywhere).")
         case .directChosen: loc("Pages go straight to the printer over the network, not through its macOS queue.")
-        case .directQueueBroken: loc("Pages go straight to the printer over the network: macOS's queue for this printer isn't taking jobs.")
+        case .directQueueBroken: loc("Pages go straight to the printer over the network: macOS can't print through its queue for this printer (its driver failed).")
         }
     }
 

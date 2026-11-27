@@ -276,7 +276,10 @@ mac/InkvoltPrintKit --build-system native`.
   ported under Windows' names): a network printer's jobs go to its macOS queue, straight to it when it has none, when the
   person chose that (the Print menu's Print straight to the printer (no macOS queue), shown where the printer has a queue and
   takes jobs straight, kept per printer in the state file's `directPrinters`, Windows' `DirectPrinters`), or when macOS can't
-  use its queue (Windows' broken driver, master 09a33387: `RouteChoice.queueBroken`, `PrintRouteNote.directQueueBroken`).
+  print through its queue (Windows' broken driver, master 09a33387: `RouteChoice.queueBroken`, `PrintRouteNote.directQueueBroken`).
+  The command line's `print --printer` decides the same way (`BatchPrinterLookup`): a queue's name, a printer's name in
+  Inkvolt Print (its queue, or straight to it), or an `ipp://`/`ipps://` address, straight with the pins kept for it, read
+  only (`ReadOnlyPins`).
   The Print menu and the print queue card say where the pages go (`PrintRouteNote.text`, Windows' words with macOS's queue).
   Every print goes where the router says, decided afresh for each: Print a PDF (one page a sheet; its Layouts laid out by
   `SheetPrintView` on the paper the printer's plan chose and printed on the whole sheet, a booklet asking for both sides and
@@ -291,18 +294,22 @@ mac/InkvoltPrintKit --build-system native`.
   (`.sheet`, as Windows' paginators lay out on the whole paper). Job alerts read a direct printer's own job list
   (`DirectJobWatch`, following the last route decided), and the print queue card lists it with Cancel-Job. The batch runner
   now asks the queue for its no-answer words, its time limit and whether a job sent ends on its own (`BatchQueue.noAnswer`,
-  `sendLimit`, `endsOnItsOwnOnceSpooling`, Windows' `IBatchQueue`). **Mac differences:** a queue that doesn't work is one
-  macOS no longer lists, has stopped (paused in Printers & Scanners, or stopped by its error policy after a failed job) or
-  isn't accepting jobs (`cupsreject`), as the last read of the queues says (`PrintRoutes.queueWorks`), where Windows asks the
-  PrintTicket provider: a paused queue's jobs go straight while it's paused, and the note says why; `PrintRouting`'s calls
+  `sendLimit`, `endsOnItsOwnOnceSpooling`, Windows' `IBatchQueue`). **Mac differences:** a queue macOS can't print through
+  (Windows' driver Windows can't load) is one cupsd stopped because its driver failed: `printer-state` stopped with
+  `cups-missing-filter` or `cups-filter-failed` among its reasons, or a "Filter failed" message, as the last read of the
+  queues says (`PrintRoutes.queueWorks`); one macOS no longer lists has no queue. A queue someone paused in Printers &
+  Scanners or set to reject jobs (`cupsreject`) keeps the queue's route, with macOS's own words for it: they did that on
+  purpose, its jobs wait there as on Windows, and printing around it would print what someone tried to hold; `PrintRouting`'s calls
   return the decision's task (Swift's starts once the caller yields: its tests await it, RouteReadTests wait for a read to
   start) and its listeners are closures (`listen`), Windows' event; the router's lookups are async (the app reads its
   printers on the main actor); a direct printer's job list says no other computer prints there, so a job that doesn't name
   its computer, or names it by address (the printer names this Mac so), is yours when its user is, as on Windows (a macOS
   queue's rule is stricter); a failed direct job's alert gives the printer's words (`QueueJob.problem`, Windows'
-  `Problem`); the command line's `print` still prints to a macOS queue (BatchPrinterLookup and its two tests not ported); a
-  layout's copies are made by the printer or sent again as one job, where macOS's panel made them. Tests: PrintRoutingTests
-  (and the Mac's queue check), RouteReadTests, DirectPrintTests+Queues (and the state file's choice); PrintMac's
+  `Problem`); the command line's queues are CUPS destinations (by name or the name System Settings shows, never a virtual
+  one), a remembered printer's queue the one the printer list claims for it, and its printers, pins and choices the app's
+  own state file (the command runs inside the app); a layout's copies are made by the printer or sent again as one job, where macOS's panel made them. Tests: PrintRoutingTests
+  (and the Mac's queue check: paused, rejecting, a failed filter, gone), RouteReadTests, DirectPrintTests+Queues (with the
+  command line's printer and the state file's choice); PrintMac's
   DirectPrinterTests send each layout, a stop before sending and a batch to `ippeveprinter`, and read its job lists; its
   opt-in `INKVOLT_DIRECT_PRINTER=ipp://…` sends one page to a real printer (2026-11-27, the build Mac and the HP M234dw
   with no queue used: PWG raster at 300 dpi on Letter, followed to Printed).
@@ -311,7 +318,7 @@ mac/InkvoltPrintKit --build-system native`.
   through the printer's routed queue, job alerts' read; all printed, 2026-11-27). Not checked: the app's own prints on a
   real printer (the M234dw printed DirectPrinter's page; its PCLm and Apple raster weren't tried), the options dialog, the progress window, the
   Print menu's choice and the card's note on screen and with VoiceOver, Cancel mid-job on a real printer, a long document's
-  memory, a queue paused in Printers & Scanners giving way to the printer.
+  memory, a real queue stopped by a failed filter giving way to the printer.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
   `CoreStrings.xcstrings`, Windows' Spanish word for word where it exists), installed by the app only when it runs in
   Spanish: the command lines and Inkvolt PDF's use of PrintCore stay English; a test gives its own table to its own task
@@ -2514,7 +2521,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     M234dw's tree lists none), so a port would prove only that it matches an assumption. The ICA half (a scanner's button
     events through ImageCaptureCore, Windows' WIA events) needs a USB scanner with buttons on the build Mac.
   - 2.1 Print straight to the printer: done (P12 above; the M234dw printed a page straight from the build Mac). Left: the
-    app's own prints on a real printer, and a paused queue giving way to it; on screen, the options dialog, the progress
+    app's own prints on a real printer, and a queue stopped by a failed filter giving way to it; on screen, the options dialog, the progress
     window and the Print menu's choice.
   - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
     from.
