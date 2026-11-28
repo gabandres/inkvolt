@@ -1151,6 +1151,7 @@ at under "What a person must look at" and in each section.
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
 | 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
+| CBF | Finder's Convert to Word (Windows' Explorer verb) and `--convert-to` on the command line: a Services entry, the conversions window, a running copy taking another launch's files ("Finder's Convert to Word" under Command bar) | ConvertCommandTests, ConvertQueueTests, ConvertLaunchTests, LaunchHandoffTests (LaunchDropBoxTests: no Mac part) |
 | W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
 | 4.20 | Save an AI answer (roadmap 4.20): an answer (its card's Save, Tools › AI Assistant › Save AI Answer…) or the conversation (the pane's Save, Save AI Conversation…) as a Word document through `DocxWriter` or a PDF (opened in a window), or one answer as a note on the page it cites (one undo step); the conversation kept with the document's session (`AiConversation`, `AiExchange`, `AiAnswerExport`, `DocumentSession.aiConversation`; `AiSave.swift`; `--edit --only-ai` drives it) | AiAnswersTests |
 | 4.10 | AI redaction suggestions (roadmap 4.10, Pro): Tools › Redact › Suggest Redactions… (Protect on the toolbar), the user's own AI endpoint asked for names, organizations, addresses, account and ID numbers or a description, the send window always shown, the answer read as data and kept only where the text sent holds it; the names and terms list (Edit List…, no AI); both into Redact by Pattern's review list, apply, read-back, check and report, each hit named by where it came from (`RedactionSuggestions`, `RedactionTerms`, `RedactionMatch.label`, `PatternRedaction`'s labelled read-back; `RedactSuggest.swift`; `--edit --only-ai` drives it) | RedactionSuggestionsTests |
@@ -2319,6 +2320,44 @@ Shots for the owner: `docs/design/mac/`.
 - **Reserved names, one rule.** `ReservedFileNames` (PrintCore) is Windows' `DeviceNames.IsReserved` (shared/InkvoltPrint.Core):
   COM0–9, LPT0–9, COM¹ COM² COM³ LPT¹ LPT² LPT³, CONIN$, CONOUT$, trailing dots and spaces trimmed, cut at a colon, its
   tests' cases ported; Batch's names (`BatchNames`), Inkvolt Print's (`FileNameTemplate`) and `ExportTarget` use it.
+- **Finder's Convert to Word** (Windows' Explorer verb, `ConvertCommand`, `ExplorerConvert`; done 2026-11-27). PdfCore
+  `Convert/ConvertCommand.swift` (`ConvertCommand`, `ConvertQueue`, `ConvertGather`, `ConvertAnswers`, `LaunchHandoff`,
+  their tests first under Windows' names: `ConvertCommandTests`, `ConvertQueueTests`, `ConvertLaunchTests`,
+  `LaunchHandoffTests`); the app's `FinderConvert.swift` (the queue's one copy, the notice or the conversions window,
+  the windowless conversion, `ServiceProvider`, `ConvertLaunch`) and `FinderConvertTest` (`--edit --only-finder-convert`).
+  Mac differences:
+  - **A Services entry, not a verb.** Info.plist's `NSServices` ("Convert to Word with Inkvolt PDF", message
+    `convertToWord`, PDFs only, `NSRequiredContext` so it is on by default; its Spanish in `ServicesMenu.xcstrings`,
+    compiled by `assemble.sh`): Finder lists it under Services in a PDF's Control-click menu. No Action extension: an
+    app's own service needs no second bundle, and macOS starts the app when it isn't running and hands all the selected
+    files to that one copy at once, so Windows' one launch per file and its drop box (`LaunchDropBox`) have no Mac part;
+    `ConvertGather` still folds several calls of the service that come together into one list.
+  - **The command line** (`InkvoltPdf --convert-to word|excel|powerpoint|text|html <files…>`, as Windows): checked
+    before the app starts (main.swift, after `--batch`/`--watch`/`--fill`); a wrong one prints Windows' sentence in
+    English on standard error and exits 2 (Windows shows it in a dialog, then exits 2). A copy of the same app bundle
+    already running gets the request in a distributed notification (`deliverImmediately`, so a copy in the background
+    gets it; the switch carries the counts left out, as Windows' pipe line does) and answers it, and the launch exits 0;
+    with none running the launch becomes the app, converts and quits when nothing is left. `LaunchHandoff` as Windows:
+    a few launches wait (lock files with `flock` in the temporary folder, not Windows' semaphores), one converts on its
+    own after a minute, the rest exit 1 saying so. Only copies of the same bundle take each other's requests (Windows:
+    one copy per user session), so a self-test's copy built elsewhere never converts a person's files. `--help` is
+    Windows' text, which doesn't list `--convert-to` either (README does). There is no `nowindow` or per-file mode on
+    either side: the conversions window is the only way the result shows when no document window is up.
+  - **Device paths.** Windows refuses `\\.\`, pipes and mailslots; the Mac refuses any path into /dev (a terminal, a
+    pipe, `/dev/fd/0`), and converts only a regular file (a link to a FIFO or device says it can't be opened, never
+    reads it). Files are kept once each case-insensitively, as Windows (APFS's default).
+  - **Quitting.** A Mac app stays open with no window, so the app quits after its conversions only when it was started
+    for them (the command line, or the service with nothing open) and its conversions window is closed (as Windows:
+    the list stays until closed); started otherwise, it stays. A command-line conversion launch doesn't offer recovery
+    copies (their alert would hold the conversion; they are offered at the next ordinary start), and the app takes the
+    service and other launches' requests before anything modal can show.
+  - **Checked on the build Mac** (the slot's own build, through `open`: a binary started straight from SSH is outside
+    the GUI session and never gets a window server): a launch with no copy running wrote `a (2).docx` beside `a.pdf`
+    (never over `a.docx`); a second launch meanwhile handed `b.pdf` over (`b.txt` made) and exited; a wrong command
+    exits 2 with Windows' sentence; `--help` unchanged.
+  - **For a person to check:** the entry under Services in Finder's Control-click menu (en and es) once this build is
+    in /Applications (the build Mac's slot build isn't registered with the Services menu, so the self-test calls the
+    provider directly); several PDFs selected at once; VoiceOver reading the conversions window's rows.
 
 ### Paragraph editing (roadmap 2.1)
 

@@ -1,0 +1,18 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "Convert to Word with Inkvolt PDF" : {
+      "comment" : "Finder's Services entry (Info.plist's NSServices), as Windows' Explorer verb ConvertToWordVerb.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convertir a Word con Inkvolt PDF"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

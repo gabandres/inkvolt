@@ -15,6 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Documents open as tabs of one window, as the Windows app's do.
         NSWindow.allowsAutomaticWindowTabbing = true
         DialogNames.start()
+        // Finder's Convert to Word (Info.plist's NSServices) and other command-line launches' --convert-to, taken before
+        // anything modal (the recovery offer) shows: a launch waiting on this copy gets its answer.
+        NSApp.servicesProvider = ServiceProvider.shared
+        ConvertLaunch.listen()
         Report.startIfAsked()
         // The Inkvolt Pro check: again here, after Report.startIfAsked, so the self-test reads its own settings suite and
         // never the shared key file (main.swift set it first, for the command line).
@@ -27,15 +31,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Recovery copies: offer back what a crashed run left, then keep copies of unsaved work (unless Settings says not).
         if Report.isRunning { RecoveryCopies.shared.interval = Report.recoveryInterval }
         RecoveryCopies.shared.enabled = Report.isRunning || AppSettings.keepRecoveryCopies
-        // The update test shows no window: an offer of left-overs would wait on screen before the test starts.
-        RecoveryCopies.shared.start(root: Report.recoveryRoot ?? RecoveryCopies.defaultRoot(), ask: !Report.isRunning && !updates.isTesting)
+        // The update test shows no window: an offer of left-overs would wait on screen before the test starts. A launch
+        // from the command line to convert (`--convert-to`) quits when done: the offer waits for the next start.
+        RecoveryCopies.shared.start(root: Report.recoveryRoot ?? RecoveryCopies.defaultRoot(),
+                                    ask: !Report.isRunning && !updates.isTesting && FinderConvert.pendingLaunch == nil)
         updates.startTestIfAsked()
-        // Launched with no file (files from Finder arrive just after launch): the start page. After an update, once,
-        // What's New.
+        // This launch's own --convert-to (the service and other launches' requests are taken from the start, above).
+        if let request = FinderConvert.pendingLaunch {
+            FinderConvert.pendingLaunch = nil
+            FinderConvert.route(request)
+        }
+        // Launched with no file (files from Finder arrive just after launch): the start page, unless the app was started
+        // to convert. After an update, once, What's New.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             MainActor.assumeIsolated {
                 guard !Report.isRunning && !self.updates.isTesting else { return }
-                if NSDocumentController.shared.documents.isEmpty { StartWindowController.show() }
+                if NSDocumentController.shared.documents.isEmpty && !FinderConvert.isActive && !FinderConvert.quitWhenDone {
+                    StartWindowController.show()
+                }
                 WhatsNew.showOnce()
             }
         }

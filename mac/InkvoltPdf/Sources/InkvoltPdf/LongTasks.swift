@@ -491,6 +491,41 @@ extension DocumentWindowController {
         return alert.runModal() == .alertFirstButtonReturn
     }
 
+    /// Why an export saved nothing: no tables, or nothing extracted, and why the pages had no text.
+    static func nothingSaved(_ report: ExportReport, _ format: ExportFormat, pages: Int, recognize: Bool) -> String {
+        var why = ""
+        if report.noText > 0 {
+            let none = report.noText == pages ? (pages == 1 ? loc("The page has no text") : loc("None of the pages has text"))
+                : report.noText == 1 ? loc("{0} page had no text", 1) : loc("{0} pages had no text", CoreLanguage.number(report.noText))
+            let reason = !recognize ? loc("{0}: turn on \"Recognize text on scanned pages\" to read scans.", none)
+                : report.recognitionFailed.isEmpty ? loc("{0}, even after text recognition.", none)
+                : loc("{0}; text recognition failed on some of them.", none)
+            why = " " + reason
+        }
+        let one = pages == 1
+        if format == .excel {
+            return (one ? loc("No tables were found on this page, so no workbook was saved.") : loc("No tables were found on these pages, so no workbook was saved.")) + why
+        }
+        return (one ? loc("Nothing could be extracted from this page, so no file was saved.") : loc("Nothing could be extracted from these pages, so no file was saved.")) + why
+    }
+
+    /// What a saved export's notice adds: tables, pages recognized, pages without text, suspect words, failures.
+    static func exportNotes(_ report: ExportReport, _ format: ExportFormat) -> [String] {
+        var notes: [String] = []
+        if format == .excel { notes.append(report.tables == 1 ? loc("1 table") : loc("{0} tables", CoreLanguage.number(report.tables))) }
+        if report.recognized > 0 {
+            notes.append(report.recognized == 1 ? loc("{0} page recognized with OCR", 1) : loc("{0} pages recognized with OCR", CoreLanguage.number(report.recognized)))
+        }
+        if report.noText > 0 { notes.append(report.noText == 1 ? loc("{0} page without text", 1) : loc("{0} pages without text", CoreLanguage.number(report.noText))) }
+        if report.suspectWords > 0 {
+            notes.append(report.suspectWords == 1 ? loc("1 suspect word (check it against the PDF)") : loc("{0} suspect words (check them against the PDF)", CoreLanguage.number(report.suspectWords)))
+        }
+        let failed = report.recognitionFailed.count, unreadable = report.unreadable.count
+        if failed > 0 { notes.append(failed == 1 ? loc("text recognition failed on {0} page", 1) : loc("text recognition failed on {0} pages", CoreLanguage.number(failed))) }
+        if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", CoreLanguage.number(unreadable))) }
+        return notes
+    }
+
     /// The engine an export reads: the document with `layers` shown or hidden as in the Layers pane (none: as it is).
     nonisolated static func exportEngine(_ data: [UInt8], _ password: String?, _ layers: [Int: Bool]) throws -> PdfEngine {
         if layers.isEmpty { return try PdfEngine.open(data, password: password) }
@@ -551,35 +586,10 @@ extension DocumentWindowController {
         case .success(let report):
             lastExport = report
             if !report.saved {
-                var why = ""
-                if report.noText > 0 {
-                    let none = report.noText == chosen.count ? (chosen.count == 1 ? loc("The page has no text") : loc("None of the pages has text"))
-                        : report.noText == 1 ? loc("{0} page had no text", 1) : loc("{0} pages had no text", CoreLanguage.number(report.noText))
-                    let reason = !recognize ? loc("{0}: turn on \"Recognize text on scanned pages\" to read scans.", none)
-                        : report.recognitionFailed.isEmpty ? loc("{0}, even after text recognition.", none)
-                        : loc("{0}; text recognition failed on some of them.", none)
-                    why = " " + reason
-                }
-                let one = chosen.count == 1
-                if format == .excel {
-                    notify((one ? loc("No tables were found on this page, so no workbook was saved.") : loc("No tables were found on these pages, so no workbook was saved.")) + why)
-                } else {
-                    notify((one ? loc("Nothing could be extracted from this page, so no file was saved.") : loc("Nothing could be extracted from these pages, so no file was saved.")) + why)
-                }
+                notify(Self.nothingSaved(report, format, pages: chosen.count, recognize: recognize))
                 return report
             }
-            var notes: [String] = []
-            if format == .excel { notes.append(report.tables == 1 ? loc("1 table") : loc("{0} tables", CoreLanguage.number(report.tables))) }
-            if report.recognized > 0 {
-                notes.append(report.recognized == 1 ? loc("{0} page recognized with OCR", 1) : loc("{0} pages recognized with OCR", CoreLanguage.number(report.recognized)))
-            }
-            if report.noText > 0 { notes.append(report.noText == 1 ? loc("{0} page without text", 1) : loc("{0} pages without text", CoreLanguage.number(report.noText))) }
-            if report.suspectWords > 0 {
-                notes.append(report.suspectWords == 1 ? loc("1 suspect word (check it against the PDF)") : loc("{0} suspect words (check them against the PDF)", CoreLanguage.number(report.suspectWords)))
-            }
-            let failed = report.recognitionFailed.count, unreadable = report.unreadable.count
-            if failed > 0 { notes.append(failed == 1 ? loc("text recognition failed on {0} page", 1) : loc("text recognition failed on {0} pages", CoreLanguage.number(failed))) }
-            if unreadable > 0 { notes.append(unreadable == 1 ? loc("{0} page couldn't be read", 1) : loc("{0} pages couldn't be read", CoreLanguage.number(unreadable))) }
+            let notes = Self.exportNotes(report, format)
             let file = url.lastPathComponent, count = chosen.count
             if let inDocuments = atOnce {
                 let list = notes.joined(separator: ", ")

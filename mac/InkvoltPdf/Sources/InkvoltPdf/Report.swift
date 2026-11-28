@@ -68,6 +68,8 @@ enum Report {
         Scenario(flag: "--only-read-aloud", documents: .notForm) { c, n in var t = ReadAloudTest(controller: c, name: n); await t.run() },
         // The command bar: its groups, names, menus and colours; Convert › Word in one click (shots with --snapshots).
         Scenario(flag: "--only-command-bar", documents: .synthetic) { c, n in var t = CommandBarTest(controller: c, name: n); await t.run() },
+        // Finder's Convert to Word: the notice for one file, the conversions window for several, Cancel.
+        Scenario(flag: "--only-finder-convert", documents: .synthetic) { c, n in var t = FinderConvertTest(controller: c, name: n); await t.run() },
         // The menu bar and the palette listed, to diff a menu change by.
         Scenario(flag: "--only-menus", documents: .synthetic) { c, n in var t = MenuTest(controller: c, name: n); await t.run() },
         // Edit › Find › Search Folders… on a folder of synthetic PDFs, with an index folder of its own.
