@@ -78,8 +78,11 @@ struct ParityTest {
         let pngs = files.filter { $0.hasSuffix(".png") && head($0) == [0x89, 0x50, 0x4E] }
         let jpegs = files.filter { $0.hasSuffix(".jpg") && head($0) == [0xFF, 0xD8, 0xFF] }
         check(files.count == 4 && pngs.count == 2 && jpegs.count == 1, "export images: 2 PNG and 1 JPEG written beside a taken name (\(files.count) files)")
-        check(files.contains { $0.hasSuffix("page 1 (2).png") }, "export images: the taken name kept, the new one numbered")
-        if let png = pngs.first(where: { $0.contains("page 2") }), let rep = NSBitmapImageRep(data: FileManager.default.contents(atPath: dir + "/" + png) ?? Data()) {
+        // The names are the app's own, in its language ("… - página 1.png" in Spanish, as on Windows' File_PageImageName).
+        let taken = PageImageExport.fileName(stem, page: 0, jpeg: false)
+        let numbered = (taken as NSString).deletingPathExtension + " (2).png"
+        check(files.contains(taken) && files.contains(numbered), "export images: the taken name kept, the new one numbered")
+        if let png = pngs.first(where: { $0 == PageImageExport.fileName(stem, page: 1, jpeg: false) }), let rep = NSBitmapImageRep(data: FileManager.default.contents(atPath: dir + "/" + png) ?? Data()) {
             let g = controller.engine.page(1)
             check(abs(rep.pixelsWide - Int((g.width).rounded())) <= 1, "export images: 72 dpi is the page's size in points (\(rep.pixelsWide) px)")
         } else {

@@ -352,6 +352,38 @@ public class RedactionLinesTests
     }
 
     [Fact]
+    public void AHighlightedLineIsLaidOutAgain()
+    {
+        // A highlight from the line's first letter to its last: the paper beside the line is white, its spaces yellow. The
+        // yellow is the line's background, not a rule or a picture: the line is laid out again (recorded as Inkvolt's, so
+        // the check doesn't report its box), and two names leave the same line. Before, it stayed in place and the space
+        // after the box still told the name's width.
+        static byte[] Highlighted(string text, bool rule = false)
+        {
+            var b = Boxes(Page(Show(text)), text)[0].Inflate(-1);
+            var was = Boxes(Page(Show(text)), "was")[0];
+            var fill = string.Create(CultureInfo.InvariantCulture, $"1 0.85 0.1 rg {b.X:0.##} {792 - b.Bottom:0.##} {b.Width:0.##} {b.Height:0.##} re f 0 g ");
+            return Page(fill + (rule ? string.Create(CultureInfo.InvariantCulture, $"{was.X - 3:0.##} 690 1 30 re f ") : "") + Show(text));
+        }
+        static List<RectD> LaidOut(byte[] data)
+        {
+            using var doc = PdfObj.Read(data, null, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Import);
+            return [.. Redaction.LaidOutBoxes(PdfObj.Dict(PdfObj.Dict(PdfObj.Dict(doc.Pages[0].Elements["/Resources"])!.Elements["/XObject"])!.Elements["/PdRedacted"])!)];
+        }
+        var ra = Redact(Highlighted("Patient: Robert Kahn was seen on Monday"), "Robert Kahn");
+        var rb = Redact(Highlighted("Patient: Bob Kahn was seen on Monday"), "Bob Kahn");
+        Assert.Single(ra.Blacked[0]);
+        Assert.Single(rb.Blacked[0]);
+        Assert.Equal(ra.Blacked[0][0], rb.Blacked[0][0]);
+        SameLine(Ink(ra.Data, LineStrip), Ink(rb.Data, LineStrip));
+        Assert.Single(LaidOut(ra.Data));
+
+        // A rule in a highlighted line's space still keeps the line where it is.
+        var ruled = Redact(Highlighted("Patient: Robert Kahn was seen on Monday", rule: true), "Robert Kahn");
+        Assert.Empty(LaidOut(ruled.Data));
+    }
+
+    [Fact]
     public void LinesWhoseBandsOverlapAreEachLaidOutFromThePageAsItWas()
     {
         // Tight leading: the bands of the two lines overlap. The second line is laid out from the page as it was, not from

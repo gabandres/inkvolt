@@ -434,11 +434,18 @@ internal static class RedactionLines
             (canvas.Rgb[o], canvas.Rgb[o + 1], canvas.Rgb[o + 2]) = paper[c - y0];
         }
 
-        // Its spaces must be paper: a rule or a picture there would be cut up and moved.
+        // Its spaces must be paper, or the colour the line's own spaces share (a highlight, a shaded cell: the line's
+        // background, which the paper beside a line highlighted from its first letter to its last isn't): a rule or a
+        // picture there would be cut up and moved.
         var mid = (y0 + y1) / 2;
         var inPiece = new bool[right - left];
         for (var k = 0; k < pieces.Count; k++)
             for (var a = Math.Max(left, oldStart[k] - 1); a < Math.Min(right, oldEnd[k] + 1); a++) inPiece[a - left] = true;
+        var spaceStart = Math.Min(Math.Max(left, oldStart[0]), right);
+        var spaces = Enumerable.Range(spaceStart, Math.Max(spaceStart, Math.Min(right, oldEnd[^1])) - spaceStart)
+            .Where(a => !inPiece[a - left] && !Blacked(a, mid)).ToArray();
+        var shared = Enumerable.Range(y0, y1 - y0).Select(c => SharedColour(canvas.Before, [.. spaces.Select(a => At(a, c))])).ToArray();
+        bool Near(int o, (byte R, byte G, byte B) colour) => Distance(canvas.Before, o, colour) <= 120;
         var busy = false;
         for (var a = left; a < right && !busy; a++)
         {
@@ -447,8 +454,8 @@ internal static class RedactionLines
             for (var c = y0; c < y1; c++)
             {
                 var o = At(a, c);
-                var (r, g, b) = paper[c - y0];
-                if (Math.Abs(canvas.Before[o] - r) + Math.Abs(canvas.Before[o + 1] - g) + Math.Abs(canvas.Before[o + 2] - b) > 120) ink++;
+                if (Near(o, paper[c - y0]) || shared[c - y0] is { } s && Near(o, s)) continue;
+                ink++;
             }
             busy = ink > 0.5 * (y1 - y0);
         }
@@ -493,6 +500,32 @@ internal static class RedactionLines
             }
         }
         return result with { Rows = Rect(left, right) };
+    }
+
+    /// <summary>How far the pixel at <paramref name="o"/> is from <paramref name="colour"/>: the sum of its channels' differences.</summary>
+    internal static int Distance(byte[] rgb, int o, (byte R, byte G, byte B) colour) =>
+        Math.Abs(rgb[o] - colour.R) + Math.Abs(rgb[o + 1] - colour.G) + Math.Abs(rgb[o + 2] - colour.B);
+
+    /// <summary>
+    /// The colour nine in ten of the pixels at <paramref name="offsets"/> share (each within 120 of it), or null: a line's
+    /// background on one row, from its spaces. A rule or a picture's edge in a space is a few of them; a picture filling
+    /// them isn't one colour.
+    /// </summary>
+    internal static (byte R, byte G, byte B)? SharedColour(byte[] rgb, int[] offsets)
+    {
+        if (offsets.Length < 2) return null;
+        var counts = new Dictionary<int, int>();
+        var first = new Dictionary<int, int>();
+        foreach (var o in offsets)
+        {
+            var k = rgb[o] >> 4 << 8 | rgb[o + 1] >> 4 << 4 | rgb[o + 2] >> 4;
+            counts[k] = counts.GetValueOrDefault(k) + 1;
+            first.TryAdd(k, o);
+        }
+        var top = counts.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).First().Key; // of equal counts the lowest, as the Mac
+        var p = first[top];
+        (byte R, byte G, byte B) colour = (rgb[p], rgb[p + 1], rgb[p + 2]);
+        return offsets.Count(o => Distance(rgb, o, colour) <= 120) >= 0.9 * offsets.Length ? colour : null;
     }
 
     /// <summary>A line left where it is: each new box rounded from its start, no further than the next piece, its rest paper.</summary>

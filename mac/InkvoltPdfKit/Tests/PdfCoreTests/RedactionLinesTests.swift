@@ -341,6 +341,33 @@ import Testing
         #expect(!(r.blacked[0] ?? []).isEmpty)
     }
 
+    @Test func aHighlightedLineIsLaidOutAgain() throws {
+        // A highlight from the line's first letter to its last: the paper beside the line is white, its spaces yellow. The
+        // yellow is the line's background, not a rule or a picture: the line is laid out again (recorded as Inkvolt's, so
+        // the check doesn't report its box), and two names leave the same line. Before, it stayed in place and the space
+        // after the box still told the name's width.
+        func highlighted(_ text: String, rule: Bool = false) throws -> [UInt8] {
+            let b = try Self.boxes(Self.page(Self.show(text)), text)[0].inflate(-1)
+            let fill = "1 0.85 0.1 rg \(PdfNum.f2(b.x)) \(PdfNum.f2(792 - b.bottom)) \(PdfNum.f2(b.width)) \(PdfNum.f2(b.height)) re f 0 g "
+            let was = try Self.boxes(Self.page(Self.show(text)), "was")[0]
+            return Self.page(fill + (rule ? "\(PdfNum.f2(was.x - 3)) 690 1 30 re f " : "") + Self.show(text))
+        }
+        let a = try highlighted("Patient: Robert Kahn was seen on Monday")
+        let b = try highlighted("Patient: Bob Kahn was seen on Monday")
+        let ra = try Self.redact(a, "Robert Kahn")
+        let rb = try Self.redact(b, "Bob Kahn")
+        try #require(ra.blacked[0]?.count == 1 && rb.blacked[0]?.count == 1)
+        #expect(ra.blacked[0]![0] == rb.blacked[0]![0])
+        Self.sameLine(try Self.ink(ra.data, Self.lineStrip), try Self.ink(rb.data, Self.lineStrip))
+        let image = try #require(try PdfEdit.openToRead(ra.data, nil).page(0).dict("Resources")?.dict("XObject")?.dict("PdRedacted"))
+        #expect(Redaction.laidOutBoxes(image).count == 1)
+
+        // A rule in a highlighted line's space still keeps the line where it is.
+        let ruled = try Self.redact(try highlighted("Patient: Robert Kahn was seen on Monday", rule: true), "Robert Kahn")
+        let kept = try #require(try PdfEdit.openToRead(ruled.data, nil).page(0).dict("Resources")?.dict("XObject")?.dict("PdRedacted"))
+        #expect(Redaction.laidOutBoxes(kept).isEmpty)
+    }
+
     @Test func linesWhoseBandsOverlapAreEachLaidOutFromThePageAsItWas() throws {
         // Tight leading: the bands of the two lines overlap. The second line is laid out from the page as it was, not from
         // the first line's moved pixels in the rows they share: its rows come out exactly as when it is redacted alone.
