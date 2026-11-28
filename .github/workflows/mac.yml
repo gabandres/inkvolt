@@ -34,7 +34,8 @@ jobs:
   # the script changes (a fresh build takes most of this job's time).
   pdf:
     runs-on: macos-15
-    timeout-minutes: 45
+    # 60: MuPDF built afresh (4 min), the tests (~29) and the app's release build (~12) passed 45 at its end (run 46128212911).
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v7
       - run: |
