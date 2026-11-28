@@ -49,6 +49,40 @@ public class ImageImportTests
         Assert.True(topLeft.G > 200, $"{topLeft}");
     }
 
+    /// <summary>
+    /// The paragraph editor's Insert Picture reads a picture's size from its header (the pre-release review, from the Mac
+    /// port): the header reader had no JPEG case, so every JPEG was "not an image". A JPEG's SOF segment gives it, its EXIF
+    /// turn counted; a truncated file, a zero-length or overlong segment, endless fill bytes or a size past MaxPixels give none.
+    /// </summary>
+    [Fact]
+    public void AJpegsPixelSizeComesFromItsFrameHeader()
+    {
+        var jpeg = TestImages.Jpeg(120, 80);
+        Assert.Equal((120, 80), ImageImport.PixelSize(jpeg, "photo.jpg"));
+        Assert.Equal((100, 200), ImageImport.PixelSize(TestImages.WithExifOrientation(TestImages.Jpeg(200, 100), 6), "turned.jpg"));
+        Assert.Equal((300, 200), ImageImport.PixelSize(Frame(0xC2, 200, 300), "x.jpg")); // progressive (SOF2)
+        Assert.Equal((300, 200), ImageImport.PixelSize(Frame(0xC1, 200, 300), "x.jpg")); // extended (SOF1)
+
+        // Truncated inside the frame header, or before it: no size.
+        var sof = Enumerable.Range(2, jpeg.Length - 3).First(i => jpeg[i] == 0xFF && jpeg[i + 1] is 0xC0 or 0xC1 or 0xC2);
+        foreach (var cut in new[] { 3, sof, sof + 5, sof + 8 }) Assert.Equal((0, 0), ImageImport.PixelSize(jpeg[..cut], "cut.jpg"));
+
+        Assert.Equal((0, 0), ImageImport.PixelSize([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x00, .. Frame(0xC0, 10, 10)[2..]], "zero.jpg"));
+        Assert.Equal((0, 0), ImageImport.PixelSize([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x01, .. Frame(0xC0, 10, 10)[2..]], "one.jpg"));
+        Assert.Equal((0, 0), ImageImport.PixelSize([0xFF, 0xD8, 0xFF, 0xE0, 0xFF, 0xFF, 0, 0], "overlong.jpg"));
+        Assert.Equal((0, 0), ImageImport.PixelSize([0xFF, 0xD8, .. Enumerable.Repeat((byte)0xFF, 1_000_000)], "fill.jpg"));
+        Assert.Equal((0, 0), ImageImport.PixelSize(Frame(0xC0, 0, 300), "flat.jpg"));
+        Assert.Equal((0, 0), ImageImport.PixelSize(Frame(0xC0, 65535, 65535), "huge.jpg")); // 4.3 billion pixels
+        Assert.Equal((0, 0), ImageImport.PixelSize(Frame(0xC0, 200, 300, bits: 12), "deep.jpg")); // DCTDecode wants 8 bits
+
+        // SOI, then a frame header (SOFn: 8-bit, height, width, 3 components) and the end.
+        static byte[] Frame(byte sof, int height, int width, byte bits = 8) =>
+        [
+            0xFF, 0xD8, 0xFF, sof, 0x00, 17, bits, (byte)(height >> 8), (byte)height, (byte)(width >> 8), (byte)width, 3,
+            1, 0x22, 0, 2, 0x11, 1, 3, 0x11, 1, 0xFF, 0xD9,
+        ];
+    }
+
     [Fact]
     public void PngWithAlphaGetsAnSMask()
     {
