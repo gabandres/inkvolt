@@ -286,7 +286,7 @@ final class PdfDocument: NSDocument {
     private func fail(_ error: Error) {
         let shown = openURL?.lastPathComponent ?? name
         Report.failed(shown, error)
-        AppLog.write("Open failed: \(shown) (\(type(of: error)): \(error))")
+        AppLog.write("Open failed: \(AppLog.name(shown)) (\(AppLog.describe(error)))")
         let alert = NSAlert()
         alert.messageText = loc("{0} couldn't be opened.", shown)
         alert.informativeText = NSAlert.plainText(error)
@@ -295,7 +295,7 @@ final class PdfDocument: NSDocument {
 
     func showError(_ message: String, _ error: Error?) {
         Report.note("ERROR \(message) \(error.map { "\(type(of: $0)): \($0)" } ?? "")")
-        AppLog.write("\(AppLog.name(fileURL?.path)): \(message)\(error.map { " (\(type(of: $0)): \($0))" } ?? "")")
+        AppLog.write("\(AppLog.name(fileURL?.path)): \(AppLog.scrubbed(message))\(error.map { " (\(AppLog.describe($0)))" } ?? "")")
         if Report.skipsDialogs { return }
         let alert = NSAlert()
         alert.messageText = message

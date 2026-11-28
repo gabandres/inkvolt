@@ -22,6 +22,33 @@ public enum AppLog {
         return (path as NSString).lastPathComponent
     }
 
+    /// An error as a line may hold it: its type, and only what can't be the user's paths or a document's words. A Cocoa or
+    /// POSIX error's description names the file's full path (NSFilePath), so only its domain and code; MuPDF's message
+    /// (`PdfEngineError`, the shim's "cannot open <path>" among them) with every path cut to its file name and anything
+    /// quoted left out; any other error (an edit's, which can quote the document's text) by its type alone.
+    public static func describe(_ error: Error) -> String {
+        let kind = String(describing: type(of: error))
+        if let e = error as? PdfEngineError { return "\(kind): \(scrubbed(e.message))" }
+        let ns = error as NSError
+        if error is CocoaError || [NSCocoaErrorDomain, NSPOSIXErrorDomain, NSOSStatusErrorDomain, NSURLErrorDomain].contains(ns.domain) {
+            return "\(kind): \(ns.domain) \(ns.code)"
+        }
+        return kind
+    }
+
+    private static let pathPattern = try! NSRegularExpression(pattern: #"(?<!\S)~?/(?:[^/\n:"“”]*/)*([^/\n:"“”]*)"#)
+    private static let quotedPattern = try! NSRegularExpression(pattern: #""[^"\n]*"|“[^”\n]*”"#)
+
+    /// `text` with each path (from a "/" or "~/" after a space or the start, to a ":" or the line's end) cut to its last
+    /// part, anything in double quotes as "…" (single ones are apostrophes too), and at most 300 characters.
+    public static func scrubbed(_ text: String) -> String {
+        var s = text as NSString
+        s = pathPattern.stringByReplacingMatches(in: s as String, range: NSRange(location: 0, length: s.length), withTemplate: "$1") as NSString
+        s = quotedPattern.stringByReplacingMatches(in: s as String, range: NSRange(location: 0, length: s.length), withTemplate: "\"…\"") as NSString
+        let out = s as String
+        return out.count > 300 ? String(out.prefix(300)) + "…" : out
+    }
+
     /// A line with the time (the computer's, to the millisecond); a message of several lines continues indented.
     public static func write(_ message: String, now: Date = Date()) {
         let text = message.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\n", with: "\n    ")
