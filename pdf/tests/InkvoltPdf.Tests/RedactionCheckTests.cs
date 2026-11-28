@@ -234,6 +234,25 @@ public class RedactionCheckTests
         };
     }
 
+    /// <summary>
+    /// The Mac's pre-release review, checked here: the boxes in a page's pictures were looked for line by line, picture by
+    /// picture, column by column: one picture drawn thousands of times (each clipped to nothing, so drawing it costs
+    /// nothing) over forty lines made some 10^10 pixel tests. The pictures' columns are merged per line first.
+    /// </summary>
+    [Fact]
+    public void OnePictureDrawnThousandsOfTimesIsLookedThroughOnce()
+    {
+        var lines = string.Join(" ", Enumerable.Range(0, 40).Select(i => $"BT /F1 12 Tf 72 {740 - i * 16} Td (Line {i} of the report) Tj ET"));
+        var draws = string.Concat(Enumerable.Repeat("q 0 0 1 1 re W n 540 0 0 700 36 50 cm /Im1 Do Q ", 15000)); // some 30 s before
+        var pdf = OnePage(lines + " " + draws, more: [Picture()], xobjects: "/Im1 6 0 R");
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        var report = RedactionCheck.Run(pdf, null);
+        Assert.True(watch.Elapsed.TotalSeconds < 10, $"{watch.Elapsed}");
+        Assert.DoesNotContain(report.Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+        // A box drawn into a picture is still found where it is.
+        Assert.Single(RedactionCheck.Run(PictureSpacing(), null).Findings, f => f.Kind == RedactionLeak.GlyphSpacing);
+    }
+
     [Theory]
     [MemberData(nameof(BadKinds))]
     public void BadRedactionsAreFlaggedAndProperOnesAreNot(string kind)
