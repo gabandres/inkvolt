@@ -135,8 +135,22 @@ public enum ConvertCommand {
 
     private static func full(_ arg: String, _ folder: String) -> String? {
         let full = arg.hasPrefix("/") ? arg : (folder as NSString).appendingPathComponent(arg)
-        let path = URL(fileURLWithPath: full).standardizedFileURL.path
+        let path = standardized(full)
         return onDisk(path) ? path : nil
+    }
+
+    /// `path` (full) with "." and ".." taken out and repeated slashes joined, by its text alone: nothing on disk is
+    /// asked, and a path past PATH_MAX is kept whole (macOS 15's `URL.standardizedFileURL` cuts it at 1,024 bytes).
+    static func standardized(_ path: String) -> String {
+        var parts: [Substring] = []
+        for part in path.split(separator: "/", omittingEmptySubsequences: true) {
+            switch part {
+            case ".": continue
+            case "..": _ = parts.popLast() // above the root stays at the root
+            default: parts.append(part)
+            }
+        }
+        return "/" + parts.joined(separator: "/")
     }
 
     /// A path to a file, not into /dev (a terminal, a pipe, `/dev/fd/0`: a read that can hold a conversion for good).
