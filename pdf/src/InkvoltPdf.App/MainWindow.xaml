@@ -211,6 +211,8 @@
                                         <MenuItem Command="app:Cmd.ExportFormData" />
                                         <MenuItem Command="app:Cmd.ImportFormData" />
                                         <MenuItem Command="app:Cmd.FillFormsFromCsv" />
+                                        <Separator />
+                                        <MenuItem Command="app:Cmd.ResetForm" />
                                     </MenuItem>
                                     <Separator />
                                     <MenuItem Command="app:Cmd.CommandPalette" />

@@ -574,6 +574,18 @@
   <data name="Cmd_FillFormsFromCsv" xml:space="preserve">
     <value>Llenar formularios desde _CSV…</value>
   </data>
+  <data name="Cmd_ResetForm" xml:space="preserve">
+    <value>_Restablecer formulario…</value>
+  </data>
+  <data name="FormData_ResetTitle" xml:space="preserve">
+    <value>¿Restablecer el formulario?</value>
+  </data>
+  <data name="FormData_ResetBody" xml:space="preserve">
+    <value>Cada campo vuelve a su valor predeterminado. Puedes deshacerlo.</value>
+  </data>
+  <data name="FormData_ResetDone" xml:space="preserve">
+    <value>Se restableció el formulario.</value>
+  </data>
   <data name="Cmd_ToolPen" xml:space="preserve">
     <value>_Pluma</value>
   </data>

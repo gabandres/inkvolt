@@ -1200,8 +1200,8 @@ From the steps, besides the sections below:
   Signature menu lists them with their pictures, Draw and Type make a new one (disabled with three saved), and Delete a
   Saved Signature asks first; the menu bar's Tools › Place Saved Signature lists them too; Sign Digitally's Image picks
   any saved signature (Windows: the same). Form data goes in and out as XFDF and FDF only (Windows also CSV and JSON), through
-  `FormEditor.resetForm`, `exportData` and `importData`, which have no .NET counterpart file (their tests:
-  FormDataExchangeTests); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
+  `FormEditor.resetForm`, `exportData` and `importData` (their tests: FormDataExchangeTests; Windows' Reset Form
+  came later as `FormEditor.ResetForm`, tested by FormDataTests.ResetFormRestoresDefaultsAndRecalculates); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
   Windows app shows as notifications go to a bar over the pages.
 - The app (D7 part d): the close and quit questions are AppKit's (NSDocument: Save, Don't Save, Cancel for each document;
   quitting with several changed documents first offers to review them); the self-test answers them through the same

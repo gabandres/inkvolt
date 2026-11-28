@@ -45,6 +45,7 @@ public partial class MainWindow
         BindEdit(Cmd.ExportFormData, t => FormDataActions.Export(this, t));
         BindEdit(Cmd.ImportFormData, t => FormDataActions.Import(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.FillFormsFromCsv, t => FormDataActions.FillFromCsv(this, t));
+        BindEdit(Cmd.ResetForm, t => FormDataActions.Reset(this, t), t => !t.IsOrganizing);
         BindEdit(Cmd.AddHeaderFooter, t => PageMarkActions.AddHeaderFooter(this, t));
         BindEdit(Cmd.RemoveHeaderFooter, PageMarkActions.RemoveHeaderFooter);
         BindEdit(Cmd.AddWatermark, t => PageMarkActions.AddWatermark(this, t));

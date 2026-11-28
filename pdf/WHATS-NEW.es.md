@@ -6,6 +6,7 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Edición › Formularios › Restablecer formulario… devuelve cada campo de un formulario a su valor predeterminado, en un solo paso que puedes deshacer.
 
 ## 1.19.1
 - Cuando una actualización de Windows deja roto el controlador de una impresora (y Windows ya no puede imprimir en ella desde ninguna app), Imprimir te lo dice antes de abrir el cuadro de impresión, te explica cómo arreglar la impresora y te ofrece imprimir el documento con Inkvolt Print, que lo envía directamente a una impresora de red.

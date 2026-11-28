@@ -575,6 +575,18 @@
   <data name="Cmd_FillFormsFromCsv" xml:space="preserve">
     <value>Fill Forms from _CSV…</value>
   </data>
+  <data name="Cmd_ResetForm" xml:space="preserve">
+    <value>_Reset Form…</value>
+  </data>
+  <data name="FormData_ResetTitle" xml:space="preserve">
+    <value>Reset the form?</value>
+  </data>
+  <data name="FormData_ResetBody" xml:space="preserve">
+    <value>Every field goes back to its default value. You can undo this.</value>
+  </data>
+  <data name="FormData_ResetDone" xml:space="preserve">
+    <value>The form was reset.</value>
+  </data>
   <data name="Cmd_ToolPen" xml:space="preserve">
     <value>_Pen</value>
   </data>

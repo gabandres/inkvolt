@@ -254,6 +254,7 @@ public static class Cmd
     public static readonly RoutedUICommand ExportFormData = Make(Strings.Cmd_ExportFormData, nameof(ExportFormData));
     public static readonly RoutedUICommand ImportFormData = Make(Strings.Cmd_ImportFormData, nameof(ImportFormData));
     public static readonly RoutedUICommand FillFormsFromCsv = Make(Strings.Cmd_FillFormsFromCsv, nameof(FillFormsFromCsv));
+    public static readonly RoutedUICommand ResetForm = Make(Strings.Cmd_ResetForm, nameof(ResetForm));
 
     // Drawing tools. Their keys (P, M, R, E, L, W, V, Z, B, C) are page-view keys like H and T, not commands: see DrawTools.KeyOf.
     public static readonly RoutedUICommand ToolPen = Make(Strings.Cmd_ToolPen, nameof(ToolPen));

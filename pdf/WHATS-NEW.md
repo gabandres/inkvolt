@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- Edit › Forms › Reset Form… puts every field of a form back to its default value, in one step you can undo.
 
 ## 1.19.1
 - When a Windows update leaves a printer's driver broken (Windows then can't print to it from any app), printing says so before the print dialog opens, explains how to fix the printer, and offers to print the document with Inkvolt Print, which sends it straight to a network printer.
