@@ -17,17 +17,18 @@ enum ContentEditPdf {
     ///   - fontText: the characters the fonts hold (default `fontText`).
     ///   - faces: also /FB (Arial Bold, WinAnsi) and /FT (Times New Roman, WinAnsi), holding `fontText` too.
     ///   - standard: also /FS, this standard font (Symbol, ZapfDingbats) not embedded, without widths or descriptor.
+    ///   - timesName: /FT's /BaseFont and its descriptor's /FontName (Windows' tests' `WithTimesNamed`).
     static func make(_ content: String, rotate: Int = 0, form: String? = nil, extraStreams: [String]? = nil, formInherits: Bool = false,
                      damagedPart: Bool = false, fontText: String = ContentEditPdf.fontText, faces: Bool = false,
-                     standard: String? = nil) -> [UInt8] {
+                     standard: String? = nil, timesName: String = "AAAAAA+TimesNewRomanPSMT") -> [UInt8] {
         make(pages: [content], rotate: rotate, form: form, extraStreams: extraStreams, formInherits: formInherits, damagedPart: damagedPart,
-             fontText: fontText, faces: faces, standard: standard)
+             fontText: fontText, faces: faces, standard: standard, timesName: timesName)
     }
 
     /// `make` with a page for each of `pages`, sharing its resources (Translate's reports of many pages).
     static func make(pages: [String], rotate: Int = 0, form: String? = nil, extraStreams: [String]? = nil, formInherits: Bool = false,
                      damagedPart: Bool = false, fontText: String = ContentEditPdf.fontText, faces: Bool = false,
-                     standard: String? = nil) -> [UInt8] {
+                     standard: String? = nil, timesName: String = "AAAAAA+TimesNewRomanPSMT") -> [UInt8] {
         let doc = try! MuDoc.create()
         let (fa, fu) = fonts(doc, fontText)
         let red = [UInt8](repeating: 0, count: 24).enumerated().map { $0.offset % 3 == 0 ? UInt8(255) : 0 }
@@ -43,7 +44,7 @@ enum ContentEditPdf {
         let fontDict = doc.dict([("FA", fa), ("FU", fu)])
         if faces {
             fontDict.set("FB", simpleFont(doc, ArialSubset.of(fontText, file: "Arial Bold.ttf"), "AAAAAA+Arial-BoldMT", flags: 32 | 0x40000))
-            fontDict.set("FT", simpleFont(doc, ArialSubset.of(fontText, file: "Times New Roman.ttf"), "AAAAAA+TimesNewRomanPSMT", flags: 34))
+            fontDict.set("FT", simpleFont(doc, ArialSubset.of(fontText, file: "Times New Roman.ttf"), timesName, flags: 34))
         }
         if let standard {
             // A standard font as old software wrote it: no widths, no descriptor, nothing embedded.

@@ -135,6 +135,49 @@ enum Bidi {
     /// Whether the text starts (its first strong character) right to left.
     static func isRtl(_ text: String) -> Bool { levels(text).paragraph == 1 }
 
+    /// A line's characters as drawn left to right (visual order, as Word and a translated copy write right-to-left text)
+    /// put in reading order: rule L2's reversals, which undo themselves, with the line's direction that of most of its
+    /// letters (a right-to-left line's English word at its left end doesn't make it left to right). Character by
+    /// character, as MuPDF and pdf.js read it: a glyph standing for several characters holds them backwards
+    /// (`TextShaper.shape`).
+    static func toReadingOrder(_ text: String) -> String {
+        var rtl = 0, ltr = 0
+        for s in text.unicodeScalars {
+            switch classify(s.value) {
+            case .R, .AL: rtl += 1
+            case .L: ltr += 1
+            default: break
+            }
+        }
+        if rtl == 0 { return text }
+        let levels = levels(text, paragraphLevel: rtl > ltr ? 1 : 0).levels
+        var units: [(text: Unicode.Scalar, level: UInt8)] = []
+        var at = 0
+        for s in text.unicodeScalars {
+            units.append((s, at < levels.count ? levels[at] : 0))
+            at += s.utf16.count
+        }
+        if units.isEmpty { return text }
+        let maxLevel = Int(units.map(\.level).max()!)
+        let minOdd = units.filter { $0.level % 2 == 1 }.map { Int($0.level) }.min() ?? Int.max
+        var level = maxLevel
+        while level >= minOdd {
+            var i = 0
+            while i < units.count {
+                if Int(units[i].level) < level {
+                    i += 1
+                    continue
+                }
+                var j = i
+                while j < units.count && Int(units[j].level) >= level { j += 1 }
+                units[i..<j].reverse()
+                i = j
+            }
+            level -= 1
+        }
+        return String(String.UnicodeScalarView(units.map(\.text)))
+    }
+
     static func classify(_ cp: UInt32) -> Cls {
         switch cp {
         case 0x30...0x39: return .EN

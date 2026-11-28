@@ -8,7 +8,7 @@ import PrintCore
 /// setup and sends nothing. On: the "what is sent, where" window shows first; each paragraph goes alone with the
 /// translator's instructions and nothing else; the copy opens in a window of its own with the original beside it on the
 /// left, scrolling with it, its words translated, the bold word bold, its language set; the document stays as it was.
-/// Then an endpoint that refuses the key partway: the run stops, the part done is kept on request and the summary says
+/// Then into Arabic: the copy reads in order and its bold words are bold. Then an endpoint that refuses the key partway: the run stops, the part done is kept on request and the summary says
 /// why. Settings and keys stay in memory; only counts and the test's own words are written.
 @MainActor
 struct TranslateTest {
@@ -60,6 +60,11 @@ struct TranslateTest {
         return Array(out.utf8)
     }
 
+    /// The stand-in's Arabic for the paragraph with the bold words ("…costs rose <b>more slowly</b>…"), its tags kept,
+    /// and for every other paragraph.
+    nonisolated static let arabicBold = "نمت الإيرادات في كل منطقة وارتفعت التكاليف <b>ببطء أكثر</b> مما توقع المجلس."
+    nonisolated static let arabicPlain = "نتائج الربع الأول"
+
     /// A chat request's last message, as the server got it.
     nonisolated private static func userText(_ received: AiLoopbackServer.Received) -> (system: String, user: String, count: Int) {
         guard let root = try? JSONSerialization.jsonObject(with: Data(received.body.utf8)) as? [String: Any],
@@ -75,10 +80,12 @@ struct TranslateTest {
         AppSettings.aiKeys = keys
         AppSettings.ai = AiSettings()
         defer { AppSettings.ai = AiSettings() }
-        // The stand-in: "[es]" before each paragraph, its markup kept; a 401 for the paragraph that asks for it.
+        // The stand-in: "[es]" before each paragraph, its markup kept; a 401 for the paragraph that asks for it; into
+        // Arabic, the bold paragraph as Arabic with its bold kept, the others as one Arabic phrase.
         guard let server = AiLoopbackServer(answer: { received in
-            let text = Self.userText(received).user
+            let (system, text, _) = Self.userText(received)
             if text.contains("Refuse") { return .json(401, #"{"error":{"message":"Incorrect API key provided"}}"#) }
+            if system.contains("Arabic") { return .sse([text.contains("<b>") ? Self.arabicBold : Self.arabicPlain], pause: 0.005) }
             return .sse(["[es] ", text], pause: 0.005)
         }) else {
             check(false, "the stand-in translator starts")
@@ -162,6 +169,25 @@ struct TranslateTest {
         copy.setSplit(.none)
         check(copy.besideOriginal == nil && copy.secondPages == nil, "closing the split closes the original")
         copy.pdf.close()
+
+        // Into Arabic (2026-11-20's right-to-left lines): read back in order, the bold words bold where they read.
+        AppSettings.ai.noPreview = [AiEndpoint.tryParse(settings.customUrl).endpoint!.key] // asked once above: not again
+        c.ai.testTranslate = .init(language: "Arabic", tag: "ar", pages: [0], keepPart: true)
+        c.aiTranslate(nil)
+        await c.ai.job?.value
+        if let arabic = c.ai.lastTranslationCopy, arabic !== copy, let arabicData = arabic.pdf.session?.data {
+            let shown = (try? arabic.engine.text(0, cache: false).text) ?? ""
+            func solid(_ s: String) -> String { String(String.UnicodeScalarView(s.unicodeScalars.filter { !$0.properties.isWhitespace })) }
+            check(solid(shown).contains(solid(Self.arabicBold.replacingOccurrences(of: "<b>", with: "").replacingOccurrences(of: "</b>", with: ""))),
+                  "the Arabic copy reads in order, as the translator wrote it")
+            let arabicRuns = (try? ContentEditor.read(arabicData, nil, 0).runs) ?? []
+            check(arabicRuns.contains { $0.bold && $0.text.contains("ببطء أكثر") } && arabicRuns.contains { !$0.bold && $0.text.contains("الإيرادات") },
+                  "the bold words are bold in the Arabic copy, the others not")
+            check(!shown.contains("<b>"), "no tag reaches the Arabic page")
+            arabic.pdf.close()
+        } else {
+            check(false, "the Arabic copy opens")
+        }
 
         // An endpoint that refuses partway: the run stops, the part done is kept on request.
         let before = server.received.count

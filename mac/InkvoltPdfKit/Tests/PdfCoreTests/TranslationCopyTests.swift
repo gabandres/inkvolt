@@ -141,8 +141,9 @@ enum TranslationInk {
         return problems
     }
 
-    /// Whitespace out, so a line break anywhere doesn't matter when comparing words in order.
-    static func solid(_ s: String) -> String { String(String.UnicodeScalarView(s.unicodeScalars.filter { !$0.properties.isWhitespace })) }
+    /// Whitespace out, so a line break anywhere doesn't matter when comparing words in order; soft hyphens too (a page's
+    /// tagged line-end hyphen keeps its /ActualText after the hyphen is gone, and readers show it there).
+    static func solid(_ s: String) -> String { String(String.UnicodeScalarView(s.unicodeScalars.filter { !$0.properties.isWhitespace && $0 != "\u{AD}" })) }
 }
 
 /// The page side of Windows' `TranslationCopyTests` (roadmap 3.1): plan, answer, write; what the copy holds.
@@ -358,8 +359,10 @@ enum TranslationInk {
         let ar = "نظرت اللجنة في النتائج الفصلية ووجدت أن الإيرادات نمت في كل منطقة خلال الفترة"
         let (_, r) = try Self.translate(pdf, { _ in ar }, tag: "ar")
         #expect(r.report.translated == 1)
-        // Copied out, it reads as typed.
+        // Copied out, it reads as typed; its lines are drawn left to right (pdf.js reads their spaces so), and read back in
+        // reading order.
         #expect(Self.plain(ContentEditPdf.text(r.data!)).contains(String(Self.plain(ar).prefix(10))))
+        #expect(Self.read(r.data!).paragraphs.contains { $0.text == ar }, "\(Self.read(r.data!).paragraphs.map(\.text))")
         let p = Self.read(pdf).paragraphs.last!
         let laid = ContentEditor.layOut(p, p.runs, ar, [], fit: 1.0)
         #expect(!laid.lines.isEmpty)
@@ -368,6 +371,181 @@ enum TranslationInk {
             let shaped = try #require(parts.first?.standIn)
             #expect(abs(origin.x + shaped.width * p.fontSize - p.box.right) < 1)
             #expect(shaped.rtl)
+        }
+    }
+
+    @Test(arguments: [
+        "في عام 2024 والكلب", // figures stay left to right inside it
+        "الثعلب يقفز فوق fox الكلب", // an English word inside
+        "الثعلب الكلب fox", // an English word at its left end: still a right-to-left line
+        "The dog שלום עולם jumps", // a Hebrew phrase in an English line
+        "plain English, 2024",
+        "لا إله إلا الله", // lam-alef ligatures: a glyph standing for two letters
+        "مُنسوب إلى نشرة", // a mark on its letter, and "لى" (a real model's copy read "إىل" in MuPDF)
+    ])
+    func aLineDrawnLeftToRightReadsBackInReadingOrder(_ line: String) {
+        let shaped = TextShaper.shape(line, nil, visualOrder: true)
+        #expect(Bidi.toReadingOrder(shaped.glyphs.map(\.text).joined()) == line)
+    }
+
+    /// A page of right-to-left text drawn left to right (visual order, as Word writes it): each piece in Arial at 12
+    /// points, its baseline's left end at (x, y) in PDF space. Windows draws it with its CID font writer; the Mac's stand-in
+    /// writer makes Type 3 fonts, which the editor doesn't edit or split into columns, so here each piece is the test
+    /// page's own embedded Arial (`/FU`, Identity-H), its characters in the order they are drawn (unjoined letters).
+    static func drawnLeftToRight(_ pieces: [(text: String, x: Double, y: Double)]) throws -> [UInt8] {
+        let chars = letters + pieces.map(\.text).joined()
+        var content = ""
+        for (text, x, y) in pieces {
+            content += "BT /FU 12 Tf 1 0 0 1 \(ContentLexer.number(x)) \(ContentLexer.number(y)) Tm \(ContentEditPdf.cid(String(text.reversed()), fontText: chars)) Tj ET\n"
+        }
+        return ContentEditPdf.make(content, fontText: chars)
+    }
+
+    @Test func rightToLeftWordsDrawnLeftToRightReadInOrderAcrossOperatorsAndColumns() throws {
+        // Two operators on one line, the first word on the right; and one operator drawing two columns (a wide gap).
+        // (Windows draws the second word at x 272; unjoined here, it is wider: it ends a space short of the first.)
+        let alone = try Self.drawnLeftToRight([("بالعالم", 0, 700)])
+        let width = try #require(Self.read(alone).runs.first { !trimmed($0.text).isEmpty }).box.width
+        let pdf = try Self.drawnLeftToRight([("مرحبا", 300, 700), ("بالعالم", 300 - 3.3 - width, 700), ("الأول                    الثاني", 72, 600)])
+        let paragraphs = Self.read(pdf).paragraphs.map(\.text)
+        #expect(paragraphs.contains("مرحبا بالعالم"), "\(paragraphs)")
+        let doc = try PdfEdit.open(pdf, nil)
+        let columns = try ContentEditor.readRaw(doc, doc.page(0), 0, nil).runs.filter { !trimmed($0.text).isEmpty && $0.box.y > 792 - 620 }.map { trimmed($0.text) }
+        #expect(columns.count == 2, "\(columns)") // a run for each column, each in reading order
+        #expect(columns.contains("الأول") && columns.contains("الثاني"), "\(columns)")
+    }
+
+    @Test func aRightToLeftRunDrawnLeftToRightIsNotEditedAsOneRun() throws {
+        // Read in reading order, written back as drawn, it would come out mirrored.
+        let pdf = try Self.drawnLeftToRight([("مرحبا بالعالم", 300, 700)])
+        let runs = Self.read(pdf).runs.filter { !trimmed($0.text).isEmpty }
+        #expect(runs.count == 1)
+        let run = try #require(runs.first)
+        #expect(run.text == "مرحبا بالعالم")
+        #expect(throws: ContentEditError.self) { _ = try ContentEditor.replaceText(pdf, nil, run, "مرحبا يا عالم") }
+        do {
+            _ = try ContentEditor.replaceText(pdf, nil, run, "مرحبا يا عالم")
+        } catch let e as ContentEditError {
+            #expect(e.message.contains(ContentEditor.rightToLeftBlocked), "\(e.message)")
+        }
+    }
+
+    @Test func arabicKeepsABoldAndARedWordWhereTheyRead() throws {
+        let pdf = ContentEditPdf.make(
+            "BT /FA 12 Tf 1 0 0 1 72 700 Tm (The quick ) Tj /FB 12 Tf (brown) Tj /FA 12 Tf ( fox is ) Tj 1 0 0 rg (red) Tj 0 g ( and jumps over the lazy dog.) Tj ET",
+            fontText: Self.letters, faces: true)
+        let ar = "الثعلب <b>البني</b> السريع <span>أحمر</span> ويقفز فوق الكلب الكسول."
+        let (plan, r) = try Self.translate(pdf, { _ in ar }, tag: "ar")
+        #expect(plan.texts.map(\.text) == ["The quick <b>brown</b> fox is <span>red</span> and jumps over the lazy dog."])
+        #expect(r.report.translated == 1)
+        // Copied out, it reads as written, the looks' words in their places.
+        #expect(Self.plain(ContentEditPdf.text(r.data!)).contains(Self.plain("الثعلب البني السريع أحمر ويقفز")), "\(ContentEditPdf.text(r.data!))")
+        let runs = Self.read(r.data!).runs.filter { !trimmed($0.text).isEmpty }
+        let bolds = runs.filter { $0.text.contains("البني") }
+        #expect(bolds.count == 1)
+        let bold = try #require(bolds.first)
+        #expect(trimmed(bold.text) == "البني", "\(runs.map(\.text))")
+        let reds = runs.filter { $0.color == 0xFF0000 }
+        #expect(reds.map { trimmed($0.text) } == ["أحمر"], "\(runs.map { ($0.text, $0.color) })")
+        let first = try #require(runs.first { $0.text.contains("الثعلب") })
+        #expect(first.color == 0)
+        #expect(first.fontName != bold.fontName) // the bold face of the installed font the rest is in
+        #expect(r.report.fonts.contains("Arial Bold"), "\(r.report.fonts)")
+        // Right to left: the first word rightmost, then the bold one, then the red one (a run's right edge tells).
+        if let red = reds.first {
+            #expect(first.box.right > bold.box.right && bold.box.x > red.box.right - 1, "\(first.box) \(bold.box) \(red.box)")
+        }
+    }
+
+    @Test func hebrewKeepsAnUnderlineAndASuperscriptInItsLine() throws {
+        let p = try #require(Self.read(Self.page(Self.lines(72, 700, 12, 14, "Hello World draft, 2024! Hello World draft, 2024!"))).paragraphs.last)
+        let he = "שלום עולם יפה מאוד 2"
+        let ns = he as NSString
+        let spans = [TextSpan(ns.range(of: "עולם").location, 4, TextLook(underline: true)), TextSpan(ns.length - 1, 1, TextLook(script: .superscript))]
+        let laid = ContentEditor.layOut(p, p.runs, he, spans, fit: 1.0)
+        #expect(laid.lines.count == 1)
+        let (origin, parts) = try #require(laid.lines.first)
+        let shaped = try #require(parts.first?.standIn)
+        #expect(parts.count == 1 && shaped.rtl)
+        #expect(abs(origin.x + shaped.width * p.fontSize - p.box.right) < 0.5)
+        // The underline is under the second word, where its shaped run is, and no wider.
+        #expect(laid.underlined.count == 1, "\(laid.underlined)")
+        let rule = try #require(laid.underlined.first)
+        #expect(rule.baseline == origin.y)
+        let word = try #require(shaped.runs.first { $0.style >= 0 && $0.end - $0.start > 0.5 })
+        #expect(abs(rule.left - (origin.x + word.start * p.fontSize)) < 0.006)
+        #expect(abs(rule.right - (origin.x + word.end * p.fontSize)) < 0.006)
+        #expect(rule.right - rule.left < 0.5 * shaped.width * p.fontSize)
+        // The figure raised and smaller: its glyph above the line, its size scaled.
+        let twos = shaped.glyphs.filter { $0.text == "2" }
+        #expect(twos.count == 1)
+        if let two = twos.first { #expect(two.y > 0.1 && two.scale < 0.9, "\(two.y) \(two.scale)") }
+    }
+
+    static let longHello = "Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024! Hello World draft, 2024!"
+
+    @Test func arabicStretchesGoRightAndReadInOrderWithTheirFiguresBracketsAndLatinWords() throws {
+        // pdf.js makes a space only going right, MuPDF turns each right-to-left stretch around in place: so each stretch is
+        // written left to right, the stretches and the figures and Latin words between them in reading order.
+        let pdf = Self.page(Self.lines(40, 700, 10, 14, Self.longHello))
+        let ar = "قال ابن-سينا إن الثعلب قفز في عام 2024 فوق الكلب (الكسول) وكتب fox jumps."
+        let (_, r) = try Self.translate(pdf, { _ in ar }, tag: "ar")
+        #expect(r.report.translated == 1)
+        let engine = try PdfEngine.open(r.data!)
+        defer { engine.close() }
+        let text = try engine.text(0, cache: false)
+        #expect(text.text.contains(ar), "\(text.text)")
+        for phrase in ["ابن-سينا", "في عام 2024 فوق", "(الكسول) وكتب fox jumps."] {
+            #expect(text.find(phrase, matchCase: true, wholeWord: false).count == 1, "\(phrase)")
+        }
+
+        let shaped = TextShaper.shape(ar, SystemFonts.get("arial.ttf"), nil, nil, .stretches)
+        #expect(shaped.mixed)
+        // Written in pieces: going right inside each, left from one to the next; the pieces' texts, turned around where
+        // they read right to left, come in reading order.
+        var pieces: [[PlacedGlyph]] = []
+        for g in shaped.glyphs {
+            if let last = pieces.last?.last, last.rtl == g.rtl, g.x >= last.x - 1e-9 { pieces[pieces.count - 1].append(g) } else { pieces.append([g]) }
+        }
+        func joined(_ p: [PlacedGlyph]) -> String { p.map(\.text).joined() }
+        let read = pieces.map { p in p[0].rtl ? String(String.UnicodeScalarView(joined(p).unicodeScalars.reversed())) : joined(p) }.joined()
+        #expect(read == ar, "\(read)")
+        let words = pieces.filter { $0[0].rtl }.map { TranslationText.trim(joined($0)) }.filter { $0.contains(" ") }
+        #expect(words.count >= 2, "\(words)") // whole stretches of words, each going right
+        #expect(pieces.contains { $0.count == 1 && $0[0].text == "-" && !$0[0].rtl }) // the hyphen MuPDF reads left to right goes alone
+
+        // A stretch in two fonts would be two items to pdf.js, read right to left: such a line is written in reading order.
+        let bold = try #require(SystemFonts.get("arialbd.ttf"))
+        let u = ns(ar)
+        var looks = [Int](repeating: -1, count: u.length)
+        for i in u.range(of: "الثعلب").location..<u.range(of: " قفز").location { looks[i] = 0 }
+        let mixed = TextShaper.shape(ar, SystemFonts.get("arial.ttf"), [GlyphStyle(font: bold)], looks, .stretches)
+        let letters = mixed.glyphs.filter { g in g.rtl && (g.text.unicodeScalars.first?.properties.isAlphabetic ?? false) }
+        for (a, b) in zip(letters, letters.dropFirst()) where a.font === b.font { #expect(b.x <= a.x + 1e-9) }
+    }
+
+    private func ns(_ s: String) -> NSString { s as NSString }
+
+    // A version: the bidi rules leave its "-" right to left, drawing "beta-2.0", which MuPDF reads only as a new line.
+    // Two hyphens MuPDF reads left to right inside right-to-left text, one by one in reading order.
+    @Test(arguments: [
+        ("صدر الإصدار 2.0-beta أمس مع 3.5-rc2 الجديد", "2.0-beta", "3.5-rc2"),
+        ("كلمة -- كلمة أخرى وكلمة - أخيرة", "كلمة -- كلمة", "وكلمة - أخيرة"),
+    ])
+    func arabicWithAVersionOrDashesReadsInOrderInMuPDFAndFind(_ ar: String, _ first: String, _ second: String) throws {
+        let pdf = Self.page(Self.lines(40, 700, 10, 14, Self.longHello))
+        let (_, r) = try Self.translate(pdf, { _ in ar }, tag: "ar")
+        #expect(r.report.translated == 1)
+        let engine = try PdfEngine.open(r.data!)
+        defer { engine.close() }
+        let text = try engine.text(0, cache: false)
+        #expect(text.text.contains(ar), "\(text.text)")
+        #expect(text.find(first, matchCase: true, wholeWord: false).count == 1, "\(first)")
+        #expect(text.find(second, matchCase: true, wholeWord: false).count == 1, "\(second)")
+        // The version is drawn as typed, left to right.
+        let shaped = TextShaper.shape(ar, SystemFonts.get("arial.ttf"), nil, nil, .stretches)
+        if first == "2.0-beta", let two = shaped.glyphs.first(where: { $0.text == "2" }), let b = shaped.glyphs.first(where: { $0.text == "b" }) {
+            #expect(two.x < b.x, "\(two.x) \(b.x)")
         }
     }
 

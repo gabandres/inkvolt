@@ -55,9 +55,10 @@ extension ContentEditor {
     /// `translationSlots`.
     /// - Throws: `ContentEditError` when its forms draw each other beyond any sensible amount: not all of it was read.
     static func readRaw(_ doc: MuDoc, _ page: PObj, _ pageIndex: Int, _ cancel: CancelToken?) throws -> PageContent {
-        let walked = try walk(doc, page, pageIndex, ContentLexer.parse(streams(page).bytes, cancel: cancel), cancel, columns: true)
+        let ops = try ContentLexer.parse(streams(page).bytes, cancel: cancel)
+        let walked = try walk(doc, page, pageIndex, ops, cancel, columns: true)
         if walked.cutShort { throw ContentEditError(loc("This page's drawings draw each other too many times to be read in full.")) }
-        return walked.content
+        return translationContent(page, walked, ops)
     }
 
     /// A page's paragraphs for translating, in reading order of their first line: each table cell's text apart from its
@@ -89,7 +90,8 @@ extension ContentEditor {
         }
         // A paragraph looks through the page's runs for spaces drawn on their own: only those, or a crowded page takes
         // its count squared.
-        let spacesOnly = PageContent(runs: content.runs.filter { trimmed($0.text).isEmpty }, images: [])
+        var spacesOnly = PageContent(runs: content.runs.filter { trimmed($0.text).isEmpty }, images: [])
+        spacesOnly.underlines = content.underlines
         var slots: [TranslationSlot] = []
         for cell in order {
             try cancel?.check()
@@ -283,30 +285,57 @@ extension ContentEditor {
         return sb + "] TJ"
     }
 
+    /// The longest script that joins a line shorter than itself, or a line it reaches across: longer, it must sit clear
+    /// of the line's words.
+    private static let maxScriptLength = 12
+
+    /// The most lines on each side, by baseline, a script looks at for the line it sits on.
+    private static let maxHostsLooked = 128
+
     /// A short "line" that sits on another (a raised footnote mark, a symbol in another font) goes into that line, in its
-    /// place from left to right.
+    /// place from left to right; so does a longer script that is smaller than the line ("[12-15]", "a,b,c" raised after a
+    /// name, "[3, 7, 12, 18-24, 31]"): one over `maxScriptLength` characters only where it overlaps none of the line's
+    /// words (after its end, before its start, or in a gap between its pieces), so small text set beside a line isn't
+    /// taken for its script.
     private static func withMarksInLine(_ lines: [PLine]) -> [PLine] {
         let byBaseline = lines.enumerated().sorted { ($0.element.baseline, $0.offset) < ($1.element.baseline, $1.offset) }.map(\.element)
+        let lengths = byBaseline.map { trimmed($0.string).utf16.count }
         var removed = Set<ObjectIdentifier>()
         var joined: [(host: PLine, marks: [PLine])] = []
-        for (i, mark) in byBaseline.enumerated() {
-            if trimmed(mark.string).utf16.count > 4 { continue }
+        // Longer scripts first: a line that hosts a mark is longer than it, or bigger, so it is joined (or not) before that
+        // mark looks for a host, and one joined as a script hosts nothing (consider skips it).
+        let order = byBaseline.indices.sorted { (lengths[$0], -$0) > (lengths[$1], -$1) }
+        for i in order {
+            let mark = byBaseline[i]
+            // A line already hosting a script (a long one, which may sit on a line shorter than itself) joins no line
+            // itself: it would be written twice, with its script and as one.
+            if joined.contains(where: { $0.host === mark }) { continue }
+            let length = lengths[i]
             let reach = 1.2 * max(mark.size, 1)
             var host: PLine?
-            func consider(_ m: PLine) {
-                if m === mark || trimmed(m.string).utf16.count <= 4 || m.size < mark.size { return }
+            func consider(_ k: Int) {
+                let m = byBaseline[k]
+                let hostLength = lengths[k]
+                if m === mark || hostLength <= 4 || (length <= maxScriptLength && hostLength <= length) || m.size < mark.size { return }
+                if length > 4 && mark.size > 0.85 * m.size { return } // longer: only a script, smaller than its line
+                if removed.contains(ObjectIdentifier(m)) { return } // already joined to a line as a script itself
                 if mark.box.centerY <= m.box.y || mark.box.centerY >= m.box.bottom { return }
-                if mark.box.right <= m.box.x || mark.box.x >= m.box.right + 0.5 * m.size { return }
+                // Across the line, right after its end, or right before its start (a footnote's own mark: "†Work performed…").
+                if mark.box.right <= m.box.x - 0.5 * m.size || mark.box.x >= m.box.right + 0.5 * m.size { return }
+                if length > maxScriptLength && m.runs.contains(where: { r in
+                    !trimmed(r.text).isEmpty && min(r.box.right, mark.box.right) - max(r.box.x, mark.box.x) > 1
+                }) { return }
                 if host == nil { host = m }
             }
+            // The nearest lines each way (a crafted page's thousands of lines on one baseline aren't each compared with all).
             var k = i - 1
-            while k >= 0 && mark.baseline - byBaseline[k].baseline <= reach * 2 {
-                consider(byBaseline[k])
+            while k >= 0 && k >= i - maxHostsLooked && mark.baseline - byBaseline[k].baseline <= reach * 2 {
+                consider(k)
                 k -= 1
             }
             k = i + 1
-            while k < byBaseline.count && byBaseline[k].baseline - mark.baseline <= reach * 2 {
-                consider(byBaseline[k])
+            while k < byBaseline.count && k <= i + maxHostsLooked && byBaseline[k].baseline - mark.baseline <= reach * 2 {
+                consider(k)
                 k += 1
             }
             guard let host else { continue }
@@ -324,6 +353,7 @@ extension ContentEditor {
             let line = PLine(runs[0])
             for r in runs.dropFirst() { line.add(r) }
             line.baseline = host.baseline
+            line.own = lineBaseline(host)
             replaced[ObjectIdentifier(host)] = line
             removed.remove(ObjectIdentifier(host))
         }
@@ -350,7 +380,16 @@ extension ContentEditor {
             let marker = (1...2).contains(t.utf16.count) && !t.unicodeScalars.contains { $0.properties.isAlphabetic || $0.properties.numericType != nil }
                 && !t.unicodeScalars.contains(where: opens)
             guard note || marker else { return l }
+            // A footnote's or a list's own mark (raised above what follows, or set apart from it by a gap) starts an item
+            // of its own; a symbol or a small capital that just begins a line (CMSY's "−", small caps' "UN") only where the
+            // line before ended its sentence.
+            let next = l.runs.dropFirst().first { !trimmed($0.text).isEmpty } ?? l.runs[1]
+            let raised = first.origin.y < next.origin.y - 0.15 * next.fontSize
+            let apart = first.text.hasSuffix(" ") || next.box.x - first.box.right > 0.25 * next.fontSize
             let line = PLine(l.runs[1])
+            line.marked = raised || apart
+            line.markStart = true
+            line.own = l.own
             for r in l.runs.dropFirst(2) { line.add(r) }
             return line
         }
@@ -514,7 +553,7 @@ extension ContentEditor {
         var wideBottom = wide.map { min(bottom, down($0)) } ?? bottom
         // What the page clips to hides whatever goes past it: new text stays inside, or is flagged. Each line is written
         // where one of the old lines was drawn, so what counts is what they clip to together.
-        let drawnAt = lineRuns(p, plainRun(p.runs))
+        let drawnAt = lineRuns(p, plainRun(p.runs), fills)
         // Lines below the old ones are written with the last: whatever clips that clips them, whatever the others do.
         if let lowest = drawnAt.last?.info?.clip {
             bottom = min(bottom, max(lowest.bottom, p.box.bottom))
@@ -755,11 +794,17 @@ extension ContentEditor {
     }
 
     /// Right-to-left text in an installed font: words go on a line as long as it fits, each line shaped whole so its words
-    /// come out in reading order, and it sits against the box's right edge (or its center, if centered).
-    static func layOutRightToLeft(_ p: TextParagraph, _ m: TextRun, _ text: String, _ shrink: Double) -> ParagraphLayout {
+    /// come out in reading order, and it sits against the box's right edge (or its center, if centered). Stretches with a
+    /// look of their own (`looks`) are shaped in it within the line (`GlyphStyle`): bold or italic in that face of an
+    /// installed font that has the text's letters, another family in that family, a script at its size and rise, a color,
+    /// an underline drawn under it (`ParagraphLayout.underlined`). `colorable`: the run the text is written at has a fill
+    /// it can be set back to (not a pattern): a look's color can be drawn.
+    static func layOutRightToLeft(_ p: TextParagraph, _ m: TextRun, _ text: String, _ shrink: Double, _ looks: [TextLook?] = [],
+                                  colorable: Bool = true) -> ParagraphLayout {
         var cps: [UInt32] = []
-        for c in text.unicodeScalars where c.value > 32 && !cps.contains(c.value) { cps.append(c.value) }
-        let ranked = StandInFonts.rankFor(m.font!).first { f in cps.allSatisfy { f.font.drawsOutline($0) } }
+        var seen = Set<UInt32>()
+        for c in text.unicodeScalars where c.value > 32 && seen.insert(c.value).inserted { cps.append(c.value) }
+        let ranked = rightToLeftFont(StandInFonts.rankFor(m.font!), cps, text)
         let primary = ranked?.font
         var missing: [String] = []
         for c in text.unicodeScalars where c.value > 32 {
@@ -769,45 +814,97 @@ extension ContentEditor {
         if !missing.isEmpty {
             return ParagraphLayout(lines: [], check: ParagraphCheck(box: p.box, lineCount: p.lines.count, missing: missing, overlaps: nil), fonts: [])
         }
-        func w(_ line: [UInt16]) -> Double { TextShaper.measure(String(decoding: line, as: UTF16.self), primary) * m.size * m.hScale * m.scale }
+        // One style per look the text has; each UTF-16 unit's (-1: the paragraph's own).
+        let u = Array(text.utf16)
+        var styles: [GlyphStyle] = []
+        var styleLooks: [TextLook] = []
+        var styleNames: [String?] = []
+        var styleAt = [Int](repeating: -1, count: u.count)
+        var byLook: [TextLook: Int] = [:]
+        for i in 0..<min(u.count, looks.count) {
+            guard let look = looks[i], !look.isPlain else { continue }
+            let k: Int
+            if let known = byLook[look] {
+                k = known
+            } else {
+                k = styles.count
+                byLook[look] = k
+                let (style, name) = rightToLeftStyle(p, m, look, cps)
+                styles.append(style)
+                styleLooks.append(look)
+                styleNames.append(name)
+            }
+            styleAt[i] = k
+        }
+        let styled = !styles.isEmpty
+        func piece(_ start: Int, _ end: Int) -> String { String(decoding: u[start..<end], as: UTF16.self) }
+        func shapeOf(_ start: Int, _ end: Int) -> ShapedLine {
+            TextShaper.shape(piece(start, end), primary, styled ? styles : nil, styled ? Array(styleAt[start..<end]) : nil, .stretches)
+        }
+        let em: Double = m.size * m.hScale * m.scale
+        // Wrapping measures each candidate in reading order: the width is the same, and the stretches' order is worked
+        // out only for the lines written.
+        func w(_ start: Int, _ end: Int) -> Double {
+            TextShaper.measure(piece(start, end), primary, styled ? styles : nil, styled ? Array(styleAt[start..<end]) : nil, .stretches) * em
+        }
+
         // A word with no spaces can be the whole answer: longer than any line, it isn't measured whole for every line it breaks into.
         let longest = 1024
-        var lines: [[UInt16]] = []
-        var cur: [UInt16] = []
+        var lines: [(start: Int, end: Int)] = []
+        var curStart = -1, curEnd = -1
         let avail = p.right - p.left
-        for word in text.split(separator: " ", omittingEmptySubsequences: true).map({ Array($0.utf16) }) {
-            let joined = cur.isEmpty ? word : cur + [32] + word
-            if w(joined) <= avail + 0.01 {
-                cur = joined
+        for (start, end) in spacedWords(u) {
+            if curStart < 0 || w(curStart, end) > avail + 0.01 {
+                if curStart >= 0 { lines.append((curStart, curEnd)) }
+                (curStart, curEnd) = (start, end)
+                while curEnd - curStart > 1 && (curEnd - curStart > longest || w(curStart, curEnd) > avail + 0.01) {
+                    // A word wider than the line is broken: as much of it as fits.
+                    let els = elementStarts(Array(u[curStart..<min(curEnd, curStart + longest)]))
+                    var n = els.count - 1
+                    while n > 1 && w(curStart, curStart + els[n]) > avail + 0.01 { n = n * 3 / 4 }
+                    if n < 1 || els[n] == 0 { break }
+                    lines.append((curStart, curStart + els[n]))
+                    curStart += els[n]
+                }
                 continue
             }
-            if !cur.isEmpty { lines.append(cur) }
-            cur = word
-            while cur.count > 1 && (cur.count > longest || w(cur) > avail + 0.01) {
-                // A word wider than the line is broken: as much of it as fits.
-                let els = elementStarts(cur.count > longest ? Array(cur[0..<longest]) : cur)
-                var n = els.count - 1
-                while n > 1 && w(Array(cur[0..<els[n]])) > avail + 0.01 { n = n * 3 / 4 }
-                if n < 1 || els[n] == 0 { break }
-                lines.append(Array(cur[0..<els[n]]))
-                cur = Array(cur[els[n]...])
-            }
+            curEnd = end
         }
-        if !cur.isEmpty { lines.append(cur) }
+        if curStart >= 0 && curEnd > curStart { lines.append((curStart, curEnd)) }
 
         var placed: [(origin: PointD, parts: [Part])] = []
+        var underlined: [(left: Double, right: Double, baseline: Double)] = []
         var names: [String] = []
+        func addName(_ n: String) { if !names.contains(n) { names.append(n) } }
         var baseline = p.box.y + p.ascent * shrink
         var minLeft = p.box.x, maxRight = p.box.right
-        for line in lines {
-            let shaped = TextShaper.shape(String(decoding: line, as: UTF16.self), primary)
+        for (start, end) in lines {
+            // Each right-to-left stretch left to right, the stretches and the numbers and Latin words between them in
+            // reading order, its directions marked where they change (GlyphOrder.stretches, Type3FontWriter.emit): MuPDF
+            // (the app's own reading: search, copy, export) and pdf.js read it in order, pdf.js with the spaces between its
+            // right-to-left words.
+            let shaped = shapeOf(start, end)
             for g in shaped.glyphs {
-                let known = g.font === primary ? ranked!.name : g.font.family
-                if !names.contains(known) { names.append(known) }
+                if g.font === primary {
+                    addName(ranked!.name)
+                } else if let k = styles.firstIndex(where: { $0.font === g.font }), let n = styleNames[k] {
+                    addName(n)
+                } else {
+                    addName(g.font.family)
+                }
             }
-            let width: Double = shaped.width * m.size * m.hScale * m.scale
+            let width: Double = shaped.width * em
             let x = p.align == .center ? p.center - width / 2 : p.right - width
             placed.append((PointD(x, baseline), [Part(nil, 0, shaped)]))
+            // Underlined runs side by side are one rule.
+            for run in shaped.runs where run.style >= 0 && styleLooks[run.style].underline == true && run.end > run.start {
+                let left = x + run.start * em, right = x + run.end * em
+                if let last = underlined.last, last.baseline == baseline, abs(last.right - left) < 0.01 {
+                    underlined[underlined.count - 1].right = right
+                } else {
+                    underlined.append((left, right, baseline))
+                }
+            }
             minLeft = min(minLeft, x)
             maxRight = max(maxRight, x + width)
             baseline += p.lineStep * shrink
@@ -815,7 +912,72 @@ extension ContentEditor {
         let bottom = baseline - p.lineStep * shrink + p.descent * shrink
         var check = ParagraphCheck(box: .fromEdges(minLeft, p.box.y, maxRight, max(bottom, p.box.y + 1)), lineCount: placed.count, missing: [], overlaps: nil)
         check.standIns = names
-        return ParagraphLayout(lines: placed, check: check, fonts: [])
+        // A color its run can't be set back to after (a pattern fill): its words are drawn in the run's own, and the look
+        // is named, as left to right.
+        if !colorable && styles.contains(where: { $0.color != nil }) {
+            check.lookProblem = loc("this paragraph's color is a special ink (a pattern or spot color), so part of it can't be given another color")
+        }
+        var layout = ParagraphLayout(lines: placed, check: check, fonts: [])
+        layout.underlined = underlined
+        return layout
+    }
+
+    /// The most installed fonts tried for right-to-left text whose letters stay on the line.
+    private static let rightToLeftFontsTried = 6
+
+    /// Of installed fonts in the order they come closest to the page's (`ranked`), the first with every one of `cps` whose
+    /// letters all sit on the line when `text` is shaped in it (only marks move up or down); else the first with every one
+    /// of them; nil when none has. MuPDF (the app's own reading: search, copy, export) reads a right-to-left line
+    /// backwards when some of its letters sit on another baseline: Calibri's Arabic lowers letters it joins (cursive
+    /// attachment), and NIST p. 1's Arabic table values in Calibri read backwards; in Arial they read right.
+    static func rightToLeftFont(_ ranked: [StandInFont], _ cps: [UInt32], _ text: String?) -> StandInFont? {
+        let having = Array(ranked.lazy.filter { f in cps.allSatisfy { f.font.drawsOutline($0) } }.prefix(rightToLeftFontsTried))
+        var sample = text ?? String(String.UnicodeScalarView(cps.compactMap { Unicode.Scalar($0) }))
+        if sample.utf16.count > 400 { sample = String(decoding: Array(sample.utf16.prefix(400)), as: UTF16.self) }
+        return having.first { lettersOnTheLine(TextShaper.shape(sample, $0.font)) } ?? having.first
+    }
+
+    /// Whether a shaped line's glyphs all sit on its baseline but marks (and glyphs of no text of their own, a cluster's
+    /// extra ones).
+    private static func lettersOnTheLine(_ line: ShapedLine) -> Bool {
+        line.glyphs.allSatisfy { g in
+            guard abs(g.y) >= 1e-6, let first = g.text.unicodeScalars.first else { return true }
+            switch first.properties.generalCategory {
+            case .nonspacingMark, .enclosingMark, .spacingMark: return true
+            default: return false
+            }
+        }
+    }
+
+    /// The words of a text, spaces apart: where each starts and ends (UTF-16).
+    private static func spacedWords(_ u: [UInt16]) -> [(start: Int, end: Int)] {
+        var words: [(start: Int, end: Int)] = []
+        var i = 0
+        while i < u.count {
+            while i < u.count && u[i] == 32 { i += 1 }
+            let start = i
+            while i < u.count && u[i] != 32 { i += 1 }
+            if i > start { words.append((start, i)) }
+        }
+        return words
+    }
+
+    /// How a look is drawn in right-to-left text (`layOutRightToLeft`): its size, rise and color as a left-to-right
+    /// paragraph draws them (`lookMetrics`), and, where its face or family isn't the paragraph's, the installed font for it
+    /// (the closest in that style with all the text's letters, else the closest in that style: what it lacks comes from
+    /// the fallbacks) and its name.
+    private static func rightToLeftStyle(_ p: TextParagraph, _ m: TextRun, _ look: TextLook, _ cps: [UInt32]) -> (style: GlyphStyle, name: String?) {
+        let (scale, rise, color) = lookMetrics(p, look)
+        let lead = p.lead
+        let bold = look.bold ?? lead.bold, italic = look.italic ?? lead.italic
+        let family = look.font.flatMap { $0.caseInsensitiveCompare(FontNames.family(lead.fontName)) == .orderedSame ? nil : $0 }
+        var face: StandInFont?
+        if let family {
+            face = StandInFonts.styled(m.font!, family, bold, italic)
+        } else if bold != lead.bold || italic != lead.italic {
+            face = rightToLeftFont(StandInFonts.rankFor(m.font!, bold, italic), cps, nil) ?? StandInFonts.styled(m.font!, nil, bold, italic)
+        }
+        return (GlyphStyle(font: face?.font, scale: scale, rise: rise, color: color), face?.name)
     }
 
     // ---- Wrapping ----
@@ -931,8 +1093,10 @@ extension ContentEditor {
     static func drawOrder(_ run: TextRun) -> Int { order(run.id) }
 
     /// For each of a paragraph's old lines, the run a new line there is written at: its last one in the paragraph's color
-    /// (what the line draws last has nothing of the line painted over it); a line with none takes the one above's.
-    static func lineRuns(_ p: TextParagraph, _ plain: TextRun) -> [TextRun] {
+    /// (what the line draws last has nothing of the line painted over it), not one inside an /ActualText; a line with none
+    /// takes the one above's. A line-end hyphen drawn last on its own gives way to the run before it when nothing `fills`
+    /// paints comes between them over the line.
+    static func lineRuns(_ p: TextParagraph, _ plain: TextRun, _ fills: [(box: RectD, id: Int)]) -> [TextRun] {
         // New text takes the color of the run it is written at: the color most of the paragraph is in, not a link's.
         var byColor: [(color: Int, chars: Int)] = []
         for r in p.runs where r.info != nil {
@@ -941,10 +1105,26 @@ extension ContentEditor {
         }
         let color = byColor.max { $0.chars < $1.chars }?.color ?? plain.color
         var chosen = [TextRun?](repeating: nil, count: p.lines.count)
+        var wordy = [TextRun?](repeating: nil, count: p.lines.count) // each line's last run with a letter or digit
+        func isWordy(_ r: TextRun) -> Bool { r.text.utf16.contains(where: isLetterOrDigitUnit) }
         for run in p.runs {
             var at = 0
             for k in 1..<max(1, p.lines.count) where abs(run.box.centerY - p.lines[k].centerY) < abs(run.box.centerY - p.lines[at].centerY) { at = k }
-            if run.color == color && run.info != nil && (chosen[at].map { drawOrder(run) > drawOrder($0) } ?? true) { chosen[at] = run }
+            if run.color != color || run.info == nil || run.blocked == actualTextBlocked { continue }
+            if chosen[at].map({ drawOrder(run) > drawOrder($0) }) ?? true { chosen[at] = run }
+            if isWordy(run) && (wordy[at].map { drawOrder(run) > drawOrder($0) } ?? true) { wordy[at] = run }
+        }
+        // A line-end hyphen drawn on its own is often a tagged piece of its own whose /ActualText (a soft hyphen, in the
+        // structure tree) readers show in place of whatever is drawn there: a new line written in it read as "­"
+        // (census-p60 p. 7 with a real model). The word before it takes the line when nothing is painted over the line between.
+        for k in chosen.indices {
+            guard let last = chosen[k], !isWordy(last), let word = wordy[k] else { continue }
+            let from = drawOrder(word), to = drawOrder(last)
+            let line = p.lines[k]
+            let between = fills.contains { f in
+                f.id > from && f.id < to && f.box.right > line.x && f.box.x < line.right && f.box.bottom > line.y && f.box.y < line.bottom
+            }
+            if !between { chosen[k] = word }
         }
         var fallback = chosen.compactMap { $0 }.first ?? anchorRun(p.runs)
         return chosen.map { c in
@@ -1076,7 +1256,12 @@ extension ContentEditor {
         let pageStreams = streams(page)
         let ops = try ContentLexer.parse(pageStreams.bytes, cancel: cancel)
         let walked = try walk(doc, page, pageIndex, ops, cancel, columns: true)
-        let content = walked.content
+        let content = translationContent(page, walked, ops)
+        // A plain underline is the upright text's look, not a rule its new text keeps clear of; turned text (laid out in
+        // its frame, from all of them) keeps clear of it as of any rule.
+        let uprightObstacles = content.underlines.isEmpty ? obstacles : obstacles.filter { o in
+            !content.underlines.contains { u in abs(o.x - u.box.x) < 1 && abs(o.right - u.box.right) < 1 && abs(o.centerY - u.box.centerY) < 1 }
+        }
         let frame = PageBoxes.frame(page)
         let (pageWidth, pageHeight) = displaySize(page)
         let turned = turnedParts(content, pageWidth, pageHeight, turnedCells)
@@ -1091,8 +1276,12 @@ extension ContentEditor {
         var formTargets: [FormDraw: Int] = [:]
         var owners: [PObj] = []
         var taken = Set<[Int]>() // (target, operator start)
-        let things = PageThings(content, obstacles)
+        let things = PageThings(content, uprightObstacles)
         let paints = walked.paintsCut ? nil : walked.paints
+        // Plain underlines drawn again under the new words (added after the content), and the runs written (by key):
+        // the old rules under them are taken off once the page is done.
+        var underlines = ""
+        var writtenRuns = Set<Int>()
         // A turned part's surroundings in its frame, worked out once it has a paragraph to lay out.
         var framedThings: [Int: (things: PageThings, obstacles: [RectD], fills: [(box: RectD, id: Int)], paints: [Paint]?)] = [:]
         // Where each upright paragraph's new text went, and how far it shrank, where its lines start: its links follow it.
@@ -1138,7 +1327,7 @@ extension ContentEditor {
                 let f = framedThings[turn]!
                 r = room(upright, f.things, f.obstacles, part.frame.width, part.frame.height, f.fills, f.paints)
             } else {
-                r = room(slot, things, obstacles, pageWidth, pageHeight, walked.fills, paints)
+                r = room(slot, things, uprightObstacles, pageWidth, pageHeight, walked.fills, paints)
             }
             let (layout, fit, fits, dropped) = fitText(r.framed, r.bottom, text, wide: r.wide, wideBottom: r.wideBottom, spans: spans)
             if !layout.check.missing.isEmpty || layout.lines.isEmpty {
@@ -1166,9 +1355,9 @@ extension ContentEditor {
             // Turned text: which old line each new one goes at is told in its frame, where it was laid out.
             let newLines: [Int: (run: TextRun, lines: [(origin: PointD, parts: [Part])])]
             if let part = slot.part, let inFrame = slot.upright?.paragraph {
-                newLines = onPage(linesToRuns(inFrame, lineRuns(inFrame, plainRun(inFrame.runs)), done.layout, done.fit), part)
+                newLines = onPage(linesToRuns(inFrame, lineRuns(inFrame, plainRun(inFrame.runs), framedThings[part.frame.turn]?.fills ?? []), done.layout, done.fit), part)
             } else {
-                newLines = linesToRuns(p, lineRuns(p, plain), done.layout, done.fit)
+                newLines = linesToRuns(p, lineRuns(p, plain, walked.fills), done.layout, done.fit)
             }
             plain.size *= done.fit
             let t: Int
@@ -1242,7 +1431,13 @@ extension ContentEditor {
             owners.append(target.resourceOwner)
             for name in done.layout.check.standIns where !writer.fontNames.contains(name) { writer.fontNames.append(name) }
             written.append(TranslationWritten(slot: i, fit: done.fit, fits: done.fits, dropped: done.dropped))
-            if slot.part == nil { placed[i] = (done.layout.check.box, done.fit, done.layout.lines.map(\.origin)) }
+            if slot.part == nil {
+                placed[i] = (done.layout.check.box, done.fit, done.layout.lines.map(\.origin))
+                if !content.underlines.isEmpty {
+                    underlines += newUnderlines(page, p, content.underlines, done.layout, done.fit)
+                    writtenRuns.formUnion(p.runs.map(\.key))
+                }
+            }
         }
 
         if !columned.isEmpty {
@@ -1255,6 +1450,8 @@ extension ContentEditor {
                 edits[c.target].append((c.op.start, c.op.end, latin1Bytes(parts.joined(separator: " "))))
             }
         }
+        // The old rules under the words written are taken off; the part of one under words not written is drawn again.
+        if !writtenRuns.isEmpty { underlines += takeOffUnderlines(page, content.underlines, writtenRuns, ops, &edits[0]) }
         // Links, and their underlines, are moved once the page and its fonts are written.
         let links = written.isEmpty ? [] : linksOfWritten(page, slots, written, placed, ops, paints)
         if written.isEmpty && edits[0].isEmpty { return (slots, written, refused) }
@@ -1265,6 +1462,7 @@ extension ContentEditor {
         for (k, bytes) in zip(1..., formBytes) {
             if let form = targets[k].formObject { writeForm(form, bytes) }
         }
+        if !underlines.isEmpty { appendDrawing(doc, page, underlines) }
         for owner in owners { writer.needsFonts(owner) }
         if !links.isEmpty { writer.linksAfter(pageIndex, links) }
         SignedEdits.noteRemoval()

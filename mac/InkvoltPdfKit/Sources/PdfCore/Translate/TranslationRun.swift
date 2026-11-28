@@ -75,16 +75,17 @@ extension Translation {
         max(100, min(AiText.inputTokens(contextTokens), AiText.answerTokens(contextTokens)) * 3 / 4)
     }
 
-    /// What goes out: each distinct text, a long one in pieces that fit the model. Markup goes only with a text sent
-    /// whole: a piece could cut a stretch's tags apart, so a text in pieces goes without its looks.
+    /// What goes out: each distinct text, a long one in pieces that fit the model. A marked text's pieces each close the
+    /// tags open at their end and open them again at the next one's start (`TranslationMarkup.pieces`); one that can't be
+    /// cut so (a cut inside a tag) goes in plain pieces.
     public static func jobs(_ plan: TranslationPlan, _ pieceTokens: Int) -> [TranslationJob] {
         plan.texts.map { job($0.text, $0.page, plan.marked.contains($0.text), pieceTokens) }
     }
 
     static func job(_ text: String, _ page: Int, _ marked: Bool, _ tokens: Int) -> TranslationJob {
-        let pieces = AiText.pieces(text, tokens)
-        if pieces.count > 1 && marked { return TranslationJob(text, page, AiText.pieces(TranslationMarkup.plain(text), tokens)) }
-        return TranslationJob(text, page, pieces, marked: marked)
+        if !marked { return TranslationJob(text, page, AiText.pieces(text, tokens)) }
+        if let pieces = TranslationMarkup.pieces(text, tokens) { return TranslationJob(text, page, pieces, marked: true) }
+        return TranslationJob(text, page, AiText.pieces(TranslationMarkup.plain(text), tokens))
     }
 
     /// The requests, as the "what is sent, where" window shows them.
@@ -145,7 +146,8 @@ extension Translation {
             guard let text else { return (nil, problem) }
             parts.append(text)
         }
-        return (parts.joined(separator: " "), nil)
+        // A marked text's pieces each closed the tags open at their seam: joined, those stretches are one again.
+        return (job.marked ? TranslationMarkup.join(parts) : parts.joined(separator: " "), nil)
     }
 
     /// `marked`: the piece carries its paragraph's looks as markup (`TranslationJob.marked`).
@@ -164,16 +166,20 @@ extension Translation {
             // The model's own length limit cut it: half as much at a time.
             if answer.wasCutOff {
                 if depth < 3 && piece.utf16.count > 40 {
-                    // Without its markup: a half could cut a stretch's tags apart.
-                    let whole = marked ? TranslationMarkup.plain(piece) : piece
-                    let halves = AiText.pieces(whole, max(20, AiText.estimateTokens(whole) / 2))
+                    // With its markup when it can be cut with each half's tags closed in it; else plain.
+                    var halves = marked ? TranslationMarkup.pieces(piece, max(20, AiText.estimateTokens(piece) / 2)) : nil
+                    let keep = halves != nil
+                    if halves == nil {
+                        let whole = marked ? TranslationMarkup.plain(piece) : piece
+                        halves = AiText.pieces(whole, max(20, AiText.estimateTokens(whole) / 2))
+                    }
                     var parts: [String] = []
-                    for h in halves {
-                        let (text, why) = try await translatePiece(h, false, language, chat, settings, cancel, depth: depth + 1)
+                    for h in halves! {
+                        let (text, why) = try await translatePiece(h, keep, language, chat, settings, cancel, depth: depth + 1)
                         guard let text else { return (nil, why) }
                         parts.append(text)
                     }
-                    return (parts.joined(separator: " "), nil)
+                    return (keep ? TranslationMarkup.join(parts) : parts.joined(separator: " "), nil)
                 }
                 return (nil, loc("the model's answer was cut off by its length limit"))
             }

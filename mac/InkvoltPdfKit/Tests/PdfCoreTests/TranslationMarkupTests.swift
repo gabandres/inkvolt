@@ -64,9 +64,32 @@ struct TranslationMarkupTests {
         #expect(TranslationMarkup.mark(text, spans) == "An <i>x</i><sup>2</sup> and a <b>bold <i>italic</i></b> word, H<sub>2</sub>O and e=mc<i><sup>2</sup></i>.")
     }
 
-    @Test(arguments: ["a < b and c", "a > b and c"])
-    func textWithAngleBracketsOfItsOwnGoesWithoutMarkup(_ text: String) {
+    @Test func everyLookAtOnceNestsFiveDeepAndComesBack() {
+        let text = "A word in all of them."
+        let all = TextLook(color: 0xFF0000, bold: true, italic: true, script: .superscript, underline: true)
+        let spans = [span(text, "word", all)]
+        #expect(TranslationMarkup.mark(text, spans) == "A <b><i><u><span><sup>word</sup></span></u></i></b> in all of them.")
+        let (now, looks) = TranslationMarkup.read("Una <b><i><u><span><sup>palabra</sup></span></u></i></b> en todas.", text, spans)
+        #expect(looks.count == 1)
+        guard let look = looks.first else { return }
+        #expect((now as NSString).substring(with: NSRange(location: look.start, length: look.length)) == "palabra")
+        #expect(look.look.bold == true && look.look.italic == true && look.look.underline == true)
+        #expect(look.look.script == .superscript && look.look.color == 0xFF0000)
+    }
+
+    // "< b" would be taken for a piece of a tag.
+    @Test(arguments: ["a < b and c", "x <html> and c", "x<y and c", "a sub> and c"])
+    func textWithAngleBracketsThatCouldBeReadAsTagsGoesWithoutMarkup(_ text: String) {
         #expect(TranslationMarkup.mark(text, [TextSpan(0, 1, lookB)]) == text)
+    }
+
+    @Test(arguments: [("x > y and c", "<b>x</b> > y and c"), ("p < 0.05 and c", "<b>p</b> < 0.05 and c"), ("x -> y and c", "<b>x</b> -> y and c")])
+    func textWithAngleBracketsThatReadOnlyAsTextKeepsItsMarkup(_ text: String, _ marked: String) {
+        #expect(TranslationMarkup.mark(text, [TextSpan(0, 1, lookB)]) == marked)
+        let answer = marked.replacingOccurrences(of: "and", with: "y")
+        let (now, spans) = TranslationMarkup.read(answer, text, [TextSpan(0, 1, lookB)])
+        #expect(now == text.replacingOccurrences(of: "and", with: "y"))
+        #expect(spans == [TextSpan(0, 1, lookB)])
     }
 
     @Test func aParagraphWithTooManyLooksGoesPlainQuickly() {
@@ -84,33 +107,106 @@ struct TranslationMarkupTests {
         #expect(!TranslationText.request("The quick brown fox.", "Spanish")[0].content.contains("<b>"))
     }
 
-    @Test func aMarkedParagraphTooLongForOneRequestGoesInPlainPieces() {
-        let text = Array(repeating: "A <b>sentence</b> of the long paragraph goes here.", count: 200).joined(separator: " ")
+    // A real model told of a <font> it wasn't sent wrote <font color="#0000FF"> around a bold label.
+    @Test(arguments: [
+        ("The <b>quick</b> fox.", "<b> (bold)"),
+        ("The <span>red</span> fox and <b>d<sub>model</sub></b>.", "<b> (bold), <span> (another font or color) and <sub> (subscript)"),
+        ("A <font>blue</font>, a <span>red</span> and an <u>underlined</u> word.", "<u> (underlined) and <span>, <font> (each another font or color)"),
+    ])
+    func aMarkedTextsRequestNamesOnlyTheTagsItHas(_ text: String, _ named: String) {
+        #expect(TranslationMarkup.tagsNamed(text) == named)
+        let system = TranslationText.request(text, "French", marked: true)[0].content
+        #expect(system.contains(named + ":"))
+        for other in ["<i>", "<mark>", "<sup>"] { #expect(!system.contains(other)) }
+    }
+
+    @Test func aMarkedParagraphTooLongForOneRequestGoesInMarkedPiecesEachClosingItsTags() {
+        let text = Array(repeating: "A <b>sentence of the long paragraph</b> goes here.", count: 200).joined(separator: " ")
         var plan = TranslationPlan(data: [], pages: [], texts: [(text, 0)])
         plan.marked = [text]
         let jobs = Translation.jobs(plan, Translation.pieceTokens(4096))
         #expect(jobs.count == 1)
         #expect(jobs[0].pieces.count > 1)
-        #expect(!jobs[0].marked)
+        #expect(jobs[0].marked)
         #expect(jobs[0].text == text)
-        #expect(jobs[0].pieces.allSatisfy { !$0.contains("<") })
+        #expect(jobs[0].pieces.allSatisfy { $0.components(separatedBy: "<b>").count == $0.components(separatedBy: "</b>").count })
+        #expect(TranslationMarkup.plain(text) == TranslationMarkup.plain(jobs[0].pieces.joined(separator: " ")))
+        #expect(Translation.requests(jobs, "Spanish").allSatisfy { $0[0].content.contains("<b> (bold)") })
     }
 
-    @Test func aMarkedTextCutOffByTheModelsLimitIsAskedForInPlainHalves() async {
-        let text = Array(repeating: "A <b>sentence</b> of the long paragraph goes here.", count: 8).joined(separator: " ")
-        let sent = AiRecorder<String>()
-        let handler = FakeAiHandler { r, _ in
+    @Test func aMarkedParagraphsPiecesAnsweredWithTheirTagsGiveTheWholeItsLooks() {
+        // Every tenth sentence bold, one bold stretch long enough that a piece may end inside it.
+        let plain = (0..<200).map { "Sentence \($0) of the long paragraph goes on and on here." }.joined(separator: " ")
+        let spans = (0..<200).filter { $0 % 10 == 0 }.map { span(plain, "Sentence \($0) of the long paragraph goes on and on here.", lookB) }
+        let text = TranslationMarkup.mark(plain, spans)
+        #expect(text != plain)
+        var plan = TranslationPlan(data: [], pages: [], texts: [(text, 0)])
+        plan.marked = [text]
+        let job = Translation.jobs(plan, 200)[0]
+        #expect(job.pieces.count > 3)
+        #expect(job.marked)
+        let answer = job.pieces.map { $0.replacingOccurrences(of: "goes on", with: "sigue") }.joined(separator: " ")
+        let (now, looks) = TranslationMarkup.read(answer, plain, spans)
+        #expect(now == plain.replacingOccurrences(of: "goes on", with: "sigue"))
+        let ns = now as NSString
+        #expect(looks.filter { ns.substring(with: NSRange(location: $0.start, length: $0.length)).hasPrefix("Sentence") }.count == 20)
+        #expect(looks.allSatisfy { $0.look == lookB })
+    }
+
+    @Test func aStretchCutByManyPieceSeamsIsOneStretchAgainWhenTheAnswersAreJoined() {
+        // Sentences 10 to 159 bold: one stretch, cut at each piece's end. Joined as they are, the answer would have far
+        // more bold stretches than the paragraph had and be read plain.
+        let plain = (0..<200).map { "Sentence \($0) of the long paragraph goes on and on here." }.joined(separator: " ")
+        let ns = plain as NSString
+        let start = ns.range(of: "Sentence 10 ").location
+        let end = ns.range(of: "Sentence 160 ").location - 1
+        let spans = [TextSpan(start, end - start, lookB)]
+        let text = TranslationMarkup.mark(plain, spans)
+        let pieces = TranslationMarkup.pieces(text, 200)!
+        #expect(pieces.filter { $0.contains("</b>") }.count > 4)
+        let (now, looks) = TranslationMarkup.read(TranslationMarkup.join(pieces), plain, spans)
+        #expect(now == plain)
+        #expect(looks == [TextSpan(start, end - start, lookB)])
+        // A seam joins only tags that close and open the same looks in order.
+        #expect(TranslationMarkup.join(["<b>a</b>", "<i>b</i>"]) == "<b>a</b> <i>b</i>")
+        #expect(TranslationMarkup.join(["<b><i>a</i></b>", "<b><i>b</i></b>"]) == "<b><i>a b</i></b>")
+    }
+
+    static func cuttingHandler(_ sent: AiRecorder<String>) -> FakeAiHandler {
+        FakeAiHandler { r, _ in
             let said = TranslationRunTests.userText(r)
             sent.add(said)
             if said.utf16.count > 300 { return FakeAiHandler.json(200, #"{"choices":[{"message":{"content":"Cortado"},"finish_reason":"length"}]}"#) }
             return FakeAiHandler.sse(said)
         }
-        let client = TranslationRunTests.client(handler)
+    }
+
+    static func translateCut(_ text: String, _ sent: AiRecorder<String>) async -> TranslationAnswers {
+        let client = TranslationRunTests.client(cuttingHandler(sent))
         var settings = TranslationSettings()
         settings.retryWaits = [0]
         settings.replyDeadline = 45
-        let a = await Translation.translate([TranslationJob(text, 0, [text], marked: true)], "Spanish",
-                                            { m, t, c in try await client.chat(m, onText: t, cancel: c) }, settings: settings)
+        return await Translation.translate([TranslationJob(text, 0, [text], marked: true)], "Spanish",
+                                           { m, t, c in try await client.chat(m, onText: t, cancel: c) }, settings: settings)
+    }
+
+    @Test func aMarkedTextCutOffByTheModelsLimitIsAskedForInMarkedHalves() async {
+        let text = Array(repeating: "A <b>sentence</b> of the long paragraph goes here.", count: 8).joined(separator: " ")
+        let sent = AiRecorder<String>()
+        let a = await Self.translateCut(text, sent)
+        #expect(sent.count > 2)
+        // Each half carries its tags, closed in it, and the halves' answers joined are the whole's markup.
+        #expect(sent.all.dropFirst().allSatisfy { $0.components(separatedBy: "<b>").count == $0.components(separatedBy: "</b>").count })
+        #expect(sent.all.dropFirst().allSatisfy { $0.contains("<b>sentence</b>") })
+        #expect(a.done[text] == text)
+    }
+
+    @Test func aMarkedTextCutOffWhereNoHalfCanCloseItsTagsIsAskedForInPlainHalves() async throws {
+        // No space anywhere, and as many words as make the half end inside a tag.
+        let text = try #require((25..<65).map { String(repeating: "Word<b>bold</b>", count: $0) }
+            .first { TranslationMarkup.pieces($0, max(20, AiText.estimateTokens($0) / 2)) == nil })
+        let sent = AiRecorder<String>()
+        let a = await Self.translateCut(text, sent)
         #expect(sent.count > 2)
         #expect(sent.all.dropFirst().allSatisfy { !$0.contains("<") })
         #expect(a.done[text].map { !$0.contains("<") } == true)
@@ -120,6 +216,42 @@ struct TranslationMarkupTests {
         let (text, problem) = TranslationText.cleanReply("Una <b>palabra</b> <span>y</span> <sub>otra</sub>", "A <b>word</b> and d<sub>another</sub>", marked: true)
         #expect(problem == nil)
         #expect(text == "Una <b>palabra</b> y <sub>otra</sub>")
+    }
+
+    @Test(arguments: [("∗ †", false), ("<b></b><sup>∗ †</sup>", true)])
+    func aReplyWhoseWordsAreAllGoneIsNotUsed(_ reply: String, _ marked: Bool) {
+        let source = marked ? "<b>Aidan N. Gomez</b><sup>∗ †</sup>" : "Aidan N. Gomez ∗ †"
+        let (text, problem) = TranslationText.cleanReply(reply, source, marked: marked)
+        #expect(text == nil)
+        #expect(problem != nil)
+    }
+
+    @Test(arguments: [
+        ("<bold>Información adicional</bold><i>(si aplica)</i>", "<b>Información adicional</b><i>(si aplica)</i>"), // a real model's, Spanish
+        ("<strong>Información</strong> <em>adicional</em>", "<b>Información</b> <i>adicional</i>"),
+        ("Información <em>adicional</em> <sup>2</sup>", "Información <i>adicional</i> 2"), // no <sup> was sent
+    ])
+    func aModelsOwnNamesForBoldAndItalicAreReadAsOurs(_ reply: String, _ cleaned: String) {
+        let (text, problem) = TranslationText.cleanReply(reply, "<b>Additional Information </b><i>(if applicable)</i>", marked: true)
+        #expect(problem == nil)
+        #expect(text == cleaned)
+    }
+
+    @Test(arguments: [
+        ("<Aidan N. Gomez></sup>∗ †", "<b>Aidan N. Gomez</b><sup>∗ †</sup>", "Aidan N. Gomez∗ †"), // a real model's bold name in brackets
+        ("<Décodage :> Le décodeur est composé.", "<b>Decoder:</b> The decoder is composed.", "Décodage : Le décodeur est composé."),
+        ("<Décodage :> Le décodeur est composé.", "Decoder: The decoder is composed.", "Décodage : Le décodeur est composé."), // sent without markup
+        ("Voir <Annexe A>, page 3.", "See <b>Annex</b> A, page 3.", "Voir Annexe A, page 3."), // no space before its comma
+        ("Voir<Annexe A>page 3.", "See <b>Annex</b> A, page 3.", "Voir Annexe A page 3."), // a space from the letters beside it
+        ("<font color=\"#0000FF\">Informations</font> <bold>en plus</bold><br/>", "<b>More</b> information", "Informations en plus"), // tag-shaped: only the tags go
+    ])
+    func wordsAModelPutInAngleBracketsStayAndOnlyTagsGo(_ reply: String, _ source: String, _ written: String) {
+        let marked = source.contains("<b>")
+        let (text, problem) = TranslationText.cleanReply(reply, source, marked: marked)
+        #expect(problem == nil)
+        let plain = marked ? TranslationMarkup.plain(source) : source
+        let spans = marked ? [TextSpan(0, (plain as NSString).range(of: " ").location, lookB)] : []
+        #expect(TranslationMarkup.read(text ?? "", plain, spans).text == written)
     }
 
     @Test func aQuotedParagraphAllInItalicKeepsItsQuotes() {
@@ -254,14 +386,18 @@ struct TranslationMarkupTests {
 /// Windows' `TranslationMarkupHostileTests`: Translate's looks markup against crafted pages and crafted replies (the
 /// hostile-input review before 1.10): no tag of ours reaches a page, and marking or reading stays linear.
 @Suite(.serialized) struct TranslationMarkupHostileTests {
-    static let ourTag = try! NSRegularExpression(pattern: #"<\s*/?\s*(?:b|i|sub|sup)\s*>"#, options: .caseInsensitive)
+    static let ourTag = try! NSRegularExpression(pattern: #"<\s*/?\s*(?:b|i|span|sub|sup)\s*>"#, options: .caseInsensitive)
 
     static func hasOurTag(_ s: String) -> Bool { ourTag.firstMatch(in: s, range: NSRange(location: 0, length: (s as NSString).length)) != nil }
 
-    @Test func randomRepliesNeverLeaveATagOfOursInTheText() {
+    @Test(arguments: [false, true])
+    func randomRepliesNeverLeaveATagOfOursInTheText(_ boldParagraph: Bool) {
         let text = "The quick brown fox jumps over d model and the lazy dog."
-        let spans = [TextSpan(10, 5, lookB), TextSpan(33, 5, lookSub), TextSpan(43, 3, lookI)]
-        let bits = ["<", ">", "/", "b", "i", "sub", "sup", " ", "x", "<b>", "</b>", "<i>", "</i>", "<sub>", "</sub>", "<sup>", "</sup>", "B", "!", "=", "1"]
+        // A regular word in a bold paragraph is marked the other way round: its bold around the rest.
+        let face = boldParagraph ? TextLook(bold: false) : lookB
+        let spans = [TextSpan(10, 5, face), TextSpan(33, 5, lookSub), TextSpan(43, 3, lookI), TextSpan(20, 5, TextLook(color: 0xFF0000))]
+        let bits = ["<", ">", "/", "b", "i", "sub", "sup", "span", " ", "x", "<b>", "</b>", "<i>", "</i>", "<sub>", "</sub>", "<sup>", "</sup>",
+                    "<span>", "</span>", "B", "!", "=", "1"]
         var random = Seeded(1234)
         for _ in 0..<50_000 {
             var reply = ""
@@ -270,6 +406,27 @@ struct TranslationMarkupTests {
             #expect(!Self.hasOurTag(got), "\(reply) -> \(got)")
             if Self.hasOurTag(got) { break }
         }
+    }
+
+    @Test func aHugeParagraphWithBracketsOfItsOwnIsCheckedQuickly() {
+        // Whether its own brackets could be read as tags is one pass over it, however many there are.
+        let text = String(repeating: "a < 0.5 -> c ", count: 150_000)
+        let start = threadSeconds()
+        let marked = TranslationMarkup.mark(text, [TextSpan(0, 1, lookB)])
+        // 1.5 s on Windows' release build; swift test builds for debug (see aHugeParagraphWithManyLooksIsMarkedQuickly).
+        #expect(threadSeconds() - start < 6, "\(threadSeconds() - start) s")
+        #expect(marked.hasPrefix("<b>a</b> < 0.5"))
+    }
+
+    @Test func piecesOfMarkedTextEachCloseTheirTagsAndACutInsideATagGivesNone() throws {
+        let text = Array(repeating: "A <b>long bold stretch of words</b> and <sup>2</sup> more.", count: 60).joined(separator: " ")
+        let pieces = try #require(TranslationMarkup.pieces(text, 60))
+        #expect(pieces.count > 3)
+        // Each piece is markup of its own, and the pieces together say what the whole did.
+        #expect(pieces.allSatisfy { $0.components(separatedBy: "<b>").count == $0.components(separatedBy: "</b>").count })
+        #expect(TranslationMarkup.plain(text) == TranslationMarkup.plain(pieces.joined(separator: " ")))
+        // No space to cut at: a cut lands inside a tag, and the text goes in plain pieces instead.
+        #expect(TranslationMarkup.pieces(String(repeating: "<b>x</b><sub>y</sub>", count: 200), 20) == nil)
     }
 
     @Test func aHugeParagraphWithManyLooksIsMarkedQuickly() {
@@ -303,14 +460,15 @@ struct TranslationMarkupTests {
     /// The spans' looks laid over each other character by character, as disjoint spans.
     static func oneByOne(_ length: Int, _ spans: [TextSpan]) -> [TextSpan] {
         struct At: Equatable {
-            var bold = false, italic = false
+            var bold = false, italic = false, other = false
             var script: TextScript?
         }
         var at = [At](repeating: At(), count: length)
         for s in spans {
             var i = max(0, s.start)
             while i < min(length, s.end) {
-                at[i] = At(bold: at[i].bold || s.look.bold == true, italic: at[i].italic || s.look.italic == true, script: s.look.script ?? at[i].script)
+                at[i] = At(bold: at[i].bold || s.look.bold == true, italic: at[i].italic || s.look.italic == true, other: at[i].other || s.look.color != nil,
+                           script: s.look.script ?? at[i].script)
                 i += 1
             }
         }
@@ -320,8 +478,8 @@ struct TranslationMarkupTests {
             var j = i + 1
             while j < length && at[j] == at[i] { j += 1 }
             let a = at[i]
-            if a.bold || a.italic || a.script != nil {
-                result.append(TextSpan(i, j - i, TextLook(bold: a.bold ? true : nil, italic: a.italic ? true : nil, script: a.script)))
+            if a.bold || a.italic || a.other || a.script != nil {
+                result.append(TextSpan(i, j - i, TextLook(color: a.other ? 0xFF0000 : nil, bold: a.bold ? true : nil, italic: a.italic ? true : nil, script: a.script)))
             }
             i = j
         }

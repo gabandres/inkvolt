@@ -1230,7 +1230,7 @@ at under "What a person must look at" and in each section.
 | 3.5 | Indexed folder search (roadmap 3.5's Mac line): Edit › Find › Search Folders… (⌥⇧⌘F, the command palette) over folders indexed on this Mac | IndexTermsTests, FolderIndexTests, FolderIndexerTests |
 | 3.3 | Compare: Office files, scans and formatting (roadmap 3.3's Mac line), on E3's Compare Files | CompareChangesTests, CompareAlignTests, CompareContractTests (and CompareTests, E3's, unchanged) |
 | 2.1 | Paragraph text editing (roadmap 2.1's Mac line): Edit Text & Images rewrites a paragraph in its box, characters its font lacks from fonts on this Mac, looks for a selection, text in form XObjects, turned text | ParagraphEditTests, ContentEditorTests, ContentEditFontTests |
-| 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests |
+| 3.1 | Translate side by side (roadmap 3.1's Mac line): Tools › AI Assistant › Translate with AI…, a translated copy beside its original, through the user's own AI endpoint | TranslationReplyTests, TranslationRunTests, TranslationLooksTests, TranslationMarkupHostileTests, TranslationCopyTests, TranslationLinkTimingTests, TranslationPdfJsTests (opt-in) |
 | CB | The command bar (Windows' 1.12 design, docs/design/command-bar.md): the toolbar's groups Edit, Convert, Comment, Fill & Sign, Organize, Protect, Scan & OCR as split items, the icon-only pointer tools, the one-click jobs, the bar's colours | CommandBarLayoutTests (the table), BarColorsTests, ExportTargetTests → `CommandBarTests`, `ExportTargetTests`; ReservedFileNamesTests (PrintCore) |
 | CBF | Finder's Convert to Word (Windows' Explorer verb) and `--convert-to` on the command line: a Services entry, the conversions window, a running copy taking another launch's files ("Finder's Convert to Word" under Command bar) | ConvertCommandTests, ConvertQueueTests, ConvertLaunchTests, LaunchHandoffTests (LaunchDropBoxTests: no Mac part) |
 | W4A | Wave 4's paper commands (roadmap Batch A, "Wave 4: paper commands" below): Page Labels, Interleave Pages and Scan the Backs, Remove Blank Pages and Split at Blank Pages (and their Batch actions), Bookmarks from Headings, Resize Pages, Replace Pages | PageLabelEditTests, InterleaveTests, BlankPagesTests, HeadingBookmarksTests, ResizePagesTests, ReplacePagesTests; BatchAutomationTests' preset round trip |
@@ -2552,9 +2552,10 @@ and `corpusParagraphsTakeTwentyMoreWords` needs `INKVOLTPDF_CORPUS` (the export 
 ### Translate side by side (roadmap 3.1)
 
 Windows' Translate in PdfCore (`Translate/`, `ContentEditor+Translate`, `+TranslateTurned`, `+TranslateLinks`,
-`+TranslateLooks`), its tests first under their names (camel-cased); the app is `Translate.swift` (Tools › AI Assistant ›
-Translate with AI…, the copy beside its original); the self-test is `--only-translate`, with a stand-in translator on
-loopback. Mac differences:
+`+TranslateLooks`, `+TranslateUnderlines`), its tests first under their names (camel-cased); the app is `Translate.swift`
+(Tools › AI Assistant › Translate with AI…, the copy beside its original); the self-test is `--only-translate`, with a
+stand-in translator on loopback (into Spanish, then Arabic). Windows' looks and right-to-left lines of 2026-11-19 and 20
+are in too, with their own differences: "Windows' additions of 2026-11-19 and 20" below. Mac differences:
 
 - **Run ids aren't unique once an operator draws columns.** The Mac's walk tells runs apart by operator id; a translated
   copy's walk makes a run of each column one operator draws, so each run also has a `key` (its place among the page's
@@ -2878,16 +2879,46 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   it blacked, as Windows' object does) and the app's Apply hands its result to `applied` before `verify`; the page's
   paper color, of equal counts, is the one sampled first (as .NET's dictionary orders it). Rounding is .NET's (to even).
   For a person to look at: a redacted line on screen and printed (the words' shading where they moved, under a pixel).
-- **3.1, Translate's looks and right-to-left lines: not ported yet** (the audit's run of 2026-11-27 stopped at the four
-  above). The Mac's Translate is Windows' of 2026-11-10; what it lacks is Windows' eeb4f0f4 and bfc86ffc (a regular word
-  in a bold paragraph, another color or class of font as `<span>`, scripts at the page's size and rise, the review's ten
-  fixes), 692487d7 (plain underlines, `ContentEditor.TranslateUnderlines`, `<u>`), b5f6fe02 (looks in right-to-left
-  text: `TextShaper.Shape` with a `GlyphStyle` per look), cb5c8bf8 (two or three other looks: `<span>`, `<font>`,
-  `<mark>`), 0d1de0c2 (scripts longer than 12 characters), c284dd12 and db89d996 (the real model's fixes;
-  `RightToLeftFont`), 04c9901f, 1dcf3497, 48424333 and e3238825 (right-to-left lines written in stretches,
-  `GlyphOrder.Stretches`, `JoinLeftToRight`; the pdf.js reading test). About 3,300 lines of Windows changes with their
-  tests (`TranslationLooksTests`, `TranslationTests`, `TranslationPdfJsTests`): one port of its own, in that order (the
-  styled shaping first, as the right-to-left stretches build on it).
+- **3.1, Translate's looks and right-to-left lines** (ported 2026-11-27, Windows' eeb4f0f4, bfc86ffc, 692487d7, b5f6fe02,
+  cb5c8bf8, 0d1de0c2, c284dd12, db89d996, 04c9901f, 1dcf3497, 48424333 and e3238825, each file at its state after the
+  last of them): `TranslationMarkup` as Windows' (a regular word in a bold paragraph marked the other way round, `<u>`,
+  `<span>`, `<font>` and `<mark>` for three other looks, scripts at their own size and rise, `pieces` and `join` for a
+  long paragraph and cut-off answers, a model's own names for bold and italic, words it put in angle brackets kept,
+  `tagsNamed` in the request); `TextLook.rise` and `underline`; `translationLook`'s other looks; `FontNames`' URW and TeX
+  names; scripts up to any length joining their line (`withMarksInLine`), footnotes each after its mark apart
+  (`PLine.marked`, `markStart`), the step widened for a script; `lineRuns` past a line-end hyphen's own piece; plain
+  underlines (`ContentEditor+TranslateUnderlines`: `plainUnderlines`, `newUnderlines`, `takeOffUnderlines`,
+  `ParagraphLayout.underlined`); right-to-left lines with looks, in a font whose letters stay on the line
+  (`rightToLeftFont`), written in stretches (`GlyphOrder.stretches`), read back in reading order (`Bidi.toReadingOrder`,
+  `ContentEditor.inReadingOrder`, `PLine` joined right to left; the one-run editor refuses such a run). Tests under
+  Windows' names in `TranslationLooksTests`, `TranslationMarkupTests` (Windows' markup half of the looks tests and
+  `TranslationMarkupHostileTests`), `TranslationCopyTests` and `TranslationCopyMoreTests` (Windows' `TranslationTests`),
+  `TranslationPdfJsTests` (opt-in, `INKVOLTPDF_PDFJS`); the app's `--only-translate` also translates into Arabic.
+  Mac differences:
+  - **Core Text shapes a styled line whole.** Windows itemizes with its own bidi and shapes each run with HarfBuzz;
+    `TextShaper.shape(_:_:_:_:_:)` gives Core Text one line, each style's stretch in its font at its size (a private
+    attribute keeps each style in runs of its own), and lays each style's rise and color on its glyphs after. A run's
+    direction is Core Text's; `Bidi.levels` only says whether the line embeds deeper than a left-to-right run inside
+    right-to-left text (then it is written in reading order, as on Windows). `joinLeftToRight` changes the levels as
+    Windows does and hands Core Text the whole word ("2.0-beta", out to the spaces) as a left-to-right embedding
+    (`kCTWritingDirectionAttributeName`): a part alone would leave its figures on their own.
+  - **Underlined runs by key.** `PageContent.underlinedRuns` and the runs written are `TextRun.key`s, where Windows keeps
+    the runs themselves (see "Run ids aren't unique once an operator draws columns").
+  - **Fonts here.** `arabicForAParagraphInCalibriIsDrawnInAFontMuPDFReadsInOrder` returns at once without Calibri (macOS
+    ships none; Microsoft Office installs it), as Windows' does; the NimbusRomNo9L-Medi title is checked as drawn in a
+    bold stand-in, where Windows names the face's file ("timesbd"). The test helper's `/FT` takes another name with
+    `ContentEditPdf.make(timesName:)` (Windows' `WithTimesNamed`).
+  - **No real model's report.** The Mac has no `TranslationRealModelTests`, so `TranslationPlan.Sources` and
+    `TranslationMarkup.TagsKept` (what its report counts) aren't ported, and What's New leaves out "Checked with a local
+    model…".
+  - **The drawn-left-to-right test pages** (`rightToLeftWordsDrawnLeftToRightReadInOrderAcrossOperatorsAndColumns`,
+    `aRightToLeftRunDrawnLeftToRightIsNotEditedAsOneRun`): Windows draws them with its CID font writer; the Mac's stand-in
+    writer makes Type 3 fonts, which the editor neither edits nor splits into columns, so the Mac's pages use the test
+    helper's own embedded Arial (`/FU`), unjoined letters in the order drawn, and the second word on a line is placed by
+    its width (unjoined, it is wider than Windows' x 272 leaves room for).
+  - Run on the build Mac 2026-11-27: `TranslationPdfJsTests` with `INKVOLTPDF_PDFJS` (every case read in order, Arabic
+    and Hebrew with their spaces), not with `INKVOLTPDF_CORPUS`. For a person: a translated Arabic or Hebrew copy on
+    screen, in Preview and in a pdf.js viewer.
 
 ### Better OCR, the rest (roadmap 2.2's Mac line)
 
@@ -3002,7 +3033,5 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
     recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
     defaults, no start (2026-11-27), so it isn't offered there.
-- Inkvolt PDF: Translate's looks and right-to-left lines of 2026-11-19 and 20 (roadmap 3.1), Windows' 12 commits listed under
-  "Windows' additions of 2026-11-19 and 20".
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".
