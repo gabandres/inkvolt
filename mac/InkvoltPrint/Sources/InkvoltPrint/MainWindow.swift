@@ -46,6 +46,14 @@ struct MainWindow: View {
             }
         }
         .sheet(isPresented: $model.isAddingPrinter) { AddPrinterSheet().environment(model) }
+        // PDFs and pictures dropped on the window: Print a PDF or Print Photos, as files opened from Finder (the demo
+        // window's go to its made-up printers).
+        .dropDestination(for: URL.self) { urls, _ in
+            let files = urls.filter(\.isFileURL)
+            guard !files.isEmpty else { return false }
+            AppCommands.open(files, app: model)
+            return true
+        }
         // The demo window may come back by itself (window restoration): its printers start with it. Idempotent.
         .onAppear {
             model.start()

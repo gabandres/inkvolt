@@ -26,6 +26,7 @@ struct InkvoltPrintApp: App {
                 .keyboardShortcut("n")
                 Button("Batch Print…") { BatchPrintWindow.show(AppModel.shared) }
                     .keyboardShortcut("p", modifiers: [.command, .shift])
+                ScanWithMenu(model: model, shortcuts: true)
                 Divider()
                 Button("Share a Printer with Phones…") { PhoneSharing.show(AppModel.shared) }
                 Button("Set Up a New Printer's Wi-Fi…") { PrinterSetupWindow.show(AppModel.shared) }
@@ -77,6 +78,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             ProSetup.configure(AppModel.shared) // before anything asks the Pro check
             ScannerPdf.renderer = ScannedPdfPages() // scanners that send only PDF (roadmap 1.3): pages that are not one JPEG
             AppModel.shared.start()
+            let args = Array(CommandLine.arguments.dropFirst())
+            AppCommands.listen(args) // presets from later launches, and this one's --preset
+            AppCommands.openFromCommandLine(args)
             Report.runIfAsked(AppModel.shared)
             #if DEBUG
             Snapshot.runIfAsked(AppModel.shared)
@@ -115,6 +119,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
         MainActor.assumeIsolated { !AppModel.shared.settings.menuBar }
+    }
+
+    /// Files opened from Finder (Open With, or dropped on the Dock icon): a PDF to Print a PDF, pictures to Print Photos.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        MainActor.assumeIsolated { AppCommands.open(urls) }
+    }
+
+    /// The Dock menu: Scan: <preset> for the first five (Windows' jump list).
+    func applicationDockMenu(_ sender: NSApplication) -> NSMenu? {
+        nonisolated(unsafe) var menu: NSMenu?
+        MainActor.assumeIsolated { menu = AppCommands.dockMenu(AppModel.shared) }
+        return menu
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification)

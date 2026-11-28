@@ -3060,6 +3060,36 @@
         }
       }
     },
+    "Inkvolt Print hasn't found a printer yet, so \"%@\" can't be printed. Wait for your printer to appear (or add it by address), then open the file again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print todavía no encontró ninguna impresora, así que no se puede imprimir \"%@\". Espera a que aparezca tu impresora (o agrégala por su dirección) y vuelve a abrir el archivo."
+          }
+        }
+      }
+    },
+    "Inkvolt Print hasn't found a printer yet, so the photos can't be printed. Wait for your printer to appear (or add it by address), then open them again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print todavía no encontró ninguna impresora, así que no se pueden imprimir las fotos. Espera a que aparezca tu impresora (o agrégala por su dirección) y vuelve a abrirlas."
+          }
+        }
+      }
+    },
+    "Inkvolt Print prints PDFs and pictures. Open other files in their own app to print them.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print imprime archivos PDF e imágenes. Abre los demás archivos en su propia aplicación para imprimirlos."
+          }
+        }
+      }
+    },
     "IP address, name or printer URL": {
       "localizations": {
         "es": {
@@ -4075,6 +4105,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Todavía no hay impresoras"
+          }
+        }
+      }
+    },
+    "No scanner is connected yet, so \"%@\" didn't scan. Try again when the printer shows up.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Todavía no hay ningún escáner conectado, así que no se escaneó con \"%@\". Vuelve a intentarlo cuando aparezca la impresora."
           }
         }
       }
@@ -5560,6 +5600,26 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escanear desde el botón de la impresora"
+          }
+        }
+      }
+    },
+    "Scan With": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con"
+          }
+        }
+      }
+    },
+    "Scan: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear: %@"
           }
         }
       }

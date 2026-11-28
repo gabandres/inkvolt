@@ -26,6 +26,39 @@
 	<false/>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>PDF Document</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.adobe.pdf</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Picture</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.jpeg</string>
+				<string>public.png</string>
+				<string>com.microsoft.bmp</string>
+				<string>com.compuserve.gif</string>
+				<string>public.tiff</string>
+				<string>public.heic</string>
+				<string>org.webmproject.webp</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Inkvolt Print uses the camera only while you scan with it: each page you capture becomes a scanned page on this Mac. Nothing is recorded or sent.</string>
 	<key>NSLocalNetworkUsageDescription</key>

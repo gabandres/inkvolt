@@ -22,6 +22,7 @@ struct MenuBarMenu: View {
             }
         }
         Divider()
+        ScanWithMenu(model: model, shortcuts: false) // Windows' tray Scan with
         if model.isPaused, let until = model.settings.pausedUntil {
             Button("Resume Alerts (paused until \(until.formatted(date: .omitted, time: .shortened)))") { model.resumeAlerts() }
         } else if model.settings.alerts {
@@ -41,6 +42,28 @@ struct MenuBarMenu: View {
     private func open() {
         openWindow(id: MainWindow.id)
         NSApp.activate()
+    }
+}
+
+/// Scan With: the first nine scan presets while some printer can scan (the menu bar item's, Windows' tray Scan with; the
+/// File menu's, with ⌘1…⌘9 as Windows' Ctrl+1…9 anywhere in the window). Each runs on the selected printer's Scan tab.
+struct ScanWithMenu: View {
+    let model: AppModel
+    let shortcuts: Bool
+
+    var body: some View {
+        let presets = AppCommands.presetsToOffer(model)
+        if !presets.isEmpty {
+            Menu("Scan With") {
+                ForEach(Array(presets.enumerated()), id: \.element.id) { (i: Int, p: ScanPreset) in item(i, p) }
+            }
+        }
+    }
+
+    private func item(_ i: Int, _ p: ScanPreset) -> some View {
+        let button = Button(p.name) { AppCommands.runPreset(p.id, app: model) }
+        let key: KeyboardShortcut? = shortcuts ? KeyboardShortcut(KeyEquivalent(Character(String(i + 1))), modifiers: .command) : nil
+        return button.keyboardShortcut(key)
     }
 }
 
