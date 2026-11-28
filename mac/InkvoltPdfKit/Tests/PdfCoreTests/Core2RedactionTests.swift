@@ -34,7 +34,8 @@ struct Core2RedactionTests {
         let data = Self.secret(rotate: rotate)
         let area = try Self.area(data, "TOPSECRET").inflate(1)
 
-        let redacted = try Redaction.apply(data, nil, [0: [area]], dpi: 150)
+        let pages = try Redaction.redact(data, nil, [0: [area]], dpi: 150)
+        let redacted = pages.data
 
         let engine = try PdfEngine.open(redacted)
         defer { engine.close() }
@@ -43,7 +44,9 @@ struct Core2RedactionTests {
         #expect(try engine.text(0).isEmpty, "a redacted page is a picture")
         #expect(try engine.text(1).text.contains("Second page stays"))
         #expect(abs(engine.page(0).width - (rotate == 90 ? 792 : 612)) <= 0.5)
-        #expect(try Core2Pdf.ink(redacted, 0, area.inflate(-2)) > 0.95, "area is black")
+        // "Code ▮ here": the line is laid out again, so the box is where the layout put it.
+        #expect(!(pages.blacked[0] ?? []).isEmpty)
+        for box in pages.blacked[0] ?? [] { #expect(try Core2Pdf.ink(redacted, 0, box.inflate(-2)) > 0.95, "box is black") }
         // The rest of the page is still visible as pixels ("Public heading" draws ink where it was).
         let heading = try Self.area(data, "Public heading")
         #expect(try Core2Pdf.ink(data, 0, heading) > 0.05)

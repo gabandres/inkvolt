@@ -30,6 +30,8 @@ final class RedactionState {
     var reviewSheet: RedactReviewSheet?
     var removalSheet: RemovalReportSheet?
     var lastRemoval: RedactionFileReport?
+    /// What the last Apply Redactions made black and which words it moved (`Redaction.redact`).
+    var lastApplied: (blacked: [Int: [RectD]], moved: RedactionMoves) = ([:], .none)
     /// The last choices of Redact by Pattern, offered again (until the app quits).
     static var lastPatterns = RedactionPatternOptions()
     /// Suggest Redactions' sheet and the list's editor while they are open, and what the last suggestions kept and left out
@@ -232,6 +234,8 @@ extension DocumentWindowController {
         let recognizer = redaction.testRecognizer ?? PageOcr.recognizer(VisionRecognizer())
         let token = sheet.token
         let skipped = EditBox<Bool>(), recognized = EditBox<Int>()
+        // Where the boxes end up and which words moved (lines laid out again move them).
+        let applied = EditBox<(blacked: [Int: [RectD]], moved: RedactionMoves)>()
         let label = marks.count == 1 ? loc("Redact 1 area") : loc("Redact {0} areas", CoreLanguage.number(marks.count))
         let language = redaction.testRecognizer == nil ? SavedOcr.language : nil
         let ok = await editor.run(label, signaturesWarned: true) { d, pw in
@@ -243,11 +247,14 @@ extension DocumentWindowController {
             }, skipText: token)
             recognized.value = done.recognized
             skipped.value = done.textSkipped
+            applied.value = (done.blacked, done.moved)
             return done.data
         }
         sheet.end()
         progressSheet = nil
         guard ok else { return false }
+        let blacked = applied.value?.blacked ?? areasNow
+        redaction.lastApplied = (blacked, applied.value?.moved ?? .none)
         pages.clearRedactions()
         if pages.tool == .redact { pages.tool = .hand }
         if skipped.value == true {
@@ -256,7 +263,7 @@ extension DocumentWindowController {
         } else {
             notify(loc("Redacted {0} on {1}. Save to keep it.", Self.areaPhrase(marks.count), Self.pagePhrase(pageList.count)), canUndo: true)
         }
-        if check { checkAfterApply(RedactionCheckOptions(values: values, areas: areasNow, original: before, skipped: unread.list)) }
+        if check { checkAfterApply(RedactionCheckOptions(values: values, areas: blacked, original: before, skipped: unread.list)) }
         return true
     }
 

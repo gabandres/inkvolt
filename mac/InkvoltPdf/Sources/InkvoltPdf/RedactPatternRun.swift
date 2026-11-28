@@ -54,6 +54,7 @@ extension DocumentWindowController {
         }
         // What the person unticked stays a mark, not applied.
         if !choice.earlierKept.isEmpty { pages.addRedactions(choice.earlierKept.map { RedactMark(page: $0.page, rect: $0.rect) }) }
+        run.applied(redaction.lastApplied.blacked, redaction.lastApplied.moved)
         var (report, outcome) = await readBackPatterns(run, before)
         report.markedAreas = choice.earlierApplied.count
         redaction.lastRemoval = report

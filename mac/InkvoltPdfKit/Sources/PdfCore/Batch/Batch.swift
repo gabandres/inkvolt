@@ -903,6 +903,8 @@ public enum BatchRunner {
         /// What Redact Patterns removed (the text, the areas) and the file before it: for a later check.
         private var redactedValues: [String] = []
         private var redactedAreas: [Int: [RectD]] = [:]
+        /// The last Redact Patterns step's redaction (what it made black, the words it moved).
+        private var lastRedacted: Redaction.RedactedData?
         private var beforeRedaction: [UInt8]?
         /// What Redact Patterns did, for the removal report.
         private var redaction: RedactionFileReport?
@@ -1215,7 +1217,7 @@ public enum BatchRunner {
             let name = BatchRunner.reportName(file)
             var made = PatternRedaction(file: name, patterns: options, found: found, accepted: hits, skipped: [], mode: .unattended, ocr: ocr)
             made.earlierValues = redactedValues
-            let run = made
+            var run = made
             let earlier = redaction
             redaction = Self.merge(earlier, RedactionFileReport(name, hits.map { RedactionReport.row($0, .notSaved) }, found.looks, nil))
 
@@ -1233,10 +1235,24 @@ public enum BatchRunner {
             let areas = run.areas
             if !hits.isEmpty {
                 // The redacted pages get their text back from the recognizer, as the app's Apply Redactions gives it them.
-                result = try await edit(data) { d, pw in try run.redact(d, pw, cancel: self.cancel, skipText: self.cancel).data }
+                let toRedact = run
+                lastRedacted = nil
+                result = try await edit(data) { d, pw in
+                    var redacting = toRedact
+                    let r = try redacting.redact(d, pw, cancel: self.cancel, skipText: self.cancel)
+                    self.lastRedacted = r
+                    return r.data
+                }
+                if let r = lastRedacted { run.applied(r.blacked, r.moved) }
                 if beforeRedaction == nil { beforeRedaction = data }
                 redactedValues += RedactionSearch.soughtValues(hits)
-                for (page, list) in areas { redactedAreas[page, default: []] += list }
+                // Where the boxes are now: an earlier step's moved with the lines this one laid out again (or gone into its
+                // boxes), then this step's.
+                for (page, list) in run.blacked {
+                    let newAreas = areas[page] ?? []
+                    let moved = (redactedAreas[page] ?? []).filter { r in !newAreas.contains { !$0.intersect(r).isEmpty } }.map { run.moved.now(page, $0) }
+                    redactedAreas[page] = moved + list
+                }
             }
             let outcome = try run.verify(result, password, data, readBack: pages(loc("Reading the result back")), cancel: cancel)
             redaction = Self.merge(earlier, outcome.report)

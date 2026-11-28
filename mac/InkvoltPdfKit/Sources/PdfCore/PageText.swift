@@ -245,6 +245,12 @@ public final class PageText: @unchecked Sendable {
     /// The box of the UTF-16 unit at `index` (a line break's is zero-width, at its line's end).
     public func boxAt(_ index: Int) -> RectD { boxes[index] }
 
+    /// The UTF-16 unit at `index`.
+    func unit(_ index: Int) -> UInt16 { units[index] }
+
+    /// Each line's units [start, end) and its baseline direction (a unit vector; (1, 0) across the page).
+    var lineSpans: [(start: Int, end: Int, dx: Double, dy: Double)] { lines.map { ($0.start, $0.end, $0.dx, $0.dy) } }
+
     public func string(_ start: Int, _ end: Int) -> String {
         let (s, e) = order(start, end)
         return String(decoding: units[s..<e], as: UTF16.self)

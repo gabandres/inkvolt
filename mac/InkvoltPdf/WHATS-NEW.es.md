@@ -5,6 +5,8 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Eliminar información confidencial ya no deja ver el ancho de lo que quitaste. El texto que seguía a un recuadro negro se quedaba donde estaba, así que el hueco (y el propio recuadro) podía decir cuánto medían las palabras ocultas. Ahora cada línea con una eliminación se vuelve a componer: sus palabras conservan el orden, los espacios son iguales y el ancho del recuadro se redondea, así que la línea se ve igual sea lo que sea lo que había debajo.
+- Comprobar eliminación también encuentra recuadros negros dibujados dentro de la imagen de una página (por programas que convierten las páginas en imágenes, o en un escaneo) con texto al lado que puede revelar el ancho oculto.
 - Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.
 - Comprobación de accesibilidad compara los anchos que un PDF da a sus caracteres con los de la propia fuente en todo tipo de fuente incrustada, no solo TrueType: también las fuentes CFF y Type 1 (la mayoría de los PDF de InDesign, LaTeX y Acrobat).
 - En lote, un archivo pequeño que al descomprimirse ocupa mucho más que su tamaño (uno de 200 KB que guarda 200 MB) se procesa solo, para que ya no les quite memoria a los archivos que se procesan a la vez.

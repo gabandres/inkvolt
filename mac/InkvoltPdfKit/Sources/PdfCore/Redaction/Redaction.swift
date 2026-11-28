@@ -15,6 +15,19 @@ public enum Redaction {
         public var data: [UInt8]
         public var textSkipped: Bool
         public var recognized: Int
+        /// What is black on each redacted page (`RedactedPages.blacked`).
+        public var blacked: [Int: [RectD]] = [:]
+        /// The words the redaction moved (`RedactedPages.moved`).
+        public var moved = RedactionMoves.none
+    }
+
+    /// A redacted document (`redact`) and what is black on each redacted page, page space: the boxes where the lines laid
+    /// out again put them, and the rest of each area as it was drawn; and the words kept on lines laid out again, and where
+    /// they went.
+    public struct RedactedPages: Equatable, Sendable {
+        public var data: [UInt8]
+        public var blacked: [Int: [RectD]]
+        public var moved = RedactionMoves.none
     }
 
     /// How a pattern run's redacted pages are read back into text: cleaned, no suspect words (nobody reviews a redacted
@@ -26,9 +39,15 @@ public enum Redaction {
     public static func applyWithText(_ data: [UInt8], _ password: String?, _ areasByPage: [Int: [RectD]], recognize: Recognizer?,
                                      language: String? = nil, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil,
                                      skipText: CancelToken? = nil) throws -> RedactedData {
-        let redacted = try apply(data, password, areasByPage, cancel: cancel)
-        guard let recognize, redacted != data else { return RedactedData(data: redacted, textSkipped: false, recognized: 0) }
-        return try textBack(redacted, password, areasByPage, recognize, language: language, progress: progress, cancel: cancel, skipText: skipText)
+        let redaction = try redact(data, password, areasByPage, cancel: cancel)
+        let redacted = redaction.data
+        var result = RedactedData(data: redacted, textSkipped: false, recognized: 0)
+        if let recognize, redacted != data {
+            result = try textBack(redacted, password, redaction.blacked, recognize, language: language, progress: progress, cancel: cancel, skipText: skipText)
+        }
+        result.blacked = redaction.blacked
+        result.moved = redaction.moved
+        return result
     }
 
     /// The redacted pages of `redacted`, pictures now, recognized and given their text again as an invisible text layer, so
@@ -70,14 +89,26 @@ public enum Redaction {
     /// - Throws: `PdfEditError` for a page that isn't there or a PDF that can't be edited; `OwnerPasswordRequired`.
     public static func apply(_ data: [UInt8], _ password: String?, _ areasByPage: [Int: [RectD]], dpi: Double = 300,
                              cancel: CancelToken? = nil) throws -> [UInt8] {
+        try redact(data, password, areasByPage, dpi: dpi, cancel: cancel).data
+    }
+
+    /// `apply`, with what is black afterwards. A line an area cuts, with some of its own text left beside the box, is laid
+    /// out again (`RedactionLines`): its words keep their order and letters but not their places, and its box takes a
+    /// width rounded to whole steps, so neither the box nor the text around it gives the removed width away. The boxes
+    /// then sit where the layout put them, not where the areas were: `RedactedPages.blacked` says where (what the
+    /// redaction check and the text laid back are told).
+    public static func redact(_ data: [UInt8], _ password: String?, _ areasByPage: [Int: [RectD]], dpi: Double = 300,
+                              cancel: CancelToken? = nil) throws -> RedactedPages {
         let pages = areasByPage.filter { $0.value.contains { !$0.isEmpty } }.sorted { $0.key < $1.key }
-        if pages.isEmpty { return data }
+        if pages.isEmpty { return RedactedPages(data: data, blacked: [:]) }
         let dpi = min(max(dpi, 36), 1200)
         let cleared = try clearRedactedFields(data, password, pages)
 
         let engine = try PdfEngine.open(cleared, password: password)
         defer { engine.close() }
-        return try PageEditor.edit(cleared, password, rewrite: true) { doc in
+        var blackedByPage: [Int: [RectD]] = [:]
+        var movedByPage: [Int: [RedactionMoves.Move]] = [:]
+        let out = try PageEditor.edit(cleared, password, rewrite: true) { doc in
             let count = try doc.pageCount()
             for (index, areas) in pages {
                 guard index >= 0 && index < count && index < engine.pageCount else { throw PdfEditError(loc("There is no page {0}.", CoreLanguage.number(index + 1))) }
@@ -85,7 +116,8 @@ public enum Redaction {
                 let scale = dpi / 72
                 let img = try engine.render(index, scale: scale, cancel: cancel)
                 var rgb = img.pixels
-                for a in areas where !a.isEmpty {
+                let drawn = areas.filter { !$0.isEmpty }
+                for a in drawn {
                     let x0 = pixel((a.x * scale).rounded(.down), img.width, 0), x1 = pixel((a.right * scale).rounded(.up), img.width, img.width)
                     let y0 = pixel((a.y * scale).rounded(.down), img.height, 0), y1 = pixel((a.bottom * scale).rounded(.up), img.height, img.height)
                     if x1 <= x0 { continue }
@@ -94,9 +126,162 @@ public enum Redaction {
                         for i in row..<row + (x1 - x0) * 3 { rgb[i] = 0 }
                     }
                 }
-                replacePage(doc, doc.page(index), img.width, img.height, rgb)
+                var moved: [RedactionMoves.Move] = []
+                var laidOut: [RectD] = []
+                let page = doc.page(index)
+                let canvas = RedactionLines.Canvas(rgb, img.width, img.height, scale, drawn)
+                let text = try engine.text(index, cache: false, cancel: cancel)
+                blackedByPage[index] = relay(text, drawn, earlierBoxes(page), canvas, &moved, &laidOut)
+                if !moved.isEmpty { movedByPage[index] = moved }
+                replacePage(doc, page, img.width, img.height, canvas.rgb, laidOut)
             }
         }
+        return RedactedPages(data: out, blacked: blackedByPage, moved: RedactionMoves(movedByPage))
+    }
+
+    /// The boxes an earlier redaction by Inkvolt PDF wrote into the page's picture (`laidOutBoxes`).
+    private static func earlierBoxes(_ page: PObj) -> [RectD] {
+        guard let xobjects = page.dict("Resources")?.dict("XObject") else { return [] }
+        return Array(xobjects.keys.compactMap { xobjects.dict($0) }.flatMap(laidOutBoxes).prefix(maxLaidOut))
+    }
+
+    /// The lines the areas cut, laid out again in the page picture (`RedactionLines`); returns what is black: each line's
+    /// boxes where they now are, the areas that are blocks as drawn, and what lines left in place keep. Each word and
+    /// earlier box moved goes in `moved`; every box that gives no width away, in `laidOut` (a line left in place, because
+    /// its space holds a rule or a picture, is left out, so the check reports it). What an area cutting lines laid out
+    /// again holds outside their rows (between the lines of a tall area, past a line's end) becomes paper: the area is
+    /// rows of lines.
+    private static func relay(_ text: PageText, _ areas: [RectD], _ earlier: [RectD], _ canvas: RedactionLines.Canvas,
+                              _ moved: inout [RedactionMoves.Move], _ laidOut: inout [RectD]) -> [RectD] {
+        let scale = canvas.scale
+        var blacked: [RectD] = []
+        var rows: [RectD] = []
+        var inPlaceRows: [RectD] = []
+        var lineAreas = Set<RectD>()
+        var inPlaceAreas = Set<RectD>()
+        let lines = RedactionLines.find(text, areas, Double(canvas.width) / scale, Double(canvas.height) / scale) { band, vertical in
+            darkRuns(canvas, band, vertical)
+        }
+        for line in lines {
+            let r = RedactionLines.relay(canvas, line, RedactionLines.layout(line))
+            blacked += r.boxes
+            blacked += r.fixed.map(\.now)
+            if r.rows.isEmpty { continue }
+            let mine = line.areas.map(line.toPage)
+            if !r.laidOut {
+                inPlaceRows.append(r.rows)
+                inPlaceAreas.formUnion(mine)
+                continue
+            }
+            rows.append(r.rows)
+            lineAreas.formUnion(mine)
+            laidOut += r.boxes
+            // An earlier box that was Inkvolt's is still one that gives nothing away; another tool's is still reported.
+            laidOut += r.fixed.filter { f in earlier.contains { !$0.intersect(f.was.inflate(-0.5)).isEmpty } }.map(\.now)
+            moved += r.moved.map { RedactionMoves.Move(was: $0.was, dx: $0.dx, dy: $0.dy) }
+        }
+        for a in areas {
+            let rest = subtract(subtract([a], rows), inPlaceRows)
+            if lineAreas.contains(a) && !inPlaceAreas.contains(a) {
+                // Rows of lines: what it holds between and beyond them is paper, so nothing there keeps its drawn edges.
+                for piece in rest { paper(canvas, piece) }
+                continue
+            }
+            blacked += rest
+            if !inPlaceAreas.contains(a) { laidOut += rest } // a block, as drawn: its width is the area's, not its words'
+        }
+        return blacked
+    }
+
+    /// The rectangles less each of `cuts` (each split into at most four).
+    static func subtract(_ rects: [RectD], _ cuts: [RectD]) -> [RectD] {
+        var rects = rects
+        for c in cuts {
+            var next: [RectD] = []
+            for r in rects {
+                let i = r.intersect(c)
+                if i.isEmpty {
+                    next.append(r)
+                    continue
+                }
+                if i.y > r.y { next.append(.fromEdges(r.x, r.y, r.right, i.y)) }
+                if i.bottom < r.bottom { next.append(.fromEdges(r.x, i.bottom, r.right, r.bottom)) }
+                if i.x > r.x { next.append(.fromEdges(r.x, i.y, i.x, i.bottom)) }
+                if i.right < r.right { next.append(.fromEdges(i.right, i.y, r.right, i.bottom)) }
+            }
+            rects = next.filter { $0.width > 1e-6 && $0.height > 1e-6 }
+        }
+        return rects
+    }
+
+    /// Paints a rectangle (page space) with the paper beside it, row by row.
+    private static func paper(_ canvas: RedactionLines.Canvas, _ r: RectD) {
+        let x0 = pixel((r.x * canvas.scale).rounded(.down), canvas.width, 0), x1 = pixel((r.right * canvas.scale).rounded(.up), canvas.width, 0)
+        let y0 = pixel((r.y * canvas.scale).rounded(.down), canvas.height, 0), y1 = pixel((r.bottom * canvas.scale).rounded(.up), canvas.height, 0)
+        if x1 <= x0 || y1 <= y0 { return }
+        for y in y0..<y1 {
+            let (red, green, blue) = canvas.paperBeside(false, x0, x1, y)
+            for x in x0..<x1 {
+                let o = (y * canvas.width + x) * 3
+                (canvas.rgb[o], canvas.rgb[o + 1], canvas.rgb[o + 2]) = (red, green, blue)
+            }
+        }
+    }
+
+    /// Boxes already on a line (an earlier redaction's, Inkvolt's or another tool's): along the line and up to three line
+    /// heights beyond its ends, stretches at least 0.6 line heights long that are dark across the middle half of its band
+    /// in the page as it was (line space).
+    private static func darkRuns(_ canvas: RedactionLines.Canvas, _ band: RectD, _ vertical: Bool) -> [(x: Double, right: Double)] {
+        let s = canvas.scale
+        let along = vertical ? canvas.height : canvas.width
+        let across = vertical ? canvas.width : canvas.height
+        let h = band.height
+        func clamp(_ v: Double, _ hi: Int) -> Int { pixel((v * s).rounded(.toNearestOrEven), hi, 0) }
+        let a0 = clamp(band.x - 3 * h, along), a1 = clamp(band.right + 3 * h, along)
+        let c0 = clamp(band.y + h / 4, across), c1 = max(clamp(band.bottom - h / 4, across), c0 + 1)
+        if c1 > across { return [] }
+        func dark(_ a: Int) -> Bool {
+            var n = 0
+            for c in c0..<c1 {
+                let o = vertical ? (a * canvas.width + c) * 3 : (c * canvas.width + a) * 3
+                if Int(canvas.before[o]) * 30 + Int(canvas.before[o + 1]) * 59 + Int(canvas.before[o + 2]) * 11 < 70 * 100 { n += 1 }
+            }
+            return Double(n) >= 0.95 * Double(c1 - c0)
+        }
+        var runs: [(x: Double, right: Double)] = []
+        var a = a0
+        while a < a1 {
+            if !dark(a) {
+                a += 1
+                continue
+            }
+            var end = a
+            while end < a1 && dark(end) { end += 1 }
+            if Double(end - a) / s >= 0.6 * h { runs.append((Double(a) / s, Double(end) / s)) }
+            a = end
+        }
+        return runs
+    }
+
+    /// Where Inkvolt PDF writes, in a redacted page's picture, the boxes of the lines it laid out again (x y w h, page space).
+    private static let laidOutKey = "PdLaidOut"
+
+    /// Most boxes read back from `laidOutKey`.
+    private static let maxLaidOut = 1000
+
+    /// The boxes a redacted page's picture says were laid out with their lines (`RedactionLines`): the redaction check
+    /// doesn't count the text beside them as giving a width away.
+    static func laidOutBoxes(_ image: PObj) -> [RectD] {
+        guard let a = image.array(laidOutKey) else { return [] }
+        var out: [RectD] = []
+        var i = 0
+        let n = min(a.count, 4 * maxLaidOut)
+        while i + 3 < n {
+            let r = RectD(a.num(i), a.num(i + 1), a.num(i + 2), a.num(i + 3))
+            if !r.isEmpty && (r.x + r.y + r.width + r.height).isFinite { out.append(r) }
+            i += 4
+        }
+        return out
     }
 
     /// `v` as a pixel column or row within 0...`hi`, checked as a Double first (an area's edge can be anything); `nan` when
@@ -122,11 +307,16 @@ public enum Redaction {
         return try PdfEdit.save(doc, original: data, password: password, rewrite: true)
     }
 
-    private static func replacePage(_ doc: MuDoc, _ page: PObj, _ width: Int, _ height: Int, _ rgb: [UInt8]) {
-        let image = doc.addStream(rgb, dict: doc.dict([
+    private static func replacePage(_ doc: MuDoc, _ page: PObj, _ width: Int, _ height: Int, _ rgb: [UInt8], _ laidOut: [RectD]) {
+        var entries: [(String, PObj)] = [
             ("Type", doc.name("XObject")), ("Subtype", doc.name("Image")), ("Width", doc.int(width)), ("Height", doc.int(height)),
             ("ColorSpace", doc.name("DeviceRGB")), ("BitsPerComponent", doc.int(8)),
-        ]), deflate: true)
+        ]
+        if !laidOut.isEmpty {
+            let numbers = laidOut.prefix(maxLaidOut).flatMap { [$0.x, $0.y, $0.width, $0.height] }
+            entries.append((laidOutKey, doc.array(numbers.map { doc.real(($0 * 100).rounded(.toNearestOrEven) / 100) })))
+        }
+        let image = doc.addStream(rgb, dict: doc.dict(entries), deflate: true)
 
         // The picture is upright as displayed; map its unit square onto the (turned) visible box.
         let (dw, dh) = PageBoxes.displaySize(page)
@@ -216,6 +406,30 @@ public enum Redaction {
             }
         }
         visit(doc.catalog.dict("StructTreeRoot")?["K"], false, 0)
+    }
+}
+
+/// Words a redaction moved along their lines (`RedactionLines`): where each was (page space) and how far it went.
+public struct RedactionMoves: Equatable, Sendable {
+    public struct Move: Equatable, Sendable {
+        public var was: RectD
+        public var dx: Double, dy: Double
+    }
+
+    private let moves: [Int: [Move]]
+
+    init(_ moves: [Int: [Move]]) { self.moves = moves }
+
+    public static let none = RedactionMoves([:])
+
+    public var isEmpty: Bool { moves.isEmpty }
+
+    /// Where a box of text that was kept on `page` (or an earlier redaction's box) is now (as it was, when it didn't move).
+    public func now(_ page: Int, _ box: RectD) -> RectD {
+        for m in moves[page] ?? [] where m.was.contains(box.centerX, box.centerY) {
+            return RectD(box.x + m.dx, box.y + m.dy, box.width, box.height)
+        }
+        return box
     }
 }
 

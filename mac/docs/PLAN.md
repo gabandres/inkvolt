@@ -2533,6 +2533,14 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   As Windows; a label's own row that goes takes its height with it when the table has row heights. Tagging only: the
   exports are as before (`A_table_without_lines_…` checks it), so `pdf/tools/export-corpus` has nothing new to see; the
   tagging corpus wasn't run (its PDFs aren't on the build Mac).
+- **1.5, redacted lines laid out again and boxes in pictures** (`RedactionLines`, `Redaction.redact` with `RedactedPages`
+  and `RedactionMoves`, `/PdLaidOut` and `Redaction.laidOutBoxes`; the check's `boxesInPictures` and `besideBox`;
+  `PageText.lineSpans`). Apply Redactions, Redact by Pattern, Suggest Redactions and Batch's Redact Patterns tell the
+  check and the text laid back where the boxes went (`Redaction.RedactedData.blacked`, `moved`), and kept hits are looked
+  for where their words went. Mac differences: `PatternRedaction` is a value, so its `redact` is `mutating` (it keeps what
+  it blacked, as Windows' object does) and the app's Apply hands its result to `applied` before `verify`; the page's
+  paper color, of equal counts, is the one sampled first (as .NET's dictionary orders it). Rounding is .NET's (to even).
+  For a person to look at: a redacted line on screen and printed (the words' shading where they moved, under a pixel).
 
 ## Open decisions
 

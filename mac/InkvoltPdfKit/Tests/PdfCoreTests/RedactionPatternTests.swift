@@ -249,9 +249,10 @@ struct RedactionPatternTests {
         let after = try Self.text(redacted, 0)
         for secret in ["jane.doe", "example.com", "123-45", "6789"] { #expect(!after.contains(secret), "\(secret)") }
         #expect(try Self.text(redacted, 1) == "Second page stays: no numbers here") // a page without matches keeps its text
-        for m in matches {
-            for r in m.rects { #expect(try Core2Pdf.ink(redacted, 0, r.inflate(-1)) > 0.95, "\(m.pattern) blacked out") }
-        }
+        // Each line with a match is laid out again: its boxes are where the layout put them.
+        let blacked = try Redaction.redact(data, nil, RedactionSearch.areas(matches)).blacked
+        #expect(blacked[0]?.count == 3)
+        for r in blacked[0] ?? [] { #expect(try Core2Pdf.ink(redacted, 0, r.inflate(-1)) > 0.95, "\(r) blacked out") }
         #expect(try Core2Pdf.ink(redacted, 0, heading) > 0.05, "the heading still shows")
         #expect(try Core2Pdf.ink(redacted, 0, heading) < 0.6, "and isn't blacked out")
 

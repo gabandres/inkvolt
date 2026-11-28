@@ -133,7 +133,8 @@ the redacted text anywhere in the file (every earlier version too), and boxes dr
 space between them, each box rounded to steps of twice the line's height; `/PdLaidOut` records the boxes it laid out.
 - **Limit, by MuPDF's nature:** a moved word keeps the anti-aliased shading of where it was (under a pixel, 0.24 pt at
   300 dpi): MuPDF renders on the pixel grid, so a word can't be drawn again at a sub-pixel offset.
-- **Mac:** `RedactionLines` and `GlyphSpacing` aren't ported.
+- **Mac:** done (2026-11-27), `RedactionLines` (through `Redaction.redact`) and the boxes in pictures (`GlyphSpacing`)
+  too; differences: `mac/docs/PLAN.md`, "Windows' additions of 2026-11-19 and 20".
 
 ### 1.6 Store update check
 Done. `UpdateCheck` (Core, decisions tested with a fake Store) through `Windows.Services.Store`. Mac: Sparkle 2.

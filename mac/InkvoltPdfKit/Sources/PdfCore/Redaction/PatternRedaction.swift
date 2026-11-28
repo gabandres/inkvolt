@@ -77,13 +77,28 @@ public struct PatternRedaction: Sendable {
         return out
     }
 
+    /// What the redaction made black and the words it moved (the lines it laid out again; `applied`); nil before it ran.
+    private var lastApplied: (blacked: [Int: [RectD]], moved: RedactionMoves)?
+
+    /// What is black after the redaction: `areas`, with the boxes where the lines laid out again put them.
+    public var blacked: [Int: [RectD]] { lastApplied?.blacked ?? areas }
+
+    /// The words the redaction moved along their lines.
+    public var moved: RedactionMoves { lastApplied?.moved ?? .none }
+
+    /// The run's `areas` were redacted another way (the app's Apply Redactions through `Redaction.redact`, or a copy of
+    /// this run): what that made black and moved, for `verify` (Windows' `Applied`).
+    public mutating func applied(_ blacked: [Int: [RectD]], _ moved: RedactionMoves) { lastApplied = (blacked, moved) }
+
     /// The edit: `areas` blacked out, the redacted pages' text recognized again (`Redaction.applyWithText`). `skipText`
-    /// fired: the pages stay without text.
-    public func redact(_ data: [UInt8], _ password: String?, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil,
-                       skipText: CancelToken? = nil) throws -> Redaction.RedactedData {
+    /// fired: the pages stay without text. What it made black and moved is kept for `verify`.
+    public mutating func redact(_ data: [UInt8], _ password: String?, progress: ((Int, Int) -> Void)? = nil, cancel: CancelToken? = nil,
+                                skipText: CancelToken? = nil) throws -> Redaction.RedactedData {
         let recognize = ocr.map { PageOcr.recognizer($0, options: Redaction.textBackOptions) }
-        return try Redaction.applyWithText(data, password, areas, recognize: recognize, language: ocr?.language, progress: progress,
-                                           cancel: cancel, skipText: skipText)
+        let done = try Redaction.applyWithText(data, password, areas, recognize: recognize, language: ocr?.language, progress: progress,
+                                               cancel: cancel, skipText: skipText)
+        lastApplied = (done.blacked, done.moved)
+        return done
     }
 
     /// What the check is told (see `PatternRedactionMode`). `before`: the document before the redaction.
@@ -93,7 +108,7 @@ public struct PatternRedaction: Sendable {
         let removed = RedactionSearch.soughtValues(accepted).filter { !keptKeys.contains($0.lowercased()) }
         switch mode {
         case .reviewed:
-            return RedactionCheckOptions(values: removed, areas: areas, original: before, patterns: patterns, kept: kept)
+            return RedactionCheckOptions(values: removed, areas: blacked, original: before, patterns: patterns, kept: kept)
         case .unattended:
             return RedactionCheckOptions(values: earlierValues + removed, patterns: patterns, kept: kept, valuesOnly: true)
         }
@@ -118,7 +133,14 @@ public struct PatternRedaction: Sendable {
         let areas = self.areas
         if !areas.isEmpty {
             let reread = mode == .reviewed ? try Self.withoutText(redacted, password, Array(areas.keys)) : Set(areas.keys)
-            (still, unread) = try RedactionSearch.readBack(redacted, password, patterns, ocr: ocr, redactedPages: reread, kept: skipped,
+            // Kept hits on a line laid out again are looked for where their words went.
+            let moved = self.moved
+            let kept = moved.isEmpty ? skipped : skipped.map { m in
+                var m = m
+                m.rects = m.rects.map { moved.now(m.page, $0) }
+                return m
+            }
+            (still, unread) = try RedactionSearch.readBack(redacted, password, patterns, ocr: ocr, redactedPages: reread, kept: kept,
                                                            progress: readBack, cancel: cancel)
             still = labelled(still)
         }
