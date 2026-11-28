@@ -82,6 +82,8 @@ public struct PrintState: Equatable, Sendable, Codable {
     /// Printer id → its scan button (roadmap 2.2; the Windows app's `AppState.ScanButtons`): on or off, the preset a press
     /// runs, this Mac's place on the printer's panel.
     public var scanButtons: [String: ScanButtonChoice] = [:]
+    /// The App Store rating request's progress (`RatingProgress`; the Windows app's `AppState.Rating`).
+    public var rating: RatingProgress?
 
     public static let maxBatchPlaces = 200
 
@@ -109,6 +111,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         // A hand edit may leave anything there: only the ids that are text count.
         directPrinters = ((try? c.decodeIfPresent([TextOnly].self, forKey: .directPrinters)) ?? []).compactMap(\.text)
         scanButtons = (try? c.decodeIfPresent([String: ScanButtonChoice].self, forKey: .scanButtons)) ?? [:]
+        rating = try? c.decodeIfPresent(RatingProgress.self, forKey: .rating)
     }
 }
 

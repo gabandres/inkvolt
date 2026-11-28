@@ -57,7 +57,8 @@ enum DirectPrinting {
         guard let pages = await make(plan) else { return }
         let window = DirectPrintWindow(title: String(localized: "Printing \(name) on \(printer.name)"))
         let job = Task {
-            let said = await run(pages.url, password: pages.password, name: name, plan: plan, ipp: ipp, layout: pages.layout) { window.say($0) }
+            let said = await run(pages.url, password: pages.password, name: name, plan: plan, ipp: ipp, layout: pages.layout,
+                                 sent: { _ in Task { @MainActor in AppModel.shared.noteSuccess() } }) { window.say($0) }
             if pages.temporary { try? FileManager.default.removeItem(at: pages.url) }
             window.done(said)
         }

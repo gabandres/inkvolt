@@ -16,6 +16,7 @@ extension AppModel {
         let scan = RecentScan(files: urls.map(\.path), savedAt: Date(), pages: pages, printer: printer, preset: preset,
                               access: access.flatMap(FolderBookmarks.make))
         store.change { $0.recentScans = RecentScans.add($0.recentScans, scan) }
+        noteSuccess() // the rating request counts each saved scan
     }
 
     /// The list with the files gone from the disk dropped: looked for off the main thread (a network volume may be slow),

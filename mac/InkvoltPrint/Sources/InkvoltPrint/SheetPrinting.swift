@@ -252,7 +252,7 @@ extension Printing {
         operation.showsPrintPanel = save == nil
         operation.showsProgressPanel = save == nil
         operation.printPanel.options.formUnion([.showsCopies, .showsPageRange, .showsPaperSize, .showsPreview])
-        operation.run()
+        if operation.run(), save == nil { app?.noteSuccess() }
         return view
     }
 }

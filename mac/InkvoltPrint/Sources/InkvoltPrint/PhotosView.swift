@@ -292,6 +292,7 @@ final class PhotosModel {
             _ = try await LibCups().printPdf(queue, pdf, title: title, media: media, options: options)
             sent = (sheets == 1 ? String(localized: "Sent 1 sheet to \(printer.name).") : String(localized: "Sent \(sheets) sheets to \(printer.name)."))
                 + (card == false ? " " + PhotosModel.cardOneSidedNote : "")
+            app.noteSuccess()
         } catch {
             let why = (error as? PrintJobSendError)?.message ?? error.localizedDescription
             problem = String(localized: "The photos couldn't be sent to \(printer.name): \(why)")
