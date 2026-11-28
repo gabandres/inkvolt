@@ -167,7 +167,11 @@ What each is: the README's feature table. What waits for real hardware: the READ
   Brother and PFU (fi and SP); a Store copy only opens the maker's link and watches for the device (policy 10.1.5;
   `print/packaging/README.md`, "Get the driver and the Store"). **Next:** Canon's US and European models (their sites
   refuse programs: a source a program may read), ScanSnap (no driver page); a person to try each maker's installer
-  through the app, and the Store copy's link and *Found it*; Windows 10 x64.
+  through the app, and the Store copy's link and *Found it*; Windows 10 x64. **Mac** (2026-11-27): USB printers and
+  scanners that need their driver (IOKit's USB devices against CUPS's queues and ImageCaptureCore's list) and Get the
+  driver from the same five makers' macOS lists, as Windows' Store copy: the maker's link opened in the browser, never a
+  download or an installer run by the app, then the device watched for (`mac/docs/PLAN.md`, P12 "3.8"). Open there: a real
+  USB device with no driver on the build Mac.
 
 ### Wave 4 (market check, 2026-11-21)
 

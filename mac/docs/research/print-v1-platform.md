@@ -217,6 +217,20 @@ on both. Only the tests drew codes that way; the app never renders Core Image in
   privilege. TN3179 exempts only the high-level services it lists (AirPlay, printing via UIKit, DeviceDiscoveryUI,
   AccessorySetupKit), and ICC isn't among them.
 
+### USB devices and the makers' sites (roadmap 3.8), checked on the Mac (2026-11-27)
+
+- IOKit's registry is read from the sandboxed app with the entitlements it has: `IOServiceGetMatchingServices` on
+  `IOUSBHostDevice` and `IORegistryEntryCreateCFProperty` for `idVendor`, `idProduct`, `USB Product Name`, `USB Vendor
+  Name`, `bDeviceClass` and each `IOUSBHostInterface`'s `bInterfaceClass` listed the build Mac's 9 devices (macOS 27, the
+  Debug build signed with its entitlements). No device is opened. UNVERIFIED: whether it works without
+  `com.apple.security.device.usb` (not tried), an interface's own name key (`USB Interface Name`), and a printer or scanner
+  plugged in (none at hand). `IOServiceAddMatchingNotification` (first match, terminated) is what tells the app at once.
+- The makers' sites (Epson, Canon's asia.canon, HP, Brother, PFU) are read over HTTPS with
+  `com.apple.security.network.client`, macOS's own certificate check (`CertificateCheck.system`, never a printer's pin);
+  the internet needs no Local Network permission. One lookup per maker ran from the sandboxed app (PLAN, P12 "3.8").
+- App Review 2.4.5(iv) (no downloading standalone apps or code) and the Store copy's rule on Windows: Get the driver
+  opens the maker's own link, or its licence's page, in the browser; the app downloads, checks and runs nothing.
+
 ### Outgoing TCP to LAN addresses
 
 - `com.apple.security.network.client`: "connect to a server process running on another machine, or on the same

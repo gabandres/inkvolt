@@ -386,6 +386,55 @@ mac/InkvoltPrintKit --build-system native`.
   Report a Problem's details, recordings, export columns, protocol and parser errors. Not checked: a Mac whose macOS is
   in Spanish, the UI on screen in Spanish.
 
+- **3.8 USB printers and scanners that need their driver, and Get the driver** (ported 2026-11-27; Windows' README rows
+  "USB printers that need their driver", "USB scanners that need their driver", "Get the driver"). PrintCore
+  `NeedsDriver` (`find`: a USB device of the printer class, on the device or an interface, with no CUPS queue of its model
+  (`usb://` by its maker and model, never the serial after `?`; `ippusb://`, the Bonjour name IPP over USB goes by, and
+  `ipp://localhost` relays, temporary destinations included: macOS prints to those driverless; a class, a fax or another
+  computer's queue never), a scanner by Windows' `UsbScanners` rules (vendor ids, names, the still-image class; never a
+  phone, camera or webcam) that ImageCaptureCore lists by neither its USB ids (`SystemScanner.usbId`, ICDevice's
+  `usbVendorID`/`usbProductID`) nor its model; an all-in-one is one entry: its printer while that has no queue, else its
+  scanner part), `DeviceState` (absent, needs its driver, working), `PrinterNames` (`forUsb`, `sameModel`),
+  `NeedsDriverText`, `DriverHelp`; `Drivers/`: `MakerWeb` (Windows' `BoundedHttp`, its page half: https, the maker's hosts
+  exactly, 5 redirects each checked, a post never sent again, size and time bounds), `DriverPages` (`forThisMac`: Apple
+  silicon takes a download that says Apple silicon, arm64 or universal first, else one not for Intel only; an Intel Mac one
+  not for Apple silicon only; Windows' `NoArm64` is said on Apple silicon when only Intel builds are listed), the five
+  catalogs on their macOS lists (read live 2026-11-27: Epson's OS menu `macOS 26.x (Tahoe)`, its ICA Scanner Driver chosen
+  before Epson Scan 2; HP's `Mac OS` platform, which lists only its newest macOS, `macOS 26`, and for the M234dw only HP's
+  app in the Mac App Store, offered after any .dmg or .pkg on ftp.hp.com; Brother's codes 10083, 10088 and 10094, its Full
+  Software Package for the HL-L2350DW; Canon's `macOS 26`, which lists no macOS driver for the LiDE 400 or G3010, so they
+  are "not found" with their page; PFU's `mac-2600`, its Image Scanner Driver for macOS under its licence page),
+  `DriverFlow` (find, `linkFor`), `DriverSteps`, `DriverText`; demo mode's `DemoNeedsDriver` and `DemoDriverGetter`.
+  Tests under Windows' names: `NeedsDriverTests`, `UsbScannerTests` (its needs-driver half), `DriverDownloadTests`,
+  `MakerDriversTests` (PC; Windows' fixtures read in place, the macOS lists written in each site's markup in the tests).
+  PrintMac `IOKitUsbDevices` (`IOUSBHostDevice`'s `idVendor`, `idProduct`, `USB Product Name`, `USB Vendor Name`,
+  `bDeviceClass` and its interfaces' `bInterfaceClass` and names; `USB Serial Number` is never read) and `UsbDeviceWatch`
+  (IOKit's first-match and terminated notifications: a device plugged in shows at once); `CertificateCheck.system`, the
+  makers' sites checked against macOS's trusted CAs (never a printer's pin). The app (`NeedsDriverPane.swift`): the
+  sidebar's "Printers and scanners that need their driver" under the printers, each device's page (what's wrong, What to
+  do numbered, Get the driver, Other ways: Open Printers & Scanners), Get the driver finding the download and showing its
+  title, version, size and host, *Download it from Epson* opening the maker's link (or its licence's page) in the browser,
+  then the device watched every 3 s and on each USB change, *Look again*, *Found it* and the printer (or the scanner on its
+  Scan tab) selected; an all-in-one queue printer whose scanner part needs its driver shows the Scan tab line on its page.
+  `--report … --needs-driver [get]` and `--driver-lookup <maker> <model> printer|scanner` (README). **Mac differences:**
+  the Mac App Store copy never downloads, checks or runs an installer (App Review 2.4.5; Windows' Store copy's
+  `DriverMode.OpenLink` is the only mode here), so there is no signature check, download folder, installer wait or rescan
+  (IOKit and ImageCaptureCore list devices as they come: Look again asks once more); no "Driver installed, not set up"
+  stage or Set it up (macOS sets a USB printer up by itself once it has its driver; Printers & Scanners is the other way,
+  and can offer Apple's Software Update driver), no protected print mode; a device's id is its kind and USB ids
+  (`usb-needs-driver:printer-03f0-3e17`), not a port; HP's Mac App Store app is an offer (Windows refuses Microsoft Store
+  links); the found scanner is a sidebar entry of its own or its printer's, not Windows' global Scan tab.
+  Checked on the build Mac (macOS 27, Apple silicon), the slot's own Debug build (never installed): `--report … --demo
+  --needs-driver get` (both made-up devices, their steps and the made-up find; in Spanish with `--strings`, complete); a
+  run outside demo mode, IOKit's list read from the sandbox (9 devices, none a printer or scanner: nothing listed); and
+  `--driver-lookup` live on each maker's site through the app's own transport: the Perfection V19 → Epson's ICA Scanner
+  Driver 5.8.23 (.dmg on ftp.epson.com), the HL-L2350DW → Brother's Full Software Package (its licence page, os 10094),
+  the fi-8170 → PFU's Image Scanner Driver for macOS 2.4.1 (its licence page), the M234dw → HP's app in the App Store,
+  the LiDE 400 → not found, with its page.
+  Not checked: a real USB printer or scanner with no driver on the build Mac (none at hand; nothing is installed there),
+  IOKit's list from the sandboxed app with one plugged in, an interface's name key (`USB Interface Name`, UNVERIFIED), the
+  browser opening the link, *Found it* after a real install, the page on screen (VoiceOver).
+
 ### Wave 4 (print/ROADMAP.md): what differs and what's left, per item
 
 Ported test-first from the .NET tests (same names in lower camel case); PrintCore on the PC, the app on `buildmac`.
@@ -2644,6 +2693,9 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     window and the Print menu's choice.
   - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
     from.
+  - 3.8 USB printers and scanners that need their driver, and Get the driver: a real USB printer or scanner macOS has
+    no driver for, plugged into the build Mac (none at hand, and no driver is installed there): its entry, the browser opening
+    the maker's link, *Found it* once the person has installed the driver (P12 above).
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
     recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
     defaults, no start (2026-11-27), so it isn't offered there.
