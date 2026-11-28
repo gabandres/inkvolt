@@ -46,6 +46,14 @@ public struct TextParagraph: Sendable {
     /// The kerning its own text carried, by pair of codes (see `ContentEditor.kerning`): rewritten lines keep it where
     /// the pair survives, and new pairs get the font's own (see `ContentEditor.Kerns`).
     var kerning: ContentEditor.Kerns?
+    /// The pictures in its flow, in the order their marks are in `text` (see `InlinePicture`).
+    public internal(set) var pictures: [InlinePicture] = []
+    /// The top of its text (`box` takes in its pictures too): where its first line is laid out from. Nil: the box's top.
+    var textTop: Double?
+
+    /// The character that stands for a picture in its text (see `InlinePicture`).
+    public static let pictureMark = "\u{FFFC}"
+    public static let pictureMarkUnit: UInt16 = 0xFFFC
 
     init(pageIndex: Int, runs: [TextRun], lines: [RectD], text: String, box: RectD, align: ParagraphAlign, lineStep: Double,
          firstIndent: Double, blocked: String?) {
@@ -69,9 +77,46 @@ public struct TextParagraph: Sendable {
 
     /// What `text` would look like here, its stretches with the looks `spans` give them: its box, line count, missing
     /// characters and what it would run into.
-    public func check(_ text: String, spans: [TextSpan]? = nil) -> ParagraphCheck {
+    /// Whether Insert Picture can put a new picture in its flow: upright text, none of it inside a drawing the page reuses.
+    public var takesNewPictures: Bool { upright == nil && runs.allSatisfy { $0.info?.form == nil } }
+
+    /// `added`: new pictures for marks typed into the text, in order (see `NewPicture`).
+    public func check(_ text: String, spans: [TextSpan]? = nil, added: [NewPicture]? = nil) -> ParagraphCheck {
         if blocked != nil { return ParagraphCheck(box: box, lineCount: lines.count, missing: [], overlaps: nil) }
-        return ContentEditor.layOut(self, runs, ContentEditor.paragraphText(text), spans).check
+        return ContentEditor.layOut(self, runs, ContentEditor.paragraphText(text), spans, added: ContentEditor.newPictureSizes(self, added)).check
+    }
+}
+
+/// A picture in a paragraph's flow (an icon or a small image set on one of its lines, between its words): it stands in the
+/// paragraph's text as U+FFFC (`TextParagraph.pictureMark`) and moves with its place in the text when the paragraph is
+/// rewritten; taking the mark out takes the picture off the page.
+public struct InlinePicture: Sendable, Equatable {
+    public let image: PageImage
+    /// How far its foot sits below its line's baseline (points; above: negative).
+    public let drop: Double
+    /// Where its mark is in the paragraph's text (UTF-16; a U+FFFC the page's own text has is no picture's).
+    public internal(set) var mark = -1
+
+    public init(image: PageImage, drop: Double) {
+        self.image = image
+        self.drop = drop
+    }
+}
+
+/// A picture to add to a paragraph's flow where a mark (U+FFFC) is typed for it (Insert Picture in the editor): an image
+/// file (JPEG, PNG, BMP, GIF, TIFF) and its name. It is set on the line as tall as the paragraph's capitals reach, its foot
+/// on the baseline, no wider than half the paragraph; once written it is one of the paragraph's pictures (`InlinePicture`).
+public struct NewPicture: Sendable {
+    public var file: [UInt8]
+    public var name: String
+    /// Where its mark is in the new text (UTF-16; the editor knows where it put it); -1: the next mark typed in that is no
+    /// one's.
+    public var mark = -1
+
+    public init(file: [UInt8], name: String, mark: Int = -1) {
+        self.file = file
+        self.name = name
+        self.mark = mark
     }
 }
 
@@ -188,6 +233,8 @@ extension ContentEditor {
         /// For a translated copy: a line scripts were joined to, its own baseline and size as it was before
         /// (`lineBaseline`: a long script mustn't count as the line).
         var own: (y: Double, size: Double)?
+        /// How far a picture in the flow that starts it reaches left of its first run (its box includes it): 0 for none.
+        var pictureRoom = 0.0
 
         var size: Double { lead.fontSize }
 
@@ -252,7 +299,7 @@ extension ContentEditor {
     /// are left out. Turned text is grouped the same way in its own direction, each direction apart (see
     /// `TextParagraph.upright`).
     static func groupParagraphs(_ content: PageContent) -> [TextParagraph] {
-        var result = groupUpright(content)
+        var result = groupUpright(content, pictures: true)
         for (angle, mine) in directions(content) {
             let (framedContent, page) = framed(content, angle, mine)
             result += groupUpright(framedContent).map { turned($0, angle, page) }
@@ -260,15 +307,21 @@ extension ContentEditor {
         return result
     }
 
-    /// The upright text runs of `content` as paragraphs (see `groupParagraphs`).
-    private static func groupUpright(_ content: PageContent) -> [TextParagraph] {
+    /// The upright text runs of `content` as paragraphs (see `groupParagraphs`). `pictures`: pictures on its lines are part
+    /// of a paragraph's flow (upright text, as the page has it).
+    private static func groupUpright(_ content: PageContent, pictures: Bool = false) -> [TextParagraph] {
         let runs = content.runs.filter { abs($0.angle) < 0.5 && !trimmed($0.text).isEmpty && $0.fontSize > 0.5 && $0.box.width > 0 }
         if runs.isEmpty { return [] }
         var result: [TextParagraph] = []
         // The text and pictures a paragraph can have below it, worked out once for the page, not for each paragraph.
         let inked: [(id: Int, box: RectD)] = content.runs.filter { !trimmed($0.text).isEmpty }.map { ($0.id, $0.box) } + content.images.map { (Int.min, $0.box) }
-        for stack in stacks(linesOf(runs)) {
-            for part in splitShort(stack) { result.append(paragraph(content, part, inked: inked)) }
+        var lines = linesOf(runs)
+        if pictures {
+            lines = joinAcrossPictures(content, lines)
+            for l in lines { widenForPicture(content, l, lines) }
+        }
+        for stack in stacks(lines) {
+            for part in splitShort(stack) { result.append(paragraph(content, part, inked: inked, pictures: pictures)) }
         }
         return result
     }
@@ -455,7 +508,10 @@ extension ContentEditor {
             let room = i == 1 && indented ? right - prev.box.x : width
             let words = String(decoding: line.text, as: UTF16.self).drop { $0 == " " }
             let word = words.split(separator: " ", omittingEmptySubsequences: false).first.map(String.init) ?? ""
-            let need = prev.box.width + widthOf(line.lead, " " + word, line)
+            // A line that starts with a picture: the picture is its first "word"; a line of one word: all of it (a picture
+            // glued to it too).
+            let need: Double = prev.box.width + (line.pictureRoom > 0 ? line.pictureRoom + widthOf(line.lead, " ", line)
+                : !trimmed(line.string).contains(" ") ? widthOf(line.lead, " ", line) + line.box.width : widthOf(line.lead, " " + word, line))
             let short = need < room - 0.5 * prev.size && !(translating && goesOn(prev.string, line.string))
             let item = translating && (labels(prev.string, line.string) || line.marked || (line.markStart && endsSentence(prev.string)))
             if short || item {
@@ -554,8 +610,10 @@ extension ContentEditor {
     /// `translating`: for a translated copy (see ContentEditor+Translate): every run of it goes and new text takes its
     /// place in its own font, so mixed looks, right-to-left text and marks on its lines don't stop it, a hanging first
     /// line stays where it hangs, and its bold, italic, subscript and superscript stretches are its spans
-    /// (`translationLook`).
-    static func paragraph(_ content: PageContent, _ given: [PLine], translating: Bool = false, inked: [(id: Int, box: RectD)]? = nil) -> TextParagraph {
+    /// (`translationLook`). `pictures`: pictures sitting on its lines between its words go in its flow (see
+    /// `inlinePictures`).
+    static func paragraph(_ content: PageContent, _ given: [PLine], translating: Bool = false, inked: [(id: Int, box: RectD)]? = nil,
+                          pictures: Bool = false) -> TextParagraph {
         let lines = given.map { inReadingOrder($0) }
         let first = lines[0]
         let size = first.size
@@ -650,6 +708,8 @@ extension ContentEditor {
         var at: [(run: TextRun, start: Int, length: Int)] = [] // where each run's text is in the paragraph's
         var looks: [TextSpan]? = translating ? [] : nil
         var soft = false // the line before ended with a soft hyphen
+        let inline = pictures && !translating && own.info != nil && own.info!.form == nil ? inlinePictures(content, lines) : []
+        var placedPictures: [(at: Int, picture: InlinePicture)] = []
         for (li, l) in lines.enumerated() {
             var t = trim(l.text)
             if !text.isEmpty && !soft {
@@ -669,9 +729,36 @@ extension ContentEditor {
             if soft { t.removeLast() }
             let leadCount = l.text.count - (l.text.firstIndex { !(Unicode.Scalar($0)?.properties.isWhitespace ?? false) } .map { l.text.count - $0 } ?? 0)
             let baseline = looks != nil ? lineBaseline(l) : (y: 0, size: 0)
+            // Its pictures' marks, each between the runs it sits between, a space apart where the picture stands apart.
+            var shift = [Int](repeating: 0, count: l.runs.count + 1) // marks (and their spaces) put in before each run's text
+            let mineHere = inline.filter { $0.line === l }
+            let afters = Set(mineHere.map(\.after)).sorted()
+            var added = 0
+            for k in afters {
+                let items = mineHere.filter { $0.after == k }.map(\.picture).sorted { $0.image.box.x < $1.image.box.x }
+                let pos = k == 0 ? 0 : min(max(l.starts[k - 1] + l.runs[k - 1].text.utf16.count - leadCount, 0), t.count - added) + added
+                let apart = 0.15 * l.size
+                var marks: [UInt16] = []
+                if pos > 0 && t[pos - 1] != 32 && k > 0
+                    && (items[0].image.box.x - l.runs[k - 1].box.right > apart || l.runs[k - 1].text.utf16.last == 32) {
+                    marks.append(32)
+                }
+                for (j, item) in items.enumerated() {
+                    if j > 0 && item.image.box.x - items[j - 1].image.box.right > apart { marks.append(32) }
+                    placedPictures.append((text.count + pos + marks.count, item))
+                    marks.append(TextParagraph.pictureMarkUnit)
+                }
+                if pos < t.count && t[pos] != 32 && k < l.runs.count
+                    && (l.runs[k].box.x - items[items.count - 1].image.box.right > apart || l.runs[k].text.utf16.first == 32) {
+                    marks.append(32)
+                }
+                t.insert(contentsOf: marks, at: pos)
+                added += marks.count
+                for i in k...l.runs.count { shift[i] += marks.count }
+            }
             for (i, r) in l.runs.enumerated() {
-                let from = min(max(l.starts[i] - leadCount, 0), t.count)
-                let to = min(max(l.starts[i] + r.text.utf16.count - leadCount, 0), t.count)
+                let from = min(max(l.starts[i] - leadCount + shift[i], 0), t.count)
+                let to = min(max(l.starts[i] + r.text.utf16.count - leadCount + shift[i], 0), t.count)
                 at.append((r, text.count + from, to - from))
                 if looks != nil && to > from, let look = translationLook(own, runs[0].fontSize, baseline, r, underlined: content.underlinedRuns.contains(r.key)) {
                     // One stretch over the space between two of the same look ("<b>brown fox</b>", not "<b>brown</b> <b>fox</b>").
@@ -686,7 +773,9 @@ extension ContentEditor {
             }
             text += t
         }
-        let box = lines.dropFirst().reduce(lines[0].box) { $0.union($1.box) }
+        var box = lines.dropFirst().reduce(lines[0].box) { $0.union($1.box) }
+        let textBox = runs.dropFirst().reduce(runs[0].box) { $0.union($1.box) } // where its text is (lines may reach to a picture in the flow)
+        for (_, pic) in placedPictures { box = box.union(pic.image.box) }
         // Other text on its lines (a raised footnote mark, a symbol in another font): rewrapping would leave it behind.
         // Spaces drawn on their own on its lines go with it.
         var spaces: [TextRun] = []
@@ -724,7 +813,8 @@ extension ContentEditor {
         var below: RectD?
         if !translating {
             let all: [(id: Int, box: RectD)] = inked ?? (content.runs.filter { !trimmed($0.text).isEmpty }.map { ($0.id, $0.box) } + content.images.map { (Int.min, $0.box) })
-            for (id, b) in all where id == Int.min || !mine.contains(id) {
+            let inFlow = placedPictures.map(\.picture.image.box) // pictures in its flow go with it
+            for (id, b) in all where (id == Int.min && !inFlow.contains(b)) || (id != Int.min && !mine.contains(id)) {
                 if b.y < box.bottom - 1 || b.right <= box.x + 1 || b.x >= box.right - 1 { continue }
                 if below == nil || b.y < below!.y { below = b }
             }
@@ -735,6 +825,12 @@ extension ContentEditor {
                               align: align, lineStep: step, firstIndent: indent, blocked: blocked)
         p.below = below
         p.spaces = spaces
+        p.pictures = placedPictures.sorted { $0.at < $1.at }.map { x in
+            var pic = x.picture
+            pic.mark = x.at
+            return pic
+        }
+        p.textTop = textBox.y
         p.spans = looks ?? spansOf(own, text, at, scripts)
         if blocked == nil {
             let kerned = runs.filter { !$0.standIn && !$0.styled && $0.info != nil && $0.font === own.font }.map { $0.info! }
@@ -746,6 +842,132 @@ extension ContentEditor {
         p.ascent = own.origin.y - own.box.y
         p.descent = own.box.bottom - own.origin.y
         return p
+    }
+
+    /// The pictures sitting on a paragraph's lines between its words (or just before or after them): ones `fitsLine` takes,
+    /// no wider than half the paragraph, within two ems of its lines. Each with its line, the number of the line's runs
+    /// before it, and how far its foot is below the baseline. A picture goes to one line.
+    private static func inlinePictures(_ content: PageContent, _ lines: [PLine]) -> [(line: PLine, after: Int, picture: InlinePicture)] {
+        var found: [(line: PLine, after: Int, picture: InlinePicture)] = []
+        if content.images.isEmpty { return found }
+        let left = lines.map(\.box.x).min()!, right = lines.map(\.box.right).max()!
+        var taken = Set<Int>() // by index in content.images
+        for l in lines {
+            let size = l.size
+            let baseline = lineBaseline(l).y
+            for (k, img) in content.images.enumerated() {
+                let b = img.box
+                if taken.contains(k) || !fitsLine(img, l, baseline, right - left) { continue }
+                if b.x < left - 2 * size || b.right > right + 2 * size { continue }
+                if b.x > l.box.right + 2 * size || b.right < l.box.x - 2 * size { continue }
+                taken.insert(k)
+                found.append((l, l.runs.filter { $0.box.centerX < b.centerX }.count, InlinePicture(image: img, drop: b.bottom - baseline)))
+            }
+        }
+        return found
+    }
+
+    /// A picture that can sit in a line's flow: drawn by the page's own content, upright, no taller than two and a half
+    /// times the line's type, no wider than half of `width`, its middle within the line's height and its foot near its
+    /// baseline, with none of the line's text over it.
+    private static func fitsLine(_ img: PageImage, _ l: PLine, _ baseline: Double, _ width: Double) -> Bool {
+        let b = img.box
+        let size = l.size
+        if img.blocked != nil || img.turned || img.id < 0 || !(b.x + b.y + b.width + b.height).isFinite { return false }
+        if b.height > 2.5 * size || b.width > 0.5 * width || b.width < 0.5 || b.height < 0.5 { return false }
+        if b.centerY < l.box.y - 0.25 * size || b.centerY > l.box.bottom + 0.25 * size || abs(b.bottom - baseline) > 0.5 * size { return false }
+        return !l.runs.contains { $0.box.right > b.x + 1 && $0.box.x < b.right - 1 } // text over it: not in the flow
+    }
+
+    /// Whether a line is drawn by the page's own content (not inside a form XObject).
+    private static func pageOwn(_ l: PLine) -> Bool { l.lead.info.map { $0.form == nil } ?? false }
+
+    /// A line that starts with a picture in the flow (one `fitsLine` takes, just left of its first run, within an em; the
+    /// line drawn by the page's own content) reaches to the picture's left edge when the line above starts there too (an
+    /// edit wrapped the picture to the start of the line), so it lines up with the paragraph's other lines. A picture
+    /// before a line the line above doesn't line up with (a list's bullet) leaves it as it is. A line that ends with one
+    /// reaches to it (`widenRight`).
+    private static func widenForPicture(_ content: PageContent, _ l: PLine, _ lines: [PLine]) {
+        if content.images.isEmpty || !pageOwn(l) { return }
+        let size = l.size
+        let first = l.box.x
+        var box = l.box
+        let baseline = lineBaseline(l).y
+        var widest = l.box.width
+        for _ in 0..<4 {
+            let x = box.x
+            let next = content.images.filter { $0.box.right <= x + 1 && x - $0.box.right <= size && fitsLine($0, l, baseline, .greatestFiniteMagnitude) }
+                .max { $0.box.right < $1.box.right }
+            guard let next else { break }
+            box = box.union(next.box)
+            widest = max(widest, 2 * next.box.width)
+        }
+        widenRight(content, l, baseline)
+        if box.x >= first - 0.01 { return }
+        let above = lines.filter { o in
+            o !== l && o.baseline < l.baseline && l.baseline - o.baseline <= 2.5 * size && o.box.right > first && o.box.x < l.box.right
+        }.max { $0.baseline < $1.baseline }
+        // As inlinePictures will take it: no wider than half the paragraph (this line or the one above).
+        guard let above, abs(box.x - above.box.x) <= tolerance(size), widest <= max(l.box.right, above.box.right) - box.x else { return }
+        l.box = box.union(l.box)
+        l.pictureRoom = first - box.x
+    }
+
+    /// Pieces of one line that a picture in the flow stands between (a gap wider than the 2.5 ems that end a line, the
+    /// picture filling it within an em on each side) are one line again.
+    private static func joinAcrossPictures(_ content: PageContent, _ lines: [PLine]) -> [PLine] {
+        if content.images.isEmpty { return lines }
+        var result: [PLine] = []
+        result.reserveCapacity(lines.count)
+        for band in bands(lines) {
+            var cur = band[0]
+            for next in band.dropFirst() {
+                let size = max(cur.size, next.size)
+                let baseline = lineBaseline(cur).y
+                let c = cur
+                let bridge = abs(next.baseline - cur.baseline) <= 0.25 * size && pageOwn(cur) && pageOwn(next)
+                    && content.images.contains { img in
+                        img.box.x >= c.box.right - 1 && img.box.x - c.box.right <= size && img.box.right <= next.box.x + 1
+                            && next.box.x - img.box.right <= size && fitsLine(img, c, baseline, next.box.right - c.box.x)
+                    }
+                if !bridge {
+                    result.append(cur)
+                    cur = next
+                    continue
+                }
+                for r in next.runs { cur.add(r) }
+            }
+            result.append(cur)
+        }
+        return result
+    }
+
+    /// Lines on one baseline (within a quarter of their type size, as `linesOf` bands runs), left to right.
+    private static func bands(_ lines: [PLine]) -> [[PLine]] {
+        let sorted = lines.enumerated().sorted { ($0.element.baseline, $0.offset) < ($1.element.baseline, $1.offset) }.map(\.element)
+        var result: [[PLine]] = []
+        var i = 0
+        while i < sorted.count {
+            var j = i + 1
+            while j < sorted.count && sorted[j].baseline - sorted[i].baseline <= 0.25 * max(sorted[i].size, sorted[j].size) { j += 1 }
+            result.append(sorted[i..<j].enumerated().sorted { ($0.element.box.x, $0.offset) < ($1.element.box.x, $1.offset) }.map(\.element))
+            i = j
+        }
+        return result
+    }
+
+    /// A line that ends with a picture in the flow (one `fitsLine` takes, within an em after its last run) reaches to its
+    /// right edge: the line is as long as it shows, so it isn't read as ending short of the paragraph.
+    private static func widenRight(_ content: PageContent, _ l: PLine, _ baseline: Double) {
+        let text = l.box.width
+        for _ in 0..<4 {
+            let x = l.box.right
+            // No wider than half the line's text: inlinePictures (half the paragraph, at least as wide) takes it too.
+            let next = content.images.filter { $0.box.x >= x - 1 && $0.box.x - x <= l.size && fitsLine($0, l, baseline, text) }
+                .min { $0.box.x < $1.box.x }
+            guard let next else { return }
+            l.box = l.box.union(next.box)
+        }
     }
 
     // ---- Laying out new text ----
@@ -768,7 +990,13 @@ extension ContentEditor {
         /// For a translated copy: where its underlined stretches are (page as shown, from their first glyph's start to
         /// their last one's ink), on which baseline.
         var underlined: [(left: Double, right: Double, baseline: Double)] = []
+        /// Where each of the paragraph's pictures kept in the flow lands (page space), by its number (its index in
+        /// `TextParagraph.pictures`; past them, a new picture's: `NewPicture`).
+        var pictures: [(picture: Int, box: RectD)] = []
     }
+
+    /// New pictures' sizes in a paragraph's flow, and where their marks are (see `NewPicture.mark`).
+    typealias AddedSizes = [(width: Double, height: Double, mark: Int)]
 
     /// New text laid out in a paragraph's box, in its own font (`plainRun`), size and spacing: words wrapped at the box's
     /// width (a single line doesn't wrap), a new line at each line break, the paragraph's alignment (a justified
@@ -777,9 +1005,11 @@ extension ContentEditor {
     /// for another family, bold or italic; another size (a line with bigger text moves down as far as it needs); another
     /// color. `fit`: for a translated copy, the text's size against the paragraph's own; it always wraps, wherever it can
     /// (`fitLines`), in one font (`MixedText`'s `oneFace`), right to left when most of it reads so (`layOutRightToLeft`).
-    /// Nil: as typed in the editor.
-    static func layOut(_ p: TextParagraph, _ runs: [TextRun], _ text: String, _ spans: [TextSpan]? = nil, fit: Double? = nil) -> ParagraphLayout {
-        if let upright = p.upright { return onPage(layOut(upright, runs, text, spans, fit: fit), p) }
+    /// Nil: as typed in the editor. `added`: new pictures for the marks typed into the text (`NewPicture`): each mark that
+    /// is none of the paragraph's pictures, in order, takes the next; their size on the page.
+    static func layOut(_ p: TextParagraph, _ runs: [TextRun], _ text: String, _ spans: [TextSpan]? = nil, fit: Double? = nil,
+                       added: AddedSizes? = nil) -> ParagraphLayout {
+        if let upright = p.upright { return onPage(layOut(upright, runs, text, spans, fit: fit, added: added), p) }
         let anchor = anchorRun(runs)
         let plain = plainRun(runs)
         let font = plain.font!
@@ -790,7 +1020,7 @@ extension ContentEditor {
         let u = Array(text.utf16)
         let looks = looksOf(u, spans ?? carry(p.text, text, p.spans))
         if fit != nil && mostlyRightToLeft(text) { return layOutRightToLeft(p, m, text, shrink, looks, colorable: anchor.info?.fillOp != nil) }
-        let enc = MixedText(p, font, m, text, looks, oneFace: fit != nil)
+        let enc = MixedText(p, font, m, text, looks, oneFace: fit != nil, added: added)
         if !enc.missing.isEmpty {
             return ParagraphLayout(lines: [], check: ParagraphCheck(box: p.box, lineCount: p.lines.count, missing: enc.missing, overlaps: nil), fonts: [])
         }
@@ -854,6 +1084,7 @@ extension ContentEditor {
         if lines.count == 1 && lines[0].parts.isEmpty { lines.removeAll() } // no text: the paragraph goes
 
         var placed: [(origin: PointD, parts: [Part])] = []
+        var pictures: [(picture: Int, box: RectD)] = []
         var maxRight = p.box.right
         var minLeft = p.box.x
         var baseline = 0.0, scale = 1.0, below = 0.0
@@ -867,15 +1098,27 @@ extension ContentEditor {
             // as they reach past the room the leading leaves, so they don't run into the line above or below (a footnote
             // mark that fits in that room changes nothing).
             let depth = below // the line above's: its subscripts' foot
-            var above = 0.0
+            var above = 0.0, scriptAbove = 0.0, pictureAbove = 0.0
             below = 0
-            for q in parts where q.code != nil || q.standIn != nil {
-                guard let look = q.look, look.rise != 0 else { continue }
-                above = max(above, (look.rise * p.fontSize + look.scale * p.ascent) * shrink)
-                below = max(below, (-look.rise * p.fontSize + look.scale * p.descent) * shrink)
+            for q in parts {
+                if q.code != nil || q.standIn != nil {
+                    guard let look = q.look, look.rise != 0 else { continue }
+                    above = max(above, (look.rise * p.fontSize + look.scale * p.ascent) * shrink)
+                    scriptAbove = max(scriptAbove, above)
+                    below = max(below, (-look.rise * p.fontSize + look.scale * p.descent) * shrink)
+                } else if let pic = q.picture, pic >= 0 {
+                    // A picture in the flow reaches above and below the baseline as it did on its line.
+                    let size = pictureSize(p, pic, added)
+                    above = max(above, size.height - size.drop)
+                    pictureAbove = max(pictureAbove, size.height - size.drop)
+                    below = max(below, size.drop)
+                }
             }
             if i == 0 {
-                baseline = p.box.y + max(p.ascent * shrink * s, above)
+                // The first line from the text's own top; a picture on it as high as the paragraph's pictures reached (a tall
+                // one that was on the first line keeps the line where it was; one taken off or wrapped away lifts nothing).
+                let fromText: Double = (p.textTop ?? p.box.y) + max(p.ascent * shrink * s, scriptAbove)
+                baseline = max(fromText, p.box.y + pictureAbove)
             } else {
                 let grow: Double = rise * scale + (1 - rise) * s
                 let step = p.lineStep * shrink * grow
@@ -907,6 +1150,13 @@ extension ContentEditor {
                 parts = spread
                 width = w(parts)
             }
+            for (k, part) in parts.enumerated() {
+                guard let pic = part.picture, pic >= 0 else { continue }
+                // Where the pen is when the picture's room starts: its left edge; its foot as far from the baseline as before.
+                let px: Double = x + w(Array(parts[..<k]) + [Part(nil, 0, nil, nil, picture: -1)])
+                let size = pictureSize(p, pic, added)
+                pictures.append((pic, RectD(px, baseline + size.drop - size.height, size.width, size.height)))
+            }
             placed.append((PointD(x, baseline), merged(parts)))
             maxRight = max(maxRight, x + width)
             minLeft = min(minLeft, x)
@@ -925,7 +1175,20 @@ extension ContentEditor {
         check.lookProblem = problem
         var layout = ParagraphLayout(lines: placed, check: check, fonts: enc.written.map { ($0.font, $0.codes, $0.text) })
         if enc.underlined { layout.underlined = placed.flatMap { underlinedIn(m, $0.origin, $0.parts) } }
+        layout.pictures = pictures
         return layout
+    }
+
+    /// A picture in a paragraph's flow, by its number: one of its own as large as it is and as far below the baseline as it
+    /// sat, else a new one (`added`) at its size, its foot on the baseline.
+    static func pictureSize(_ p: TextParagraph, _ picture: Int, _ added: AddedSizes?) -> (width: Double, height: Double, drop: Double) {
+        if picture < p.pictures.count {
+            let b = p.pictures[picture].image.box
+            return (b.width, b.height, p.pictures[picture].drop)
+        }
+        let k = picture - p.pictures.count
+        guard let added, k < added.count else { return (0, 0, 0) }
+        return (added[k].width, added[k].height, 0)
     }
 
     /// A line's parts with stretches in other fonts next to each other (words and the spaces between them, the adjustments
@@ -949,7 +1212,7 @@ extension ContentEditor {
                 // Adjustments of the same look in between become room, then the next stretch of the same look follows.
                 var k = j
                 var room = 0.0
-                while k < parts.count, parts[k].code == nil, parts[k].standIn == nil, parts[k].look === look {
+                while k < parts.count, parts[k].code == nil, parts[k].standIn == nil, parts[k].picture == nil, parts[k].look === look {
                     room -= parts[k].number / 1000
                     k += 1
                 }
@@ -1025,14 +1288,47 @@ extension ContentEditor {
         var colored = false
         /// A look is underlined (`ParagraphLayout.underlined`).
         var underlined = false
+        /// Where each picture mark is in the text (UTF-16), and the picture it stands for (past the paragraph's pictures: a
+        /// new one; -1: none).
+        private var pictureAt: [Int: Int] = [:]
+        private let added: AddedSizes?
 
         /// `oneFace`: when the font lacks any character, the whole text, its spaces too, is drawn from one installed font,
-        /// not a letter here and there: a translation shares few letters with the subset a page's font holds.
-        init(_ p: TextParagraph, _ font: TextFont, _ run: TextRun, _ text: String, _ looks: [TextLook?], oneFace: Bool = false) {
+        /// not a letter here and there: a translation shares few letters with the subset a page's font holds. `added`: new
+        /// pictures for marks typed in (see `NewPicture`).
+        init(_ p: TextParagraph, _ font: TextFont, _ run: TextRun, _ text: String, _ looks: [TextLook?], oneFace: Bool = false,
+             added: AddedSizes? = nil) {
             self.p = p
             self.font = font
             self.run = run
             self.looks = looks
+            self.added = added
+            let units = Array(text.utf16)
+            // Picture marks: each the paragraph's picture it stands for (a mark typed in stands for none: it can't be drawn).
+            // The new pictures' own marks (where the editor put them) are theirs, before a picture whose mark was cut and
+            // pasted could take one.
+            let newOnes = added ?? []
+            let inserted = Set(newOnes.map(\.mark).filter { $0 >= 0 && $0 < units.count && units[$0] == TextParagraph.pictureMarkUnit })
+            let marks = ContentEditor.pictureMarks(p.text, text, p.pictures, inserted: inserted)
+            var k = 0
+            for (i, u) in units.enumerated() where u == TextParagraph.pictureMarkUnit {
+                let m = marks[k]
+                k += 1
+                if m != ContentEditor.textMark { pictureAt[i] = inserted.contains(i) ? -1 : m }
+            }
+            var unplaced: [Int] = []
+            for (j, a) in newOnes.enumerated() {
+                if a.mark >= 0 && inserted.contains(a.mark) && pictureAt[a.mark] == -1 {
+                    pictureAt[a.mark] = p.pictures.count + j
+                } else {
+                    unplaced.append(j)
+                }
+            }
+            // Other marks typed in take the new pictures left, in order; one past them stands for nothing and can't be drawn.
+            for at in pictureAt.keys.sorted() where pictureAt[at] == -1 && !unplaced.isEmpty {
+                pictureAt[at] = p.pictures.count + unplaced.removeFirst()
+            }
+            if pictureAt.values.contains(-1) { missing.append(TextParagraph.pictureMark) }
             var els: [(element: String, at: Int)] = []
             var at = 0
             var first: [Int] = []
@@ -1053,6 +1349,7 @@ extension ContentEditor {
             // For one face: the page's other faces a look draws in (a bold word in the page's bold), with the elements each draws.
             var otherFaces: [(font: TextFont, els: [String], seen: Set<String>)] = []
             for (el, at) in elements {
+                if pictureAt[at] != nil { continue }
                 if oneFace && el != "\n", let look = resolve(at), look.face == nil, let other = look.page?.font, other !== font {
                     if let i = otherFaces.firstIndex(where: { $0.font === other }) {
                         if otherFaces[i].seen.insert(el).inserted { otherFaces[i].els.append(el) }
@@ -1175,6 +1472,15 @@ extension ContentEditor {
             let lo = start < firstAt.count ? firstAt[max(0, start)] : elements.count
             for (el, at) in elements[lo...] {
                 if at >= end { break }
+                if let picture = pictureAt[at] {
+                    // Room as wide as the picture (in the paragraph's own size, whatever look is around it).
+                    flush()
+                    started = false
+                    let width = picture >= 0 ? ContentEditor.pictureSize(p, picture, added).width : 0
+                    let k: Double = run.size * run.hScale * run.scale
+                    parts.append(Part(nil, abs(k) < 1e-9 ? 0 : -width * 1000 / k, nil, nil, picture: picture))
+                    continue
+                }
                 let look = resolve(at)
                 let pageFont = look?.page?.font ?? font
                 var face = look?.face
@@ -1200,14 +1506,19 @@ extension ContentEditor {
     /// has warned). Bytes in → bytes out, as `replaceText`.
     /// - Throws: `ContentEditError` when no font can draw the text (the message names the missing characters), the new
     ///   text would run into what follows (`ContentEditError.overlaps`), the paragraph can't be edited, or the page changed.
+    /// `added`: new pictures for the marks typed into `newText`, in order (see `NewPicture`).
     public static func replaceParagraph(_ data: [UInt8], _ password: String?, _ paragraph: TextParagraph, _ newText: String,
-                                        allowOverlap: Bool = false, spans newSpans: [TextSpan]? = nil) throws -> [UInt8] {
+                                        allowOverlap: Bool = false, spans newSpans: [TextSpan]? = nil, added: [NewPicture] = []) throws -> [UInt8] {
         if let why = paragraph.blocked { throw ContentEditError(loc("This paragraph can't be edited: {0}.", why)) }
+        if !added.isEmpty && paragraph.upright != nil { throw ContentEditError(pictureCantGoHere) }
+        for np in added where ImageImport.pixelSize(np.file, np.name).width <= 0 {
+            throw ContentEditError(loc("\"{0}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).", np.name))
+        }
         let text = paragraphText(newText)
         let spans = newSpans ?? carry(paragraph.text, text, paragraph.spans)
         if same(text, paragraph.text) && sameSpans(text, spans, paragraph.spans) { return data }
         let doc = try PdfEdit.open(data, password, failure: loc("This PDF can't be edited"))
-        try replaceParagraphIn(doc, paragraph, text, allowOverlap: allowOverlap, spans: spans)
+        try replaceParagraphIn(doc, paragraph, text, allowOverlap: allowOverlap, spans: spans, added: added)
         SignedEdits.noteRemoval() // the old text stays in a signed file's earlier revision
         try doc.checkFailure()
         return try PdfEdit.save(doc, original: data, password: password)
@@ -1233,7 +1544,8 @@ extension ContentEditor {
     /// `replaceParagraph` in a document already open for editing (several paragraphs, one save: Find & Replace's Replace
     /// All). `text` is the new text as `paragraphText` leaves it and `spans` its looks. A refusal leaves the page's text as
     /// it was (at most a font has learned codes no text then uses).
-    static func replaceParagraphIn(_ doc: MuDoc, _ paragraph: TextParagraph, _ text: String, allowOverlap: Bool, spans: [TextSpan]) throws {
+    static func replaceParagraphIn(_ doc: MuDoc, _ paragraph: TextParagraph, _ text: String, allowOverlap: Bool, spans: [TextSpan],
+                                   added: [NewPicture] = []) throws {
         let page = try pageOf(doc, paragraph.pageIndex)
         let streams = streams(page)
         let ops = ContentLexer.parse(streams.bytes)
@@ -1246,7 +1558,10 @@ extension ContentEditor {
         // Spaces drawn on their own on its lines go too (when they are still there, in the same content).
         let spaces = paragraph.spaces.compactMap { s in walked.textRuns.first { $0.id == s.id && same($0.text, s.text) && $0.info != nil } }
             .filter { r in !now.contains { $0.id == r.id } && r.info!.form == anchor.info!.form }
-        let layout = layOut(fresh, now, text, spans)
+        let layout = layOut(fresh, now, text, spans, added: newPictureSizes(fresh, added))
+        if layout.check.missing.contains(TextParagraph.pictureMark) {
+            throw ContentEditError(loc("A picture can't be typed or pasted into a paragraph: the mark \u{FFFC} stands for a picture already in it. Add one with Insert Picture on the editor's bar."))
+        }
         if !layout.check.missing.isEmpty {
             let list = layout.check.missing.prefix(12).map(shownCharacter).joined(separator: ", ")
             let message = layout.check.missing.count == 1
@@ -1283,7 +1598,91 @@ extension ContentEditor {
             let op = target.opOf(run, walked)
             edits.append((op.start, op.end, latin1Bytes(removed(op, run))))
         }
+        if !fresh.pictures.isEmpty || !layout.pictures.isEmpty {
+            edits += try pictureEdits(doc, page, ops, streams.bytes, walked, fresh, layout, target, anchor, added)
+        }
         try writeTarget(doc, page, target, edits)
+    }
+
+    /// Why a new picture can't go into a paragraph.
+    static var pictureCantGoHere: String {
+        loc("A picture can't be added to this text: it is turned, or inside a drawing the page reuses.")
+    }
+
+    /// The paragraph's pictures moved to where its new text puts them (see `InlinePicture`); one whose mark was taken out
+    /// comes off the page; new pictures stored and drawn just before the text object the paragraph is written in. They are
+    /// the page's own content, as the paragraph is.
+    private static func pictureEdits(_ doc: MuDoc, _ page: PObj, _ ops: [COp], _ content: [UInt8], _ walked: Walked, _ paragraph: TextParagraph,
+                                     _ layout: ParagraphLayout, _ target: Target, _ anchor: TextRun, _ added: [NewPicture]) throws -> Edits {
+        let changed = loc("The page changed since this paragraph was picked. Pick it again.")
+        if target.form != nil { throw ContentEditError(added.isEmpty ? changed : pictureCantGoHere) }
+        let frame = PageBoxes.frame(page)
+        var edits: Edits = []
+        var moved: [Int: RectD] = [:]
+        for (k, box) in layout.pictures { moved[k] = box }
+        for (i, pic) in paragraph.pictures.enumerated() {
+            let old = pic.image
+            guard let now = walked.images.first(where: { $0.id == old.id && near($0.box, old.box) }), now.blocked == nil,
+                  let ctm = walked.imageCtm[now.id], now.id >= 0, now.id < ops.count else { throw ContentEditError(changed) }
+            let op = ops[now.id]
+            guard let box = moved[i] else {
+                SignedEdits.noteRemoval()
+                if let at = placed(ops, now.id) {
+                    edits.append((ops[at.q].start, ops[at.end].end, [32]))
+                } else {
+                    edits.append((op.start, op.end, [32]))
+                }
+                continue
+            }
+            if near(box, now.box) && abs(box.x - now.box.x) < 0.01 && abs(box.y - now.box.y) < 0.01 { continue }
+            edits.append(try placing(ops, op, try moveMatrix(frame, ctm, now.box, box), content))
+        }
+        // New pictures: stored, and drawn just before the text object the paragraph is written in (a picture can't be
+        // drawn inside one), where the layout put them.
+        let fresh = layout.pictures.filter { $0.picture >= paragraph.pictures.count }.sorted { $0.picture < $1.picture }
+        if fresh.isEmpty { return edits }
+        let anchorOp = target.opOf(anchor, walked)
+        let from = ops.firstIndex { $0 === anchorOp } ?? 0
+        let bt = ops[...min(max(from, 0), max(0, ops.count - 1))].lastIndex { $0.name == "BT" }
+        let before = bt.map { ops[$0].start } ?? anchorOp.start
+        guard let inv = anchor.info!.ctm.inverted() else {
+            throw ContentEditError(loc("This picture is drawn squashed flat, so it can't be moved."))
+        }
+        for (k, box) in fresh {
+            let np = added[k - paragraph.pictures.count]
+            let stored: (image: PObj, width: Int, height: Int, dpiX: Double, dpiY: Double, orientation: Int)
+            do {
+                stored = try ImageImport.storeImage(doc, np.file, np.name)
+            } catch {
+                throw ContentEditError(loc("\"{0}\" isn't an image Inkvolt PDF can read (JPEG, PNG, BMP, GIF, TIFF).", np.name))
+            }
+            let name = addXObject(doc, page, stored.image)
+            // As Replace Picture places one: in "page space flipped" (Y' = -Y), then to page space and on to user space.
+            let place = ImageImport.placement(stored.orientation, box.x, -(box.y + box.height), box.width, box.height)
+            let total = Mat(place[0], place[1], place[2], place[3], place[4], place[5]).times(Mat(1, 0, 0, -1, 0, 0)).times(pageToUser(frame))
+            // Drawn where the text is, under the CTM the content set for it (a generator's own scale or flip): undone first.
+            let m = total.times(inv)
+            edits.append((before, before, latin1Bytes("q \(m.write()) cm /\(name) Do Q ")))
+        }
+        return edits
+    }
+
+    /// New pictures' sizes on the page in a paragraph's flow: as tall as its capitals reach (its ascent), as wide as the
+    /// image's own proportions say (EXIF turns counted), no wider than half the paragraph; an image that can't be read:
+    /// none.
+    static func newPictureSizes(_ p: TextParagraph, _ added: [NewPicture]?) -> AddedSizes? {
+        guard let added, !added.isEmpty else { return nil }
+        return added.map { np in
+            let (w, h) = ImageImport.pixelSize(np.file, np.name)
+            var height = max(1, p.ascent)
+            var width: Double = w > 0 && h > 0 ? height * Double(w) / Double(h) : 0
+            let most = max(1, 0.5 * (p.right - p.left))
+            if width > most {
+                height = height * most / width
+                width = most
+            }
+            return (width, width > 0 ? height : 0, np.mark)
+        }
     }
 
     /// A paragraph's runs found again in a new reading of the page (by id, else by text and place), and the paragraph as
@@ -1458,6 +1857,14 @@ extension ContentEditor {
             ts = want
         }
         for part in parts {
+            if part.picture != nil {
+                // A picture's room: an operator of its own at the paragraph's size, so the text on either side reads back as
+                // two runs with the picture between them (not one run drawn over it).
+                use(plain, plain.font === run.font ? hex : true, plain.size)
+                close()
+                if abs(part.number) > 1e-9 { sb += "[" + ContentLexer.number(part.number) + "] TJ " }
+                continue
+            }
             setLook(part.look)
             let s = part.look?.scale ?? 1
             // A subscript or superscript: its baseline moved by the text rise, in ems of the paragraph's text.

@@ -326,9 +326,9 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
         let anchor = pages.viewRect(p.box, pages.pageRects[p.pageIndex])
         let editor = ParagraphEditorController(p, width: anchor.width + 40)
         editor.spellingLanguage = controller?.documentLanguage
-        editor.done = { [weak self] text, spans in
+        editor.done = { [weak self] text, spans, added in
             self?.paragraphEditor = nil
-            self?.replace(p, text, spans)
+            self?.replace(p, text, spans, added: added)
         }
         editor.turn = { [weak self] wanted in
             self?.paragraphEditor = nil
@@ -360,11 +360,15 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
 
     /// Rewrites a paragraph: refused with a notice when a character can't be drawn or a look can't be written; asked first
     /// when it would run into what follows; characters drawn from fonts on this Mac said after.
-    func replace(_ p: PdfCore.TextParagraph, _ text: String, _ spans: [TextSpan]?) {
+    func replace(_ p: PdfCore.TextParagraph, _ text: String, _ spans: [TextSpan]?, added: [NewPicture] = []) {
         guard let editor, let controller else { return }
-        let check = p.check(text, spans: spans)
+        let check = p.check(text, spans: spans, added: added)
         if let problem = check.lookProblem {
             controller.notify(loc("Not changed: {0}.", problem))
+            return
+        }
+        if check.missing.contains(PdfCore.TextParagraph.pictureMark) {
+            controller.notify(loc("A picture can't be typed or pasted in: the picture icons only mark the pictures already in the paragraph. Add one with Picture… on the bar."))
             return
         }
         if !check.missing.isEmpty {
@@ -382,7 +386,7 @@ final class ContentEditing: NSObject, NSPopoverDelegate {
                 }
                 allow = true
             }
-            let ok = await editor.replaceParagraph(p, text, spans: spans, allowOverlap: allow)
+            let ok = await editor.replaceParagraph(p, text, spans: spans, allowOverlap: allow, added: added)
             if ok && !check.borrowed.isEmpty {
                 controller.notify(ParagraphEditorController.borrowedNote(check.borrowed, p.lead.fontName, check.standIns), canUndo: true)
             }

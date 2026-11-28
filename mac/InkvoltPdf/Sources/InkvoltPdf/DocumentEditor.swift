@@ -522,9 +522,10 @@ extension DocumentEditor {
 
     /// Rewrites a paragraph (roadmap 2.1): `allowOverlap` once the person agreed to text running into what follows.
     @discardableResult
-    func replaceParagraph(_ paragraph: PdfCore.TextParagraph, _ text: String, spans: [TextSpan]?, allowOverlap: Bool) async -> Bool {
+    func replaceParagraph(_ paragraph: PdfCore.TextParagraph, _ text: String, spans: [TextSpan]?, allowOverlap: Bool,
+                          added: [NewPicture] = []) async -> Bool {
         await run(loc("Edit paragraph")) { data, pw in
-            try ContentEditor.replaceParagraph(data, pw, paragraph, text, allowOverlap: allowOverlap, spans: spans)
+            try ContentEditor.replaceParagraph(data, pw, paragraph, text, allowOverlap: allowOverlap, spans: spans, added: added)
         }
     }
 

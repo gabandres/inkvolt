@@ -80,6 +80,12 @@ public struct TextRun: Sendable {
                 out.append((start, w, true))
                 continue
             }
+            if p.picture != nil {
+                // A picture in the flow: room, and where it ends counts as ink.
+                w -= p.number / 1000 * size * hScale
+                out.append((start, w, true))
+                continue
+            }
             guard let c = p.code else {
                 w -= p.number / 1000 * size * hScale
                 out.append((start, w, false))
@@ -104,6 +110,13 @@ public struct TextRun: Sendable {
             if let s = p.standIn {
                 // Drawn in a stand-in font, with no character spacing (see ContentEditor.writeLine).
                 w += s.width * size * hScale
+                end = w
+                inked = true
+                continue
+            }
+            if p.picture != nil {
+                // A picture in the flow: room, and where it ends counts as ink.
+                w -= p.number / 1000 * size * hScale
                 end = w
                 inked = true
                 continue
@@ -148,6 +161,9 @@ public struct PageImage: Sendable, Equatable {
     public var turned = false
     /// The direction its own x axis takes on the page: degrees clockwise from left-to-right (0: upright; roadmap 4.22).
     public internal(set) var angle = 0.0
+    /// Cropped (a clip rectangle drawn right before it, in its own space, as another program may write one): the whole
+    /// picture's box, of which `box` is the part that shows. Nil: it shows whole.
+    public internal(set) var uncropped: RectD?
 }
 
 /// The text runs and pictures of a page, for Edit Text & Images.
@@ -313,17 +329,21 @@ public enum ContentEditor {
 
     /// A glyph code, or (with no code) a TJ adjustment, of rewritten text; or characters drawn in a stand-in font
     /// (`standIn`); with the look its stretch was given (`look`, nil: the paragraph's own).
+    /// `picture`: a paragraph's picture in its flow (its number, see `ParagraphLayout.pictures`): room as wide as it is, made
+    /// by the adjustment `number`.
     struct Part {
         var code: Int?
         var number: Double
         var standIn: ShapedLine?
         var look: PartLook?
+        var picture: Int?
 
-        init(_ code: Int?, _ number: Double, _ standIn: ShapedLine? = nil, _ look: PartLook? = nil) {
+        init(_ code: Int?, _ number: Double, _ standIn: ShapedLine? = nil, _ look: PartLook? = nil, picture: Int? = nil) {
             self.code = code
             self.number = number
             self.standIn = standIn
             self.look = look
+            self.picture = picture
         }
     }
 
@@ -510,33 +530,74 @@ public enum ContentEditor {
     public static func moveImage(_ data: [UInt8], _ password: String?, _ image: PageImage, _ box: RectD) throws -> [UInt8] {
         if box.width < 1 || box.height < 1 { throw ContentEditError(loc("A picture can't be made that small.")) }
         return try editImage(data, password, image) { _, page, found, op, ctm, ops, content in
-            let p2u = pageToUser(PageBoxes.frame(page))
-            guard let u2p = p2u.inverted() else { throw ContentEditError(loc("This page's size can't be read.")) }
-            let old = found.box
-            let sx: Double = box.width / old.width, sy: Double = box.height / old.height
-            let d = Mat(sx, 0, 0, sy, box.x - old.x * sx, box.y - old.y * sy)
-            let dUser = u2p.times(d).times(p2u)
-            guard let inv = ctm.inverted() else { throw ContentEditError(loc("This picture is drawn squashed flat, so it can't be moved.")) }
-            let m = ctm.times(dUser).times(inv) // inserted before the Do, the image lands on CTM × D
-            let at = ops.firstIndex(where: { $0 === op })!
-            // "q a b c d e f cm /Im Do Q": change that cm; otherwise wrap the Do.
-            if at >= 2 && at + 1 < ops.count && ops[at - 2].name == "q" && ops[at - 1].name == "cm" && ops[at - 1].operands.count == 6
-                && ops[at + 1].name == "Q" {
-                let cm = ops[at - 1]
-                let c = Mat(cm.n(0), cm.n(1), cm.n(2), cm.n(3), cm.n(4), cm.n(5))
-                return [(cm.start, cm.end, latin1Bytes(m.times(c).write() + " cm"))]
-            }
-            return [(op.start, op.end, latin1Bytes("q \(m.write()) cm ") + slice(op, content) + latin1Bytes(" Q"))]
+            [try placing(ops, op, try moveMatrix(PageBoxes.frame(page), ctm, found.box, box), content)]
         }
+    }
+
+    /// The matrix that, put before a picture drawn at `ctm`, takes its box from `old` to `box` (page space).
+    static func moveMatrix(_ frame: PageFrame, _ ctm: Mat, _ old: RectD, _ box: RectD) throws -> Mat {
+        guard old.width > 0, old.height > 0 else { throw ContentEditError(loc("This picture is drawn squashed flat, so it can't be moved.")) }
+        let p2u = pageToUser(frame)
+        guard let u2p = p2u.inverted() else { throw ContentEditError(loc("This page's size can't be read.")) }
+        let sx: Double = box.width / old.width, sy: Double = box.height / old.height
+        let d = Mat(sx, 0, 0, sy, box.x - old.x * sx, box.y - old.y * sy)
+        let dUser = u2p.times(d).times(p2u)
+        guard let inv = ctm.inverted() else { throw ContentEditError(loc("This picture is drawn squashed flat, so it can't be moved.")) }
+        return ctm.times(dUser).times(inv) // inserted before the Do, the image lands on CTM × D
+    }
+
+    /// The edit that puts `m` (in the space the picture is drawn in) in front of a picture's own placement:
+    /// "q [cm] [crop] /Im Do Q" gets its cm changed, or one after its q, so a crop moves with the picture; a picture drawn
+    /// otherwise is wrapped.
+    static func placing(_ ops: [COp], _ op: COp, _ m: Mat, _ content: [UInt8]) throws -> (start: Int, end: Int, bytes: [UInt8]) {
+        guard let at = ops.firstIndex(where: { $0 === op }) else {
+            throw ContentEditError(loc("The page changed since this picture was picked. Pick it again."))
+        }
+        if let p = placed(ops, at) {
+            if p.cm < 0 { return (ops[p.q].end, ops[p.q].end, latin1Bytes("\(m.write()) cm")) }
+            let cm = ops[p.cm]
+            let c = Mat(cm.n(0), cm.n(1), cm.n(2), cm.n(3), cm.n(4), cm.n(5))
+            return (cm.start, cm.end, latin1Bytes(m.times(c).write() + " cm"))
+        }
+        return (op.start, op.end, latin1Bytes("q \(m.write()) cm ") + slice(op, content) + latin1Bytes(" Q"))
+    }
+
+    /// A picture drawn as "q [a b c d e f cm] [x y w h re W n] /Im Do Q" (or an inline image so): where its q, cm (-1:
+    /// none), crop's re (-1: none) and Q are. Nil when it isn't drawn so.
+    static func placed(_ ops: [COp], _ at: Int) -> (q: Int, cm: Int, clip: Int, end: Int)? {
+        if at < 1 || at + 1 >= ops.count || ops[at + 1].name != "Q" { return nil }
+        var k = at - 1
+        let clip = cropBefore(ops, at) == nil ? -1 : at - 3
+        if clip >= 0 { k = at - 4 }
+        var cm = -1
+        if k >= 0 && ops[k].name == "cm" && ops[k].operands.count == 6 {
+            cm = k
+            k -= 1
+        }
+        return k >= 0 && ops[k].name == "q" ? (k, cm, clip, at + 1) : nil
+    }
+
+    /// The crop drawn right before a picture: "x y w h re W n" in its own space (the unit square), held to it; nil: none.
+    static func cropBefore(_ ops: [COp], _ at: Int) -> (x0: Double, y0: Double, x1: Double, y1: Double)? {
+        guard at >= 3, at < ops.count, ops[at - 1].name == "n", ops[at - 2].name == "W", ops[at - 3].name == "re", ops[at - 3].operands.count == 4 else {
+            return nil
+        }
+        let re = ops[at - 3]
+        var x = re.n(0), y = re.n(1), w = re.n(2), h = re.n(3)
+        if !(x + y + w + h).isFinite { return nil }
+        if w < 0 { (x, w) = (x + w, -w) }
+        if h < 0 { (y, h) = (y + h, -h) }
+        func unit(_ v: Double) -> Double { min(max(v, 0), 1) }
+        let x0 = unit(x), y0 = unit(y), x1 = unit(x + w), y1 = unit(y + h)
+        return x1 - x0 > 1e-6 && y1 - y0 > 1e-6 && (x0 > 0 || y0 > 0 || x1 < 1 || y1 < 1) ? (x0, y0, x1, y1) : nil
     }
 
     /// Removes a picture from the page.
     public static func deleteImage(_ data: [UInt8], _ password: String?, _ image: PageImage) throws -> [UInt8] {
         try editImage(data, password, image, dropName: true) { _, _, _, op, _, ops, _ in
             SignedEdits.noteRemoval()
-            let at = ops.firstIndex(where: { $0 === op })!
-            if at >= 2 && at + 1 < ops.count && ops[at - 2].name == "q" && ops[at - 1].name == "cm" && ops[at + 1].name == "Q" {
-                return [(ops[at - 2].start, ops[at + 1].end, [32])]
+            if let at = ops.firstIndex(where: { $0 === op }), let p = placed(ops, at) {
+                return [(ops[p.q].start, ops[p.end].end, [32])]
             }
             return [(op.start, op.end, [32])]
         }
@@ -545,7 +606,7 @@ public enum ContentEditor {
     /// Puts another picture (an image file) in a picture's place, upright and fitted in its box with its own proportions.
     /// - Throws: `PdfEditError` when the file isn't an image that can be read.
     public static func replaceImage(_ data: [UInt8], _ password: String?, _ image: PageImage, _ file: [UInt8], _ fileName: String) throws -> [UInt8] {
-        try editImage(data, password, image, dropName: true) { doc, page, found, op, ctm, _, _ in
+        try editImage(data, password, image, dropName: true) { doc, page, found, op, ctm, ops, _ in
             let stored = try ImageImport.storeImage(doc, file, fileName)
             let name = addXObject(doc, page, stored.image)
             var dw = Double(stored.width) / stored.dpiX, dh = Double(stored.height) / stored.dpiY
@@ -560,7 +621,10 @@ public enum ContentEditor {
                 .times(pageToUser(PageBoxes.frame(page)))
             let m = total.times(ctm.inverted() ?? .identity)
             SignedEdits.noteRemoval()
-            return [(op.start, op.end, latin1Bytes("q \(m.write()) cm /\(name) Do Q"))]
+            // A crop of the old picture would cut the new one: it goes.
+            let at = ops.firstIndex { $0 === op } ?? 0
+            let from = cropBefore(ops, at) == nil ? op.start : ops[at - 3].start
+            return [(from, op.end, latin1Bytes("q \(m.write()) cm /\(name) Do Q"))]
         }
     }
 
@@ -1224,8 +1288,8 @@ public enum ContentEditor {
                 guard let xobj = resources?.dict("XObject")?.dict(op.operands[0].name) else { break }
                 let sub = xobj.name("Subtype")
                 if sub == "Image" {
-                    addImage(w, id, gs.ctm, false, blocked ?? (form == nil ? nil : formImageBlocked))
-                    painted(boxOf(w.frame, gs.ctm, 0, 0, 1, 1), i, false, nil)
+                    let shown = addImage(w, id, gs.ctm, false, blocked ?? (form == nil ? nil : formImageBlocked), cropBefore(ops, i))
+                    painted(shown, i, false, nil)
                 } else if sub == "Form" && depth < maxDepth {
                     try w.cancel?.check()
                     if w.formBudget < 0 { break }
@@ -1250,8 +1314,8 @@ public enum ContentEditor {
             case "BI":
                 let why = form != nil ? formImageBlocked
                     : op.broken ? loc("where its data ends can't be told for sure, so changing it could damage the page") : nil
-                addImage(w, id, gs.ctm, true, blocked ?? why)
-                painted(boxOf(w.frame, gs.ctm, 0, 0, 1, 1), i, false, nil)
+                let shown = addImage(w, id, gs.ctm, true, blocked ?? why, cropBefore(ops, i))
+                painted(shown, i, false, nil)
             default:
                 break
             }
@@ -1270,14 +1334,19 @@ public enum ContentEditor {
         return c(r) << 16 | c(g) << 8 | c(b)
     }
 
-    private static func addImage(_ w: Walked, _ id: Int, _ ctm: Mat, _ inline: Bool, _ blocked: String?) {
+    /// Returns where it shows (a crop's box when it is cropped: `crop`, in its own space).
+    private static func addImage(_ w: Walked, _ id: Int, _ ctm: Mat, _ inline: Bool, _ blocked: String?,
+                                 _ crop: (x0: Double, y0: Double, x1: Double, y1: Double)? = nil) -> RectD {
         let box = boxOf(w.frame, ctm, 0, 0, 1, 1)
-        if box.width <= 0 && box.height <= 0 { return }
+        if box.width <= 0 && box.height <= 0 { return box }
         let turned = (abs(ctm.b) > 1e-6 && abs(ctm.a) > 1e-6) || (abs(ctm.c) > 1e-6 && abs(ctm.d) > 1e-6)
-        var image = PageImage(pageIndex: w.pageIndex, id: id, box: box, inline: inline, blocked: blocked, turned: turned)
+        let shown = crop.map { boxOf(w.frame, ctm, $0.x0, $0.y0, $0.x1, $0.y1) } ?? box
+        var image = PageImage(pageIndex: w.pageIndex, id: id, box: shown, inline: inline, blocked: blocked, turned: turned)
         image.angle = imageAngle(w.frame, ctm)
+        if crop != nil { image.uncropped = box }
         w.images.append(image)
         if blocked == nil { w.imageCtm[id] = ctm }
+        return shown
     }
 
     /// The page-space bounding box of a rectangle in a coordinate system.

@@ -8,8 +8,9 @@ import PrintCore
 /// step that undo and redo take back and forth); the paragraph editor opened over it, bold, a color and a bigger size
 /// given to words through its look bar and the note under it read, then applied (the looks read back as spans); new text
 /// that would run into the line below declined, then confirmed; a character Helvetica lacks drawn from a font on this
-/// Mac; the paragraph turned 5° from its editor's Angle box and back with Edit › Turn to Angle… (roadmap 4.22). The
-/// document is closed unsaved. Only what it made is written.
+/// Mac; the paragraph turned 5° from its editor's Angle box and back with Edit › Turn to Angle… (roadmap 4.22); a picture
+/// put in its flow with Picture… on the editor's bar and moved along by words written in front (roadmap 2.1's pictures in
+/// the flow), then undone. The document is closed unsaved. Only what it made is written.
 @MainActor
 struct ParagraphEditTest {
     /// Running: the document it opens gets no self-test of its own.
@@ -132,9 +133,71 @@ struct ParagraphEditTest {
         await looks(c)
         await overlap(c)
         await standIns(c)
+        await pictures(c)
         c.content.testParagraph = nil
         c.content.testOverlapAnswer = nil
         finish()
+    }
+
+    /// A 30 x 10 pixel PNG, orange.
+    private static func orange() -> [UInt8] {
+        guard let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 30, pixelsHigh: 10, bitsPerSample: 8, samplesPerPixel: 3,
+                                         hasAlpha: false, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0) else { return [] }
+        let color = NSColor(deviceRed: 1, green: 140 / 255, blue: 0, alpha: 1)
+        for x in 0..<30 { for y in 0..<10 { rep.setColor(color, atX: x, y: y) } }
+        return [UInt8](rep.representation(using: .png, properties: [:]) ?? Data())
+    }
+
+    /// Pictures in the flow (roadmap 2.1): Picture… on the editor's bar puts one after "boxing"; read back it is one of the
+    /// paragraph's pictures, three times as wide as tall; words written in front move it along with its text.
+    private mutating func pictures(_ c: DocumentWindowController) async {
+        c.content.testParagraph = nil
+        guard let p = read(c).paragraphs.first(where: { $0.text.contains("boxing") && $0.lines.count > 1 }) else {
+            return check(false, "the paragraph is read for a picture")
+        }
+        c.content.editParagraph(p)
+        for _ in 0..<100 where c.content.paragraphEditor?.isViewLoaded != true { try? await Task.sleep(for: .milliseconds(20)) }
+        guard let editor = c.content.paragraphEditor, editor.isViewLoaded else { return check(false, "the editor opens for Picture…") }
+        _ = editor.select("boxing")
+        let word = editor.textView.selectedRange()
+        editor.textView.setSelectedRange(NSRange(location: word.location + word.length, length: 0))
+        editor.type(" ")
+        editor.testPictureFile = (Self.orange(), "orange.png")
+        editor.insertPicture(nil)
+        editor.updateNote()
+        let added = editor.addedPictures()
+        check(added.count == 1 && editor.textView.string.contains("boxing \u{FFFC} wizards") && editor.note.textColor != .systemRed,
+              "Picture… puts a picture's mark after “boxing”: \(added.count) new, note “\(editor.note.stringValue.prefix(60))”")
+        let edits = c.editor.finishedEdits
+        editor.applyEdit(nil)
+        let written = await waitEdits(c, edits + 1)
+        await settle(c)
+        let content = read(c)
+        let image = content.images.first
+        let q = content.paragraphs.first { $0.text.contains("boxing \u{FFFC} wizards") }
+        check(written && content.images.count == 1 && image.map { abs($0.box.width / $0.box.height - 3) < 0.1 } == true
+                && q?.pictures.count == 1 && c.window?.undoManager?.undoMenuItemTitle == Shown.undo(loc("Edit paragraph")),
+              "written: one picture three times as wide as tall, one of the paragraph's pictures, one undo step")
+        guard let q, let image else { return }
+        // Words in front: the picture moves along with "boxing".
+        let front = "Now then, a few words more in front " + q.text
+        c.content.testParagraph = (front, nil)
+        c.content.editParagraph(q)
+        let moved = await waitEdits(c, edits + 2)
+        await settle(c)
+        c.content.testParagraph = nil
+        let after = read(c)
+        let r = after.paragraphs.first { $0.text.hasPrefix("Now then, a few words") }
+        let now = after.images.first
+        check(moved && r?.text == front && r?.pictures.count == 1
+                && now.map { abs($0.box.x - image.box.x) > 1 || abs($0.box.y - image.box.y) > 1 } == true
+                && now.map { abs($0.box.width - image.box.width) < 0.5 } == true,
+              "words written in front move the picture with its text (\(image.box.x.rounded()) → \(now?.box.x.rounded() ?? -1))")
+        for _ in 0..<2 {
+            c.window?.undoManager?.undo()
+            await settle(c)
+        }
+        check(read(c).images.isEmpty, "undo takes the move and the picture back")
     }
 
     /// A click on the paragraph's second line, with twenty words more: rewrapped in its box, what follows stays; undo, redo.

@@ -2592,8 +2592,17 @@ and `corpusParagraphsTakeTwentyMoreWords` needs `INKVOLTPDF_CORPUS` (the export 
 - **Windows' additions of 2026-11-20.** Ported: mixed sizes and colors (`ParagraphEditTests+Mixed`: a run of the
   paragraph's own face in another size or color is a stretch of that look, a smaller one set off its line a script at
   the page's own size and rise, `TextLook.rise` and the tag's /Rise as on Windows; a color the page set is written again
-  with its own fill operators) and the font's own kerning (`FontKerning`, `FontKerningTests`). Not yet: pictures in the
-  flow (`InlinePictures`, Picture… on the bar) and Crop (`ContentEditor.Crop.cs`).
+  with its own fill operators), the font's own kerning (`FontKerning`, `FontKerningTests`), pictures in the flow
+  (`InlinePicture`, `inlinePictures`, `pictureEdits`, `NewPicture` and Picture… on the editor's bar;
+  `ParagraphEditTests+Pictures`; a paragraph turned turns its pictures with it, as Windows' 4.22 does; a clip another
+  program cropped a picture with is read, `PageImage.uncropped`). Not yet: Crop (`ContentEditor.Crop.cs`).
+- **A picture's mark shows as a picture icon.** Windows' editor shows a picture in the flow as the character ￼ (U+FFFC);
+  the Mac's text view shows each picture's mark as an attachment, a picture icon (the text still holds U+FFFC, so the
+  marks and their order are the same), and its notes say "picture icon" for "￼". Picture…'s open panel keeps the
+  editor's popover open (its behavior application-defined while the panel is up), as Windows keeps its editor open while
+  its file dialog has the focus.
+- **A new picture's size.** It is read from its file's header as on Windows, a JPEG's from its markers (Windows' header reader has no
+  JPEG case, so its Insert Picture refuses a JPEG as not an image; reported to fix there).
 - **The font's own kerning from Core Text.** Windows reads the installed twin's GPOS or kern table from its file; the
   Mac asks Core Text for the twin's head, GPOS and kern tables (`CTFontCopyTable`) and reads them with the same
   `PairKerning`, by Core Text's glyphs (the font's own glyph ids). The twin is `StandInFonts.twin`: the family's face in

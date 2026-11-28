@@ -27093,6 +27093,72 @@
           }
         }
       }
+    },
+    "Picture…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imagen…"
+          }
+        }
+      }
+    },
+    "Insert a picture where the cursor is: it goes in the text's flow and moves with its words": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insertar una imagen donde está el cursor: va en el flujo del texto y se mueve con sus palabras"
+          }
+        }
+      }
+    },
+    "Insert Picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insertar imagen"
+          }
+        }
+      }
+    },
+    "Insert Picture didn't work": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo insertar la imagen"
+          }
+        }
+      }
+    },
+    "A picture can't be typed or pasted in: the picture icons only mark the pictures already in the paragraph. Add one with Picture… on the bar.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede escribir ni pegar una imagen: los iconos de imagen solo marcan las imágenes que ya están en el párrafo. Agrega una con Imagen… en la barra."
+          }
+        }
+      }
+    },
+    "A picture icon marks a picture in the text: it moves with its words. Delete the icon to take the picture off.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Un icono de imagen marca una imagen en el texto: se mueve con sus palabras. Borra el icono para quitar la imagen."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
