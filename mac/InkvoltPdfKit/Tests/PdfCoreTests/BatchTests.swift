@@ -477,7 +477,11 @@ final class BatchTests {
     @Test func aPictureIsPricedByWhatItDecodesToWithoutInflatingIt() throws {
         // A 2000 x 1500 RGB picture whose data isn't Flate (as a JPEG's isn't): 9 MB once decoded, though nothing inflates.
         // (ASCII noise: the Mac's test PDFs are written as UTF-8 text.)
-        let noise = String((0..<50_000).map { Character(UnicodeScalar(UInt8(33 + (($0 * 7919) >> 3) % 90))) })
+        func noiseChar(_ i: Int) -> Character {
+            let code: Int = 33 + ((i * 7919) >> 3) % 90
+            return Character(UnicodeScalar(UInt8(code)))
+        }
+        let noise = String((0..<50_000).map(noiseChar))
         let pdf = Core2Pdf.build([
             "<< /Type /Catalog /Pages 2 0 R >>",
             "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
