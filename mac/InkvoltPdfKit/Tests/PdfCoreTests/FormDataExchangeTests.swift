@@ -38,6 +38,37 @@ struct FormDataExchangeTests {
         #expect(some["name"] == "Nobody" && some["size"] == "L" && some["agree"] == "Yes")
     }
 
+    /// Windows' release review (FormDataTests): Reset Form on a form already at its defaults rewrote every field, ran the
+    /// calculations and dropped /XFA, so the document came back changed (edited, an undo step) for nothing. Now only a field
+    /// off its default is touched, and with none the bytes come back as they were (the session's noChange).
+    @Test func resetFormOfAFormAtItsDefaultsChangesNothing() throws {
+        func fields(_ name: String, _ agree: String, _ agreeShown: String, _ size: String) -> [String] {
+            [
+                "<< \(Self.w) /FT /Tx /T (name) \(name) /DV (Nobody) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) >>",
+                "<< \(Self.w) /FT /Btn /T (agree) \(agree) /AS /\(agreeShown) /Rect [72 650 90 668] /AP << /N << /Yes 10 0 R /Off 10 0 R >> >> >>",
+                "<< \(Self.w) /FT /Ch /Ff 131072 /T (size) /Opt [(S) (M) (L)] \(size) /DV (M) /Rect [72 600 200 620] /DA (/Helv 12 Tf 0 g) >>",
+                "<< \(Self.w) /FT /Tx /T (a) /Rect [72 560 200 580] /DA (/Helv 10 Tf 0 g) >>",
+                "<< \(Self.w) /FT /Tx /Ff 1 /T (total) /Rect [72 520 200 540] /DA (/Helv 10 Tf 0 g) /AA << /C << /S /JavaScript /JS (AFSimple_Calculate\\(\"SUM\", new Array\\(\"a\"\\)\\);) >> >> >>",
+            ]
+        }
+        func form(_ f: [String]) -> [UInt8] {
+            Core2Pdf.form(f, acroExtra: "/CO [9 0 R] /XFA (xfa)", more: [Core2Pdf.stream("", "/Type /XObject /Subtype /Form /BBox [0 0 18 18]")])
+        }
+
+        let atDefaults = form(fields("/V (Nobody)", "", "Off", "/V (M)"))
+        #expect(try FormEditor.resetForm(atDefaults, nil) == atDefaults)
+        let noValues = form(fields("/V (Nobody)", "/V /Off", "Off", "/V (M)"))
+        #expect(try FormEditor.resetForm(noValues, nil) == noValues)
+
+        // A check box off by value but still showing on, and a changed text: reset, the rest as it was.
+        let shownOn = try FormEditor.resetForm(form(fields("/V (Nobody)", "/V /Off", "Yes", "/V (M)")), nil)
+        #expect(!String(decoding: shownOn, as: UTF8.self).contains("/XFA"))
+        let typed = try Self.values(FormEditor.resetForm(form(fields("/V (Alice)", "", "Off", "/V (M)")), nil))
+        #expect(typed["name"] == "Nobody")
+        #expect(typed["size"] == "M")
+        #expect(typed["agree"] == "Off")
+    }
+
     @Test func exportedDataImportsBackInEitherFormat() throws {
         let original = Self.form()
         for format in [FormDataFormat.fdf, .xfdf] { // CSV and JSON: FormDataTests

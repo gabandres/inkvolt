@@ -439,8 +439,7 @@ final class AppModel {
     /// read again (the printer takes its new queue). Returns what to tell the user.
     func setUpQueue(for p: PrinterModel) async -> String {
         // The session's IPP URL, else Bonjour's, else IPP Everywhere's own (a printer read over LEDM or CDM may print over IPP too).
-        let host = p.host.contains(":") ? "[\(p.host)]" : p.host
-        let ipp = await p.connection()?.ipp?.endpoint ?? p.ippHint ?? URL(string: "ipp://\(host):631/ipp/print")
+        let ipp = await p.connection()?.ipp?.endpoint ?? p.ippHint ?? QueueSetup.fallbackIpp(host: p.host)
         guard let plan = QueueSetup.plan(name: p.name, ippUri: ipp, hostName: p.hostName, destinations: destinations ?? []) else {
             return String(localized: "This printer doesn't offer driverless printing (IPP), so macOS needs its maker's driver for it. Add it in Printers & Scanners.")
         }

@@ -50,6 +50,27 @@ struct DeviceHttpLimitsTests {
         #expect(web.httpBase.absoluteString == "http://[fe80::1%25en0]:8080/")
     }
 
+    /// A zoned printer's own links (an eSCL hint from before, a link in its documents), its IPP endpoint and the scanner asked
+    /// on port 80 beside a web server of its own port keep the zone, so they are asked, not refused as on another computer
+    /// (Windows' RobustnessTests, the release review).
+    @Test func A_zoned_printers_own_links_and_port_80_scanner_keep_the_zone() async throws {
+        let serving = Serving([], status: 404)
+        let http = DeviceHttp(host: "fe80::1%en0", transport: serving, web: URL(string: "http://[fe80::1%25en0]:8080/"))
+        let zoned = "[fe80::1%25en0]"
+        func host(_ u: URL) -> String? { URLComponents(url: u, resolvingAgainstBaseURL: false)?.percentEncodedHost }
+        let link = http.onThisPrinter(try #require(URL(string: "http://[fe80::1]:9090/eSCL2/")))
+        #expect(link.absoluteString == "http://[fe80::1%25en0]:9090/eSCL2/")
+        #expect(host(http.onThisPrinter(try #require(URL(string: "http://NPI1A2B3C.local/eSCL/")))) == zoned)
+        #expect(host(IppClient.defaultEndpoint(http)) == zoned)
+
+        _ = try await PrinterConnection.probe(http, esclHint: URL(string: "http://[fe80::1]:9090/eSCL2/"))
+        let asked = serving.asked
+        #expect(!asked.isEmpty)
+        #expect(asked.allSatisfy { host($0) == zoned })
+        #expect(asked.contains { $0.port == nil && $0.path == "/eSCL/ScannerCapabilities" })
+        #expect(asked.contains { $0.port == 9090 && $0.path == "/eSCL2/ScannerCapabilities" })
+    }
+
     @Test(arguments: ["http://192.0.2.200/secret.xml", "https://192.0.2.200/secret.xml", "http://192.0.2.10.evil.example/secret.xml",
                       "http://user@192.0.2.200/secret.xml"])
     func A_request_to_another_computer_isnt_sent(_ url: String) async throws {

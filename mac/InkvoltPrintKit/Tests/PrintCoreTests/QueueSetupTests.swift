@@ -16,6 +16,29 @@ struct QueueSetupTests {
         #expect(plan.info == "HP LaserJet MFP M234dw")
     }
 
+    /// Set up by a zoned IPv6 address: the queue's URL is the IPP URL typed, zone kept (Windows' NetworkSearchTests, the
+    /// release review; cupsd is given ipp://).
+    @Test(arguments: [
+        ("ipp://[fe80::1%2512]:8631/printers/x", "ipp://[fe80::1%2512]:8631/printers/x"),
+        ("ipp://[fe80::1%25en0]/printers/x", "ipp://[fe80::1%25en0]:631/printers/x"),
+        ("[fe80::1%12]:8080", "ipp://[fe80::1%2512]:8080/ipp/print"),
+        ("ipp://[2001:db8::5]:8631/printers/x", "ipp://[2001:db8::5]:8631/printers/x"),
+        ("ipp://printer.local:8631/printers/x", "ipp://printer.local:8631/printers/x"),
+    ] as [(String, String)])
+    func Set_up_by_a_zoned_address_keeps_the_IPP_URL_typed(_ typed: String, _ queueUrl: String) throws {
+        let ipp = try #require(PrinterAddress.parse(typed).ipp)
+        #expect(QueueSetup.plan(name: "Laser", ippUri: ipp, hostName: nil, destinations: [])?.deviceUri == queueUrl)
+    }
+
+    @Test func Set_up_without_an_IPP_URL_on_the_host_asks_631_keeping_the_zone() {
+        #expect(QueueSetup.fallbackIpp(host: "fe80::1%en0")?.absoluteString == "ipp://[fe80::1%25en0]:631/ipp/print")
+        #expect(QueueSetup.fallbackIpp(host: "[fe80::1%12]")?.absoluteString == "ipp://[fe80::1%2512]:631/ipp/print")
+        #expect(QueueSetup.fallbackIpp(host: "192.0.2.10")?.absoluteString == "ipp://192.0.2.10:631/ipp/print")
+        #expect(QueueSetup.fallbackIpp(host: "fe80::1%e/n") == nil)
+        #expect(QueueSetup.plan(name: "Laser", ippUri: QueueSetup.fallbackIpp(host: "fe80::1%en0"), hostName: nil, destinations: [])?.deviceUri
+            == "ipp://[fe80::1%25en0]:631/ipp/print")
+    }
+
     @Test func withoutALocalNameTheAddressIsKept() throws {
         let ipps = try #require(QueueSetup.plan(name: "Demo inkjet", ippUri: URL(string: "ipps://192.0.2.31/ipp/print"), hostName: nil, destinations: []))
         #expect(ipps.deviceUri == "ipps://192.0.2.31/ipp/print")

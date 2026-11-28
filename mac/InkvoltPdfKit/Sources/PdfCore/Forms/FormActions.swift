@@ -462,6 +462,9 @@ final class FormActionRunner {
         for f in pick(names, exclude) {
             if !["Tx", "Ch", "Btn"].contains(f.type) || (f.type == "Btn" && f.flags & FormEditor.ffPushButton != 0) { continue }
             let dv = FormEditor.inherited(f.dict, "DV")
+            // A field already at its default isn't touched: a reset of an untouched form changes nothing (no edit, no
+            // calculations or scripts run, /XFA kept; Windows' FormActionRunner.Reset).
+            if Self.atDefault(f, dv) { continue }
             switch f.type {
             case "Tx":
                 if let dv, dv.kind == .string { f.dict.set("V", doc.text(dv.text ?? "")) } else { f.dict.remove("V") }
@@ -485,6 +488,34 @@ final class FormActionRunner {
             }
             js.touch(f)
             changed = true
+        }
+    }
+
+    /// Whether a field already holds what `reset` gives it: its value its default (/DV, else empty or Off), no rich text
+    /// left (/RV), a choice's widgets without their own value, a check box's or radio's widgets showing it (Windows'
+    /// FormActionRunner.AtDefault).
+    private static func atDefault(_ f: FormField, _ dv: PObj?) -> Bool {
+        let value = FormEditor.valueOf(f)
+        switch f.type {
+        case "Tx":
+            let wanted = dv?.kind == .string ? dv?.text ?? "" : ""
+            return !f.dict.has("RV") && value == wanted
+        case "Ch":
+            let wanted: String
+            if let dv, dv.kind == .string {
+                wanted = dv.text ?? ""
+            } else if let dv, dv.isArray {
+                wanted = dv.elements.compactMap { $0.kind == .string ? $0.text : nil }.joined(separator: "\n")
+            } else {
+                wanted = ""
+            }
+            return value == wanted && f.widgets.allSatisfy { $0.identity == f.dict.identity || (!$0.has("V") && !$0.has("I")) }
+        default:
+            let state = dv?.kind == .name ? dv?.name ?? "Off" : "Off"
+            guard value == state else { return false }
+            return f.widgets.allSatisfy { w in
+                !(w.has("AS") || w.has("AP")) || (w.name("AS") ?? "") == (FormEditor.onStateOf(w, in: f) == state ? state : "Off")
+            }
         }
     }
 

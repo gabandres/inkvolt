@@ -1156,7 +1156,13 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   addresses write it `%25` (`PrinterAddress.urlHost`, which `DeviceHttp` uses too; a host no URL can hold gets the base
   `unusable.invalid`, never a trap). Windows keeps it too (later: `PrinterAddress.HostOf`, `UrlHost`, `UrlText`, with these
   tests; .NET holds a zone only in `Uri.IdnHost`). A zone that isn't RFC 6874's unreserved
-  characters is no address. Not checked: connecting to a link-local printer by its zone (the transports' scope, above).
+  characters is no address. As Windows' release review (2026-11-28) has it: `%25` with nothing after it is interface 25 (as
+  ipconfig shows it; `%2512` is interface 12, a raw `%12` kept), `ipp://[fe80::1%]/` is no address (`PrinterAddress.typedHost`
+  reads the literal as typed: swift-corelibs' URLComponents turns that stray `%` into `%25`); Set up in macOS keeps the
+  zone in the queue's URL, its fallback too (`QueueSetup.fallbackIpp`; the hand-made `ipp://[fe80::1%en0]:631/…` was no
+  URL); the printer's own links, IPP endpoint and port-80 scanner root already kept it (`percentEncodedHost`), now tested.
+  Windows' `UrlText` fix has no Mac counterpart: a `URL`'s own text holds the zone. Not checked: connecting to a link-local
+  printer by its zone (the transports' scope, above).
   The same review: Print a PDF's layouts refuse a PDF past `SheetPrint.maxSides` on its page count first
   (`SheetPrint.tooMany(_:pages:)`), then measure its pages once (off the main thread past 200 pages); `{n:D<n>}` pads to
   32 digits at most in both apps (`FileNameTemplate.padsTooWide`, refused by `problem` and `normalize`) and a preset's
@@ -1494,7 +1500,9 @@ From the steps, besides the sections below:
   Saved Signature asks first; the menu bar's Tools › Place Saved Signature lists them too; Sign Digitally's Image picks
   any saved signature (Windows: the same). Form data goes in and out as XFDF and FDF only (Windows also CSV and JSON), through
   `FormEditor.resetForm`, `exportData` and `importData` (their tests: FormDataExchangeTests; Windows' Reset Form
-  came later as `FormEditor.ResetForm`, tested by FormDataTests.ResetFormRestoresDefaultsAndRecalculates); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
+  came later as `FormEditor.ResetForm`, tested by FormDataTests.ResetFormRestoresDefaultsAndRecalculates; both touch only a field off its default since
+  Windows' release review, 2026-11-28, so a form at its defaults comes back as it was, no undo step or edited mark:
+  `resetFormOfAFormAtItsDefaultsChangesNothing`); a choice field opens as a menu under the field (Windows: a drop-down editor); messages the
   Windows app shows as notifications go to a bar over the pages.
 - The app (D7 part d): the close and quit questions are AppKit's (NSDocument: Save, Don't Save, Cancel for each document;
   quitting with several changed documents first offers to review them); the self-test answers them through the same
