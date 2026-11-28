@@ -114,6 +114,30 @@ public class DeviceHttpLimitsTests
         Assert.Equal("http://[fe80::1%25en0]:8080/", Core.Discovery.PrinterAddress.UrlText(web.HttpBase));
     }
 
+    /// <summary>
+    /// A zoned printer's own links (an eSCL hint from before, a link in its documents) and the scanner asked on port 80 beside a
+    /// web server of its own port keep the zone, so they are asked, not refused as on another computer (the pre-release review).
+    /// </summary>
+    [Fact]
+    public async Task A_zoned_printers_own_links_and_port_80_scanner_keep_the_zone()
+    {
+        var asked = new List<Uri>();
+        using var http = new DeviceHttp("fe80::1%en0", new NothingThere(asked.Add), web: new Uri("http://[fe80::1%en0]:8080/"));
+        var link = http.OnThisPrinter(new Uri("http://[fe80::1]:9090/eSCL2/"));
+        Assert.Equal("fe80::1%en0", link.IdnHost);
+        Assert.Equal("http://[fe80::1%25en0]:9090/eSCL2/", Core.Discovery.PrinterAddress.UrlText(link));
+        Assert.Equal("fe80::1%en0", http.OnThisPrinter(new Uri("http://NPI1A2B3C.local/eSCL/")).IdnHost);
+        Assert.Equal("fe80::1%en0", new Core.Ipp.IppClient(http).Endpoint.IdnHost);
+
+        await InkvoltPrint.Core.Probe.PrinterConnection.ProbeAsync(http, new Uri("http://[fe80::1]:9090/eSCL2/"));
+        lock (asked)
+        {
+            Assert.All(asked, u => Assert.Equal("fe80::1%en0", u.IdnHost));
+            Assert.Contains(asked, u => u.Port == 80 && u.AbsolutePath == "/eSCL/ScannerCapabilities");
+            Assert.Contains(asked, u => u.Port == 9090 && u.AbsolutePath == "/eSCL2/ScannerCapabilities");
+        }
+    }
+
     [Theory]
     [InlineData("ftp://192.0.2.10/a")]
     [InlineData("file:///C:/Windows/win.ini")]

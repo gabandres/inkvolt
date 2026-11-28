@@ -65,6 +65,9 @@ public partial class App : Application
         string[] options = [.. leading];
         AppLanguage.Apply(AppSettings.Current.Language, options);
         options = AppLanguage.WithoutLanguageArgument(options);
+        // Share…'s old copies go now as well as on the next Share… (which may be weeks away): off the UI thread, never
+        // throws; before a dev script starts, which runs as a window does.
+        _ = Task.Run(() => Core.DocumentShare.SweepCopies(System.IO.Path.GetTempPath(), DateTime.UtcNow));
         var script = Array.IndexOf(options, "--script");
         if (script >= 0 && script + 1 < options.Length)
         {

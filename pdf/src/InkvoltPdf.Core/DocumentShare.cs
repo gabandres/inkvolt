@@ -13,6 +13,61 @@ public enum ShareSource
     Copy,
 }
 
+/// <summary>How handing a file to the share sheet went (<see cref="ShareSheet.ShowAsync"/>).</summary>
+public enum ShareSheetOutcome
+{
+    /// <summary>The sheet is up with the file offered.</summary>
+    Shown,
+
+    /// <summary>Windows couldn't open the file where it is (a path too long for it, a <c>\\?\</c> path, a file gone).</summary>
+    FileUnreadable,
+
+    /// <summary>The share sheet couldn't be offered or shown.</summary>
+    Unavailable,
+}
+
+/// <param name="Error">What went wrong, for the log only: never shown.</param>
+public sealed record ShareSheetResult(ShareSheetOutcome Outcome, Exception? Error = null);
+
+/// <summary>
+/// The share sheet's steps for one Share…, every failure caught (the task is never awaited by anyone who could see it):
+/// open the file, offer it (subscribe to the sheet's request), show the sheet. When offering or showing fails, the offer is
+/// withdrawn, so a later Share… doesn't also answer with this file.
+/// </summary>
+public static class ShareSheet
+{
+    public static async Task<ShareSheetResult> ShowAsync<TFile>(Func<Task<TFile>> openFile, Action<TFile> offer, Action withdraw, Action show)
+    {
+        TFile file;
+        try
+        {
+            file = await openFile();
+        }
+        catch (Exception ex)
+        {
+            return new(ShareSheetOutcome.FileUnreadable, ex);
+        }
+        try
+        {
+            offer(file);
+            show();
+            return new(ShareSheetOutcome.Shown);
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                withdraw();
+            }
+            catch (Exception)
+            {
+                // the offer was never made, or the sheet's manager is gone with it
+            }
+            return new(ShareSheetOutcome.Unavailable, ex);
+        }
+    }
+}
+
 /// <summary>
 /// File › Share… (the Mac's Share…): which bytes are shared, and the copy written for the share sheet when the file on
 /// disk isn't the document as it is. The copies live in their own folder under the temporary folder, one folder each
@@ -47,6 +102,22 @@ public static class DocumentShare
         var path = Path.Combine(folder, CopyName(displayName));
         File.WriteAllBytes(path, data);
         return path;
+    }
+
+    /// <summary>
+    /// At startup, off the UI thread (the next Share… may be weeks away): removes the copies under <paramref name="tempRoot"/>
+    /// older than <see cref="KeepFor"/>. Never throws: a folder it can't read is left for the next time.
+    /// </summary>
+    public static void SweepCopies(string tempRoot, DateTime utcNow)
+    {
+        try
+        {
+            Sweep(Path.Combine(tempRoot, FolderName), utcNow);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or System.Security.SecurityException)
+        {
+            // the temporary folder unreadable or gone: next time
+        }
     }
 
     /// <summary>Removes the copies' folders older than <see cref="KeepFor"/> (ones in use are left for next time).</summary>

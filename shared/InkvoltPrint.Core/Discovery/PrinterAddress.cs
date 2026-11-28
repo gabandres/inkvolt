@@ -46,8 +46,9 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
     }
 
     /// <summary>
-    /// "fe80::1%25en0", "fe80::1%en0" or "fe80::1%12": the address and its zone, "%25" read as RFC 6874's escaped "%".
-    /// The zone is null when it is empty, too long, or holds a character outside RFC 6874's unreserved ones (letters,
+    /// "fe80::1%25en0", "fe80::1%en0" or "fe80::1%12": the address and its zone, "%25" read as RFC 6874's escaped "%" when
+    /// something follows it. "%25" alone is interface 25, as ipconfig shows an interface's number (the owner's call: an empty
+    /// zone escaped is nothing anyone types; "%2512" stays the escaped form of interface 12). The zone is null when it is empty, too long, or holds a character outside RFC 6874's unreserved ones (letters,
     /// digits, "-", ".", "_", "~").
     /// </summary>
     private static (string Address, string? Zone, bool HasZone) SplitZone(string host)
@@ -55,7 +56,7 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
         var pct = host.IndexOf('%');
         if (pct < 0) return (host, null, false);
         var zone = host[(pct + 1)..];
-        if (zone.StartsWith("25", StringComparison.Ordinal))
+        if (zone.Length > 2 && zone.StartsWith("25", StringComparison.Ordinal))
         {
             try
             {
@@ -96,10 +97,19 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
         return zone is null || !IsIpv6(address) ? null : $"{address}%{zone}";
     }
 
-    /// <summary>A URL as text, an IPv6 zone written "%25" (<c>http://[fe80::1%25en0]:631/ipp/print</c>): what is kept or shown.</summary>
-    public static string UrlText(Uri url) =>
-        url.IdnHost.Contains('%') && HostOf(url) is { } zoned && UrlHost(zoned) is { } written
-            ? url.AbsoluteUri.Replace(url.Host, written, StringComparison.Ordinal) : url.AbsoluteUri;
+    /// <summary>
+    /// A URL as text, an IPv6 zone written "%25" (<c>http://[fe80::1%25en0]:631/ipp/print</c>): what is kept or shown. Only the
+    /// authority's host is rewritten: the same bracketed address in the path, query or user name stays as it is.
+    /// </summary>
+    public static string UrlText(Uri url)
+    {
+        var text = url.AbsoluteUri;
+        if (!url.IdnHost.Contains('%') || HostOf(url) is not { } zoned || UrlHost(zoned) is not { } written) return text;
+        // The authority (scheme://user@host:port) ends with the host and its port; the host is its last occurrence there.
+        var authority = url.GetLeftPart(UriPartial.Authority);
+        var at = text.StartsWith(authority, StringComparison.Ordinal) ? authority.LastIndexOf(url.Host, StringComparison.Ordinal) : -1;
+        return at < 0 ? text : string.Concat(text.AsSpan(0, at), written, text.AsSpan(at + url.Host.Length));
+    }
 
     /// <summary>
     /// A URL kept as <see cref="UrlText"/> wrote it, read back with its zone where .NET keeps it; null when it isn't one,
@@ -110,6 +120,29 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
         if (!Uri.TryCreate(text, UriKind.Absolute, out var url)) return null;
         if (!url.IdnHost.Contains('%')) return url;
         return HostOf(url) is { } zoned ? new UriBuilder(url) { Host = zoned }.Uri : null;
+    }
+
+    /// <summary>
+    /// The IPP URL a Windows queue is made from for a printer added by address on <paramref name="host"/> (Add-Printer's
+    /// <c>-IppURL</c>, or Settings' "Add a printer using an IP address or hostname"): the one it answered on, when that is over
+    /// http on the same host (its port and path kept); IPP Everywhere's on 631 otherwise. An IPv6 zone is kept on both.
+    /// </summary>
+    public static Uri SetupUrl(Uri? known, string host) =>
+        known is { IsAbsoluteUri: true, Scheme: "http" } && HostOf(known) is { } knownHost
+        && BuilderHost(knownHost) is { } a && BuilderHost(host) is { } b && string.Equals(a, b, StringComparison.OrdinalIgnoreCase)
+            ? known : IppUrl(Uri.UriSchemeHttp, host, 631, "/");
+
+    /// <summary>
+    /// The http(s) form Windows' <c>Add-Printer -IppURL</c> takes: ipp → http, ipps → https (RFC 7472), on 631 unless another
+    /// port is given; an IPv6 zone kept (<see cref="UriBuilder"/> made from a URL drops it).
+    /// </summary>
+    public static Uri HttpForm(Uri ippUrl)
+    {
+        var scheme = ippUrl.Scheme switch { "ipp" => Uri.UriSchemeHttp, "ipps" => Uri.UriSchemeHttps, _ => null };
+        if (scheme is null) return ippUrl;
+        var http = new UriBuilder(ippUrl) { Scheme = scheme, Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port };
+        if (ippUrl.IdnHost.Contains('%') && HostOf(ippUrl) is { } zoned) http.Host = zoned;
+        return http.Uri;
     }
 
     /// <summary>IPP Everywhere's path, for a host and port given without one.</summary>

@@ -20,7 +20,7 @@ public sealed class IppClient
     private readonly DeviceHttp _http;
 
     public IppClient(DeviceHttp http, string resourcePath = "ipp/print", int port = 631)
-        : this(http, new UriBuilder(Uri.UriSchemeHttp, http.Host, port, resourcePath).Uri)
+        : this(http, new UriBuilder(Uri.UriSchemeHttp, http.BuilderHost, port, resourcePath).Uri)
     {
     }
 

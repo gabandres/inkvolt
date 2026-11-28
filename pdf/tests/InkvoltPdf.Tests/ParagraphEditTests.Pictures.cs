@@ -296,6 +296,18 @@ public partial class ParagraphEditTests
         Assert.Throws<ContentEditException>(() => ContentEditor.ReplaceParagraph(pdf, null, p, text, added: [Orange(), new NewPicture([1, 2, 3], "x.png")]));
     }
 
+    /// <summary>Insert Picture takes a JPEG (the pre-release review: it was "not an image"), embedded at its own shape.</summary>
+    [Fact]
+    public void AJpegIsAPictureTheParagraphTakes()
+    {
+        var (pdf, _) = Page(ParagraphAlign.Left, gap: 120);
+        var p = Body0(pdf);
+        var photo = new NewPicture(TestImages.Jpeg(60, 20), "photo.jpg");
+        var edited = ContentEditor.ReplaceParagraph(pdf, null, p, p.Text + " ￼", added: [photo]);
+        var image = Assert.Single(ContentEditor.Read(edited, null, 0).Images);
+        Assert.Equal(3, image.Box.Width / image.Box.Height, 1);
+    }
+
     // ---- Cropping ----
 
     /// <summary>A page drawing /Im1 as given, its 4 x 2 pixels one color a column: red, green, blue, white.</summary>

@@ -308,13 +308,13 @@ public static class ImageImport
 
     /// <summary>
     /// An image file's pixel size as it shows (a JPEG turned by its EXIF orientation counted), from its header; (0, 0) when
-    /// it isn't an image this reads.
+    /// it isn't an image this reads, or holds more than <see cref="PdfEngine.MaxPixels"/>.
     /// </summary>
     internal static (int Width, int Height) PixelSize(byte[] bytes, string name)
     {
         if (Sniff(bytes, name) is not { } type) return (0, 0);
         var (w, h, _, _) = Header(bytes, type);
-        if (w <= 0 || h <= 0 || w > 1_000_000 || h > 1_000_000) return (0, 0);
+        if (w <= 0 || h <= 0 || w > 1_000_000 || h > 1_000_000 || (long)w * h > PdfEngine.MaxPixels) return (0, 0);
         return type == InputFileTypes.JPEG && ReadJpeg(bytes)?.Orientation is >= 5 and <= 8 ? (h, w) : (w, h);
     }
 
@@ -345,6 +345,9 @@ public static class ImageImport
                     }
                     return (w, h, Sane(dx), Sane(dy));
                 }
+                // The SOF segment's size (ReadJpeg: a bounded walk over the segments; truncated, zero-length or 12-bit: none).
+                case InputFileTypes.JPEG:
+                    return ReadJpeg(b) is { } jpeg ? (jpeg.Width, jpeg.Height, jpeg.DpiX, jpeg.DpiY) : (0, 0, null, null);
                 case InputFileTypes.GIF when b.Length >= 10:
                     return (BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(6)), BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(8)), null, null);
                 case InputFileTypes.BMP when b.Length >= 26:

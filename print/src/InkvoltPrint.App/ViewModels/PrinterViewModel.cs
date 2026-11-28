@@ -617,7 +617,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     public bool SetupInSettings => PrintEndpointId is null && !Features.ElevatedQueueSetup;
 
     /// <summary>The address Windows' "Add a printer using an IP address or hostname" needs for this printer.</summary>
-    private Uri IppUrl => IppUri is { Scheme: "http" } known && known.Host == Host ? known : new UriBuilder("http", Host!, 631, "ipp/print").Uri;
+    private Uri IppUrl => Core.Discovery.PrinterAddress.SetupUrl(IppUri, Host!);
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowScanShortcut))]
@@ -1381,7 +1381,7 @@ public sealed partial class PrinterViewModel : ObservableObject, IDisposable
     {
         if (SetupInSettings)
         {
-            var url = IppUrl.AbsoluteUri;
+            var url = Core.Discovery.PrinterAddress.UrlText(IppUrl); // an IPv6 zone written "%25" (AbsoluteUri drops it)
             try { System.Windows.Clipboard.SetText(url); }
             catch (Exception ex) { Trace.WriteLine($"[{Name}] clipboard: {ex.Message}"); } // the message shows the address too
             Shell.Open("ms-settings:printers");

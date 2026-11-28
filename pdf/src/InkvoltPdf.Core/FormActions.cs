@@ -662,6 +662,9 @@ public static partial class FormEditor
             {
                 if (f.Type is not ("/Tx" or "/Ch" or "/Btn") || (f.Type == "/Btn" && (f.Flags & FfPushButton) != 0)) continue;
                 var dv = PdfObj.Resolve(Inherited(f.Dict, "/DV"));
+                // A field already at its default isn't touched: a reset of an untouched form changes nothing (no edit, no
+                // calculations or scripts run, /XFA kept).
+                if (AtDefault(f, dv)) continue;
                 switch (f.Type)
                 {
                     case "/Tx":
@@ -689,6 +692,39 @@ public static partial class FormEditor
                 }
                 Js.Touched.Add(f);
                 Changed = true;
+            }
+        }
+
+        /// <summary>
+        /// Whether a field already holds what <see cref="Reset"/> gives it: its value its default (/DV, else empty or Off),
+        /// no rich text left (/RV), a choice's widgets without their own value, a check box's or radio's widgets showing it.
+        /// </summary>
+        private static bool AtDefault(Field f, PdfItem? dv)
+        {
+            var value = ValueOf(f.Dict, f.Type);
+            switch (f.Type)
+            {
+                case "/Tx":
+                    return !f.Dict.Elements.ContainsKey("/RV") && value == (dv is PdfString s ? s.Value : "");
+                case "/Ch":
+                    var wanted = dv switch
+                    {
+                        PdfString ds => ds.Value,
+                        PdfArray arr => string.Join('\n', arr.Elements.Select(PdfObj.Str).OfType<string>()),
+                        _ => "",
+                    };
+                    return value == wanted
+                           && f.Widgets.All(w => ReferenceEquals(w, f.Dict) || !w.Elements.ContainsKey("/V") && !w.Elements.ContainsKey("/I"));
+                default:
+                {
+                    var state = dv is PdfName n ? n.Value.TrimStart('/') : "Off";
+                    if (value != state) return false;
+                    foreach (var w in f.Widgets)
+                        if ((w.Elements.ContainsKey("/AS") || w.Elements.ContainsKey("/AP"))
+                            && (PdfObj.Name(w.Elements["/AS"]) ?? "") != (OnStateOf(w) == state ? state : "Off"))
+                            return false;
+                    return true;
+                }
             }
         }
 

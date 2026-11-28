@@ -62,7 +62,7 @@ public static class RepairScripts
                            "try { if (-not (Get-Printer | Where-Object { $_.Name -eq $v1 })) { Add-Printer -Name $v1 -IppURL $v2 } } catch { exit 1 }; " +
                            "try { $q | Remove-Printer } catch { exit 2 }; " +
                            "try { Get-Printer | Where-Object { $_.Name -eq $v1 } | Select-Object -First 1 | Rename-Printer -NewName $v0 } catch { exit 3 }; exit 0",
-                    [queue, temporaryName, httpUrl.AbsoluteUri]);
+                    [queue, temporaryName, Discovery.PrinterAddress.UrlText(httpUrl)]); // an IPv6 zone written "%25" (AbsoluteUri drops it)
             default:
                 return null;
         }

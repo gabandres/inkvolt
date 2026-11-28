@@ -267,4 +267,36 @@ public class FormDataTests
         var noForm = Core2Pdf.Build(["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>"]);
         Assert.Throws<InvalidOperationException>(() => FormEditor.ResetForm(noForm, null));
     }
+
+    /// <summary>
+    /// The pre-release review: Reset Form on a form already at its defaults rewrote every field, ran the calculations and
+    /// dropped /XFA, so the document came back changed (dirty, an undo step) for nothing. Now only a field off its default is
+    /// touched, and with none the bytes come back as they were (the tab's NoChange).
+    /// </summary>
+    [Fact]
+    public void ResetFormOfAFormAtItsDefaultsChangesNothing()
+    {
+        string[] fields(string name, string agree, string agreeShown, string size) =>
+        [
+            $"<< {W} /FT /Tx /T (name) {name} /DV (Nobody) /Rect [72 700 300 720] /DA (/Helv 12 Tf 0 g) >>",
+            $"<< {W} /FT /Btn /T (agree) {agree} /AS /{agreeShown} /Rect [72 650 90 668] /AP << /N << /Yes 10 0 R /Off 10 0 R >> >> >>",
+            $"<< {W} /FT /Ch /Ff 131072 /T (size) /Opt [(S) (M) (L)] {size} /DV (M) /Rect [72 600 200 620] /DA (/Helv 12 Tf 0 g) >>",
+            $"<< {W} /FT /Tx /T (a) /Rect [72 560 200 580] /DA (/Helv 10 Tf 0 g) >>",
+            $"<< {W} /FT /Tx /Ff 1 /T (total) /Rect [72 520 200 540] /DA (/Helv 10 Tf 0 g) /AA << /C << /S /JavaScript /JS (AFSimple_Calculate\\(\"SUM\", new Array\\(\"a\"\\)\\);) >> >> >>",
+        ];
+        byte[] form(string[] f) => Core2Pdf.Form(f, acroExtra: "/CO [9 0 R] /XFA (xfa)", more: [Core2Pdf.Stream("", "/Type /XObject /Subtype /Form /BBox [0 0 18 18]")]);
+
+        var atDefaults = form(fields("/V (Nobody)", "", "Off", "/V (M)"));
+        Assert.Same(atDefaults, FormEditor.ResetForm(atDefaults, null));
+        var noValues = form(fields("/V (Nobody)", "/V /Off", "Off", "/V (M)"));
+        Assert.Same(noValues, FormEditor.ResetForm(noValues, null));
+
+        // A check box off by value but still showing on, and a changed text: reset, the rest as it was.
+        var shownOn = FormEditor.ResetForm(form(fields("/V (Nobody)", "/V /Off", "Yes", "/V (M)")), null);
+        Assert.DoesNotContain("/XFA", System.Text.Encoding.Latin1.GetString(shownOn));
+        var typed = Read(FormEditor.ResetForm(form(fields("/V (Alice)", "", "Off", "/V (M)")), null));
+        Assert.Equal("Nobody", typed["name"]);
+        Assert.Equal("M", typed["size"]);
+        Assert.Equal("Off", typed["agree"]);
+    }
 }

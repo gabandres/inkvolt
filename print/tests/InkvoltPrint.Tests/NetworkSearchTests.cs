@@ -283,6 +283,11 @@ public class NetworkSearchTests
     [InlineData("http://[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", "http://[fe80::1%25a]:8080/")]
     [InlineData("[fe80::1%25en0]", "fe80::1%en0", null, null)]
     [InlineData("ipp://[fe80::1%12]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", null)] // Windows' zones are numbers
+    // "%25" with nothing after it is interface 25 (ipconfig's "%25"), not an escaped empty zone; "%2512" is still interface 12.
+    [InlineData("[fe80::1%25]", "fe80::1%25", null, null)]
+    [InlineData("ipp://[fe80::1%25]/", "fe80::1%25", "http://[fe80::1%2525]:631/ipp/print", null)]
+    [InlineData("[fe80::1%25]:8080", "fe80::1%25", "http://[fe80::1%2525]:8080/ipp/print", null)]
+    [InlineData("ipp://[fe80::1%2512]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", null)]
     public void A_zoned_IPv6_address_keeps_its_zone(string typed, string host, string? ipp, string? web)
     {
         var a = PrinterAddress.Parse(typed);
@@ -295,12 +300,58 @@ public class NetworkSearchTests
         if (ipp is not null) Assert.Equal(host, PrinterAddress.ReadUrl(ipp)?.IdnHost);
     }
 
+    /// <summary>
+    /// Set up for a printer added by a zoned address (the pre-release review): the queue's IPP URL is the one typed, port and path
+    /// kept (the URL's bracketed host never equalled the zoned host, so it fell back to port 631's /ipp/print), and the text given to
+    /// the clipboard, the message and Add-Printer keeps the zone.
+    /// </summary>
+    [Theory]
+    [InlineData("ipp://[fe80::1%2512]:8631/printers/x", "http://[fe80::1%2512]:8631/printers/x")]
+    [InlineData("ipp://[fe80::1%25en0]/printers/x", "http://[fe80::1%25en0]:631/printers/x")]
+    [InlineData("[fe80::1%12]:8080", "http://[fe80::1%2512]:8080/ipp/print")]
+    [InlineData("ipp://[2001:db8::5]:8631/printers/x", "http://[2001:db8::5]:8631/printers/x")]
+    [InlineData("ipp://printer.local:8631/printers/x", "http://printer.local:8631/printers/x")]
+    public void Set_up_by_a_zoned_address_keeps_the_IPP_URL_typed(string typed, string queueUrl)
+    {
+        var a = PrinterAddress.Parse(typed);
+        Assert.Equal(queueUrl, PrinterAddress.UrlText(PrinterAddress.SetupUrl(a.Ipp, a.Host!)));
+    }
+
+    [Fact]
+    public void Set_up_without_an_IPP_URL_on_the_host_asks_631_keeping_the_zone()
+    {
+        Assert.Equal("http://[fe80::1%2512]:631/ipp/print", PrinterAddress.UrlText(PrinterAddress.SetupUrl(null, "fe80::1%12")));
+        // A URL on another host, or over https, isn't the one: IPP Everywhere's on the printer's own host.
+        Assert.Equal("http://[fe80::1%2512]:631/ipp/print",
+            PrinterAddress.UrlText(PrinterAddress.SetupUrl(PrinterAddress.ReadUrl("http://[fe80::1%253]:8631/x"), "fe80::1%12")));
+        Assert.Equal("http://192.0.2.10:631/ipp/print",
+            PrinterAddress.UrlText(PrinterAddress.SetupUrl(new Uri("https://192.0.2.10:8631/x"), "192.0.2.10")));
+    }
+
+    /// <summary>Add-Printer's http form of an ipp:// URL keeps the zone (a UriBuilder made from the URL drops it).</summary>
+    [Theory]
+    [InlineData("ipp://[fe80::1%2512]/printers/x", "http://[fe80::1%2512]:631/printers/x")]
+    [InlineData("ipps://[fe80::1%25en0]:8631/ipp/print", "https://[fe80::1%25en0]:8631/ipp/print")]
+    [InlineData("ipp://192.0.2.10/ipp/print", "http://192.0.2.10:631/ipp/print")]
+    [InlineData("http://192.0.2.10:8631/ipp/print", "http://192.0.2.10:8631/ipp/print")]
+    public void The_http_form_of_an_IPP_URL_keeps_its_zone(string ipp, string http) =>
+        Assert.Equal(http, PrinterAddress.UrlText(PrinterAddress.HttpForm(PrinterAddress.ReadUrl(ipp)!)));
+
+    [Fact]
+    public void Recreating_an_IPP_queue_at_a_zoned_address_gives_Add_Printer_the_zone()
+    {
+        var url = PrinterAddress.ReadUrl("http://[fe80::1%2512]:8631/printers/x")!;
+        var repair = new Core.Offline.Repair(Core.Offline.RepairKind.RecreateIppQueue, "t", "") { Queue = "q", TargetUrl = url };
+        var script = Core.Offline.RepairScripts.For(repair, temporaryName: "q (new address)", httpUrl: PrinterAddress.HttpForm(url))!;
+        Assert.Equal("http://[fe80::1%2512]:8631/printers/x", script.Values[2]);
+    }
+
     /// <summary>A zone that isn't one (empty, or a character a zone can't hold) is no address, never a URL made from it.</summary>
     [Theory]
-    [InlineData("ipp://[fe80::1%25]/")]
+    [InlineData("ipp://[fe80::1%]/")]
     [InlineData("ipp://[fe80::1%25a%2Fb]/")]
     [InlineData("[fe80::1%25a%2Fb]:8080")]
-    [InlineData("[fe80::1%25]:8080")]
+    [InlineData("[fe80::1%]:8080")]
     public void A_zone_that_isnt_one_is_no_address(string typed)
     {
         var a = PrinterAddress.Parse(typed);
@@ -319,5 +370,21 @@ public class NetworkSearchTests
         Assert.Null(PrinterAddress.UrlHost("fe80::1%"));
         Assert.Null(PrinterAddress.ReadUrl("http://[fe80::1%25a%2Fb]/"));
         Assert.Equal("http://192.0.2.10:631/ipp/print", PrinterAddress.UrlText(new Uri("http://192.0.2.10:631/ipp/print")));
+    }
+
+    /// <summary>
+    /// Only the URL's own host gets its zone written (the pre-release review): the same bracketed address in the path, query,
+    /// fragment or user name is the printer's text, left as it is.
+    /// </summary>
+    [Theory]
+    [InlineData("http://[fe80::1%2512]:631/p/[fe80::1]/x", "http://[fe80::1%2512]:631/p/[fe80::1]/x")]
+    [InlineData("http://[fe80::1%2512]/x?h=[fe80::1]#[fe80::1]", "http://[fe80::1%2512]/x?h=[fe80::1]#[fe80::1]")]
+    [InlineData("http://u:p@[fe80::1%25en0]:8080/ipp/print", "http://u:p@[fe80::1%25en0]:8080/ipp/print")]
+    [InlineData("ipp://[fe80::1%25en0]/[fe80::1]", "ipp://[fe80::1%25en0]/[fe80::1]")]
+    public void Only_the_hosts_zone_is_written(string kept, string text)
+    {
+        var url = PrinterAddress.ReadUrl(kept)!;
+        Assert.Equal(text, PrinterAddress.UrlText(url));
+        Assert.Equal(url.IdnHost, PrinterAddress.ReadUrl(PrinterAddress.UrlText(url))!.IdnHost);
     }
 }

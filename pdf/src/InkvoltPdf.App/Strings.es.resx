@@ -295,6 +295,9 @@
   <data name="Share_CantBody" xml:space="preserve">
     <value>Compartir de Windows no está disponible aquí. Guarda el archivo y adjúntalo desde su carpeta (Archivo › Mostrar en la carpeta).</value>
   </data>
+  <data name="Share_CantReadBody" xml:space="preserve">
+    <value>Compartir de Windows no pudo abrir el archivo donde está; puede que la ruta de su carpeta sea demasiado larga. Guarda una copia en una carpeta con una ruta más corta (Archivo › Guardar como…) y comparte esa, o adjúntalo desde su carpeta (Archivo › Mostrar en la carpeta).</value>
+  </data>
   <data name="Cmd_Exit" xml:space="preserve">
     <value>_Salir</value>
   </data>
@@ -8158,6 +8161,9 @@ Inkvolt PDF comprueba las reglas que cambia; para una comprobación formal, usa 
   </data>
   <data name="FormData_Filling" xml:space="preserve">
     <value>Llenando los formularios…</value>
+  </data>
+  <data name="FormData_ReadingFields" xml:space="preserve">
+    <value>Leyendo los campos del formulario…</value>
   </data>
   <data name="FormData_RowOf" xml:space="preserve">
     <value>Fila {0:N0} de {1:N0}…</value>
