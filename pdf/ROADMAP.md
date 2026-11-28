@@ -207,7 +207,7 @@ fonts).
   wrong text is worse than none.
 - The Kind list makes nothing a table or a list from a paragraph (their cells and entries aren't known).
 - **Not checked:** Acrobat's and PAC's view of the output (neither is installed here).
-- **Mac:** row spans in tables without lines (2026-11-20) aren't ported.
+- **Mac:** done (2026-11-27), row spans in tables without lines too (`AutoTag.unruledRowSpans`).
 
 ### 2.5 What's in this PDF (differentiator)
 Done, Windows and Mac. `DocumentInventory`: one report of what a file carries and does when opened, each item saying

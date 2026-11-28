@@ -2529,6 +2529,10 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   `WidthRun`, `combinedScale`; `Type1Program.advance`; `TextFont.programWidth`; the test fonts `TestFontPrograms`). As
   Windows; the CFF DICT reader now reads real numbers (it read them as 0), which FontMatrix needs. Not run: the accessibility
   corpus (`AccessibilityCorpusTests`, opt-in with `INKVOLT_A11Y_CORPUS`; Windows' `pdf/tools/a11y-corpus` PDFs aren't on the build Mac).
+- **2.4, row spans in tables without lines** (`AutoTag.unruledRowSpans`, in `tableBlocks` after the header rows are told).
+  As Windows; a label's own row that goes takes its height with it when the table has row heights. Tagging only: the
+  exports are as before (`A_table_without_lines_…` checks it), so `pdf/tools/export-corpus` has nothing new to see; the
+  tagging corpus wasn't run (its PDFs aren't on the build Mac).
 
 ## Open decisions
 

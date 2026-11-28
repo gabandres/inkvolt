@@ -298,6 +298,96 @@ extension AutoTag {
         return out
     }
 
+    /// Row spans in a table without rules, where nothing draws them: a first column of group labels over rows whose first
+    /// cell is empty and whose other cells aren't. When the body's first row has a label, each label heads the rows under
+    /// it up to the next label (labels at the top of their group, in its first row or in a row of their own above it,
+    /// which goes); otherwise each label heads as many of those rows above it as below it (labels centered on their group:
+    /// in a row of its own between two halves, which goes, or in the middle row of an odd group). Header rows
+    /// (`headerRows`) never span. Any empty first cell left over, a row with nothing in it, or fewer than two labels
+    /// heading two rows or more, and the table is left as it is: an empty cell may just be a value missing.
+    private static func unruledRowSpans(_ t: DocTable, _ headerRows: Int) -> DocTable {
+        var rows = t.rows
+        let first = max(0, headerRows)
+        let body = rows.count - first
+        if body < 3 || rows[first...].contains(where: { r in r.count < 2 || r[0].colSpan != 1 || r[0].rowSpan != 1 || r.contains(where: \.covered) }) {
+            return t
+        }
+        func label(_ r: Int) -> Bool { !empty(rows[r][0]) }
+        func rest(_ r: Int) -> Int { rows[r].dropFirst().count { !empty($0) } }
+        func open(_ r: Int) -> Bool { !label(r) && rest(r) > 0 } // a row of a group, its first cell empty
+        let bodyRows = first..<rows.count
+        if bodyRows.contains(where: { !label($0) && rest($0) == 0 }) { return t }
+        if !bodyRows.contains(where: open) { return t }
+        let alone = Set(bodyRows.filter { label($0) && rest($0) == 0 })
+        var claimed = [Bool](repeating: false, count: rows.count)
+        var gone: [Int] = []
+        var dropped: [Int] = [] // labels' own rows that go, the span already counting without them
+        if label(first) {
+            // Labels at the top of their group: in its first row, or in a row of their own above it (which goes).
+            for r in bodyRows where label(r) {
+                var down = 0
+                while r + down + 1 < rows.count && open(r + down + 1) { down += 1 }
+                if down == 0 { continue }
+                var top = r
+                if alone.contains(r) {
+                    rows[r + 1][0] = rows[r][0]
+                    dropped.append(r)
+                    top = r + 1
+                    claimed[r + 1] = true
+                }
+                rows[top][0].rowSpan = r + down - top + 1
+                for k in stride(from: top + 1, through: r + down, by: 1) {
+                    rows[k][0].covered = true
+                    claimed[k] = true
+                }
+            }
+        } else {
+            // Labels centered on their group.
+            for r in bodyRows where label(r) {
+                var up = 0, down = 0
+                while r - up - 1 >= first && open(r - up - 1) && !claimed[r - up - 1] { up += 1 }
+                while r + down + 1 < rows.count && open(r + down + 1) { down += 1 }
+                let n = min(up, down)
+                if n == 0 { continue }
+                let top = r - n
+                var spanning = rows[r][0]
+                spanning.rowSpan = 2 * n + 1
+                if alone.contains(r) {
+                    // Its own row goes: the label heads the n rows above and the n below.
+                    rows[top][0] = spanning
+                    gone.append(r)
+                } else {
+                    var emptied = rows[top][0]
+                    emptied.covered = true
+                    rows[top][0] = spanning
+                    rows[r][0] = emptied
+                }
+                for k in stride(from: top + 1, through: r + n, by: 1) where k != r { rows[k][0].covered = true }
+                for k in top...(r + n) { claimed[k] = true }
+            }
+        }
+        if bodyRows.contains(where: { open($0) && !claimed[$0] }) { return t }
+        // A label's own row gone: the span counts one row less (the rows are taken out from the bottom up).
+        var heights = t.rowHeights
+        for r in (gone + dropped).sorted(by: >) {
+            if gone.contains(r), let up = stride(from: r - 1, through: first, by: -1).first(where: { !rows[$0][0].covered }) {
+                rows[up][0].rowSpan -= 1
+            }
+            rows.remove(at: r)
+            if var h = heights, h.indices.contains(r) {
+                h.remove(at: r)
+                heights = h
+            }
+        }
+        // Grouping shows only in two labels at least that each head two rows or more: one empty first cell under a name
+        // is more likely a value missing than a group of one.
+        if rows[first...].count(where: { !$0[0].covered && $0[0].rowSpan >= 2 }) < 2 { return t }
+        var out = t
+        out.rows = rows
+        out.rowHeights = heights
+        return out
+    }
+
     /// The index of the cell of a row that starts at column `col`, or -1.
     private static func cellAtColumn(_ row: [DocCell], _ col: Int) -> Int {
         var at = 0
@@ -319,7 +409,7 @@ extension AutoTag {
     }
 
     private static func tableBlocks(_ page: Int, _ table: DocTable) -> [TagBlock] {
-        let unmerged = withoutCoveredRows(table)
+        var unmerged = withoutCoveredRows(table)
         // Column headers, told row by row as drawn (each cell with what is drawn in it, before a cell spanning rows takes
         // what it covers): a first row in bold over rows that aren't, or a row of words over rows of numbers.
         let u = unmerged.rows
@@ -336,6 +426,7 @@ extension AutoTag {
             headerRows = 2
         }
         // A column header spans no further than the header rows: the spans are cut there.
+        if !unmerged.ruled { unmerged = unruledRowSpans(unmerged, headerRows) }
         let t = withRowSpans(unmerged, cut: headerRows)
         let rows = tagCells(t)
         let all = rows.flatMap { $0 }.flatMap { $0.sources + $0.pictures }
