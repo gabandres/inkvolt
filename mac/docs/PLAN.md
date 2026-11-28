@@ -251,8 +251,11 @@ mac/InkvoltPrintKit --build-system native`.
   overloads, which answer through a completion, not the delegate). Tests: `ImageCaptureJobTests` (PC). Checked on the
   build Mac with the M234dw through Apple's AirScan driver (`--report … --ica-scan M234dw --times 2`, which traces every
   word from ImageCaptureCore): two glass scans in a row, a 1700 × 2338 page each at 200 dpi, the session closed after
-  each and the next opened 10 s later; and through the share (above). An open now takes 8 to 10 s (the scanner's own
-  selection). Not checked: a feeder, a USB scanner, the Scan tab on screen.
+  each and the next opened 10 s later; and through the share (above). An open now takes 2 to 10 s (the scanner's own
+  selection). Once, right after launch, an open got no answer in 30 s and sharing didn't start (said on the card); a
+  session that opens after we stopped waiting is now closed at once, and a timed-out open asks for a close, so none is
+  left holding the device; not seen again in the next run (the share's capabilities, its scan, then a Scan-tab scan, each
+  in a session of its own). Not checked: a feeder, a USB scanner, the Scan tab on screen.
 - **3.2 SNMP: a community per printer, SNMPv3 (Pro).** Logins in the Keychain (`SnmpLoginKeychain`, service
   `com.bermudezsystems.InkvoltPrint.snmp`). **Mac differences:** the crypto is a seam, `SnmpCrypto` (CryptoKit and
   CommonCrypto in PrintMac's `AppleSnmpCrypto`; a test-only one in PrintCoreTests), where Windows calls .NET's directly;

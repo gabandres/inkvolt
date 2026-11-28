@@ -315,14 +315,18 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         let once = OnceResult<String?>()
         opened = once
         send { s in s.requestOpenSession() }
-        let error = await wait(once, seconds: 30, timedOut: loc("The scanner didn't answer. Check that it's on and connected."))
+        let error = await wait(once, seconds: 30, timedOut: Self.noAnswer)
         opened = nil
-        if let error { throw ScanError(error) }
+        if let error {
+            // No answer: a session that opens later is closed as it comes (`didOpenSessionWithError`), and one that did is let go.
+            if error == Self.noAnswer { send { s in s.requestCloseSession() } }
+            throw ScanError(error)
+        }
         isOpen = true
         readyUnit = nil
         // The units come once the scanner says it's available, a moment after the session opens; then it says which one
         // it selected itself. Selecting before that is overtaken by it (a network all-in-one's scan then never started).
-        for _ in 0..<50 where scanner.availableFunctionalUnitTypes.isEmpty || selections == 0 { try await Task.sleep(for: .milliseconds(100)) }
+        for _ in 0..<150 where scanner.availableFunctionalUnitTypes.isEmpty || selections == 0 { try await Task.sleep(for: .milliseconds(100)) }
     }
 
     /// Closes the session (at most 5 seconds' wait for the scanner to say so).
@@ -408,7 +412,15 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
 
     public func device(_ device: ICDevice, didOpenSessionWithError error: (any Error)?) {
         trace?("session opened: \(error.map { "\($0)" } ?? "ok")")
-        opened?.finish(error.map(Self.words))
+        guard let opened else {
+            // Opened after we stopped waiting: nobody uses it, and one left open holds the device for minutes.
+            if error == nil && !isOpen {
+                trace?("late session: closed")
+                send { s in s.requestCloseSession() }
+            }
+            return
+        }
+        opened.finish(error.map(Self.words))
     }
 
     public func scannerDevice(_ scanner: ICScannerDevice, didSelect functionalUnit: ICScannerFunctionalUnit, error: (any Error)?) {
@@ -485,6 +497,8 @@ public final class SystemScanDevice: NSObject, ScanDevice, @preconcurrency ICSca
         if data.count > limit { return .tooLarge }
         return .page([UInt8](data))
     }
+
+    nonisolated static var noAnswer: String { loc("The scanner didn't answer. Check that it's on and connected.") }
 
     /// The scanner's error in plain words.
     nonisolated static func words(_ error: any Error) -> String {

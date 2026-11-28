@@ -58,6 +58,8 @@ extension Report {
         let env = ShareEnvironment(host: NetworkShareHost(), networks: SystemShareNetworks(), advertiser: BonjourShareAdvertiser(),
                                    certificates: PhoneCertificateKeychain(keychain: keychain.keychain))
         let share = ScannerShare(env, computerName: Host.current().localizedName ?? "Mac", choice: nil, save: { _ in }, log: { log.add($0) })
+        device.trace = { line in log.add("ica: " + line) }
+        defer { device.trace = nil }
         let connected = ConnectedScanner(s, device: device)
         await share.share(connected)
         let caps = try? await connected.capabilities()
