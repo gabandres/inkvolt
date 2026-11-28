@@ -306,6 +306,7 @@ final class AppModel {
         }
         systemScanners = scanners
         scanners.start()
+        watchUsb()
         signal.onChange { [weak self] access in Task { @MainActor in self?.localNetworkChanged(access) } }
         let discovery = BonjourDiscovery(localNetwork: signal) { [weak self] services in
             let found = DiscoveredPrinters.join(services)
@@ -573,6 +574,101 @@ final class AppModel {
             p.claimed(queue: own)
         }
         handOffPrinters()
+        refreshNeedsDriver()
+    }
+
+    // MARK: USB printers and scanners that need their driver
+
+    /// The USB printers and scanners plugged in that nothing on this Mac can use yet (`NeedsDriver`), listed under the
+    /// printers; demo mode's made-up two.
+    private(set) var needingDriver: [NeedsDriverPrinter] = []
+    @ObservationIgnored private var usbWatch: UsbDeviceWatch?
+    @ObservationIgnored private var driverPages: [String: NeedsDriverModel] = [:]
+
+    /// Get the driver: the makers' catalogs over the internet (the system's trust, never a printer's pin), for this Mac's
+    /// processor and macOS; demo mode's made-up find.
+    @ObservationIgnored private(set) lazy var drivers: any DriverGetter = isDemo
+        ? DemoDriverGetter(withLicence: CommandLine.arguments.contains("--driver-licence"))
+        : DriverFlow(catalog: MakerCatalogs.all(MakerWeb(URLSessionTransport(check: .system))), arch: Self.arch,
+                     macOS: ProcessInfo.processInfo.operatingSystemVersion.majorVersion)
+
+    static var arch: MacArch {
+        #if arch(arm64)
+        .appleSilicon
+        #else
+        .intel
+        #endif
+    }
+
+    var selectedNeedsDriver: NeedsDriverPrinter? { needingDriver.first { $0.id == selectedID } }
+
+    /// The page of a device that needs its driver, kept while the app runs.
+    func driverPage(_ device: NeedsDriverPrinter) -> NeedsDriverModel {
+        if let page = driverPages[device.id] {
+            page.update(device)
+            return page
+        }
+        let page = NeedsDriverModel(device, app: self)
+        driverPages[device.id] = page
+        return page
+    }
+
+    /// The needs-driver scanner that is this printer's scanner part (an all-in-one whose printer part prints), if any.
+    func scannerNeedingDriver(for p: PrinterModel) -> NeedsDriverPrinter? {
+        needingDriver.first { d in
+            d.isScanner && (PrinterNames.sameModel(d.name, p.name) || p.model.map { m in PrinterNames.sameModel(d.name, m) } == true)
+        }
+    }
+
+    /// Watches the Mac's USB devices: one plugged in or unplugged is looked at at once.
+    private func watchUsb() {
+        guard !isDemo, usbWatch == nil else { return }
+        let watch = UsbDeviceWatch { [weak self] in self?.refreshNeedsDriver() }
+        watch.start()
+        usbWatch = watch
+    }
+
+    /// One look at the USB devices against the queues and ImageCaptureCore's scanners just read (both needed: before
+    /// ImageCaptureCore's first list every scanner would read as needing its driver).
+    func refreshNeedsDriver() {
+        let found: [NeedsDriverPrinter]
+        if isDemo {
+            found = DemoNeedsDriver.all
+        } else {
+            guard let destinations, let scannerList else { return }
+            found = NeedsDriver.find(IOKitUsbDevices().devices(), queues: destinations, scanners: scannerList)
+        }
+        if found != needingDriver {
+            for d in found where !needingDriver.contains(where: { $0.id == d.id }) { NSLog("%@", "USB \(d.isScanner ? "scanner" : "printer"): \(NeedsDriverText.line(d))") }
+            let wasSelected = selectedNeedsDriver
+            needingDriver = found
+            if let wasSelected, !found.contains(where: { $0.id == wasSelected.id }), driverPages[wasSelected.id]?.isFound != true {
+                selectedID = printers.first?.id ?? found.first?.id // unplugged: the list's first instead
+            }
+        }
+        for (id, page) in driverPages {
+            page.present = found.contains { $0.id == id }
+            page.check()
+        }
+    }
+
+    /// Where a device that needed its driver is now: plugged in, usable or not (demo mode's never change).
+    func deviceNow(_ device: NeedsDriverPrinter) -> DeviceNow {
+        guard !isDemo, !device.isMadeUp else { return .needsDriver }
+        return DeviceState.of(device, IOKitUsbDevices().devices(), queues: destinations ?? [], scanners: scannerList ?? [])
+    }
+
+    /// Get the driver found the device working: its printer (or scanner) selected, a scanner on its Scan tab.
+    func driverFound(_ device: NeedsDriverPrinter) {
+        refreshNeedsDriver()
+        let mine = printers.first { p in
+            device.isScanner ? p.systemScanner.map { s in s.usbId == device.usbId || UsbScanners.sameModel(device.name, s.name) } == true
+                : p.isQueue && (PrinterNames.sameModel(device.name, p.name) || p.model.map { PrinterNames.sameModel(device.name, $0) } == true)
+        }
+        if let mine {
+            selectedID = mine.id
+            if device.isScanner { paneRequest = .scan }
+        }
     }
 
     /// The hand-off once things settle (half a second after the last call): a printer added, a UUID accepted for one, the

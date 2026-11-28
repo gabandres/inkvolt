@@ -57,8 +57,10 @@ public final class SystemScanners: NSObject, @preconcurrency ICDeviceBrowserDele
 
     /// What the list says of one device: its name, USB or not, and whether a maker's module drives it (roadmap 4.5).
     private static func scanner(_ id: String, _ d: ICScannerDevice) -> SystemScanner {
-        SystemScanner(id: id, name: d.name ?? "Scanner", usb: d.transportType?.contains("USB") == true,
-                      makerDriver: DriverReadiness.isMakerModule(d.modulePath))
+        let usb = d.transportType?.contains("USB") == true
+        // Its USB ids, for knowing a scanner that needed its driver once it has one (`NeedsDriver.scannerListed`).
+        let ids = usb && d.usbVendorID > 0 ? String(format: "%04X:%04X", d.usbVendorID & 0xFFFF, d.usbProductID & 0xFFFF) : nil
+        return SystemScanner(id: id, name: d.name ?? "Scanner", usb: usb, makerDriver: DriverReadiness.isMakerModule(d.modulePath), usbId: ids)
     }
 
     public func deviceBrowser(_ browser: ICDeviceBrowser, didAdd device: ICDevice, moreComing: Bool) {

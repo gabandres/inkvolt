@@ -105,8 +105,7 @@ public struct CanonDrivers: DriverCatalog {
             }
             return t.localizedCaseInsensitiveContains("Full Driver") ? 3 : nil
         }
-        return list.enumerated().compactMap { e in rank(e.element).map { (e.element, $0, e.offset) } }
-            .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.2 < $1.2 }.map(\.0)
+        return DriverPages.byRank(list.map { d in (d, rank(d)) })
     }
 
     private static let dataUrl = try! NSRegularExpression(pattern: #"data-url="(https://pdisp01\.c-wss\.com/gdl/WWUFORedirectTarget\.do\?[A-Za-z0-9=&;%_\-]{1,300})""#)

@@ -198,6 +198,8 @@ public final class URLSessionTransport: HttpTransport {
         func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge)
             async -> (URLSession.AuthChallengeDisposition, URLCredential?) {
             let space = challenge.protectionSpace
+            // A maker's site: macOS's own check against the CAs it trusts.
+            if check.systemTrust { return (.performDefaultHandling, nil) }
             guard space.authenticationMethod == NSURLAuthenticationMethodServerTrust, let trust = space.serverTrust else {
                 return (.performDefaultHandling, nil)
             }

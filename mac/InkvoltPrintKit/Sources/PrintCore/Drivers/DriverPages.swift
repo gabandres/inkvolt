@@ -95,12 +95,14 @@ public enum DriverPages {
     }
 
     /// The download for this Mac among `ranked` (the maker's candidates for the kind and macOS, best first): on Apple silicon
-    /// the first that says it is for Apple silicon (or universal), else the first that isn't for Intel only; on an Intel Mac
-    /// the first that isn't for Apple silicon only. Unmarked downloads run on both, as most makers' .dmg are universal. None:
-    /// on Apple silicon `.noArm64` when there were candidates but all for Intel, else (and always on Intel) `.notFound`.
+    /// the first that isn't for Intel only, on an Intel Mac the first that isn't for Apple silicon only. Unlike Windows on
+    /// ARM (where only a build that says ARM loads), a Mac download that names neither runs on both: makers' .dmg are
+    /// universal, and one that mentions Apple silicon isn't preferred over the maker's own order (Epson's Scan 2 says so, its
+    /// ICA driver doesn't). None: on Apple silicon `.noArm64` when there were candidates but all for Intel, else (and always
+    /// on Intel) `.notFound`.
     public static func forThisMac(_ ranked: [MakerDownload], _ arch: MacArch) -> (pick: MakerDownload?, why: NoOffer) {
         let pick = arch == .appleSilicon
-            ? ranked.first { forAppleSilicon($0.title, $0.description) } ?? ranked.first { !intelOnly($0.title, $0.description) }
+            ? ranked.first { !intelOnly($0.title, $0.description) }
             : ranked.first { !appleSiliconOnly($0.title, $0.description) }
         return (pick, whyNone(!ranked.isEmpty, arch))
     }
@@ -131,6 +133,16 @@ public enum DriverPages {
         let name = url.lastPathComponent.lowercased()
         if ["dmg", "pkg", "mpkg"].contains(url.pathExtension.lowercased()) { return true }
         return name.hasSuffix(".app.zip") || name.hasSuffix(".pkg.zip") || name.hasSuffix(".dmg.zip")
+    }
+
+    /// The downloads a ranking kept (its rank, nil: never), best rank first, the page's order within a rank.
+    static func byRank(_ ranked: [(download: MakerDownload, rank: Int?)]) -> [MakerDownload] {
+        var kept: [(download: MakerDownload, rank: Int, order: Int)] = []
+        for (order, entry) in ranked.enumerated() {
+            if let rank = entry.rank { kept.append((entry.download, rank, order)) }
+        }
+        kept.sort { a, b in a.rank != b.rank ? a.rank < b.rank : a.order < b.order }
+        return kept.map(\.download)
     }
 
     private static let icaWord = try! NSRegularExpression(pattern: #"\bICA\b"#)

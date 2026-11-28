@@ -62,7 +62,8 @@ struct DriverDownloadTests {
     }
 
     /// The V19's macOS 26 list as epson.com gave it (2026-11-27): Epson Scan 2, its ICA driver, then utilities.
-    static let macPage = panel("Scanner Driver and Epson Scan 2 Utility&nbsp;v6.7.84", file: "V19_EScan2_6784_AM.dmg")
+    static let macPage = panel("Scanner Driver and Epson Scan 2 Utility&nbsp;v6.7.84", file: "V19_EScan2_6784_AM.dmg",
+                               description: "This file contains Epson Scan 2 v6.7.84, for Macs with Apple silicon or an Intel processor.")
         + panel("ICA Scanner Driver v5.8.23 for Image Capture&nbsp;", file: "ESICA_5.8.23.dmg",
                 description: "This file contains the ICA Scanner Driver v5.8.23 for Apple's Image Capture utility.")
         + panel("Epson Software Updater&nbsp;v3.0.0", file: "ESU_300.dmg", section: "utilities")

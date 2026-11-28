@@ -129,7 +129,6 @@ public struct HpDrivers: DriverCatalog {
             if kind == .scanner { return scan && driver ? 0 : installers ? 2 : online ? 3 : nil }
             return installers ? 0 : driver && !scan ? 1 : online ? 2 : nil
         }
-        return list.compactMap { e in rank(e.section, e.download).map { (e.download, $0) } }.enumerated()
-            .sorted { $0.element.1 != $1.element.1 ? $0.element.1 < $1.element.1 : $0.offset < $1.offset }.map(\.element.0)
+        return DriverPages.byRank(list.map { e in (e.download, rank(e.section, e.download)) })
     }
 }

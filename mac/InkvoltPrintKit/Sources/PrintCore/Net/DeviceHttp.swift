@@ -29,8 +29,21 @@ public enum CertificatePinKey {
 public final class CertificateCheck: Sendable {
     private let pin: (any CertificatePin)?
     private let changed = Mutex(false)
+    /// The system's trust, not a pin: a maker's site (Get the driver's `MakerWeb`), whose certificate a CA vouches for.
+    public let systemTrust: Bool
 
-    public init(pin: (any CertificatePin)?) { self.pin = pin }
+    public init(pin: (any CertificatePin)?) {
+        self.pin = pin
+        systemTrust = false
+    }
+
+    private init(systemTrust: Bool) {
+        pin = nil
+        self.systemTrust = systemTrust
+    }
+
+    /// A site on the internet: its certificate checked by macOS against the CAs it trusts, as a browser does.
+    public static let system = CertificateCheck(systemTrust: true)
 
     /// `sha256Hex`: the SHA-256 of the leaf certificate's DER bytes, in hex.
     public func accept(sha256Hex thumb: String, port: Int) -> Bool {

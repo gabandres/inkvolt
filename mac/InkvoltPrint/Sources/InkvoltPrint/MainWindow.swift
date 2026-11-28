@@ -26,6 +26,16 @@ struct MainWindow: View {
                     ForEach(model.printers) { p in
                         PrinterRow(printer: p).tag(p.id)
                     }
+                    if !model.needingDriver.isEmpty {
+                        Section {
+                            ForEach(model.needingDriver) { d in
+                                NeedsDriverRow(device: d).tag(d.id)
+                            }
+                        } header: {
+                            Text(NeedsDriverText.listName)
+                        }
+                        .accessibilityLabel(NeedsDriverText.listName)
+                    }
                 }
                 .overlay { if model.isEmpty { EmptyList() } }
             }
@@ -41,6 +51,8 @@ struct MainWindow: View {
                 FleetView()
             } else if let p = model.selected {
                 PrinterPane(printer: p).id(p.id)
+            } else if let d = model.selectedNeedsDriver {
+                NeedsDriverPane(device: d).id(d.id)
             } else {
                 ContentUnavailableView("No printer selected", systemImage: "printer")
             }

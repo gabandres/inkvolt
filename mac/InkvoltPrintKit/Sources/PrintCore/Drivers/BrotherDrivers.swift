@@ -105,8 +105,7 @@ public struct BrotherDrivers: DriverCatalog {
             let full = t.localizedCaseInsensitiveContains("Full Driver") || t.localizedCaseInsensitiveContains("Full Software Package")
             return full ? 2 : nil
         }
-        return list.enumerated().compactMap { e in rank(e.element.section, e.element.download).map { (e.element.download, $0, e.offset) } }
-            .sorted { $0.1 != $1.1 ? $0.1 < $1.1 : $0.2 < $1.2 }.map(\.0)
+        return DriverPages.byRank(list.map { e in (e.download, rank(e.section, e.download)) })
     }
 
     /// The download's page that shows Brother's EULA and its "Agree to the EULA and Download" button.
