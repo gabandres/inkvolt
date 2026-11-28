@@ -87,6 +87,7 @@ extension Report {
         AppCommands.run(preset, app: model)
         for _ in 0..<150 where inkjet.scan.pages.isEmpty || inkjet.scan.isScanning { try? await Task.sleep(for: .milliseconds(200)) }
         lines.append("  preset \(preset.name) from outside on \(inkjet.name): \(inkjet.scan.pages.pages.count) pages, \(inkjet.scan.status)")
+        inkjet.scan.clear() // pages left unsaved would make the report's quit ask first
         AppCommands.runPreset("no such preset", app: model) // asked for after it was deleted: nothing runs, nothing said
         return lines
     }
