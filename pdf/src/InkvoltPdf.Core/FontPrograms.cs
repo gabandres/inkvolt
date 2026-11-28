@@ -422,12 +422,14 @@ internal sealed class CffProgram : FontProgram
         var top = Dict(b, tops[0].Offset, tops[0].Offset + tops[0].Length);
         var cid = top.ContainsKey(1230);
         if (!top.TryGetValue(17, out var cs) || cs.Count == 0) return null;
-        var csAt = (int)cs[0];
+        // An offset written as a real number can be 1E400 (infinite): only one inside the data is an offset.
+        var csAt = At(top, 17, 0, b);
+        if (csAt < 0) return null;
         var charStrings = Index(b, ref csAt);
         var n = charStrings.Count;
         var font = new CffProgram { NumGlyphs = n, IsCid = cid, _b = b, _charStrings = charStrings, _globalSubrs = globalSubrs, _advances = new double?[n] };
         font.ReadPrivates(b, top, cid);
-        var charset = top.TryGetValue(15, out var c) && c.Count > 0 ? (int)c[0] : 0;
+        var charset = top.TryGetValue(15, out var c) && c.Count > 0 ? At(top, 15, 0, b) : 0; // -1: none this knows
         var sids = new int[n];
         if (charset > 2)
         {
@@ -563,12 +565,16 @@ internal sealed class CffProgram : FontProgram
         p += 2;
         if (count == 0) return list;
         var offSize = b[p++];
+        // Offsets are 1 to 4 bytes and never past the data (the Mac's pre-release review: 8-byte ones made an offset that
+        // overflowed when added to the data's start; here their high bytes were dropped and the rest read as an offset).
+        if (offSize is < 1 or > 4) throw new InvalidOperationException("Bad CFF INDEX");
         var at = p;
         int Off(int i)
         {
-            var v = 0;
+            long v = 0;
             for (var k = 0; k < offSize; k++) v = v << 8 | b[at + i * offSize + k];
-            return v;
+            if (v > b.Length) throw new InvalidOperationException("Bad CFF INDEX");
+            return (int)v;
         }
         var data = p + (count + 1) * offSize - 1;
         for (var i = 0; i < count; i++)
