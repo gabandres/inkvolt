@@ -46,6 +46,14 @@ struct MainWindow: View {
             }
         }
         .sheet(isPresented: $model.isAddingPrinter) { AddPrinterSheet().environment(model) }
+        // PDFs and pictures dropped on the window: Print a PDF or Print Photos, as files opened from Finder (the demo
+        // window's go to its made-up printers).
+        .dropDestination(for: URL.self) { urls, _ in
+            let files = urls.filter(\.isFileURL)
+            guard !files.isEmpty else { return false }
+            AppCommands.open(files, app: model)
+            return true
+        }
         // The demo window may come back by itself (window restoration): its printers start with it. Idempotent.
         .onAppear {
             model.start()
@@ -113,6 +121,11 @@ struct PrinterRow: View {
             Button("Remove from Inkvolt Print…") { confirmRemove = true }
         }
         .sheet(isPresented: $settingSnmp) { SnmpAccessSheet(printer: printer) }
+        .onChange(of: model.paneRequest, initial: true) { _, request in // the command palette's SNMP access…
+            guard request == .snmpAccess, model.selectedID == printer.id else { return }
+            model.paneRequest = nil
+            if printer.canSetSnmpLogin { settingSnmp = true }
+        }
         .confirmationDialog("Remove \(printer.name) from Inkvolt Print?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { model.remove(printer) }
         } message: {

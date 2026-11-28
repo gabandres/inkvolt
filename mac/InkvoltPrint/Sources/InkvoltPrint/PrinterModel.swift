@@ -570,23 +570,29 @@ enum Notifier {
     static let printerKey = "printer"
     /// A print job's notification (roadmap 3.4): Open the Queue and Pause Alerts, as Windows' job toast.
     static let jobCategory = "job"
+    /// A printer's alerts: Open Printer and Pause Alerts, as Windows' toast.
+    static let printerCategory = "printer"
     static let openQueueAction = "open-queue"
+    static let openPrinterAction = "open-printer"
     static let pauseAction = "pause-alerts"
     /// Pause Alerts from a notification: an hour (Windows' `AlertToasts.PauseFor`).
-    static let pauseFor: TimeInterval = 60 * 60
+    static let pauseFor: TimeInterval = AlertToasts.pauseFor
 
-    /// The job notification's buttons; once, at launch.
+    /// The notifications' buttons; once, at launch.
     static func registerCategories() {
-        let open = UNNotificationAction(identifier: openQueueAction, title: String(localized: "Open the Queue"), options: [.foreground])
+        let queue = UNNotificationAction(identifier: openQueueAction, title: String(localized: "Open the Queue"), options: [.foreground])
+        let printer = UNNotificationAction(identifier: openPrinterAction, title: String(localized: "Open Printer"), options: [.foreground])
         let pause = UNNotificationAction(identifier: pauseAction, title: String(localized: "Pause Alerts"), options: [])
         UNUserNotificationCenter.current().setNotificationCategories([
-            UNNotificationCategory(identifier: jobCategory, actions: [open, pause], intentIdentifiers: []),
+            UNNotificationCategory(identifier: jobCategory, actions: [queue, pause], intentIdentifiers: []),
+            UNNotificationCategory(identifier: printerCategory, actions: [printer, pause], intentIdentifiers: []),
         ])
     }
 
-    /// `job`: a print job's notification, whose click opens the printer's print queue card. The document's name is in the
-    /// text only, never in what the notification carries back to the app.
-    static func post(title: String, body: String, printer: String, job: Bool = false) {
+    /// `job`: a print job's notification, whose click opens the printer's print queue card; else a printer's alerts, whose
+    /// click or Open Printer opens the printer, and which a newer one for the same printer replaces (`replacing`, Windows'
+    /// tag). The document's name is in the text only, never in what the notification carries back to the app.
+    static func post(title: String, body: String, printer: String, job: Bool = false, replacing: String? = nil) {
         Task {
             let center = UNUserNotificationCenter.current()
             guard (try? await center.requestAuthorization(options: [.alert, .sound])) == true else { return }
@@ -594,9 +600,9 @@ enum Notifier {
             content.title = title
             content.body = body
             content.sound = .default
-            if job { content.categoryIdentifier = jobCategory }
+            content.categoryIdentifier = job ? jobCategory : printerCategory
             content.userInfo = [printerKey: printer]
-            try? await center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+            try? await center.add(UNNotificationRequest(identifier: replacing ?? UUID().uuidString, content: content, trigger: nil))
         }
     }
 }

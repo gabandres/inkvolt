@@ -811,11 +811,12 @@ final class AppModel {
 
     private func show(_ notices: [AlertNotice]) {
         if !notices.isEmpty && !(isDemo && self !== AppModel.shared) { // the demo window's made-up printers don't notify
-            // The printers' problems in one notification, as before; each job its own, with Open the Queue (roadmap 3.4).
+            // Each printer's problems in a notification of its own, with Open Printer and Pause Alerts, replacing the one
+            // before for that printer (Windows' toasts); each job its own, with Open the Queue (roadmap 3.4).
             let split = JobNotices.split(notices)
-            if let first = split.printers.first {
-                let (title, text) = TrayText.notice(split.printers)
-                Notifier.post(title: title, body: text, printer: first.uuid)
+            for alerts in AlertToasts.perPrinter(split.printers) {
+                let (title, text) = AlertToasts.text(alerts)
+                Notifier.post(title: title, body: text, printer: alerts[0].uuid, replacing: "printer-" + AlertToasts.tag(alerts[0].uuid))
             }
             for jobs in split.jobs {
                 let (title, text) = JobNotices.text(jobs)
@@ -831,6 +832,19 @@ final class AppModel {
     var overall: AlertLevel {
         _ = alertRevision
         return tracker.overall
+    }
+
+    /// The requests made while a report runs, for its checks (the pane takes some at once and clears them).
+    @ObservationIgnored private(set) var requested: [PaneRequest] = []
+
+    /// `paneRequest` set anew, so the same request twice (a second notification, the palette) is seen twice.
+    func request(_ request: PaneRequest) {
+        if Report.isRunning { requested.append(request) }
+        paneRequest = nil
+        Task { @MainActor in
+            await Task.yield()
+            paneRequest = request
+        }
     }
 
     /// A line per printer for the menu.
@@ -853,6 +867,14 @@ enum PaneRequest: Equatable {
     case printPhotos([URL])
     /// The status tab scrolled to the print queue card (a job's notification, roadmap 3.4).
     case printQueue
+    /// The printer's Settings tab (the command palette's Go to Printer settings).
+    case settings
+    /// The status card's Fix It… (the command palette's Fix printing problems…).
+    case fix
+    /// The Scan tab's Recent Scans list (the command palette's Recent scans…).
+    case recentScans
+    /// The sidebar's SNMP Access… (the command palette's).
+    case snmpAccess
 }
 
 /// The app's Mac as `FleetReader` reads it: the state file, cupsd (libcups, or demo mode's made-up queues), ImageCaptureCore's

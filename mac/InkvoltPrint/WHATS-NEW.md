@@ -10,6 +10,11 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - Scan from the printer's button: on an HP printer that offers Scan to Computer, turn it on in the Scan tab and this Mac appears on the printer's panel; choose it there and press Scan, and your chosen scan preset runs here while Inkvolt Print or its menu bar icon is running. A USB scanner's button does the same when macOS sends its presses to Inkvolt Print; a printer with neither says so.
 - Copy with the printer itself: an HP printer that takes copy requests copies on its own when you press Copy in the Print menu's Copy on the Printer…, with the settings on its control panel, and needs no macOS queue.
 - Copy: scan and print in one step from the Print menu. Copies, color or grey, the glass or the feeder, both sides (by hand on a printer that prints one side), actual size or fit to the paper, 2 or 4 pages per sheet, collated or not, and a preview before printing.
+- Open PDFs and pictures from Finder with Inkvolt Print (Open With), or drop them on its window: a PDF goes to Print a PDF, pictures to Print Photos.
+- Scan with a preset from anywhere: Scan With in the menu bar item and the File menu (⌘1 to ⌘9), and in the Dock icon's menu.
+- The command palette (⌘K): type a few letters to run any command, show a printer or scan with a preset.
+- Help › Inkvolt Print Help (⌘?): the keyboard shortcuts, and what to do when a printer isn't found.
+- Each printer's alerts come in a notification of their own, with Open Printer and Pause Alerts.
 
 ## 1.4.0
 - Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.

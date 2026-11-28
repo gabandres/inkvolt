@@ -395,6 +395,7 @@ final class BatchPrintModel {
         // Progress arrives in tasks of its own: every result is applied here in case a late one hasn't landed.
         for result in summary.items { send[result.index].finished(result) }
         lastSummary = summary
+        if summary.sent > 0 { app.noteSuccess() }
         say(summary.text, error: summary.stoppedAt != nil || summary.failed > 0)
         NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                              userInfo: [.announcement: summary.text, .priority: NSAccessibilityPriorityLevel.high.rawValue])

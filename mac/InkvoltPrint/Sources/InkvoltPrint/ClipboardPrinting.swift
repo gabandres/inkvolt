@@ -88,13 +88,7 @@ enum ClipboardPrinting {
     }
 
     /// Print Photos opened with `urls` in it (the request set anew, so the same files asked for twice open twice).
-    static func printPhotos(_ urls: [URL], app: AppModel) {
-        app.paneRequest = nil
-        Task { @MainActor in
-            await Task.yield()
-            app.paneRequest = .printPhotos(urls)
-        }
-    }
+    static func printPhotos(_ urls: [URL], app: AppModel) { app.request(.printPhotos(urls)) }
 
     /// The picture as an opaque PNG named `name` (colors as shown: some apps put an alpha channel that's all zero), when it
     /// is no larger than `ClipboardPrint.maxPicturePixels`.

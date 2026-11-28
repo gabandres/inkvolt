@@ -11,6 +11,11 @@ enum Launch {
         let args = Array(CommandLine.arguments.dropFirst())
         if FleetCommand.isFor(args) { exit(MainActor.assumeIsolated { StatusCommand.run(args) }) }
         if BatchPrintCommandLine.isCommand(args) { exit(MainActor.assumeIsolated { PrintCommand.run(args) }) }
+        // `--preset` with a copy already running: it goes there (the Dock's and Windows' jump list's way in), and this ends.
+        if MainActor.assumeIsolated({ AppCommands.handOver(args) }) { exit(0) }
+        // The command line's files are read by the app itself (`AppCommands.openFromCommandLine`, with their `--queue`), not
+        // opened by AppKit as well; Finder's opens still come through `application(_:open:)`.
+        UserDefaults.standard.register(defaults: ["NSTreatUnknownArgumentsAsOpen": "NO"])
         AppLanguage.apply(args) // the commands above stay English
         InkvoltPrintApp.main()
     }

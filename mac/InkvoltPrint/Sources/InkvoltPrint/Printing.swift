@@ -118,7 +118,7 @@ enum Printing {
         operation.showsPrintPanel = true
         operation.showsProgressPanel = true
         operation.printPanel.options.formUnion([.showsCopies, .showsPageRange, .showsPaperSize, .showsOrientation, .showsScaling, .showsPreview])
-        operation.run()
+        if operation.run() { app.noteSuccess() }
     }
 
     /// The printer as AppKit names it: the queue's `printer-info` (what Printers & Scanners shows).

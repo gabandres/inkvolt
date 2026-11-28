@@ -38,12 +38,13 @@ struct PrinterPane: View {
         .sheet(isPresented: $printingPhotos) { PhotosView(printer: printer, app: app) }
         .onChange(of: app.paneRequest, initial: true) { _, request in
             switch request {
-            case .status, .printQueue:
+            case .status, .printQueue, .fix:
                 tab = .status
                 printingPhotos = false
-            case .scan, .photosSheet, .cleanSheet: tab = .scan
+            case .scan, .photosSheet, .cleanSheet, .recentScans: tab = .scan
+            case .settings: if printer.hasDeviceSettings { tab = .settings }
             case .printPhotos: printingPhotos = true
-            case nil: break
+            case .snmpAccess, nil: break
             }
         }
         .sheet(isPresented: $copyingCard) { IdCardCopySheet(printer: printer, app: app) }
@@ -282,6 +283,11 @@ struct StatusCard: View {
         .background(.background.secondary, in: .rect(cornerRadius: 10))
         .accessibilityElement(children: .contain)
         .sheet(isPresented: $fixing) { OfflineFixerSheet(printer: printer, app: app) }
+        .onChange(of: app.paneRequest, initial: true) { _, request in
+            guard request == .fix else { return }
+            app.paneRequest = nil
+            if printer.needsFixing { fixing = true }
+        }
         .confirmationDialog("Use the device that now answers at \(printer.host) as \(printer.name)?", isPresented: $confirmAccept) {
             Button("This Is My Printer") { printer.acceptDevice() }
         } message: {
