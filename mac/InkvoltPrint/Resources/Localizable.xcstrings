@@ -1464,6 +1464,16 @@
         }
       }
     },
+    "Batch print: many files": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir en lote: muchos archivos"
+          }
+        }
+      }
+    },
     "Batch Print…": {
       "localizations": {
         "es": {
@@ -1570,6 +1580,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Recupera los negros y los colores de una foto desteñida"
+          }
+        }
+      }
+    },
+    "Can't find a printer?": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "¿No encuentras una impresora?"
           }
         }
       }
@@ -1944,6 +1964,16 @@
         }
       }
     },
+    "Close a dialog": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar un cuadro de diálogo"
+          }
+        }
+      }
+    },
     "Collage": {
       "localizations": {
         "es": {
@@ -1980,6 +2010,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Columnas"
+          }
+        }
+      }
+    },
+    "Commands: run any command, show a printer or scan with a preset by typing its name": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comandos: ejecutar cualquier comando, mostrar una impresora o escanear con un ajuste de escaneo escribiendo su nombre"
           }
         }
       }
@@ -2140,6 +2180,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Copiar en la impresora…"
+          }
+        }
+      }
+    },
+    "Copy the details a report needs, then open a GitHub issue to paste them in. Nothing is sent by Inkvolt Print.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia los detalles que necesita un informe y abre una incidencia de GitHub para pegarlos. Inkvolt Print no envía nada."
           }
         }
       }
@@ -2480,6 +2530,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Usar clave"
+          }
+        }
+      }
+    },
+    "Enter or remove an Inkvolt Pro licence key (one key for Inkvolt Print and Inkvolt PDF). Everything is free while the apps launch.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe o quita una clave de licencia de Inkvolt Pro (una clave para Inkvolt Print e Inkvolt PDF). Todo es gratis mientras se lanzan las aplicaciones."
           }
         }
       }
@@ -3060,6 +3120,16 @@
         }
       }
     },
+    "Inkvolt Print finds printers on the same network as this Mac. A VPN, a firewall that blocks finding devices, Local Network access turned off for Inkvolt Print, or a printer on another network (a guest Wi-Fi, another subnet) can hide one. Add a Printer… (the + above the printer list) searches your network for printers that don't announce themselves, and takes a printer's IP address from its screen or network report.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print encuentra impresoras en la misma red que este Mac. Una VPN, un firewall que bloquea la detección de dispositivos, el acceso a la red local desactivado para Inkvolt Print o una impresora en otra red (una Wi-Fi de invitados, otra subred) pueden ocultar una. Agregar una impresora… (el + sobre la lista de impresoras) busca en tu red las impresoras que no se anuncian, y acepta la dirección IP que muestra la impresora en su pantalla o en su informe de red."
+          }
+        }
+      }
+    },
     "Inkvolt Print hasn't found a printer yet, so \"%@\" can't be printed. Wait for your printer to appear (or add it by address), then open the file again.": {
       "localizations": {
         "es": {
@@ -3076,6 +3146,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Inkvolt Print todavía no encontró ninguna impresora, así que no se pueden imprimir las fotos. Espera a que aparezca tu impresora (o agrégala por su dirección) y vuelve a abrirlas."
+          }
+        }
+      }
+    },
+    "Inkvolt Print Help": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayuda de Inkvolt Print"
           }
         }
       }
@@ -3498,6 +3578,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Clave para %@, emitida el %@. Se comprueba en este Mac, funciona sin conexión, en Windows y en el Mac, y se mantiene al reinstalar%@. Gracias por apoyar Inkvolt Print."
+          }
+        }
+      }
+    },
+    "Keyboard shortcuts": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Métodos abreviados de teclado"
           }
         }
       }
@@ -4792,6 +4882,16 @@
         }
       }
     },
+    "Photos on the glass: pick a photo, move it, resize it, turn it, remove it": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotos en el cristal: elegir una foto, moverla, cambiar su tamaño, girarla, quitarla"
+          }
+        }
+      }
+    },
     "Photos…": {
       "localizations": {
         "es": {
@@ -4898,6 +4998,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Volver a imprimir"
+          }
+        }
+      }
+    },
+    "Print log": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión"
           }
         }
       }
@@ -5028,6 +5138,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Imprime lo que copiaste: el texto colocado en páginas, una imagen en Imprimir fotos, y los PDF e imágenes copiados en el Finder tal como están"
+          }
+        }
+      }
+    },
+    "Print what's on the clipboard": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir lo que está en el portapapeles"
           }
         }
       }
@@ -5604,6 +5724,26 @@
         }
       }
     },
+    "Scan review: save": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisión del escaneo: guardar"
+          }
+        }
+      }
+    },
+    "Scan tab: scan, or scan more pages": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pestaña Escanear: escanear, o escanear más páginas"
+          }
+        }
+      }
+    },
     "Scan With": {
       "localizations": {
         "es": {
@@ -5614,12 +5754,32 @@
         }
       }
     },
+    "Scan with the first nine scan presets": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con los nueve primeros ajustes de escaneo"
+          }
+        }
+      }
+    },
     "Scan: %@": {
       "localizations": {
         "es": {
           "stringUnit": {
             "state": "translated",
             "value": "Escanear: %@"
+          }
+        }
+      }
+    },
+    "Show the Fleet page (every printer)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar la página Flota (todas las impresoras)"
           }
         }
       }
@@ -6714,6 +6874,16 @@
         }
       }
     },
+    "Tab, arrows, ⇧ or ⌥ and arrows, Delete": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tab, flechas, ⇧ u ⌥ y flechas, Suprimir"
+          }
+        }
+      }
+    },
     "Takes effect the next time Inkvolt Print starts.": {
       "localizations": {
         "es": {
@@ -7468,6 +7638,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Fino"
+          }
+        }
+      }
+    },
+    "This help": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta ayuda"
           }
         }
       }

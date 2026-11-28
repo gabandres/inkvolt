@@ -43,7 +43,9 @@ struct InkvoltPrintApp: App {
                     .keyboardShortcut("l", modifiers: [.command, .option])
                 Divider()
             }
-            CommandGroup(after: .help) {
+            CommandGroup(replacing: .help) {
+                Button("Inkvolt Print Help") { HelpWindow.show(AppModel.shared) }
+                    .keyboardShortcut("?")
                 Button("Report a Problem…") { ReportProblemWindowController.show(AppModel.shared) }
                 Button("Inkvolt Pro…") { ProWindow.show() }
             }
