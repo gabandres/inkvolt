@@ -474,6 +474,24 @@ final class BatchTests {
         #expect(summary.done == 3)
     }
 
+    /// Pre-release review (Mac addition): picture dictionaries didn't count toward `maxStreamsCounted`, and each "stream"
+    /// keyword decoded 4 KB back and compiled up to five patterns: megabytes of tiny picture stubs took minutes, Cancel
+    /// looked at once a megabyte. Every stream counts now; past the cap the file is priced as past the budget.
+    @Test func manyTinyPicturesCountTowardTheStreamCap() throws {
+        var text = "%PDF-1.7\n"
+        let stub = "<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\nx\nendstream\nendobj\n"
+        for n in 1...(BatchRunner.maxStreamsCounted + 10) { text += "\(n) 0 obj \(stub)" }
+        let path = try put("in/stubs.pdf", Array(text.utf8))
+        let started = Date()
+        #expect(try BatchRunner.unpackedSize(path, cap: 1 << 40) == (1 << 40) + 1)
+        #expect(Date().timeIntervalSince(started) < 10)
+        #expect(try BatchRunner.unpackedSize(path, cap: .max) == .max) // no trap past the largest cap
+        // Cancel stops it.
+        let cancel = CancelToken()
+        cancel.cancel()
+        #expect(throws: CancellationError.self) { try BatchRunner.unpackedSize(path, cap: 1 << 40, cancel: cancel) }
+    }
+
     @Test func aPictureIsPricedByWhatItDecodesToWithoutInflatingIt() throws {
         // A 2000 x 1500 RGB picture whose data isn't Flate (as a JPEG's isn't): 9 MB once decoded, though nothing inflates.
         // (ASCII noise: the Mac's test PDFs are written as UTF-8 text.)

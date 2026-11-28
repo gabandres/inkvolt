@@ -707,7 +707,8 @@ public enum BatchRunner {
 
     /// Most a stream counts in `unpackedSize` (the Windows Core's `PdfObj.MaxStreamBytes`).
     static let maxStreamBytes = 256 << 20
-    /// Most streams `unpackedSize` inflates in one file.
+    /// Most streams `unpackedSize` counts in one file, pictures (read from their dictionaries) and inflated ones alike:
+    /// 100 MB of tiny picture stubs counted none and read back 4 KB for each, for minutes.
     static let maxStreamsCounted = 50_000
 
     /// What a file's streams unpack to, together, counted before the file is admitted (the Windows Core's
@@ -717,7 +718,8 @@ public enum BatchRunner {
     /// fails at once, having counted next to nothing. A picture (its dictionary, read back from the keyword, says
     /// /Subtype /Image with its size) counts what it decodes to, width × height × components × bits, and isn't inflated.
     /// Encrypted streams count nothing (the file is priced by its size). Each stream counts up to `maxStreamBytes`;
-    /// counting stops past `cap` or after `maxStreamsCounted` streams inflated (such a file runs alone anyway).
+    /// counting stops past `cap` or after `maxStreamsCounted` streams (such a file runs alone anyway); Cancel is looked at
+    /// every 256 of them.
     static func unpackedSize(_ path: String, cap: Int, cancel: CancelToken? = nil) throws -> Int {
         let lookback = 4096 // a stream's dictionary, read back from its keyword
         let keyword = Array("stream".utf8)
@@ -731,7 +733,7 @@ public enum BatchRunner {
         var buffer: [UInt8] = []
         buffer.reserveCapacity(1 << 20)
         var total = 0, start = 0 // start: the file offset of buffer[0]
-        var from = 0, inflated = 0
+        var from = 0, counted = 0
         var end = false
         while !end {
             try cancel.check()
@@ -752,12 +754,22 @@ public enum BatchRunner {
                 if p < filled && buffer[p] == 10 { p += 1 }
                 // "streams", "endstream"
                 if p == at || (i >= 3 && buffer[i - 3] == 101 && buffer[i - 2] == 110 && buffer[i - 1] == 100) { continue }
-                let back = max(0, i - lookback)
+                counted += 1
+                if counted > maxStreamsCounted { return cap < .max ? cap + 1 : cap }
+                if counted & 255 == 0 { try cancel.check() }
+                // Its dictionary: from the last "obj" before it (or the whole lookback), the only text decoded.
+                var back = max(0, i - lookback)
+                var k = i - 3
+                while k >= back {
+                    if buffer[k] == 111 && buffer[k + 1] == 98 && buffer[k + 2] == 106 { // "obj"
+                        back = k
+                        break
+                    }
+                    k -= 1
+                }
                 if let picture = pictureBytes(String(decoding: buffer[back..<i].map { $0 < 0x80 ? $0 : 0x3F }, as: UTF8.self)) {
                     total += picture
                 } else {
-                    inflated += 1
-                    if inflated > maxStreamsCounted { return cap + 1 }
                     try data.seek(toOffset: UInt64(start + p))
                     // Only data with a zlib header, as MuPDF's zlib inflates it (Windows skips any two bytes, as PDFsharp
                     // does): Apple's decoder doesn't check a stored block's length against its complement, so text read
@@ -798,20 +810,20 @@ public enum BatchRunner {
     /// isn't written there (an indirect width).
     static func pictureBytes(_ before: String) -> Int? {
         let dict = before.range(of: "obj", options: .backwards).map { String(before[$0.lowerBound...]) } ?? before
-        func match(_ pattern: String) -> [String]? {
-            guard let re = try? NSRegularExpression(pattern: pattern),
-                  let m = re.firstMatch(in: dict, range: NSRange(dict.startIndex..., in: dict)) else { return nil }
+        func match(_ re: NSRegularExpression) -> [String]? {
+            guard let m = re.firstMatch(in: dict, range: NSRange(dict.startIndex..., in: dict)) else { return nil }
             return (0..<m.numberOfRanges).map { m.range(at: $0).location == NSNotFound ? "" : (dict as NSString).substring(with: m.range(at: $0)) }
         }
-        func number(_ key: String) -> Int? { match(key + #"\s+(\d{1,9})\b(?!\s+\d+\s+R)"#).flatMap { Int($0[1]) } }
-        guard match(#"/Subtype\s*/Image\b"#) != nil, let w = number("/Width"), let h = number("/Height") else { return nil }
+        func number(_ re: NSRegularExpression) -> Int? { match(re).flatMap { Int($0[1]) } }
+        // A quick look first: most streams aren't pictures.
+        guard dict.contains("/Image"), match(Picture.subtype) != nil, let w = number(Picture.width), let h = number(Picture.height) else { return nil }
         let (width, height) = (min(w, 1_000_000), min(h, 1_000_000)) // no product past an Int
-        let mask = match(#"/ImageMask\s+true"#) != nil
-        let bits = mask ? 1 : min(max(number("/BitsPerComponent") ?? 8, 1), 16)
+        let mask = match(Picture.mask) != nil
+        let bits = mask ? 1 : min(max(number(Picture.bits) ?? 8, 1), 16)
         var components = 3
         if mask {
             components = 1
-        } else if let space = match(#"/ColorSpace\s*(\[\s*)?/(\w+)"#) {
+        } else if let space = match(Picture.colorSpace) {
             switch space[2] {
             case "DeviceGray", "CalGray", "Indexed", "Separation": components = 1
             case "DeviceCMYK": components = 4
@@ -819,6 +831,19 @@ public enum BatchRunner {
             }
         }
         return min(maxStreamBytes, (width * height * components * bits + 7) / 8)
+    }
+
+    /// `pictureBytes`' patterns, compiled once (each stream compiled up to five).
+    private enum Picture {
+        static func number(_ key: String) -> NSRegularExpression {
+            try! NSRegularExpression(pattern: key + #"\s+(\d{1,9})\b(?!\s+\d+\s+R)"#)
+        }
+        static let subtype = try! NSRegularExpression(pattern: #"/Subtype\s*/Image\b"#)
+        static let width = number("/Width")
+        static let height = number("/Height")
+        static let bits = number("/BitsPerComponent")
+        static let mask = try! NSRegularExpression(pattern: #"/ImageMask\s+true"#)
+        static let colorSpace = try! NSRegularExpression(pattern: #"/ColorSpace\s*(\[\s*)?/(\w+)"#)
     }
 
     /// What each file unpacks to as it is counted: `value` waits for a file's count; nil once counting stopped (the batch
