@@ -27094,6 +27094,17 @@
         }
       }
     },
+    "Page(s) {0} couldn't be read in full: part of what they show is missing.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las páginas {0} no se pudieron leer completas: falta parte de lo que muestran."
+          }
+        }
+      }
+    },
     "Picture…": {
       "extractionState": "manual",
       "localizations": {

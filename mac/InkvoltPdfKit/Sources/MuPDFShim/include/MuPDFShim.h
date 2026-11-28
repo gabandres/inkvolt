@@ -96,6 +96,10 @@ void inkv_test_slow_reads(inkv_doc *doc, double seconds);
 /// how often its stream read the CPU clock while a call read.
 void inkv_test_counts(inkv_doc *doc, long long *walked, long long *clock_reads);
 
+/// Test hook: inkv_pdf_writer_add stops each page for `why` (INKV_STOP_* as inkv_cookie_stopped's codes) once it is
+/// begun, as a stop while its drawing runs; 0: never.
+void inkv_test_stop_drawn(inkv_doc *doc, int why);
+
 /// Draws an area of the page (MuPDF page space) at `scale` pixels per point, with its annotations, into RGB without
 /// alpha on white; the pixels (width * height * 3 bytes, rows packed) are malloc'ed for the caller (inkv_free).
 /// `bands` > 1 draws that many bands of rows on several threads, in a context from `inkv_new_drawing_context` (each band
@@ -341,8 +345,9 @@ int inkv_pdf_version(void *ctx, inkv_doc *doc);
 int inkv_set_pdf_version(void *ctx, inkv_doc *doc, int version, char *err);
 
 /// Another format's pages written as a PDF (XPS, OXPS, EPUB, CBZ, FB2, pictures, opened by name with inkv_open_path):
-/// MuPDF's PDF writer, text kept as text. A writer gets each page in turn (1: written; 2: stopped by the cookie, the
-/// page left out; 0: failed or refused, nothing begun), a blank page in place of one that can't be read, then its bytes
+/// MuPDF's PDF writer, text kept as text. A writer gets each page in turn (1: written; 2: stopped by the cookie before
+/// the page was begun, the page left out; 3: stopped by the cookie while it was drawn, the page in the PDF with what was
+/// drawn of it; 0: failed), a blank page in place of one that can't be read and was left out, then its bytes
 /// (malloc'ed for the caller, inkv_free). Every call uses the context of the document it reads.
 typedef struct inkv_pdf_writer inkv_pdf_writer;
 inkv_pdf_writer *inkv_pdf_writer_new(void *ctx, char *err);

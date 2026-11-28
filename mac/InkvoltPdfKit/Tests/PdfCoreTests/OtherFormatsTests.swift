@@ -128,6 +128,21 @@ struct OtherFormatsTests {
         #expect(TestImages.pixelAt(one, 0, engine.page(0).width / 2, engine.page(0).height / 2).r > 180)
     }
 
+    /// Pre-release review: a page stopped (its time, a picture, a stream) while MuPDF drew it into the PDF was already in
+    /// it, and a blank page was added after it too, moving every later page one on. It is listed as read in part instead.
+    @Test func aPageStoppedWhileDrawnIsKeptOnceAndListed() throws {
+        let red = TestImages.png(40, 20) { _, _ in (220, 20, 20, 255) }
+        let cbz = try file("Comic.cbz", try zip([("001.png", red), ("002.png", red), ("003.png", red)]))
+        for why: Int32 in [2, 3, 4] { // too slow, a picture too large, a stream decompressed too many times
+            let made = try OtherFormats.convert(path: cbz, opened: { $0.stopDrawnForTests(why) })
+            #expect(try PdfEngine.open(made.pdf).pageCount == 3)
+            #expect(made.blank.isEmpty)
+            #expect(made.partial == [0, 1, 2])
+        }
+        // Cancel while a page is drawn still stops the whole conversion.
+        #expect(throws: CancellationError.self) { try OtherFormats.convert(path: cbz, opened: { $0.stopDrawnForTests(1) }) }
+    }
+
     @Test func aFileMuPdfCantReadIsRefused() throws {
         let path = try file("Broken.epub", Array("not a zip".utf8))
         #expect(throws: PdfEngineError.self) { try OtherFormats.convert(path: path) }

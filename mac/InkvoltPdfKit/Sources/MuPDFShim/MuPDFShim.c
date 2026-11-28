@@ -599,6 +599,7 @@ struct inkv_doc {
     unsigned char *checked; // by object number: objects whose streams, and all they lead to, a walk found fine
     int checked_bits;
     long long walked;       // test hook: objects the walks looked at
+    int stop_drawn;         // test hook: inkv_pdf_writer_add's page stopped for this reason (INKV_STOP_*) once begun
     // MuPDF keeps one key per document, and every failed fz_authenticate_password overwrites it (fz_needs_password
     // itself tries ""): a document opened with its password then read every stream with a wrong key and drew blank
     // pages. So whether it needs a password is asked once, at open, and a failed attempt after a good one
@@ -1223,6 +1224,10 @@ int inkv_cookie_stopped(inkv_cookie *c) {
 
 void inkv_test_slow_reads(inkv_doc *d, double seconds) {
     if (d && d->src) d->src->delay = seconds > 0 ? seconds : 0;
+}
+
+void inkv_test_stop_drawn(inkv_doc *d, int why) {
+    if (d) d->stop_drawn = why;
 }
 
 void inkv_test_counts(inkv_doc *d, long long *walked, long long *clock_reads) {
@@ -2958,8 +2963,9 @@ inkv_pdf_writer *inkv_pdf_writer_new(void *vctx, char *err) {
 
 int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
-    int begun = 0;
+    int begun = 0, written = 0;
     fz_var(begun);
+    fz_var(written);
     inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_rect box = fz_bound_page(ctx, inkv_page(ctx, d, index));
@@ -2967,7 +2973,13 @@ int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, 
         fz_display_list *list = inkv_list(ctx, d, index, cookie);
         inkv_next_part(ctx, cookie);
         fz_device *dev = fz_begin_page(ctx, w->writer, box);
-        begun = 1;
+        begun = written = 1;
+        if (d->stop_drawn && cookie) {
+            // As a stop while the list runs: MuPDF's run then returns early, with what it drew so far.
+            int none = 0;
+            atomic_compare_exchange_strong(&cookie->stopped, &none, d->stop_drawn);
+            inkv_set_abort(cookie);
+        }
         fz_run_display_list(ctx, list, dev, fz_identity, fz_infinite_rect, cookie ? &cookie->cookie : NULL);
         begun = 0;
         fz_end_page(ctx, w->writer);
@@ -2982,7 +2994,8 @@ int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, 
             fz_try(ctx) fz_end_page(ctx, w->writer);
             fz_catch(ctx) fz_ignore_error(ctx);
         }
-        return halted ? 2 : 0;
+        // A page begun is in the PDF, whatever of it was drawn: 3, so no blank page is added after it.
+        return halted ? (written ? 3 : 2) : 0;
     }
     return 1;
 }

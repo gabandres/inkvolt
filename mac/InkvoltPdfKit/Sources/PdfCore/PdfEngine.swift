@@ -333,9 +333,11 @@ public final class PdfEngine: @unchecked Sendable {
     }
 
     /// Every page through MuPDF's PDF writer (`OtherFormats`: an XPS, EPUB or picture made a PDF, text kept as text); a
-    /// page that can't be read (`PageRefused`) is left blank at its size and listed. `progress(index, count)` before each.
+    /// page that can't be read (`PageRefused`) is left blank at its size and listed in `blank`; one refused while it was
+    /// drawn is in the PDF with what was drawn of it, listed in `partial` (never followed by a blank page as well, which
+    /// moved every later page one on). `progress(index, count)` before each.
     /// - Throws: `CancellationError`; `PdfEngineError`.
-    public func writePdf(cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in }) throws -> (pdf: [UInt8], blank: [Int]) {
+    public func writePdf(cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in }) throws -> (pdf: [UInt8], blank: [Int], partial: [Int]) {
         try cancel.check()
         gate.lock()
         defer { gate.unlock() }
@@ -343,16 +345,20 @@ public final class PdfEngine: @unchecked Sendable {
         var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
         guard let writer = inkv_pdf_writer_new(main.ctx, &err) else { throw PdfEngineError(message: Self.message(err)) }
         defer { inkv_pdf_writer_drop(main.ctx, writer) }
-        var blank: [Int] = []
+        var blank: [Int] = [], partial: [Int] = []
         for p in 0..<pageCount {
             try cancel.check()
             progress(p, pageCount)
+            var written = false
             do {
                 try reading(p, cancel) { cookie in
                     let result = inkv_pdf_writer_add(main.ctx, writer, main.doc, Int32(p), cookie, &err)
-                    if result == 2 { throw CancellationError() }
+                    written = result == 3
+                    if result == 2 || result == 3 { throw CancellationError() } // `reading` says why it stopped
                     guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
                 }
+            } catch is PageRefused where written {
+                partial.append(p)
             } catch is PageRefused {
                 let g = try geometry(p)
                 guard inkv_pdf_writer_add_blank(main.ctx, writer, Float(g.width), Float(g.height), &err) != 0 else {
@@ -365,7 +371,14 @@ public final class PdfEngine: @unchecked Sendable {
         var length = 0
         guard inkv_pdf_writer_finish(main.ctx, writer, &bytes, &length, &err) != 0, let bytes else { throw PdfEngineError(message: Self.message(err)) }
         defer { inkv_free(bytes) }
-        return (Array(UnsafeBufferPointer(start: bytes, count: length)), blank)
+        return (Array(UnsafeBufferPointer(start: bytes, count: length)), blank, partial)
+    }
+
+    /// Test hook: writePdf's pages stopped for `why` (`inkv_cookie_stopped`'s codes) once begun; 0: never.
+    func stopDrawnForTests(_ why: Int32) {
+        gate.lock()
+        defer { gate.unlock() }
+        if let main { inkv_test_stop_drawn(main.doc, why) }
     }
 
     /// Reads a page's content through every bound a drawing has (its streams checked first, the reading in pieces under
