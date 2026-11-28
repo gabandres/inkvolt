@@ -8179,6 +8179,9 @@ Inkvolt PDF checks the rules it changes; for a formal check, use a PDF/A validat
   <data name="FormData_Filling" xml:space="preserve">
     <value>Filling the forms…</value>
   </data>
+  <data name="FormData_ReadingFields" xml:space="preserve">
+    <value>Reading the form's fields…</value>
+  </data>
   <data name="FormData_RowOf" xml:space="preserve">
     <value>Row {0:N0} of {1:N0}…</value>
   </data>

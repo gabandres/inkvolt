@@ -78,15 +78,25 @@ internal static class FormDataActions
     public static async Task Reset(MainWindow host, DocumentTab tab)
     {
         if (!tab.Session.IsPdf || !await tab.SettleAsync()) return;
-        if (FormEditor.DataFields(tab.Session.Data, tab.Session.Password).Count == 0)
-        {
-            Prompt.Info(host, Strings.FormData_NoFields, Strings.FormData_NoFieldsBody);
-            return;
-        }
+        if (!await HasDataFieldsAsync(host, tab, tab.Session.Data, tab.Session.Password)) return;
         if (!Prompt.Confirm(host, Strings.FormData_ResetTitle, Strings.FormData_ResetBody, Strings.Common_Reset)) return;
         var outcome = await tab.TryEdit(PdfStrings.Form_UndoResetForm, (d, pw) => FormEditor.ResetForm(d, pw), contentOnly: true, quiet: true);
         Log.Write($"Reset form: {outcome}");
         if (outcome is EditOutcome.Done or EditOutcome.NoChange) host.ShowStatus(Strings.FormData_ResetDone);
+    }
+
+    /// <summary>
+    /// Whether the document has fields that hold data, saying so when it hasn't. <see cref="FormEditor.DataFields"/> reads the
+    /// whole PDF: off the UI thread, the tab busy meanwhile (its veil when that takes noticeably long), as Windows' other long
+    /// actions are.
+    /// </summary>
+    private static async Task<bool> HasDataFieldsAsync(MainWindow host, DocumentTab tab, byte[] data, string? password)
+    {
+        bool any;
+        using (tab.BeginBusy(Strings.FormData_ReadingFields))
+            any = await Task.Run(() => FormEditor.DataFields(data, password).Count > 0);
+        if (!any) Prompt.Info(host, Strings.FormData_NoFields, Strings.FormData_NoFieldsBody);
+        return any;
     }
 
     public static async Task FillFromCsv(MainWindow host, DocumentTab tab)
@@ -95,11 +105,7 @@ internal static class FormDataActions
         var form = tab.Session.Data;
         var password = tab.Session.Password;
         var formPath = tab.Session.FilePath ?? Path.Combine(AppSettings.Current.LastFolder ?? Path.GetTempPath(), tab.Session.DisplayName);
-        if (FormEditor.DataFields(form, password).Count == 0)
-        {
-            Prompt.Info(host, Strings.FormData_NoFields, Strings.FormData_NoFieldsBody);
-            return;
-        }
+        if (!await HasDataFieldsAsync(host, tab, form, password)) return;
         if (CommentFileActions.PickOpen(host, Strings.FormData_ChooseCsv, Strings.FormData_CsvFilter) is not { } csvPath) return;
         byte[] csv;
         IReadOnlyList<string> columns;

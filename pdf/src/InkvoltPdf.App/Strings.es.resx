@@ -8162,6 +8162,9 @@ Inkvolt PDF comprueba las reglas que cambia; para una comprobación formal, usa 
   <data name="FormData_Filling" xml:space="preserve">
     <value>Llenando los formularios…</value>
   </data>
+  <data name="FormData_ReadingFields" xml:space="preserve">
+    <value>Leyendo los campos del formulario…</value>
+  </data>
   <data name="FormData_RowOf" xml:space="preserve">
     <value>Fila {0:N0} de {1:N0}…</value>
   </data>
