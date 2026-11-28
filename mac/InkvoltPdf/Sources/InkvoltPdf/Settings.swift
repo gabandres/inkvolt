@@ -40,6 +40,7 @@ enum AppSettings {
         static let ocrSuspects = "OcrSuspects"
         static let ocrTrapezoid = "OcrTrapezoid"
         static let ocrCurvedLines = "OcrCurvedLines"
+        static let editableKeepScan = "EditableKeepScan"
         static let spellCheck = "SpellCheck"
         static let meaningEnabled = "MeaningEnabled"
         static let meaningModel = "MeaningModel"
@@ -209,6 +210,12 @@ enum AppSettings {
     static var ocrCurvedLines: Bool {
         get { bool(Key.ocrCurvedLines, true) }
         set { defaults.set(newValue, forKey: Key.ocrCurvedLines) }
+    }
+
+    /// Make Text Editable's "Keep the scan showing behind the text" (off by default, as on Windows).
+    static var editableKeepScan: Bool {
+        get { bool(Key.editableKeepScan, false) }
+        set { defaults.set(newValue, forKey: Key.editableKeepScan) }
     }
 
     /// Recognize Text's choices as last set (Windows' `PageOcr.OptionsAsSet`): cleaned or not, suspect words, and with

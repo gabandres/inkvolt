@@ -27665,6 +27665,39 @@
           }
         }
       }
+    },
+    "Make Text Editable…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hacer el texto editable…"
+          }
+        }
+      }
+    },
+    "Make Text Editable": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hacer el texto editable"
+          }
+        }
+      }
+    },
+    "Turn recognized text into text you can edit": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convierte el texto reconocido en texto que puedes editar"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

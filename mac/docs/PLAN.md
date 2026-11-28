@@ -1028,7 +1028,7 @@ at under "What a person must look at" and in each section.
 | 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
-| 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes) | PageWarpTests |
+| 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes); Make Text Editable (`EditableText`; Tools › Make Text Editable…, Scan & OCR's bar item) | PageWarpTests, EditableTextTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -2537,6 +2537,24 @@ for Mac is unsandboxed and signed with Developer ID, so it could keep the files 
   ocr-corpus PhotoCorpus.cs, the same seeds; `ScanCorpus.cleanPage` added); `WordsReadOnAStraightenedPhotoLandOnThePhoto`
   without `RereadMissed` (the Mac has none). Limits as Windows': letters squeezed near a spine aren't widened, a page with
   no desk around it has no edges for the trapezoid, two facing pages aren't split.
+- **Make Text Editable** (Windows' `EditableText`, `FontMatch`, `ScanLook`): PdfCore's `EditableText` (Ocr/EditableText.swift,
+  EditableTextLook.swift), the same planning (words by angle round the circle, `Angles`, then bands and lines; line boxes
+  told from word boxes; sizes by width unless the height disagrees; paragraphs by size, step and left edge, made even;
+  the family by class, measure, then look; each paragraph's face and ink colour; headings among the short list), the
+  same constants and thresholds; `TextLayer.remove` takes the invisible layer out, and its spaces now join words round
+  ±180° too. The app: Tools › Make Text Editable… and Scan & OCR's Make Text Editable on the bar (the pages, Keep the scan
+  showing behind the text, saved; with no recognized text, Recognize Text offered), one undo step (`MakeEditable.swift`);
+  `--only-ocr` makes the stand-in recognizer's words editable and checks Edit Text & Images can edit them. **Mac
+  differences:** a glyph's ink is Core Text's glyph box (Windows: HarfBuzz's extents), and the words to compare are drawn
+  by Core Graphics one by one at 40 pixels to the em (Windows draws them on one PDF page through MuPDF); the text is
+  written in Type 3 fonts from Core Text's outlines, as every Mac edit writes installed fonts (`Type3FontWriter`), under
+  paragraph editing's stand-in names (`InkFbE…`), so Edit Text & Images edits them (Windows embeds CIDFontType2
+  subsets); the families are Core Text's, a common family's metric twin (Helvetica, Times, Courier) counting as it (Arial,
+  Times New Roman, Courier New), and families made for another script (a Bengali, Thai or CJK family, by the languages
+  Core Text says it supports) aren't tried: macOS's "Bangla Sangam MN" has Helvetica-like Latin letters and read as
+  closer to the Helvetica page than Arial. The notice has no Edit Text button (the Mac's notice bar has only Undo); it
+  says how. EditableTextTests ported with Windows' names (10 tests, 11 cases; the speed test's limit is Windows' Debug
+  one, 10 s a page, as `swift test` builds for debugging).
 
 ## Open decisions
 

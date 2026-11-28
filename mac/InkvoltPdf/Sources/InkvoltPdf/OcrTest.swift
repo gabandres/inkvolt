@@ -154,6 +154,17 @@ struct OcrTest {
               && layer(scanPage)?.words[1].suspect.isEmpty == true && pane.items.isEmpty,
               "Keep as Read leaves the word as read and takes it off the list (one undo step)")
 
+        // Make Text Editable (roadmap 2.2, for 2.1): the recognized words become real text, one undo step.
+        let editableItem = menuItem(loc("Make Text Editable…"))
+        check(editableItem?.action == #selector(DocumentWindowController.makeTextEditable(_:)), "Tools has Make Text Editable…")
+        let made = await controller.runMakeEditable(answer: ([scanPage], false))
+        check(made?.pages == 1 && made?.words == 3 && !(made?.fonts.isEmpty ?? true) && undoLabel == loc("Make text editable")
+              && layer(scanPage) == nil && found(scanPage, "Inkvolt") == 1,
+              "Make Text Editable: \(made?.words ?? 0) words on \(made?.pages ?? 0) page in \(made?.fonts.joined(separator: ", ") ?? "?"), the invisible layer gone, the words still found")
+        let runs = (try? controller.pdf.session.map { try ContentEditor.read($0.data, $0.password, scanPage).runs }) ?? nil
+        check(runs?.contains { $0.text.contains("Inkvolt") && $0.blocked == nil } == true, "Edit Text & Images can edit the new text")
+        await undo(to: loc("Keep recognized word"), steps: 1)
+
         // Replace the scans with the cleaned pages.
         await undo(to: start)
         check(undoLabel == start && layer(scanPage) == nil, "undone back to before Recognize Text")
