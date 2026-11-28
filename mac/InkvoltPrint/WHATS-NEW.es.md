@@ -6,6 +6,7 @@ versión ya tiene esa localización en App Store Connect). Los mismos encabezado
 línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su español (`PdfStringsTests` lo comprueba).
 
 ## Next
+- Escanear en blanco y negro: la opción Color ofrece Blanco y negro cuando el escáner lo ofrece, y guarda esas páginas en blanco y negro para un PDF mucho más pequeño.
 - Imprimir un PDF directamente en la impresora: una impresora de red que macOS no tiene configurada y que imprime sin controlador (IPP Everywhere, AirPrint o Mopria) recibe las páginas del propio Inkvolt Print. Elige las copias, el papel, la doble cara y el color; una ventana pequeña sigue el trabajo hasta que se imprime, con Cancelar.
 - Escanear desde el botón de la impresora: en una impresora HP que ofrece Escanear a computadora, actívalo en la pestaña Escanear y este Mac aparece en el panel de la impresora; elígelo allí y pulsa Escanear, y el ajuste de escaneo que elegiste se ejecuta aquí mientras Inkvolt Print o su icono en la barra de menús esté abierto. El botón de un escáner USB hace lo mismo cuando macOS le envía sus pulsaciones a Inkvolt Print; una impresora sin ninguno de los dos lo dice.
 - Copia con la propia impresora: una impresora HP que acepta pedidos de copia copia por su cuenta cuando pulsas Copiar en Copiar en la impresora… del menú Imprimir, con la configuración de su panel de control, y no necesita una cola de macOS.

@@ -95,6 +95,7 @@ enum Report {
             if model.isDemo && args.contains("--turn-stack") { cancelled += await turnStackCheck(model) }
             if model.isDemo && args.contains("--upright") { cancelled += await uprightCheck(model) }
             if model.isDemo && args.contains("--smaller-file") { cancelled += await smallerFileCheck(model) }
+            if model.isDemo && args.contains("--bw-scan") { cancelled += await blackAndWhiteScanCheck(model) }
             if model.isDemo && args.contains("--scan-archive") { cancelled += await scanArchiveCheck(model) }
             if model.isDemo && args.contains("--cleanup-marks") { cancelled += await cleanupMarksCheck(model) }
             if model.isDemo && args.contains("--join") { cancelled += await joinCheck(model) }

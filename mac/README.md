@@ -72,6 +72,7 @@ open "/Applications/Inkvolt Print.app" --args --report b --wait 2 --demo --batch
 open "/Applications/Inkvolt Print.app" --args --report ts --wait 2 --demo --turn-stack # roadmap 4.1: the USB demo laser's one-sided feeder as a turned stack, Backs in the Other Order, Undo
 open "/Applications/Inkvolt Print.app" --args --report up --wait 2 --demo --upright   # roadmap 4.3: the same stack's upside-down sheet turned upright, Undo, and with it off
 open "/Applications/Inkvolt Print.app" --args --report sf --wait 2 --demo --smaller-file # roadmap 4.4: a preset's pages as they are and as a smaller file (CCITT G4), sizes, PDFKit drawing the 1-bit page
+open "/Applications/Inkvolt Print.app" --args --report bw --wait 2 --demo --bw-scan   # the demo laser's feeder scanned in black and white (the Color choice), its PDF's pages at 1 bit, the glass (none listed) scanning grey
 open "/Applications/Inkvolt Print.app" --args --report cm --wait 2 --demo --cleanup-marks # roadmap 4.7: the punched order form, red dropped and holes filled, then blue
 open "/Applications/Inkvolt Print.app" --args --report jn --wait 2 --demo --join     # roadmap 4.8: a 14-inch plan's two halves found, joined, Undo
 open "/Applications/Inkvolt Print.app" --args --report nft --wait 2 --demo --name-from-text # roadmap 4.11: a made-up invoice on the glass, the name the review shows, a name typed over it

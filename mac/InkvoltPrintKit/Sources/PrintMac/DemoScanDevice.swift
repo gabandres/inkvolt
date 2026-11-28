@@ -15,7 +15,7 @@ public struct DemoScanDevice: ScanDevice {
     public func capabilities() async throws -> ScannerCapabilities? {
         let glass = InputCaps(minWidth: 300, maxWidth: 2550, minHeight: 300, maxHeight: feeder ? 3508 : 3500, colorModes: ["RGB24", "Grayscale8"],
                               resolutions: [100, 150, 200, 300, 600])
-        let adf = feeder ? InputCaps(minWidth: 300, maxWidth: 2550, minHeight: 300, maxHeight: 4200, colorModes: ["RGB24", "Grayscale8"],
+        let adf = feeder ? InputCaps(minWidth: 300, maxWidth: 2550, minHeight: 300, maxHeight: 4200, colorModes: ["RGB24", "Grayscale8", "BlackAndWhite1"],
                                      resolutions: [150, 200, 300]) : nil
         return ScannerCapabilities(makeAndModel: feeder ? Self.laserScanner.name : Self.flatbed.name, platen: glass, adf: adf, adfDuplex: false)
     }

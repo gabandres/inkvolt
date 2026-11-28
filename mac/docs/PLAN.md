@@ -551,8 +551,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
   read back by an inflater the tests write from RFC 1951), where Windows uses .NET's `ZLibStream` and Inkvolt PDF for Mac's
   exports Apple's Compression; it is only the fallback for pages G4 codes badly (fine, even patterns), so it needn't match
-  zlib's size. Inkvolt Print for Mac offers color and grey only (its `ScanModel` leaves out `ScanColor.blackAndWhite`,
-  Inkvolt PDF's File › Scan choice since the parity audit's X7), so here only a preset's smaller file saves one bit; a size refused throws `BitImage.SizeError`; a page that can't be made
+  zlib's size. A scan in black and white (the Scan tab's Color choice where the source lists it, since the parity audit's
+  X7, as Windows') saves one bit too, as a preset's smaller file does; a size refused throws `BitImage.SizeError`; a page that can't be made
   black and white (past `BitImage.maxPixels`) is saved as its JPEG. `--report … --smaller-file` saves the demo feeder's pages
   both ways and has PDFKit draw the 1-bit page. Not checked: a real scanner's pages, Preview and other readers on screen, a
   printed copy.
@@ -1376,6 +1376,9 @@ From the steps, besides the sections below:
 
 ### Mac differences
 
+- XPS, OXPS, EPUB, CBZ, FB2 and pictures open as a new PDF made of their pages, where Windows shows them read-only
+  (decided with the owner, 2026-11-27): the same outcome for the person, and every Mac command works on PDF data, as for
+  Office files and web pages ("Windows parity audit", X2).
 - Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too
   large), `PdfEngineClosed` for .NET's `ObjectDisposedException` (`close()` takes `Dispose()`'s place), and
   `CancellationError` when a `CancelToken` (.NET's `CancellationToken`) fires.
@@ -2495,17 +2498,20 @@ Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the ap
   file ("Book.pdf"), every command available; Save asks where, as for an Office file. From the Open panel (Windows'
   "Supported files" list), the Dock, Finder (Info.plist's document types: XPS, EPUB and pictures by macOS's types, OXPS,
   CBZ and FB2 imported by their extensions, all Alternate so Preview stays their owner) and the start page (pictures
-  dropped there still make one PDF together, as before). **For the owner:** a read-only view as Windows' would mean a
-  second kind of session through the whole app; say if that's wanted instead. Not checked by a person: a real EPUB's
-  layout and a large CBZ's time, Open With in Finder.
+  dropped there still make one PDF together, as before). Decided with the owner (2026-11-27): the same outcome for the
+  person as Windows' read-only view, and every Mac command works on PDF data, as for Office files. Not checked by a
+  person: a real EPUB's layout and a large CBZ's time, Open With in Finder.
 - Black and white in File › Scan (X7, roadmap 4.8's Mac line): PrintCore's `ScanColor` has Windows' `blackAndWhite`
   (eSCL's BlackAndWhite1, grey where the source doesn't list it), `ScanChoices.colors`, `pick`, `savesOneBit`,
   `remember` and `colorLabel`, a preset's `BlackAndWhite` (Windows' JSON name) and `PresetPlan.oneBit` for it, and
   `ScanRun.toPdf`; the Scan dialog lists it where the scanner does, remembers it as Windows (ScanColor and
   ScanBlackAndWhite), and saves those pages at 1 bit (JBIG2, G4 or Flate, whichever is smallest) where Windows writes
   up to four pages at once and the Mac one after another. ImageCaptureCore (USB) scanners list color and grey only.
-  Inkvolt Print for Mac leaves black and white out of its own Scan (its smaller file does that job); say if it should
-  have it too. Not checked by a person: a real eSCL scanner's black-and-white pages, the choice by eye.
+  Inkvolt Print for Mac's Scan tab offers it too (the owner, 2026-11-27; Windows' Scan tab and `--color bw`): the Color
+  choice where the source lists it, remembered as Windows' ScanColor and ScanBlackAndWhite (`ScanChoices.pick`, so a
+  source without it scans grey), its pages saved at 1 bit (`PageCheck.oneBit`), a preset's through `PresetPlan`; the
+  demo laser's feeder lists it, and `--report … --demo --bw-scan` scans and saves its feeder in black and white. Not
+  checked by a person: a real eSCL scanner's black-and-white pages, the choice by eye.
 
 ### Paragraph editing (roadmap 2.1)
 
@@ -2918,7 +2924,5 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     defaults, no start (2026-11-27), so it isn't offered there.
 - Inkvolt PDF: Translate's looks and right-to-left lines of 2026-11-19 and 20 (roadmap 3.1), Windows' 12 commits listed under
   "Windows' additions of 2026-11-19 and 20".
-- The parity audit (2026-11-27, "Windows parity audit"): two calls for the owner. XPS, EPUB and the other formats open
-  as a new PDF where Windows shows them read-only; Inkvolt Print for Mac's own Scan has no black and white.
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

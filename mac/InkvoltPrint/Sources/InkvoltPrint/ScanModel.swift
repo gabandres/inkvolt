@@ -33,7 +33,15 @@ final class ScanModel {
     private(set) var caps: ScannerCapabilities?
     private(set) var loadError: String?
     var source: ScanSource = .platen { didSet { fitChoices() } }
-    var color: ScanColor = .color
+    /// Remembered as Windows' ScanColor and ScanBlackAndWhite (`ScanChoices.remember`); a source without the one chosen scans
+    /// as `ScanChoices.pick` says (black and white not offered: grey).
+    var color: ScanColor = .color {
+        didSet {
+            let kept = ScanChoices.remember(color)
+            UserDefaults.standard.set(kept.color, forKey: "scanColor")
+            UserDefaults.standard.set(kept.blackAndWhite, forKey: "scanBlackAndWhite")
+        }
+    }
     var dpi = 300
     var sizeKey = "letter"
     var format: ScanFormat {
@@ -120,6 +128,8 @@ final class ScanModel {
         self.app = app
         let d = UserDefaults.standard
         format = ScanFormat(rawValue: d.string(forKey: "scanFormat") ?? "") ?? .searchablePdf
+        color = ScanChoices.pick([.color, .grayscale, .blackAndWhite], color: d.object(forKey: "scanColor") as? Bool ?? true,
+                                 blackAndWhite: d.bool(forKey: "scanBlackAndWhite"))
         skipBlank = d.object(forKey: "scanSkipBlank") as? Bool ?? true
         straighten = d.object(forKey: "scanStraighten") as? Bool ?? true
         upright = d.object(forKey: "scanUpright") as? Bool ?? true
@@ -137,9 +147,8 @@ final class ScanModel {
     // MARK: Settings
 
     var sources: [ScanSource] { caps?.sources ?? [] }
-    /// Color and grey: black and white is Inkvolt PDF's Scan choice (PrintCore's `ScanColor`); here a preset's smaller file
-    /// makes a page black and white (roadmap 4.4).
-    var colors: [ScanColor] { caps.map { ScanChoices.colors($0, source).filter { $0 != .blackAndWhite } } ?? [.color] }
+    /// Color, grey, and black and white where the source lists it (Windows' Scan tab; saved at 1 bit).
+    var colors: [ScanColor] { caps.map { ScanChoices.colors($0, source) } ?? [.color] }
     var resolutions: [Int] { caps.map { ScanChoices.resolutions($0, source) } ?? ScanChoices.documentResolutions }
     var sizes: [ScanPageSize] { caps.map { ScanChoices.pageSizes($0, source) } ?? ScanChoices.pageSizes }
     /// The feeder is chosen and scans one side only: the tab offers `turnStack`.
@@ -163,7 +172,7 @@ final class ScanModel {
     }
 
     private func fitChoices() {
-        if !colors.contains(color), let c = colors.first { color = c }
+        if !colors.contains(color) { color = ScanChoices.pick(colors, color: color == .color, blackAndWhite: color == .blackAndWhite) }
         if !resolutions.contains(dpi) { dpi = resolutions.min { abs($0 - 300) < abs($1 - 300) } ?? 300 }
         let offered = sizes
         sizeKey = ScanChoices.defaultPageSize(offered, remembered: sizeKey, metric: Locale.current.measurementSystem == .metric).key
@@ -279,7 +288,7 @@ final class ScanModel {
         status = capture?.status ?? (source == .platen ? String(localized: "Scanning…") : String(localized: "Scanning from the feeder…"))
         let request = capture?.request ?? ScanChoices.request(source, color, dpi, sizes.first { $0.key == sizeKey })
         var c = given ?? PageCheck(skipBlank: skipBlank, straighten: straighten, splitAt: splitAt, findPhotos: findPhotos, cleanup: cleanup,
-                                   ocrLanguage: ocrLanguage, upright: upright, drop: dropColor)
+                                   ocrLanguage: ocrLanguage, upright: upright, oneBit: ScanChoices.savesOneBit(request.color), drop: dropColor)
         if capture != nil {
             // A photographed page: one at a time, the whole photo made a page (no photos on a glass, no batch, no turned stack).
             c.splitAt = .none
@@ -518,7 +527,7 @@ final class ScanModel {
         var ocrLanguage: String?
         /// Turn a page upright when it lies sideways or upside down and its text says so clearly (`PageUpright`).
         var upright = false
-        /// Save the pages in a PDF in black and white (a preset's smaller file, roadmap 4.4).
+        /// Save the pages in a PDF in black and white (a preset's smaller file, roadmap 4.4, or a scan in black and white).
         var oneBit = false
         /// The color the clean up's Drop a color drops (roadmap 4.7).
         var drop: DropColor = .red

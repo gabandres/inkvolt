@@ -114,6 +114,32 @@ extension Report {
         return lines
     }
 
+    /// `--bw-scan`: the USB demo laser's feeder (which lists black and white) offers Black and white in the Color choice; a
+    /// feeder scan in black and white is saved as a PDF in the container with its pages at 1 bit (CCITT G4 or 1-bit Flate,
+    /// no JPEG), as Windows' Scan tab saves them; then the feeder's color is kept for the glass, which doesn't list it (grey).
+    static func blackAndWhiteScanCheck(_ model: AppModel) async -> [String] {
+        guard let scan = await demoLaserScanner(model) else { return ["black and white: no demo USB laser scanner with a feeder"] }
+        let kept = (scan.turnStack, scan.format, scan.source, scan.color)
+        defer { (scan.turnStack, scan.format, scan.source, scan.color) = kept }
+        (scan.turnStack, scan.format, scan.source) = (false, .pdf, .adf)
+        let offered = scan.colors.map(ScanChoices.colorLabel)
+        scan.color = .blackAndWhite
+        scan.scan()
+        for _ in 0..<150 where scan.isScanning || scan.pages.pages.contains(where: { !$0.analysed }) { try? await Task.sleep(for: .milliseconds(200)) }
+        let url = AppModel.dataFolder.appendingPathComponent("bw-scan.pdf")
+        await scan.save(to: url, reveal: false)
+        let data = (try? Data(contentsOf: url)) ?? Data()
+        let text = String(decoding: data, as: UTF8.self)
+        let pdf = PDFDocument(url: url)
+        let oneBit = text.components(separatedBy: "/BitsPerComponent 1").count - 1
+        let ok = offered.contains(String(localized: "Black and white")) && (pdf?.pageCount ?? 0) > 0 && oneBit == pdf?.pageCount && !text.contains("/DCTDecode")
+        scan.source = .platen
+        let glass = scan.color
+        scan.clear()
+        return ["black and white: \(ok ? "PASS" : "FAIL") offered \(offered), \(data.count) bytes, pages \(pdf?.pageCount ?? 0), 1-bit images \(oneBit), "
+                + "JPEG \(text.contains("/DCTDecode")); the glass (no black and white) scans \(ScanChoices.colorLabel(glass))"]
+    }
+
     /// `--scan-archive` (roadmap 4.18): the USB demo laser's feeder scanned with a preset that saves PDF/A-2b, then with one that
     /// puts a password on its PDF (kept for it in demo mode's memory, as a person's "use it from now on" keeps it in the
     /// keychain), each saved through the preset's own save into the container: what the file says it is, and whether PDFKit
