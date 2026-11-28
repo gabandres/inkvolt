@@ -30,6 +30,8 @@ public struct SystemShareNetworks: ShareNetworks {
 
     public func read() -> [LocalNetwork] { SocketNetworkScanner().localNetworks() }
 
+    public func place(of network: LocalNetwork) -> NetworkPlace { NetworkPlaces.place(of: network) }
+
     public func watch(_ changed: @escaping @Sendable () -> Void) -> any ShareWatch {
         let monitor = NWPathMonitor()
         let first = FirstSeen()

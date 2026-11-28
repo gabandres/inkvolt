@@ -12639,17 +12639,6 @@
         }
       }
     },
-    "Not shared: this Mac isn't on a private network. Join your home or office Wi-Fi or Ethernet, and the scanner is shared at once.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se comparte: este Mac no está en una red privada. Conéctate a la Wi-Fi o la Ethernet de tu casa u oficina, y el escáner se comparte al instante."
-          }
-        }
-      }
-    },
     "Starting…": {
       "extractionState": "manual",
       "localizations": {
@@ -13339,6 +13328,39 @@
           "stringUnit": {
             "state": "translated",
             "value": "{0} no tiene un controlador del {1} que funcione con el chip de Apple de este Mac, solo para Mac con procesadores Intel."
+          }
+        }
+      }
+    },
+    "Not shared: this Mac isn't on a private network. On your home or office Wi-Fi or Ethernet, it's shared again where you turned it on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se comparte: este Mac no está en una red privada. En la Wi-Fi o la Ethernet de tu casa u oficina, se vuelve a compartir donde lo activaste."
+          }
+        }
+      }
+    },
+    "Paused: this Mac is on a network you didn't turn sharing on in, so nobody here can reach the scanner. On a network you trust, choose Share on This Network.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En pausa: este Mac está en una red en la que no activaste compartir, así que nadie aquí puede usar el escáner. En una red de confianza, elige Compartir en esta red."
+          }
+        }
+      }
+    },
+    "This paper is too large for Inkvolt Print to print without a driver at the printer's resolutions. Choose a smaller paper size.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este papel es demasiado grande para que Inkvolt Print imprima sin controlador con las resoluciones de la impresora. Elige un tamaño de papel más pequeño."
           }
         }
       }

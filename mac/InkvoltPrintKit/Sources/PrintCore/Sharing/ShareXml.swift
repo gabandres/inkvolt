@@ -153,8 +153,10 @@ public enum ShareXml {
     /// **Mac difference:** black and white (`BlackAndWhite1`) is never offered (the Mac scans color or grey), so it is 409.
     public static func readSettings(_ body: [UInt8], _ caps: ScannerCapabilities) throws -> ShareScanSettings {
         guard !body.isEmpty, body.count <= maxSettingsBytes else { throw ShareRequestError(400, "ScanSettings missing or too long.") }
-        // No DTD at all: nothing declared, nothing expanded, nothing fetched (`XmlReaderSettings.DtdProcessing.Prohibit`).
-        if body.firstRange(of: Array("<!DOCTYPE".utf8)) != nil || body.firstRange(of: Array("<!ENTITY".utf8)) != nil {
+        // No DTD at all: nothing declared, nothing expanded, nothing fetched (`XmlReaderSettings.DtdProcessing.Prohibit`). The
+        // bytes are read as UTF-8 only (a UTF-16 or otherwise declared body would hide a DTD from this check), and the reader
+        // stops at any declaration that still gets through.
+        guard isPlainUtf8Xml(body), body.firstRange(of: Array("<!DOCTYPE".utf8)) == nil, body.firstRange(of: Array("<!ENTITY".utf8)) == nil else {
             throw ShareRequestError(400, "ScanSettings isn't well-formed XML.")
         }
         let reader = SettingsReader()
@@ -167,6 +169,21 @@ public enum ShareXml {
         guard parsed else { throw ShareRequestError(400, "ScanSettings isn't well-formed XML.") }
         guard reader.rootName == "ScanSettings", reader.rootNamespace == scan else { throw ShareRequestError(400, "Not an eSCL ScanSettings.") }
         return try settings(reader.values, caps)
+    }
+
+    /// A body read as UTF-8 and nothing else: "<" first (after a UTF-8 BOM), no NUL (UTF-16 without a BOM), and an XML
+    /// declaration, if any, naming UTF-8 or US-ASCII only.
+    static func isPlainUtf8Xml(_ body: [UInt8]) -> Bool {
+        let text = body.starts(with: [0xEF, 0xBB, 0xBF]) ? body.dropFirst(3) : body[...]
+        guard text.first == UInt8(ascii: "<"), !text.contains(0) else { return false }
+        guard text.starts(with: Array("<?xml".utf8)) else { return true }
+        let head = text.prefix(200)
+        guard let end = head.firstRange(of: Array("?>".utf8)) else { return false }
+        let declaration = String(decoding: head[..<end.lowerBound], as: UTF8.self).lowercased()
+        guard let at = declaration.range(of: "encoding") else { return true }
+        let named = declaration[at.upperBound...].drop { $0 == " " || $0 == "=" || $0 == "\"" || $0 == "'" }
+            .prefix { $0 != "\"" && $0 != "'" && $0 != " " }
+        return named == "utf-8" || named == "utf8" || named == "us-ascii"
     }
 
     private static func settings(_ values: [String: String], _ caps: ScannerCapabilities) throws -> ShareScanSettings {
@@ -246,7 +263,8 @@ public enum ShareXml {
 
     /// Reads a ScanSettings' elements: the root's name and namespace, and each element's text by its local name (the
     /// first one of each name wins: one region is all this scanner takes), refusing too many, too deep or too long.
-    private final class SettingsReader: NSObject, XMLParserDelegate {
+    /// Reads ScanSettings' values; refuses (and stops) a body too large, too deep or declaring anything.
+    final class SettingsReader: NSObject, XMLParserDelegate {
         var values: [String: String] = [:]
         var rootName: String?
         var rootNamespace: String?
@@ -277,6 +295,27 @@ public enum ShareXml {
         }
 
         func parser(_ parser: XMLParser, resolveExternalEntityName name: String, systemID: String?) -> Data? { nil }
+
+        // Any declaration that still reaches the parser (the byte checks are the first line): stopped there.
+        func parser(_ parser: XMLParser, foundInternalEntityDeclarationWithName name: String, value: String?) { declared(parser) }
+
+        func parser(_ parser: XMLParser, foundExternalEntityDeclarationWithName name: String, publicID: String?, systemID: String?) {
+            declared(parser)
+        }
+
+        func parser(_ parser: XMLParser, foundUnparsedEntityDeclarationWithName name: String, publicID: String?, systemID: String?,
+                    notationName: String?) { declared(parser) }
+
+        func parser(_ parser: XMLParser, foundElementDeclarationWithName elementName: String, model: String) { declared(parser) }
+
+        func parser(_ parser: XMLParser, foundAttributeDeclarationWithName attributeName: String, forElement elementName: String,
+                    type: String?, defaultValue: String?) { declared(parser) }
+
+        func parser(_ parser: XMLParser, foundNotationDeclarationWithName name: String, publicID: String?, systemID: String?) {
+            declared(parser)
+        }
+
+        private func declared(_ parser: XMLParser) { refuse(parser, ShareRequestError(400, "ScanSettings isn't well-formed XML.")) }
 
         private func add(_ parser: XMLParser, _ text: String) {
             guard !open.isEmpty else { return }

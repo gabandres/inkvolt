@@ -102,6 +102,75 @@ public enum ShareDnssd {
 /// while no scanner is shared).
 public protocol ShareNetworks: PhoneNetworks {
     func watch(_ changed: @escaping @Sendable () -> Void) -> any ShareWatch
+    /// What tells `network` from another with the same addresses (a café's Wi-Fi is often 192.168.1.0/24 too): its router's
+    /// address and hardware address, and its Wi-Fi name when the app may already read it (PrintMac: SystemConfiguration, the
+    /// routing table's neighbours, CoreWLAN only with location access already given; never asked for).
+    func place(of network: LocalNetwork) -> NetworkPlace
+}
+
+/// A network sharing was turned on in, as this Mac knows it again (the pre-release review: any RFC 1918 network counted as
+/// private, so a café's or hotel's Wi-Fi was shared to everyone there). **Mac difference:** Windows asks the person whether
+/// each network is Private or Public and shares on Private ones; macOS has no such setting, so the share remembers where the
+/// person turned it on and pauses everywhere else until they turn it on there too. Kept with the choice, on this Mac only.
+public struct NetworkPlace: Codable, Hashable, Sendable {
+    /// The subnet, "192.168.1.0/24".
+    public var subnet: String
+    /// The router's IPv4 address; nil when the network has none.
+    public var router: String?
+    /// The router's hardware (Ethernet) address, lowercased; nil when this Mac couldn't read it.
+    public var routerHardware: String?
+    /// The Wi-Fi network's name (its bytes in hex); nil on Ethernet or without location access.
+    public var wifi: String?
+
+    public init(_ network: LocalNetwork, router: String? = nil, routerHardware: String? = nil, wifi: String? = nil) {
+        subnet = Self.subnet(network)
+        self.router = router.flatMap { NetworkSearch.number($0) == nil ? nil : $0 }
+        self.routerHardware = routerHardware.flatMap(Self.hardware)
+        self.wifi = wifi.map { String($0.prefix(64)) }
+    }
+
+    /// The same network as `remembered`: the same subnet and router address, the router's hardware address when one was
+    /// remembered (unread now: not the same, so a failed read pauses rather than shares), and the same Wi-Fi name when both
+    /// are known.
+    public func isSame(as remembered: NetworkPlace) -> Bool {
+        guard subnet == remembered.subnet, router == remembered.router else { return false }
+        if let hardware = remembered.routerHardware, hardware != routerHardware { return false }
+        if let wifi, let was = remembered.wifi, wifi != was { return false }
+        return true
+    }
+
+    /// How many places are kept: the most recent ones the person turned sharing on in.
+    public static let kept = 8
+
+    /// `remembered` with `here` added (the same place once, the newest last), at most `kept`.
+    public static func adding(_ here: [NetworkPlace], to remembered: [NetworkPlace]) -> [NetworkPlace] {
+        var all: [NetworkPlace] = []
+        for place in remembered.suffix(kept) + here.prefix(64) {
+            all.removeAll { $0.isSame(as: place) || place.isSame(as: $0) }
+            all.append(place)
+        }
+        return Array(all.suffix(kept))
+    }
+
+    static func subnet(_ network: LocalNetwork) -> String {
+        guard let a = NetworkSearch.number(network.address), (0...32).contains(network.prefixLength) else { return network.address }
+        let mask: UInt32 = network.prefixLength == 0 ? 0 : ~UInt32(0) << UInt32(32 - network.prefixLength)
+        let n = a & mask
+        return "\(n >> 24).\(n >> 16 & 0xFF).\(n >> 8 & 0xFF).\(n & 0xFF)/\(network.prefixLength)"
+    }
+
+    /// "aa:bb:cc:dd:ee:ff" from six hex bytes however written ("A:B:C:D:E:F" too); nil for anything else or all zeros.
+    static func hardware(_ text: String) -> String? {
+        let parts = text.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 6 else { return nil }
+        var bytes: [UInt8] = []
+        for p in parts {
+            guard (1...2).contains(p.count), let b = UInt8(p, radix: 16) else { return nil }
+            bytes.append(b)
+        }
+        guard bytes.contains(where: { $0 != 0 }) else { return nil }
+        return bytes.map { b in (b < 16 ? "0" : "") + String(b, radix: 16) }.joined(separator: ":")
+    }
 }
 
 /// A watch of the networks, or an announcement: `stop` ends it (again is nothing).

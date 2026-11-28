@@ -78,6 +78,20 @@ extension Report {
         for _ in 0..<30 where heard.value == nil { try? await Task.sleep(for: .milliseconds(100)) }
         DistributedNotificationCenter.default().removeObserver(token)
         lines.append("  a distributed notification's preset id arrived: \(heard.value ?? "nothing")")
+        // The hand-over itself: a preset left in the container is taken once; the notification carrying a preset's name, as any
+        // process could post it, runs nothing.
+        let handOver = PresetHandOver(folder: AppCommands.handOverFolder)
+        let left = handOver.leave("check-preset", now: Date())
+        let taken = left.flatMap { handOver.take($0, now: Date()) }
+        let again = left.flatMap { handOver.take($0, now: Date()) }
+        lines.append("  hand-over in the container: left \(left != nil), taken \(taken ?? "nothing"), taken again \(again ?? "nothing")")
+        if let name = offered.first?.name {
+            DistributedNotificationCenter.default().postNotificationName(AppCommands.presetNotification, object: name, userInfo: nil,
+                                                                         deliverImmediately: true)
+            try? await Task.sleep(for: .seconds(1))
+            let scanning = model.printers.contains { $0.scan.isScanning }
+            lines.append("  a preset's name posted by anyone: \(scanning ? "SCANNED (wrong)" : "nothing ran")")
+        }
         // A preset run from outside: the demo inkjet's Scan tab scans with it.
         guard var preset = offered.first, let inkjet = model.printers.first(where: { $0.canScan && !$0.isScannerOnly }) else {
             return lines + ["  preset from outside: no preset or scanner"]

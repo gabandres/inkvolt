@@ -58,13 +58,31 @@ enum AppCommands {
         app.printers.contains(where: \.canScan) ? Array(app.presets.prefix(max)) : []
     }
 
-    /// A preset asked for from outside (Windows' `RunPresetWhenReadyAsync`): the window comes forward, waits up to 30 s for
+    /// A preset asked for by name or id (Windows' `RunPresetWhenReadyAsync`): the window comes forward, waits up to 30 s for
     /// the selected printer's scanner, then the Scan tab runs it. A scanner on its own selected, or none: the first printer
-    /// that scans.
-    static func runPreset(_ idOrName: String, app: AppModel = .shared) {
+    /// that scans. From outside the app (`--preset`, a later launch's hand-over) it asks first, so nothing scans unseen.
+    static func runPreset(_ idOrName: String, from origin: PresetOrigin = .insideApp, app: AppModel = .shared) {
         guard let preset = HandedFiles.preset(idOrName, in: app.presets) else { return } // deleted since: nothing to run
+        guard origin.asksFirst else {
+            run(preset, app: app)
+            return
+        }
+        guard !asking else { return } // one question at a time: more hand-overs while it's open are dropped
+        asking = true
+        defer { asking = false }
+        if app === AppModel.shared { MainWindow.bringForward() }
+        NSApp.activate()
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Scan with \"\(preset.name)\"?")
+        alert.informativeText = String(localized: "Inkvolt Print was started with this scan preset from outside the app. Put the pages on the glass or in the feeder, then click Scan.")
+        alert.addButton(withTitle: String(localized: "Scan"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
         run(preset, app: app)
     }
+
+    /// A question about a preset from outside is open.
+    private static var asking = false
 
     /// `preset` run as `runPreset` runs it (the report runs one that stops on the pages, so nothing asks where to save).
     static func run(_ preset: ScanPreset, app: AppModel) {
@@ -87,30 +105,39 @@ enum AppCommands {
     // MARK: A copy already running
 
     /// The notification a second launch hands its `--preset` to the running copy with (Windows' single-instance pipe).
-    /// Distributed notifications carry only the `object` string from a sandboxed app: the preset's id.
+    /// Any process may post it (sandboxed ones too), so its `object` is only a token: the preset waits in this app's own
+    /// container (`PresetHandOver`), which no other app can write.
     static let presetNotification = Notification.Name("com.bermudezsystems.InkvoltPrint.preset")
 
+    /// Where a second launch leaves its preset for the running copy: inside the app's sandbox container.
+    static var handOverFolder: URL { AppModel.dataFolder.appendingPathComponent("Preset hand-over", isDirectory: true) }
+
     /// At launch, before the app starts: with `--preset` and another copy of this app running, the preset goes to that copy,
-    /// which comes forward, and this one ends (true).
+    /// which comes forward and asks before it scans, and this one ends (true).
     static func handOver(_ args: [String]) -> Bool {
         guard let preset = HandedFiles.value("--preset", in: args), !args.contains("--report"),
               let id = Bundle.main.bundleIdentifier else { return false }
         let me = ProcessInfo.processInfo.processIdentifier
         guard let running = NSRunningApplication.runningApplications(withBundleIdentifier: id).first(where: { $0.processIdentifier != me })
         else { return false }
-        DistributedNotificationCenter.default().postNotificationName(presetNotification, object: String(preset.prefix(200)),
-                                                                     userInfo: nil, deliverImmediately: true)
+        if let token = PresetHandOver(folder: handOverFolder).leave(preset, now: Date()) {
+            DistributedNotificationCenter.default().postNotificationName(presetNotification, object: token, userInfo: nil, deliverImmediately: true)
+        }
         running.activate()
         return true
     }
 
-    /// The running copy: presets handed over by later launches, and this launch's own `--preset`.
+    /// The running copy: presets handed over by later launches (only those this app left: `PresetHandOver`), and this
+    /// launch's own `--preset`; both come from outside, so each asks before it scans.
     static func listen(_ args: [String], app: AppModel = .shared) {
         DistributedNotificationCenter.default().addObserver(forName: presetNotification, object: nil, queue: .main) { note in
-            guard let id = note.object as? String, !id.isEmpty else { return }
-            MainActor.assumeIsolated { runPreset(id) }
+            guard let token = note.object as? String, token.count <= 64 else { return }
+            MainActor.assumeIsolated {
+                guard let preset = PresetHandOver(folder: handOverFolder).take(token, now: Date()) else { return }
+                runPreset(preset, from: .outside)
+            }
         }
-        if !Report.isRunning, let preset = HandedFiles.value("--preset", in: args) { runPreset(preset, app: app) }
+        if !Report.isRunning, let preset = HandedFiles.value("--preset", in: args) { runPreset(preset, from: .outside, app: app) }
     }
 
     // MARK: The Dock menu
