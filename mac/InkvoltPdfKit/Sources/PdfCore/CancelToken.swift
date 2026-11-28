@@ -90,3 +90,38 @@ public final class CancelToken: @unchecked Sendable {
 extension Optional where Wrapped == CancelToken {
     func check() throws { try self?.check() }
 }
+
+extension CancelToken {
+    /// `work` on another thread, waited for until it ends or Cancel fires, whichever is first: a read that stalls (a
+    /// server that stopped answering) doesn't hold the caller, which gets `CancellationError` at once while `work` runs
+    /// on. What `work` makes after Cancel won goes to `discard` (a document it opened, closed), never left open with no
+    /// owner.
+    public func off<T: Sendable>(_ work: @escaping @Sendable () throws -> T, discard: @escaping @Sendable (T) -> Void = { _ in }) async throws -> T {
+        let once = ResumeOnce<T>()
+        return try await withCheckedThrowingContinuation { c in
+            once.continuation = c
+            let id = register { _ = once.finish(.failure(CancellationError())) }
+            DispatchQueue.global(qos: .userInitiated).async {
+                let result = Result { try work() }
+                self.unregister(id)
+                if !once.finish(result), case .success(let made) = result { discard(made) }
+            }
+        }
+    }
+}
+
+/// A continuation resumed once, by whichever of the work and Cancel comes first.
+private final class ResumeOnce<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    var continuation: CheckedContinuation<T, Error>?
+
+    /// Whether this resumed it (false: it was resumed already).
+    func finish(_ result: Result<T, Error>) -> Bool {
+        lock.lock()
+        let c = continuation
+        continuation = nil
+        lock.unlock()
+        c?.resume(with: result)
+        return c != nil
+    }
+}

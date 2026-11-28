@@ -674,6 +674,31 @@ public class AccessibilityCheckTests
         DoesNotFail(InFont(Type1Font(t1, "[1 2]")), "31-016");
     }
 
+    /// <summary>
+    /// The Mac's pre-release review, checked here: a CFF INDEX's offSize wasn't bounded (8-byte offsets had their high
+    /// bytes dropped and the rest read as an offset; on the Mac, Int.max trapped), and a CharStrings or charset offset written
+    /// as the real 1E400 (infinite) was cast to int unchecked.
+    /// </summary>
+    [Fact]
+    public void HostileCffIndexOffsetsAreRefused()
+    {
+        byte[] header = [1, 0, 4, 1];
+        static byte[] Cat(params byte[][] parts) => parts.SelectMany(x => x).ToArray();
+        // Names "A" with 8-byte offsets 1 and 2; a Top DICT of CharStrings at 35 (one glyph, endchar): read before.
+        byte[] one = [0, 0, 0, 0, 0, 0, 0, 1], two = [0, 0, 0, 0, 0, 0, 0, 2];
+        var eight = Cat(header, [0, 1, 8], one, two, [0x41], [0, 1, 1, 1, 3, 35 + 139, 17], [0, 0, 0, 0], [0, 1, 1, 1, 2, 14]);
+        Assert.Throws<InvalidOperationException>(() => CffProgram.Read(eight));
+        Assert.Throws<InvalidOperationException>(() => CffProgram.Read(Cat(header, [0, 1, 4, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFF, 0x41])));
+        Assert.Throws<InvalidOperationException>(() => CffProgram.Read(Cat(header, [0, 1, 0, 0x41, 0, 0])));
+        // Names "A"; a Top DICT of 1E400 CharStrings (30, nibbles 1 E 4 0 0 end, 17); no strings, no global subroutines.
+        byte[] top = [30, 0x1B, 0x40, 0x0F, 17];
+        Assert.Null(CffProgram.Read(Cat(header, [0, 1, 1, 1, 2, 0x41], [0, 1, 1, 1, (byte)(1 + top.Length)], top, [0, 0, 0, 0])));
+        // A charset offset of 1E400 after a real CharStrings INDEX (at 26): the glyphs are still read.
+        byte[] withCharset = [30, 0x1B, 0x40, 0x0F, 15, 26 + 139, 17];
+        var charset = Cat(header, [0, 1, 1, 1, 2, 0x41], [0, 1, 1, 1, (byte)(1 + withCharset.Length)], withCharset, [0, 0, 0, 0], [0, 1, 1, 1, 2, 14]);
+        Assert.Equal(1, CffProgram.Read(charset)!.NumGlyphs);
+    }
+
     [Fact]
     public void CompositeFontsAndCMaps()
     {

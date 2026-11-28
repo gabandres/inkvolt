@@ -223,6 +223,22 @@ struct RedactionCheckTests {
         }
     }
 
+    /// Pre-release review (Mac addition): the boxes in a page's pictures were looked for line by line, picture by picture,
+    /// column by column: one picture drawn thousands of times (each clipped to nothing, so drawing it costs nothing)
+    /// over forty lines made some 10^10 pixel tests. The pictures' columns are merged per line first.
+    @Test func onePictureDrawnThousandsOfTimesIsLookedThroughOnce() throws {
+        let lines = (0..<40).map { "BT /F1 12 Tf 72 \(740 - $0 * 16) Td (Line \($0) of the report) Tj ET" }.joined(separator: " ")
+        let draws = String(repeating: "q 0 0 1 1 re W n 540 0 0 700 36 50 cm /Im1 Do Q ", count: 6000)
+        let pdf = Self.onePage(lines + " " + draws, more: [Self.picture()], xobjects: "/Im1 6 0 R")
+        let started = Date()
+        let report = try RedactionCheck.run(pdf, nil)
+        #expect(Date().timeIntervalSince(started) < 10) // some 50 s before
+        #expect(!report.findings.contains { $0.kind == .glyphSpacing })
+        // A box drawn into one of two overlapping pictures is still found where it is.
+        let found = try RedactionCheck.run(try Self.pictureSpacing(), nil).findings.filter { $0.kind == .glyphSpacing }
+        #expect(found.count == 1)
+    }
+
     @Test(arguments: badKinds)
     func badRedactionsAreFlaggedAndProperOnesAreNot(_ kind: String) throws {
         let (bad, expected, area) = try Self.bad(kind)

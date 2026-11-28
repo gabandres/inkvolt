@@ -18,11 +18,18 @@ public enum OtherFormats {
         (((path as NSString).lastPathComponent as NSString).deletingPathExtension) + ".pdf"
     }
 
-    /// The file's pages as a PDF; `blank`: the pages that couldn't be read, left blank at their size.
+    /// The file's pages as a PDF; `blank`: the pages that couldn't be read, left blank at their size; `partial`: the pages
+    /// stopped while they were drawn, with what was drawn of them.
     /// - Throws: `CancellationError`; `PdfEngineError` when MuPDF can't read the file.
-    public static func convert(path: String, cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in }) throws -> (pdf: [UInt8], blank: [Int]) {
-        guard let engine = try PdfEngine.openPreview(path: path) else { throw PdfEngineError(message: loc("This file is password protected.")) }
+    public static func convert(path: String, cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in }) throws -> (pdf: [UInt8], blank: [Int], partial: [Int]) {
+        try convert(path: path, cancel: cancel, progress: progress, opened: { _ in })
+    }
+
+    static func convert(path: String, cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in },
+                        opened: (PdfEngine) -> Void) throws -> (pdf: [UInt8], blank: [Int], partial: [Int]) {
+        guard let engine = try PdfEngine.openPreview(path: path, cancel: cancel) else { throw PdfEngineError(message: loc("This file is password protected.")) }
         defer { engine.close() }
+        opened(engine)
         guard engine.pageCount > 0 else { throw PdfEngineError(message: loc("This file has no pages.")) }
         return try engine.writePdf(cancel: cancel, progress: progress)
     }

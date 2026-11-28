@@ -128,6 +128,21 @@ struct OtherFormatsTests {
         #expect(TestImages.pixelAt(one, 0, engine.page(0).width / 2, engine.page(0).height / 2).r > 180)
     }
 
+    /// Pre-release review: a page stopped (its time, a picture, a stream) while MuPDF drew it into the PDF was already in
+    /// it, and a blank page was added after it too, moving every later page one on. It is listed as read in part instead.
+    @Test func aPageStoppedWhileDrawnIsKeptOnceAndListed() throws {
+        let red = TestImages.png(40, 20) { _, _ in (220, 20, 20, 255) }
+        let cbz = try file("Comic.cbz", try zip([("001.png", red), ("002.png", red), ("003.png", red)]))
+        for why: Int32 in [2, 3, 4] { // too slow, a picture too large, a stream decompressed too many times
+            let made = try OtherFormats.convert(path: cbz, opened: { $0.stopDrawnForTests(why) })
+            #expect(try PdfEngine.open(made.pdf).pageCount == 3)
+            #expect(made.blank.isEmpty)
+            #expect(made.partial == [0, 1, 2])
+        }
+        // Cancel while a page is drawn still stops the whole conversion.
+        #expect(throws: CancellationError.self) { try OtherFormats.convert(path: cbz, opened: { $0.stopDrawnForTests(1) }) }
+    }
+
     @Test func aFileMuPdfCantReadIsRefused() throws {
         let path = try file("Broken.epub", Array("not a zip".utf8))
         #expect(throws: PdfEngineError.self) { try OtherFormats.convert(path: path) }
@@ -138,5 +153,51 @@ struct OtherFormatsTests {
         let cancel = CancelToken()
         cancel.cancel()
         #expect(throws: CancellationError.self) { try OtherFormats.convert(path: path, cancel: cancel) }
+    }
+
+    /// Pre-release review: opening an EPUB, FB2, XPS or comic book counts its pages (an EPUB is laid out whole) and loads
+    /// each page's bounds with no cookie, so neither the time budget, Cancel nor the allocation cap applied: a zip bomb's
+    /// entry inflated whole. Now the opening is bounded as a page's reading is.
+    @Test func openingAnotherFormatIsBoundedByTimeCancelAndMemory() throws {
+        let words = (0..<400).map { "<p>Paragraph \($0) of the story, long enough to be read in many chunks.</p>" }.joined()
+        let fb2 = try file("Long.fb2", Array("<FictionBook><body><section>\(words)</section></body></FictionBook>".utf8))
+        // The time: a budget of a nanosecond is up at the first look at the clock while the file's bytes are read.
+        PdfEngine.$budgetForTests.withValue(1e-10) {
+            #expect(throws: PdfEngineError.self) { try OtherFormats.convert(path: fb2) }
+        }
+        #expect(try OtherFormats.convert(path: fb2).blank.isEmpty)
+
+        // Memory: an EPUB whose container.xml says it inflates to 2 GB (MuPDF refuses past 2^31 itself); the one allocation for it is refused.
+        let container = Array("""
+        <?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\
+        <rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>
+        """.utf8)
+        var bomb = try zip([("mimetype", Array("application/epub+zip".utf8)), ("META-INF/container.xml", container)])
+        Self.claimSize(&bomb, of: "META-INF/container.xml", 2_000_000_000)
+        let epub = try file("Bomb.epub", bomb)
+        do {
+            _ = try OtherFormats.convert(path: epub)
+            Issue.record("a 2 GB entry opened")
+        } catch let e as PdfEngineError {
+            #expect(e.message == "This file can't be opened: reading it takes too long or needs too much memory.", "\(e.message)")
+        }
+    }
+
+    /// Writes `size` as the uncompressed size of the zip entry `name`, in its local header and the central directory.
+    private static func claimSize(_ zip: inout [UInt8], of name: String, _ size: UInt32) {
+        let nameBytes = Array(name.utf8)
+        func le16(_ at: Int) -> Int { Int(zip[at]) | Int(zip[at + 1]) << 8 }
+        for (signature, nameAt, sizeAt) in [([0x50, 0x4B, 3, 4] as [UInt8], 30, 22), ([0x50, 0x4B, 1, 2], 46, 24)] {
+            var i = 0
+            while i + nameAt <= zip.count {
+                if Array(zip[i..<i + 4]) == signature {
+                    let n = le16(i + nameAt - (signature[2] == 3 ? 4 : 18))
+                    if n == nameBytes.count, i + nameAt + n <= zip.count, Array(zip[(i + nameAt)..<(i + nameAt + n)]) == nameBytes {
+                        for k in 0..<4 { zip[i + sizeAt + k] = UInt8(size >> (8 * UInt32(k)) & 0xFF) }
+                    }
+                }
+                i += 1
+            }
+        }
     }
 }

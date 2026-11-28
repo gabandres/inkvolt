@@ -599,6 +599,7 @@ struct inkv_doc {
     unsigned char *checked; // by object number: objects whose streams, and all they lead to, a walk found fine
     int checked_bits;
     long long walked;       // test hook: objects the walks looked at
+    int stop_drawn;         // test hook: inkv_pdf_writer_add's page stopped for this reason (INKV_STOP_*) once begun
     // MuPDF keeps one key per document, and every failed fz_authenticate_password overwrites it (fz_needs_password
     // itself tries ""): a document opened with its password then read every stream with a wrong key and drew blank
     // pages. So whether it needs a password is asked once, at open, and a failed attempt after a good one
@@ -776,8 +777,8 @@ static void inkv_check_streams(fz_context *ctx, inkv_doc *d, fz_page *page, inkv
 }
 
 /// Starts a call that reads a page's content with `c` (NULL: unbounded): its first part's time from now.
-static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) {
-    double now = c || d->src ? inkv_cpu() : 0;
+static void inkv_begin_with(fz_context *ctx, inkv_source *src, inkv_cookie *c) {
+    double now = c || src ? inkv_cpu() : 0;
     inkv_alloc_state *a = inkv_alloc_of(ctx);
     if (a) a->active = c;
     if (c) {
@@ -792,13 +793,15 @@ static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) {
         }
         c->deadline = c->seconds > 0 ? now + c->seconds : 0;
     }
-    if (d->src) {
-        d->src->active = c;
-        d->src->chunk = 16;
-        d->src->unseen = 0;
-        d->src->last = now;
+    if (src) {
+        src->active = c;
+        src->chunk = 16;
+        src->unseen = 0;
+        src->last = now;
     }
 }
+
+static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) { inkv_begin_with(ctx, d->src, c); }
 
 /// The call's next part (drawing what was read) gets a budget of its own; its allocations (the caller's pixels, which
 /// its caller sized) aren't the page's.
@@ -808,14 +811,16 @@ static void inkv_next_part(fz_context *ctx, inkv_cookie *c) {
     if (c && c->seconds > 0) c->deadline = inkv_cpu() + c->seconds;
 }
 
-static void inkv_end(fz_context *ctx, inkv_doc *d) {
+static void inkv_end_with(fz_context *ctx, inkv_source *src) {
     inkv_alloc_state *a = inkv_alloc_of(ctx);
     if (a) a->active = NULL;
-    if (d->src) {
-        d->src->active = NULL;
-        d->src->chunk = INKV_CHUNK_MAX;
+    if (src) {
+        src->active = NULL;
+        src->chunk = INKV_CHUNK_MAX;
     }
 }
+
+static void inkv_end(fz_context *ctx, inkv_doc *d) { inkv_end_with(ctx, d->src); }
 
 /// Whether the call that used `c` was stopped (its time, a picture, Cancel).
 static int inkv_halted(inkv_cookie *c) { return c && (atomic_load(&c->stopped) || atomic_load(&c->cancelled)); }
@@ -1073,7 +1078,7 @@ inkv_doc *inkv_open_pdf_shared(void *vctx, const uint8_t *data, size_t length, i
     return inkv_open_bytes((fz_context *)vctx, data, length, "application/pdf", cache, 1, err);
 }
 
-inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
+inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     int fd = open(path, O_RDONLY | O_CLOEXEC);
     struct stat st;
@@ -1091,8 +1096,12 @@ inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
         inkv_error(ctx, err);
         return NULL;
     }
-    // The file's name tells MuPDF its type, as fz_open_document did.
+    // The file's name tells MuPDF its type, as fz_open_document did. Opening counts the pages, which for an EPUB or FB2
+    // lays out the whole book, its chapters and pictures inflated from the zip: under the cookie (its time read as the
+    // file's bytes are, Cancel, every allocation capped), so a zip bomb's entry or chapter can't inflate unbounded.
+    inkv_begin_with(ctx, src, cookie);
     inkv_doc *result = inkv_open(ctx, stream, src, path, cache, err);
+    inkv_end_with(ctx, src); // before the stream goes: a document that failed to open took src with it
     fz_drop_stream(ctx, stream);
     return result;
 }
@@ -1175,14 +1184,18 @@ int inkv_count_pages(void *vctx, inkv_doc *d, char *err) {
     return d->count;
 }
 
-int inkv_page_bounds(void *vctx, inkv_doc *d, int index, float out[4], char *err) {
+int inkv_page_bounds(void *vctx, inkv_doc *d, int index, float out[4], inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
+    if (cookie) inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_rect r = fz_bound_page(ctx, inkv_page(ctx, d, index));
         out[0] = r.x0;
         out[1] = r.y0;
         out[2] = r.x1;
         out[3] = r.y1;
+    }
+    fz_always(ctx) {
+        if (cookie) inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         inkv_error(ctx, err);
@@ -1223,6 +1236,10 @@ int inkv_cookie_stopped(inkv_cookie *c) {
 
 void inkv_test_slow_reads(inkv_doc *d, double seconds) {
     if (d && d->src) d->src->delay = seconds > 0 ? seconds : 0;
+}
+
+void inkv_test_stop_drawn(inkv_doc *d, int why) {
+    if (d) d->stop_drawn = why;
 }
 
 void inkv_test_counts(inkv_doc *d, long long *walked, long long *clock_reads) {
@@ -2958,8 +2975,9 @@ inkv_pdf_writer *inkv_pdf_writer_new(void *vctx, char *err) {
 
 int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
-    int begun = 0;
+    int begun = 0, written = 0;
     fz_var(begun);
+    fz_var(written);
     inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_rect box = fz_bound_page(ctx, inkv_page(ctx, d, index));
@@ -2967,7 +2985,13 @@ int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, 
         fz_display_list *list = inkv_list(ctx, d, index, cookie);
         inkv_next_part(ctx, cookie);
         fz_device *dev = fz_begin_page(ctx, w->writer, box);
-        begun = 1;
+        begun = written = 1;
+        if (d->stop_drawn && cookie) {
+            // As a stop while the list runs: MuPDF's run then returns early, with what it drew so far.
+            int none = 0;
+            atomic_compare_exchange_strong(&cookie->stopped, &none, d->stop_drawn);
+            inkv_set_abort(cookie);
+        }
         fz_run_display_list(ctx, list, dev, fz_identity, fz_infinite_rect, cookie ? &cookie->cookie : NULL);
         begun = 0;
         fz_end_page(ctx, w->writer);
@@ -2982,7 +3006,8 @@ int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, 
             fz_try(ctx) fz_end_page(ctx, w->writer);
             fz_catch(ctx) fz_ignore_error(ctx);
         }
-        return halted ? 2 : 0;
+        // A page begun is in the PDF, whatever of it was drawn: 3, so no blank page is added after it.
+        return halted ? (written ? 3 : 2) : 0;
     }
     return 1;
 }

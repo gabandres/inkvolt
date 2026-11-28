@@ -27996,6 +27996,17 @@
         }
       }
     },
+    "This file can't be opened: reading it takes too long or needs too much memory.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo no se puede abrir: leerlo tarda demasiado o necesita demasiada memoria."
+          }
+        }
+      }
+    },
     "This file has no pages.": {
       "extractionState": "manual",
       "localizations": {

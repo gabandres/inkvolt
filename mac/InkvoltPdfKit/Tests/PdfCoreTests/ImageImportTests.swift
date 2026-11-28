@@ -117,4 +117,25 @@ struct ImageImportTests {
         }
         #expect(ImageImport.tooLarge("a.tif", 70_000.4, 80_000.6).message == "\"a.tif\" is too large (70,000 x 80,001 pixels).")
     }
+
+    /// A Mac addition (pre-release review): a BMP whose height is Int32.min (0x80000000) overflowed abs() when Picture…,
+    /// Insert or Replace Image read its header; sizes past a million pixels a side, or negative, read as no size.
+    @Test func aBmpOfAbsurdSizeIsRefusedWithoutStopping() {
+        func bmp(_ width: UInt32, _ height: UInt32) -> [UInt8] {
+            func le(_ v: UInt32) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24)] }
+            return Array("BM".utf8) + le(70) + le(0) + le(54) + le(40) + le(width) + le(height) + [1, 0, 24, 0]
+                + [UInt8](repeating: 0, count: 24) + [UInt8](repeating: 0xFF, count: 16)
+        }
+        func size(_ b: [UInt8]) -> [Int] {
+            let s = ImageImport.pixelSize(b, "a.bmp")
+            return [s.width, s.height]
+        }
+        #expect(size(bmp(2, 2)) == [2, 2])
+        #expect(size(bmp(2, UInt32(bitPattern: -2))) == [2, 2])
+        for (w, h) in [(1, 0x8000_0000), (0x8000_0000, 1), (1, 1_000_001), (2_000_000, 1), (1, 0xFFF0_0000)] as [(UInt32, UInt32)] {
+            #expect(size(bmp(w, h)) == [0, 0])
+            // Images to PDF reads the same header before MuPDF decodes (and refuses or cuts short) the file: no trap.
+            _ = try? ImageImport.imagesToPdf([(bmp(w, h), "hostile.bmp")])
+        }
+    }
 }

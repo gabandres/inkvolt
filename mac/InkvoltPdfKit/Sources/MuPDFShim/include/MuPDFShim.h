@@ -56,7 +56,10 @@ void inkv_drop_context(void *ctx);
 inkv_doc *inkv_open_pdf(void *ctx, const uint8_t *data, size_t length, int cache, char *err);
 // The same, read in place: `data` must stay alive and unchanged until the document is dropped.
 inkv_doc *inkv_open_pdf_shared(void *ctx, const uint8_t *data, size_t length, int cache, char *err);
-inkv_doc *inkv_open_path(void *ctx, const char *path, int cache, char *err);
+// A file in place, of any type MuPDF reads (its name says which), opened under `cookie` (NULL: unbounded): its time,
+// Cancel and the allocation cap bound the opening, which counts the pages (an EPUB is laid out whole);
+// inkv_cookie_stopped says why one stopped.
+inkv_doc *inkv_open_path(void *ctx, const char *path, int cache, inkv_cookie *cookie, char *err);
 void inkv_drop_doc(void *ctx, inkv_doc *doc);
 
 /// 1 when the document needs a password before its pages can be read.
@@ -68,8 +71,9 @@ int inkv_is_encrypted(void *ctx, inkv_doc *doc);
 
 /// The page count, or -1 on failure.
 int inkv_count_pages(void *ctx, inkv_doc *doc, char *err);
-/// The page's bounds in MuPDF page space (rotation applied): x0, y0, x1, y1. 0 on failure.
-int inkv_page_bounds(void *ctx, inkv_doc *doc, int page, float out[4], char *err);
+/// The page's bounds in MuPDF page space (rotation applied): x0, y0, x1, y1. 0 on failure. Loading the page under
+/// `cookie` (NULL: unbounded) when given: its time, Cancel and the allocation cap (inkv_cookie_stopped says which).
+int inkv_page_bounds(void *ctx, inkv_doc *doc, int page, float out[4], inkv_cookie *cookie, char *err);
 /// Test hook: pages and display lists the document holds loaded right now.
 void inkv_loaded(inkv_doc *doc, int *pages, int *lists);
 
@@ -95,6 +99,10 @@ void inkv_test_slow_reads(inkv_doc *doc, double seconds);
 /// Test hook: objects the document's stream checks resolved so far (each once a document, while it isn't edited), and
 /// how often its stream read the CPU clock while a call read.
 void inkv_test_counts(inkv_doc *doc, long long *walked, long long *clock_reads);
+
+/// Test hook: inkv_pdf_writer_add stops each page for `why` (INKV_STOP_* as inkv_cookie_stopped's codes) once it is
+/// begun, as a stop while its drawing runs; 0: never.
+void inkv_test_stop_drawn(inkv_doc *doc, int why);
 
 /// Draws an area of the page (MuPDF page space) at `scale` pixels per point, with its annotations, into RGB without
 /// alpha on white; the pixels (width * height * 3 bytes, rows packed) are malloc'ed for the caller (inkv_free).
@@ -341,8 +349,9 @@ int inkv_pdf_version(void *ctx, inkv_doc *doc);
 int inkv_set_pdf_version(void *ctx, inkv_doc *doc, int version, char *err);
 
 /// Another format's pages written as a PDF (XPS, OXPS, EPUB, CBZ, FB2, pictures, opened by name with inkv_open_path):
-/// MuPDF's PDF writer, text kept as text. A writer gets each page in turn (1: written; 2: stopped by the cookie, the
-/// page left out; 0: failed or refused, nothing begun), a blank page in place of one that can't be read, then its bytes
+/// MuPDF's PDF writer, text kept as text. A writer gets each page in turn (1: written; 2: stopped by the cookie before
+/// the page was begun, the page left out; 3: stopped by the cookie while it was drawn, the page in the PDF with what was
+/// drawn of it; 0: failed), a blank page in place of one that can't be read and was left out, then its bytes
 /// (malloc'ed for the caller, inkv_free). Every call uses the context of the document it reads.
 typedef struct inkv_pdf_writer inkv_pdf_writer;
 inkv_pdf_writer *inkv_pdf_writer_new(void *ctx, char *err);

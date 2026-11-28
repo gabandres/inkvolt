@@ -63,17 +63,24 @@ enum Converting {
         let name = url.lastPathComponent, path = url.path
         let made = Blanks()
         return await run(title: loc("Opening {0}", name), text: loc("Reading the pages…"), pdfName: OtherFormats.pdfName(path), done: {
-            made.pages.isEmpty ? loc("Made from {0}. Save it to keep it.", name)
+            let said = made.pages.isEmpty ? loc("Made from {0}. Save it to keep it.", name)
                 : loc("Made from {0}; page(s) {1} couldn't be read and are blank. Save it to keep it.", name, PageRange.format(made.pages))
+            if made.partial.isEmpty { return said }
+            return loc("Page(s) {0} couldn't be read in full: part of what they show is missing.", PageRange.format(made.partial)) + " " + said
         }) { token, _ in
             let result = try await Task.detached { try OtherFormats.convert(path: path, cancel: token) }.value
             if !result.blank.isEmpty { AppLog.write("Opened \(name): page(s) \(PageRange.format(result.blank)) couldn't be read") }
+            if !result.partial.isEmpty { AppLog.write("Opened \(name): page(s) \(PageRange.format(result.partial)) read in part") }
             made.pages = result.blank
+            made.partial = result.partial
             return result.pdf
         }
     }
 
-    @MainActor private final class Blanks { var pages: [Int] = [] }
+    @MainActor private final class Blanks {
+        var pages: [Int] = []
+        var partial: [Int] = []
+    }
 
     /// What converted an Office file, for the notice once the document is open.
     @MainActor private final class Made { var result: OfficeResult? }

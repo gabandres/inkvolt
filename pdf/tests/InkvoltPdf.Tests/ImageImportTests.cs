@@ -139,4 +139,37 @@ public class ImageImportTests
         Assert.Throws<InvalidOperationException>(() => ImageImport.ImagesToPdf([("not an image"u8.ToArray(), "notes.txt")]));
         Assert.Throws<ArgumentException>(() => ImageImport.ImagesToPdf([]));
     }
+
+    /// <summary>
+    /// The Mac's pre-release review, checked here: a BMP whose height is int.MinValue (0x80000000) threw OverflowException
+    /// from Math.Abs when its header was read, which Images to PDF (FileTools) and the paragraph editor's picture check
+    /// don't catch. Absurd sizes read as no size; a top-down BMP as its size.
+    /// </summary>
+    [Fact]
+    public void ABmpOfAbsurdSizeIsRefusedWithoutStopping()
+    {
+        static byte[] Bmp(uint width, uint height)
+        {
+            var b = new byte[70];
+            "BM"u8.CopyTo(b);
+            BitConverter.TryWriteBytes(b.AsSpan(2), 70u);
+            BitConverter.TryWriteBytes(b.AsSpan(10), 54u);
+            BitConverter.TryWriteBytes(b.AsSpan(14), 40u);
+            BitConverter.TryWriteBytes(b.AsSpan(18), width);
+            BitConverter.TryWriteBytes(b.AsSpan(22), height);
+            b[26] = 1;
+            b[28] = 24;
+            for (var i = 54; i < 70; i++) b[i] = 0xFF;
+            return b;
+        }
+        Assert.Equal((2, 2), ImageImport.PixelSize(Bmp(2, 2), "a.bmp"));
+        Assert.Equal((2, 2), ImageImport.PixelSize(Bmp(2, unchecked((uint)-2)), "top-down.bmp"));
+        foreach (var (w, h) in new (uint, uint)[] { (1, 0x8000_0000), (0x8000_0000, 1), (1, 1_000_001), (2_000_000, 1), (1, 0xFFF0_0000) })
+        {
+            Assert.Equal((0, 0), ImageImport.PixelSize(Bmp(w, h), "hostile.bmp"));
+            // Images to PDF reads the same header before MuPDF decodes the file: refused or made, never an OverflowException.
+            var e = Record.Exception(() => ImageImport.ImagesToPdf([(Bmp(w, h), "hostile.bmp")]));
+            Assert.True(e is null or InvalidOperationException or ArgumentException, $"{w} x {h}: {e}");
+        }
+    }
 }

@@ -228,7 +228,7 @@ public enum ImageImport {
         let count = Int(inkv_count_pages(image.ctx, image.doc, &err))
         for i in 0..<max(count, 0) {
             var b = [Float](repeating: 0, count: 4)
-            guard inkv_page_bounds(image.ctx, image.doc, Int32(i), &b, &err) != 0 else { continue }
+            guard inkv_page_bounds(image.ctx, image.doc, Int32(i), &b, nil, &err) != 0 else { continue }
             let bw = Double(b[2] - b[0]), bh = Double(b[3] - b[1])
             if bw <= 0 || bh <= 0 { continue }
             // Native pixels: MuPDF sizes an image page from the image's resolution, which the header tells.
@@ -319,7 +319,8 @@ public enum ImageImport {
         return turned ? (h, w) : (w, h)
     }
 
-    /// Pixel size and resolution from the file header (0 / nil where it doesn't say or can't be read).
+    /// Pixel size and resolution from the file header (0 / nil where it doesn't say or can't be read). Sizes are as the
+    /// header says, up to 2^32: `pixelSize` and `decoded`'s pixel cap bound them.
     private static func header(_ b: [UInt8], _ type: ImageType) -> (width: Int, height: Int, dpiX: Double?, dpiY: Double?) {
         func be32(_ at: Int) -> Int { at + 4 <= b.count ? Int(b[at]) << 24 | Int(b[at + 1]) << 16 | Int(b[at + 2]) << 8 | Int(b[at + 3]) : 0 }
         func le16(_ at: Int) -> Int { at + 2 <= b.count ? Int(b[at]) | Int(b[at + 1]) << 8 : 0 }
@@ -347,7 +348,9 @@ public enum ImageImport {
             let size = le32(14)
             if size == 12 { return (le16(18), le16(20), nil, nil) }
             if size < 40 || b.count < 46 { return (0, 0, nil, nil) }
-            return (Int(le32(18)), Int(abs(le32(22))), sane(Double(le32(38)) * 0.0254), sane(Double(le32(42)) * 0.0254))
+            // A top-down BMP's height is negative. abs of the Int32 itself overflows on Int32.min (0x80000000): Swift's
+            // traps, the C abs Foundation brings in (the one picked today) is undefined there; an Int's can't overflow.
+            return (Int(le32(18)), abs(Int(le32(22))), sane(Double(le32(38)) * 0.0254), sane(Double(le32(42)) * 0.0254))
         case .tiff:
             let t = Tiff.read(b)
             return (t.width, t.height, sane(t.dpiX), sane(t.dpiY))

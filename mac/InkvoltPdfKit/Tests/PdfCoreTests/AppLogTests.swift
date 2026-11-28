@@ -63,4 +63,22 @@ struct AppLogTests {
         #expect(AppLog.name("/Users/someone/Documents/Contract.pdf") == "Contract.pdf")
         #expect(AppLog.name(nil) == "(unsaved)")
     }
+
+    /// Pre-release review: Open's and the error dialogs' lines logged `\(error)`: a Cocoa error's description names the
+    /// file's full path (NSFilePath), the shim's "cannot open <path>" too, and an edit's error can quote the document.
+    @Test func anErrorIsLoggedWithoutPathsOrTheDocumentsText() {
+        let path = "/Users/someone/Private Folder/Contract 2026.pdf"
+        let cocoa = CocoaError(.fileReadNoSuchFile, userInfo: [NSFilePathErrorKey: path])
+        #expect(AppLog.describe(cocoa).hasSuffix(": NSCocoaErrorDomain 260") && !AppLog.describe(cocoa).contains("someone"))
+        let posix = NSError(domain: NSPOSIXErrorDomain, code: 2, userInfo: [NSFilePathErrorKey: path, NSLocalizedDescriptionKey: path])
+        #expect(!AppLog.describe(posix).contains("someone") && AppLog.describe(posix).hasSuffix("NSPOSIXErrorDomain 2"))
+        let mupdf = PdfEngineError(message: "cannot open \(path): No such file or directory")
+        #expect(AppLog.describe(mupdf) == "PdfEngineError: cannot open Contract 2026.pdf: No such file or directory")
+        #expect(AppLog.describe(PdfEngineError(message: "cannot open ~/Secret/a.epub")) == "PdfEngineError: cannot open a.epub")
+        #expect(AppLog.describe(PdfEngineError(message: "font \"Salary 90,000\" missing; and/or it isn't")) == "PdfEngineError: font \"…\" missing; and/or it isn't")
+        let edit = ContentEditError("“Pay Alice $90,000” doesn't fit")
+        #expect(AppLog.describe(edit) == "ContentEditError")
+        #expect(AppLog.scrubbed("“My secret” couldn't be done.") == "\"…\" couldn't be done.")
+        #expect(AppLog.scrubbed(String(repeating: "a", count: 1000)).count == 301)
+    }
 }

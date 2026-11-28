@@ -491,8 +491,9 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         guard let first = tops.first else { return nil }
         let top = try dict(b, first.offset, first.offset + first.length)
         let cid = top[1230] != nil
-        guard let cs = top[17], let csFirst = cs.first else { return nil }
-        var csAt = Int(csFirst)
+        // A real number's offset can be 1E400 (infinite) or past Int: only one inside the data is an offset.
+        var csAt = at(top, 17, 0, data)
+        if csAt < 0 { return nil }
         let charStrings = try index(b, &csAt)
         let n = charStrings.count
         let font = CffProgram()
@@ -503,7 +504,8 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         font.globalSubrs = globalSubrs
         font.advances = [Double?](repeating: nil, count: n)
         font.readPrivates(top, cid)
-        let charset = top[15]?.first.map { Int($0) } ?? 0
+        // As CharStrings': an offset outside the data (1E400 trapped in Int()) reads as no charset this knows.
+        let charset = top[15] == nil ? 0 : at(top, 15, 0, data)
         var sids = [Int](repeating: 0, count: n)
         if charset > 2 {
             var q = charset
@@ -563,10 +565,14 @@ final class CffProgram: FontProgram, @unchecked Sendable {
         if count == 0 { return list }
         let offSize = try b.u8(p)
         p += 1
+        // Offsets are 1 to 4 bytes and never past the data: a hostile 8-byte one (7F FF …) made an offset Int.max,
+        // which trapped when added to where the data starts.
+        guard (1...4).contains(offSize) else { throw FontProgramDamaged() }
         let at = p
         func off(_ i: Int) throws -> Int {
             var v = 0
             for k in 0..<offSize { v = v << 8 | (try b.u8(at + i * offSize + k)) }
+            if v > b.count { throw FontProgramDamaged() }
             return v
         }
         let data = p + (count + 1) * offSize - 1

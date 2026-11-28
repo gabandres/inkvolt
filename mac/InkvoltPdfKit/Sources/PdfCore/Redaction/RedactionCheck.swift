@@ -1002,9 +1002,22 @@ extension RedactionCheck {
                     for y in y0..<y1 where dark(x, y) { n += 1 }
                     return Double(n) >= 0.95 * Double(y1 - y0)
                 }
+                // The pictures' columns on this line, overlapping ones merged: each column is looked at once, however many
+                // pictures are drawn over it (one picture drawn 10,000 times, clipped to nothing, took some 10^10 pixel
+                // tests).
+                var spans: [(from: Int, to: Int)] = []
                 for pic in pictures where pic.y < band.bottom && pic.bottom > band.y {
-                    let x1 = px(pic.right, img.width)
-                    var x = px(pic.x, img.width)
+                    let a = px(pic.x, img.width), b = px(pic.right, img.width)
+                    if a < b { spans.append((a, b)) }
+                }
+                spans.sort { $0.from < $1.from }
+                var merged: [(from: Int, to: Int)] = []
+                for s in spans {
+                    if let last = merged.last, s.from <= last.to { merged[merged.count - 1].to = max(last.to, s.to) } else { merged.append(s) }
+                }
+                for span in merged {
+                    let x1 = span.to
+                    var x = span.from
                     while x < x1 {
                         var run = x
                         while run < x1 && column(run) { run += 1 }

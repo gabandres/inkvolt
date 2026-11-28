@@ -743,9 +743,24 @@ public static partial class RedactionCheck
                     for (var y = y0; y < y1; y++) if (Dark(x, y)) dark++;
                     return dark >= 0.95 * (y1 - y0);
                 }
+                // The pictures' columns on this line, overlapping ones merged: each column is looked at once, however many
+                // pictures are drawn over it (the Mac's pre-release review: one picture drawn 10,000 times, clipped to
+                // nothing, took some 10^10 pixel tests).
+                var spans = new List<(int From, int To)>();
                 foreach (var pic in pictures.Where(pic => pic.Y < band.Bottom && pic.Bottom > band.Y))
                 {
-                    int x0 = Px(pic.X, img.Width), x1 = Px(pic.Right, img.Width);
+                    int a = Px(pic.X, img.Width), b = Px(pic.Right, img.Width);
+                    if (a < b) spans.Add((a, b));
+                }
+                spans.Sort((s, t) => s.From.CompareTo(t.From));
+                var merged = new List<(int From, int To)>();
+                foreach (var s in spans)
+                {
+                    if (merged.Count > 0 && s.From <= merged[^1].To) merged[^1] = (merged[^1].From, Math.Max(merged[^1].To, s.To));
+                    else merged.Add(s);
+                }
+                foreach (var (x0, x1) in merged)
+                {
                     for (var x = x0; x < x1;)
                     {
                         var run = x;

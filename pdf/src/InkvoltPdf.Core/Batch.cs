@@ -749,7 +749,7 @@ public static class BatchRunner
     /// A picture (its dictionary, read back from the keyword, says /Subtype /Image with its size) counts what it decodes
     /// to, width × height × components × bits, and isn't inflated. Encrypted streams count nothing (the file is priced by
     /// its size). Each stream counts up to <see cref="PdfObj.MaxStreamBytes"/>; counting stops past <paramref name="cap"/>
-    /// or after <see cref="MaxStreamsCounted"/> streams inflated (such a file runs alone anyway).
+    /// or after <see cref="MaxStreamsCounted"/> streams (such a file runs alone anyway); Cancel is looked at every 256.
     /// </summary>
     internal static long Unpacked(string path, long cap, CancellationToken cancel = default)
     {
@@ -759,7 +759,7 @@ public static class BatchRunner
         using var data = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1); // the inflater reads in blocks of its own
         var buffer = new byte[1 << 20];
         long total = 0, start = 0; // start: the file offset of buffer[0]
-        int filled = 0, from = 0, inflated = 0;
+        int filled = 0, from = 0, counted = 0;
         for (var end = false; !end;)
         {
             cancel.ThrowIfCancellationRequested();
@@ -781,11 +781,15 @@ public static class BatchRunner
                 if (p < filled && buffer[p] == '\r') p++;
                 if (p < filled && buffer[p] == '\n') p++;
                 if (p == at || i >= 3 && buffer.AsSpan(i - 3, 3).SequenceEqual("end"u8)) continue; // "streams", "endstream"
+                if (++counted > MaxStreamsCounted) return cap < long.MaxValue ? cap + 1 : cap;
+                if ((counted & 255) == 0) cancel.ThrowIfCancellationRequested();
+                // Its dictionary: from the last "obj" before it (or the whole lookback), the only text decoded.
                 var back = Math.Max(0, i - Lookback);
+                var obj = buffer.AsSpan(back, i - back).LastIndexOf("obj"u8);
+                if (obj >= 0) back += obj;
                 if (PictureBytes(System.Text.Encoding.Latin1.GetString(buffer, back, i - back)) is { } picture) total += picture;
                 else
                 {
-                    if (++inflated > MaxStreamsCounted) return cap + 1;
                     data.Position = start + p + 2;
                     total += BoundedFilters.InflatedLength(data, Math.Min(PdfObj.MaxStreamBytes, cap - total), cancel);
                 }
@@ -802,7 +806,10 @@ public static class BatchRunner
         return total;
     }
 
-    /// <summary>Most streams <see cref="Unpacked"/> inflates in one file.</summary>
+    /// <summary>
+    /// Most streams <see cref="Unpacked"/> counts in one file, pictures (read from their dictionaries) and inflated ones
+    /// alike (the Mac's pre-release review: 100 MB of tiny picture stubs counted none and read back 4 KB for each).
+    /// </summary>
     internal const int MaxStreamsCounted = 50_000;
 
     /// <summary>
@@ -814,7 +821,8 @@ public static class BatchRunner
     {
         var obj = before.LastIndexOf("obj", StringComparison.Ordinal);
         var dict = obj < 0 ? before : before[obj..];
-        if (!System.Text.RegularExpressions.Regex.IsMatch(dict, @"/Subtype\s*/Image\b")) return null;
+        // A quick look first: most streams aren't pictures.
+        if (!dict.Contains("/Image", StringComparison.Ordinal) || !System.Text.RegularExpressions.Regex.IsMatch(dict, @"/Subtype\s*/Image\b")) return null;
         static long? Number(string dict, string key) =>
             System.Text.RegularExpressions.Regex.Match(dict, key + @"\s+(\d{1,9})\b(?!\s+\d+\s+R)") is { Success: true } m ? long.Parse(m.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture) : null;
         if (Number(dict, "/Width") is not { } w || Number(dict, "/Height") is not { } h) return null;
