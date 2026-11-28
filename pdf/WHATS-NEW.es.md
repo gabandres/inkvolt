@@ -7,6 +7,9 @@ here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own wor
 
 ## Next
 
+## 1.20.1
+- Eliminar texto en una línea resaltada (o en una celda sombreada) ahora cierra la línea, como en una blanca; antes, el hueco que quedaba todavía podía mostrar el ancho de la palabra eliminada.
+
 ## 1.20.0
 - Ver › Personalizar la barra de comandos… (o clic derecho en la barra) te deja elegir qué botones muestra la barra de comandos y en qué orden, y agregar Compartir. Lo que quites queda en el menú "…" de la barra.
 - Revisar › Responder al comentario… (Ctrl+Shift+R, o clic derecho en un comentario del panel Comentarios) agrega tu respuesta debajo de un comentario, como Acrobat muestra las respuestas.

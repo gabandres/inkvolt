@@ -6,6 +6,9 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 
 ## Next
 
+## 1.20.1
+- Redacting text on a highlighted line (or in a shaded table cell) now closes up the line, as on a white one; before, the gap left behind could still show how wide the removed word was.
+
 ## 1.20.0
 - View › Customize Command Bar… (or right-click the bar) lets you choose which buttons the command bar shows and in what order, and add Share. What you take off stays in the bar's "…" menu.
 - Review › Reply to Comment… (Ctrl+Shift+R, or right-click a comment in the Comments pane) adds your reply under a comment, as Acrobat shows replies.
