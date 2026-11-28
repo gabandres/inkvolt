@@ -3127,7 +3127,7 @@ not in git), so they keep their permissions (Screen Recording, Local Network) be
 
 ## Open
 
-No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
+The build Mac is back (2026-11-27): what follows needs a device or a person, not a Mac.
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).

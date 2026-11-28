@@ -5,6 +5,38 @@ the Mac machines and where the keys are backed up: `mac/docs/NEW-MAC.md`; what t
 
 ## Current state
 
+- **Mac/Windows parity, 2026-11-27/28 (the owner: "on par 100%"; full permission to publish both).** An audit of every
+  Windows feature against the Mac apps found 22 gaps PLAN never listed (and 7 the other way); all ported, reviewed and
+  merged: Print for Mac's direct printing everywhere with routing (a macOS queue stopped by a failed filter gives way; a
+  paused one keeps its jobs), scan button, the printer's copier, Copy, scanner sharing, Open With and drops, presets
+  outside the Scan tab, Help, ⌘K palette, rating request, alert buttons, USB driver readiness and Get the driver; PDF for
+  Mac's Compare dictionary reading, OCR without Tesseract (the owner's decision: Vision only; photographed pages, Make
+  Text Editable, two languages), Translate's looks and right-to-left, paragraph editing's mixed runs, kerning, pictures in
+  the flow and Crop, Export Pages as Images, XPS/EPUB/CBZ/FB2 opened as a PDF, Convert to Word from Finder and
+  --convert-to, Back/Forward and the small commands; Windows got the Mac-only Reset Form, Next/Previous Comment, Share,
+  Reply to Comment, Customize Command Bar, IPv6 zones. Three hostile-input release reviews' findings fixed (Print for
+  Mac: any app could start a scan, sharing open on public hotspots; PDF for Mac: crafted CFF/BMP crashes, AppLog privacy,
+  zip bombs; Windows: zone handling, Share, Reset Form, JPEG) and the same bugs fixed on Windows where they existed. Two
+  memory bugs behind Mac CI's signal 11 fixed (a dropped MuPDF stream; MuPDF's global HarfBuzz context:
+  `mac/Vendor/mupdf/patches/harfbuzz-context-per-thread.patch`, a report for MuPDF's tracker beside it, for the owner to
+  file; Windows is safe: MuPDFCore's shared locks, ReflowableLayoutTests). Redaction on a highlighted line now closes the
+  gap (it showed the removed word's width), Mac and Windows.
+  - **Released 2026-11-28:** Windows Inkvolt PDF 1.20.0 and Inkvolt Print 1.11.0 (Published 05:34/05:23), Inkvolt PDF
+    1.20.1 (the redaction fix; submitted, in certification when this was written: mark `pdf-v1.20.1.0` `-Published` and
+    the website's softwareVersion once Published); Inkvolt PDF for Mac 1.14.0 live (pdf-mac-v1.14.0, appcast 5afed9ae,
+    Homebrew cask 68922f7, website 7de21a5); Inkvolt Print for Mac 1.5.0 build 10 WAITING_FOR_REVIEW (released by
+    itself on approval; then tag `print-mac-v1.5.0` on 27b67d2c and the website's softwareVersion 1.4.0 → 1.5.0).
+  - **The build Mac's `gh` isn't signed in:** `release.sh --publish` failed at its GitHub step (exit 102); the release and
+    the appcast were made from the PC (the appcast's PUT through `gh api --input <json>`: on Windows the base64 body is too
+    long for an argument). Sign `gh` in there before the next PDF for Mac release. The release clone's MuPDF is
+    1.25.2-cca5e0db (the HarfBuzz patch). Benches: Windows 2026-11-28 under load, the same as 1.19.1 measured right after
+    (bdc6ccb2); Mac every target met (48579a98).
+  - **For a person:** the new screens on screen and with VoiceOver (both Mac apps); a real copy from Inkvolt Print for Mac
+    (its build lacked Local Network permission), a USB scanner and one with buttons, an HP that offers walk-up scan or
+    its own copier, a USB device with no driver, a link-local IPv6 printer, the Share sheet; an older Inkvolt PDF for Mac
+    finding 1.14.0 in its feed (en, es); Microsoft Office as PDF for Mac's converter (off until checked). Known red on
+    the Mac only: HalvesJoin's huge page (timing; CI skips it).
+
 - **Windows hotfix: printing through a queue whose driver Windows can't load (2026-11-27, 09a33387).** After that night's
   Windows updates (this PC: Windows 11 on Arm, Insider Dev 26340), every Microsoft IPP Class Driver queue here failed with
   "PrintTicket provider failed to bind to printer. Win32 error: The system cannot find the file specified" in every app
