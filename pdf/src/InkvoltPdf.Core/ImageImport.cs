@@ -229,14 +229,32 @@ public static class ImageImport
             var list = new List<Picture>();
             for (var i = 0; i < mu.Pages.Count && list.Count < maxPages; i++)
             {
-                var bounds = mu.Pages[i].Bounds;
+                // A frame MuPDF can't load (a BMP of 2^31 rows) is left out, as one it can't draw: its MuPDFException
+                // reached Images to PDF, which catches only what the file's own errors throw.
+                MuPDFCore.Rectangle bounds;
+                try
+                {
+                    bounds = mu.Pages[i].Bounds;
+                }
+                catch (MuPDFException)
+                {
+                    continue;
+                }
                 if (bounds.Width <= 0 || bounds.Height <= 0) continue;
                 // Native pixels: MuPDF sizes an image page from the image's resolution, which the header tells.
                 var scale = pxW > 0 ? pxW / bounds.Width : 1;
                 var px = bounds.Round(scale);
                 if ((double)px.Width * px.Height > PdfEngine.MaxPixels)
                     throw new InvalidOperationException(Loc.Format(PdfStrings.Doc_ImageFileTooLarge, name, px.Width, px.Height));
-                var rgba = mu.Render(i, scale, PixelFormats.RGBA, includeAnnotations: false);
+                byte[] rgba;
+                try
+                {
+                    rgba = mu.Render(i, scale, PixelFormats.RGBA, includeAnnotations: false);
+                }
+                catch (MuPDFException)
+                {
+                    continue;
+                }
                 if (rgba.Length != px.Width * px.Height * 4) continue;
                 var dx = dpiX ?? (pxW > 0 ? DefaultDpi : 72);
                 var dy = dpiY ?? dpiX ?? (pxW > 0 ? DefaultDpi : 72);
@@ -356,7 +374,10 @@ public static class ImageImport
                     if (size == 12) return (BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(18)), BinaryPrimitives.ReadUInt16LittleEndian(b.AsSpan(20)), null, null);
                     if (size < 40 || b.Length < 46) return (0, 0, null, null);
                     var w = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(18));
-                    var h = Math.Abs(BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(22)));
+                    // A top-down BMP's height is negative; Math.Abs of int.MinValue (0x80000000) threw OverflowException,
+                    // which Images to PDF and the paragraph editor's picture check don't catch.
+                    var tall = Math.Abs((long)BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(22)));
+                    var h = tall > int.MaxValue ? 0 : (int)tall;
                     var dx = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(38)) * 0.0254;
                     var dy = BinaryPrimitives.ReadInt32LittleEndian(b.AsSpan(42)) * 0.0254;
                     return (w, h, Sane(dx), Sane(dy));
