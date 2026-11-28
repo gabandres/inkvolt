@@ -85,6 +85,37 @@ struct HandDuplexBatchTests {
         #expect(queue.sent.map(\.pages) == [[1, 3], [2], [1, 3], [2]]) // the same sides either way
     }
 
+    // Mac only: Copy by hand (Windows' PrintCopyByHandAsync) sends its sides file once with the order CopyLayout.order gives:
+    // uncollated copies repeat each sheet, an odd last side's back is blank and its sheet set aside, as Windows' plan says.
+    @Test func aCopyLaidOutByTheAppGoesByHandInItsOwnOrder() async throws {
+        let folder = BatchFolder()
+        let queue = Queue()
+        let plain = try await Self.line(folder, "Copy.pdf", 3)
+        let (order, times) = CopyLayout.order(3, 2, collate: false, twoSided: true) // 0 1 0 1 2 -1 2 -1
+        // 2 pages per sheet: the sides show pages 1, 3 and 5.
+        let line = BatchPrintLine(plain.path, BatchPrintSettings(copies: times, twoSided: true), plain.measure, Self.oneSided, byHand: true,
+                                  pageNumbers: [1, 3, 5], order: order)
+        #expect(line.sheets == 4)
+        let setAside = Mutex<Int?>(nil)
+        let summary = await BatchPrintRunner.run([line], queue, FakeDocuments(), options: Self.options { _, plan, _ in
+            setAside.withLock { $0 = plan.reload(.down).lastPage }
+            return .down
+        })
+        #expect(queue.sent[0].pages == [1, 1, 3, 3]) // fronts: sheet by sheet, each twice
+        #expect(queue.sent[1].pages == [0, 2, 2]) // backs last sheet first; the set-aside sheet's back isn't sent
+        #expect(setAside.withLock { $0 } == 5) // named by the page on its side
+        #expect(summary.items[0].state == .sent)
+        let outside = BatchPrintLine(plain.path, BatchPrintSettings(copies: 1, twoSided: true), plain.measure, Self.oneSided, byHand: true, order: [0, 7, -3])
+        #expect(outside.order == [0, -1, -1]) // an index outside the pages is a blank side
+
+        let collated = CopyLayout.order(3, 2, collate: true, twoSided: true) // made here: 0 1 2 -1 0 1 2 -1
+        let together = BatchPrintLine(plain.path, BatchPrintSettings(copies: collated.ticketCopies, twoSided: true), plain.measure, Self.oneSided,
+                                      byHand: true, order: collated.sides)
+        #expect(together.sheets == (try CopyLayout.sheets(3, 1, 2, twoSided: true)))
+        let noOrder = BatchPrintLine(plain.path, BatchPrintSettings(copies: 2, twoSided: true), plain.measure, Self.oneSided, byHand: false, order: [0, 0])
+        #expect(noOrder.order == nil) // not by hand: the queue prints both sides, the file as it is
+    }
+
     @Test func copiesOfAnOddFileSendABlankSideBetweenThemFaceUpInOrder() async throws {
         let folder = BatchFolder()
         let queue = Queue()
