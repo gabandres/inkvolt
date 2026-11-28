@@ -2991,6 +2991,10 @@ under their names (3.2's links in the exports were already ported, 803da39c). Ma
   for where their words went. Mac differences: `PatternRedaction` is a value, so its `redact` is `mutating` (it keeps what
   it blacked, as Windows' object does) and the app's Apply hands its result to `applied` before `verify`; the page's
   paper color, of equal counts, is the one sampled first (as .NET's dictionary orders it). Rounding is .NET's (to even).
+  A line's spaces may be the colour they share on each row (`RedactionLines.sharedColour`, nine in ten of them: a
+  highlight or a shaded cell), not only the paper beside the line, so a line highlighted from its first letter to its
+  last is laid out again (the 1.14.0 self-test's Check Redaction fix, on a page an earlier step had highlighted, kept it
+  in place and its box was reported); in Windows too, `RedactionLinesTests.aHighlightedLineIsLaidOutAgain`.
   For a person to look at: a redacted line on screen and printed (the words' shading where they moved, under a pixel).
 - **3.1, Translate's looks and right-to-left lines** (ported 2026-11-27, Windows' eeb4f0f4, bfc86ffc, 692487d7, b5f6fe02,
   cb5c8bf8, 0d1de0c2, c284dd12, db89d996, 04c9901f, 1dcf3497, 48424333 and e3238825, each file at its state after the

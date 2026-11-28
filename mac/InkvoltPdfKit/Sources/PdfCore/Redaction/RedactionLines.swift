@@ -473,7 +473,9 @@ enum RedactionLines {
             (canvas.rgb[o], canvas.rgb[o + 1], canvas.rgb[o + 2]) = paper[c - y0]
         }
 
-        // Its spaces must be paper: a rule or a picture there would be cut up and moved.
+        // Its spaces must be paper, or the colour the line's own spaces share (a highlight, a shaded cell: the line's
+        // background, which the paper beside a line highlighted from its first letter to its last isn't): a rule or a
+        // picture there would be cut up and moved.
         let mid = (y0 + y1) / 2
         var inPiece = [Bool](repeating: false, count: w)
         for k in pieces.indices {
@@ -483,6 +485,10 @@ enum RedactionLines {
                 a += 1
             }
         }
+        let spaceStart = min(max(left, oldStart[0]), right)
+        let spaces = (spaceStart..<max(spaceStart, min(right, oldEnd[pieces.count - 1]))).filter { !inPiece[$0 - left] && !blacked($0, mid) }
+        let shared = (y0..<y1).map { c in sharedColour(canvas.before, spaces.map { at($0, c) }) }
+        func near(_ o: Int, _ colour: (UInt8, UInt8, UInt8)) -> Bool { distance(canvas.before, o, colour) <= 120 }
         var busy = false
         var a = left
         while a < right && !busy {
@@ -491,8 +497,8 @@ enum RedactionLines {
             var ink = 0
             for c in y0..<y1 {
                 let o = at(a, c)
-                let (r, g, b) = paper[c - y0]
-                if abs(Int(canvas.before[o]) - Int(r)) + abs(Int(canvas.before[o + 1]) - Int(g)) + abs(Int(canvas.before[o + 2]) - Int(b)) > 120 { ink += 1 }
+                if near(o, paper[c - y0]) || shared[c - y0].map({ near(o, $0) }) == true { continue }
+                ink += 1
             }
             busy = Double(ink) > 0.5 * Double(y1 - y0)
         }
@@ -548,6 +554,29 @@ enum RedactionLines {
         }
         result.rows = rect(left, right)
         return result
+    }
+
+    /// How far the pixel at `o` is from `colour`: the sum of its channels' differences.
+    static func distance(_ rgb: [UInt8], _ o: Int, _ colour: (UInt8, UInt8, UInt8)) -> Int {
+        abs(Int(rgb[o]) - Int(colour.0)) + abs(Int(rgb[o + 1]) - Int(colour.1)) + abs(Int(rgb[o + 2]) - Int(colour.2))
+    }
+
+    /// The colour nine in ten of the pixels at `offsets` share (each within 120 of it), or nil: a line's background on
+    /// one row, from its spaces. A rule or a picture's edge in a space is a few of them; a picture filling them isn't one
+    /// colour.
+    static func sharedColour(_ rgb: [UInt8], _ offsets: [Int]) -> (UInt8, UInt8, UInt8)? {
+        if offsets.count < 2 { return nil }
+        var counts: [Int: Int] = [:]
+        var first: [Int: Int] = [:]
+        for o in offsets {
+            let k = (Int(rgb[o]) >> 4) << 8 | (Int(rgb[o + 1]) >> 4) << 4 | Int(rgb[o + 2]) >> 4
+            counts[k, default: 0] += 1
+            if first[k] == nil { first[k] = o }
+        }
+        guard let top = counts.max(by: { $0.value < $1.value || $0.value == $1.value && $0.key > $1.key }), let o = first[top.key] else { return nil }
+        let colour = (rgb[o], rgb[o + 1], rgb[o + 2])
+        let alike = offsets.count { distance(rgb, $0, colour) <= 120 }
+        return Double(alike) >= 0.9 * Double(offsets.count) ? colour : nil
     }
 
     /// A line left where it is: each new box rounded from its start, no further than the next piece, its rest paper.
