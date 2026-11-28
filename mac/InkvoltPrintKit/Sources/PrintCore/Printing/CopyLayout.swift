@@ -80,6 +80,8 @@ public enum CopyLayout {
     /// A pages-per-sheet count other than 1, 2 or 4 (Windows' `ArgumentOutOfRangeException`).
     public struct PagesPerSheetError: Error, Equatable {
         public let pagesPerSheet: Int
+
+        public init(pagesPerSheet: Int) { self.pagesPerSheet = pagesPerSheet }
     }
 
     /// The page indices printed on each side of paper, in reading order: pages 0–1 on the first side of a 2-up copy, and so on.
