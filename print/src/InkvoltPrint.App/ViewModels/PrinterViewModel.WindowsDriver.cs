@@ -94,7 +94,7 @@ public sealed partial class PrinterViewModel
     private async Task SetUpWindowsDriverAsync()
     {
         if (Host is null) return;
-        var url = IppUrl.AbsoluteUri;
+        var url = Core.Discovery.PrinterAddress.UrlText(IppUrl); // an IPv6 zone written "%25" (AbsoluteUri drops it)
         if (_pc.IsDemo)
         {
             WindowsDriverMessage = string.Format(Strings.Ready_DemoSetUp, DriverReadiness.NewQueueName(Name, Strings.Ready_QueueMarker));

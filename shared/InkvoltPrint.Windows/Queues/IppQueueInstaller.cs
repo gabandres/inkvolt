@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using InkvoltPrint.Core;
+using InkvoltPrint.Core.Discovery;
 using InkvoltPrint.Windows.Printing;
 
 namespace InkvoltPrint.Windows.Queues;
@@ -16,7 +17,8 @@ public static partial class IppQueueInstaller
     public static async Task<InstallResult> InstallAsync(string queueName, Uri ippUrl, CancellationToken ct = default)
     {
         if (ippUrl.Scheme is not ("http" or "https" or "ipp" or "ipps")) throw new ArgumentException("Not an IPP URL", nameof(ippUrl));
-        var url = HttpForm(ippUrl);
+        // As text with an IPv6 zone written "%25": AbsoluteUri drops it.
+        var url = PrinterAddress.UrlText(PrinterAddress.HttpForm(ippUrl));
         var name = SafeQueueName(queueName);
 
         // Decide "already there" by looking, not by parsing (localised) PowerShell error text, and before elevating.
@@ -24,7 +26,7 @@ public static partial class IppQueueInstaller
             return new(InstallOutcome.AlreadyInstalled, CoreStrings.Win_AlreadyInstalled);
 
         const string script = "try { Add-Printer -Name $v0 -IppURL $v1; exit 0 } catch { exit 1 }";
-        var code = await Elevated.RunAsync(script, [name, url.AbsoluteUri], TimeSpan.FromMinutes(2), ct);
+        var code = await Elevated.RunAsync(script, [name, url], TimeSpan.FromMinutes(2), ct);
 
         switch (code)
         {
@@ -41,14 +43,6 @@ public static partial class IppQueueInstaller
             ? CoreStrings.Win_AddFailedAddress
             : string.Format(CoreStrings.Win_AddFailedCode, code));
     }
-
-    /// <summary>The http(s) form Windows' <c>Add-Printer -IppURL</c> takes: ipp → http, ipps → https, on 631 unless another port is given.</summary>
-    public static Uri HttpForm(Uri ippUrl) => ippUrl.Scheme switch
-    {
-        "ipp" => new UriBuilder(ippUrl) { Scheme = "http", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri,
-        "ipps" => new UriBuilder(ippUrl) { Scheme = "https", Port = ippUrl.IsDefaultPort || ippUrl.Port < 0 ? 631 : ippUrl.Port }.Uri, // RFC 7472
-        _ => ippUrl,
-    };
 
     /// <summary>Queue names come partly from what the printer reports: keep letters, digits and simple punctuation.</summary>
     public static string SafeQueueName(string name)

@@ -50,7 +50,7 @@ public sealed class WindowsOfflineRepairs : IOfflineRepairs
         {
             RepairKind.PointPortAt when repair.Target is { } target => RepairScripts.For(repair, portName: PortNameFor(target, repair.PortNumber)),
             RepairKind.RecreateIppQueue when repair.TargetUrl is { } url =>
-                RepairScripts.For(repair, temporaryName: TemporaryName(repair.Queue ?? "Printer"), httpUrl: IppQueueInstaller.HttpForm(url)),
+                RepairScripts.For(repair, temporaryName: TemporaryName(repair.Queue ?? "Printer"), httpUrl: Core.Discovery.PrinterAddress.HttpForm(url)),
             _ => RepairScripts.For(repair),
         }, ct).ConfigureAwait(false);
         if (script is null) return new Attempt(AttemptResult.Failed, CoreStrings.Win_CantDoItself);
