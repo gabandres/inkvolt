@@ -272,6 +272,8 @@ public enum DocumentCommands {
             c("Plain Text…", "exportText:", needs: longTask),
             c("PowerPoint Presentation…", "exportPowerPoint:", needs: longTask),
             c("HTML Web Page…", "exportHtml:", needs: longTask),
+            // Windows: File › Export › Pages as Images….
+            c("Pages as Images…", "exportImages:", needs: [.pages] + longTask),
         ])),
         .submenu(CommandMenu("Form Data", [
             c("Reset Form…", "resetForm:", needs: [.formFields]),

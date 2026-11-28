@@ -50,9 +50,9 @@ struct CommandBarTests {
     }
 
     @Test func ConvertNamesTheFormatsAndRunsTheEditableOnesAtOnce() {
-        // "Word (.docx)", not "Export to Word…"; the editable formats at once (no "…"), PDF/A asks. Windows' Images… has
-        // no Mac export yet (mac/docs/PLAN.md).
+        // "Word (.docx)", not "Export to Word…"; the editable formats at once (no "…"), pictures and PDF/A ask.
         let convert = CommandBar.group("Convert")!.items
+        #expect(convert.map(\.id) == ["ExportWord", "ExportExcel", "ExportPowerPoint", "ExportText", "ExportHtml", "ExportImages", "SaveAsPdfA"])
         #expect(convert.filter(\.atOnce).map(\.id) == ["ExportWord", "ExportExcel", "ExportPowerPoint", "ExportText", "ExportHtml"])
         #expect(convert.allSatisfy { $0.atOnce != $0.title.hasSuffix("…") })
     }

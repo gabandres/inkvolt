@@ -17,7 +17,7 @@ import PdfCore
 /// text document (`--only-pdfa` runs it alone), then `PagesTest` (links,
 /// selection across pages, organize pages, bookmarks, passwords (`--only-passwords` runs them alone), printing to PDF files, the close question), then
 /// `RedactTest` (redaction marked and applied, the redaction check and its fix, What's in This PDF, Sanitize Document; `--only-redaction`
-/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `TranslateTest` (`--only-translate` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `WindowsTest` (`--only-windows` runs it alone), `ReflowTest` (`--only-reflow` runs it alone), `PaperTest` (`--only-paper` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
+/// runs it alone), and on the synthetic text document `AiTest` (`--only-ai` runs it alone), `PrepareFormTest` (`--only-prepare-form` runs it alone), `FormFillTest` (`--only-form-fill` runs it alone), `ParagraphEditTest` (`--only-paragraph-edit` runs it alone), `TranslateTest` (`--only-translate` runs it alone), `MeasureTest` (`--only-measure` runs it alone), `PagesTest`'s printing (`--only-print` runs it alone), `AttachmentsLayersTest` (`--only-attachments-layers` runs it alone), `AccessibilityTest` (`--only-accessibility` runs it alone), `ReadAloudTest` (`--only-read-aloud` runs it alone), `SplitTest` (`--only-split` runs it alone), `WindowsTest` (`--only-windows` runs it alone), `ReflowTest` (`--only-reflow` runs it alone), `PaperTest` (`--only-paper` runs it alone), `ParityTest` (`--only-parity` runs it alone), `ViewTest` (`--only-view` runs it alone), `OcrTest` before `FeatureTest` (`--only-ocr` runs it alone), `ExportTest` after `FeatureTest` (`--only-export` runs it alone), `SignTest`,
 /// `CompareTest` (`--only-compare` runs it alone), `FolderSearchTest` (`--only-folder-search` runs it alone) and
 /// `FolderAskTest` (`--only-folder-ask` runs it alone), `MeaningTest` (`--only-meaning` runs it alone), `AskEditTest` (`--only-ask-edit` runs it alone), `SummaryAudioTest` (`--only-summary-audio` runs it alone); with
 /// `--quit`, `AppTest` drives the app's own windows (start page, Settings, command palette, What's New, About, Scan,
@@ -65,6 +65,8 @@ enum Report {
         Scenario(flag: "--only-reflow", documents: .synthetic) { c, n in var t = ReflowTest(controller: c, name: n); await t.run() },
         // Wave 4's paper commands (roadmap Batch A): page labels, interleave, blank pages, headings, resize, replace.
         Scenario(flag: "--only-paper", documents: .synthetic) { c, n in var t = PaperTest(controller: c, name: n); await t.run() },
+        // Windows' features the Mac lacked (Export Pages as Images and the rest of the parity audit).
+        Scenario(flag: "--only-parity", documents: .synthetic) { c, n in var t = ParityTest(controller: c, name: n); await t.run() },
         Scenario(flag: "--only-read-aloud", documents: .notForm) { c, n in var t = ReadAloudTest(controller: c, name: n); await t.run() },
         // The command bar: its groups, names, menus and colours; Convert › Word in one click (shots with --snapshots).
         Scenario(flag: "--only-command-bar", documents: .synthetic) { c, n in var t = CommandBarTest(controller: c, name: n); await t.run() },
@@ -273,6 +275,8 @@ enum Report {
                     await paper.run()
                     var view = ViewTest(controller: controller, name: name)
                     await view.run()
+                    var parity = ParityTest(controller: controller, name: name)
+                    await parity.run()
                     var form = PrepareFormTest(controller: controller, name: name)
                     await form.run()
                     var filling = FormFillTest()

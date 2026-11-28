@@ -1244,6 +1244,7 @@ at under "What a person must look at" and in each section.
 | 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
+| X1 | Export Pages as Images (the parity audit of 2026-11-27, below): File › Export To › Pages as Images… and Convert › Images…, the pages chosen as PNG or JPEG at 72 to 600 dpi in a folder, named "name - page N.png" without replacing a file, a page too large lowered under 64 megapixels after asking, a page that can't be read left out and said, Cancel keeping the images before it (`PageImageExport`; ExportImages.swift; `--edit --only-parity` drives it) | PageImageExportTests (Mac only: Windows' `FileActions.ExportImages` is app code without tests) |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1356,7 +1357,7 @@ From the steps, besides the sections below:
   the look) run in their own world (`.defaultClient`), sharing only the page's elements. The text size follows the
   view's zoom alone: the Mac has no Text size for apps (Windows' `TextScale`), so `ReflowLook.textScale` is 1. The
   commands that run are `Reflow.runs`' by the Mac's menu actions (`Reflow.runsAction`, `macActions`: those the Mac has,
-  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Export Images, Back and
+  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Back and
   Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
   are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
   it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
@@ -2379,7 +2380,7 @@ Shots for the owner: `docs/design/mac/`.
   fitting is the toolbar's own: groups go into its » overflow whole, labels never drop; `CommandBar.visibilityPriority`
   keeps Edit, Convert, Comment and Fill & Sign longest (Fill & Sign under them in Spanish, as Windows), then the pointer
   tools, Organize, Protect, Scan & OCR first; Save, Print, Undo and Redo stay in the menus (⌘S, ⌘P, ⌘Z), as Mac
-  toolbars do. Convert has no Images… item: the Mac has no export to pictures yet. Under Increase Contrast the colours
+  toolbars do. Convert's Images… asks, as Windows' (File › Export To › Pages as Images…, "Windows parity audit"). Under Increase Contrast the colours
   give way to the label colour (Windows: high contrast); Differentiate Without Color changes nothing, since every
   coloured icon has its label. The toolbar's identifier changed (`InkvoltPdfDocumentBar`), so a toolbar customized
   before starts from the new defaults; the old Highlight, Fill & Sign, Edit, Redact and Organize buttons are replaced by
@@ -2439,6 +2440,16 @@ Shots for the owner: `docs/design/mac/`.
   - **For a person to check:** the entry under Services in Finder's Control-click menu (en and es) once this build is
     in /Applications (the build Mac's slot build isn't registered with the Services menu, so the self-test calls the
     provider directly); several PDFs selected at once; VoiceOver reading the conversions window's rows.
+
+### Windows parity audit (2026-11-27)
+
+The owner asked for 100% parity; an audit of the Windows app found features PLAN never listed. Each is ported with
+Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the app.
+
+- Export Pages as Images (X1): the sheet is Windows' (Pages, Format, Resolution, Save to folder with Choose…; Windows'
+  Browse…). The notice names the folder, not its whole path. The images come from what is shown (the Layers pane's
+  choice), as Windows exports from its view engine. Not checked by a person: the sheet by eye and with VoiceOver, a
+  very large page's question.
 
 ### Paragraph editing (roadmap 2.1)
 

@@ -175,6 +175,7 @@ public enum CommandBar {
             Item("ExportText", loc("Plain text (.txt)"), loc("Just the words, in a plain text file"), "doc.plaintext", action: "exportText:",
                  atOnce: true, startsSection: true),
             Item("ExportHtml", loc("Web page (.html)"), loc("Headings, lists and tables as a web page"), "globe", action: "exportHtml:", atOnce: true),
+            Item("ExportImages", loc("Images (PNG, JPEG)…"), loc("Each page as a picture"), "photo", action: "exportImages:"),
             Item("SaveAsPdfA", loc("PDF/A for archiving…"), loc("A copy that opens the same for years"), filledDocument, action: "saveAsPdfA:",
                  tint: .pdfA, startsSection: true),
         ])

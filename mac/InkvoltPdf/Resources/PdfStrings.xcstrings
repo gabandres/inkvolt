@@ -27665,6 +27665,50 @@
           }
         }
       }
+    },
+    "{0} - page {1}.{2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - página {1}.{2}"
+          }
+        }
+      }
+    },
+    "Images (PNG, JPEG)…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imágenes (PNG, JPEG)…"
+          }
+        }
+      }
+    },
+    "Each page as a picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada página como una imagen"
+          }
+        }
+      }
+    },
+    "Pages as Images…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas como imágenes…"
+          }
+        }
+      }
     }
   },
   "version": "1.0"
