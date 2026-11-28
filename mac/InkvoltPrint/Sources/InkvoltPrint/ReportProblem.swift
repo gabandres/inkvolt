@@ -59,6 +59,7 @@ final class ReportProblemWindowController: NSWindowController, NSWindowDelegate 
             ("Printers listed now", "\(model.printers.count)"),
             ("macOS queues", model.destinations.map { "\($0.filter(CupsQueues.isRealQueue).count)" } ?? "not read"),
             ("Local Network", "\(model.localNetwork)"),
+            ("Needs its driver", NeedsDriverText.reportLine(model.needingDriver)),
             ("Scan presets", "\(model.presets.count)"),
             ("Inkvolt PDF", pdf),
             ("Menu bar", s.menuBar ? "on, alerts \(onOff(s.alerts)), offline alerts \(onOff(s.offlineAlerts))" : "off"),

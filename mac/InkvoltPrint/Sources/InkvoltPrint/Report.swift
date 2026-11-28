@@ -133,6 +133,7 @@ enum Report {
             if !model.isDemo && args.contains("--photo-job") { cancelled += await photoJobCheck(model) }
             if !model.isDemo && args.contains("--hardware") { cancelled += await hardwareCheck(model) }
             if args.contains("--icc") { cancelled += await iccCheck() }
+            if args.contains("--needs-driver") || args.contains("--driver-lookup") { cancelled += await needsDriverCheck(model, args) }
             if args.contains("--pdf-layout") { cancelled += pdfLayoutCheck() }
             if args.contains("--jobs") { cancelled += await jobsCheck(model) }
             if args.contains("--snmp") { cancelled += await snmpCheck(model) }

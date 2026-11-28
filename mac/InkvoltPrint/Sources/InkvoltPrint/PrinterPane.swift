@@ -119,6 +119,7 @@ struct PrinterPane: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 StatusCard(printer: printer) { tab = .settings }
+                if let scanner = app.scannerNeedingDriver(for: printer) { NeedsDriverLine(device: scanner) }
                 if printer.isNetwork { SetUpCard(printer: printer).id(printer.id) }
                 if !printer.view.supplies.isEmpty {
                     SuppliesSection(printer: printer)

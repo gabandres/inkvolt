@@ -16,6 +16,7 @@ for line, for the es-MX listing (`listing.json`'s `localizations`): an English l
 - The command palette (⌘K): type a few letters to run any command, show a printer or scan with a preset.
 - Help › Inkvolt Print Help (⌘?): the keyboard shortcuts, and what to do when a printer isn't found.
 - Each printer's alerts come in a notification of their own, with Open Printer and Pause Alerts.
+- Printers and scanners that need their driver: a USB printer or scanner macOS can't use yet is listed under your printers as Plugged in, needs its driver, with what to do. Get the driver finds the maker's own driver for it and this Mac on Epson's, Canon's, HP's, Brother's or PFU's website and opens its download in your browser; Inkvolt Print says when the printer or scanner is ready.
 
 ## 1.4.0
 - Both sides on a feeder that scans one side: turn on Both sides: turn the stack over (or the scan preset's option), scan the fronts, turn the stack over when asked, and the backs go in page order. Backs in the Other Order is one click for a scanner whose tray reverses the stack, and Undo puts them back.

@@ -16,6 +16,7 @@ línea en inglés: cada línea que se agregue a WHATS-NEW.md necesita aquí su e
 - La paleta de comandos (⌘K): escribe unas letras para ejecutar cualquier comando, mostrar una impresora o escanear con un ajuste de escaneo.
 - Ayuda › Ayuda de Inkvolt Print (⌘?): los métodos abreviados de teclado y qué hacer cuando no se encuentra una impresora.
 - Las alertas de cada impresora llegan en una notificación propia, con Abrir impresora y Pausar alertas.
+- Impresoras y escáneres a los que les falta su controlador: una impresora o un escáner USB que macOS todavía no puede usar aparece bajo tus impresoras como Conectada, le falta su controlador, con lo que hay que hacer. Obtener el controlador busca el controlador del propio fabricante para él y este Mac en el sitio web de Epson, Canon, HP, Brother o PFU y abre su descarga en tu navegador; Inkvolt Print te avisa cuando la impresora o el escáner está listo.
 
 ## 1.4.0
 - Ambas caras en un alimentador que escanea una cara: activa Ambas caras: dar la vuelta a la pila (o la opción del ajuste de escaneo), escanea los anversos, da la vuelta a la pila cuando se te pida y los reversos quedan en orden de página. Reversos en el otro orden está a un clic para un escáner cuya bandeja invierte la pila, y Deshacer los deja como estaban.

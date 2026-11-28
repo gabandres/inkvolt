@@ -12770,6 +12770,578 @@
           }
         }
       }
+    },
+    "Printers and scanners that need their driver": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impresoras y escáneres a los que les falta su controlador"
+          }
+        }
+      }
+    },
+    "Plugged in, needs its driver [printer]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectada, le falta su controlador"
+          }
+        }
+      }
+    },
+    "Plugged in, needs its driver [scanner]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectado, le falta su controlador"
+          }
+        }
+      }
+    },
+    "macOS found this printer but has no driver for it, so nothing can print to it yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS encontró esta impresora, pero no tiene un controlador para ella, así que todavía no se puede imprimir en ella."
+          }
+        }
+      }
+    },
+    "macOS found this scanner but has no driver for it, so nothing can scan with it yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS encontró este escáner, pero no tiene un controlador para él, así que todavía no se puede escanear con él."
+          }
+        }
+      }
+    },
+    "Some printers, often older USB lasers, only work with their maker's driver: macOS has no driver of its own for them, and Inkvolt Print can't print to them without one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algunas impresoras, a menudo láseres USB antiguas, solo funcionan con el controlador de su fabricante: macOS no tiene uno propio para ellas, e Inkvolt Print no puede imprimir en ellas sin él."
+          }
+        }
+      }
+    },
+    "Most scanners only work with their maker's driver: macOS has none of its own for them. Once it's installed, the scanner shows in the printer list and the Scan tab.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La mayoría de los escáneres solo funcionan con el controlador de su fabricante: macOS no tiene uno propio para ellos. Cuando esté instalado, el escáner aparecerá en la lista de impresoras y en la pestaña Escanear."
+          }
+        }
+      }
+    },
+    "What to do": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Qué hacer"
+          }
+        }
+      }
+    },
+    "Get the driver for the {0} from {1}'s website: choose your version of macOS. [printer]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descarga el controlador de la {0} del sitio web de {1}: elige tu versión de macOS."
+          }
+        }
+      }
+    },
+    "Get the driver for the {0} from {1}'s website: choose your version of macOS. [scanner]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descarga el controlador del {0} del sitio web de {1}: elige tu versión de macOS."
+          }
+        }
+      }
+    },
+    "Get the driver for the {0} from its maker's website: choose your version of macOS. [printer]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descarga el controlador de la {0} del sitio web de su fabricante: elige tu versión de macOS."
+          }
+        }
+      }
+    },
+    "Get the driver for the {0} from its maker's website: choose your version of macOS. [scanner]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descarga el controlador del {0} del sitio web de su fabricante: elige tu versión de macOS."
+          }
+        }
+      }
+    },
+    "Plug the printer in and switch it on.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conecta la impresora y enciéndela."
+          }
+        }
+      }
+    },
+    "Plug the scanner in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conecta el escáner."
+          }
+        }
+      }
+    },
+    "Run the driver's installer. Once macOS has set the printer up, Inkvolt Print lists it by itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta el instalador del controlador. Cuando macOS haya configurado la impresora, Inkvolt Print la mostrará por sí solo."
+          }
+        }
+      }
+    },
+    "Run the driver's installer, then unplug the scanner and plug it back in. Inkvolt Print lists it by itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta el instalador del controlador y luego desconecta el escáner y vuelve a conectarlo. Inkvolt Print lo mostrará por sí solo."
+          }
+        }
+      }
+    },
+    "{0} is plugged in, but macOS has no driver for it yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} está conectado, pero macOS todavía no tiene un controlador para él."
+          }
+        }
+      }
+    },
+    "Open {0}'s driver page": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la página de controladores de {0}"
+          }
+        }
+      }
+    },
+    "Search the web for its driver": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar su controlador en la web"
+          }
+        }
+      }
+    },
+    "Other ways": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otras formas"
+          }
+        }
+      }
+    },
+    "Demo: a made-up printer. Nothing is opened, installed or set up.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo: una impresora inventada. No se abre, instala ni configura nada."
+          }
+        }
+      }
+    },
+    "Demo: a made-up scanner. Nothing is opened, downloaded or installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo: un escáner inventado. No se abre, descarga ni instala nada."
+          }
+        }
+      }
+    },
+    "Run {0}'s installer. Inkvolt Print watches for the printer and says when it's ready. If it doesn't, unplug the printer and plug it back in, or press {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta el instalador de {0}. Inkvolt Print está pendiente de la impresora y te avisa cuando esté lista. Si no, desconecta la impresora y vuelve a conectarla, o pulsa {1}."
+          }
+        }
+      }
+    },
+    "Run {0}'s installer. Inkvolt Print watches for the scanner and says when it's ready. If it doesn't, unplug the scanner and plug it back in, or press {1}.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ejecuta el instalador de {0}. Inkvolt Print está pendiente del escáner y te avisa cuando esté listo. Si no, desconecta el escáner y vuelve a conectarlo, o pulsa {1}."
+          }
+        }
+      }
+    },
+    "Get the driver": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obtener el controlador"
+          }
+        }
+      }
+    },
+    "Inkvolt Print looks for {0}'s own driver for this printer and this Mac on {0}'s website and gives you {0}'s download link. It doesn't download or install drivers itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print busca el controlador de {0} para esta impresora y este Mac en el sitio web de {0} y te da el enlace de descarga de {0}. No descarga ni instala controladores por su cuenta."
+          }
+        }
+      }
+    },
+    "Inkvolt Print looks for {0}'s own driver for this scanner and this Mac on {0}'s website and gives you {0}'s download link. It doesn't download or install drivers itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inkvolt Print busca el controlador de {0} para este escáner y este Mac en el sitio web de {0} y te da el enlace de descarga de {0}. No descarga ni instala controladores por su cuenta."
+          }
+        }
+      }
+    },
+    "Looking on {0}'s website…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando en el sitio web de {0}…"
+          }
+        }
+      }
+    },
+    "Found on {0}'s website": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrado en el sitio web de {0}"
+          }
+        }
+      }
+    },
+    "Driver: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Controlador: {0}"
+          }
+        }
+      }
+    },
+    "Version: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Versión: {0}"
+          }
+        }
+      }
+    },
+    "Size: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamaño: {0}"
+          }
+        }
+      }
+    },
+    "From: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desde: {0}"
+          }
+        }
+      }
+    },
+    "not given": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no indicada"
+          }
+        }
+      }
+    },
+    "{0}'s page with its licence opens: accept it there to download the driver.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se abre la página de {0} con su licencia: acéptala allí para descargar el controlador."
+          }
+        }
+      }
+    },
+    "Read {0}'s licence": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Leer la licencia de {0}"
+          }
+        }
+      }
+    },
+    "Download it from {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Descargarlo de {0}"
+          }
+        }
+      }
+    },
+    "Your browser downloads {0}'s installer. Run it and follow its steps: Inkvolt Print watches for the printer and says when it's ready.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu navegador descarga el instalador de {0}. Ejecútalo y sigue sus pasos: Inkvolt Print está pendiente de la impresora y te avisa cuando esté lista."
+          }
+        }
+      }
+    },
+    "Your browser downloads {0}'s installer. Run it and follow its steps: Inkvolt Print watches for the scanner and says when it's ready.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu navegador descarga el instalador de {0}. Ejecútalo y sigue sus pasos: Inkvolt Print está pendiente del escáner y te avisa cuando esté listo."
+          }
+        }
+      }
+    },
+    "Look again": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a buscar"
+          }
+        }
+      }
+    },
+    "Waiting for the driver: run the installer you downloaded.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esperando el controlador: ejecuta el instalador que descargaste."
+          }
+        }
+      }
+    },
+    "Looking again…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscando de nuevo…"
+          }
+        }
+      }
+    },
+    "Found it: the driver is installed. The printer shows in the list in a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrado: el controlador está instalado. La impresora aparecerá en la lista en un momento."
+          }
+        }
+      }
+    },
+    "Found it: {0} is ready to scan. It's selected in the Scan tab.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encontrado: {0} está listo para escanear. Está seleccionado en la pestaña Escanear."
+          }
+        }
+      }
+    },
+    "{0}'s website didn't answer. Check the internet connection and try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El sitio web de {0} no respondió. Comprueba la conexión a internet e inténtalo de nuevo."
+          }
+        }
+      }
+    },
+    "The download led to a site that isn't {0}'s, so nothing was downloaded.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La descarga llevaba a un sitio que no es de {0}, así que no se descargó nada."
+          }
+        }
+      }
+    },
+    "Demo: a made-up driver. Nothing is downloaded or installed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demo: un controlador inventado. No se descarga ni se instala nada."
+          }
+        }
+      }
+    },
+    "macOS doesn't have it yet. Once the installer has finished, unplug the {0}, plug it back in and press Look again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "macOS todavía no lo tiene. Cuando el instalador termine, desconecta el {0}, vuelve a conectarlo y pulsa Volver a buscar."
+          }
+        }
+      }
+    },
+    "Open Printers & Scanners": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir Impresoras y escáneres"
+          }
+        }
+      }
+    },
+    "System Settings › Printers & Scanners, where macOS can add it with a driver it has, or offer one from Apple's Software Update.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración del Sistema › Impresoras y escáneres, donde macOS puede agregarla con un controlador que tenga u ofrecer uno de la Actualización de software de Apple."
+          }
+        }
+      }
+    },
+    "{0}'s website has no driver for the {1} for this version of macOS. {0}'s page below may say more.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El sitio web de {0} no tiene un controlador del {1} para esta versión de macOS. La página de {0} más abajo puede decir más."
+          }
+        }
+      }
+    },
+    "{0} has no driver for the {1} that runs on this Mac's Apple silicon, only for Macs with Intel processors.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} no tiene un controlador del {1} que funcione con el chip de Apple de este Mac, solo para Mac con procesadores Intel."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
