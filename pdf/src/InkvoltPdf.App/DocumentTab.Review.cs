@@ -789,7 +789,8 @@ public partial class DocumentTab
             var dlg = new FormDialog(owner, Strings.Review_ReplyTitle, Strings.Review_ReplyButton);
             var said = a.Contents.Trim().ReplaceLineEndings(" ");
             if (said.Length > 80) said = said[..80].TrimEnd() + "…";
-            var who = string.Join(" · ", new[] { CommentItem.TitleOf(a), a.Author, said }.Where(s => !string.IsNullOrWhiteSpace(s)));
+            var by = a.Author is { Length: > 60 } longName ? longName[..60].TrimEnd() + "…" : a.Author; // from the PDF: any length
+            var who = string.Join(" · ", new[] { CommentItem.TitleOf(a), by, said }.Where(s => !string.IsNullOrWhiteSpace(s)));
             dlg.AddNote(Loc.Format(Strings.Review_ReplyTo, who));
             var box = NoteBox(dlg, "");
             dlg.AddNote(Loc.Format(Strings.Review_ReplyNote, PageLabel(a.PageIndex), Author));
