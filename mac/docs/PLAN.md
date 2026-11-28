@@ -1571,6 +1571,9 @@ Decided 2026-11-03 in the Mac UX review (`docs/UX-REVIEW.md`, branch `mac-ux`; M
   PdfCore): sidebar, zoom, Highlight, Markup, Fill & Sign, Share, Search, customizable. Windows keeps its one-row command
   bar with every tool. The Mac's tool strip is the markup toolbar, hidden until asked for (⇧⌘A, Preview's key) or until a
   markup tool is picked; its groups drop from the right in a narrow window.
+- Share… shares the file as saved, and beeps for a document never saved. Windows' File › Share… (later) asks first when
+  there are changes not saved (Save and Share, or Share a Copy) and shares a never-saved document as a copy
+  (`DocumentShare`, DocumentShareTests).
 - The Tools menu groups the tools in submenus (Annotate, Fill & Sign, Redact, Forms, Measure, Accessibility, AI
   Assistant), File the new PDFs (New PDF) and the PDF/A saves (Save as PDF/A); Windows' ribbon groups differ.
 - The start page shows four tool cards (Fill & sign, Edit text & images, Combine files, Create a PDF), the other six behind

@@ -253,6 +253,29 @@
   <data name="Cmd_ShowInFolder" xml:space="preserve">
     <value>Show in _Folder</value>
   </data>
+  <data name="Cmd_Share" xml:space="preserve">
+    <value>S_hare…</value>
+  </data>
+  <data name="Share_UnsavedTitle" xml:space="preserve">
+    <value>Share {0} with its changes?</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_UnsavedBody" xml:space="preserve">
+    <value>It has changes that aren't saved. Save it and share the file, or share a copy with the changes and leave the file as it is.</value>
+  </data>
+  <data name="Share_SaveAndShare" xml:space="preserve">
+    <value>Save and Share</value>
+  </data>
+  <data name="Share_Copy" xml:space="preserve">
+    <value>Share a Copy</value>
+  </data>
+  <data name="Share_CantTitle" xml:space="preserve">
+    <value>Couldn't share {0}</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_CantBody" xml:space="preserve">
+    <value>Windows' Share isn't available here. Save the file and attach it from its folder (File › Show in Folder).</value>
+  </data>
   <data name="Cmd_Exit" xml:space="preserve">
     <value>E_xit</value>
   </data>

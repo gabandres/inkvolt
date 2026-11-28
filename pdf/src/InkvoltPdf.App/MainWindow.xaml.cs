@@ -1963,6 +1963,7 @@ public partial class MainWindow : Window
             t => !IsSaving(t) && (t.Session.IsDirty || t.Session.FilePath is null || t.HasPendingEdits));
         BindTab(Cmd.SaveAs, t => _ = SaveAsync(t, saveAs: true), t => !IsSaving(t));
         Bind(Cmd.ShowInFolder, t => Shell.ShowInFolder(t.Session.FilePath!), t => t.Session.FilePath is not null);
+        Bind(Cmd.Share, t => _ = ShareActions.Share(this, t, d => SaveAsync(d)), t => t.Session.IsPdf && !IsSaving(t));
         BindTab(Cmd.CloseDoc, t => { if (_tabs.FirstOrDefault(m => m.Tab == t) is { } m) _ = CloseTabAsync(m); });
         BindTab(Cmd.CloseAll, t => _ = CloseAllAsync());
         Bind(Cmd.ReloadFromDisk, t =>

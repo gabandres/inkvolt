@@ -99,6 +99,10 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   A4) or New from Clipboard (Ctrl+Alt+N: a copied image such as a screenshot, or copied image files). Image files
   dropped on the window ask: a new PDF of them, pages at the end of the open document, or just view them; dropped on
   the thumbnails or the organizer they become pages right there. The result opens as an unsaved "Untitled.pdf".
+- **Share…** (File menu, as the Mac's): Windows' share sheet (`DataTransferManager` through the window's interop,
+  `ShareActions`) with the document's file. With changes not saved it asks: Save and Share, or Share a Copy (the
+  document as it is, written to its own folder under the temporary folder's "Inkvolt PDF share", removed after a day);
+  a document never saved is shared as such a copy (`DocumentShare`).
 - **PDF from Office files and web pages** (File › PDF from Office File… / PDF from Web Page…, command palette; File ›
   Open and dropping a .docx, .xlsx, .pptx, .html or .mht do it too): Word, Excel and PowerPoint files (also .doc, .rtf,
   .odt, .xls, .ods, .ppt, .odp and the macro-enabled kinds) are made into PDFs by the Microsoft Office installed on the

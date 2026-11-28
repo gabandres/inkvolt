@@ -58,7 +58,7 @@ namespace InkvoltPdf.App;
 /// into a new window) <c>· movetab N [index] · droptab x y</c> (the selected tab let go there, in the window's DIPs) <c>·
 /// window N · closewindow</c>; after newwindow, tearoff and window N the steps run in that window. Reflow (4.16):
 /// <c>reflow on|off · reflowstate</c> (its page, zoom, look and first words) <c>· reflowscroll N</c> (the view itself to
-/// page N) <c>· reflowlink url</c> (as if clicked) <c>· reflowshot out.png · reflowcan Cmd,Cmd</c> (whether they can run). Prompts and file
+/// page N) <c>· reflowlink url</c> (as if clicked) <c>· reflowshot out.png · reflowcan Cmd,Cmd</c> (whether they can run) <c>· share</c> (File › Share…: the file it would hand to the share sheet, logged). Prompts and file
 /// pickers: <c>prompt Button · answer Button</c> (for the prompt the next step opens) <c>· printdriver queue</c> (Print's check of that queue's driver and its prompt) <c>· windows · dialogok Cmd …
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
@@ -251,6 +251,11 @@ internal static class DevScript
                 log.Add($"clipboard: image={(image is null ? "none" : $"{image.PixelWidth}x{image.PixelHeight}")} html={html} text={(Clipboard.ContainsText() ? Clipboard.GetText().Replace("\t", "\\t").Replace("\r\n", " | ") : "(none)")}");
                 break;
             }
+            case "share":
+                // share: File › Share… without the share sheet; logs the file that would go to it (answer its prompt with "answer").
+                ShareActions.DevShared = p => log.Add($"share: {Path.GetFileName(p)} in {(p.Contains(DocumentShare.FolderName, StringComparison.Ordinal) ? "a copy's folder" : "its own folder")}, {new FileInfo(p).Length} bytes");
+                Cmd.Share.Execute(null, window);
+                break;
             case "cmd":
             {
                 var c = (System.Windows.Input.RoutedUICommand)typeof(Cmd).GetField(arg)!.GetValue(null)!;

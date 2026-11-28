@@ -5,6 +5,7 @@ Each release gets a `## x.y.z` heading before it's packed (`packaging/pack-msix.
 `## Next` collects what's done since the last release and is never shown. Short lines, in the user's words.
 
 ## Next
+- File › Share… hands the PDF to Windows' share sheet (mail, Nearby Sharing, Teams and other apps). With changes not saved, it asks whether to save first or to share a copy with them.
 - View › Next Comment and Previous Comment (Ctrl+] and Ctrl+[) go from one comment to the next and show it on its page.
 - Edit › Forms › Reset Form… puts every field of a form back to its default value, in one step you can undo.
 

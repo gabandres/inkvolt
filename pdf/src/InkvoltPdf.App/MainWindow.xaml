@@ -127,6 +127,7 @@
                                     <MenuItem Command="app:Cmd.SaveAsPdfA" />
                                     <MenuItem Command="app:Cmd.SaveAsPdfA2a" />
                                     <MenuItem Command="app:Cmd.ShowInFolder" />
+                                    <MenuItem Command="app:Cmd.Share" />
                                     <MenuItem Command="app:Cmd.ReloadFromDisk" />
                                     <Separator />
                                     <MenuItem Command="app:Cmd.Print" />

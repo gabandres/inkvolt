@@ -253,6 +253,29 @@
   <data name="Cmd_ShowInFolder" xml:space="preserve">
     <value>Mostrar en la _carpeta</value>
   </data>
+  <data name="Cmd_Share" xml:space="preserve">
+    <value>Compar_tir…</value>
+  </data>
+  <data name="Share_UnsavedTitle" xml:space="preserve">
+    <value>¿Compartir {0} con sus cambios?</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_UnsavedBody" xml:space="preserve">
+    <value>Tiene cambios sin guardar. Guárdalo y comparte el archivo, o comparte una copia con los cambios y deja el archivo como está.</value>
+  </data>
+  <data name="Share_SaveAndShare" xml:space="preserve">
+    <value>Guardar y compartir</value>
+  </data>
+  <data name="Share_Copy" xml:space="preserve">
+    <value>Compartir una copia</value>
+  </data>
+  <data name="Share_CantTitle" xml:space="preserve">
+    <value>No se pudo compartir {0}</value>
+    <comment>{0} the document's name</comment>
+  </data>
+  <data name="Share_CantBody" xml:space="preserve">
+    <value>Compartir de Windows no está disponible aquí. Guarda el archivo y adjúntalo desde su carpeta (Archivo › Mostrar en la carpeta).</value>
+  </data>
   <data name="Cmd_Exit" xml:space="preserve">
     <value>_Salir</value>
   </data>
