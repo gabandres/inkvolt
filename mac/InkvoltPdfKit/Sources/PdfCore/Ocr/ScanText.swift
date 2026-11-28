@@ -78,27 +78,30 @@ public enum ScanText {
         // Points per pixel, each way (the rendered size is rounded).
         let (sx, sy) = (g.width / Double(image.width), g.height / Double(image.height))
         func inPoints(_ w: OcrWord) -> OcrWord { OcrWord(w.text, RectD(w.rect.x * sx, w.rect.y * sy, w.rect.width * sx, w.rect.height * sy)) }
-        func asScanned() throws -> [OcrWord] { try recognizer.recognize(image, cancel: cancel).map(inPoints) }
+        func asScanned() throws -> [RecognizedWord] { try recognizer.read(image, cancel: cancel) }
+        // Which words the engine itself wasn't sure of (roadmap 2.2's unsure words).
+        func unsure(_ read: [RecognizedWord]) -> [Bool] { read.map { ($0.confidence ?? .infinity) < recognizer.unsureBelow } }
 
         if !options.clean {
-            let plain = try asScanned()
-            return RecognizedPage(words: options.checkWords ? mark(plain, nil, spelling) : plain, skew: 0, quarterTurns: 0, cleaned: nil)
+            let read = try asScanned()
+            let plain = read.map { inPoints($0.word) }
+            return RecognizedPage(words: options.checkWords ? mark(plain, nil, unsure(read), spelling) : plain, skew: 0, quarterTurns: 0, cleaned: nil)
         }
 
         let color = options.keepCleanedImage && isColor(image.pixels)
         let cleaned = try ScanCleanup.clean(image.pixels, image.width, image.height, 3, dpi, keepColor: color, cancel: cancel, steps: options.steps)
         var (turns, gray, rgb) = (cleaned.quarterTurns, cleaned.gray, cleaned.rgb)
-        var found = try recognizer.recognize(asImage(gray), cancel: cancel)
+        var found = try recognizer.read(asImage(gray), cancel: cancel)
         if !cleaned.uprightSure {
             // The lines didn't say which way up: read it the other way too. The page is turned over only when the turned
             // reading has clearly more real words; otherwise it stays as rendered, whatever the ink hinted. Digits read
             // plausibly both ways (6 and 9, 0 and 8: the redaction corpus's page of numbers read "OO 6830 9999" turned),
             // and count as words neither way, so a page of numbers isn't turned on a guess.
             let other = GrayImage(gray.width, gray.height, ScanCleanup.turn(gray.pixels, gray.width, gray.height, 1, 2))
-            let otherFound = try recognizer.recognize(asImage(other), cancel: cancel)
+            let otherFound = try recognizer.read(asImage(other), cancel: cancel)
             let hinted = (cleaned.quarterTurns & 2) != 0
             let (asRendered, turnedOver) = hinted ? (otherFound, found) : (found, otherFound)
-            if clearlyMore(plausible(turnedOver, spelling), plausible(asRendered, spelling)) != hinted {
+            if clearlyMore(plausible(turnedOver.map(\.word), spelling), plausible(asRendered.map(\.word), spelling)) != hinted {
                 (found, turns) = (otherFound, (turns + 2) % 4)
                 gray = other
                 if let c = rgb { rgb = ScanCleanup.turn(c, gray.width, gray.height, 3, 2) }
@@ -107,11 +110,14 @@ public enum ScanText {
 
         let frame = ScanFrame(width: image.width, height: image.height, skew: cleaned.skew, quarterTurns: turns,
                               perspective: cleaned.perspective, curve: cleaned.curve)
-        let onScan = found.map { frame.toRendered($0, sx, sy) }
-        var words = options.keepCleanedImage ? found.map(inPoints) : onScan
-        // A page that wasn't upright as scanned can't be read as scanned: nothing to compare with.
+        let onScan = found.map { frame.toRendered($0.word, sx, sy) }
+        var words = options.keepCleanedImage ? found.map { inPoints($0.word) } : onScan
+        // A page that wasn't upright as scanned can't be read as scanned: nothing to compare with. Windows doesn't ask an
+        // engine that gives each word a confidence twice (Tesseract); Vision's confidence is a line's, and on the OCR corpus
+        // every line's was 1.0, wrong words too (VisionProbeTests), so the Mac compares as before and marks unsure words too.
         if options.checkWords {
-            words = mark(words, turns == 0 ? SuspectWords.readDifferently(onScan, try asScanned(), spelling) : nil, spelling)
+            let scanned = turns == 0 ? try asScanned().map { inPoints($0.word) } : nil
+            words = mark(words, scanned.map { SuspectWords.readDifferently(onScan, $0, spelling) }, unsure(found), spelling)
         }
 
         var keep: CleanedPageImage?
@@ -140,11 +146,12 @@ public enum ScanText {
         return RenderedImage(gray.width, gray.height, rgb)
     }
 
-    private static func mark(_ words: [OcrWord], _ readDifferently: [Bool]?, _ spelling: (any Spelling)?) -> [OcrWord] {
+    private static func mark(_ words: [OcrWord], _ readDifferently: [Bool]?, _ unsure: [Bool], _ spelling: (any Spelling)?) -> [OcrWord] {
         var words = words
         for i in words.indices {
             var reasons = SuspectWords.check(words[i].text, spelling)
             if let readDifferently, readDifferently[i] { reasons.insert(.readDifferently) }
+            if i < unsure.count && unsure[i] { reasons.insert(.unsure) }
             if !reasons.isEmpty { words[i].suspect = reasons }
         }
         return words

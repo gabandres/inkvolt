@@ -26686,6 +26686,17 @@
           }
         }
       }
+    },
+    "the recognizer wasn't sure of it": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "el reconocedor no estaba seguro"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import PrintCore
 @testable import PdfCore
 
 /// Whether Vision has the two faults Windows' recognizer has (roadmap 2.2): lines skipped on a page (Windows' fix is
@@ -62,6 +63,93 @@ struct VisionProbeTests {
             }
         }
         print("VISION PROBE\n" + lines.joined(separator: "\n"))
+    }
+
+    /// The read words that a longest common subsequence with the truth matches (the rest were read wrong or are extra).
+    static func matched(_ truth: [String], _ read: [String]) -> [Bool] {
+        let (t, r) = (truth.map(key), read.map(key))
+        let (n, m) = (t.count, r.count)
+        var table = [[Int]](repeating: [Int](repeating: 0, count: m + 1), count: n + 1)
+        for i in stride(from: n - 1, through: 0, by: -1) {
+            for j in stride(from: m - 1, through: 0, by: -1) {
+                table[i][j] = t[i] == r[j] && !t[i].isEmpty ? table[i + 1][j + 1] + 1 : max(table[i + 1][j], table[i][j + 1])
+            }
+        }
+        var ok = [Bool](repeating: false, count: m)
+        var (i, j) = (0, 0)
+        while i < n && j < m {
+            if t[i] == r[j] && !t[i].isEmpty {
+                ok[j] = true
+                (i, j) = (i + 1, j + 1)
+            } else if table[i][j + 1] >= table[i + 1][j] {
+                j += 1
+            } else {
+                i += 1
+            }
+        }
+        return ok
+    }
+
+    /// Roadmap 2.2's "unsure" words (Windows marks Tesseract's under 60): Vision's confidence is a line's, so how often a
+    /// word Vision read right or wrong sits on a line of each confidence. Each corpus page (and the photographed ones,
+    /// straightened) is cleaned as Recognize Text cleans it and read with Vision's lines (`VisionRecognizer.read`); the
+    /// words are lined up with the truth. PLAN's "Better OCR, the rest" keeps what it said and the threshold it chose.
+    @Test(.enabled(if: runs)) func visionConfidenceOnTheCorpus() throws {
+        var byConfidence: [Double: (right: Int, wrong: Int)] = [:]
+        func read(_ pixels: [UInt8], _ w: Int, _ h: Int, _ channels: Int, _ truth: [String], _ language: String, _ steps: CleanupSteps) throws {
+            let cleaned = try ScanCleanup.clean(pixels, w, h, channels, 300, steps: steps)
+            var rgb = [UInt8](repeating: 0, count: cleaned.gray.pixels.count * 3)
+            for (i, v) in cleaned.gray.pixels.enumerated() { (rgb[3 * i], rgb[3 * i + 1], rgb[3 * i + 2]) = (v, v, v) }
+            let vision = VisionRecognizer(languages: language == "es" ? ["es-ES", "en-US"] : ["en-US"])
+            let words = try vision.read(RenderedImage(cleaned.gray.width, cleaned.gray.height, rgb), cancel: nil)
+            let ok = Self.matched(truth, words.map(\.text))
+            for (k, word) in words.enumerated() {
+                let c = ((word.confidence ?? -1) * 10).rounded() / 10
+                var tally = byConfidence[c] ?? (0, 0)
+                if ok[k] { tally.right += 1 } else { tally.wrong += 1 }
+                byConfidence[c] = tally
+            }
+        }
+        for file in ScanCorpus.files {
+            for p in 0..<file.pages {
+                let (pixels, w, h, truth) = try ScanCorpus.makePage(file, p)
+                try read(pixels, w, h, 1, truth.words, file.language, [])
+            }
+        }
+        for file in PhotoCorpus.files {
+            let (pixels, w, h, words) = try PhotoCorpus.photo(file)
+            try read(pixels, w, h, 1, words, file.page.language, .all)
+        }
+        var lines: [String] = []
+        let total = byConfidence.values.reduce((0, 0)) { ($0.0 + $1.right, $0.1 + $1.wrong) }
+        for (c, t) in byConfidence.sorted(by: { $0.key < $1.key }) {
+            lines.append("confidence \(c): \(t.right) right, \(t.wrong) wrong")
+        }
+        for threshold in [20.0, 31.0, 40.0, 50.0, 51.0, 60.0, 76.0, 100.0] {
+            let under = byConfidence.filter { $0.key < threshold }.values.reduce((0, 0)) { ($0.0 + $1.right, $0.1 + $1.wrong) }
+            lines.append("under \(threshold): marks \(under.0 + under.1) words, \(under.1) of the \(total.1) wrong ones, \(under.0) of the \(total.0) right ones")
+        }
+        print("VISION CONFIDENCE\n" + lines.joined(separator: "\n"))
+    }
+
+    /// The Mac's counterpart of Windows' `ocr-corpus photos` (RESULTS-photos.md): each photographed page read by Vision as
+    /// Recognize Text reads it, cleaned only (stage A) and with the trapezoid and bent lines straightened.
+    @Test(.enabled(if: runs)) func visionOnThePhotographedPages() throws {
+        var lines: [String] = []
+        for file in PhotoCorpus.files {
+            let engine = try PdfEngine.open(try PhotoCorpus.pdf(file))
+            defer { engine.close() }
+            let truth = try PhotoCorpus.photo(file).words
+            let vision = VisionRecognizer(languages: file.page.language == "es" ? ["es-ES", "en-US"] : ["en-US"])
+            var cells: [String] = []
+            for options in [RecognizeOptions(checkWords: false), RecognizeOptions(checkWords: false, trapezoid: true, curvedLines: true)] {
+                let start = Date()
+                let read = try ScanText.recognize(engine, 0, vision, options).words.map(\.text)
+                cells.append("\(String(format: "%.1f", WordErrorRate.of(truth, read) * 100)) % in \(Int(Date().timeIntervalSince(start) * 1000)) ms")
+            }
+            lines.append("\(file.name): \(truth.count) words, stage A \(cells[0]), straightened \(cells[1])")
+        }
+        print("VISION PHOTOS\n" + lines.joined(separator: "\n"))
     }
 
     /// The lines of the "1111" page (Windows' recognizer never reads four 1s in a row, and leaves out the whole line they

@@ -12,10 +12,16 @@ public protocol TextRecognizer: Sendable {
 
     /// The same words with their lines and the engine's confidence (a default reads `recognize`'s).
     func read(_ image: RenderedImage, cancel: CancelToken?) throws -> [RecognizedWord]
+
+    /// A word whose confidence is under this (0 to 100) is a suspect word: the engine wasn't sure of it
+    /// (`SuspectReasons.unsure`; Windows marks Tesseract's under `SuspectWords.unsureBelow`, 60). Vision's: `VisionRecognizer`.
+    var unsureBelow: Double { get }
 }
 
 extension TextRecognizer {
     public var language: String? { nil }
+
+    public var unsureBelow: Double { SuspectWords.unsureBelow }
 
     /// The words with their lines and the engine's confidence (Windows' `ITextRecognizer.Recognize`): `recognize`'s, each
     /// line the words that follow one another on one band of height, no confidence. Vision's own lines and confidence

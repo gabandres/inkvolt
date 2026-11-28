@@ -102,6 +102,42 @@ struct MixedLanguagesTests {
         #expect(try TextLayer.words(data, nil)[0]?.language == "en-US+es-MX")
     }
 
+    /// An engine's way of saying how sure it is: one word under its threshold, one over.
+    private final class SureOfNothing: TextRecognizer, @unchecked Sendable {
+        private(set) var calls = 0
+        var language: String? { "hi" }
+        func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] { try read(image, cancel: cancel).map(\.word) }
+        func read(_ image: RenderedImage, cancel: CancelToken?) throws -> [RecognizedWord] {
+            calls += 1
+            let (w, h) = (Double(image.width), Double(image.height))
+            return [RecognizedWord("नमस्ते", RectD(w * 0.1, h * 0.1, w * 0.2, h * 0.02), line: 0, confidence: 31),
+                    RecognizedWord("दुनिया", RectD(w * 0.4, h * 0.1, w * 0.2, h * 0.02), line: 0, confidence: 95)]
+        }
+    }
+
+    /// Adapted: on Windows an engine whose words carry a confidence (Tesseract) isn't asked again for the page as scanned;
+    /// Vision's confidence is a line's and was 1.0 on every corpus line (`VisionProbeTests.visionConfidenceOnTheCorpus`),
+    /// so the Mac still compares the two readings and marks unsure words besides. Vision's threshold is Windows' 60.
+    @Test(.enabled(if: ScanCorpus.runs)) func aWordTheEngineWasUnsureOfIsASuspectAndNothingIsReadAgain() throws {
+        var file = ScanCorpus.file("en-skew3-light")
+        file.pages = 1
+        let pdf = try PdfEngine.open(ScanCorpus.make(file).pdf)
+        defer { pdf.close() }
+        let reader = SureOfNothing()
+        let words = try ScanText.recognize(pdf, 0, reader, RecognizeOptions()).words
+        #expect(words[0].suspect.contains(.unsure))
+        #expect(!words[1].suspect.contains(.unsure))
+        // The cleaned page (once more if it can't tell which way up), and the page as scanned to compare.
+        #expect(reader.calls >= 2 && reader.calls <= 3)
+        var plainOptions = RecognizeOptions.asScanned
+        plainOptions.checkWords = true
+        let plain = try ScanText.recognize(pdf, 0, SureOfNothing(), plainOptions).words
+        #expect(plain[0].suspect.contains(.unsure))
+        #expect(VisionRecognizer().unsureBelow == SuspectWords.unsureBelow && SuspectWords.unsureBelow == 60)
+        let mixed = MixedRecognizer(VisionRecognizer(languages: ["en-US"]), nil, VisionRecognizer(languages: ["es-ES"]), nil)
+        #expect(mixed.unsureBelow == 60)
+    }
+
     /// Mac only: a recognizer that gives no lines of its own (a stand-in's words) has them put in lines by place.
     @Test func wordsWithoutLinesArePutInLinesByPlace() {
         let lines = RecognizedWord.inLines([OcrWord("a", RectD(10, 10, 20, 10)), OcrWord("b", RectD(40, 11, 20, 10)),

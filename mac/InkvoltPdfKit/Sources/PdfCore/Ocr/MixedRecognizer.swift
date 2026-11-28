@@ -34,6 +34,9 @@ public struct MixedRecognizer: TextRecognizer {
         (recognizer.language ?? "").split(separator: "+").map(String.init).filter { !$0.isEmpty }
     }
 
+    /// The first recognizer's (both are Vision on the Mac).
+    public var unsureBelow: Double { first.unsureBelow }
+
     public func recognize(_ image: RenderedImage, cancel: CancelToken?) throws -> [OcrWord] {
         try read(image, cancel: cancel).map(\.word)
     }

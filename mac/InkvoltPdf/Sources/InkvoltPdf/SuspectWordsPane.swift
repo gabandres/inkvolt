@@ -68,6 +68,7 @@ struct SuspectWordItem {
         if word.suspect.contains(.lettersAndDigits) { why.append(loc("letters and digits mixed")) }
         if word.suspect.contains(.oddCharacters) { why.append(loc("odd characters")) }
         if word.suspect.contains(.readDifferently) { why.append(loc("read differently before cleaning")) }
+        if word.suspect.contains(.unsure) { why.append(loc("the recognizer wasn't sure of it")) }
         return why.joined(separator: ", ")
     }
 
