@@ -1,12 +1,15 @@
 import Foundation
 
-/// The phone scan's self-signed TLS certificate, as DER (roadmap 4.6; the Windows Core's `ShareCertificate.Create`, which
+/// The phone scan's and the shared scanner's self-signed TLS certificate, as DER (roadmap 4.6, 3.1; the Windows Core's `ShareCertificate.Create`, which
 /// .NET's `CertificateRequest` writes): X.509 v3 for an ECDSA P-256 key, signed with ECDSA-SHA256, the subject and issuer
 /// `subject`, valid from a day before it's made for `life` (Apple's limit for a TLS server certificate, so an Apple client
 /// never refuses it for its length), not a CA, for digital signatures and TLS servers only, named for this Mac's `.local`
 /// name. PrintMac makes the key in the keychain and signs `tbs`; a phone can't check it against anyone, so the Mac shows
 /// its fingerprint beside the code.
 public enum PhoneCertificateDer {
+    /// One certificate serves the phone scan and the shared scanner, as on Windows. **Mac difference:** its subject stays
+    /// the phone scan's (Windows': "Inkvolt Print scanner sharing"): the keychain finds a kept certificate by its label,
+    /// which macOS takes from the subject (`PhoneCertificateKeychain.label`), so another subject would orphan the one kept.
     public static let subject = "Inkvolt Print phone scan"
     public static let life: TimeInterval = 825 * 86_400
     /// A certificate this close to its end is made anew (with a new fingerprint).

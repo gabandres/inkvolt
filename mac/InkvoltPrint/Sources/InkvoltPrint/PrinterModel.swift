@@ -100,6 +100,7 @@ final class PrinterModel: Identifiable {
         monitor = nil
         history = nil
         systemScanner = s
+        knownScanner = s
         view = .scannerReady
         useButtonDriver()
     }
@@ -270,6 +271,10 @@ final class PrinterModel: Identifiable {
         button.seal()
         return Task { await button.close() }
     }
+
+    /// The USB scanner it was last seen with (a queue printer's, while it's unplugged): its sharing card can still turn
+    /// sharing off (roadmap 3.1; Windows' `WiaDeviceInfo` the entry is known by).
+    var knownScanner: SystemScanner?
 
     /// The Scan tab's pages and settings, made when the tab first shows (and kept while the app runs).
     @ObservationIgnored private var scanModel: ScanModel?

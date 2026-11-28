@@ -18,7 +18,15 @@ public struct NetworkPhoneHost: PhoneHost {
     public init() {}
 
     public func start(_ listen: PhoneListen) async throws -> any PhoneListener {
-        guard let certificate = listen.certificate as? KeychainPhoneCertificate, let identity = sec_identity_create(certificate.identity) else {
+        let listener = try Self.listener(listen.certificate, loopbackOnly: listen.loopbackOnly, port: listen.port)
+        let server = NetworkPhoneListener(listener, allowPeer: listen.allowPeer, counts: PhoneConnections(), service: listen.session)
+        return try await server.start()
+    }
+
+    /// A listener with TLS and the app's certificate (the phone scan's and the shared scanner's), on loopback only or every
+    /// address, not yet started.
+    static func listener(_ certificate: any PhoneCertificate, loopbackOnly: Bool, port: Int) throws -> NWListener {
+        guard let certificate = certificate as? KeychainPhoneCertificate, let identity = sec_identity_create(certificate.identity) else {
             throw PhoneServerError("no TLS identity")
         }
         let tls = NWProtocolTLS.Options()
@@ -30,20 +38,16 @@ public struct NetworkPhoneHost: PhoneHost {
         let parameters = NWParameters(tls: tls, tcp: tcp)
         parameters.acceptLocalOnly = true
         parameters.allowLocalEndpointReuse = false
-        let port = NWEndpoint.Port(rawValue: UInt16(clamping: max(0, listen.port))) ?? .any
-        let listener: NWListener
+        let port = NWEndpoint.Port(rawValue: UInt16(clamping: max(0, port))) ?? .any
         do {
-            if listen.loopbackOnly {
+            if loopbackOnly {
                 parameters.requiredLocalEndpoint = .hostPort(host: .ipv4(.loopback), port: port)
-                listener = try NWListener(using: parameters)
-            } else {
-                listener = try NWListener(using: parameters, on: port)
+                return try NWListener(using: parameters)
             }
+            return try NWListener(using: parameters, on: port)
         } catch let error as NWError {
             throw Self.mapped(error)
         }
-        let server = NetworkPhoneListener(listener, listen)
-        return try await server.start()
     }
 
     static func mapped(_ error: NWError) -> any Error {
@@ -71,12 +75,13 @@ public struct PhoneServerError: Error, CustomStringConvertible {
     init(_ description: String) { self.description = description }
 }
 
-/// One running server: the listener, its connections and the tasks serving them.
+/// One running server (the phone scan's, or the shared scanner's): the listener, its connections and the tasks serving them.
 final class NetworkPhoneListener: PhoneListener, @unchecked Sendable {
     private static let queue = DispatchQueue(label: "com.bermudezsystems.InkvoltPrint.phone")
     private let listener: NWListener
-    private let listen: PhoneListen
-    private let counts = PhoneConnections()
+    private let allowPeer: @Sendable (String, String?) -> Bool
+    private let service: any HttpService
+    private let counts: PhoneConnections
     private let lock = NSLock()
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private var tasks: [ObjectIdentifier: Task<Void, Never>] = [:]
@@ -84,9 +89,11 @@ final class NetworkPhoneListener: PhoneListener, @unchecked Sendable {
     private var boundPort: Int?
     private let stopped = OnceResult<Bool>()
 
-    init(_ listener: NWListener, _ listen: PhoneListen) {
+    init(_ listener: NWListener, allowPeer: @escaping @Sendable (String, String?) -> Bool, counts: PhoneConnections, service: any HttpService) {
         self.listener = listener
-        self.listen = listen
+        self.allowPeer = allowPeer
+        self.counts = counts
+        self.service = service
     }
 
     var port: Int? { lock.withLock { boundPort } }
@@ -123,7 +130,7 @@ final class NetworkPhoneListener: PhoneListener, @unchecked Sendable {
 
     /// A new connection: refused before TLS unless its device may connect and has room; served once ready.
     private func accept(_ connection: NWConnection) {
-        guard let peer = NetworkPhoneHost.address(connection.endpoint), listen.allowPeer(peer, nil), counts.enter(peer) else {
+        guard let peer = NetworkPhoneHost.address(connection.endpoint), allowPeer(peer, nil), counts.enter(peer) else {
             connection.cancel()
             return
         }
@@ -138,19 +145,19 @@ final class NetworkPhoneListener: PhoneListener, @unchecked Sendable {
             connection.cancel()
             return
         }
-        let listen = self.listen
+        let allowPeer = self.allowPeer, service = self.service
         let ready = Mutexed(false)
         connection.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready:
                 ready.set(true)
                 let local = connection.currentPath?.localEndpoint.flatMap(NetworkPhoneHost.address)
-                guard local != nil, listen.allowPeer(peer, local) else {
+                guard local != nil, allowPeer(peer, local) else {
                     connection.cancel()
                     return
                 }
                 let task = Task {
-                    await PhoneHttp.serve(NetworkPhoneConnection(connection), peer: peer, session: listen.session)
+                    await PhoneHttp.serve(NetworkPhoneConnection(connection), peer: peer, service: service)
                     connection.cancel()
                 }
                 self?.lock.withLock { self?.tasks[id] = task }
@@ -158,7 +165,8 @@ final class NetworkPhoneListener: PhoneListener, @unchecked Sendable {
             case .cancelled:
                 self?.counts.leave(peer)
                 _ = self?.lock.withLock { self?.connections.removeValue(forKey: id) }
-                _ = self?.lock.withLock { self?.tasks.removeValue(forKey: id) }
+                // A request still waiting (a shared scanner's long poll) ends with its connection.
+                self?.lock.withLock { self?.tasks.removeValue(forKey: id) }?.cancel()
             default: break
             }
         }

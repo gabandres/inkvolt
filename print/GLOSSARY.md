@@ -50,7 +50,10 @@ Domain terms Inkvolt Print's modules are named after. Plain English; the code's 
   scanner, the **shared scanner** (`ScannerShare` in `shared/InkvoltPrint.Core/Sharing`: the switch, when it may listen, the
   certificate and the announcement; `SharedScanner`: the eSCL documents and **jobs** a device starts, one scanning at a time,
   each its device's alone). It listens only on networks Windows calls Private, to **served** devices on their subnets
-  (`SharePeers`), and is **announced** over DNS-SD as `_uscans._tcp` (`ShareDnssd`).
+  (`SharePeers`), and is **announced** over DNS-SD as `_uscans._tcp` (`ShareDnssd`). On the Mac (`mac/InkvoltPrintKit`'s
+  `PrintCore/Sharing`, the same names), the shared scanner is a **connected scanner** (`ConnectedScanner`, Windows'
+  `WiaScanner`: an ImageCaptureCore scanner as the app holds it while macOS lists it, one scan at a time for the Scan tab and
+  the share alike), and served networks are Ethernet and Wi-Fi ones with a private address (macOS has no Private setting).
 - **Printer sharing** (roadmap 4.10, free): Windows queues offered to phones and other computers as IPP printers, each a **shared
   printer** (`PrinterShare`: the switches, one server for all, when it may listen, the announcements; `SharedPrinter`: one queue's IPP
   attributes and the **jobs** a device sends, one printing at a time, each its device's alone). Served and announced (`_ipp._tcp`,

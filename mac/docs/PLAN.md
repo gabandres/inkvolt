@@ -98,7 +98,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P9 | Offline diagnosis | OfflineFixerTests (diagnosis parts) | Done (the test file's header lists what was adapted) |
 | P10 | The app: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode, then the rest of the Windows 1.0 feature table (batch scans, glass photos and their boxes by hand, the ID card copy, Set Up in macOS, Print Photos' queue papers, borderless, paper type, quality and color) | DemoTests, BatchScanTests, GlassPhotoTests and the table's others | Done. Not checked by a person: anything on paper (separator sheet, ID card, Print Photos borderless), the Photos sheet's dragging and keys, a feeder (batches and two-sided separator backs were checked in demo mode only), a real USB scanner |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots (`--snapshot`) | | Done (live since 1.0). Listing, review notes and What's New go through `asc-listing.mjs` (README). Entitlements: sandbox, network client and server, `print`, `files.user-selected.read-write`, `files.bookmarks.app-scope`, `device.usb`, the app group; the preflight and the review notes say why each |
-| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 3.2, 3.3, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 3.1, which needs a real scanner; 2.2's and 3.3's hardware checks (below) |
+| P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 3.1, 3.2, 3.3, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 2.2's and 3.3's hardware checks (below) |
 | P13 | Copy through this Mac: Windows' Copy tab's page copy (2-up and 4-up, collation, preview, Print Again, two-sided by hand), found missing by the 2026-11-27 parity audit | CopyLayoutTests (Windows' 21), HandDuplexBatchTests, CopySheetsTests | Done (below) |
 
 ### P12: what differs and what's left, per item
@@ -175,6 +175,87 @@ mac/InkvoltPrintKit --build-system native`.
   pdf.js, finds each word of a right-to-left line but not a phrase across two. Not checked: Preview's own Find on screen,
   pdf.js on a file the Mac wrote, Vision's word boxes for Arabic or Japanese pages, a real scanner's pages; the crop keeps
   a few pixels of lid at the sheet's edge (`PaperEdge` errs toward keeping).
+- **3.1 Share a scanner on the network (2026-11-27; free, the owner's decision of 2026-11-22).** PrintCore `Sharing/`:
+  `ShareXml` (the documents served, a client's ScanSettings read as hostile input: 16 KB, 200 elements, 8 deep, 128
+  characters a value, no DTD, digits-only numbers, only an offered source, mode, format and resolution, the region kept
+  inside the source, 65,000 pixels a side), `SharedScanner` (the eSCL server's logic: one scan at a time through
+  `AsyncGate`, 2 waiting, 2 a device, 16 kept, a job only its device's, 60 s idle and 30 minutes at most, a finished one
+  listed 5 minutes, NextDocument's 90 s long poll, 2 pages buffered in a `BoundedChannel`, JPEG or a PDF of each page
+  through `PdfWriter`), `ScannerShare` (the switch: off by default, one scanner, private networks only, the networks
+  watched only while a scanner is shared, a start or announcement under way cancelled on close), `ShareNetwork`
+  (`ShareAdvert`, `ShareDnssd`: `_uscans._tcp`, its TXT keys, "Scanner on Mac" cut to 63 bytes, the `.local` name);
+  `Scan/ConnectedScanner` (Windows' `WiaScanner`: one per scanner while it's listed, shared by the Scan tab and the share,
+  one scan at a time, busy said); `ScanArea` (Windows' `WiaCapabilities.Plan`'s region: inches, the offset kept inside
+  the source); `ScanRequest.xOffset`/`yOffset`; `PhoneHttp` serves any `HttpService` (the phone page, or `SharedScanner`:
+  a POST body at most 16 KB, a longer one 413 unread; 201's Location); `PhoneConnections` takes limits;
+  `PrintState.scannerShare`; `ListedPrinter.isShared` (a shared scanner of its own stays listed while it's unplugged).
+  PrintMac: `NetworkShareHost` (the phone scan's Network framework TLS server, now `NetworkPhoneListener` over a service
+  and its limits: 32 connections, 8 a device; a request waiting when its connection goes is cancelled),
+  `BonjourShareAdvertiser` (`DNSServiceRegister` on macOS's responder, 10 s to confirm, deallocated on its queue: macOS
+  says goodbye), `SystemShareNetworks` (`SocketNetworkScanner.localNetworks`, `NWPathMonitor` while watched);
+  `SystemScanners` keeps one `SystemScanDevice` per device (a device has one delegate: a second wrapper took the first's
+  pages), which refuses a second scan and sets the region's offset. The app: the Scan tab's Share on the network section
+  (`ScannerShareCard.swift`: the switch, the line, the certificate's fingerprint 16 bytes a line while listening),
+  `AppModel.scannerShare` (offered the connected scanner on every list change, the choice in the state file, closed within
+  2 s on quit), removing an entry stops sharing its scanner; `--report … --share-scanner` (`ReportShare.swift`).
+  Tests: `ScannerSharingTests` (PrintCore, PC: all of ScannerSharingTests.cs but the HTTPS ones and the Store package's,
+  plus our client through the server's HTTP over a wire in memory) and `ScannerShareServerTests` (PrintMac, Mac: over
+  HTTPS on loopback, the switch with the real server, the TXT record); `ScannerListTests` (a shared scanner of its own
+  stays). **Mac differences:** the scanner is an ImageCaptureCore one, USB or a network one a maker's driver reaches (one
+  Apple's AirScan driver reaches is eSCL already and never offered, Windows' `IsEscl`; the app lists USB scanners only, so
+  a maker's network scanner isn't offered either); black and white isn't offered (the Mac scans color or grey: 409);
+  ScannerStatus never says the feeder's state (ImageCaptureCore tells it only with the feeder selected); peers are the
+  phone scan's (`SharePeers` = `PhonePeers`: IPv4 on Ethernet and Wi-Fi networks with a private address, no IPv6, no
+  Private/Public setting, "join your home or office network" for Windows' "set it to Private"); the certificate is the
+  phone scan's, kept in the app's keychain with its subject ("Inkvolt Print phone scan"; Windows': "Inkvolt Print scanner
+  sharing", one for both there too: macOS labels a certificate item by its subject, which the lookup goes by); the
+  announcement is registered on every interface (`LocalNetwork` has no interface; the server still lets in only the
+  served networks' devices) and needs Local Network access (denied: the card says it wasn't announced); a scanner of its
+  own that's shared stays on the list while it's unplugged (Windows keeps the entry's known scanner); the switch has no
+  "(Inkvolt Pro)" (the feature is free; Windows' label still says it), and Inkvolt Pro's `scannerSharing` feature is gone
+  as on Windows; a request a device stops waiting for is answered 503 (Windows' is cancelled); HTTP is the phone scan's
+  (`PhoneHttp`'s limits: 40 headers, 16 KB, 15 s) where Windows' is Kestrel's. Entitlements: none new
+  (`network.server`, already there, owner-approved for the phone scan's listener); `_uscans._tcp` was already in
+  `NSBonjourServices`. **App Review notes to add** (`asc-listing.mjs`): "Share a scanner on the network (Scan tab, off by
+  default): Inkvolt Print listens on TCP 9780 over HTTPS, only while a USB scanner is shared and only to devices on this
+  Mac's own private network, and announces it with Bonjour (_uscans._tcp) so iPhones, Macs and PCs can scan with it; this
+  is why the app uses com.apple.security.network.server. Demo mode shares a made-up scanner to this Mac only."
+  Checked on the build Mac (2026-11-27): PrintMac's tests (the HTTPS ones, 6, and the phone server's) and the app built
+  with no warnings; `--report … --demo --share-scanner` in the app: the demo laser's card switched on, our eSCL client
+  scanned a page through the share over HTTPS, switched off, the port closed. With the network HP all-in-one (an M234dw):
+  ImageCaptureCore lists it through AirScan (eSCL: the card wouldn't offer it; the report shares it as Windows'
+  `ShareAsync` would), glass 8.5 × 11.69 in, 200, 300 and 600 dpi, color and grey; shared on the Mac's 2 private
+  addresses, listening on 9780, our client on the Mac read its capabilities over HTTPS; the announcement failed with
+  DNS-SD's -65570 (Local Network denied: the run was a build of its own outside /Applications, which macOS hadn't asked
+  about; the card said it wasn't announced). With `--self-scan` our client on the Mac scanned a page
+  from the HP's glass through the share (1700 × 2338 at 200 dpi) once ImageCaptureCore's scan was fixed (below: it had
+  given no page, and its sessions were never closed). A scan from the Windows PC wasn't possible: this network carries
+  no TCP from the PC to the Mac's LAN address at all (its SSH port times out too; only Tailscale reaches it), and the
+  share serves private subnets only.
+  Not checked: a real USB scanner shared (none on the build Mac), an iPhone's or a Mac's Image Capture or sane-airscan as
+  the client, a scan region with an offset on a real ImageCaptureCore scanner (its origin is taken as the top left),
+  the card on screen and VoiceOver, the firewall's question with automatic allowing off.
+- **ImageCaptureCore scans (2026-11-27, found while sharing the network HP; the released app's USB scanners go the same
+  way).** Three faults in PrintMac's `SystemScanDevice`, every scanner macOS lists: (1) right after a session opens the
+  selected unit is empty (no size, no resolution) even though it already says "flatbed", so the old "already selected"
+  shortcut asked an empty unit to scan, which never ended (or ended with no page and no error); then the scanner
+  announces its own selection, and when that came after ours and the scan request, the scan never started; (2) a scan
+  ending with no page and no error looked like an empty success; (3) the session was opened once and never closed, after
+  which the HP refused new sessions for minutes (-21345), and reopening while a close was still under way failed (-9921).
+  Now: the session is opened for each use and closed after it (`ScannerSessionUse`; a close under way finishes before
+  the next open; every one closed on quit), an open waits for the scanner's own selection, the unit is selected only
+  when it isn't the ready one and waited for until it says its size and resolutions (`ImageCaptureJob.unitReady`), and
+  PrintCore's `ImageCaptureJob` decides what each word from the scanner does (a scan with no page says so; 3 minutes
+  without a page or the end gives it up and says so; a page written without its callback is still read). The
+  ImageCaptureCore requests are made from synchronous closures (in an async function Swift picks the framework's async
+  overloads, which answer through a completion, not the delegate). Tests: `ImageCaptureJobTests` (PC). Checked on the
+  build Mac with the M234dw through Apple's AirScan driver (`--report … --ica-scan M234dw --times 2`, which traces every
+  word from ImageCaptureCore): two glass scans in a row, a 1700 × 2338 page each at 200 dpi, the session closed after
+  each and the next opened 10 s later; and through the share (above). An open now takes 2 to 10 s (the scanner's own
+  selection). Once, right after launch, an open got no answer in 30 s and sharing didn't start (said on the card); a
+  session that opens after we stopped waiting is now closed at once, and a timed-out open asks for a close, so none is
+  left holding the device; not seen again in the next run (the share's capabilities, its scan, then a Scan-tab scan, each
+  in a session of its own). Not checked: a feeder, a USB scanner, the Scan tab on screen.
 - **3.2 SNMP: a community per printer, SNMPv3 (Pro).** Logins in the Keychain (`SnmpLoginKeychain`, service
   `com.bermudezsystems.InkvoltPrint.snmp`). **Mac differences:** the crypto is a seam, `SnmpCrypto` (CryptoKit and
   CommonCrypto in PrintMac's `AppleSnmpCrypto`; a test-only one in PrintCoreTests), where Windows calls .NET's directly;
@@ -595,7 +676,7 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   subnet; IPv6 devices aren't served (the code holds the IPv4 address) and the "set it to Private" advice is "join your
   home or office network". Network framework serves TLS, PrintCore speaks HTTP/1.1 itself (no Kestrel): a body sent with a
   transfer coding is refused (411; the page's `fetch` always gives a length). The certificate is the phone scan's own
-  ("Inkvolt Print phone scan"; Windows' is scanner sharing's, which the Mac doesn't have), in the sandboxed app's keychain;
+  ("Inkvolt Print phone scan"; Windows' is scanner sharing's, and the shared scanner (3.1) uses this one), in the sandboxed app's keychain;
   demo mode and the tests make theirs in a keychain file of their own in a temporary folder (never the login keychain or the
   search list), deleted after (owner's decision, 2026-11-23). The port is open only while the window is; a refused device's
   connection is cut before TLS, and checked again once it's up for the address of this Mac it reached. macOS's firewall:
@@ -2751,7 +2832,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
 - Inkvolt Print's Copy (P13, 2026-11-27): a real copy on paper (the installed app's Copy… on the M234dw, or CopySheetsTests'
   opt-in from a Terminal on the Mac: an agent's build had no Local Network access).
-- Inkvolt Print: P12's 3.1 not started on the Mac (2.1 done 2026-11-27; 2.2 and 3.3 ported 2026-11-27: P12 above; separator codes, the last code item besides these,
+- Inkvolt Print: P12 done on the Mac (2.1 done 2026-11-27; 2.2 and 3.3 ported 2026-11-27, 3.1 too: P12 above; separator codes, the last code item besides these,
   on the Mac since 2026-11-23: "Inkvolt Print scope"). What needs a device:
   - 2.2 Scan from the printer's button. Every walk-up name is Windows' assumption (`LedmWalkupScan.names`): no HP
     all-in-one that lists the interface has been recorded (the M234dw's tree lists none, read again 2026-11-27), so the
@@ -2761,8 +2842,10 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
   - 2.1 Print straight to the printer: done (P12 above; the M234dw printed a page straight from the build Mac). Left: the
     app's own prints on a real printer, and a queue stopped by a failed filter giving way to it; on screen, the options dialog, the progress
     window and the Print menu's choice.
-  - 3.1 Share a scanner on the network: an ICA scanner served over eSCL; needs a USB scanner and a second device to scan
-    from.
+  - 3.1 Share a scanner on the network: done (2026-11-27, P12's 3.1 above); left, as on Windows, a real USB scanner shared
+    and a phone, a Mac's Image Capture or sane-airscan as the client.
+  - ImageCaptureCore scans: fixed (2026-11-27, "ImageCaptureCore scans" under P12's 3.1). Not checked: a feeder (the
+    M234dw has none) and a USB scanner.
   - 3.3 The printer's own copier: LEDM's copy start names (`LedmCopy.startNames`) are Windows' assumption until a
     recording of a printer that offers a start confirms them; the M234dw's copy documents answer but hold only walk-up
     defaults, no start (2026-11-27), so it isn't offered there.

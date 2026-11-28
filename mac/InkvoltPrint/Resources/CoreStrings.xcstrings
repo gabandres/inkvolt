@@ -5605,28 +5605,6 @@
         }
       }
     },
-    "Scanner sharing": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uso compartido del escáner"
-          }
-        }
-      }
-    },
-    "Scanner sharing is part of Inkvolt Pro.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El uso compartido del escáner es parte de Inkvolt Pro."
-          }
-        }
-      }
-    },
     "Scanner status not available": {
       "extractionState": "manual",
       "localizations": {
@@ -6000,17 +5978,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escala de grises"
-          }
-        }
-      }
-    },
-    "Share a USB or driver-only scanner on the network, so phones, Macs and PCs scan from it.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Comparte en la red un escáner USB o que solo funciona con su controlador, para que teléfonos, Macs y PC escaneen con él."
           }
         }
       }
@@ -12624,6 +12591,171 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las páginas van directamente a la impresora por la red: macOS no puede imprimir por su cola para esta impresora (falló su controlador)."
+          }
+        }
+      }
+    },
+    "{0} on {1} [shared scanner]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} en {1}"
+          }
+        }
+      }
+    },
+    "Off. Turned on, phones, Macs and other computers on a private network can scan with this scanner while Inkvolt Print runs here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desactivado. Si lo activas, los teléfonos, Mac y otros equipos de una red privada pueden escanear con este escáner mientras Inkvolt Print esté abierto aquí."
+          }
+        }
+      }
+    },
+    "{0} is shared now. Turning this on shares this scanner instead: one scanner is shared at a time.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ahora se comparte {0}. Si activas esto, se comparte este escáner en su lugar: se comparte un escáner a la vez."
+          }
+        }
+      }
+    },
+    "Shared once the scanner answers. Check that it's on and plugged in.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se compartirá cuando el escáner responda. Comprueba que esté encendido y conectado."
+          }
+        }
+      }
+    },
+    "Not shared: this Mac isn't on a private network. Join your home or office Wi-Fi or Ethernet, and the scanner is shared at once.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se comparte: este Mac no está en una red privada. Conéctate a la Wi-Fi o la Ethernet de tu casa u oficina, y el escáner se comparte al instante."
+          }
+        }
+      }
+    },
+    "Starting…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Iniciando…"
+          }
+        }
+      }
+    },
+    "Demo: shared as \"{0}\" on port {1}, for this Mac only.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Demostración: se comparte como \"{0}\" en el puerto {1}, solo para este Mac."
+          }
+        }
+      }
+    },
+    "Shared as \"{0}\" on port {1}. Phones, Macs and other computers on this private network can scan with it while Inkvolt Print runs here.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se comparte como \"{0}\" en el puerto {1}. Los teléfonos, Mac y otros equipos de esta red privada pueden escanear con él mientras Inkvolt Print esté abierto aquí."
+          }
+        }
+      }
+    },
+    "Not shared: another program uses port {0}. Close it, then turn sharing off and on again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se comparte: otro programa usa el puerto {0}. Ciérralo y luego desactiva y vuelve a activar el uso compartido."
+          }
+        }
+      }
+    },
+    "Not shared: sharing couldn't start. Turn it off and on again; if it still doesn't start, Help › Report a Problem sends the details.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se comparte: el uso compartido no pudo iniciarse. Desactívalo y vuelve a activarlo; si sigue sin iniciarse, Ayuda › Informar un problema envía los detalles."
+          }
+        }
+      }
+    },
+    "It couldn't be announced, so devices may not list it on their own: add it by this Mac's address.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo anunciar, así que puede que los dispositivos no lo muestren solos: agrégalo con la dirección de este Mac."
+          }
+        }
+      }
+    },
+    "The scanner finished without sending a page. Check that it's on and that the page is on the glass or in the feeder, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner terminó sin enviar ninguna página. Comprueba que esté encendido y que la página esté en el cristal o en el alimentador, y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "The scanner stopped answering during the scan. Check that it's on, then try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner dejó de responder durante el escaneo. Comprueba que esté encendido y vuelve a intentarlo."
+          }
+        }
+      }
+    },
+    "The scanner didn't say what its glass or feeder offers. Try again in a moment.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner no indicó qué ofrecen su cristal o su alimentador. Vuelve a intentarlo en un momento."
+          }
+        }
+      }
+    },
+    "The scan couldn't start: {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo iniciar el escaneo: {0}"
           }
         }
       }

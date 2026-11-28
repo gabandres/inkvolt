@@ -36,6 +36,20 @@ Apple doc pages render with JavaScript. They were read through their JSON form
   signed app listen with no question (on, on the build Mac); with that off, macOS asks once whether "Inkvolt Print.app"
   may accept incoming network connections. Checked on the build Mac (2026-11-23) on loopback only: the server, its TLS and
   a phone client, with the certificate in a keychain file of the test's own (`KeychainFile`), never the login keychain.
+- A shared scanner (roadmap 3.1) listens on TCP 9780 (the same Network framework TLS server) while a scanner is shared
+  and the app runs: `com.apple.security.network.server` again, nothing new; `_uscans._tcp` was already in
+  `NSBonjourServices`. Announcing it with `DNSServiceRegister` needs Local Network access: a build of the app run from its
+  own folder (outside /Applications, never asked about) got `kDNSServiceErr_PolicyDenied` (-65570) at once, and served
+  all the same (checked on the build Mac, 2026-11-27). ImageCaptureCore opens a session on a network all-in-one Apple's
+  AirScan driver reaches (the M234dw: glass, 200, 300 and 600 dpi, color and grey) from the sandboxed app, with
+  `device.usb` and network client only, and scans its glass into a JPEG file in the app's temporary folder (file-based
+  transfer). Learned with it (2026-11-27): after `requestOpenSession` the selected unit is empty (no size, no
+  resolution) until the scanner announces its own selection, 2 to 10 s later; a scan asked before that never ends; a
+  session left open makes it refuse others for minutes (-21345), and opening while a close is still under way fails
+  (-9921). In an async function Swift resolves `requestOpenSession()`/`requestCloseSession()` to the framework's async
+  overloads, which don't go through the delegate. **UNVERIFIED:** whether the /Applications copy, with Local Network allowed,
+  announces (expected), and whether macOS's firewall, with "Automatically allow downloaded signed software" on, lets a
+  development-signed build take connections from the LAN without asking (loopback needs no permission).
 
 **Local Network privacy gates almost all of it.** The probe, SNMP, Bonjour, IPP, LEDM and eSCL all need the
 Local Network privilege. Design for three states:
@@ -60,7 +74,7 @@ root escalation (2.4.5(iv)(v)), and auto-launch without consent (2.4.5(iii)).
 |---|---|
 | `com.apple.security.app-sandbox` | Required for the Mac App Store |
 | `com.apple.security.network.client` | Outgoing TCP (IPP, LEDM/CDM, eSCL, the 631/9100/515 probe) and sending UDP (SNMP) |
-| `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." Also the phone scan's HTTPS listener on TCP 9781 (roadmap 4.6, owner-approved 2026-11-23), open only while a phone scan is |
+| `com.apple.security.network.server` | **Receiving** UDP: SNMP replies. Apple: "Apps using UDP usually require both entitlements." Also the phone scan's HTTPS listener on TCP 9781 (roadmap 4.6, owner-approved 2026-11-23), open only while a phone scan is, and the shared scanner's on TCP 9780 (roadmap 3.1, 2026-11-27), open only while a scanner is shared |
 | `com.apple.security.print` | Printing, and what opens the cupsd socket (the probe confirmed: without it libcups lists nothing); the print log's read of CUPS's history of finished jobs (4.9) needs nothing more |
 | `com.apple.security.device.usb` | ImageCaptureCore with USB scanners (macOS 14+) |
 | `com.apple.security.device.camera` | A camera scan (roadmap 4.12, the owner approved it 2026-11-23): AVFoundation's capture session on a webcam, document camera or iPhone (Continuity Camera). Needs `NSCameraUsageDescription` (English and Spanish, `InfoPlist.xcstrings`); macOS asks once, and denied is said with where to turn it on |

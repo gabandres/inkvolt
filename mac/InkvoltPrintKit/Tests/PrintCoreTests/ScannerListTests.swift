@@ -45,6 +45,11 @@ struct ScannerListTests {
         let kept = PrinterList.reconcile(Self.input([PrinterListTests.network, keeping], flatbed.id, scanners: []))
         #expect(kept.removed.isEmpty)
         #expect(kept.selected == flatbed.id)
+
+        // Shared on the network (roadmap 3.1): it stays while it's unplugged, so its card can turn sharing off.
+        var shared = flatbed
+        shared.isShared = true
+        #expect(PrinterList.reconcile(Self.input([PrinterListTests.network, shared], flatbed.id, scanners: [])).removed.isEmpty)
     }
 
     @Test func aHiddenScannerStaysHiddenUntilMacOSNoLongerHasIt() {

@@ -28,6 +28,8 @@ public struct PhoneReply: Sendable {
     public var setCookie: String?
     public var contentSecurityPolicy: String?
     public var retryAfterSeconds: Int?
+    /// A new resource's address (a shared scanner's job: eSCL's 201 Created).
+    public var location: String?
 
     public init(_ status: Int, contentType: String? = nil, body: [UInt8]? = nil) {
         self.status = status
@@ -280,7 +282,7 @@ public enum PhonePeers {
         return a
     }
 
-    static func isLoopback(_ address: String) -> Bool {
+    public static func isLoopback(_ address: String) -> Bool {
         let a = normal(address)
         if a == "::1" { return true }
         return NetworkSearch.number(a).map { $0 >> 24 == 127 } ?? false
@@ -307,18 +309,23 @@ public enum PhonePeers {
 /// few; Windows' `KestrelPhoneHost` limits). Thread-safe.
 public final class PhoneConnections: @unchecked Sendable {
     public static let maxConnections = 12, maxPerPeer = 6
+    private let limit: Int, limitPerPeer: Int
     private let lock = NSLock()
     private var all = 0
     private var byPeer: [String: Int] = [:]
 
-    public init() {}
+    /// The phone scan's limits, or others (the shared scanner's: Windows' `KestrelShareHost`).
+    public init(maxConnections: Int = PhoneConnections.maxConnections, maxPerPeer: Int = PhoneConnections.maxPerPeer) {
+        limit = maxConnections
+        limitPerPeer = maxPerPeer
+    }
 
     /// Counts one more from `peer`; false (nothing counted) past either limit.
     public func enter(_ peer: String) -> Bool {
         let key = PhonePeers.normal(peer)
         return lock.withLock {
             let mine = byPeer[key] ?? 0
-            guard all < Self.maxConnections, mine < Self.maxPerPeer else { return false }
+            guard all < limit, mine < limitPerPeer else { return false }
             all += 1
             byPeer[key] = mine + 1
             return true

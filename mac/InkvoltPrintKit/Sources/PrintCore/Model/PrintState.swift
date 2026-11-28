@@ -84,6 +84,9 @@ public struct PrintState: Equatable, Sendable, Codable {
     public var scanButtons: [String: ScanButtonChoice] = [:]
     /// The App Store rating request's progress (`RatingProgress`; the Windows app's `AppState.Rating`).
     public var rating: RatingProgress?
+    /// The scanner shared on the network (roadmap 3.1, `ScannerShare`; the Windows app's `AppState.ScannerShare`): none by
+    /// default; its UUID kept after sharing is turned off, for the next time.
+    public var scannerShare: ScannerShareChoice?
 
     public static let maxBatchPlaces = 200
 
@@ -112,6 +115,7 @@ public struct PrintState: Equatable, Sendable, Codable {
         directPrinters = ((try? c.decodeIfPresent([TextOnly].self, forKey: .directPrinters)) ?? []).compactMap(\.text)
         scanButtons = (try? c.decodeIfPresent([String: ScanButtonChoice].self, forKey: .scanButtons)) ?? [:]
         rating = try? c.decodeIfPresent(RatingProgress.self, forKey: .rating)
+        scannerShare = try? c.decodeIfPresent(ScannerShareChoice.self, forKey: .scannerShare)
     }
 }
 
