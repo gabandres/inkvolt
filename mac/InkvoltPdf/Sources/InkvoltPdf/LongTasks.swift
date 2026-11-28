@@ -202,17 +202,34 @@ enum SavedOcr {
     /// The language chosen (nil: Vision finds out for itself), kept with the text layer.
     static var language: String? { AppSettings.ocrLanguage.isEmpty ? nil : AppSettings.ocrLanguage }
 
+    /// The other language on the same pages (roadmap 2.2's mixed languages): only with a first language chosen, and not
+    /// the same one.
+    static var secondLanguage: String? {
+        let second = AppSettings.ocrSecondLanguage
+        guard let language, !second.isEmpty, second.caseInsensitiveCompare(language) != .orderedSame else { return nil }
+        return second
+    }
+
+    /// What reads as Recognize Text was last set (Windows' `PageOcr.Build` of the chosen plan): Vision in the chosen
+    /// language, or Vision in each of two languages, each line kept from the one that reads it better (`MixedRecognizer`,
+    /// each with its Mac dictionary). Batch, Scan, export, Compare and Redact by Pattern read with it.
+    static func reader() -> any TextRecognizer {
+        let first = VisionRecognizer(languages: language.map { [$0] })
+        guard let second = secondLanguage else { return first }
+        return MixedRecognizer(first, MacSpelling(language: language), VisionRecognizer(languages: [second]), MacSpelling(language: second))
+    }
+
     static func recognizer() -> Recognizer {
-        let reader = VisionRecognizer(languages: language.map { [$0] })
+        let reader = reader()
         let options = AppSettings.ocrOptions()
-        return PageOcr.recognizer(reader, options: options, spelling: options.checkWords ? MacSpelling(language: reader.language) : nil)
+        return PageOcr.recognizer(reader, options: options, spelling: options.checkWords ? MacSpelling.of(reader.language) : nil)
     }
 
     /// A batch's host: the recognizer and its language, the reader Redact Patterns searches scans with, and the password
     /// prompt when someone is there to answer.
     static func batchHost(askPassword: (@Sendable (BatchPasswordRequest, CancelToken?) async -> String?)? = nil) -> BatchHost {
-        BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: language,
-                  reader: VisionRecognizer(languages: language.map { [$0] }))
+        let reader = reader()
+        return BatchHost(askPassword: askPassword, recognize: recognizer(), recognizeLanguage: reader.language, reader: reader)
     }
 }
 
@@ -269,6 +286,15 @@ extension DocumentWindowController {
         language.selectItem(at: (languages.firstIndex { $0.tag == AppSettings.ocrLanguage }).map { $0 + 1 } ?? 0)
         language.setAccessibilityLabel(loc("Language"))
         language.toolTip = loc("The language of the text. Vision detects it when you don't choose one.")
+        // A second language on the same pages (roadmap 2.2): Vision reads the page in each, line by line the better kept.
+        let second = NSPopUpButton(frame: .zero, pullsDown: false)
+        second.addItems(withTitles: [loc("None", context: "no second language")] + languages.map(\.name))
+        second.selectItem(at: (languages.firstIndex { $0.tag == AppSettings.ocrSecondLanguage }).map { $0 + 1 } ?? 0)
+        second.setAccessibilityLabel(loc("Second language"))
+        second.toolTip = loc("For pages in two languages. Each line is kept from the one that reads it better.")
+        // Only with a language chosen: Vision detecting the language reads one.
+        _ = ControlAction(language) { second.isEnabled = language.indexOfSelectedItem > 0 }
+        second.isEnabled = language.indexOfSelectedItem > 0
         let clean = NSButton(checkboxWithTitle: loc("Straighten and clean the pages first"), target: nil, action: nil)
         clean.state = AppSettings.ocrClean ? .on : .off
         clean.toolTip = loc("Straightens pages up to 15°, turns sideways and upside-down pages upright, removes specks and evens out grey paper before recognizing.")
@@ -298,6 +324,7 @@ extension DocumentWindowController {
         let form = SheetForm("RecognizeText")
         form.row(loc("Pages"), choice.view)
         form.row(loc("Language"), language)
+        form.row(loc("Second language"), second)
         form.note(loc("Pages that already have text are skipped."))
         form.row(nil, clean, advanced: true)
         form.note(loc("Turns pages upright, straightens them (up to 15°) and removes specks and grey paper before reading."), advanced: true)
@@ -320,6 +347,9 @@ extension DocumentWindowController {
                 }
                 let index = language.indexOfSelectedItem
                 AppSettings.ocrLanguage = index > 0 && index <= languages.count ? languages[index - 1].tag : ""
+                let also = second.indexOfSelectedItem
+                // Saved at once: Vision needs no download (Windows saves its languages once installed, PageOcr.Choose).
+                AppSettings.ocrSecondLanguage = index > 0 && also > 0 && also <= languages.count ? languages[also - 1].tag : ""
                 AppSettings.ocrClean = clean.state == .on
                 AppSettings.ocrSuspects = suspects.state == .on
                 AppSettings.ocrTrapezoid = trapezoid.state == .on
@@ -364,9 +394,8 @@ extension DocumentWindowController {
             (outcome, report) = await editor.recognizeText(pages: chosen, recognizer: recognizer, cancel: sheet.token, progress: progress)
         } else {
             let options = options ?? AppSettings.ocrOptions()
-            let language = AppSettings.ocrLanguage
-            let reader: any TextRecognizer = ocr ?? VisionRecognizer(languages: language.isEmpty ? nil : [language])
-            let dictionary: (any Spelling)? = options.checkWords ? (spelling ?? MacSpelling(language: reader.language)) : nil
+            let reader: any TextRecognizer = ocr ?? SavedOcr.reader()
+            let dictionary: (any Spelling)? = options.checkWords ? (spelling ?? MacSpelling.of(reader.language)) : nil
             (outcome, report) = await editor.recognizeText(pages: chosen, ocr: reader, options: options, spelling: dictionary,
                                                            cancel: sheet.token, progress: progress)
         }

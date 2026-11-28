@@ -1028,7 +1028,7 @@ at under "What a person must look at" and in each section.
 | 4.9 | Two documents side by side (roadmap 4.9): AppKit's window tabs (Window › Move Tab to New Window, a tab dragged out or onto another window, Merge All Windows) kept in step with `DocumentWindows` by the app's `WindowHub`: a file open once (in any window, by any spelling of its path, never read twice at once), documents opened join the window used last, File › New Window and the Dock menu's New Window give the next document a window of its own (`--edit --only-windows` drives it) | DocumentWindowsTests |
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
-| 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes); Make Text Editable (`EditableText`; Tools › Make Text Editable…, Scan & OCR's bar item) | PageWarpTests, EditableTextTests |
+| 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes); Make Text Editable (`EditableText`; Tools › Make Text Editable…, Scan & OCR's bar item); mixed languages (`MixedRecognizer`, Recognize Text's Second language) | PageWarpTests, EditableTextTests, MixedLanguagesTests |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -2555,6 +2555,20 @@ for Mac is unsandboxed and signed with Developer ID, so it could keep the files 
   closer to the Helvetica page than Arial. The notice has no Edit Text button (the Mac's notice bar has only Undo); it
   says how. EditableTextTests ported with Windows' names (10 tests, 11 cases; the speed test's limit is Windows' Debug
   one, 10 s a page, as `swift test` builds for debugging).
+- **Mixed languages** (Windows' `MixedRecognizer`, `EitherSpelling`): PdfCore's `MixedRecognizer` reads the page with two
+  recognizers (Vision in one language each) and keeps each line from the reading that looks more like real words, the same
+  union of lines by place and the same plausibility (dictionary words, else the engine's confidence, garbage a tenth); its
+  `language` is both tags ("en-US+es-MX", Windows' `PageRecognizer.Language`), which the text layer now keeps (its first
+  line takes "+"), and `MacSpelling.of` answers with both dictionaries (the Suspect Words pane's suggestions too).
+  `TextRecognizer.read` gives words with their lines and confidence (`RecognizedWord`, Windows' shared type): Vision's
+  own lines, a default that puts a stand-in's words in lines by place. The app: Recognize Text's Second language (None,
+  or one of Vision's languages; only with a language chosen, as Vision detecting the language reads one), saved at once
+  (Windows saves its languages once installed, `PageOcr.Choose`; Vision needs nothing installed); `SavedOcr.reader()`
+  reads with it for Recognize Text, Batch, Scan, export, a watched folder, Compare and Redact by Pattern.
+  MixedLanguagesTests: TesseractTests.cs's "two languages" tests with Windows' names (the mixed recognizer's
+  `language` names both, adapted; no re-reader), and `wordsWithoutLinesArePutInLinesByPlace` (Mac only).
+  `OcrLanguages` (Windows' list of its languages then Tesseract's, and the plan of which engine reads what) has no Mac
+  counterpart: Vision's languages are the list.
 
 ## Open decisions
 

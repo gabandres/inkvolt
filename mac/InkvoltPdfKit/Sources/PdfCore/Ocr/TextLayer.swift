@@ -309,7 +309,7 @@ public enum TextLayer {
         let words = all.filter(usable)
 
         var ops = marker
-        if let language, !language.isEmpty, language.allSatisfy({ ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "-" }) { ops += " " + language }
+        if let language, !language.isEmpty, language.allSatisfy({ ($0.isASCII && ($0.isLetter || $0.isNumber)) || $0 == "-" || $0 == "+" }) { ops += " " + language }
         ops += "\n"
         // The page's frame, so the boxes follow the page when it is turned or cropped later (frameOf).
         let b = PageBoxes.visibleBox(page)

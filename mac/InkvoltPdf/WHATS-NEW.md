@@ -13,6 +13,7 @@ their Spanish, line for line, shown when the app runs in Spanish: an English lin
 - A page with a tiny picture built to unpack gigabytes (a damaged or malicious PDF) no longer takes seconds and then says "This page took too long to read": it shows at once.
 - Recognize Text straightens a page photographed at an angle and flattens lines bent by a book's spine before reading it, so phone photos and open books read much better. Keep the cleaned pages instead of the scans to keep them straightened. Both are on by default and leave pages that don't need them as they are.
 - Make Text Editable (Tools menu, and Scan & OCR on the bar) turns a scanned page's recognized text into real text, in the installed font closest to the scan's (italic, bold and coloured text too) and at its size and place, so you can edit its paragraphs with Edit Text & Images. The scan is covered behind the text in the paper's own colour, or left showing if you prefer. Undo puts the page back.
+- Pages in two languages: choose a second language in Recognize Text. Each line is read in the language that fits it.
 
 ## 1.13.0
 - A PDF opened with its password showed blank white pages (its text could still be searched and copied). Its pages now show.

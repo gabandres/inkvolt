@@ -41,6 +41,7 @@ enum AppSettings {
         static let ocrTrapezoid = "OcrTrapezoid"
         static let ocrCurvedLines = "OcrCurvedLines"
         static let editableKeepScan = "EditableKeepScan"
+        static let ocrSecondLanguage = "OcrSecondLanguage"
         static let spellCheck = "SpellCheck"
         static let meaningEnabled = "MeaningEnabled"
         static let meaningModel = "MeaningModel"
@@ -182,6 +183,12 @@ enum AppSettings {
     static var ocrLanguage: String {
         get { defaults.string(forKey: Key.ocrLanguage) ?? "" }
         set { defaults.set(newValue, forKey: Key.ocrLanguage) }
+    }
+
+    /// Recognize Text's second language on the same pages (a BCP-47 tag; empty: one language; roadmap 2.2).
+    static var ocrSecondLanguage: String {
+        get { defaults.string(forKey: Key.ocrSecondLanguage) ?? "" }
+        set { defaults.set(newValue, forKey: Key.ocrSecondLanguage) }
     }
 
     /// The language Translate with AI last put a copy into ("Spanish" at first, as on Windows).

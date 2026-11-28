@@ -26653,6 +26653,39 @@
           }
         }
       }
+    },
+    "None [no second language]": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ninguno"
+          }
+        }
+      }
+    },
+    "Second language": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Segundo idioma"
+          }
+        }
+      }
+    },
+    "For pages in two languages. Each line is kept from the one that reads it better.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Para páginas en dos idiomas. Cada línea se toma del que la lee mejor."
+          }
+        }
+      }
     }
   },
   "version": "1.0"
