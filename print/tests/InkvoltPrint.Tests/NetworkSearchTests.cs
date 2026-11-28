@@ -283,6 +283,11 @@ public class NetworkSearchTests
     [InlineData("http://[fe80::1%25a]:8080", "fe80::1%a", "http://[fe80::1%25a]:8080/ipp/print", "http://[fe80::1%25a]:8080/")]
     [InlineData("[fe80::1%25en0]", "fe80::1%en0", null, null)]
     [InlineData("ipp://[fe80::1%12]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", null)] // Windows' zones are numbers
+    // "%25" with nothing after it is interface 25 (ipconfig's "%25"), not an escaped empty zone; "%2512" is still interface 12.
+    [InlineData("[fe80::1%25]", "fe80::1%25", null, null)]
+    [InlineData("ipp://[fe80::1%25]/", "fe80::1%25", "http://[fe80::1%2525]:631/ipp/print", null)]
+    [InlineData("[fe80::1%25]:8080", "fe80::1%25", "http://[fe80::1%2525]:8080/ipp/print", null)]
+    [InlineData("ipp://[fe80::1%2512]/", "fe80::1%12", "http://[fe80::1%2512]:631/ipp/print", null)]
     public void A_zoned_IPv6_address_keeps_its_zone(string typed, string host, string? ipp, string? web)
     {
         var a = PrinterAddress.Parse(typed);
@@ -343,10 +348,10 @@ public class NetworkSearchTests
 
     /// <summary>A zone that isn't one (empty, or a character a zone can't hold) is no address, never a URL made from it.</summary>
     [Theory]
-    [InlineData("ipp://[fe80::1%25]/")]
+    [InlineData("ipp://[fe80::1%]/")]
     [InlineData("ipp://[fe80::1%25a%2Fb]/")]
     [InlineData("[fe80::1%25a%2Fb]:8080")]
-    [InlineData("[fe80::1%25]:8080")]
+    [InlineData("[fe80::1%]:8080")]
     public void A_zone_that_isnt_one_is_no_address(string typed)
     {
         var a = PrinterAddress.Parse(typed);

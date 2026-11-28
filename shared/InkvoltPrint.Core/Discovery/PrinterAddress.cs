@@ -46,8 +46,9 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
     }
 
     /// <summary>
-    /// "fe80::1%25en0", "fe80::1%en0" or "fe80::1%12": the address and its zone, "%25" read as RFC 6874's escaped "%".
-    /// The zone is null when it is empty, too long, or holds a character outside RFC 6874's unreserved ones (letters,
+    /// "fe80::1%25en0", "fe80::1%en0" or "fe80::1%12": the address and its zone, "%25" read as RFC 6874's escaped "%" when
+    /// something follows it. "%25" alone is interface 25, as ipconfig shows an interface's number (the owner's call: an empty
+    /// zone escaped is nothing anyone types; "%2512" stays the escaped form of interface 12). The zone is null when it is empty, too long, or holds a character outside RFC 6874's unreserved ones (letters,
     /// digits, "-", ".", "_", "~").
     /// </summary>
     private static (string Address, string? Zone, bool HasZone) SplitZone(string host)
@@ -55,7 +56,7 @@ public sealed record PrinterAddress(string? Host, Uri? Ipp, string? Error)
         var pct = host.IndexOf('%');
         if (pct < 0) return (host, null, false);
         var zone = host[(pct + 1)..];
-        if (zone.StartsWith("25", StringComparison.Ordinal))
+        if (zone.Length > 2 && zone.StartsWith("25", StringComparison.Ordinal))
         {
             try
             {
