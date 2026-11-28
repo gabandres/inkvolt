@@ -369,10 +369,9 @@ mac/InkvoltPrintKit --build-system native`.
   neither), but every Cap entry is a walk-up default (DefaultLighterDarker, DefaultMediaSizeName, DefaultMediaType,
   DefaultNumberOfCopies, DefaultOptimize, DefaultReduceEnlargeCustom, all `readWrite`) and the Dyn holds only those: no
   start, so the M234dw offers no copy started by an app (`LedmCopy.read` is nil: nothing offered, nothing sent).
-  **Mac differences:** the Mac has no Copy tab, so the printer's own copier is a sheet of its own in the Print menu, and
-  Windows' page copy through the PC (copies, collate, 2-up and 4-up, the preview) isn't on the Mac (the ID card copy is):
-  the refusals say to copy from the printer's control panel instead of choosing Through this PC, and `CopyRoute.controls`
-  and `blocker` are Windows' rules no Mac screen uses yet; the PUT starts with an XML declaration and declares only the
+  **Mac differences:** the Mac has no Copy tab, so the printer's own copier is a sheet of its own in the Print menu (Copy on
+  the Printer…), and since P13 also Copy…'s Copy with: The printer itself, as Windows' tab (`CopyRoute.controls` and
+  `blocker` used there); the refusals say to copy from the printer's control panel; the PUT starts with an XML declaration and declares only the
   namespaces it uses (Windows also declares the Dyn root's `dd`). Not checked: a printer whose Cap offers a start, a real
   copy, the sheet on screen and with VoiceOver.
 - **3.7 Spanish interface.** Every sentence PrintCore and PrintMac show goes through `loc` (`Suite/CoreLanguage`,
@@ -404,8 +403,11 @@ printer says it can't print both sides: the sides once, with the order handed to
 each sheet and an odd last side's sheet is set aside as Windows' plan says; the prompt names it by its side's first page.
 The sides are drawn by PrintMac's `CopySheets` (Windows' `PagesPaginator`) into a PDF on the paper where the jobs go (the
 queue's or the printer's default, else Letter or A4 by region) and sent as Batch Print sends a file, through
-`PrinterModel.batchQueue()`: the macOS queue, or straight to the printer when the router says so (roadmap 2.1). `CopyRoute`
-is the copier branch's port of Windows' (the same file), its tests in PrinterCopyTests there. **Mac differences:** Copy is a
+`PrinterModel.batchQueue()`: the macOS queue, or straight to the printer when the router says so (roadmap 2.1). Where the
+printer's own copier takes requests (3.3, `PrinterModel.printerCopier`), Copy with offers Through this Mac (the default)
+or The printer itself, as Windows' tab: then only the hint, the panel's-settings summary and the printer's outcome show
+(`CopyRoute.onPrinter`, `controls`, `blocker`; the request and the admin password through Copy on the Printer…'s
+`PrinterCopyModel` and `PrinterCopyStatus`), and Copy on the Printer… stays in the menu. **Mac differences:** Copy is a
 sheet from the Print menu beside Copy an ID Card… (the Mac has no Copy tab; the ID card copy stays its own sheet, through
 the print panel); Copy… is always in the menu and says in its sheet why it can't copy, where Windows' tab is disabled with
 the reason; the copy goes as Batch Print's files go, so a sheet laid out to the paper's edge is printed by CUPS's
@@ -415,11 +417,12 @@ made-up queue (Windows' demo only counts it). Tests: CopyLayoutTests (all 21 of 
 HandDuplexBatchTests' aCopyLaidOutByTheAppGoesByHandInItsOwnOrder (Mac only), PrintMac's CopySheetsTests (Mac only; its
 opt-in `INKVOLT_COPY_PRINTER=<address>` copies a real printer's glass straight to it through `DirectBatchQueue` and the
 runner, printed only when the glass is blank). `--report --demo --copy` (2026-11-27, all sent): a document from the HP
-laser's glass through its own route; from the demo inkjet's feeder (three pages) 2-up (two sides, the pages turned) and
+laser's glass through its own route; Copy with offered on the laser and The printer itself copying with no option shown;
+from the demo inkjet's feeder (three pages) 2-up (two sides, the pages turned) and
 4-up (one side), a preview at 2-up laid out again at 4-up then printed, two copies on both sides uncollated and collated
 (8 sides each, one copy on the job), two copies uncollated by hand on the one-sided USB laser (fronts 1 1 3 3, backs 0 2 2,
 page 3's sheet set aside); the other printers' reasons (no scanner, connecting, a scanner of its own: nowhere to print).
-`--report --copy --copy-printer <name>` (outside demo mode) finds the printer as Add a Printer does when it isn't listed,
+`--report --copy --copy-from <name>` (outside demo mode) finds the printer as Add a Printer does when it isn't listed,
 adds it to the app's list for the copy and removes it after (never a macOS queue), scans one page from the glass,
 previewed, and prints it only when the glass is blank. **The real copy wasn't made:** a build run from an agent's own
 folder has no Local Network access, nor has `swift test` over SSH (research file, 2026-11-27); nothing was scanned or

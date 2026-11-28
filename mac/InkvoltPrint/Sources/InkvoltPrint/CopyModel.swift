@@ -65,6 +65,12 @@ final class CopyModel {
     /// What the last copy sent (its sides' file, the job's copies, the runner's answer), for `--report`.
     private(set) var lastJob: String?
 
+    /// Copy with the printer itself, not through this Mac (Windows' Copy with; roadmap 3.3). Off by default: the printer's copy
+    /// settings' names are assumed until a recorded printer confirms them (`LedmCopy`).
+    var onPrinterChosen = false
+    /// The printer's own copy, when it's chosen (`PrinterCopyModel`, Copy on the Printer…'s).
+    let printerCopy: PrinterCopyModel
+
     /// `--report`: the queue to print to in place of the printer's (demo mode's one-sided USB laser for two-sided by hand).
     @ObservationIgnored var queueOverride: (any BatchQueue)?
     /// The job's name where the printer and the queue list it (`--report`'s real copy names what was on the glass).
@@ -83,7 +89,19 @@ final class CopyModel {
     init(printer: PrinterModel, app: AppModel) {
         self.printer = printer
         self.app = app
+        printerCopy = PrinterCopyModel(printer: printer)
     }
+
+    /// The printer's own copier takes requests (an HP printer listing LEDM's copy settings with a start).
+    var hasPrinterCopy: Bool { printer.printerCopier != nil }
+    /// This copy is made by the printer by itself: nothing scanned to this Mac, no queue (`CopyRoute.onPrinter`).
+    var onPrinter: Bool { CopyRoute.onPrinter(hasPrinterCopy, onPrinterChosen, idCard: false) }
+    /// The choice between the printer itself and this Mac: only when the printer offers it.
+    var showWhere: Bool { hasPrinterCopy }
+    /// Options only this Mac's copy has: the source, size, pages per sheet, the preview.
+    var showMacOptions: Bool { controls.pcOptions }
+    var showCopies: Bool { controls.copies }
+    var showColor: Bool { controls.color }
 
     // MARK: What can be done
 
@@ -95,7 +113,7 @@ final class CopyModel {
     private var canPrint: Bool { queueOverride != nil || printer.queueName != nil || printer.route != .none }
 
     var unavailableReason: String? {
-        switch CopyRoute.blocker(onPrinter: false, scannerChecked: scannerChecked, hasScanner: hasScanner, canPrint: canPrint) {
+        switch CopyRoute.blocker(onPrinter: onPrinter, scannerChecked: scannerChecked, hasScanner: hasScanner, canPrint: canPrint) {
         case .connecting: String(localized: "Connecting to the printer…")
         case .noScanner: String(localized: "This printer has no scanner, so it can't copy. You can still print PDFs.")
         case .noQueue: String(localized: "Copies print through this printer's macOS queue, and it isn't set up in macOS yet. Use Set Up in macOS on the Status tab.")
@@ -104,22 +122,24 @@ final class CopyModel {
     }
 
     private var controls: CopyControls {
-        CopyRoute.controls(onPrinter: false, idCard: false, copies: copies, queueTwoSided: canTwoSided, byHand: offersByHand)
+        CopyRoute.controls(onPrinter: onPrinter, idCard: false, copies: copies, queueTwoSided: canTwoSided, byHand: offersByHand)
     }
 
     var showCollate: Bool { controls.collate }
     var showTwoSided: Bool { controls.twoSided }
-    var showSource: Bool { sources.count > 1 }
-    var canCopy: Bool { unavailableReason == nil && !isBusy }
+    var showSource: Bool { sources.count > 1 && showMacOptions }
+    var canCopy: Bool { unavailableReason == nil && !isBusy && (!onPrinter || printerCopy.canCopy) }
 
     var twoSidedText: String { canTwoSided ? String(localized: "Print on both sides") : String(localized: "Print on both sides by hand") }
 
     var hint: String {
-        source == .platen ? String(localized: "Put the page face down on the scanner glass, then click Copy.")
+        onPrinter ? String(localized: "Put the pages face up in the printer's document feeder, or one page face down on its glass, then press Copy. The printer copies by itself.")
+            : source == .platen ? String(localized: "Put the page face down on the scanner glass, then click Copy.")
             : String(localized: "Put the pages face up in the document feeder, then click Copy.")
     }
 
     var summary: String {
+        if onPrinter { return String(localized: "The printer copies with the copies, two-sided and other settings on its own control panel.") }
         var parts = [copies == 1 ? String(localized: "\(copies) copy") : String(localized: "\(copies) copies")]
         if pagesPerSheet > 1 { parts.append(String(localized: "\(pagesPerSheet) pages per sheet")) }
         parts.append(fitToPaper ? String(localized: "fit to the paper") : String(localized: "actual size"))
@@ -154,6 +174,12 @@ final class CopyModel {
     /// Copy: scan, then print (or wait in the preview). The work runs in a task of its own so Cancel can stop it.
     func copy() {
         guard canCopy else { return }
+        if onPrinter {
+            // The printer copies by itself: one request, nothing scanned to this Mac; what came of it shows below the options.
+            startOver()
+            work = Task { await printerCopy.copy() }
+            return
+        }
         work = Task { await copyPages() }
     }
 

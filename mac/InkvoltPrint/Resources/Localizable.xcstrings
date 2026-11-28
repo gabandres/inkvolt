@@ -1,6 +1,46 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Copy with": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar con"
+          }
+        }
+      }
+    },
+    "Through this Mac": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A través de este Mac"
+          }
+        }
+      }
+    },
+    "The printer itself": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La propia impresora"
+          }
+        }
+      }
+    },
+    "Copies, preview, 2 or 4 pages per sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copias, vista previa, 2 o 4 páginas por hoja"
+          }
+        }
+      }
+    },
     "Connecting to the printer…": {
       "localizations": {
         "es": {

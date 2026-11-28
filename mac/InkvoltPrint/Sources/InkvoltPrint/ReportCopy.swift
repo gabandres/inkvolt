@@ -25,6 +25,15 @@ extension Report {
         copy.source = .platen
         await copy.copyAndWait()
         said("document (its own route)")
+        // Copy with: the laser's own copier (roadmap 3.3), as Windows' tab offers it; the options are the printer's panel's.
+        lines.append("  copy with offered: \(copy.showWhere)")
+        if copy.showWhere {
+            copy.onPrinterChosen = true
+            let shown = [copy.showCopies, copy.showColor, copy.showSource, copy.showMacOptions, copy.showTwoSided, copy.showCollate]
+            await copy.copyAndWait()
+            lines.append("  the printer itself: \(copy.printerCopy.step); options shown \(shown.filter { $0 }.count); \(copy.summary)")
+            copy.onPrinterChosen = false
+        }
 
         // From here the demo inkjet's feeder (three pages) scans, and a made-up queue of the laser's name takes the jobs, so they
         // can be listed.
