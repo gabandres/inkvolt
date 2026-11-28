@@ -2167,7 +2167,9 @@ Shots for the owner: `docs/design/mac/`.
   give way to the label colour (Windows: high contrast); Differentiate Without Color changes nothing, since every
   coloured icon has its label. The toolbar's identifier changed (`InkvoltPdfDocumentBar`), so a toolbar customized
   before starts from the new defaults; the old Highlight, Fill & Sign, Edit, Redact and Organize buttons are replaced by
-  their groups (Markup, Zoom, Share and the rest stay in Customize Toolbar…).
+  their groups (Markup, Zoom, Share and the rest stay in Customize Toolbar…). Windows' View › Customize Command Bar…
+  (later) is the same choice on its bar: the entries ticked and ordered, Share added (`CommandBarLayout.Arrange`,
+  CommandBarLayoutTests); what isn't on the bar is in its "…".
 - **One-click jobs.** Convert › Word, Excel, PowerPoint, text, HTML: `ExportTarget.reserve` makes name.docx next to the PDF
   with `open(O_CREAT | O_EXCL | O_NOFOLLOW)` (a regular file or nothing), "name (2).docx" when taken, Documents when the
   PDF isn't saved or its folder refuses; a Windows device name (`ReservedFileNames`: CON, COM¹, CONIN$…) is refused, so

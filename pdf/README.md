@@ -46,6 +46,11 @@ Installing Inkvolt PDF and Inkvolt Print together (one Start Menu folder, each a
   check, Batch's steps); a sentence is one format string (`Loc.Format`), a count two (`Loc.Plural`). The command palette
   also finds a command by its English name. Stay English: the command line's output (scripts read it), logs, dev scripts,
   file formats and columns. What's New is in Spanish from `WHATS-NEW.es.md`. Wording: `docs/SPANISH-REVIEW.md`.
+- **Customize Command Bar…** (View menu, right-click on the bar, or the end of its "…"; the Mac's Customize Toolbar…):
+  tick what the bar shows and set its order (Move Up / Move Down, Alt+Up / Alt+Down); Share… can be added. What isn't
+  ticked is listed in "…" after what didn't fit; Reset to defaults gives the bar as it comes. Kept in the settings
+  (`CommandBar`: the order, "-" before a hidden entry; `CommandBarLayout.Arrange` skips names it doesn't know, and an
+  entry a later version adds takes its default place), for every window; separators fall where the kind changes.
 - **Command bar** (Fluent 2's pattern, one row; the groups where Nitro, Foxit and Acrobat put them,
   `docs/design/command-bar.md`): save, print, undo and redo as icons, the pointer tools (Hand / Select / Snapshot, an icon
   showing the one in use), then **Edit**, **Convert**, **Comment**, **Fill & Sign**, **Organize**, **Protect** and **Scan &

@@ -175,7 +175,67 @@ public static class CommandBarLayout
         new("Find", "\uE721"), new("Reflow", "\uE736"),
     ];
 
-    public static Entry Group(string id) => Bar.First(e => e?.Id == id)!;
+    public static Entry Group(string id) => Bar.FirstOrDefault(e => e?.Id == id) ?? Extras.First(e => e.Id == id);
+
+    // ── Customize Command Bar (the Mac's Customize Toolbar…) ──
+
+    /// <summary>What Customize Command Bar… offers besides the bar's own: off the bar until the person adds them.</summary>
+    public static IReadOnlyList<Entry> Extras { get; } = [new("Share", null, 40, [new("Share", "")])];
+
+    /// <summary>Every entry the person can show, hide and move, in the bar's own order, then <see cref="Extras"/>.</summary>
+    public static IReadOnlyList<string> Customizable => [.. Bar.OfType<Entry>().Select(e => e.Id), .. Extras.Select(e => e.Id)];
+
+    /// <summary>The settings hold at most this many names; the rest of a longer (damaged or hand-edited) list is ignored.</summary>
+    public const int MaxSaved = 64;
+
+    /// <summary>The bar as the person arranged it: what shows, in their order, and what doesn't (in "…").</summary>
+    public sealed record Arrangement(IReadOnlyList<string> Shown, IReadOnlyList<string> Hidden);
+
+    /// <summary>
+    /// The arrangement <paramref name="saved"/> (from <see cref="Save"/>) describes: its entries in its order, "-" before
+    /// a hidden one. Names it doesn't know, or gives twice, are skipped; entries it doesn't name (added in a later
+    /// version) take their default place: the bar's at the end of what shows, <see cref="Extras"/> hidden. Nothing saved:
+    /// the bar as it comes.
+    /// </summary>
+    public static Arrangement Arrange(IReadOnlyList<string>? saved)
+    {
+        var known = Customizable;
+        var shown = new List<string>();
+        var hidden = new List<string>();
+        foreach (var token in (saved ?? []).Take(MaxSaved))
+        {
+            if (token is null) continue;
+            var off = token.StartsWith('-');
+            var id = off ? token[1..] : token;
+            if (!known.Contains(id) || shown.Contains(id) || hidden.Contains(id)) continue;
+            (off ? hidden : shown).Add(id);
+        }
+        foreach (var id in known.Where(id => !shown.Contains(id) && !hidden.Contains(id)))
+            (Extras.Any(e => e.Id == id) ? hidden : shown).Add(id);
+        return new Arrangement(shown, hidden);
+    }
+
+    /// <summary>The settings' form of an arrangement: the shown entries in order, then each hidden one with "-".</summary>
+    public static List<string> Save(Arrangement arrangement) => [.. arrangement.Shown, .. arrangement.Hidden.Select(id => "-" + id)];
+
+    /// <summary>True when <paramref name="arrangement"/> is the bar as it comes (nothing to keep in the settings).</summary>
+    public static bool IsDefault(Arrangement arrangement) => Save(arrangement).SequenceEqual(Save(Arrange(null)));
+
+    /// <summary>
+    /// The shown entries with the bar's separators (null) where the kind changes: the icon commands (save, print, undo,
+    /// redo, share), the pointer tools, the labeled groups; as the default bar has them.
+    /// </summary>
+    public static IReadOnlyList<string?> WithSeparators(IReadOnlyList<string> shown)
+    {
+        static int Kind(string id) => id == Pointer ? 1 : Group(id).Label is null ? 0 : 2;
+        var result = new List<string?>();
+        for (var i = 0; i < shown.Count; i++)
+        {
+            if (i > 0 && Kind(shown[i]) != Kind(shown[i - 1])) result.Add(null);
+            result.Add(shown[i]);
+        }
+        return result;
+    }
 
     /// <summary>Every command the bar reaches, on the bar or in a group or the overflow (the drawing tools, in a submenu of <see cref="DrawsIn"/>, aside).</summary>
     public static IEnumerable<string> AllCommands =>

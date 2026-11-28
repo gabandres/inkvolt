@@ -256,6 +256,25 @@
   <data name="Cmd_Share" xml:space="preserve">
     <value>Compar_tir…</value>
   </data>
+  <data name="Cmd_CustomizeBar" xml:space="preserve">
+    <value>Personali_zar la barra de comandos…</value>
+  </data>
+  <data name="Bar_CustomizeTitle" xml:space="preserve">
+    <value>Personalizar la barra de comandos</value>
+  </data>
+  <data name="Bar_CustomizeNote" xml:space="preserve">
+    <value>Marca lo que muestra la barra, de izquierda a derecha en este orden; Subir y Bajar (o Alt+Arriba y Alt+Abajo) lo cambian. Lo que no marques queda en el menú "…" de la barra, y todos los comandos siguen en los menús y en la paleta de comandos (Ctrl+K).</value>
+  </data>
+  <data name="Bar_CustomizeList" xml:space="preserve">
+    <value>Barra de comandos</value>
+    <comment>The list's name, for a screen reader</comment>
+  </data>
+  <data name="Bar_MoveUp" xml:space="preserve">
+    <value>Subir</value>
+  </data>
+  <data name="Bar_MoveDown" xml:space="preserve">
+    <value>Bajar</value>
+  </data>
   <data name="Share_UnsavedTitle" xml:space="preserve">
     <value>¿Compartir {0} con sus cambios?</value>
     <comment>{0} the document's name</comment>

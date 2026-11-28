@@ -274,6 +274,7 @@
                                     </MenuItem>
                                     <MenuItem Command="app:Cmd.ToggleDarkMode" />
                                     <MenuItem x:Name="DarkPagesMenu" Command="app:Cmd.DarkPages" />
+                                    <MenuItem Command="app:Cmd.CustomizeBar" />
                                     <MenuItem x:Name="HighlightFieldsMenu" Command="app:Cmd.HighlightFields" />
                                     <MenuItem Command="app:Cmd.FullScreen" />
                                 </MenuItem>
@@ -413,6 +414,11 @@
                                  groups that drop a menu of their tools; what doesn't fit, and the page commands, are in "…" with
                                  their labels. Each button's Tag is its CommandBar entry. -->
                             <app:ToolbarPanel x:Name="DocCommands" VerticalAlignment="Center" MoreAlways="True">
+                                <app:ToolbarPanel.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Command="app:Cmd.CustomizeBar" />
+                                    </ContextMenu>
+                                </app:ToolbarPanel.ContextMenu>
                                 <Button Tag="Save" Style="{StaticResource IconButton}" Command="app:Cmd.Save" ToolTip="{x:Static loc:Strings.Common_Save}" Content="&#xE74E;" />
                                 <Button Tag="Print" Style="{StaticResource IconButton}" Command="app:Cmd.Print" ToolTip="{x:Static loc:Strings.Common_Print}" Content="&#xE749;" />
                                 <Button x:Name="UndoButton" Tag="Undo" Style="{StaticResource IconButton}" Command="app:Cmd.Undo" ToolTip="{x:Static loc:Strings.Common_Undo}" Content="&#xE7A7;" />

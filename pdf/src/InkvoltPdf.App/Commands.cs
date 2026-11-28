@@ -70,6 +70,7 @@ public static class Cmd
     public static readonly RoutedUICommand Properties = Make(Strings.Cmd_Properties, nameof(Properties), K(Key.D, ModifierKeys.Control));
     public static readonly RoutedUICommand ShowInFolder = Make(Strings.Cmd_ShowInFolder, nameof(ShowInFolder));
     public static readonly RoutedUICommand Share = Make(Strings.Cmd_Share, nameof(Share));
+    public static readonly RoutedUICommand CustomizeBar = Make(Strings.Cmd_CustomizeBar, nameof(CustomizeBar));
     public static readonly RoutedUICommand Exit = Make(Strings.Cmd_Exit, nameof(Exit));
 
     // Edit

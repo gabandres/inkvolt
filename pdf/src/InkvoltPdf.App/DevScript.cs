@@ -63,7 +63,7 @@ namespace InkvoltPdf.App;
 /// answer=Button{sp}Text · savepath path|cancel</c> (the next Save As/extract picker returns it, and the comment and form data import pickers) <c>· later ms step</c>
 /// (run a step while the next one is blocked in a modal) <c>· copyfile src dst</c> (another program writes a file)
 /// <c>· closedialog</c> (close the topmost dialog) <c>· dialogbutton Text</c> (press its button with that text) <c>· dialogshot out.png</c> (snapshot it) <c>· theme dark|light</c> (the app's Toggle Dark Mode) <c>· highcontrast on|off|system</c> (Fluent's high-contrast resources on the window, no bar colors, and the page view's
-/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· explorer word a.pdf|b.pdf [nowindow] [each]</c> (Explorer's Convert to Word, as a forwarded --convert-to launch; nowindow: as if the app weren't open) <c>· explorerwait</c> (until those conversions end, then each outcome) <c>· iconcolors</c> (the open menus' colored icons as drawn, against their resource colors) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
+/// high-contrast palette) <c>· size W H</c> (resize the window) <c>· barstate</c> (the command bar: labels or icons, shown, overflow, and each shown child's width in the bar's room) <c>· barorder Id,-Id,…|default</c> (the bar arranged as Customize Command Bar… keeps it; "-" hidden) <c>· barclick Id[ main]|More</c> (press a bar button: a group drops its menu, "Id main" runs its main job) <c>· menushot out.png</c> (a shot with the open menus) <c>· shellopen off|on</c> (what would open in another app, a converted .docx or a folder, is only logged) <c>· explorer word a.pdf|b.pdf [nowindow] [each]</c> (Explorer's Convert to Word, as a forwarded --convert-to launch; nowindow: as if the app weren't open) <c>· explorerwait</c> (until those conversions end, then each outcome) <c>· iconcolors</c> (the open menus' colored icons as drawn, against their resource colors) <c>· bounds Name</c> (a named element's position and visibility) <c>· textscale 1.5|system</c> (as if Windows' Text size were set) <c>· a11yaudit</c> (every visible
 /// window's controls without an accessible name or under 24 × 24, logged). Results and errors go to <c>steps.txt.log</c> (rewritten after every step). Debug builds
 /// only, or any build with INKVOLTPDF_DEVSCRIPT=1.
 /// </summary>
@@ -1292,6 +1292,12 @@ internal static class DevScript
             case "menushot": Shot(window, arg, withMenus: true); break;
             case "shellopen": Shell.OnlyLog = arg == "off"; break;
             case "iconcolors": IconColors(log); break;
+            case "barorder":
+                // barorder Id,-Id,…|default: the command bar arranged as Customize Command Bar… would keep it ("-" hidden).
+                AppSettings.Current.CommandBar = arg == "default" ? null : [.. arg.Split(',')];
+                window.ArrangeBar();
+                await Settled();
+                break;
             case "barstate":
             {
                 // barstate: the command bar as shown (labels or icons only), and what is in its "…" overflow.
@@ -1300,7 +1306,7 @@ internal static class DevScript
                     static string Name(UIElement e) => e is FrameworkElement { Tag: string id } ? id : System.Windows.Automation.AutomationProperties.GetName(e);
                     var shown = bar.Children.OfType<FrameworkElement>()
                         .Where(b => b.IsVisible && !ToolbarPanel.IsSeparator(b) && !ToolbarPanel.GetIsOverflowButton(b)).Select(Name);
-                    var over = bar.OverflowItems.Where(b => !ToolbarPanel.IsSeparator(b)).Select(Name);
+                    var over = bar.OverflowItems.Where(b => !ToolbarPanel.IsSeparator(b)).Select(Name).Concat(window.DevBarHidden.Select(Name));
                     log.Add($"bar {window.ActualWidth:0}: {(bar.IsCompact ? "icons only" : "labels")}; shown {string.Join(" ", shown)}; overflow {string.Join(" ", over)}");
                     var widths = bar.Children.OfType<FrameworkElement>().Where(b => b.IsVisible).Select(b => $"{Name(b)}={b.DesiredSize.Width:0}");
                     log.Add($"bar widths (of {bar.ActualWidth:0}, room {bar.RenderSize.Width:0}): {string.Join(" ", widths)}");

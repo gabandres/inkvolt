@@ -256,6 +256,25 @@
   <data name="Cmd_Share" xml:space="preserve">
     <value>S_hare…</value>
   </data>
+  <data name="Cmd_CustomizeBar" xml:space="preserve">
+    <value>Customi_ze Command Bar…</value>
+  </data>
+  <data name="Bar_CustomizeTitle" xml:space="preserve">
+    <value>Customize the command bar</value>
+  </data>
+  <data name="Bar_CustomizeNote" xml:space="preserve">
+    <value>Tick what the bar shows, left to right in this order; Move Up and Move Down (or Alt+Up and Alt+Down) change it. What isn't ticked is in the bar's "…" menu, and every command stays in the menus and the command palette (Ctrl+K).</value>
+  </data>
+  <data name="Bar_CustomizeList" xml:space="preserve">
+    <value>Command bar</value>
+    <comment>The list's name, for a screen reader</comment>
+  </data>
+  <data name="Bar_MoveUp" xml:space="preserve">
+    <value>Move Up</value>
+  </data>
+  <data name="Bar_MoveDown" xml:space="preserve">
+    <value>Move Down</value>
+  </data>
   <data name="Share_UnsavedTitle" xml:space="preserve">
     <value>Share {0} with its changes?</value>
     <comment>{0} the document's name</comment>

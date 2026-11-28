@@ -532,6 +532,12 @@ public sealed class AppSettings
     public double OrganizerThumbSize { get; set; } = 170;
     /// <summary>Author name on new comments; empty = the Windows user name.</summary>
     public string AuthorName { get; set; } = "";
+
+    /// <summary>
+    /// The command bar as the person arranged it (View › Customize Command Bar…; CommandBarLayout.Arrange reads it):
+    /// its entries in order, "-" before a hidden one. Null: the bar as it comes.
+    /// </summary>
+    public List<string>? CommandBar { get; set; }
     /// <summary>Digital signing: the last digital ID used (certificate thumbprint) and the dialog's last choices.</summary>
     public string SignThumbprint { get; set; } = "";
     public string SignReason { get; set; } = "";
