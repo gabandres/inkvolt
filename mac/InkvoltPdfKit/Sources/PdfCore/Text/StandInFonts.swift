@@ -136,6 +136,21 @@ enum StandInFonts {
         return StandInFont(font, family + style)
     }
 
+    /// The installed face of a page font's own family (its PDF name; "Helvetica" as Arial, "Times" as Times New Roman) in
+    /// its weight and slant; nil when the family, or that face of it, isn't installed (Windows' `Twin`).
+    static func twin(_ font: TextFont) -> StandInFont? {
+        let family = FontNames.family(font.name)
+        if family.isEmpty { return nil }
+        let known = families.first { f in
+            f.name.caseInsensitiveCompare(family) == .orderedSame || f.aliases.contains { $0.caseInsensitiveCompare(family) == .orderedSame }
+        }
+        guard let found = face(known?.name ?? family, font.bold, font.italic) else { return nil }
+        // Another face standing in for the one asked (a regular where the family has no bold) isn't the font's own.
+        let bold = found.name.hasSuffix(" Bold") || found.name.hasSuffix(" Bold Italic")
+        let italic = found.name.hasSuffix(" Italic")
+        return bold == font.bold && italic == font.italic ? found : nil
+    }
+
     /// The installed families a look can name, by name ("Arial", "Georgia", "Comic Sans MS"): every family Core Text
     /// lists but the system's hidden ones, sorted.
     static func installed() -> [String] {

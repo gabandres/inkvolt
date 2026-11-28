@@ -380,7 +380,7 @@ public enum ContentEditor {
         var ownText = middle
         var missing = enc.missing
         var borrowed: [String] = [], names: [String] = []
-        let pairs = kerning([info]) // the run's own pairs, kept where they survive in the new text
+        let pairs = Kerns.of(kerning([info]), font) // the run's own pairs, kept where they survive in the new text; new pairs the font's own
         if enc.missing.isEmpty {
             parts += partsOf(run, enc.codes, pairs)
         } else {

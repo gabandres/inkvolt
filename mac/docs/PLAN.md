@@ -2589,6 +2589,18 @@ and `corpusParagraphsTakeTwentyMoreWords` needs `INKVOLTPDF_CORPUS` (the export 
   /System/Library/Fonts/ZapfDingbats.ttf (its built-in encoding from Unicode's mapping of the Dingbats block, the glyph
   names and widths from the font; Windows reads Adobe's AFM and glyph list, which the Mac doesn't copy), Symbol with
   macOS's Symbol.ttf by its glyph names' characters (Adobe's widths, rounded; the euro 750 as on Windows).
+- **Windows' additions of 2026-11-20.** Ported: mixed sizes and colors (`ParagraphEditTests+Mixed`: a run of the
+  paragraph's own face in another size or color is a stretch of that look, a smaller one set off its line a script at
+  the page's own size and rise, `TextLook.rise` and the tag's /Rise as on Windows; a color the page set is written again
+  with its own fill operators) and the font's own kerning (`FontKerning`, `FontKerningTests`). Not yet: pictures in the
+  flow (`InlinePictures`, Picture… on the bar) and Crop (`ContentEditor.Crop.cs`).
+- **The font's own kerning from Core Text.** Windows reads the installed twin's GPOS or kern table from its file; the
+  Mac asks Core Text for the twin's head, GPOS and kern tables (`CTFontCopyTable`) and reads them with the same
+  `PairKerning`, by Core Text's glyphs (the font's own glyph ids). The twin is `StandInFonts.twin`: the family's face in
+  the font's weight and slant through Core Text, used only when its widths are the page font's (within 1.5%).
+- **The editor keeps a script's own rise.** Windows' editor box writes looks back from its runs' font, size and color, so
+  a script read from the page goes back at the usual rise once edited there; the Mac's text view carries each
+  character's whole look (`LookBox`), so it keeps the page's rise.
 - **A click before the page is read.** Every edit, undo and redo clears what Edit Text & Images read of the pages, and a
   page is read again when it draws; a click on a page not read yet waits for the reading and then counts as a click
   (no drag starts from it). Windows drops such a press and asks for the page. Found by the self-test: its turning step

@@ -44,8 +44,8 @@ public struct TextParagraph: Sendable {
     /// above and below its baseline (points).
     var left = 0.0, right = 0.0, center = 0.0, ascent = 0.0, descent = 0.0
     /// The kerning its own text carried, by pair of codes (see `ContentEditor.kerning`): rewritten lines keep it where
-    /// the pair survives.
-    var kerning: [ContentEditor.CodePair: Double]?
+    /// the pair survives, and new pairs get the font's own (see `ContentEditor.Kerns`).
+    var kerning: ContentEditor.Kerns?
 
     init(pageIndex: Int, runs: [TextRun], lines: [RectD], text: String, box: RectD, align: ParagraphAlign, lineStep: Double,
          firstIndent: Double, blocked: String?) {
@@ -512,11 +512,11 @@ extension ContentEditor {
     }
 
     /// Codes as parts (a gap as an adjustment), with the kerning `kerning` gives each pair of neighbors.
-    static func partsOf(_ run: TextRun, _ codes: [Int], _ kerning: [CodePair: Double]? = nil, _ look: PartLook? = nil) -> [Part] {
+    static func partsOf(_ run: TextRun, _ codes: [Int], _ kerning: Kerns? = nil, _ look: PartLook? = nil) -> [Part] {
         var parts: [Part] = []
         parts.reserveCapacity(codes.count * 2)
         for (i, c) in codes.enumerated() {
-            if i > 0, let kerning, let k = kerning[CodePair(a: codes[i - 1], b: c)] { parts.append(Part(nil, k, nil, look)) }
+            if i > 0, let kerning, let k = kerning.get(codes[i - 1], c) { parts.append(Part(nil, k, nil, look)) }
             parts.append(c == TextFont.gap ? Part(nil, -run.gapEms * 1000, nil, look) : Part(c, 0, nil, look))
         }
         return parts
@@ -738,7 +738,7 @@ extension ContentEditor {
         p.spans = looks ?? spansOf(own, text, at, scripts)
         if blocked == nil {
             let kerned = runs.filter { !$0.standIn && !$0.styled && $0.info != nil && $0.font === own.font }.map { $0.info! }
-            p.kerning = kerning(kerned)
+            p.kerning = Kerns.of(kerning(kerned), own.font)
         }
         p.left = left
         p.right = right
