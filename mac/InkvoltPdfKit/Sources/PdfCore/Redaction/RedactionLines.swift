@@ -556,11 +556,15 @@ enum RedactionLines {
         var result = Relaid()
         result.laidOut = false
         let pieces = line.pieces
-        let step = Int((stepOfHeight * line.height * canvas.scale).rounded(.toNearestOrEven))
         let along = line.vertical ? canvas.height : canvas.width
+        // A pixel at least and no longer than the picture: a line height from the page's text (a font size of 1e30, a
+        // character box that isn't a number) can be NaN or past every Int.
+        let rawStep = (stepOfHeight * line.height * canvas.scale).rounded(.toNearestOrEven)
+        let step = rawStep.isNaN ? 1 : Int(min(max(rawStep, 1), Double(max(1, along)))) // bounded: clamped to 1...along, NaN is 1
         for k in pieces.indices where pieces[k].box {
             let room = k + 1 < pieces.count ? oldStart[k + 1] - oldStart[k] : Int.max
-            let steps = max(1, Int((Double(oldEnd[k] - oldStart[k]) / Double(max(1, step))).rounded(.toNearestOrEven)))
+            // Pixels clamped to the picture over a step of 1...along: within ±along.
+            let steps = max(1, Int((Double(oldEnd[k] - oldStart[k]) / Double(step)).rounded(.toNearestOrEven))) // bounded: |pixels| <= along, step >= 1
             let width = min(steps * step, room)
             for c in y0..<y1 {
                 var a = oldStart[k]

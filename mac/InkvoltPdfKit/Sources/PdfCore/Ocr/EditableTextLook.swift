@@ -64,11 +64,7 @@ extension EditableText {
         private func picture(_ font: TrueTypeFont, _ text: String) -> Drawn? {
             let em = Self.em
             let ink = inks.of(text, font)
-            let width = (max(0, ink.right) - min(0, ink.left)) * em + 16
-            if ink.missing || ink.width <= 0 || width > Self.maxWidth { return nil }
-            // The ink's box (pixels from the pen and the baseline, y down), a pixel around it.
-            let x0 = Int((ink.left * em).rounded(.down)) - 1, x1 = Int((ink.right * em).rounded(.up)) + 1
-            let y0 = Int((-ink.top * em).rounded(.down)) - 1, y1 = Int((-ink.bottom * em).rounded(.up)) + 1
+            guard let (x0, y0, x1, y1) = Self.inkBox(ink, em) else { return nil }
             let (w, h) = (x1 - x0, y1 - y0)
             guard w > 0, h > 0, w <= Int(Self.maxWidth) + 4, h <= 4 * Int(em) * 4,
                   let context = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpaceCreateDeviceGray(),
@@ -94,6 +90,21 @@ extension EditableText {
             }
             return Drawn(pixels: pixels, width: w, height: h, inkLeft: ink.left * em - Double(x0), inkTop: -ink.top * em - Double(y0),
                          inkWidth: ink.width * em, inkHeight: ink.height * em)
+        }
+
+        /// The ink's box at `em` pixels to the em (pixels from the pen and the baseline, y down), a pixel around it; nil
+        /// when the font lacks a character, the ink has no width or the word is too wide (`maxWidth`), and for an ink a
+        /// font's glyph boxes made absurd: NaN, infinite, or farther from the pen or the baseline than `maxWidth` pixels.
+        static func inkBox(_ ink: Ink, _ em: Double) -> (x0: Int, y0: Int, x1: Int, y1: Int)? {
+            let reach = maxWidth / em
+            let edges = [ink.left, ink.right, ink.top, ink.bottom]
+            // abs(NaN) <= reach is false: an edge that isn't a number fails here too.
+            guard !ink.missing, edges.allSatisfy({ abs($0) <= reach }), ink.width > 0,
+                  (max(0, ink.right) - min(0, ink.left)) * em + 16 <= maxWidth else { return nil }
+            // Each edge within maxWidth / em ems (checked above), so each value within maxWidth + 1 pixels.
+            let (x0, x1) = (Int((ink.left * em).rounded(.down)) - 1, Int((ink.right * em).rounded(.up)) + 1) // bounded: |edge| <= maxWidth px
+            let (y0, y1) = (Int((-ink.top * em).rounded(.down)) - 1, Int((-ink.bottom * em).rounded(.up)) + 1) // bounded: |edge| <= maxWidth px
+            return (x0, y0, x1, y1)
         }
     }
 
@@ -140,7 +151,7 @@ extension EditableText {
         private func grayAt(_ img: RenderedImage, _ x: Double, _ y: Double) -> Double {
             let (sx, sy) = (x * scale - 0.5, y * scale - 0.5)
             guard sx > -1 && sy > -1 && sx < Double(img.width) && sy < Double(img.height) else { return 255 }
-            let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down)))
+            let (x0, y0) = (Int(sx.rounded(.down)), Int(sy.rounded(.down))) // bounded: within (-1, the image's size) by the guard, which NaN fails
             let (fx, fy) = (sx - Double(x0), sy - Double(y0))
             func at(_ a: Int, _ b: Int) -> Double {
                 if a < 0 || b < 0 || a >= img.width || b >= img.height { return 255 }
@@ -187,8 +198,15 @@ extension EditableText {
                 let weight = inkScan > 0 && inkDrawn > 0 ? abs(log(inkDrawn / inkScan)) : 1
                 scores.append((sxy - sx * sy / n) / (va * vb).squareRoot() - weight)
             }
+            return Self.meanOfBest(scores, share)
+        }
+
+        /// The mean of the best `share` of the scores (at least one; all of them for a share that isn't a number or
+        /// takes more than all); -1 for none.
+        static func meanOfBest(_ scores: [Double], _ share: Double) -> Double {
             if scores.isEmpty { return -1 }
-            let best = scores.sorted(by: >).prefix(max(1, Int((Double(scores.count) * share).rounded(.up))))
+            let taken = Int(exactly: (Double(scores.count) * share).rounded(.up)) ?? scores.count
+            let best = scores.sorted(by: >).prefix(min(max(1, taken), scores.count))
             return best.reduce(0, +) / Double(best.count)
         }
 
@@ -197,7 +215,9 @@ extension EditableText {
         private func canvas(_ img: RenderedImage, _ line: PlanLine, _ word: PlanWord) -> (pixels: [Double], width: Int, paper: Double) {
             if let known = canvases[ObjectIdentifier(word)] { return known }
             let (padX, padY, canvasHeight) = (Self.padX, Self.padY, Self.canvasHeight)
-            let cw = min(max(Int((Double(canvasHeight) * word.width / word.height).rounded(.toNearestOrEven)), 4), 240) // bounded: clamped
+            // A word box infinite both ways is NaN wide here: the narrowest canvas.
+            let wide = (Double(canvasHeight) * word.width / word.height).rounded(.toNearestOrEven)
+            let cw = wide.isNaN ? 4 : Int(min(max(wide, 4), 240)) // bounded: clamped to 4...240, NaN is 4
             let (w, h) = (cw + 2 * padX, canvasHeight + 2 * padY)
             var scan = [Double](repeating: 0, count: w * h)
             var paper = 0.0
@@ -216,8 +236,11 @@ extension EditableText {
             return made
         }
 
-        private static func bilinear(_ px: [UInt8], _ w: Int, _ h: Int, _ x: Double, _ y: Double) -> Double {
-            let (x0, y0) = (Int(x.rounded(.down)), Int(y.rounded(.down)))
+        /// A drawn word's grey at (x, y) in its pixels (bilinear; white off them, and where x or y isn't a number).
+        static func bilinear(_ px: [UInt8], _ w: Int, _ h: Int, _ x: Double, _ y: Double) -> Double {
+            // Off the pixels all four neighbours are white anyway: 255, as they would give.
+            guard x > -1 && y > -1 && x < Double(w) && y < Double(h) else { return 255 }
+            let (x0, y0) = (Int(x.rounded(.down)), Int(y.rounded(.down))) // bounded: within (-1, w) and (-1, h) by the guard, which NaN fails
             let (fx, fy) = (x - Double(x0), y - Double(y0))
             func at(_ a: Int, _ b: Int) -> Double { a < 0 || b < 0 || a >= w || b >= h ? 255 : Double(px[b * w + a]) }
             return (at(x0, y0) * (1 - fx) + at(x0 + 1, y0) * fx) * (1 - fy) + (at(x0, y0 + 1) * (1 - fx) + at(x0 + 1, y0 + 1) * fx) * fy
