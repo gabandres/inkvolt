@@ -196,7 +196,7 @@ public sealed class PrinterConnection : IDisposable
         {
             // The hint may be from before the printer moved: its port and path, on the address in use.
             // On a web server of its own port the scanner may still be on port 80: both are asked.
-            var plain = http.HttpBase.IsDefaultPort ? null : new UriBuilder(Uri.UriSchemeHttp, http.HttpBase.Host, -1, "/eSCL/").Uri;
+            var plain = http.HttpBase.IsDefaultPort ? null : new UriBuilder(Uri.UriSchemeHttp, http.BuilderHost, -1, "/eSCL/").Uri;
             foreach (var root in new[] { http.Http("/eSCL/"), plain, esclHint is null ? null : http.OnThisPrinter(esclHint) }.OfType<Uri>().Distinct())
             {
                 var caps = await Try(() => new EsclClient(http, root).GetCapabilitiesAsync(ct)).ConfigureAwait(false);
@@ -250,7 +250,7 @@ public sealed class PrinterConnection : IDisposable
         }
     }
 
-    private static Uri DefaultIpp(DeviceHttp http) => new UriBuilder(Uri.UriSchemeHttp, http.Host, 631, "ipp/print").Uri;
+    private static Uri DefaultIpp(DeviceHttp http) => new UriBuilder(Uri.UriSchemeHttp, http.BuilderHost, 631, "ipp/print").Uri;
 
     /// <summary>The whole IPP probe gets what one request used to: an offline printer costs no more than before.</summary>
     internal static readonly TimeSpan IppProbeDeadline = DeviceHttp.DefaultTimeout;

@@ -31,7 +31,7 @@ public sealed class DeviceHttp : IDisposable
         _pin = pin;
         _ownTransport = handler is not null;
         // An IPv6 zone stays in the base (PrinterAddress); a host no URL can hold gets one that never answers, not an exception.
-        var urlHost = Discovery.PrinterAddress.BuilderHost(host) ?? "unusable.invalid";
+        var urlHost = BuilderHost = Discovery.PrinterAddress.BuilderHost(host) ?? "unusable.invalid";
         HttpBase = new UriBuilder(Uri.UriSchemeHttp, urlHost, web is { IsAbsoluteUri: true, Scheme: "http" } ? web.Port : -1).Uri;
         HttpsBase = new UriBuilder(Uri.UriSchemeHttps, urlHost, web is { IsAbsoluteUri: true, Scheme: "https" } ? web.Port : -1).Uri;
         _client = NewClient(handler ?? CreateHandler(host, (c, e) => ValidateCertificate(c, e, HttpsBase.Port)));
@@ -99,6 +99,13 @@ public sealed class DeviceHttp : IDisposable
 
     public string Host { get; }
     public Uri HttpBase { get; }
+
+    /// <summary>
+    /// The host as <see cref="UriBuilder"/> takes it, an IPv6 zone kept (<see cref="Discovery.PrinterAddress.BuilderHost"/>): a URL
+    /// built on this printer with it is one <see cref="SendAsync(HttpRequestMessage, TimeSpan?, CancellationToken)"/> asks.
+    /// <see cref="Uri.Host"/> drops the zone, and a request to it is refused as not on this printer.
+    /// </summary>
+    public string BuilderHost { get; }
     public Uri HttpsBase { get; }
     public bool HasCredentials => _basicAuth is not null;
 
@@ -146,7 +153,7 @@ public sealed class DeviceHttp : IDisposable
     /// </summary>
     public Uri OnThisPrinter(Uri link) =>
         !link.IsAbsoluteUri || link.Scheme is not ("http" or "https") || (IsOnThisPrinter(link) && link.UserInfo.Length == 0) ? link
-        : new UriBuilder(link) { Host = HttpBase.Host, UserName = "", Password = "" }.Uri;
+        : new UriBuilder(link) { Host = BuilderHost, UserName = "", Password = "" }.Uri;
 
     public Uri Http(string path) => OnThisPrinter(new(HttpBase, path));
     public Uri Https(string path) => OnThisPrinter(new(HttpsBase, path));
