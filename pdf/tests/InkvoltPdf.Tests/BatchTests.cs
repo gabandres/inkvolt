@@ -422,6 +422,22 @@ public sealed class BatchTests : IDisposable
     }
 
     [Fact]
+    public void ManyTinyPicturesCountTowardTheStreamCap()
+    {
+        // The Mac's pre-release review, checked here: picture dictionaries didn't count toward MaxStreamsCounted, and each
+        // "stream" keyword decoded 4 KB back: megabytes of tiny picture stubs counted as next to nothing. Every stream
+        // counts now; past the cap the file is priced as past the budget.
+        var text = new System.Text.StringBuilder("%PDF-1.7\n");
+        const string Stub = "<< /Subtype /Image /Width 1 /Height 1 /ColorSpace /DeviceGray /BitsPerComponent 8 /Length 1 >>\nstream\nx\nendstream\nendobj\n";
+        for (var n = 1; n <= BatchRunner.MaxStreamsCounted + 10; n++) text.Append(n).Append(" 0 obj ").Append(Stub);
+        var path = Put("in/stubs.pdf", System.Text.Encoding.ASCII.GetBytes(text.ToString()));
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        Assert.Equal((1L << 40) + 1, BatchRunner.Unpacked(path, 1L << 40));
+        Assert.True(watch.Elapsed.TotalSeconds < 10, $"{watch.Elapsed}");
+        Assert.Equal(long.MaxValue, BatchRunner.Unpacked(path, long.MaxValue)); // no overflow past the largest cap
+    }
+
+    [Fact]
     public void APictureIsPricedByWhatItDecodesToWithoutInflatingIt()
     {
         // A 2000 x 1500 RGB picture whose data isn't Flate (as a JPEG's isn't): 9 MB once decoded, though nothing inflates.
