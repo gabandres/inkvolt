@@ -99,6 +99,7 @@ mac/InkvoltPrintKit --build-system native`.
 | P10 | The app: main window, Add a printer, scan review, offline fixer, menu bar, settings, demo mode, then the rest of the Windows 1.0 feature table (batch scans, glass photos and their boxes by hand, the ID card copy, Set Up in macOS, Print Photos' queue papers, borderless, paper type, quality and color) | DemoTests, BatchScanTests, GlassPhotoTests and the table's others | Done. Not checked by a person: anything on paper (separator sheet, ID card, Print Photos borderless), the Photos sheet's dragging and keys, a feeder (batches and two-sided separator backs were checked in demo mode only), a real USB scanner |
 | P11 | App Store: record, privacy label "Data Not Collected", review notes (demo mode, why `network.server`, the subnet search), screenshots (`--snapshot`) | | Done (live since 1.0). Listing, review notes and What's New go through `asc-listing.mjs` (README). Entitlements: sandbox, network client and server, `print`, `files.user-selected.read-write`, `files.bookmarks.app-scope`, `device.usb`, the app group; the preflight and the review notes say why each |
 | P12 | The roadmap's items after 1.0 (`print/ROADMAP.md`): PrintCore halves on the PC, PrintMac and the app on the Mac | ProTests and each item's below | Done: 1.1, 1.2, 1.3, 1.5, 1.6, 2.1, 2.2, 2.3, 2.4, 2.6, 3.2, 3.3, 3.4, 3.6, 3.7 (3.5 Open in Inkvolt PDF came with Inkvolt PDF for Mac). Left: 3.1, which needs a real scanner; 2.2's and 3.3's hardware checks (below) |
+| P13 | Copy through this Mac: Windows' Copy tab's page copy (2-up and 4-up, collation, preview, Print Again, two-sided by hand), found missing by the 2026-11-27 parity audit | CopyLayoutTests (Windows' 21), HandDuplexBatchTests, CopySheetsTests | Done (below) |
 
 ### P12: what differs and what's left, per item
 
@@ -386,6 +387,46 @@ mac/InkvoltPrintKit --build-system native`.
   Report a Problem's details, recordings, export columns, protocol and parser errors. Not checked: a Mac whose macOS is
   in Spanish, the UI on screen in Spanish.
 
+### P13: Copy through this Mac (Windows' Copy tab, page copy)
+
+Found missing by the parity audit of 2026-11-27 (PLAN had listed only the ID card copy). The Print menu's **Copy…**
+(`CopySheet`, `CopyModel`; Windows' `CopyViewModel`): scan and print in one step, copies (1 to 99, `CopyRoute.clampCopies`),
+color or grey (grey by default), glass or feeder (the scanner's sources), two-sided when the printer can, actual size or fit
+to the paper, 1, 2 or 4 pages per sheet (PrintCore `CopyLayout.sides`, `pagesOnSide`, `nUp`: 2-up on portrait paper turns
+the pages a quarter, one above the other; 4-up two by two in reading order), collate on or off (`CopyLayout.order`: the app
+repeats the sheets with one copy on the job, so it doesn't rely on the queue collating; a collated two-sided copy of an odd
+side count is made here too, each copy ending on a blank back), Preview before printing (the sheets as they print, laid out
+again when pages per sheet or the size change, then Print), Print Again from the scans kept when a copy didn't reach the
+printer (never for one that may have printed), Cancel while scanning or sending, and why it can't copy (connecting, no
+scanner, nowhere to print: `CopyRoute.blocker`, with Windows' words for macOS). Two-sided by hand (roadmap 4.2) where the
+printer says it can't print both sides: the sides once, with the order handed to Batch Print's runner
+(`BatchPrintLine.order`, a Mac addition: Windows' `PrintCopyByHandAsync` drives its own passes), so uncollated copies repeat
+each sheet and an odd last side's sheet is set aside as Windows' plan says; the prompt names it by its side's first page.
+The sides are drawn by PrintMac's `CopySheets` (Windows' `PagesPaginator`) into a PDF on the paper where the jobs go (the
+queue's or the printer's default, else Letter or A4 by region) and sent as Batch Print sends a file, through
+`PrinterModel.batchQueue()`: the macOS queue, or straight to the printer when the router says so (roadmap 2.1). `CopyRoute`
+is the copier branch's port of Windows' (the same file), its tests in PrinterCopyTests there. **Mac differences:** Copy is a
+sheet from the Print menu beside Copy an ID Card… (the Mac has no Copy tab; the ID card copy stays its own sheet, through
+the print panel); Copy… is always in the menu and says in its sheet why it can't copy, where Windows' tab is disabled with
+the reason; the copy goes as Batch Print's files go, so a sheet laid out to the paper's edge is printed by CUPS's
+`print-scaling` auto-fit on a queue, and fitted inside the margins on a printer printed to straight, where Windows' driver
+clips it (a quarter-inch margin is kept around 2-up and 4-up sides, as on Windows); the demo printer's copy goes to its
+made-up queue (Windows' demo only counts it). Tests: CopyLayoutTests (all 21 of Windows', same names),
+HandDuplexBatchTests' aCopyLaidOutByTheAppGoesByHandInItsOwnOrder (Mac only), PrintMac's CopySheetsTests (Mac only; its
+opt-in `INKVOLT_COPY_PRINTER=<address>` copies a real printer's glass straight to it through `DirectBatchQueue` and the
+runner, printed only when the glass is blank). `--report --demo --copy` (2026-11-27, all sent): a document from the HP
+laser's glass through its own route; from the demo inkjet's feeder (three pages) 2-up (two sides, the pages turned) and
+4-up (one side), a preview at 2-up laid out again at 4-up then printed, two copies on both sides uncollated and collated
+(8 sides each, one copy on the job), two copies uncollated by hand on the one-sided USB laser (fronts 1 1 3 3, backs 0 2 2,
+page 3's sheet set aside); the other printers' reasons (no scanner, connecting, a scanner of its own: nowhere to print).
+`--report --copy --copy-printer <name>` (outside demo mode) finds the printer as Add a Printer does when it isn't listed,
+adds it to the app's list for the copy and removes it after (never a macOS queue), scans one page from the glass,
+previewed, and prints it only when the glass is blank. **The real copy wasn't made:** a build run from an agent's own
+folder has no Local Network access, nor has `swift test` over SSH (research file, 2026-11-27); nothing was scanned or
+printed on the M234dw. Not checked by a person: a real copy (the installed app's Copy… on the M234dw, or the opt-in test
+from a Terminal on the Mac), the sheet on screen and with VoiceOver, the preview's turned pages, a feeder copy on paper,
+two-sided by hand on paper.
+
 ### Wave 4 (print/ROADMAP.md): what differs and what's left, per item
 
 Ported test-first from the .NET tests (same names in lower camel case); PrintCore on the PC, the app on `buildmac`.
@@ -616,8 +657,9 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   prompt naming a set-aside sheet by the document's page, `BatchPrintLine.pageNumbers` from `SheetPrint.sideNumbers`);
   `--report … --hand-duplex`. **Mac differences:** Print a PDF by hand and a booklet by hand go straight to the queue at its
   default paper (Windows' Print tab keeps its own options), not through macOS's print panel, which runs one job; a PDF that
-  needs a password isn't asked for one there (it's said and left out; Batch asks); no Copy (the Mac's Copy is the ID card's,
-  one side); the printer's face is cupsd's copy of the printer's attributes. Not checked: paper on a real one-sided printer,
+  needs a password isn't asked for one there (it's said and left out; Batch asks); Copy by hand since 2026-11-27 (P13: its
+  sides once, the order handed to the runner, `BatchPrintLine.order`); the printer's face is cupsd's copy of the printer's
+  attributes. Not checked: paper on a real one-sided printer,
   face down and up (`--hand-duplex` answers the prompt), the alert on screen, VoiceOver.
 - **4.16 Cards, calendars and collages in Photos.** PrintCore `PhotoProjects` (`cards`, `cardBox`, `panel`, `message`,
   `needsTwoSided`, `firstDay`, `dayNames`, `monthName`, `weeks`, `monthAt`, `monthSheet`, `yearSheet`, `monthGrid`,
@@ -886,6 +928,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   paper; a maker's keyword such as `com.hp-stationery-lightweight` loses its domain and name; ones worded alike are listed
   once); quality is Draft, Normal, High (IPP has no Photographic). A printer macOS has no queue for, and demo mode, still
   print through the panel.
+- Copy is a sheet from the Print menu (Copy…; Windows: the Copy tab), sent as Batch Print sends a file, with no print panel
+  (P13).
 - The ID card copy is its own sheet (the Print menu's Copy an ID Card…; Windows: the Copy tab's ID card mode): front from
   the glass's corner, turn the card, back, then both on one Letter or A4 sheet at actual size (`CopyLayout.idCard`,
   PrintMac `IdCardSheet`) through the print panel, where copies are chosen.
@@ -2622,6 +2666,8 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
 - Microsoft Office as E12's converter: off until a person with Microsoft 365 signed in runs its checklist (above).
 - Inkvolt Print's printer-data work of 2026-11-20: all on the Mac (the web server on a port of its own since
   2026-11-23); SNMP for WSD queues has no Mac counterpart (macOS has no WSD queues).
+- Inkvolt Print's Copy (P13, 2026-11-27): a real copy on paper (the installed app's Copy… on the M234dw, or CopySheetsTests'
+  opt-in from a Terminal on the Mac: an agent's build had no Local Network access).
 - Inkvolt Print: P12's 3.1 not started on the Mac (2.1 done 2026-11-27; 2.2 and 3.3 ported 2026-11-27: P12 above; separator codes, the last code item besides these,
   on the Mac since 2026-11-23: "Inkvolt Print scope"). What needs a device:
   - 2.2 Scan from the printer's button. Every walk-up name is Windows' assumption (`LedmWalkupScan.names`): no HP
