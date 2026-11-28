@@ -251,6 +251,8 @@
                                     <MenuItem Command="app:Cmd.GoToPage" />
                                     <MenuItem Command="app:Cmd.Back" />
                                     <MenuItem Command="app:Cmd.Forward" />
+                                    <MenuItem Command="app:Cmd.NextComment" />
+                                    <MenuItem Command="app:Cmd.PrevComment" />
                                     <Separator />
                                     <MenuItem Header="{x:Static loc:Strings.Main_MenuSplitView}">
                                         <MenuItem x:Name="SplitHorizontalMenu" Command="app:Cmd.SplitHorizontal" />

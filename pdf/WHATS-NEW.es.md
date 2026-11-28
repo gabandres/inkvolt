@@ -6,6 +6,7 @@ each English line, every version (`WhatsNewSpanishTests` checks it): a line adde
 here. The voice is `docs/SPANISH-REVIEW.md`'s (informal *tú*, the app's own words for its commands).
 
 ## Next
+- Ver › Comentario siguiente y Comentario anterior (Ctrl+] y Ctrl+[) van de un comentario al siguiente y te lo muestran en su página.
 - Edición › Formularios › Restablecer formulario… devuelve cada campo de un formulario a su valor predeterminado, en un solo paso que puedes deshacer.
 
 ## 1.19.1

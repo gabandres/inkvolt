@@ -69,6 +69,18 @@ public static partial class Annotations
     /// <summary>Id prefix of annotations made before the Inkvolt rename; still recognized.</summary>
     private const string LegacyIdPrefix = "pdfdesk-annot-";
 
+    /// <summary>
+    /// Next Comment / Previous Comment (the Mac's Go menu): the index <paramref name="by"/> steps from
+    /// <paramref name="current"/> in a list of <paramref name="count"/> comments, around the ends; with none chosen
+    /// (-1, or one no longer listed), the first going forward and the last going back. -1 for an empty list.
+    /// </summary>
+    public static int StepComment(int count, int current, int by)
+    {
+        if (count <= 0) return -1;
+        var start = current >= 0 && current < count ? current : by > 0 ? -1 : count;
+        return (int)((((long)start + by) % count + count) % count);
+    }
+
     /// <summary>True for an /NM this app gives the annotations it creates (<see cref="NewId"/>), old or new.</summary>
     internal static bool IsOwnId(string? nm) =>
         nm is not null && (nm.StartsWith(IdPrefix, StringComparison.Ordinal) || nm.StartsWith(LegacyIdPrefix, StringComparison.Ordinal));

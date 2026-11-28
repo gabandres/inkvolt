@@ -14,6 +14,16 @@ public static class Cmd
     private static KeyGesture K(Key key, ModifierKeys mods = ModifierKeys.None, string? display = null) =>
         display is null ? new KeyGesture(key, mods) : new KeyGesture(key, mods, display);
 
+    /// <summary>The character a key types in the keyboard layout in use (upper case), or <paramref name="fallback"/>.</summary>
+    private static string KeyText(Key key, char fallback)
+    {
+        var ch = MapVirtualKeyW((uint)KeyInterop.VirtualKeyFromKey(key), 2 /* MAPVK_VK_TO_CHAR */) & 0x7FFFFFFF; // the top bit marks a dead key
+        return ch is > 32 and < 0xD800 ? char.ToUpper((char)ch, CultureInfo.CurrentCulture).ToString() : fallback.ToString();
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern uint MapVirtualKeyW(uint code, uint mapType);
+
     /// <summary>The command's first shortcut as users see it ("Ctrl+S"), or null when it has none.</summary>
     public static string? GestureText(ICommand? command) =>
         (command as RoutedCommand)?.InputGestures.OfType<KeyGesture>().FirstOrDefault()?.GetDisplayStringForCulture(CultureInfo.CurrentCulture);
@@ -163,6 +173,10 @@ public static class Cmd
     public static readonly RoutedUICommand NextPage = Make(Strings.Cmd_NextPage, nameof(NextPage));
     public static readonly RoutedUICommand LastPage = Make(Strings.Cmd_LastPage, nameof(LastPage), K(Key.End, ModifierKeys.Control));
     public static readonly RoutedUICommand GoToPage = Make(Strings.Cmd_GoToPage, nameof(GoToPage), K(Key.G, ModifierKeys.Control), K(Key.N, ModifierKeys.Control | ModifierKeys.Shift));
+    // The Mac's ⌥⌘] and ⌥⌘[ without Option: Ctrl+Alt is AltGr on Windows. The keys are the ones right of P; the menu
+    // names the character they type in the keyboard layout in use (KeyText).
+    public static readonly RoutedUICommand NextComment = Make(Strings.Cmd_NextComment, nameof(NextComment), K(Key.OemCloseBrackets, ModifierKeys.Control, "Ctrl+" + KeyText(Key.OemCloseBrackets, ']')));
+    public static readonly RoutedUICommand PrevComment = Make(Strings.Cmd_PrevComment, nameof(PrevComment), K(Key.OemOpenBrackets, ModifierKeys.Control, "Ctrl+" + KeyText(Key.OemOpenBrackets, '[')));
     public static readonly RoutedUICommand Back = Make(Strings.Cmd_Back, nameof(Back), K(Key.Left, ModifierKeys.Alt));
     public static readonly RoutedUICommand Forward = Make(Strings.Cmd_Forward, nameof(Forward), K(Key.Right, ModifierKeys.Alt));
 

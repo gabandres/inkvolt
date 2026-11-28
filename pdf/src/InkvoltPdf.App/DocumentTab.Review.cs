@@ -636,6 +636,24 @@ public partial class DocumentTab
         UpdatePaneDetail();
     }
 
+    /// <summary>True when the Comments pane lists a comment for Next Comment and Previous Comment to go to.</summary>
+    internal bool HasListedComments => !CommentList.Items.IsEmpty;
+
+    /// <summary>
+    /// Next Comment (<paramref name="by"/> 1) and Previous Comment (-1), as the Mac's Go menu: the comment after (before)
+    /// the one chosen in the Comments pane's list (its filter applies), around the ends, chosen there and shown on its
+    /// page (<see cref="Annotations.StepComment"/>).
+    /// </summary>
+    internal void SelectAdjacentComment(int by)
+    {
+        var shown = CommentList.Items.OfType<CommentItem>().ToList();
+        var next = Annotations.StepComment(shown.Count, CommentList.SelectedItem is CommentItem c ? shown.IndexOf(c) : -1, by);
+        if (next < 0) return;
+        if (CommentList.SelectedItem == shown[next]) FlashComment(shown[next].Info); // one comment: shown again
+        CommentList.SelectedItem = shown[next];
+        CommentList.ScrollIntoView(shown[next]);
+    }
+
     private void FlashComment(AnnotationInfo a)
     {
         if (a.PageIndex < 0 || a.PageIndex >= Viewer.PageCount) return;

@@ -394,6 +394,12 @@
   <data name="Cmd_NextPage" xml:space="preserve">
     <value>Página _siguiente</value>
   </data>
+  <data name="Cmd_NextComment" xml:space="preserve">
+    <value>Comentario sig_uiente</value>
+  </data>
+  <data name="Cmd_PrevComment" xml:space="preserve">
+    <value>Com_entario anterior</value>
+  </data>
   <data name="Cmd_LastPage" xml:space="preserve">
     <value>Ú_ltima página</value>
   </data>

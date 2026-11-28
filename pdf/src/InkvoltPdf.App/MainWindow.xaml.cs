@@ -2036,6 +2036,8 @@ public partial class MainWindow : Window
         Bind(Cmd.PrevPage, t => t.ActiveView.PreviousPage(), t => t.ActiveView.CurrentPage > 0);
         Bind(Cmd.NextPage, t => t.ActiveView.NextPage(), t => t.ActiveView.CurrentPage < t.ActiveView.PageCount - 1);
         Bind(Cmd.LastPage, t => t.ActiveView.GoToPage(t.ActiveView.PageCount - 1), t => t.ActiveView.CurrentPage < t.ActiveView.PageCount - 1);
+        Bind(Cmd.NextComment, t => t.SelectAdjacentComment(1), t => t.Session.IsPdf && !t.IsOrganizing && t.HasListedComments);
+        Bind(Cmd.PrevComment, t => t.SelectAdjacentComment(-1), t => t.Session.IsPdf && !t.IsOrganizing && t.HasListedComments);
         Bind(Cmd.SplitHorizontal, t => t.SetSplit(t.Split == SplitMode.TopAndBottom ? SplitMode.None : SplitMode.TopAndBottom), t => !t.IsOrganizing && t.PageView.PageCount > 0);
         Bind(Cmd.SplitVertical, t => t.SetSplit(t.Split == SplitMode.SideBySide ? SplitMode.None : SplitMode.SideBySide), t => !t.IsOrganizing && t.PageView.PageCount > 0);
         Bind(Cmd.RemoveSplit, t => t.SetSplit(SplitMode.None), t => t.Split != SplitMode.None);
