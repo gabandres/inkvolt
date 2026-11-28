@@ -132,4 +132,88 @@ struct HostileNumberTests {
         let turned = PageRotate.rotate(gray, 8, 6, 8, 1, .nan)
         #expect(turned.count == gray.count)
     }
+
+    @Test func aRedactedLineWhoseHeightIsntANumberHasItsBoxRoundedInPlace() {
+        // "word ▮ word" in a 200 × 40 picture at a pixel a point, a rule down the space before the box: the line stays where
+        // it is, its box rounded to steps of its height. A height of NaN, infinity or 1e300 (a font size no Int holds)
+        // makes a step of one pixel or of the whole picture: the box keeps its start and ends before the next word.
+        let (w, h) = (200, 40)
+        var rgb = [UInt8](repeating: 255, count: w * h * 3)
+        for y in 0..<h {
+            for c in 0..<3 { rgb[(y * w + 60) * 3 + c] = 0 }
+        }
+        let area = RectD(70, 10, 50, 20)
+        let pieces: [RedactionLines.Piece] = [
+            .init(x: 10, right: 50, kind: .word, spaced: false),
+            .init(x: 70, right: 120, kind: .box, spaced: true),
+            .init(x: 130, right: 170, kind: .word, spaced: true),
+        ]
+        func boxes(_ height: Double) -> (laidOut: Bool, boxes: [RectD]) {
+            let canvas = RedactionLines.Canvas(rgb, w, h, 1, [area])
+            let line = RedactionLines.CutLine(band: RectD(10, 10, 180, height), rows: RectD(10, 5, 180, 30), pieces: pieces, areas: [area])
+            let r = RedactionLines.relay(canvas, line, RedactionLines.layout(line))
+            return (r.laidOut, r.boxes)
+        }
+        for height in [Double.nan, .infinity, -.infinity, 1e300, -1e300, 1e-300] {
+            let r = boxes(height)
+            #expect(!r.laidOut, "\(height)")
+            #expect(r.boxes.count == 1, "\(height)")
+            if let box = r.boxes.first {
+                #expect(box.x == 70 && box.width >= 50 && box.width <= 60, "\(height): \(box)")
+            }
+        }
+        // An ordinary line 20 points high: one 40-point step, as before.
+        let ordinary = boxes(20)
+        #expect(!ordinary.laidOut && ordinary.boxes.count == 1 && ordinary.boxes.first?.x == 70 && ordinary.boxes.first?.width == 40)
+    }
+
+    @Test func makeTextEditableRefusesAnInkBoxThatIsntANumber() {
+        typealias Ink = EditableText.Ink
+        let em = EditableText.FontMatch.em
+        let absurd: [Ink] = [
+            Ink(left: .nan, right: 0.5, top: 0.7, bottom: 0, missing: false),
+            Ink(left: 0, right: .infinity, top: 0.7, bottom: 0, missing: false),
+            Ink(left: 0, right: 0.5, top: .nan, bottom: 0, missing: false),
+            Ink(left: 0, right: 0.5, top: 1e300, bottom: 0, missing: false), // a glyph box no Int holds
+            Ink(left: 0, right: 0.5, top: 0.7, bottom: -.infinity, missing: false),
+            Ink(left: -1e300, right: 1e300, top: 0.7, bottom: 0, missing: false),
+        ]
+        for ink in absurd { #expect(EditableText.FontMatch.inkBox(ink, em) == nil, "\(ink)") }
+        // An ordinary word's ink: its box in pixels, a pixel around it.
+        let box = EditableText.FontMatch.inkBox(Ink(left: 0.25, right: 0.5, top: 0.75, bottom: -0.25, missing: false), em)
+        #expect(box.map { [$0.x0, $0.y0, $0.x1, $0.y1] } == [9, -31, 21, 11])
+        #expect(EditableText.FontMatch.inkBox(Ink(left: 0.25, right: 0.5, top: 0.75, bottom: -0.25, missing: true), em) == nil)
+    }
+
+    @Test func makeTextEditableReadsAWordDrawnAtAPointThatIsntANumber() {
+        let px = [UInt8](repeating: 0, count: 4)
+        #expect(EditableText.ScanLook.bilinear(px, 2, 2, 0.5, 0.5) == 0)
+        for (x, y) in [(Double.nan, 0.5), (0.5, .nan), (.infinity, 0.5), (0.5, -.infinity), (1e300, 0.5), (0.5, -1e300)] {
+            #expect(EditableText.ScanLook.bilinear(px, 2, 2, x, y) == 255, "\(x), \(y)")
+        }
+    }
+
+    @Test func makeTextEditableTakesTheBestShareOfScoresWhateverTheShare() {
+        let scores = [3.0, 1.0, 2.0]
+        #expect(EditableText.ScanLook.meanOfBest(scores, 0.6) == 2.5)
+        #expect(EditableText.ScanLook.meanOfBest(scores, 0) == 3)
+        for share in [Double.nan, .infinity, -.infinity, 1e300] { #expect(EditableText.ScanLook.meanOfBest(scores, share) == 2, "\(share)") }
+        #expect(EditableText.ScanLook.meanOfBest([], 0.6) == -1)
+    }
+
+    @Test func makeTextEditableComparesAScanWordWhoseBoxIsntANumber() throws {
+        // A recognized word infinitely wide and tall (its width over its height isn't a number), or reaching past every Int.
+        let family = try #require(EditableText.families.first)
+        let font = try #require(EditableText.face(family, .regular))
+        let look = EditableText.ScanLook(try PdfEngine.open(TestPdf.make(1)), 0, EditableText.FontMatch(nil), nil)
+        try look.draw([(font, "Hello")])
+        let boxes: [(Double, Double, Double, Double)] = [(0, .infinity, 0, .infinity), (.nan, 100, 0, 20), (72, 1e300, 700, 1e300),
+                                                        (-1e300, 1e300, -1e300, 1e300), (72, 120, 100, 120)]
+        for (l, r, t, b) in boxes {
+            let word = EditableText.PlanWord("Hello", l, r, t, b)
+            let line = EditableText.PlanLine([word], 0)
+            let score = look.resemblance(font, [(line: line, word: word)])
+            #expect(score.isFinite, "\(l) \(r) \(t) \(b): \(score)")
+        }
+    }
 }

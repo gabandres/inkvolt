@@ -101,8 +101,12 @@ enum TestFontPrograms {
         for g in glyphs { charset += [UInt8(g.id >> 8), UInt8(g.id & 255)] }
         let charStrings = index([cs(endChar)] + glyphs.map(\.charString))
 
+        // Built a piece at a time: CI's Xcode gives up type-checking these as one long sum.
         func privateDict(_ p: Private, _ subrsAt: Int) -> [UInt8] {
-            int(p.defaultWidth) + [20] + int(p.nominalWidth) + [21] + (p.subrs == nil ? [] : int(subrsAt) + [19])
+            var d: [UInt8] = int(p.defaultWidth) + [20]
+            d += int(p.nominalWidth) + [21]
+            if p.subrs != nil { d += int(subrsAt) + [19] }
+            return d
         }
         // Private DICT (with its subroutines after it, at an offset relative to it) blocks, laid out from `at`.
         func lay(_ at: Int) -> (bytes: [UInt8], where: [(size: Int, offset: Int)]) {
@@ -117,12 +121,22 @@ enum TestFontPrograms {
             return (bytes, places)
         }
         func top(_ charsetAt: Int, _ charStringsAt: Int, _ priv: (size: Int, offset: Int), _ fdArrayAt: Int, _ fdSelectAt: Int) -> [UInt8] {
-            let m = topMatrix.map(matrix) ?? []
+            let m: [UInt8] = topMatrix.map(matrix) ?? []
+            var d: [UInt8] = []
             if cid {
-                return int(0) + int(0) + int(0) + [12, 30] + int(charsetAt) + [15] + int(charStringsAt) + [17] + int(fdArrayAt) + [12, 36]
-                    + int(fdSelectAt) + [12, 37] + m
+                let ros: [UInt8] = int(0) + int(0) + int(0) + [12, 30]
+                d += ros
             }
-            return int(charsetAt) + [15] + int(charStringsAt) + [17] + int(priv.size) + int(priv.offset) + [18] + m
+            d += int(charsetAt) + [15]
+            d += int(charStringsAt) + [17]
+            if cid {
+                d += int(fdArrayAt) + [12, 36]
+                d += int(fdSelectAt) + [12, 37]
+            } else {
+                d += int(priv.size) + int(priv.offset)
+                d += [18]
+            }
+            return d + m
         }
         func fdArray(_ places: [(size: Int, offset: Int)]) -> [UInt8] {
             index(privates.enumerated().map { i, p in int(places[i].size) + int(places[i].offset) + [18] + (p.fontMatrix.map(matrix) ?? []) })
