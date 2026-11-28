@@ -137,7 +137,9 @@ final class ScanModel {
     // MARK: Settings
 
     var sources: [ScanSource] { caps?.sources ?? [] }
-    var colors: [ScanColor] { caps.map { ScanChoices.colors($0, source) } ?? [.color] }
+    /// Color and grey: black and white is Inkvolt PDF's Scan choice (PrintCore's `ScanColor`); here a preset's smaller file
+    /// makes a page black and white (roadmap 4.4).
+    var colors: [ScanColor] { caps.map { ScanChoices.colors($0, source).filter { $0 != .blackAndWhite } } ?? [.color] }
     var resolutions: [Int] { caps.map { ScanChoices.resolutions($0, source) } ?? ScanChoices.documentResolutions }
     var sizes: [ScanPageSize] { caps.map { ScanChoices.pageSizes($0, source) } ?? ScanChoices.pageSizes }
     /// The feeder is chosen and scans one side only: the tab offers `turnStack`.

@@ -551,8 +551,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
   read back by an inflater the tests write from RFC 1951), where Windows uses .NET's `ZLibStream` and Inkvolt PDF for Mac's
   exports Apple's Compression; it is only the fallback for pages G4 codes badly (fine, even patterns), so it needn't match
-  zlib's size. The Mac scans no black and white (`ScanColor` is color or grey), so only a preset's smaller file saves one bit
-  (Windows' `ScanChoices.SavesOneBit` has no Mac use); a size refused throws `BitImage.SizeError`; a page that can't be made
+  zlib's size. Inkvolt Print for Mac offers color and grey only (its `ScanModel` leaves out `ScanColor.blackAndWhite`,
+  Inkvolt PDF's File › Scan choice since the parity audit's X7), so here only a preset's smaller file saves one bit; a size refused throws `BitImage.SizeError`; a page that can't be made
   black and white (past `BitImage.maxPixels`) is saved as its JPEG. `--report … --smaller-file` saves the demo feeder's pages
   both ways and has PDFKit draw the 1-bit page. Not checked: a real scanner's pages, Preview and other readers on screen, a
   printed copy.
@@ -1246,6 +1246,7 @@ at under "What a person must look at" and in each section.
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 | X1 | Export Pages as Images (the parity audit of 2026-11-27, below): File › Export To › Pages as Images… and Convert › Images…, the pages chosen as PNG or JPEG at 72 to 600 dpi in a folder, named "name - page N.png" without replacing a file, a page too large lowered under 64 megapixels after asking, a page that can't be read left out and said, Cancel keeping the images before it (`PageImageExport`; ExportImages.swift; `--edit --only-parity` drives it) | PageImageExportTests (Mac only: Windows' `FileActions.ExportImages` is app code without tests) |
 | X2 | XPS, OXPS, EPUB, CBZ, FB2 and pictures opened (the parity audit): from Open, the Dock, Finder and the start page, as a new PDF of their pages through MuPDF's PDF writer (`OtherFormats`, `PdfEngine.writePdf`; Converting.swift, Info.plist) | OtherFormatsTests (Mac only: Windows opens them read-only, untested) |
+| X7 | Black and white in File › Scan (the parity audit; roadmap 4.8's Mac line): `ScanColor.blackAndWhite` where the scanner lists it, its pages saved at 1 bit (`ScanChoices`, `ScanPreset.blackAndWhite`, `PresetPlan.oneBit`, `ScanRun.toPdf`; Scan.swift) | UsbScannerTests' `A_feeder_scanner_offers_glass_feeder_both_sides_and_black_and_white`, `ESCL_asks_for_black_and_white_only_where_offered` and `A_preset_saves_the_choices…` (now in black and white), TurnedStackTests' `One_sided_feeders_offer_the_turned_stack_and_black_and_white_saves_one_bit`, BlackAndWhitePdfTests, OneBitImagesTests' `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg` |
 | X3 | Previous View and Next View (the parity audit): Go › Previous View (⌘[) and Next View (⌘]) and the pages' menu, back and forward through the jumps of each pane (`NavigationHistory`, `PagesView.place`, `DocumentWindowController.go(record:)`) | NavigationHistoryTests (Mac only: Windows' `PageViewer` stacks have no tests) |
 | X5 | Help › Keyboard Shortcuts (⌘/) and Open Log Folder (the parity audit): the shortcuts read from the menu bar with a filter, the app's log (`ShortcutList`, `AppLog`; ShortcutsWindow.swift) | ShortcutListTests, AppLogTests (Mac only: Windows' are app code without tests) |
 | X6 | File › Show in Finder and Close All (⌥⌘W) (the parity audit): the document's file in Finder; this window's tabs closed one by one, each asking, Cancel stopping (FileCommands.swift) | (none: app code on Windows too; `ParityTest` drives them) |
@@ -1276,8 +1277,9 @@ From the steps, besides the sections below:
   27 pictures where Windows makes them lines. Not checked: the .pptx in PowerPoint for Mac or Keynote.
 - E16: FindAllTests ported, two adapted (the Mac's `findAll` returns its pages and hands them to `onPage` where Windows'
   is an enumeration); FindWorkerTests has no counterpart (below).
-- 2.3: no black and white (the Mac's scans are color or grey), so a preset has no `BlackAndWhite`; text recognition is
-  always available (Vision); the pages become the PDF through PdfCore's `ImageImport`, so the page-assembly tests count
+- 2.3: black and white where the scanner lists it (eSCL's BlackAndWhite1; since the parity audit's X7, below), with a
+  preset's `BlackAndWhite`; an ImageCaptureCore (USB) scanner lists color and grey (Windows' WIA drivers add black and
+  white). Text recognition is always available (Vision); the pages become the PDF through PdfCore's `ImageImport`, so the page-assembly tests count
   the pages kept instead of opening a PDF.
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
@@ -1302,9 +1304,9 @@ From the steps, besides the sections below:
   PdfCore uses them, nothing duplicated. MuPDF's objects belong to the document's thread, so `OneBitImages` works in three
   steps where Windows has two: `recodeJob`/`thresholdJob` read a picture on the document's thread, `run` draws and codes
   it (several at once, each in an engine of its own), `apply` makes the change back on the document's thread. File ›
-  Scan has no black-and-white mode on the Mac (2.3 above: color or grey only; Print for Mac's 4.4 made a preset's smaller
-  file instead), so it saves no page at 1 bit and `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg` isn't
-  ported; Recognize Text and Reduce File Size are as Windows. `Jbig2IsClearlySmallerThanG4OnTextPages` has no "as
+  Scan's black-and-white pages are saved at 1 bit (the parity audit's X7: PrintCore's `ScanRun.toPdf`, its pages made
+  black and white by PrintMac's `ScanImaging.bits`), and `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg`
+  is ported with a closure in place of Windows' WIC decoder; Recognize Text and Reduce File Size are as Windows. `Jbig2IsClearlySmallerThanG4OnTextPages` has no "as
   typeset" case (the Mac's corpus has no clean page). Not checked by a person: a real black-and-white scan reduced, the
   sheet's new check box by eye and with VoiceOver.
 - 4.18: the commands are in Edit › Find and are off until Find has matches (Windows opens its Search pane and says to search
@@ -2496,6 +2498,14 @@ Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the ap
   dropped there still make one PDF together, as before). **For the owner:** a read-only view as Windows' would mean a
   second kind of session through the whole app; say if that's wanted instead. Not checked by a person: a real EPUB's
   layout and a large CBZ's time, Open With in Finder.
+- Black and white in File › Scan (X7, roadmap 4.8's Mac line): PrintCore's `ScanColor` has Windows' `blackAndWhite`
+  (eSCL's BlackAndWhite1, grey where the source doesn't list it), `ScanChoices.colors`, `pick`, `savesOneBit`,
+  `remember` and `colorLabel`, a preset's `BlackAndWhite` (Windows' JSON name) and `PresetPlan.oneBit` for it, and
+  `ScanRun.toPdf`; the Scan dialog lists it where the scanner does, remembers it as Windows (ScanColor and
+  ScanBlackAndWhite), and saves those pages at 1 bit (JBIG2, G4 or Flate, whichever is smallest) where Windows writes
+  up to four pages at once and the Mac one after another. ImageCaptureCore (USB) scanners list color and grey only.
+  Inkvolt Print for Mac leaves black and white out of its own Scan (its smaller file does that job); say if it should
+  have it too. Not checked by a person: a real eSCL scanner's black-and-white pages, the choice by eye.
 
 ### Paragraph editing (roadmap 2.1)
 
@@ -2908,5 +2918,7 @@ No Mac since November 2026: these wait for the next one (`NEW-MAC.md`).
     defaults, no start (2026-11-27), so it isn't offered there.
 - Inkvolt PDF: Translate's looks and right-to-left lines of 2026-11-19 and 20 (roadmap 3.1), Windows' 12 commits listed under
   "Windows' additions of 2026-11-19 and 20".
+- The parity audit (2026-11-27, "Windows parity audit"): two calls for the owner. XPS, EPUB and the other formats open
+  as a new PDF where Windows shows them read-only; Inkvolt Print for Mac's own Scan has no black and white.
 - Speed: the drawing set's first 20 pages and Find miss their targets, as on Windows (`mac/tools/bench/RESULTS.md`).
 - Everything listed under "What a person must look at" and each section's "A person must look at" / "Not checked".

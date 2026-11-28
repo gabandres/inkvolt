@@ -365,7 +365,7 @@ for the new Mac. Sizes: S about a week, M 2-4 weeks, L more. Free unless it says
   for all; tests `TextReplaceTests`, pdf.js `ReplacedTextReadsTheSameInPdfJs`; the app's `ReplaceDialog`, the Mac's Edit › Find ›
   Find and Replace… sheet).
 - **Batch B:**
-  - 4.8 Smaller black-and-white scans: lossless JBIG2 (our own generic-region encoder; never symbol substitution) or CCITT G4 (the shared encoder from Inkvolt Print's 4.4), whichever is smaller. Done on Windows (`Jbig2Generic`, `OneBitImages`; File › Scan, Recognize Text's cleaned pages, Reduce File Size) and Mac (PrintCore's `Jbig2Generic`; Recognize Text's cleaned pages and Reduce File Size: the Mac's File › Scan has no black-and-white mode).
+  - 4.8 Smaller black-and-white scans: lossless JBIG2 (our own generic-region encoder; never symbol substitution) or CCITT G4 (the shared encoder from Inkvolt Print's 4.4), whichever is smaller. Done on Windows (`Jbig2Generic`, `OneBitImages`; File › Scan, Recognize Text's cleaned pages, Reduce File Size) and Mac (PrintCore's `Jbig2Generic`; File › Scan's black-and-white pages where the scanner lists it, Recognize Text's cleaned pages and Reduce File Size).
   - 4.6 Copy text from an area of a scan, and an area as a table. Done on Windows and Mac (`AreaCopy`: Copy Text from Area, Copy Area as Table; the Mac's in the Edit menu and on the snapshot's notice, a scan read with Vision).
   - 4.15 Links from the addresses in the text. Done on Windows and Mac (`AddressLinks`, Links from Addresses; the Mac's in Tools › Annotate).
   - 4.18 Mark every search hit. Done on Windows and Mac (`SearchMarks`: Highlight, Underline or Strike Out All Matches; the Mac's in Edit › Find, after a search with the Find bar).

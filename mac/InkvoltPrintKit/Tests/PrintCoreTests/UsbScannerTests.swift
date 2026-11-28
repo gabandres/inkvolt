@@ -104,17 +104,40 @@ struct UsbScannerTests {
         InputCaps(minWidth: 16, maxWidth: 2550, minHeight: 16, maxHeight: maxHeight, colorModes: modes, resolutions: dpi)
     }
 
-    /// Glass and a duplex feeder (legal sheets), 75-600 dpi, color and grey; and a flatbed (A4-long glass), 150/300/600 dpi.
+    /// Glass and a duplex feeder (legal sheets), 75-600 dpi, color and grey (the feeder black and white too); and a flatbed
+    /// (A4-long glass), 150/300/600 dpi.
     static let duplexScanner = ScannerCapabilities(version: "2.6", makeAndModel: "Example DocScan 10", uuid: nil,
                                                    platen: input([75, 150, 200, 300, 600], maxHeight: 3508, modes: ["RGB24", "Grayscale8"]),
-                                                   adf: input([75, 150, 200, 300, 600], maxHeight: 4200, modes: ["RGB24", "Grayscale8"]), adfDuplex: true)
+                                                   adf: input([75, 150, 200, 300, 600], maxHeight: 4200, modes: ["RGB24", "Grayscale8", "BlackAndWhite1"]),
+                                                   adfDuplex: true)
     static let flatbed = ScannerCapabilities(version: "2.6", makeAndModel: "Example Flatbed", uuid: nil,
                                              platen: input([150, 300, 600], maxHeight: 3508, modes: ["RGB24", "Grayscale8"]), adf: nil, adfDuplex: false)
 
+    /// Windows' builds its scanner from WIA; here eSCL's capabilities, the feeder listing black and white.
+    @Test func A_feeder_scanner_offers_glass_feeder_both_sides_and_black_and_white() {
+        #expect(ScanChoices.colors(Self.duplexScanner, .adf) == [.color, .grayscale, .blackAndWhite])
+        #expect(ScanChoices.colors(Self.duplexScanner, .platen) == [.color, .grayscale])
+        #expect(ScanChoices.colorLabel(.blackAndWhite) == "Black and white")
+        #expect(ScanChoices.pick([.color, .grayscale, .blackAndWhite], color: false, blackAndWhite: true) == .blackAndWhite)
+        #expect(ScanChoices.pick([.color, .grayscale], color: false, blackAndWhite: true) == .grayscale)
+        #expect(ScanChoices.remember(.blackAndWhite) == (false, true))
+    }
+
+    @Test func ESCL_asks_for_black_and_white_only_where_offered() throws {
+        func mode(_ modes: [String]) throws -> String? {
+            let caps = ScannerCapabilities(version: "2.6", makeAndModel: "m", uuid: nil,
+                                           platen: InputCaps(minWidth: 0, maxWidth: 2550, minHeight: 0, maxHeight: 3508, colorModes: modes, resolutions: [300]),
+                                           adf: nil, adfDuplex: false)
+            return try DeviceXml.load(try #require(EsclXml.buildScanSettings(ScanRequest(color: .blackAndWhite), caps))).kidValue("ColorMode")
+        }
+        #expect(try mode(["RGB24", "Grayscale8", "BlackAndWhite1"]) == "BlackAndWhite1")
+        #expect(try mode(["RGB24", "Grayscale8"]) == "Grayscale8")
+    }
+
     @Test func A_preset_saves_the_choices_and_is_matched_to_each_scanner() throws {
-        let preset = ScanPresets.fromChoices([], name: "Contracts", source: .adfDuplex, color: .grayscale, dpi: 300, pageSize: "legal",
+        let preset = ScanPresets.fromChoices([], name: "Contracts", source: .adfDuplex, color: .blackAndWhite, dpi: 300, pageSize: "legal",
                                              ocr: true, skipBlank: true)
-        #expect(preset.source == .feeder && preset.twoSided && !preset.color)
+        #expect(preset.source == .feeder && preset.twoSided && !preset.color && preset.blackAndWhite)
         #expect(preset.resolution == 300 && preset.pageSize == "legal" && preset.fileType == .searchablePdf && preset.skipBlank)
 
         // Saved with the app's settings and read back.
@@ -125,7 +148,8 @@ struct UsbScannerTests {
         #expect(list == [expected])
 
         let plan = PresetPlan.plan(list[0], Self.duplexScanner, feederLoaded: nil, ocrAvailable: true, metric: false)
-        #expect(plan.request == ScanRequest(source: .adfDuplex, color: .grayscale, resolution: 300, width: 2550, height: 4200))
+        #expect(plan.request == ScanRequest(source: .adfDuplex, color: .blackAndWhite, resolution: 300, width: 2550, height: 4200))
+        #expect(plan.oneBit)
         #expect(plan.sizeKey == "legal") // the dialog picks the size by its key, not by matching width and height
         #expect(plan.ocr)
         #expect(plan.notes.isEmpty)

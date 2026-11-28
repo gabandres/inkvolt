@@ -16,6 +16,25 @@ public enum ScanRun {
     /// Decodes a page into the greyscale copy the check reads (PrintMac's `ScanImaging.analysis` in the app).
     public typealias Analysis = @Sendable ([UInt8]) throws -> GrayImage
 
+    /// A page's JPEG at its resolution made black and white (PrintMac's `ScanImaging.bits` in the app).
+    public typealias OneBit = @Sendable ([UInt8], Int) throws -> BitImage
+
+    /// The pages as one PDF at their scan resolution (Windows' `ToPdf`): each JPEG as it is; or, for a page scanned in black
+    /// and white (`oneBit`), the page at 1 bit (`Bilevel`) as lossless JBIG2, CCITT G4 or Flate, whichever is smallest
+    /// (`PdfWriter.oneBit`): a twentieth to a fiftieth of its JPEG. A page that can't be made black and white stays its JPEG.
+    /// `bits` nil: every page as its JPEG. One page after another (Windows: up to four at once).
+    public static func toPdf(_ pages: [(jpeg: [UInt8], dpi: Int, oneBit: Bool)], title: String, bits: OneBit? = nil) throws -> [UInt8] {
+        let written = pages.map { p -> PdfWriter.Page in
+            if p.oneBit, let bits, let image = try? bits(p.jpeg, p.dpi) { // kept as scanned: never lose a page to the conversion
+                var page = PdfWriter.Page.blackAndWhite(image, dpi: p.dpi)
+                page.jbig2 = true
+                return page
+            }
+            return PdfWriter.Page(p.jpeg, dpi: p.dpi)
+        }
+        return try PdfWriter.write(written, title: title)
+    }
+
     /// - Parameter analysis: nil keeps every page that can be read.
     public static func pages(_ device: any ScanDevice, _ request: ScanRequest, analysis: Analysis?) -> AsyncThrowingStream<ScanRunPage, any Error> {
         AsyncThrowingStream { continuation in

@@ -1,14 +1,15 @@
 import AppKit
 import PdfCore
 import PrintCore
+import PrintMac
 
 /// The self-test's scenario for the Windows features the Mac lacked (`--edit`, on the synthetic text document;
 /// `--only-parity` runs it alone; mac/docs/PLAN.md, "Windows parity audit"): File › Export To › Pages as Images… (two
 /// pages as PNG and one as JPEG into a folder of the test's own, read back, a taken name not replaced); Show in Finder's
 /// enabling and Close All over three new documents, each question answered here; Go › Previous View and Next View after
 /// a jump and a page turn; View › Highlight Form Fields on the form; Help › Keyboard Shortcuts' rows and filter, the log
-/// and Report a Problem's copy of it; an FB2 opened through File › Open's path as a new PDF. Only counts and states are
-/// written.
+/// and Report a Problem's copy of it; an FB2 opened through File › Open's path as a new PDF; File › Scan's black and
+/// white offered where listed, a demo page saved at 1 bit. Only counts and states are written.
 @MainActor
 struct ParityTest {
     /// While it runs, the documents it opens get only its checks (`Report.documentOpened`).
@@ -52,6 +53,7 @@ struct ParityTest {
         await highlightFields()
         await shortcutsAndLog()
         await otherFormats()
+        await blackAndWhiteScan()
         Report.write(lines.joined(separator: "\n"))
         Report.write("parity: \(failures == 0 ? "PASS" : "FAIL (\(failures))")")
     }
@@ -218,5 +220,32 @@ struct ParityTest {
         if let doc { await DocumentWindowController.closeEach([doc]) }
         controller.window?.makeKeyAndOrderFront(nil)
         await settle()
+    }
+
+    // MARK: Black and white in File › Scan
+
+    private mutating func blackAndWhiteScan() async {
+        let listing = ScannerCapabilities(makeAndModel: "Example",
+                                          platen: InputCaps(minWidth: 300, maxWidth: 2550, minHeight: 300, maxHeight: 3508,
+                                                            colorModes: ["RGB24", "Grayscale8", "BlackAndWhite1"], resolutions: [300]),
+                                          adf: nil, adfDuplex: false)
+        check(ScanChoices.colors(listing, .platen).map(ScanChoices.colorLabel) == [loc("Color"), loc("Grayscale"), loc("Black and white")],
+              "black and white: offered where the scanner lists it")
+        // Two of the demo laser's pages: the first scanned in black and white, the second in grey.
+        var jpegs: [[UInt8]] = []
+        do {
+            for try await page in DemoScanDevice(DemoScanDevice.laserScanner).scan(ScanRequest(source: .platen, color: .grayscale, resolution: 150)) {
+                jpegs.append(page)
+                if jpegs.count == 2 { break }
+            }
+        } catch {}
+        guard let first = jpegs.first else { return check(false, "black and white: the demo scanner's pages") }
+        let second = jpegs.count > 1 ? jpegs[1] : first
+        let scanned = [(jpeg: first, dpi: 150, oneBit: true), (jpeg: second, dpi: 150, oneBit: false)]
+        let images = scanned.map { (bytes: $0.jpeg, name: "page.jpg") }
+        let pdf = (try? ScanWindowController.makePdf(scanned, images)) ?? []
+        let text = String(decoding: pdf, as: UTF8.self)
+        let oneBit = text.components(separatedBy: "/BitsPerComponent 1").count - 1, jpeg = text.components(separatedBy: "/DCTDecode").count - 1
+        check(oneBit == 1 && jpeg == 1, "black and white: the black-and-white page saved at 1 bit, the grey one as its JPEG (\(pdf.count) bytes)")
     }
 }

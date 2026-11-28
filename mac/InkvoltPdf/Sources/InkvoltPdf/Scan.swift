@@ -42,10 +42,12 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let device: @MainActor () -> (any ScanDevice)?
     }
 
-    /// A page scanned: its JPEG and the resolution it was scanned at.
+    /// A page scanned: its JPEG, the resolution it was scanned at, and whether it was scanned in black and white (saved at
+    /// 1 bit).
     struct Page {
         let jpeg: [UInt8]
         let dpi: Int
+        var oneBit = false
     }
 
     let scannerPopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -426,9 +428,11 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let source = currentSource
         colors = ScanChoices.colors(caps, source)
         colorPopup.removeAllItems()
-        colorPopup.addItems(withTitles: colors.map { $0 == .color ? loc("Color") : loc("Grayscale") })
-        let wantColor = wanted.map { $0.color == .color } ?? d.object(forKey: AppSettings.Key.scanColor) as? Bool ?? true
-        colorPopup.selectItem(at: colors.firstIndex(of: wantColor ? .color : .grayscale) ?? 0)
+        colorPopup.addItems(withTitles: colors.map(ScanChoices.colorLabel))
+        // Black and white where the scanner lists it (Windows' ScanBlackAndWhite setting beside ScanColor).
+        let chosen = wanted?.color ?? ScanChoices.pick(colors, color: d.object(forKey: AppSettings.Key.scanColor) as? Bool ?? true,
+                                                       blackAndWhite: d.bool(forKey: AppSettings.Key.scanBlackAndWhite))
+        colorPopup.selectItem(at: colors.firstIndex(of: chosen) ?? colors.firstIndex(of: .grayscale) ?? 0)
         resolutions = ScanChoices.resolutions(caps, source)
         resolutionPopup.removeAllItems()
         resolutionPopup.addItems(withTitles: resolutions.map { loc("{0} dpi", CoreLanguage.number($0)) })
@@ -470,7 +474,9 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
     private func rememberChoices() {
         let d = AppSettings.defaults
         d.set(Self.key(currentSource), forKey: AppSettings.Key.scanSource)
-        d.set(request.color == .color, forKey: AppSettings.Key.scanColor)
+        let color = ScanChoices.remember(request.color)
+        d.set(color.color, forKey: AppSettings.Key.scanColor)
+        d.set(color.blackAndWhite, forKey: AppSettings.Key.scanBlackAndWhite)
         d.set(request.resolution, forKey: AppSettings.Key.scanResolution)
         if sizes.indices.contains(sizePopup.indexOfSelectedItem) { d.set(sizes[sizePopup.indexOfSelectedItem].key, forKey: AppSettings.Key.scanPageSize) }
         d.set(ocr.state == .on, forKey: AppSettings.Key.scanOcr)
@@ -649,7 +655,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
                     case .unreadable: unreadable += 1
                     case .kept:
                         kept += 1
-                        self.added(page.jpeg, dpi: request.resolution)
+                        self.added(page.jpeg, dpi: request.resolution, oneBit: ScanChoices.savesOneBit(request.color))
                     }
                     self.message.stringValue = ScanRun.progressText(self.pages.count, blank: blank)
                 }
@@ -661,8 +667,8 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    private func added(_ jpeg: [UInt8], dpi: Int) {
-        pages.append(Page(jpeg: jpeg, dpi: dpi))
+    private func added(_ jpeg: [UInt8], dpi: Int, oneBit: Bool = false) {
+        pages.append(Page(jpeg: jpeg, dpi: dpi, oneBit: oneBit))
         if let image = NSImage(data: Data(jpeg)) {
             let view = NSImageView(image: image)
             view.imageScaling = .scaleProportionallyUpOrDown
@@ -704,11 +710,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         refresh()
     }
 
-    /// Makes the pages a PDF (the JPEGs as they are, each page the size it was scanned at) and opens it as a new document.
+    /// Makes the pages a PDF (the JPEGs as they are, each page the size it was scanned at; a page scanned in black and white
+    /// at 1 bit, `ScanRun.toPdf`, as Windows) and opens it as a new document.
     @objc func createClicked() {
         guard !pages.isEmpty, !isScanning else { return NSSound.beep() }
         rememberChoices()
         let images = pages.enumerated().map { (bytes: Self.withDensity($0.element.jpeg, dpi: $0.element.dpi), name: "Scan page \($0.offset + 1).jpg") }
+        let scanned = pages.map { (jpeg: $0.jpeg, dpi: $0.dpi, oneBit: $0.oneBit) }
         let count = pages.count
         let searchable = ocr.state == .on
         message.stringValue = loc("Making the PDF…")
@@ -716,7 +724,7 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
         let place = placePopup.indexOfSelectedItem
         let backs = backsMode, reversed = backsReversed.state == .on
         Task { [weak self] in
-            let made = await Task.detached { Result { try ImageImport.imagesToPdf(images) } }.value
+            let made = await Task.detached { Result { try Self.makePdf(scanned, images) } }.value
             guard let self else { return }
             switch made {
             case .failure(let error):
@@ -810,6 +818,13 @@ final class ScanWindowController: NSWindowController, NSWindowDelegate {
 
     /// The JPEG with its JFIF resolution set to the scan's (scanners often leave it unset, and a page would come out at
     /// 96 dpi, three times too big): the APP0 segment's density, or a new APP0 after the start marker.
+    /// The scanned pages as a PDF: `ImageImport`'s as ever; with a page scanned in black and white, Windows' `ScanRun.ToPdf`
+    /// (each JPEG as it is, that page at 1 bit through PrintMac's `ScanImaging.bits`).
+    nonisolated static func makePdf(_ scanned: [(jpeg: [UInt8], dpi: Int, oneBit: Bool)], _ images: [(bytes: [UInt8], name: String)]) throws -> [UInt8] {
+        guard scanned.contains(where: \.oneBit) else { return try ImageImport.imagesToPdf(images) }
+        return try ScanRun.toPdf(scanned, title: "Scan") { jpeg, dpi in try ScanImaging.bits(jpeg, dpi: dpi) } // English: the PDF's Info title, as Windows'
+    }
+
     static func withDensity(_ jpeg: [UInt8], dpi: Int) -> [UInt8] {
         guard jpeg.count > 4, jpeg[0] == 0xFF, jpeg[1] == 0xD8, dpi > 0, dpi < 65536 else { return jpeg }
         let hi = UInt8(dpi >> 8), lo = UInt8(dpi & 0xFF)
