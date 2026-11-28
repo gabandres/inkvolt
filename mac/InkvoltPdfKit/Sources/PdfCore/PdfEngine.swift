@@ -127,7 +127,7 @@ public final class PdfEngine: @unchecked Sendable {
 
         /// Opens the source in a new context of `store` bytes; with `password` when it needs one. `drawing`: a context
         /// whose large drawings are split into bands on several threads (the engine's own, which renders).
-        static func open(_ source: Source, store: Int, password: String?, drawing: Bool = false) throws -> Instance {
+        static func open(_ source: Source, store: Int, password: String?, drawing: Bool = false, cancel: CancelToken? = nil) throws -> Instance {
             guard let ctx = drawing ? inkv_new_drawing_context(store) : inkv_new_context(store) else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
             var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
             let doc: OpaquePointer?
@@ -137,7 +137,15 @@ public final class PdfEngine: @unchecked Sendable {
                 shared = data
                 doc = inkv_open_pdf_shared(ctx, data.base.assumingMemoryBound(to: UInt8.self), data.count, Int32(PdfEngine.loadedPagesKept), &err)
             case .path(let path):
-                doc = inkv_open_path(ctx, path, Int32(PdfEngine.loadedPagesKept), &err)
+                var opened: OpaquePointer?
+                do {
+                    try PdfEngine.opening(cancel) { opened = inkv_open_path(ctx, path, Int32(PdfEngine.loadedPagesKept), $0, &err) }
+                } catch {
+                    if let opened { inkv_drop_doc(ctx, opened) } // stopped as it finished: not kept
+                    inkv_drop_context(ctx)
+                    throw error
+                }
+                doc = opened
             }
             guard let doc else {
                 inkv_drop_context(ctx)
@@ -193,7 +201,30 @@ public final class PdfEngine: @unchecked Sendable {
     /// What reading the page found so far.
     public func verdictOf(_ page: Int) -> PageVerdict { verdicts[page] }
 
-    private init(_ main: Instance, source: Source, password: String?) throws {
+    /// Seconds of CPU time opening a file in place may take, and again each of its pages' bounds: an EPUB or FB2 is laid
+    /// out whole as it opens, so six times a page's budget (a minute; tests shorten it with the page budget).
+    static var openBudget: Double { defaultPageBudget * 6 }
+
+    /// Runs `body`, which opens a file in place or loads one of its pages, under a cookie of `openBudget`, the allocation
+    /// cap (one allocation of more than 4 × `maxPicturePixels` bytes, a zip bomb's entry, stops it) and `cancel`; its
+    /// result unless the cookie stopped it.
+    /// - Throws: `CancellationError`; `PdfEngineError` when it took too long or too much memory.
+    static func opening<T>(_ cancel: CancelToken?, _ body: (OpaquePointer) throws -> T) throws -> T {
+        try cancel.check()
+        guard let cookie = inkv_new_cookie() else { throw PdfEngineError(message: "MuPDF couldn't start.") } // English: the engine's own failure, for a developer
+        defer { inkv_drop_cookie(cookie) }
+        inkv_cookie_limit(cookie, openBudget, maxPicturePixels)
+        let handler = cancel?.register { inkv_cookie_abort(cookie) }
+        defer { cancel?.unregister(handler) }
+        let result = try body(cookie)
+        switch inkv_cookie_stopped(cookie) {
+        case 0: return result
+        case 1: throw CancellationError()
+        default: throw PdfEngineError(message: loc("This file can't be opened: reading it takes too long or needs too much memory."))
+        }
+    }
+
+    private init(_ main: Instance, source: Source, password: String?, cancel: CancelToken? = nil) throws {
         self.main = main
         self.source = source
         self.password = password
@@ -205,8 +236,17 @@ public final class PdfEngine: @unchecked Sendable {
         var pages: [PageGeometry] = []
         pages.reserveCapacity(Int(count))
         var b = [Float](repeating: 0, count: 4)
+        // A file opened in place (another format: an XPS, a comic book) loads each page under the open's bounds.
+        let bounded: Bool
+        if case .path = source { bounded = true } else { bounded = false }
         for i in 0..<Int(count) {
-            guard inkv_page_bounds(main.ctx, main.doc, Int32(i), &b, &err) != 0 else { throw PdfEngineError(message: Self.message(err)) }
+            let found: Int32
+            if bounded {
+                found = try Self.opening(cancel) { inkv_page_bounds(main.ctx, main.doc, Int32(i), &b, $0, &err) }
+            } else {
+                found = inkv_page_bounds(main.ctx, main.doc, Int32(i), &b, nil, &err)
+            }
+            guard found != 0 else { throw PdfEngineError(message: Self.message(err)) }
             pages.append(PageGeometry(Double(b[0]), Double(b[1]), Double(b[2] - b[0]), Double(b[3] - b[1])))
         }
         self.pages = pages
@@ -250,11 +290,13 @@ public final class PdfEngine: @unchecked Sendable {
         return try PdfEngine(Instance.open(source, store: 128 << 20, password: password, drawing: true), source: source, password: password)
     }
 
-    /// Opens a file in place (MuPDF reads only what it needs), e.g. for a quick preview; nil when it's encrypted.
-    public static func openPreview(path: String) throws -> PdfEngine? {
+    /// Opens a file in place (MuPDF reads only what it needs), e.g. for a quick preview; nil when it's encrypted. Opening
+    /// it and loading its pages' bounds are bounded (`opening`); `cancel` stops them.
+    /// - Throws: `CancellationError`; `PdfEngineError`.
+    public static func openPreview(path: String, cancel: CancelToken? = nil) throws -> PdfEngine? {
         let source = Source.path(path)
         do {
-            return try PdfEngine(Instance.open(source, store: 32 << 20, password: nil, drawing: true), source: source, password: nil)
+            return try PdfEngine(Instance.open(source, store: 32 << 20, password: nil, drawing: true, cancel: cancel), source: source, password: nil, cancel: cancel)
         } catch is PasswordRequired {
             return nil
         }

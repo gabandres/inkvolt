@@ -27,7 +27,7 @@ public enum OtherFormats {
 
     static func convert(path: String, cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in },
                         opened: (PdfEngine) -> Void) throws -> (pdf: [UInt8], blank: [Int], partial: [Int]) {
-        guard let engine = try PdfEngine.openPreview(path: path) else { throw PdfEngineError(message: loc("This file is password protected.")) }
+        guard let engine = try PdfEngine.openPreview(path: path, cancel: cancel) else { throw PdfEngineError(message: loc("This file is password protected.")) }
         defer { engine.close() }
         opened(engine)
         guard engine.pageCount > 0 else { throw PdfEngineError(message: loc("This file has no pages.")) }

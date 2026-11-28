@@ -56,7 +56,10 @@ void inkv_drop_context(void *ctx);
 inkv_doc *inkv_open_pdf(void *ctx, const uint8_t *data, size_t length, int cache, char *err);
 // The same, read in place: `data` must stay alive and unchanged until the document is dropped.
 inkv_doc *inkv_open_pdf_shared(void *ctx, const uint8_t *data, size_t length, int cache, char *err);
-inkv_doc *inkv_open_path(void *ctx, const char *path, int cache, char *err);
+// A file in place, of any type MuPDF reads (its name says which), opened under `cookie` (NULL: unbounded): its time,
+// Cancel and the allocation cap bound the opening, which counts the pages (an EPUB is laid out whole);
+// inkv_cookie_stopped says why one stopped.
+inkv_doc *inkv_open_path(void *ctx, const char *path, int cache, inkv_cookie *cookie, char *err);
 void inkv_drop_doc(void *ctx, inkv_doc *doc);
 
 /// 1 when the document needs a password before its pages can be read.
@@ -68,8 +71,9 @@ int inkv_is_encrypted(void *ctx, inkv_doc *doc);
 
 /// The page count, or -1 on failure.
 int inkv_count_pages(void *ctx, inkv_doc *doc, char *err);
-/// The page's bounds in MuPDF page space (rotation applied): x0, y0, x1, y1. 0 on failure.
-int inkv_page_bounds(void *ctx, inkv_doc *doc, int page, float out[4], char *err);
+/// The page's bounds in MuPDF page space (rotation applied): x0, y0, x1, y1. 0 on failure. Loading the page under
+/// `cookie` (NULL: unbounded) when given: its time, Cancel and the allocation cap (inkv_cookie_stopped says which).
+int inkv_page_bounds(void *ctx, inkv_doc *doc, int page, float out[4], inkv_cookie *cookie, char *err);
 /// Test hook: pages and display lists the document holds loaded right now.
 void inkv_loaded(inkv_doc *doc, int *pages, int *lists);
 

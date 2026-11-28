@@ -228,7 +228,7 @@ public enum ImageImport {
         let count = Int(inkv_count_pages(image.ctx, image.doc, &err))
         for i in 0..<max(count, 0) {
             var b = [Float](repeating: 0, count: 4)
-            guard inkv_page_bounds(image.ctx, image.doc, Int32(i), &b, &err) != 0 else { continue }
+            guard inkv_page_bounds(image.ctx, image.doc, Int32(i), &b, nil, &err) != 0 else { continue }
             let bw = Double(b[2] - b[0]), bh = Double(b[3] - b[1])
             if bw <= 0 || bh <= 0 { continue }
             // Native pixels: MuPDF sizes an image page from the image's resolution, which the header tells.

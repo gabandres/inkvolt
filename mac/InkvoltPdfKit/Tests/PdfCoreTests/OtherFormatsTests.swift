@@ -154,4 +154,50 @@ struct OtherFormatsTests {
         cancel.cancel()
         #expect(throws: CancellationError.self) { try OtherFormats.convert(path: path, cancel: cancel) }
     }
+
+    /// Pre-release review: opening an EPUB, FB2, XPS or comic book counts its pages (an EPUB is laid out whole) and loads
+    /// each page's bounds with no cookie, so neither the time budget, Cancel nor the allocation cap applied: a zip bomb's
+    /// entry inflated whole. Now the opening is bounded as a page's reading is.
+    @Test func openingAnotherFormatIsBoundedByTimeCancelAndMemory() throws {
+        let words = (0..<400).map { "<p>Paragraph \($0) of the story, long enough to be read in many chunks.</p>" }.joined()
+        let fb2 = try file("Long.fb2", Array("<FictionBook><body><section>\(words)</section></body></FictionBook>".utf8))
+        // The time: a budget of a nanosecond is up at the first look at the clock while the file's bytes are read.
+        PdfEngine.$budgetForTests.withValue(1e-10) {
+            #expect(throws: PdfEngineError.self) { try OtherFormats.convert(path: fb2) }
+        }
+        #expect(try OtherFormats.convert(path: fb2).blank.isEmpty)
+
+        // Memory: an EPUB whose container.xml says it inflates to 2 GB (MuPDF refuses past 2^31 itself); the one allocation for it is refused.
+        let container = Array("""
+        <?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\
+        <rootfiles><rootfile full-path="book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>
+        """.utf8)
+        var bomb = try zip([("mimetype", Array("application/epub+zip".utf8)), ("META-INF/container.xml", container)])
+        Self.claimSize(&bomb, of: "META-INF/container.xml", 2_000_000_000)
+        let epub = try file("Bomb.epub", bomb)
+        do {
+            _ = try OtherFormats.convert(path: epub)
+            Issue.record("a 2 GB entry opened")
+        } catch let e as PdfEngineError {
+            #expect(e.message == "This file can't be opened: reading it takes too long or needs too much memory.", "\(e.message)")
+        }
+    }
+
+    /// Writes `size` as the uncompressed size of the zip entry `name`, in its local header and the central directory.
+    private static func claimSize(_ zip: inout [UInt8], of name: String, _ size: UInt32) {
+        let nameBytes = Array(name.utf8)
+        func le16(_ at: Int) -> Int { Int(zip[at]) | Int(zip[at + 1]) << 8 }
+        for (signature, nameAt, sizeAt) in [([0x50, 0x4B, 3, 4] as [UInt8], 30, 22), ([0x50, 0x4B, 1, 2], 46, 24)] {
+            var i = 0
+            while i + nameAt <= zip.count {
+                if Array(zip[i..<i + 4]) == signature {
+                    let n = le16(i + nameAt - (signature[2] == 3 ? 4 : 18))
+                    if n == nameBytes.count, i + nameAt + n <= zip.count, Array(zip[(i + nameAt)..<(i + nameAt + n)]) == nameBytes {
+                        for k in 0..<4 { zip[i + sizeAt + k] = UInt8(size >> (8 * UInt32(k)) & 0xFF) }
+                    }
+                }
+                i += 1
+            }
+        }
+    }
 }

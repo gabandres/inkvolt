@@ -777,8 +777,8 @@ static void inkv_check_streams(fz_context *ctx, inkv_doc *d, fz_page *page, inkv
 }
 
 /// Starts a call that reads a page's content with `c` (NULL: unbounded): its first part's time from now.
-static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) {
-    double now = c || d->src ? inkv_cpu() : 0;
+static void inkv_begin_with(fz_context *ctx, inkv_source *src, inkv_cookie *c) {
+    double now = c || src ? inkv_cpu() : 0;
     inkv_alloc_state *a = inkv_alloc_of(ctx);
     if (a) a->active = c;
     if (c) {
@@ -793,13 +793,15 @@ static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) {
         }
         c->deadline = c->seconds > 0 ? now + c->seconds : 0;
     }
-    if (d->src) {
-        d->src->active = c;
-        d->src->chunk = 16;
-        d->src->unseen = 0;
-        d->src->last = now;
+    if (src) {
+        src->active = c;
+        src->chunk = 16;
+        src->unseen = 0;
+        src->last = now;
     }
 }
+
+static void inkv_begin(fz_context *ctx, inkv_doc *d, inkv_cookie *c) { inkv_begin_with(ctx, d->src, c); }
 
 /// The call's next part (drawing what was read) gets a budget of its own; its allocations (the caller's pixels, which
 /// its caller sized) aren't the page's.
@@ -809,14 +811,16 @@ static void inkv_next_part(fz_context *ctx, inkv_cookie *c) {
     if (c && c->seconds > 0) c->deadline = inkv_cpu() + c->seconds;
 }
 
-static void inkv_end(fz_context *ctx, inkv_doc *d) {
+static void inkv_end_with(fz_context *ctx, inkv_source *src) {
     inkv_alloc_state *a = inkv_alloc_of(ctx);
     if (a) a->active = NULL;
-    if (d->src) {
-        d->src->active = NULL;
-        d->src->chunk = INKV_CHUNK_MAX;
+    if (src) {
+        src->active = NULL;
+        src->chunk = INKV_CHUNK_MAX;
     }
 }
+
+static void inkv_end(fz_context *ctx, inkv_doc *d) { inkv_end_with(ctx, d->src); }
 
 /// Whether the call that used `c` was stopped (its time, a picture, Cancel).
 static int inkv_halted(inkv_cookie *c) { return c && (atomic_load(&c->stopped) || atomic_load(&c->cancelled)); }
@@ -1074,7 +1078,7 @@ inkv_doc *inkv_open_pdf_shared(void *vctx, const uint8_t *data, size_t length, i
     return inkv_open_bytes((fz_context *)vctx, data, length, "application/pdf", cache, 1, err);
 }
 
-inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
+inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
     int fd = open(path, O_RDONLY | O_CLOEXEC);
     struct stat st;
@@ -1092,8 +1096,12 @@ inkv_doc *inkv_open_path(void *vctx, const char *path, int cache, char *err) {
         inkv_error(ctx, err);
         return NULL;
     }
-    // The file's name tells MuPDF its type, as fz_open_document did.
+    // The file's name tells MuPDF its type, as fz_open_document did. Opening counts the pages, which for an EPUB or FB2
+    // lays out the whole book, its chapters and pictures inflated from the zip: under the cookie (its time read as the
+    // file's bytes are, Cancel, every allocation capped), so a zip bomb's entry or chapter can't inflate unbounded.
+    inkv_begin_with(ctx, src, cookie);
     inkv_doc *result = inkv_open(ctx, stream, src, path, cache, err);
+    inkv_end_with(ctx, src); // before the stream goes: a document that failed to open took src with it
     fz_drop_stream(ctx, stream);
     return result;
 }
@@ -1176,14 +1184,18 @@ int inkv_count_pages(void *vctx, inkv_doc *d, char *err) {
     return d->count;
 }
 
-int inkv_page_bounds(void *vctx, inkv_doc *d, int index, float out[4], char *err) {
+int inkv_page_bounds(void *vctx, inkv_doc *d, int index, float out[4], inkv_cookie *cookie, char *err) {
     fz_context *ctx = vctx;
+    if (cookie) inkv_begin(ctx, d, cookie);
     fz_try(ctx) {
         fz_rect r = fz_bound_page(ctx, inkv_page(ctx, d, index));
         out[0] = r.x0;
         out[1] = r.y0;
         out[2] = r.x1;
         out[3] = r.y1;
+    }
+    fz_always(ctx) {
+        if (cookie) inkv_end(ctx, d);
     }
     fz_catch(ctx) {
         inkv_error(ctx, err);
