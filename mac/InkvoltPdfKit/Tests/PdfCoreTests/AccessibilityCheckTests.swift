@@ -663,11 +663,21 @@ struct AccessibilityCheckTests {
         #expect(CffProgram.read(header + [0, 1, 0, 0x41, 0, 0]) == nil)
         // Names "A"; a Top DICT of 1E400 CharStrings (30, nibbles 1 E 4 0 0 end, 17); no strings, no global subroutines.
         let topDict: [UInt8] = [30, 0x1B, 0x40, 0x0F, 17]
-        let infinite = header + [0, 1, 1, 1, 2, 0x41] + [0, 1, 1, 1, UInt8(1 + topDict.count)] + topDict + [0, 0, 0, 0]
+        // Built up in typed steps: CI's older compiler gives up on the one-expression form.
+        var infinite: [UInt8] = header
+        infinite += [0, 1, 1, 1, 2, 0x41]
+        infinite += [0, 1, 1, 1, UInt8(1 + topDict.count)]
+        infinite += topDict
+        infinite += [0, 0, 0, 0]
         #expect(CffProgram.read(infinite) == nil)
         // A charset offset of 1E400 after a real CharStrings INDEX (at 26: one glyph, endchar): the glyphs are still read.
         let withCharset: [UInt8] = [30, 0x1B, 0x40, 0x0F, 15, 26 + 139, 17]
-        let charset = header + [0, 1, 1, 1, 2, 0x41] + [0, 1, 1, 1, UInt8(1 + withCharset.count)] + withCharset + [0, 0, 0, 0] + [0, 1, 1, 1, 2, 14]
+        var charset: [UInt8] = header
+        charset += [0, 1, 1, 1, 2, 0x41]
+        charset += [0, 1, 1, 1, UInt8(1 + withCharset.count)]
+        charset += withCharset
+        charset += [0, 0, 0, 0]
+        charset += [0, 1, 1, 1, 2, 14]
         #expect(CffProgram.read(charset)?.numGlyphs == 1)
     }
 

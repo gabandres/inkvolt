@@ -123,8 +123,13 @@ struct ImageImportTests {
     @Test func aBmpOfAbsurdSizeIsRefusedWithoutStopping() {
         func bmp(_ width: UInt32, _ height: UInt32) -> [UInt8] {
             func le(_ v: UInt32) -> [UInt8] { [UInt8(v & 0xFF), UInt8(v >> 8 & 0xFF), UInt8(v >> 16 & 0xFF), UInt8(v >> 24)] }
-            return Array("BM".utf8) + le(70) + le(0) + le(54) + le(40) + le(width) + le(height) + [1, 0, 24, 0]
-                + [UInt8](repeating: 0, count: 24) + [UInt8](repeating: 0xFF, count: 16)
+            // Built up in typed steps: CI's older compiler gives up on the one-expression form.
+            var out: [UInt8] = Array("BM".utf8)
+            for v: UInt32 in [70, 0, 54, 40, width, height] { out += le(v) }
+            out += [1, 0, 24, 0]
+            out += [UInt8](repeating: 0, count: 24)
+            out += [UInt8](repeating: 0xFF, count: 16)
+            return out
         }
         func size(_ b: [UInt8]) -> [Int] {
             let s = ImageImport.pixelSize(b, "a.bmp")
