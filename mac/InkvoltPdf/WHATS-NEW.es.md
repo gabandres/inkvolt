@@ -5,6 +5,7 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Abre documentos XPS y OpenXPS, libros electrónicos EPUB, cómics (CBZ), archivos FictionBook (FB2) e imágenes: cada uno se abre como un PDF nuevo con sus páginas, con texto que puedes buscar y copiar, para guardarlo donde quieras.
 - Ayuda › Métodos abreviados de teclado (⌘/) muestra todos los métodos abreviados, con un cuadro para encontrar uno. Inkvolt PDF ahora guarda un registro en este Mac (Ayuda › Abrir la carpeta de registros), y Informar un problema… incluye sus últimas líneas.
 - Visualización › Resaltar campos de formulario quita y vuelve a poner el tono azul sobre los campos de un formulario.
 - Ir › Vista anterior (⌘[) y Vista siguiente (⌘]) te devuelven adonde estabas antes de seguir un vínculo, un marcador o Ir a la página, y te llevan de nuevo hacia adelante.

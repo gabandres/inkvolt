@@ -340,4 +340,15 @@ int inkv_pdf_version(void *ctx, inkv_doc *doc);
 /// Sets the version a whole write puts in the header (PDF/A-2 wants 1.4 to 1.7). 0 on failure.
 int inkv_set_pdf_version(void *ctx, inkv_doc *doc, int version, char *err);
 
+/// Another format's pages written as a PDF (XPS, OXPS, EPUB, CBZ, FB2, pictures, opened by name with inkv_open_path):
+/// MuPDF's PDF writer, text kept as text. A writer gets each page in turn (1: written; 2: stopped by the cookie, the
+/// page left out; 0: failed or refused, nothing begun), a blank page in place of one that can't be read, then its bytes
+/// (malloc'ed for the caller, inkv_free). Every call uses the context of the document it reads.
+typedef struct inkv_pdf_writer inkv_pdf_writer;
+inkv_pdf_writer *inkv_pdf_writer_new(void *ctx, char *err);
+int inkv_pdf_writer_add(void *ctx, inkv_pdf_writer *writer, inkv_doc *doc, int page, inkv_cookie *cookie, char *err);
+int inkv_pdf_writer_add_blank(void *ctx, inkv_pdf_writer *writer, float width, float height, char *err);
+int inkv_pdf_writer_finish(void *ctx, inkv_pdf_writer *writer, uint8_t **bytes, size_t *length, char *err);
+void inkv_pdf_writer_drop(void *ctx, inkv_pdf_writer *writer);
+
 #endif

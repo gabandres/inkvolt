@@ -18,7 +18,9 @@ enum Converting {
     private static var running: [ObjectIdentifier: (token: CancelToken, ended: DispatchSemaphore)] = [:]
 
     /// Files Open converts instead of reading itself.
-    static func handles(_ url: URL) -> Bool { OfficeFiles.appFor(url.path) != nil || WebFiles.isWebFile(url.path) }
+    static func handles(_ url: URL) -> Bool {
+        OfficeFiles.appFor(url.path) != nil || WebFiles.isWebFile(url.path) || OtherFormats.handles(url.path)
+    }
 
     /// Finds what is installed, each time: an app may have been installed since. Launch Services knows an app wherever
     /// it was put; the usual places cover a LibreOffice it hasn't seen. Word, Excel and PowerPoint convert their own kinds
@@ -37,6 +39,7 @@ enum Converting {
     @discardableResult
     static func openConverted(_ url: URL) async -> PdfDocument? {
         let name = url.lastPathComponent
+        if OtherFormats.handles(url.path) { return await openOtherFormat(url) }
         guard OfficeFiles.appFor(url.path) != nil else {
             let options = savedWebOptions()
             let done = loc("Made from {0} ({1}). File › New PDF from Web Page… has the page options. Save it to keep it.", name, describe(options))
@@ -53,6 +56,24 @@ enum Converting {
             return result.pdf
         }
     }
+
+    /// An XPS, OXPS, EPUB, CBZ, FB2 or picture (Windows opens them with MuPDF): MuPDF writes its pages as a PDF, opened as
+    /// a new document; a page it can't read is left blank and said.
+    private static func openOtherFormat(_ url: URL) async -> PdfDocument? {
+        let name = url.lastPathComponent, path = url.path
+        let made = Blanks()
+        return await run(title: loc("Opening {0}", name), text: loc("Reading the pages…"), pdfName: OtherFormats.pdfName(path), done: {
+            made.pages.isEmpty ? loc("Made from {0}. Save it to keep it.", name)
+                : loc("Made from {0}; page(s) {1} couldn't be read and are blank. Save it to keep it.", name, PageRange.format(made.pages))
+        }) { token, _ in
+            let result = try await Task.detached { try OtherFormats.convert(path: path, cancel: token) }.value
+            if !result.blank.isEmpty { AppLog.write("Opened \(name): page(s) \(PageRange.format(result.blank)) couldn't be read") }
+            made.pages = result.blank
+            return result.pdf
+        }
+    }
+
+    @MainActor private final class Blanks { var pages: [Int] = [] }
 
     /// What converted an Office file, for the notice once the document is open.
     @MainActor private final class Made { var result: OfficeResult? }
@@ -318,8 +339,8 @@ private final class BrowseButton: NSButton {
     }
 }
 
-/// Files Open would read itself go on as ever; Office files and saved web pages (from the Open panel, the Dock or Finder)
-/// are converted into a new document. Made first in `main.swift`: AppKit keeps the first document controller it sees.
+/// Files Open would read itself go on as ever; Office files, saved web pages and the other formats MuPDF reads (XPS,
+/// EPUB, CBZ, FB2, pictures; from the Open panel, the Dock, Finder or the start page) are converted into a new document. Made first in `main.swift`: AppKit keeps the first document controller it sees.
 final class DocumentController: NSDocumentController {
     /// A file is open once (WindowHub, roadmap 4.9): asked for again in any case or through a link, its tab comes
     /// forward; asked for while it is still being read, nothing more happens.
@@ -342,7 +363,7 @@ final class DocumentController: NSDocumentController {
     }
 
     override func beginOpenPanel(_ openPanel: NSOpenPanel, forTypes inTypes: [String]?, completionHandler: @escaping (Int) -> Void) {
-        let extra = OfficeFiles.panelExtensions(OfficeApp.allCases) + WebFiles.extensions.map { String($0.dropFirst()) }
+        let extra = OfficeFiles.panelExtensions(OfficeApp.allCases) + (WebFiles.extensions + OtherFormats.extensions).map { String($0.dropFirst()) }
         super.beginOpenPanel(openPanel, forTypes: (inTypes ?? []) + extra, completionHandler: completionHandler)
     }
 }

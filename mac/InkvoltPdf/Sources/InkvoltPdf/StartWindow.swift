@@ -399,10 +399,11 @@ final class StartWindowController: NSWindowController, NSWindowDelegate {
         }
     }
 
-    /// Files dropped on the start page: PDFs open; pictures become a new PDF.
+    /// Files dropped on the start page: PDFs open, and the other formats MuPDF reads (XPS, EPUB, CBZ, FB2) as a PDF each;
+    /// pictures become one new PDF.
     static func openDropped(_ urls: [URL]) {
-        let pdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" }
         let images = urls.filter { UTType(filenameExtension: $0.pathExtension)?.conforms(to: .image) == true }
+        let pdfs = urls.filter { $0.pathExtension.lowercased() == "pdf" || (OtherFormats.handles($0.path) && !images.contains($0)) }
         for url in pdfs { open(url) }
         if !images.isEmpty { NewDocuments.fromImages(images) }
     }

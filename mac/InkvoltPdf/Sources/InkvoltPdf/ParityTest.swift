@@ -7,7 +7,8 @@ import PrintCore
 /// pages as PNG and one as JPEG into a folder of the test's own, read back, a taken name not replaced); Show in Finder's
 /// enabling and Close All over three new documents, each question answered here; Go › Previous View and Next View after
 /// a jump and a page turn; View › Highlight Form Fields on the form; Help › Keyboard Shortcuts' rows and filter, the log
-/// and Report a Problem's copy of it. Only counts and states are written.
+/// and Report a Problem's copy of it; an FB2 opened through File › Open's path as a new PDF. Only counts and states are
+/// written.
 @MainActor
 struct ParityTest {
     /// While it runs, the documents it opens get only its checks (`Report.documentOpened`).
@@ -50,6 +51,7 @@ struct ParityTest {
         await history()
         await highlightFields()
         await shortcutsAndLog()
+        await otherFormats()
         Report.write(lines.joined(separator: "\n"))
         Report.write("parity: \(failures == 0 ? "PASS" : "FAIL (\(failures))")")
     }
@@ -191,5 +193,30 @@ struct ParityTest {
         check(log.contains("Inkvolt PDF \(WhatsNew.version) started"), "log: the start written to the self-test's own log folder")
         check(menuItem(loc("Open Log Folder")).map { NSApp.delegate?.responds(to: $0.action!) == true } == true, "log: Help › Open Log Folder")
         check(ReportProblemWindowController.report().contains("started (macOS"), "log: Report a Problem copies the log's last lines")
+    }
+
+    // MARK: XPS, EPUB, CBZ, FB2, pictures
+
+    private mutating func otherFormats() async {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("inkvolt-parity-\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let fb2 = dir.appendingPathComponent("Parity Story.fb2")
+        let book = "<FictionBook xmlns=\"http://www.gribuser.ru/xml/fictionbook/2.0\"><body><section><p>Opened from FictionBook</p></section></body></FictionBook>"
+        try? Data(book.utf8).write(to: fb2)
+        check(Converting.handles(fb2),
+              "other formats: an FB2 goes to the conversion, not to a document class")
+        let before = Set(NSDocumentController.shared.documents.map(ObjectIdentifier.init))
+        let opened: NSDocument? = await withCheckedContinuation { done in
+            NSDocumentController.shared.openDocument(withContentsOf: fb2, display: true) { document, _, _ in done.resume(returning: document) }
+        }
+        let doc = opened as? PdfDocument ?? NSDocumentController.shared.documents.first { !before.contains(ObjectIdentifier($0)) } as? PdfDocument
+        let text = doc.flatMap { d in try? d.session.map { s in try (0..<s.engine.pageCount).map { try s.engine.text($0).text }.joined() } } ?? ""
+        check(doc?.displayName.hasPrefix("Parity Story") == true && doc?.fileURL == nil && text.contains("Opened from FictionBook"),
+              "other formats: Open made a new PDF of the FB2 with its text (\(doc?.displayName ?? "none"))")
+        doc?.testCloseAnswer = .dontSave
+        if let doc { await DocumentWindowController.closeEach([doc]) }
+        controller.window?.makeKeyAndOrderFront(nil)
+        await settle()
     }
 }

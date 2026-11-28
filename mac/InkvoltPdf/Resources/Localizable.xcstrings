@@ -26851,6 +26851,17 @@
           }
         }
       }
+    },
+    "Made from {0}; page(s) {1} couldn't be read and are blank. Save it to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creado a partir de {0}; las páginas {1} no se pudieron leer y están en blanco. Guárdalo para conservarlo."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

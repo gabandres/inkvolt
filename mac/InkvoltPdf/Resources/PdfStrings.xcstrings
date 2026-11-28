@@ -27962,6 +27962,28 @@
           }
         }
       }
+    },
+    "This file is password protected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo está protegido con contraseña."
+          }
+        }
+      }
+    },
+    "This file has no pages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo no tiene páginas."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

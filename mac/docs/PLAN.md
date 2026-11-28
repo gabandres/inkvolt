@@ -1245,6 +1245,7 @@ at under "What a person must look at" and in each section.
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 | X1 | Export Pages as Images (the parity audit of 2026-11-27, below): File › Export To › Pages as Images… and Convert › Images…, the pages chosen as PNG or JPEG at 72 to 600 dpi in a folder, named "name - page N.png" without replacing a file, a page too large lowered under 64 megapixels after asking, a page that can't be read left out and said, Cancel keeping the images before it (`PageImageExport`; ExportImages.swift; `--edit --only-parity` drives it) | PageImageExportTests (Mac only: Windows' `FileActions.ExportImages` is app code without tests) |
+| X2 | XPS, OXPS, EPUB, CBZ, FB2 and pictures opened (the parity audit): from Open, the Dock, Finder and the start page, as a new PDF of their pages through MuPDF's PDF writer (`OtherFormats`, `PdfEngine.writePdf`; Converting.swift, Info.plist) | OtherFormatsTests (Mac only: Windows opens them read-only, untested) |
 | X3 | Previous View and Next View (the parity audit): Go › Previous View (⌘[) and Next View (⌘]) and the pages' menu, back and forward through the jumps of each pane (`NavigationHistory`, `PagesView.place`, `DocumentWindowController.go(record:)`) | NavigationHistoryTests (Mac only: Windows' `PageViewer` stacks have no tests) |
 | X5 | Help › Keyboard Shortcuts (⌘/) and Open Log Folder (the parity audit): the shortcuts read from the menu bar with a filter, the app's log (`ShortcutList`, `AppLog`; ShortcutsWindow.swift) | ShortcutListTests, AppLogTests (Mac only: Windows' are app code without tests) |
 | X6 | File › Show in Finder and Close All (⌥⌘W) (the parity audit): the document's file in Finder; this window's tabs closed one by one, each asking, Cancel stopping (FileCommands.swift) | (none: app code on Windows too; `ParityTest` drives them) |
@@ -2483,6 +2484,18 @@ Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the ap
   Mac these so far. Help › Open Log Folder opens it in Finder; Report a Problem… copies its last lines, scrubbed, as
   Windows' does. The self-test logs to a folder of its own. Not checked by a person: the window by eye and with
   VoiceOver, the log in Console.
+- XPS, OXPS, EPUB, CBZ, FB2 and pictures (X2): Windows opens them with MuPDF as read-only documents (the edit commands
+  off, Save As writing the same format). On the Mac every reader and edit works on the session's PDF bytes (export,
+  printing, Batch, recovery copies), and Office files and web pages already open as a new PDF made of them (E12), so
+  these do too: MuPDF reads the file by its name and writes its pages through its PDF writer (`OtherFormats`,
+  `PdfEngine.writePdf`, the shim's `inkv_pdf_writer_*`; text stays text), each page through the page checks (one that
+  can't be read is left blank and named in the notice and the log). The result is an unsaved document named after the
+  file ("Book.pdf"), every command available; Save asks where, as for an Office file. From the Open panel (Windows'
+  "Supported files" list), the Dock, Finder (Info.plist's document types: XPS, EPUB and pictures by macOS's types, OXPS,
+  CBZ and FB2 imported by their extensions, all Alternate so Preview stays their owner) and the start page (pictures
+  dropped there still make one PDF together, as before). **For the owner:** a read-only view as Windows' would mean a
+  second kind of session through the whole app; say if that's wanted instead. Not checked by a person: a real EPUB's
+  layout and a large CBZ's time, Open With in Finder.
 
 ### Paragraph editing (roadmap 2.1)
 
