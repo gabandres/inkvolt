@@ -9,8 +9,8 @@ public struct PresetPlan: Equatable, Sendable {
     public var notes: [String]
     /// Both sides on a one-sided feeder: scan the fronts, then ask for the stack turned over (`TurnedStack`).
     public var turnStack = false
-    /// The PDF's pages in black and white at 1 bit (`ScanPresets.savesSmallerFile`, scanned in grey); never a JPEG preset's or
-    /// photos found on the glass.
+    /// The PDF's pages in black and white at 1 bit (`ScanPresets.savesSmallerFile`, scanned in grey; or a black-and-white
+    /// preset's); never a JPEG preset's or photos found on the glass.
     public var oneBit = false
 
     /// - Parameters:
@@ -43,9 +43,12 @@ public struct PresetPlan: Equatable, Sendable {
 
         // A smaller file is black and white at 1 bit, made from grey (a scan in color would only take longer). Not for pictures:
         // JPEG files, photos found on the glass.
+        // A black-and-white scan (Inkvolt PDF's presets) is saved at 1 bit too. Neither for pictures: JPEG files, photos found
+        // on the glass.
         let smaller = ScanPresets.savesSmallerFile(preset, source: source)
-        let colors = ScanChoices.colors(caps, source)
-        let color: ScanColor = preset.color && !smaller && colors.contains(.color) ? .color : colors.contains(.grayscale) ? .grayscale : colors[0]
+        let pictures = preset.fileType == .jpeg || (preset.findPhotos && source == .platen)
+        let color = ScanChoices.pick(ScanChoices.colors(caps, source), color: preset.color && !smaller, blackAndWhite: preset.blackAndWhite && !smaller)
+        let oneBit = smaller || (!pictures && preset.blackAndWhite && !preset.color)
 
         // The closest the source offers; between two equally close, the sharper one.
         let supported = caps.input(for: source)?.resolutions ?? []
@@ -73,6 +76,6 @@ public struct PresetPlan: Equatable, Sendable {
         } else if readsName && !ocrAvailable {
             notes.append(loc("This Mac can't read text, so the parts of the file name taken from the page stay empty."))
         }
-        return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes, turnStack: turnStack, oneBit: smaller)
+        return PresetPlan(request: ScanChoices.request(source, color, dpi, size), ocr: ocr, sizeKey: size.key, notes: notes, turnStack: turnStack, oneBit: oneBit)
     }
 }

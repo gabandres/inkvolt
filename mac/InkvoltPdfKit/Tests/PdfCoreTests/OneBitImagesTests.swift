@@ -8,8 +8,8 @@ import Testing
 /// Ported from OneBitImagesTests.cs (same names): smaller black-and-white scans (roadmap 4.8), Recognize Text's cleaned
 /// page of a black-and-white scan kept at 1 bit (`ScanPage`), and Reduce File Size's lossless recoding of 1-bit pictures
 /// and, when asked, grey scans of text made black and white (`OneBitImages`). Adapted: the JPEGs are ImageIO's (Windows:
-/// its own encoder); a fixed generator in place of .NET's `Random`. Not ported: ScannedInBlackAndWhiteAPageIsSavedAtOneBit…
-/// (the Mac's File › Scan has no black-and-white mode to save at 1 bit: PLAN, Wave 4 Batch B).
+/// its own encoder); a fixed generator in place of .NET's `Random`; ScannedInBlackAndWhiteAPageIsSavedAtOneBit… makes its
+/// pages black and white through a closure (PrintCore's `ScanRun.toPdf`; the app's is PrintMac's `ScanImaging.bits`).
 /// The tests on the corpus's 300 dpi page run on a Mac, not in CI (`ScanCorpus.runs`).
 struct OneBitImagesTests {
     /// The corpus's light scan, made once.
@@ -244,6 +244,44 @@ struct OneBitImagesTests {
         // A grey scan's cleaned page stays grey.
         let grey = try ScanPage.writeBack(greyScan, nil, [0: cleaned])
         #expect(try Self.picture(Core2Pdf.open(grey), "PdScan").int("BitsPerComponent") == 8)
+    }
+
+    /// Pages counted as `ScanRun.toPdf` makes them black and white.
+    private final class Count: @unchecked Sendable {
+        private let lock = NSLock()
+        private var n = 0
+        func add() { lock.withLock { n += 1 } }
+        var value: Int { lock.withLock { n } }
+    }
+
+    @Test(.enabled(if: ScanCorpus.runs)) func ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg() throws {
+        let (gray, w, h) = try Self.full()
+        let jpeg = try Self.grayJpeg(gray, w, h, quality: 0.85)
+        let other = try Self.grayJpeg(gray, w, h, quality: 0.80)
+        let decoded = Count()
+        let pdf = try ScanRun.toPdf([(jpeg, 300, true), (jpeg, 300, false), (other, 300, true)], title: "Scan") { j, dpi in
+            decoded.add()
+            if j == other { throw PdfEngineError(message: "not a picture") }
+            return try Bilevel.fromScan(gray, w, h, dpi: dpi)
+        }
+        #expect(decoded.value == 2) // the grey page isn't decoded
+        let text = latin1(pdf)
+        #expect(text.components(separatedBy: "/JBIG2Decode").count - 1 == 1)
+        #expect(text.components(separatedBy: "/DCTDecode").count - 1 == 2) // the page that couldn't be decoded stays as scanned
+        #expect(pdf.count < jpeg.count + other.count + jpeg.count / 20, "\(pdf.count) vs JPEGs \(jpeg.count) + \(other.count)")
+
+        // What the page shows is the scan in black and white, as Inkvolt Print saves it.
+        let bits = try Bilevel.fromScan(gray, w, h, dpi: 300)
+        let engine = try PdfEngine.open(pdf)
+        defer { engine.close() }
+        #expect(abs(engine.page(0).width - 612) <= 1)
+        let shown = try engine.render(0, scale: 300 / 72.0)
+        #expect(shown.width == w && shown.height == h)
+        var differ = 0
+        for y in stride(from: 0, to: h, by: 3) {
+            for x in stride(from: 0, to: w, by: 3) where bits[x, y] != (shown.pixels[(y * w + x) * 3] < 128) { differ += 1 }
+        }
+        #expect(differ == 0)
     }
 
     @Test func blackAndWhiteScansIsOffUnlessAskedAndKeptInABatchPreset() throws {

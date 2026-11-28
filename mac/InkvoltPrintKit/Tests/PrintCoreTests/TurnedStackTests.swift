@@ -7,7 +7,6 @@ import Testing
 /// pages are the review's ids (strings), so the stack's own places are kept by id, not by reference; a negative count reads
 /// as none (Swift has no ArgumentOutOfRangeException) and `separatorBacks` answers nil for flags that don't fit; the Mac
 /// scans no black and white (`ScanColor` has color and grey), so the one-bit half of
-/// One_sided_feeders_offer_the_turned_stack_and_black_and_white_saves_one_bit is 4.4's (`BlackAndWhitePdfTests`).
 /// Mac only: aTurnedStacksPagesPairAndUndoInTheReview (`ScanPages.pair`, the Windows view model's `StackScan`).
 struct TurnedStackTests {
     /// Pages as the feeder sends them: "F1".."Fn" for the fronts, then the backs last sheet first, "B3", "B2", "B1".
@@ -88,10 +87,12 @@ struct TurnedStackTests {
         #expect(TurnedStack.separatorBacks(2, 2, reversed: true, sheet: Array(repeating: false, count: 3), blank: Array(repeating: false, count: 4)) == nil)
     }
 
-    @Test func oneSidedFeedersOfferTheTurnedStack() {
+    @Test func One_sided_feeders_offer_the_turned_stack_and_black_and_white_saves_one_bit() {
         #expect(ScanChoices.offersTurnStack(Self.caps(duplex: false), .adf))
         #expect(!ScanChoices.offersTurnStack(Self.caps(duplex: true), .adf))
         #expect(!ScanChoices.offersTurnStack(Self.caps(duplex: false), .platen))
+        #expect(ScanChoices.savesOneBit(.blackAndWhite))
+        #expect(!ScanChoices.savesOneBit(.grayscale))
     }
 
     // ---- The preset option ----

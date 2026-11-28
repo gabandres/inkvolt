@@ -5,6 +5,13 @@ Inkvolt PDF). Los mismos encabezados en el mismo orden y una línea por cada lí
 WHATS-NEW.md necesita aquí su español (`PdfStringsTests` comprueba que los encabezados y el número de líneas coincidan).
 
 ## Next
+- Archivo › Escanear ofrece Blanco y negro cuando tu escáner lo ofrece, y guarda esas páginas en blanco y negro para un PDF mucho más pequeño.
+- Abre documentos XPS y OpenXPS, libros electrónicos EPUB, cómics (CBZ), archivos FictionBook (FB2) e imágenes: cada uno se abre como un PDF nuevo con sus páginas, con texto que puedes buscar y copiar, para guardarlo donde quieras.
+- Ayuda › Métodos abreviados de teclado (⌘/) muestra todos los métodos abreviados, con un cuadro para encontrar uno. Inkvolt PDF ahora guarda un registro en este Mac (Ayuda › Abrir la carpeta de registros), y Informar un problema… incluye sus últimas líneas.
+- Visualización › Resaltar campos de formulario quita y vuelve a poner el tono azul sobre los campos de un formulario.
+- Ir › Vista anterior (⌘[) y Vista siguiente (⌘]) te devuelven adonde estabas antes de seguir un vínculo, un marcador o Ir a la página, y te llevan de nuevo hacia adelante.
+- Archivo › Mostrar en Finder muestra el archivo del documento en Finder, y Archivo › Cerrar todo (⌥⌘W) cierra todos los documentos de la ventana y pregunta antes por los que tienen cambios.
+- Exportar páginas como imágenes… (Archivo › Exportar a, y Convertir › Imágenes…): las páginas que elijas como imágenes PNG o JPEG, de 72 a 600 ppp, en la carpeta que elijas.
 - Eliminar información confidencial ya no deja ver el ancho de lo que quitaste. El texto que seguía a un recuadro negro se quedaba donde estaba, así que el hueco (y el propio recuadro) podía decir cuánto medían las palabras ocultas. Ahora cada línea con una eliminación se vuelve a componer: sus palabras conservan el orden, los espacios son iguales y el ancho del recuadro se redondea, así que la línea se ve igual sea lo que sea lo que había debajo.
 - Comprobar eliminación también encuentra recuadros negros dibujados dentro de la imagen de una página (por programas que convierten las páginas en imágenes, o en un escaneo) con texto al lado que puede revelar el ancho oculto.
 - Hacer accesible encuentra las filas que comparten una etiqueta en tablas dibujadas sin líneas (una región sobre sus países) y etiqueta esa celda como extendida sobre esas filas, para que un lector de pantalla la lea con cada una.

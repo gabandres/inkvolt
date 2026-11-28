@@ -4533,17 +4533,6 @@
         }
       }
     },
-    "Drawing": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dibujo"
-          }
-        }
-      }
-    },
     "Drawing tools": {
       "extractionState": "manual",
       "localizations": {
@@ -12739,17 +12728,6 @@
         }
       }
     },
-    "Search all commands": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Buscar en todos los comandos"
-          }
-        }
-      }
-    },
     "Search every command (⇧⌘K)": {
       "extractionState": "manual",
       "localizations": {
@@ -13065,17 +13043,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar formato"
-          }
-        }
-      }
-    },
-    "Show in Finder": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostrar en Finder"
           }
         }
       }
@@ -26870,6 +26837,259 @@
           "stringUnit": {
             "state": "translated",
             "value": "el reconocedor no estaba seguro"
+          }
+        }
+      }
+    },
+    "PNG (lossless)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PNG (sin pérdida)"
+          }
+        }
+      }
+    },
+    "JPEG (smaller)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "JPEG (más pequeño)"
+          }
+        }
+      }
+    },
+    "Export images to": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportar imágenes a"
+          }
+        }
+      }
+    },
+    "Export Pages as Images": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportar páginas como imágenes"
+          }
+        }
+      }
+    },
+    "Export": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportar"
+          }
+        }
+      }
+    },
+    "The page images are saved without its password protection: anyone can open them.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las imágenes de las páginas se guardan sin su protección con contraseña: cualquiera puede abrirlas."
+          }
+        }
+      }
+    },
+    "Export anyway": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportar de todos modos"
+          }
+        }
+      }
+    },
+    "Can't export to that folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se puede exportar a esa carpeta"
+          }
+        }
+      }
+    },
+    "Some pages are very large": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Algunas páginas son muy grandes"
+          }
+        }
+      }
+    },
+    "{0} page is too large to export at {1} dpi, so it is exported at a lower resolution (down to {2} dpi) to stay under {3} megapixels per image.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} página es demasiado grande para exportarla a {1} ppp, así que se exporta con una resolución menor (hasta {2} ppp) para no pasar de {3} megapíxeles por imagen."
+          }
+        }
+      }
+    },
+    "{0} pages are too large to export at {1} dpi, so they are exported at a lower resolution (down to {2} dpi) to stay under {3} megapixels per image.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} páginas son demasiado grandes para exportarlas a {1} ppp, así que se exportan con una resolución menor (hasta {2} ppp) para no pasar de {3} megapíxeles por imagen."
+          }
+        }
+      }
+    },
+    "Exporting images": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportando imágenes"
+          }
+        }
+      }
+    },
+    "Exporting {0} page…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportando {0} página…"
+          }
+        }
+      }
+    },
+    "Exporting {0} pages…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportando {0} páginas…"
+          }
+        }
+      }
+    },
+    "Exporting page {0} ({1} of {2})…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportando la página {0} ({1} de {2})…"
+          }
+        }
+      }
+    },
+    "Export cancelled. {0} image(s) were saved to {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Exportación cancelada. Se guardaron {0} imagen(es) en {1}"
+          }
+        }
+      }
+    },
+    "Export stopped after {0} page(s)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La exportación se detuvo después de {0} página(s)"
+          }
+        }
+      }
+    },
+    "Exported {0} image(s) to {1}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se exportaron {0} imagen(es) a {1}"
+          }
+        }
+      }
+    },
+    "Exported {0} image(s) to {1}. Left out page(s) {2}: they couldn't be read": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se exportaron {0} imagen(es) a {1}. Se omitieron las páginas {2}: no se pudieron leer"
+          }
+        }
+      }
+    },
+    "Keyboard shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Métodos abreviados de teclado"
+          }
+        }
+      }
+    },
+    "Type to filter: zoom, rotate, ⇧⌘…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escribe para filtrar: zoom, girar, ⇧⌘…"
+          }
+        }
+      }
+    },
+    "Filter shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filtrar métodos abreviados"
+          }
+        }
+      }
+    },
+    "Made from {0}; page(s) {1} couldn't be read and are blank. Save it to keep it.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Creado a partir de {0}; las páginas {1} no se pudieron leer y están en blanco. Guárdalo para conservarlo."
           }
         }
       }

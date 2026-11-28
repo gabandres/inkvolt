@@ -551,8 +551,8 @@ Ported test-first from the .NET tests (same names in lower camel case); PrintCor
   PrintCore's own `Deflate` (one block of fixed Huffman codes, LZ77 through a 3-byte hash; Foundation only, so the PC tests it,
   read back by an inflater the tests write from RFC 1951), where Windows uses .NET's `ZLibStream` and Inkvolt PDF for Mac's
   exports Apple's Compression; it is only the fallback for pages G4 codes badly (fine, even patterns), so it needn't match
-  zlib's size. The Mac scans no black and white (`ScanColor` is color or grey), so only a preset's smaller file saves one bit
-  (Windows' `ScanChoices.SavesOneBit` has no Mac use); a size refused throws `BitImage.SizeError`; a page that can't be made
+  zlib's size. A scan in black and white (the Scan tab's Color choice where the source lists it, since the parity audit's
+  X7, as Windows') saves one bit too, as a preset's smaller file does; a size refused throws `BitImage.SizeError`; a page that can't be made
   black and white (past `BitImage.maxPixels`) is saved as its JPEG. `--report … --smaller-file` saves the demo feeder's pages
   both ways and has PDFKit draw the 1-bit page. Not checked: a real scanner's pages, Preview and other readers on screen, a
   printed copy.
@@ -1245,6 +1245,12 @@ at under "What a person must look at" and in each section.
 | 4.16 | The Reflow view (roadmap 4.16): View › Reflow (⌘3), the document's text as one column in place of the pages, Export's HTML in a WKWebView with page scripts off at `Reflow.address`, the look following the view's zoom and Dark Pages, the page kept both ways, links to the browser, read-only but for its commands (`Reflow`, `ReflowPosition`, ReflowView.swift; `--edit --only-reflow` drives it) | ReflowTests |
 | 4.2 | Find and Replace across the document (roadmap 4.2): Edit › Find › Find and Replace…, a sheet listing every match with its page and the words around it as it is typed, Replace and Replace All (one undo step, one save, what couldn't be replaced as asked listed) (`TextReplace`, `ContentEditor.paragraphsOf`/`replaceParagraphIn`, ReplaceSheet.swift) | TextReplaceTests (with `ReplacedTextReadsTheSameInPdfJs`, opt-in) |
 | 2.2b | Better OCR, the rest (roadmap 2.2's Mac line; Vision only, no Tesseract): photographed pages (PrintCore `Trapezoid`, `CurvedLines`, `ScanCleanup`'s `CleanupSteps`; Recognize Text's two check boxes); Make Text Editable (`EditableText`; Tools › Make Text Editable…, Scan & OCR's bar item); mixed languages (`MixedRecognizer`, Recognize Text's Second language); unsure words (`SuspectReasons.unsure`, `unsureBelow`) | PageWarpTests, EditableTextTests, MixedLanguagesTests |
+| X1 | Export Pages as Images (the parity audit of 2026-11-27, below): File › Export To › Pages as Images… and Convert › Images…, the pages chosen as PNG or JPEG at 72 to 600 dpi in a folder, named "name - page N.png" without replacing a file, a page too large lowered under 64 megapixels after asking, a page that can't be read left out and said, Cancel keeping the images before it (`PageImageExport`; ExportImages.swift; `--edit --only-parity` drives it) | PageImageExportTests (Mac only: Windows' `FileActions.ExportImages` is app code without tests) |
+| X2 | XPS, OXPS, EPUB, CBZ, FB2 and pictures opened (the parity audit): from Open, the Dock, Finder and the start page, as a new PDF of their pages through MuPDF's PDF writer (`OtherFormats`, `PdfEngine.writePdf`; Converting.swift, Info.plist) | OtherFormatsTests (Mac only: Windows opens them read-only, untested) |
+| X7 | Black and white in File › Scan (the parity audit; roadmap 4.8's Mac line): `ScanColor.blackAndWhite` where the scanner lists it, its pages saved at 1 bit (`ScanChoices`, `ScanPreset.blackAndWhite`, `PresetPlan.oneBit`, `ScanRun.toPdf`; Scan.swift) | UsbScannerTests' `A_feeder_scanner_offers_glass_feeder_both_sides_and_black_and_white`, `ESCL_asks_for_black_and_white_only_where_offered` and `A_preset_saves_the_choices…` (now in black and white), TurnedStackTests' `One_sided_feeders_offer_the_turned_stack_and_black_and_white_saves_one_bit`, BlackAndWhitePdfTests, OneBitImagesTests' `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg` |
+| X3 | Previous View and Next View (the parity audit): Go › Previous View (⌘[) and Next View (⌘]) and the pages' menu, back and forward through the jumps of each pane (`NavigationHistory`, `PagesView.place`, `DocumentWindowController.go(record:)`) | NavigationHistoryTests (Mac only: Windows' `PageViewer` stacks have no tests) |
+| X5 | Help › Keyboard Shortcuts (⌘/) and Open Log Folder (the parity audit): the shortcuts read from the menu bar with a filter, the app's log (`ShortcutList`, `AppLog`; ShortcutsWindow.swift) | ShortcutListTests, AppLogTests (Mac only: Windows' are app code without tests) |
+| X6 | File › Show in Finder and Close All (⌥⌘W) (the parity audit): the document's file in Finder; this window's tabs closed one by one, each asking, Cancel stopping (FileCommands.swift) | (none: app code on Windows too; `ParityTest` drives them) |
 
 From the steps, besides the sections below:
 - D8: `release.sh --publish` rebuilds and re-notarizes, so the published DMG's SHA-256 differs from the one verified
@@ -1272,8 +1278,9 @@ From the steps, besides the sections below:
   27 pictures where Windows makes them lines. Not checked: the .pptx in PowerPoint for Mac or Keynote.
 - E16: FindAllTests ported, two adapted (the Mac's `findAll` returns its pages and hands them to `onPage` where Windows'
   is an enumeration); FindWorkerTests has no counterpart (below).
-- 2.3: no black and white (the Mac's scans are color or grey), so a preset has no `BlackAndWhite`; text recognition is
-  always available (Vision); the pages become the PDF through PdfCore's `ImageImport`, so the page-assembly tests count
+- 2.3: black and white where the scanner lists it (eSCL's BlackAndWhite1; since the parity audit's X7, below), with a
+  preset's `BlackAndWhite`; an ImageCaptureCore (USB) scanner lists color and grey (Windows' WIA drivers add black and
+  white). Text recognition is always available (Vision); the pages become the PDF through PdfCore's `ImageImport`, so the page-assembly tests count
   the pages kept instead of opening a PDF.
 - 3.7: the menu bar is built by the app, so its standard menus and items carry macOS's own Spanish names (Archivo,
   Edición, Visualización…), `DocumentCommand.shownTitle` over the English `title` that stays the identity. The Mac's own
@@ -1298,9 +1305,9 @@ From the steps, besides the sections below:
   PdfCore uses them, nothing duplicated. MuPDF's objects belong to the document's thread, so `OneBitImages` works in three
   steps where Windows has two: `recodeJob`/`thresholdJob` read a picture on the document's thread, `run` draws and codes
   it (several at once, each in an engine of its own), `apply` makes the change back on the document's thread. File ›
-  Scan has no black-and-white mode on the Mac (2.3 above: color or grey only; Print for Mac's 4.4 made a preset's smaller
-  file instead), so it saves no page at 1 bit and `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg` isn't
-  ported; Recognize Text and Reduce File Size are as Windows. `Jbig2IsClearlySmallerThanG4OnTextPages` has no "as
+  Scan's black-and-white pages are saved at 1 bit (the parity audit's X7: PrintCore's `ScanRun.toPdf`, its pages made
+  black and white by PrintMac's `ScanImaging.bits`), and `ScannedInBlackAndWhiteAPageIsSavedAtOneBitAndInGreyAsItsJpeg`
+  is ported with a closure in place of Windows' WIC decoder; Recognize Text and Reduce File Size are as Windows. `Jbig2IsClearlySmallerThanG4OnTextPages` has no "as
   typeset" case (the Mac's corpus has no clean page). Not checked by a person: a real black-and-white scan reduced, the
   sheet's new check box by eye and with VoiceOver.
 - 4.18: the commands are in Edit › Find and are off until Find has matches (Windows opens its Search pane and says to search
@@ -1357,8 +1364,8 @@ From the steps, besides the sections below:
   the look) run in their own world (`.defaultClient`), sharing only the page's elements. The text size follows the
   view's zoom alone: the Mac has no Text size for apps (Windows' `TextScale`), so `ReflowLook.textScale` is 1. The
   commands that run are `Reflow.runs`' by the Mac's menu actions (`Reflow.runsAction`, `macActions`: those the Mac has,
-  with Page Setup, Share and Dark Pages, which are commands here; Show in Folder, Close All, Export Images, Back and
-  Forward aren't on the Mac's menus), checked in the window's menu validation and the command bar; Copy and Select All
+  with Page Setup, Share and Dark Pages, which are commands here; Back and Forward are
+  Go › Previous View and Next View), checked in the window's menu validation and the command bar; Copy and Select All
   are the web view's own. Entering Reflow closes the organizer and the Find bar (as Windows); Organize Pages leaves
   it. A message (preparing, nothing to reflow, couldn't be made) shows in its place with Back to Pages; nothing to
   reflow says Recognize Text where Windows adds Scan & OCR. The column has the PDF's links (E15's, below), followed
@@ -1370,6 +1377,9 @@ From the steps, besides the sections below:
 
 ### Mac differences
 
+- XPS, OXPS, EPUB, CBZ, FB2 and pictures open as a new PDF made of their pages, where Windows shows them read-only
+  (decided with the owner, 2026-11-27): the same outcome for the person, and every Mac command works on PDF data, as for
+  Office files and web pages ("Windows parity audit", X2).
 - Errors are Swift errors: `PasswordRequired(wrongPassword:)`, `PdfEngineError` (MuPDF's message, or an image too
   large), `PdfEngineClosed` for .NET's `ObjectDisposedException` (`close()` takes `Dispose()`'s place), and
   `CancellationError` when a `CancelToken` (.NET's `CancellationToken`) fires.
@@ -2380,7 +2390,7 @@ Shots for the owner: `docs/design/mac/`.
   fitting is the toolbar's own: groups go into its » overflow whole, labels never drop; `CommandBar.visibilityPriority`
   keeps Edit, Convert, Comment and Fill & Sign longest (Fill & Sign under them in Spanish, as Windows), then the pointer
   tools, Organize, Protect, Scan & OCR first; Save, Print, Undo and Redo stay in the menus (⌘S, ⌘P, ⌘Z), as Mac
-  toolbars do. Convert has no Images… item: the Mac has no export to pictures yet. Under Increase Contrast the colours
+  toolbars do. Convert's Images… asks, as Windows' (File › Export To › Pages as Images…, "Windows parity audit"). Under Increase Contrast the colours
   give way to the label colour (Windows: high contrast); Differentiate Without Color changes nothing, since every
   coloured icon has its label. The toolbar's identifier changed (`InkvoltPdfDocumentBar`), so a toolbar customized
   before starts from the new defaults; the old Highlight, Fill & Sign, Edit, Redact and Organize buttons are replaced by
@@ -2440,6 +2450,69 @@ Shots for the owner: `docs/design/mac/`.
   - **For a person to check:** the entry under Services in Finder's Control-click menu (en and es) once this build is
     in /Applications (the build Mac's slot build isn't registered with the Services menu, so the self-test calls the
     provider directly); several PDFs selected at once; VoiceOver reading the conversions window's rows.
+
+### Windows parity audit (2026-11-27)
+
+The owner asked for 100% parity; an audit of the Windows app found features PLAN never listed. Each is ported with
+Windows as the spec; `ParityTest` (`--edit --only-parity`) drives them in the app.
+
+- Export Pages as Images (X1): the sheet is Windows' (Pages, Format, Resolution, Save to folder with Choose…; Windows'
+  Browse…). The notice names the folder, not its whole path. The images come from what is shown (the Layers pane's
+  choice), as Windows exports from its view engine. Not checked by a person: the sheet by eye and with VoiceOver, a
+  very large page's question.
+- Show in Finder and Close All (X6): File › Show in Finder is Windows' Show in Folder (the Mac's word), for a saved
+  file. macOS has no Close All of its own here (the menu bar is built from `DocumentCommands`, and AppKit's
+  `closeAllDocuments` runs only when quitting), so File › Close All (⌥⌘W, Windows' Ctrl+Shift+W) closes this window's
+  tabs one after the other, each asking when it has changes with its tab in front; Cancel keeps it and the rest, as
+  Windows' Close All keeps a window's tabs. A window of tabs is Windows' window (4.9). Not checked by a person: the
+  Finder window, Close All's questions by eye.
+- Previous View and Next View (X3): Windows' Back and Forward (its titles, Alt+Left and Alt+Right) are Go › Previous
+  View (⌘[) and Next View (⌘]), as Safari's and Preview's Back and Forward, and in the pages' menu as on Windows; no
+  toolbar buttons (Windows has none). `NavigationHistory` (PdfCore) holds each pane's places (a page and how far down
+  it the view's top is; Windows keeps a page point and the view's corner), at most 200 each way where Windows' stacks
+  are unbounded. What records a jump follows Windows' `GoToPage(record:)`: links, bookmarks, Go to Page, First and Last
+  Page, citations, the inventory, signatures and accessibility findings do; Next and Previous Page, a thumbnail, the
+  page a document reopens at, Reflow's page and Zoom to Page don't. Not checked by a person: ⌘[ and ⌘] by hand, a
+  trackpad's swipe (not wired: Windows has no gesture either).
+- Highlight Form Fields (X4): View › Highlight Form Fields (Windows' View menu; it also has a check box on its form bar,
+  which the Mac has no counterpart of), on when a document opens, for that document's panes, not kept as a setting (as
+  Windows' each tab). Off, the fields to fill are neither tinted nor outlined and only the focused one's ring shows (the
+  Mac tinted them always). Dark pages still outline them where Windows draws nothing. Not checked by a person: the
+  fields on screen either way.
+- Keyboard Shortcuts and Open Log Folder (X5): Help › Keyboard Shortcuts (⌘/; Windows' F1, ⌘? being macOS's Help
+  search) lists every menu command with keys, read from the menu bar as it is (the tools' single keys included), under
+  its menu, then the page view's own keys and gestures (`ShortcutList.fixedRows`: Windows' rows as the Mac has them:
+  Page Up, Page Down and Space, a pinch, the selected comment's arrows, Delete, Tab and Return; Esc goes back to Select
+  Text where Windows' goes to the hand; no rows for the pages pane, Organize Pages or Compare, whose keys the Mac lacks
+  or has in its menus), with Windows' filter box. The Mac kept no log: `AppLog` (PdfCore) is Windows' `Log` in
+  ~/Library/Logs/Inkvolt PDF (Console lists it; 1 MB and one older file, as Windows), written at start, on every error
+  the app shows, when a file can't be opened and for a format's unreadable pages; Windows writes about 250 places, the
+  Mac these so far. Help › Open Log Folder opens it in Finder; Report a Problem… copies its last lines, scrubbed, as
+  Windows' does. The self-test logs to a folder of its own. Not checked by a person: the window by eye and with
+  VoiceOver, the log in Console.
+- XPS, OXPS, EPUB, CBZ, FB2 and pictures (X2): Windows opens them with MuPDF as read-only documents (the edit commands
+  off, Save As writing the same format). On the Mac every reader and edit works on the session's PDF bytes (export,
+  printing, Batch, recovery copies), and Office files and web pages already open as a new PDF made of them (E12), so
+  these do too: MuPDF reads the file by its name and writes its pages through its PDF writer (`OtherFormats`,
+  `PdfEngine.writePdf`, the shim's `inkv_pdf_writer_*`; text stays text), each page through the page checks (one that
+  can't be read is left blank and named in the notice and the log). The result is an unsaved document named after the
+  file ("Book.pdf"), every command available; Save asks where, as for an Office file. From the Open panel (Windows'
+  "Supported files" list), the Dock, Finder (Info.plist's document types: XPS, EPUB and pictures by macOS's types, OXPS,
+  CBZ and FB2 imported by their extensions, all Alternate so Preview stays their owner) and the start page (pictures
+  dropped there still make one PDF together, as before). Decided with the owner (2026-11-27): the same outcome for the
+  person as Windows' read-only view, and every Mac command works on PDF data, as for Office files. Not checked by a
+  person: a real EPUB's layout and a large CBZ's time, Open With in Finder.
+- Black and white in File › Scan (X7, roadmap 4.8's Mac line): PrintCore's `ScanColor` has Windows' `blackAndWhite`
+  (eSCL's BlackAndWhite1, grey where the source doesn't list it), `ScanChoices.colors`, `pick`, `savesOneBit`,
+  `remember` and `colorLabel`, a preset's `BlackAndWhite` (Windows' JSON name) and `PresetPlan.oneBit` for it, and
+  `ScanRun.toPdf`; the Scan dialog lists it where the scanner does, remembers it as Windows (ScanColor and
+  ScanBlackAndWhite), and saves those pages at 1 bit (JBIG2, G4 or Flate, whichever is smallest) where Windows writes
+  up to four pages at once and the Mac one after another. ImageCaptureCore (USB) scanners list color and grey only.
+  Inkvolt Print for Mac's Scan tab offers it too (the owner, 2026-11-27; Windows' Scan tab and `--color bw`): the Color
+  choice where the source lists it, remembered as Windows' ScanColor and ScanBlackAndWhite (`ScanChoices.pick`, so a
+  source without it scans grey), its pages saved at 1 bit (`PageCheck.oneBit`), a preset's through `PresetPlan`; the
+  demo laser's feeder lists it, and `--report … --demo --bw-scan` scans and saves its feeder in black and white. Not
+  checked by a person: a real eSCL scanner's black-and-white pages, the choice by eye.
 
 ### Paragraph editing (roadmap 2.1)
 

@@ -12759,6 +12759,17 @@
           }
         }
       }
+    },
+    "Grayscale": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escala de grises"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

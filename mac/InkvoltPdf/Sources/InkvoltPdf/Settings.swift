@@ -29,6 +29,7 @@ enum AppSettings {
         static let scanDevice = "ScanDevice"
         static let scanSource = "ScanSource"
         static let scanColor = "ScanColor"
+        static let scanBlackAndWhite = "ScanBlackAndWhite"
         static let scanResolution = "ScanResolution"
         static let scanPageSize = "ScanPageSize"
         static let scanOcr = "ScanOcr"

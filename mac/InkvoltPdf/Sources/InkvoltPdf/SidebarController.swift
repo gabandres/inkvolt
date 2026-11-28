@@ -95,7 +95,8 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
     private var draggedBookmark: [Int]?
 
     /// Go to a page, from a y in it when known.
-    var onGo: ((Int, Double?) -> Void)?
+    /// A page (and a place down it) to show, and whether it's a jump Previous View returns from.
+    var onGo: ((Int, Double?, Bool) -> Void)?
     /// The page commands' menu, for the thumbnails.
     var pageMenuMaker: (() -> NSMenu?)?
     /// True while the thumbnails' context menu is open (its commands act on the thumbnails chosen).
@@ -440,7 +441,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
     func tableViewSelectionDidChange(_ notification: Notification) {
         guard !following, table.selectedRow >= 0, table.selectedRowIndexes.count == 1 else { return }
-        onGo?(table.selectedRow, nil)
+        onGo?(table.selectedRow, nil, false) // a thumbnail turns the page, as Windows' records no jump
     }
 
     // MARK: Bookmarks
@@ -465,7 +466,7 @@ final class SidebarController: NSViewController, NSTableViewDataSource, NSTableV
 
     @objc private func outlineClicked() {
         guard let item = outlineView.item(atRow: outlineView.clickedRow) as? OutlineItem, item.page >= 0 else { return }
-        onGo?(item.page, item.targetY)
+        onGo?(item.page, item.targetY, true)
     }
 
     private func expandOpen(_ items: [OutlineItem]) {

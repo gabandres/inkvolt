@@ -2920,3 +2920,105 @@ int inkv_set_pdf_version(void *vctx, inkv_doc *d, int version, char *err) {
     }
     return 1;
 }
+
+// MARK: Other formats as a PDF (XPS, OXPS, EPUB, CBZ, FB2, pictures)
+
+struct inkv_pdf_writer {
+    fz_buffer *buffer;
+    fz_document_writer *writer;
+};
+
+inkv_pdf_writer *inkv_pdf_writer_new(void *vctx, char *err) {
+    fz_context *ctx = vctx;
+    inkv_pdf_writer *w = NULL;
+    fz_output *out = NULL;
+    fz_var(w);
+    fz_var(out);
+    fz_try(ctx) {
+        w = fz_malloc_struct(ctx, inkv_pdf_writer);
+        w->buffer = fz_new_buffer(ctx, 64 << 10);
+        out = fz_new_output_with_buffer(ctx, w->buffer);
+        w->writer = fz_new_pdf_writer_with_output(ctx, out, "compress");
+        out = NULL; // the writer's now
+    }
+    fz_catch(ctx) {
+        fz_drop_output(ctx, out);
+        if (w) fz_drop_buffer(ctx, w->buffer);
+        fz_free(ctx, w);
+        inkv_error(ctx, err);
+        return NULL;
+    }
+    return w;
+}
+
+int inkv_pdf_writer_add(void *vctx, inkv_pdf_writer *w, inkv_doc *d, int index, inkv_cookie *cookie, char *err) {
+    fz_context *ctx = vctx;
+    int begun = 0;
+    fz_var(begun);
+    inkv_begin(ctx, d, cookie);
+    fz_try(ctx) {
+        fz_rect box = fz_bound_page(ctx, inkv_page(ctx, d, index));
+        // Read through the page's own bounds first: a page that is refused is never begun.
+        fz_display_list *list = inkv_list(ctx, d, index, cookie);
+        inkv_next_part(ctx, cookie);
+        fz_device *dev = fz_begin_page(ctx, w->writer, box);
+        begun = 1;
+        fz_run_display_list(ctx, list, dev, fz_identity, fz_infinite_rect, cookie ? &cookie->cookie : NULL);
+        begun = 0;
+        fz_end_page(ctx, w->writer);
+        if (inkv_aborted(cookie)) fz_throw(ctx, FZ_ERROR_ABORT, "The page's drawing was stopped.");
+    }
+    fz_always(ctx) inkv_end(ctx, d);
+    fz_catch(ctx) {
+        int halted = inkv_halted(cookie);
+        if (halted) fz_ignore_error(ctx);
+        else inkv_error(ctx, err);
+        if (begun) {
+            fz_try(ctx) fz_end_page(ctx, w->writer);
+            fz_catch(ctx) fz_ignore_error(ctx);
+        }
+        return halted ? 2 : 0;
+    }
+    return 1;
+}
+
+int inkv_pdf_writer_add_blank(void *vctx, inkv_pdf_writer *w, float width, float height, char *err) {
+    fz_context *ctx = vctx;
+    fz_try(ctx) {
+        fz_begin_page(ctx, w->writer, fz_make_rect(0, 0, width, height));
+        fz_end_page(ctx, w->writer);
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+int inkv_pdf_writer_finish(void *vctx, inkv_pdf_writer *w, uint8_t **bytes, size_t *length, char *err) {
+    fz_context *ctx = vctx;
+    *bytes = NULL;
+    *length = 0;
+    fz_try(ctx) {
+        fz_close_document_writer(ctx, w->writer);
+        unsigned char *data = NULL;
+        size_t n = fz_buffer_storage(ctx, w->buffer, &data);
+        *bytes = malloc(n ? n : 1);
+        if (!*bytes) fz_throw(ctx, FZ_ERROR_SYSTEM, "Not enough memory for the PDF.");
+        if (n) memcpy(*bytes, data, n);
+        *length = n;
+    }
+    fz_catch(ctx) {
+        inkv_error(ctx, err);
+        return 0;
+    }
+    return 1;
+}
+
+void inkv_pdf_writer_drop(void *vctx, inkv_pdf_writer *w) {
+    fz_context *ctx = vctx;
+    if (!w) return;
+    fz_drop_document_writer(ctx, w->writer);
+    fz_drop_buffer(ctx, w->buffer);
+    fz_free(ctx, w);
+}

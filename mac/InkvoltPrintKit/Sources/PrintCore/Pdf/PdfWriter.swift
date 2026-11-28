@@ -28,6 +28,8 @@ public enum PdfWriter {
         public var words: [Word]?
         /// The page in black and white; when set, it is the page's image and `jpeg` is unused.
         public var bits: BitImage?
+        /// `bits` may be written as lossless JBIG2 when smaller (Inkvolt PDF's scans, Windows' `Jbig2`).
+        public var jbig2 = false
 
         public init(_ jpeg: [UInt8], dpi: Int, words: [Word]? = nil) {
             self.jpeg = jpeg
@@ -112,7 +114,7 @@ public enum PdfWriter {
             w.obj(pageId, "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 \(f(ptW)) \(f(ptH))] "
                 + "/Resources << /XObject << /Im0 \(imgId) 0 R >>\(fontResource) >> /Contents \(contentId) 0 R >>")
             if let bits = page.bits {
-                let (filter, data) = try oneBit(bits)
+                let (filter, data) = try oneBit(bits, jbig2: page.jbig2)
                 w.stream(imgId, "<< /Type /XObject /Subtype /Image /Width \(pxW) /Height \(pxH) /ColorSpace /DeviceGray "
                     + "/BitsPerComponent 1 \(filter) /Length \(data.count) >>", data)
             } else {

@@ -201,6 +201,8 @@ struct BlackAndWhitePdfTests {
         #expect(ScanPresetText.summary(Self.doc { $0.color = true; $0.smallerFile = true; $0.findPhotos = true; $0.source = .glass }).contains("color, 300 dpi"))
         #expect(ScanPresetText.summary(Self.doc { $0.smallerFile = true }).contains("black and white, 300 dpi, smaller file"))
         #expect(!Self.plan(Self.doc { _ in }).oneBit)
+        // Inkvolt PDF's black-and-white presets: saved at 1 bit too.
+        #expect(Self.plan(Self.doc { $0.blackAndWhite = true; $0.color = false }).oneBit)
     }
 
     @Test func oldPresetsHaveNoSmallerFileAndItsFieldIsWindows() throws {

@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.servicesProvider = ServiceProvider.shared
         ConvertLaunch.listen()
         Report.startIfAsked()
+        AppLog.write("Inkvolt PDF \(WhatsNew.version) started (macOS \(ProcessInfo.processInfo.operatingSystemVersionString))")
         // The Inkvolt Pro check: again here, after Report.startIfAsked, so the self-test reads its own settings suite and
         // never the shared key file (main.swift set it first, for the command line).
         ProSetup.configure(selfTest: Report.isRunning)
@@ -92,6 +93,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc func showCommandPalette(_ sender: Any?) { CommandPalette.show() }
     @objc func openSourcePage(_ sender: Any?) { NSWorkspace.shared.open(AboutWindowController.source) }
     @objc func reportProblem(_ sender: Any?) { ReportProblemWindowController.show() }
+    @objc func showKeyboardShortcuts(_ sender: Any?) { ShortcutsWindowController.show() }
+
+    /// Help › Open Log Folder (Windows' the same): the log's folder in Finder, made first if nothing was logged yet.
+    @objc func openLogFolder(_ sender: Any?) {
+        try? FileManager.default.createDirectory(at: AppLog.folder, withIntermediateDirectories: true)
+        Report.progress("open log folder: \(AppLog.folder.lastPathComponent)")
+        if Report.isRunning { return }
+        NSWorkspace.shared.open(AppLog.folder)
+    }
 
     /// No untitled document: a viewer opens files.
     func applicationShouldOpenUntitledFile(_ sender: NSApplication) -> Bool { false }

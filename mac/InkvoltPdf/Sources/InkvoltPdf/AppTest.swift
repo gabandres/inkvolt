@@ -345,8 +345,8 @@ struct AppTest {
         let text = r.details.string
         let user = NSUserName()
         check(text.hasPrefix("Inkvolt PDF \(WhatsNew.version)") && text.contains("macOS: ") && text.contains("Dark pages: ")
-              && text.contains("(no log yet)") && (user.count < 3 || !text.contains(user)),
-              "Help › Report a Problem…: the version, macOS and settings, the user's name masked")
+              && text.contains("started (macOS") && (user.count < 3 || !text.contains(user)),
+              "Help › Report a Problem…: the version, macOS, settings and the log's last lines, the user's name masked")
         let board = NSPasteboard(name: .init("com.bermudezsystems.InkvoltPdf.selftest.report"))
         r.details.string = text + "\nAn added line"
         let copied = r.copy(to: board) && board.string(forType: .string)?.hasSuffix("An added line") == true

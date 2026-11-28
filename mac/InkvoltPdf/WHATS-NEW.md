@@ -6,6 +6,13 @@ collects what's done since the last release and is never shown. Short lines, in 
 their Spanish, line for line, shown when the app runs in Spanish: an English line needs its Spanish there (`PdfStringsTests`).
 
 ## Next
+- File › Scan offers Black and white when your scanner does, and saves those pages in black and white for a much smaller PDF.
+- Open XPS and OpenXPS documents, EPUB e-books, comic books (CBZ), FictionBook (FB2) files and pictures: each opens as a new PDF of its pages, text you can search and copy, to save where you like.
+- Help › Keyboard Shortcuts (⌘/) lists every shortcut, with a box to find one. Inkvolt PDF now keeps a log on this Mac (Help › Open Log Folder), and Report a Problem… includes its last lines.
+- View › Highlight Form Fields turns the blue tint over a form's fields off and on.
+- Go › Previous View (⌘[) and Next View (⌘]) take you back to where you were before following a link, a bookmark or Go to Page, and forward again.
+- File › Show in Finder shows the document's file in Finder, and File › Close All (⌥⌘W) closes every document in the window, asking first about any with changes.
+- Export Pages as Images… (File › Export To, and Convert › Images…): the pages you choose as PNG or JPEG pictures, at 72 to 600 dpi, in a folder you pick.
 - Redaction no longer lets the width of what you removed show. Text after a black box used to stay where it was, so the gap (and the box itself) could tell how long the hidden words were. Now each redacted line is laid out again: its words keep their order, spaces are even, and the box's width is rounded, so the line looks the same whatever was under it.
 - Check Redaction also finds black boxes drawn into a page's picture (by tools that turn pages into images, or on a scan) with text beside them that may give the hidden width away.
 - Make Accessible finds rows that share a label in tables drawn without lines (a region over its countries) and tags the label as spanning those rows, so a screen reader reads it with each of them.

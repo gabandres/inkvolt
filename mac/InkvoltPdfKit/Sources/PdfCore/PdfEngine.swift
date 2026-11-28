@@ -332,6 +332,42 @@ public final class PdfEngine: @unchecked Sendable {
         }
     }
 
+    /// Every page through MuPDF's PDF writer (`OtherFormats`: an XPS, EPUB or picture made a PDF, text kept as text); a
+    /// page that can't be read (`PageRefused`) is left blank at its size and listed. `progress(index, count)` before each.
+    /// - Throws: `CancellationError`; `PdfEngineError`.
+    public func writePdf(cancel: CancelToken? = nil, progress: (Int, Int) -> Void = { _, _ in }) throws -> (pdf: [UInt8], blank: [Int]) {
+        try cancel.check()
+        gate.lock()
+        defer { gate.unlock() }
+        guard let main else { throw PdfEngineClosed() }
+        var err = [CChar](repeating: 0, count: Int(INKV_ERR_SIZE))
+        guard let writer = inkv_pdf_writer_new(main.ctx, &err) else { throw PdfEngineError(message: Self.message(err)) }
+        defer { inkv_pdf_writer_drop(main.ctx, writer) }
+        var blank: [Int] = []
+        for p in 0..<pageCount {
+            try cancel.check()
+            progress(p, pageCount)
+            do {
+                try reading(p, cancel) { cookie in
+                    let result = inkv_pdf_writer_add(main.ctx, writer, main.doc, Int32(p), cookie, &err)
+                    if result == 2 { throw CancellationError() }
+                    guard result == 1 else { throw PdfEngineError(message: Self.message(err)) }
+                }
+            } catch is PageRefused {
+                let g = try geometry(p)
+                guard inkv_pdf_writer_add_blank(main.ctx, writer, Float(g.width), Float(g.height), &err) != 0 else {
+                    throw PdfEngineError(message: Self.message(err))
+                }
+                blank.append(p)
+            }
+        }
+        var bytes: UnsafeMutablePointer<UInt8>?
+        var length = 0
+        guard inkv_pdf_writer_finish(main.ctx, writer, &bytes, &length, &err) != 0, let bytes else { throw PdfEngineError(message: Self.message(err)) }
+        defer { inkv_free(bytes) }
+        return (Array(UnsafeBufferPointer(start: bytes, count: length)), blank)
+    }
+
     /// Reads a page's content through every bound a drawing has (its streams checked first, the reading in pieces under
     /// `pageBudget`, each picture's size by its header) without drawing it: no picture is decoded, no pixel made. What
     /// it finds is the page's verdict, as for any reading.

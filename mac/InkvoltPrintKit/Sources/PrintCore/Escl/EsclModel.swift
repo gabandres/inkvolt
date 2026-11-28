@@ -171,7 +171,8 @@ public struct EsclQuirks: Equatable, Sendable {
     public static func nextLoadWait(_ lastLoad: Duration) -> Duration { min(max(lastLoad / 2, .zero), .seconds(1)) }
 }
 
-public enum ScanColor: Sendable { case color, grayscale }
+/// A scan's color mode. `blackAndWhite` (1 bit, eSCL's BlackAndWhite1) only where the source lists it (Windows' `ScanColor`).
+public enum ScanColor: Sendable { case color, grayscale, blackAndWhite }
 
 public struct ScanRequest: Equatable, Sendable {
     public var source: ScanSource = .platen
@@ -233,8 +234,14 @@ public enum EsclXml {
         let width = min(max(request.width ?? input.maxWidth, input.minWidth), input.maxWidth)
         let height = min(max(request.height ?? input.maxHeight, input.minHeight), input.maxHeight)
         let resolution = Self.resolution(request, input)
-        var color = request.color == .color ? "RGB24" : "Grayscale8"
-        // A missing mode falls back to the other of color/grey before black-and-white (which loses too much for OCR).
+        var color = switch request.color {
+        case .color: "RGB24"
+        case .blackAndWhite: "BlackAndWhite1"
+        case .grayscale: "Grayscale8"
+        }
+        // Black and white not offered: grey. A missing mode falls back to the other of color/grey before black-and-white
+        // (which loses too much for OCR).
+        if color == "BlackAndWhite1" && !input.colorModes.isEmpty && !input.colorModes.contains(color) { color = "Grayscale8" }
         if !input.colorModes.isEmpty && !input.colorModes.contains(color) {
             color = input.colorModes.first { $0 == "RGB24" || $0 == "Grayscale8" } ?? input.colorModes[0]
         }

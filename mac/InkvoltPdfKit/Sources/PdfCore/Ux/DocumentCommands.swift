@@ -70,6 +70,10 @@ public enum Requirement: String, Sendable, CaseIterable {
     case fieldsToSpace
     /// The document has guides (roadmap 4.19's Clear Guides).
     case guides
+    /// The pane in use has a place to go back to (Go › Previous View).
+    case canGoBack
+    /// …and one to go forward to (Go › Next View).
+    case canGoForward
 }
 
 /// The small state of a document window that decides which commands can run.
@@ -96,6 +100,8 @@ public struct DocumentState: Sendable, Equatable {
     /// The fields selected in Prepare Form (0 outside it).
     public var designSelected = 0
     public var hasGuides = false
+    public var canGoBack = false
+    public var canGoForward = false
 
     public init() {}
 
@@ -123,6 +129,8 @@ public struct DocumentState: Sendable, Equatable {
         case .fieldsToArrange: designSelected >= 2
         case .fieldsToSpace: designSelected >= 3
         case .guides: hasGuides
+        case .canGoBack: canGoBack
+        case .canGoForward: canGoForward
         }
     }
 }
@@ -257,6 +265,9 @@ public enum DocumentCommands {
         c("Scan the Backs…", "scanBacks:", needs: [.pages]),
         sep,
         c("Close", "performClose:", "w"),
+        // Windows: File › Close All (Ctrl+Shift+W; ⌥⌘W is the Mac's Close All): every document of this window's tabs,
+        // each asking to save, as Windows closes a window's tabs.
+        c("Close All", "closeAll:", "w", [.command, .option]),
         c("Save", "saveDocument:", "s"),
         c("Save As…", "saveDocumentAs:", "s", [.command, .shift]),
         .submenu(CommandMenu("Save as PDF/A", [
@@ -265,6 +276,8 @@ public enum DocumentCommands {
         ])),
         c("Revert to Saved", "revertDocumentToSaved:"),
         c("Reload from Disk", "reloadFromDisk:", "r", [.command, .option], needs: [.savedFile]),
+        // Windows: File › Show in Folder (the Mac's word is Finder).
+        c("Show in Finder", "showInFinder:", needs: [.savedFile]),
         sep,
         .submenu(CommandMenu("Export To", [
             c("Word…", "exportWord:", needs: longTask),
@@ -272,6 +285,8 @@ public enum DocumentCommands {
             c("Plain Text…", "exportText:", needs: longTask),
             c("PowerPoint Presentation…", "exportPowerPoint:", needs: longTask),
             c("HTML Web Page…", "exportHtml:", needs: longTask),
+            // Windows: File › Export › Pages as Images….
+            c("Pages as Images…", "exportImages:", needs: [.pages] + longTask),
         ])),
         .submenu(CommandMenu("Form Data", [
             c("Reset Form…", "resetForm:", needs: [.formFields]),
@@ -352,6 +367,8 @@ public enum DocumentCommands {
         c("Rotate View Clockwise", "rotateViewClockwise:", "r", [.command, .shift], needs: [.pages]),
         c("Rotate View Counterclockwise", "rotateViewCounterclockwise:", "l", [.command, .shift], needs: [.pages]),
         c("Dark Pages (Night Reading)", "toggleDarkPages:"),
+        // Windows: View › Highlight Form Fields, on when a document opens (the Mac tinted them always).
+        c("Highlight Form Fields", "toggleHighlightFields:", needs: [.formFields]),
         sep,
         // Roadmap 4.19 (Windows: View › Rulers, Ctrl+R; Grid, Ctrl+U; Guides and Snapping). ⌘R turns pages here, ⌘'
         // switches panes.
@@ -395,6 +412,10 @@ public enum DocumentCommands {
         c("First Page", "firstPage:", SpecialKey.home, []),
         c("Last Page", "lastPage:", SpecialKey.end, []),
         c("Go to Page…", "goToPage:", "g", [.command, .option], needs: [.pages]),
+        // Back and forward through jumps (Windows: Previous View and Next View, Alt+Left and Alt+Right; ⌘[ and ⌘] here,
+        // as Safari's and Preview's Back and Forward).
+        c("Previous View", "previousView:", "[", needs: [.canGoBack]),
+        c("Next View", "nextView:", "]", needs: [.canGoForward]),
         sep,
         c("Next Comment", "nextComment:", "]", [.command, .option]),
         c("Previous Comment", "previousComment:", "[", [.command, .option]),
@@ -566,10 +587,14 @@ public enum DocumentCommands {
     ])
 
     static let helpMenu = CommandMenu("Help", .help, [
+        // Windows: Help › Keyboard Shortcuts (F1; ⌘/ here, ⌘? being macOS's Help search).
+        c("Keyboard Shortcuts", "showKeyboardShortcuts:", "/"),
         c("What's New in Inkvolt PDF", "showWhatsNew:"),
         c("Inkvolt Pro…", "showPro:"),
         c("Inkvolt PDF on GitHub", "openSourcePage:"),
         c("Report a Problem…", "reportProblem:"),
+        // Windows: Help › Open Log Folder (the folder of `AppLog`).
+        c("Open Log Folder", "openLogFolder:"),
     ])
 
     /// A command with the menus it's in (["File", "Export To"]).

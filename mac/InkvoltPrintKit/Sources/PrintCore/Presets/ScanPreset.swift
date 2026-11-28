@@ -68,6 +68,9 @@ public struct ScanPreset: Equatable, Sendable, Codable {
     /// (`TurnedStack`). Off: one side only, as before.
     public var turnStack = false
     public var color = true
+    /// Scanned in black and white and saved at 1 bit (Inkvolt PDF's Scan dialog, where the scanner offers it); with `color`
+    /// off. Windows' `BlackAndWhite`.
+    public var blackAndWhite = false
 
     /// A PDF's pages saved in black and white (1 bit, CCITT G4) for a much smaller file; scanned in grey (roadmap 4.4). Not
     /// for photos on the glass, which stay in color (`ScanPresets.savesSmallerFile`).
@@ -138,7 +141,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         init?(intValue: Int) { nil }
     }
 
-    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "SmallerFile", "PdfA", "Password", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
+    private static let names = ["Id", "Name", "Source", "TwoSided", "TurnStack", "Color", "BlackAndWhite", "SmallerFile", "PdfA", "Password", "Resolution", "PageSize", "FileType", "Review", "SkipBlank", "Straighten", "TurnUpright",
                                 "Cleanup", "DropColor", "OcrLanguage", "SplitAt", "KeepSeparators", "FindPhotos", "Folder", "FolderPath", "Subfolder", "FileName", "After", "NextNumber"]
 
     public init(from decoder: any Decoder) throws {
@@ -150,6 +153,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         twoSided = get("TwoSided", false)
         turnStack = get("TurnStack", false)
         color = get("Color", true)
+        blackAndWhite = get("BlackAndWhite", false)
         smallerFile = get("SmallerFile", false)
         pdfA = get("PdfA", false)
         password = get("Password", false)
@@ -185,6 +189,7 @@ public struct ScanPreset: Equatable, Sendable, Codable {
         try c.encode(twoSided, forKey: Key("TwoSided"))
         try c.encode(turnStack, forKey: Key("TurnStack"))
         try c.encode(color, forKey: Key("Color"))
+        try c.encode(blackAndWhite, forKey: Key("BlackAndWhite"))
         try c.encode(smallerFile, forKey: Key("SmallerFile"))
         try c.encode(pdfA, forKey: Key("PdfA"))
         try c.encode(password, forKey: Key("Password"))
@@ -422,7 +427,7 @@ public enum ScanPresets {
 
     /// Inkvolt PDF's Scan dialog: its current choices saved under `name` (trimmed, cut, made unique), a searchable PDF when
     /// `ocr`, reviewed in the dialog. The scanner isn't part of it: the preset is matched to whichever scanner is chosen
-    /// (`PresetPlan`). The Mac's scans are color or grey (no black and white, which Windows' drivers add).
+    /// (`PresetPlan`). Black and white where the scanner lists it (eSCL's BlackAndWhite1).
     public static func fromChoices(_ existing: [ScanPreset], name: String, source: ScanSource, color: ScanColor, dpi: Int, pageSize: String?,
                                    ocr: Bool, skipBlank: Bool) -> ScanPreset {
         var p = ScanPreset()
@@ -431,7 +436,7 @@ public enum ScanPresets {
         p.name = uniqueName(existing.map(\.name), trimmed)
         p.source = source == .platen ? .glass : .feeder
         p.twoSided = source == .adfDuplex
-        p.color = color == .color
+        (p.color, p.blackAndWhite) = ScanChoices.remember(color)
         p.resolution = min(max(dpi, minResolution), maxResolution)
         p.pageSize = ScanChoices.pageSizes.contains { $0.key == pageSize } ? pageSize : nil
         p.fileType = ocr ? .searchablePdf : .pdf

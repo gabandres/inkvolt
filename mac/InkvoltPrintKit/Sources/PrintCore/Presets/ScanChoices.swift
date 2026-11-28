@@ -30,13 +30,39 @@ public enum ScanChoices {
         }
     }
 
-    /// Color, then grayscale, as far as the source lists them (a source listing neither gets both: eSCL falls back).
+    /// Color, then grayscale, as far as the source lists them (a source listing neither gets both: eSCL falls back), then black
+    /// and white when the source lists it.
     public static func colors(_ caps: ScannerCapabilities, _ source: ScanSource) -> [ScanColor] {
         let modes = caps.input(for: source)?.colorModes ?? []
         var list: [ScanColor] = []
         if modes.isEmpty || modes.contains("RGB24") { list.append(.color) }
         if modes.isEmpty || modes.contains("Grayscale8") { list.append(.grayscale) }
-        return list.isEmpty ? [.color] : list
+        if list.isEmpty { list.append(.color) }
+        if modes.contains("BlackAndWhite1") { list.append(.blackAndWhite) }
+        return list
+    }
+
+    /// The color mode to scan in from a remembered choice (a preset, the Scan dialog's last), as `offered` (`colors`) allows:
+    /// color when wanted and offered, black and white when wanted and offered, else grey, else what the source has.
+    public static func pick(_ offered: [ScanColor], color: Bool, blackAndWhite: Bool) -> ScanColor {
+        if color && offered.contains(.color) { return .color }
+        if !color && blackAndWhite && offered.contains(.blackAndWhite) { return .blackAndWhite }
+        if offered.contains(.grayscale) { return .grayscale }
+        return offered.first ?? .color
+    }
+
+    /// A scan in black and white is saved in a PDF at 1 bit too (a black-and-white page, roadmap 4.4).
+    public static func savesOneBit(_ color: ScanColor) -> Bool { color == .blackAndWhite }
+
+    /// A chosen color mode as it is remembered (`pick`'s two flags): color, or black and white, or neither (grey).
+    public static func remember(_ color: ScanColor) -> (color: Bool, blackAndWhite: Bool) { (color == .color, color == .blackAndWhite) }
+
+    public static func colorLabel(_ c: ScanColor) -> String {
+        switch c {
+        case .color: loc("Color")
+        case .grayscale: loc("Grayscale")
+        case .blackAndWhite: loc("Black and white")
+        }
     }
 
     /// The feeder is chosen and scans one side: both sides can be had by turning the stack over (roadmap 4.1).

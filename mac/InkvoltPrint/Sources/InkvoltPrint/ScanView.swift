@@ -121,7 +121,7 @@ private struct ScanSettings: View {
                 ForEach(scan.sources, id: \.self) { Text(ScanChoices.sourceLabel($0)).tag($0) }
             }
             Picker("Color", selection: $scan.color) {
-                ForEach(scan.colors, id: \.self) { Text($0 == .color ? String(localized: "Color") : String(localized: "Grayscale")).tag($0) }
+                ForEach(scan.colors, id: \.self) { Text(ScanChoices.colorLabel($0)).tag($0) }
             }
             Picker("Resolution", selection: $scan.dpi) {
                 ForEach(scan.resolutions, id: \.self) { Text("\($0) dpi").tag($0) }

@@ -27633,17 +27633,6 @@
         }
       }
     },
-    "Written by an AI model ({0}) on {1}; it may be wrong. Check it against the document.": {
-      "extractionState": "manual",
-      "localizations": {
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escrito por un modelo de IA ({0}) el {1}; puede contener errores. Compruébalo con el documento."
-          }
-        }
-      }
-    },
     "This is too long to read aloud to one file (a WAV file holds at most 2 GB). Read fewer answers at a time.": {
       "extractionState": "manual",
       "localizations": {
@@ -27695,6 +27684,325 @@
           "stringUnit": {
             "state": "translated",
             "value": "Convierte el texto reconocido en texto que puedes editar"
+          }
+        }
+      }
+    },
+    "{0} - page {1}.{2}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "{0} - página {1}.{2}"
+          }
+        }
+      }
+    },
+    "Images (PNG, JPEG)…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imágenes (PNG, JPEG)…"
+          }
+        }
+      }
+    },
+    "Each page as a picture": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada página como una imagen"
+          }
+        }
+      }
+    },
+    "Pages as Images…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas como imágenes…"
+          }
+        }
+      }
+    },
+    "Show in Finder": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar en Finder"
+          }
+        }
+      }
+    },
+    "Close All": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cerrar todo"
+          }
+        }
+      }
+    },
+    "Previous View": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista anterior"
+          }
+        }
+      }
+    },
+    "Next View": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista siguiente"
+          }
+        }
+      }
+    },
+    "Highlight Form Fields": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resaltar campos de formulario"
+          }
+        }
+      }
+    },
+    "Drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dibujo"
+          }
+        }
+      }
+    },
+    "Search all commands": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar en todos los comandos"
+          }
+        }
+      }
+    },
+    "Keyboard Shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Métodos abreviados de teclado"
+          }
+        }
+      }
+    },
+    "Open Log Folder": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir la carpeta de registros"
+          }
+        }
+      }
+    },
+    "Reading": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lectura"
+          }
+        }
+      }
+    },
+    "Anywhere": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "En cualquier lugar"
+          }
+        }
+      }
+    },
+    "Scroll by a screen": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Desplazar una pantalla"
+          }
+        }
+      }
+    },
+    "⇞ / ⇟ / Space": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⇞ / ⇟ / Space"
+          }
+        }
+      }
+    },
+    "Zoom at the pointer": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom en el puntero"
+          }
+        }
+      }
+    },
+    "Pinch": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pellizcar"
+          }
+        }
+      }
+    },
+    "Select a word / line": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seleccionar una palabra / línea"
+          }
+        }
+      }
+    },
+    "Double-click / triple-click (Select text tool)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doble clic / triple clic (herramienta Seleccionar texto)"
+          }
+        }
+      }
+    },
+    "Back to the Select Text tool": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a la herramienta Seleccionar texto"
+          }
+        }
+      }
+    },
+    "Move the selected drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mover el dibujo seleccionado"
+          }
+        }
+      }
+    },
+    "Drag, or arrow keys (Shift: 10 pt)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arrastrar, o flechas (Shift: 10 pt)"
+          }
+        }
+      }
+    },
+    "Delete the selected drawing": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eliminar el dibujo seleccionado"
+          }
+        }
+      }
+    },
+    "Next / previous comment": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comentario siguiente / anterior"
+          }
+        }
+      }
+    },
+    "Open the inspector": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Abrir el inspector"
+          }
+        }
+      }
+    },
+    "This file is password protected.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo está protegido con contraseña."
+          }
+        }
+      }
+    },
+    "This file has no pages.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Este archivo no tiene páginas."
           }
         }
       }
