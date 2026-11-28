@@ -50,7 +50,6 @@ final class PrinterCopyModel {
 struct PrinterCopySheet: View {
     let printer: PrinterModel
     @State private var model: PrinterCopyModel
-    @State private var password = ""
     @Environment(\.dismiss) private var dismiss
 
     init(printer: PrinterModel) {
@@ -65,23 +64,36 @@ struct PrinterCopySheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text("The printer copies with the copies, two-sided and other settings on its own control panel.")
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            stepView
+            PrinterCopyStatus(model: model, printer: printer)
             HStack {
                 Spacer()
                 Button("Close", role: .cancel) { dismiss() }.keyboardShortcut(.cancelAction)
                 Button("Copy") { Task { await model.copy() } }
                     .keyboardShortcut(.defaultAction)
-                    .disabled(model.step == .starting || isAskingPassword)
+                    .disabled(!model.canCopy)
             }
         }
         .padding(20)
         .frame(width: 460)
     }
+}
 
-    private var isAskingPassword: Bool {
-        if case .needsPassword = model.step { return true }
-        return false
+extension PrinterCopyModel {
+    /// Not asking yet, and not waiting for the password.
+    var canCopy: Bool {
+        if case .needsPassword = step { return false }
+        return step != .starting
     }
+}
+
+/// Where the printer's own copy got to, and the admin password when the printer asks for it (Copy on the Printer… and Copy…'s
+/// The printer itself).
+struct PrinterCopyStatus: View {
+    let model: PrinterCopyModel
+    let printer: PrinterModel
+    @State private var password = ""
+
+    var body: some View { stepView }
 
     @ViewBuilder private var stepView: some View {
         switch model.step {

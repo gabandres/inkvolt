@@ -584,12 +584,18 @@ public struct BatchPrintLine: Sendable, CustomStringConvertible {
     /// The document's page each of the file's pages shows (1-based, in the file's order), for the prompt's words ("page 7"):
     /// a laid-out job's sides (`SheetPrint.sideNumbers`); nil: the file's own page numbers.
     public let pageNumbers: [Int]?
+    /// Two-sided by hand, a copy laid out by the app (Copy's sides, collated or not: Windows' `CopyLayout.Order`): the order
+    /// its sides print in, as indices into `pages` (−1: a blank side), the line's copies then times it; nil: each page once,
+    /// in order.
+    public let order: [Int]?
 
     /// - Parameter byHand: two-sided on a printer that can't print both sides is printed by hand (roadmap 4.2): someone is
     ///   there to put the stack back (`BatchPrintOptions.turnStack`).
     /// - Parameter pageNumbers: what each page of the file shows of the document, for two-sided by hand's words.
+    /// - Parameter order: by hand, the order a copy laid out by the app prints its sides in (`order`); an index outside the
+    ///   pages is a blank side.
     public init(_ path: String, _ settings: BatchPrintSettings, _ measure: BatchMeasure, _ queue: BatchQueueInfo?, byHand: Bool = false,
-                pageNumbers: [Int]? = nil) {
+                pageNumbers: [Int]? = nil, order: [Int]? = nil) {
         self.path = path
         self.pageNumbers = pageNumbers
         self.settings = settings
@@ -598,7 +604,10 @@ public struct BatchPrintLine: Sendable, CustomStringConvertible {
         let (problem, pages) = Self.check(settings, measure, queue, byHand: byHand)
         self.problem = problem
         self.pages = pages
-        sheets = problem == nil ? BatchPrintSettings.sheets(pages.count, settings.copies, settings.twoSided) : 0
+        let order = self.byHand ? order.map { o in o.map { $0 >= 0 && $0 < pages.count ? $0 : -1 } } : nil
+        self.order = order
+        sheets = problem == nil ? order.map { HandDuplexPlan.plan($0, copies: settings.copies).sheets }
+            ?? BatchPrintSettings.sheets(pages.count, settings.copies, settings.twoSided) : 0
     }
 
     public var name: String { (path as NSString).lastPathComponent }
@@ -818,7 +827,7 @@ public enum BatchPrintRunner {
         let pages = line.pages
         let numbers = line.pageNumbers
         // The prompt names a set-aside sheet by the document's page on it (a laid-out side's first), never the side's number.
-        let plan = HandDuplexPlan.plan(Array(pages.indices), copies: line.settings.copies, pageNumber: { i in
+        let plan = HandDuplexPlan.plan(line.order ?? Array(pages.indices), copies: line.settings.copies, pageNumber: { i in
             guard let numbers, pages[i] >= 1, pages[i] <= numbers.count else { return pages[i] }
             return numbers[pages[i] - 1]
         })

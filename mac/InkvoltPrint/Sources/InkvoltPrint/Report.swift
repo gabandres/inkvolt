@@ -118,6 +118,7 @@ enum Report {
             if model.isDemo, let at = args.firstIndex(of: "--scan-button") {
                 cancelled += await scanButtonCheck(model, press: at + 1 < args.count && args[at + 1] == "press")
             }
+            if args.contains("--copy") { cancelled += await copyCheck(model) }
             if model.isDemo && args.contains("--firmware") { cancelled += await firmwareCheck(model) }
             if model.isDemo && args.contains("--web-port") { cancelled += await webPortCheck(model) }
             if model.isDemo && args.contains("--direct-print") { cancelled += await directPrintCheck(model) }

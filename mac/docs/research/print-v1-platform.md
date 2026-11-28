@@ -157,6 +157,13 @@ sandbox, and the app read it over LEDM through URLSession (status, toner, page c
 sends an `Authorization` header set on the request as given (PrintMacTests, against a loopback server). Still untested in
 the app: the denied banner, and recovery when access is allowed while it runs.
 
+**Local Network for a build that isn't the installed app** (2026-11-27, the build Mac, Copy's real-printer check): a
+development build signed with the same identity but run from an agent's own build folder (`open -n …/DerivedData/…/Inkvolt
+Print.app`) reported Local Network denied and found nothing on the network, where `/Applications`' copy has it; and
+`swift test` started over SSH got `NSURLErrorDomain -1009` ("offline") from URLSession to the M234dw while `curl` in the
+same SSH session reached its eSCL root (200). macOS's grant follows the app as installed (and the process that asks), so a
+check of a printer on the network needs the installed app, or a person to allow the prompt.
+
 **Vision's text recognition, the first time** (2026-11-05, macOS 27.2, the M1, PrintMacTests): `VNRecognizeTextRequest`
 (`.accurate`) usually reads a letter page in under 1 s, but when the system has no compiled copy of its text model for the
 process (the unified log's `com.apple.TextRecognition` "Attempting to compile E5 model", `com.apple.e5rt` "E5BundleCache
