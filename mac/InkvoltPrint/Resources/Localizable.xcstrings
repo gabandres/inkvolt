@@ -1,6 +1,456 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    "Connecting to the printer…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectando con la impresora…"
+          }
+        }
+      }
+    },
+    "This printer has no scanner, so it can't copy. You can still print PDFs.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora no tiene escáner, así que no puede copiar. Puedes seguir imprimiendo PDF."
+          }
+        }
+      }
+    },
+    "Copies print through this printer's macOS queue, and it isn't set up in macOS yet. Use Set Up in macOS on the Status tab.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Las copias se imprimen con la cola de macOS de esta impresora, y aún no está configurada en macOS. Usa Configurar en macOS en la pestaña Estado."
+          }
+        }
+      }
+    },
+    "Print on both sides": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir a doble cara"
+          }
+        }
+      }
+    },
+    "Print on both sides by hand": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir a doble cara a mano"
+          }
+        }
+      }
+    },
+    "Put the page face down on the scanner glass, then click Copy.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon la página boca abajo en el cristal del escáner y haz clic en Copiar."
+          }
+        }
+      }
+    },
+    "Put the pages face up in the document feeder, then click Copy.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pon las páginas boca arriba en el alimentador de documentos y haz clic en Copiar."
+          }
+        }
+      }
+    },
+    "%lld copy": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld copia"
+          }
+        }
+      }
+    },
+    "%lld copies": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld copias"
+          }
+        }
+      }
+    },
+    "fit to the paper": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ajustada al papel"
+          }
+        }
+      }
+    },
+    "actual size": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a tamaño real"
+          }
+        }
+      }
+    },
+    "both sides of the paper": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a doble cara"
+          }
+        }
+      }
+    },
+    "both sides by hand": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a doble cara a mano"
+          }
+        }
+      }
+    },
+    "not collated": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "sin intercalar"
+          }
+        }
+      }
+    },
+    "Check the preview, then click Print. Pages per sheet and the size still change it.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Revisa la vista previa y haz clic en Imprimir. Aún puedes cambiar las páginas por hoja y el tamaño."
+          }
+        }
+      }
+    },
+    "Scanning… (the first page takes longer if the printer was asleep)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneando… (la primera página tarda más si la impresora estaba en reposo)"
+          }
+        }
+      }
+    },
+    "a page from the scanner isn't a picture": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "una página del escáner no es una imagen"
+          }
+        }
+      }
+    },
+    "Scanned page %lld…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Página %lld escaneada…"
+          }
+        }
+      }
+    },
+    "The scanner returned no pages.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "El escáner no devolvió ninguna página."
+          }
+        }
+      }
+    },
+    "Copy cancelled.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia cancelada."
+          }
+        }
+      }
+    },
+    "Scan failed: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Error al escanear: %@"
+          }
+        }
+      }
+    },
+    "%lld page × %lld copies": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld página × %2$lld copias"
+          }
+        }
+      }
+    },
+    "%lld pages × %lld copies": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%1$lld páginas × %2$lld copias"
+          }
+        }
+      }
+    },
+    "This printer isn't set up in macOS yet. Click Set Up in macOS on the Status tab, then Print Again.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora aún no está configurada en macOS. Haz clic en Configurar en macOS en la pestaña Estado y luego en Volver a imprimir."
+          }
+        }
+      }
+    },
+    "Sending the copy to the printer…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviando la copia a la impresora…"
+          }
+        }
+      }
+    },
+    "Could not print the copy: %@": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo imprimir la copia: %@"
+          }
+        }
+      }
+    },
+    "its pages couldn't be laid out on this Mac.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "no se pudieron preparar sus páginas en este Mac."
+          }
+        }
+      }
+    },
+    "Sent to the demo printer: %@. Nothing really prints.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviado a la impresora de demostración: %@. En realidad no se imprime nada."
+          }
+        }
+      }
+    },
+    "Sent to the printer: %@.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enviado a la impresora: %@."
+          }
+        }
+      }
+    },
+    "Collate (1 2 3, 1 2 3)": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Intercalar (1 2 3, 1 2 3)"
+          }
+        }
+      }
+    },
+    "Each copy comes out whole, in page order. Off: all the copies of page 1, then of page 2, and so on.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cada copia sale completa, en orden de páginas. Desactivado: todas las copias de la página 1, luego las de la página 2, y así sucesivamente."
+          }
+        }
+      }
+    },
+    "Actual size": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tamaño real"
+          }
+        }
+      }
+    },
+    "Fit to paper": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustar al papel"
+          }
+        }
+      }
+    },
+    "The copy is the size of the original. Pages larger than the paper shrink to fit.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "La copia tiene el tamaño del original. Las páginas más grandes que el papel se reducen para caber."
+          }
+        }
+      }
+    },
+    "Enlarges or shrinks each page to fill the paper, such as a receipt made easier to read": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Amplía o reduce cada página para llenar el papel, por ejemplo un recibo que así se lee mejor"
+          }
+        }
+      }
+    },
+    "Pages per sheet": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Páginas por hoja"
+          }
+        }
+      }
+    },
+    "Color copy": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copia en color"
+          }
+        }
+      }
+    },
+    "Scans in color. Black-and-white printers print it in shades of grey either way.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanea en color. Las impresoras en blanco y negro la imprimen en tonos de gris de todos modos."
+          }
+        }
+      }
+    },
+    "This printer can't print both sides by itself: it prints the fronts, then you put the stack back and it prints the backs": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Esta impresora no imprime a doble cara por sí sola: imprime los anversos, luego vuelves a poner la pila y imprime los reversos"
+          }
+        }
+      }
+    },
+    "Preview before printing": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista previa antes de imprimir"
+          }
+        }
+      }
+    },
+    "Scans, shows each sheet as it will print, then waits for you to click Print.": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanea, muestra cada hoja tal como se imprimirá y espera a que hagas clic en Imprimir."
+          }
+        }
+      }
+    },
+    "Copy preview": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vista previa de la copia"
+          }
+        }
+      }
+    },
+    "Sheet %lld: %lld scanned pages": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hoja %1$lld: %2$lld páginas escaneadas"
+          }
+        }
+      }
+    },
+    "Copy…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copiar…"
+          }
+        }
+      }
+    },
+    "Scan and print in one step: copies, 2 or 4 pages per sheet, preview": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanea e imprime en un solo paso: copias, 2 o 4 páginas por hoja, vista previa"
+          }
+        }
+      }
+    },
     "\n\nThe printer needs to be on and free, with plain paper loaded.": {
       "localizations": {
         "es": {
