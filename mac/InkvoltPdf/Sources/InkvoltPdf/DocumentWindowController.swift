@@ -437,9 +437,10 @@ final class DocumentWindowController: NSWindowController, NSWindowDelegate, Page
     func addSidePanel(_ item: NSSplitViewItem) { split.addSplitViewItem(item) }
 
     /// Says what just happened in the bar over the pages.
-    func notify(_ message: String, canUndo: Bool = false) {
+    /// `links`: actions after the text (Windows' notification button, such as Make Text Editable's Edit Text).
+    func notify(_ message: String, canUndo: Bool = false, links: [(String, () -> Void)] = []) {
         Report.progress("notice: \(message.prefix(160))")
-        noticeBar.show(message, canUndo: canUndo)
+        noticeBar.show(message, canUndo: canUndo, links: links)
     }
 
     /// Says once, as the file opens or is read again, that it was damaged and opened as a repaired copy (Windows' repair bar).

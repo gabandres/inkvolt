@@ -163,6 +163,12 @@ struct OcrTest {
               "Make Text Editable: \(made?.words ?? 0) words on \(made?.pages ?? 0) page in \(made?.fonts.joined(separator: ", ") ?? "?"), the invisible layer gone, the words still found")
         let runs = (try? controller.pdf.session.map { try ContentEditor.read($0.data, $0.password, scanPage).runs }) ?? nil
         check(runs?.contains { $0.text.contains("Inkvolt") && $0.blocked == nil } == true, "Edit Text & Images can edit the new text")
+        // The notice's Edit Text (Windows' button on the same notice) turns Edit Text & Images on.
+        let offered = controller.noticeBar.linkTitles
+        controller.noticeBar.clickLink(loc("Edit Text"))
+        check(offered == [loc("Edit Text")] && controller.pages.tool == .editContent,
+              "the notice offers Edit Text, which turns Edit Text & Images on: \(offered)")
+        controller.choose(.text)
         await undo(to: loc("Keep recognized word"), steps: 1)
 
         // Replace the scans with the cleaned pages.
