@@ -37,6 +37,8 @@ struct InkvoltPrintApp: App {
                     AppModel.shared.showFleet = true
                 }
                 .keyboardShortcut("f", modifiers: [.command, .shift])
+                Button("Command Palette…") { PrintCommandPalette.show(AppModel.shared) }
+                    .keyboardShortcut("k")
             }
             CommandGroup(before: .windowList) {
                 Button("Print Log") { PrintLogWindow.show(AppModel.shared) }

@@ -121,6 +121,11 @@ struct PrinterRow: View {
             Button("Remove from Inkvolt Print…") { confirmRemove = true }
         }
         .sheet(isPresented: $settingSnmp) { SnmpAccessSheet(printer: printer) }
+        .onChange(of: model.paneRequest, initial: true) { _, request in // the command palette's SNMP access…
+            guard request == .snmpAccess, model.selectedID == printer.id else { return }
+            model.paneRequest = nil
+            if printer.canSetSnmpLogin { settingSnmp = true }
+        }
         .confirmationDialog("Remove \(printer.name) from Inkvolt Print?", isPresented: $confirmRemove) {
             Button("Remove", role: .destructive) { model.remove(printer) }
         } message: {

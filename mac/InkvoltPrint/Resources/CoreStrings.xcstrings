@@ -518,6 +518,17 @@
         }
       }
     },
+    "About Inkvolt Print": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acerca de Inkvolt Print"
+          }
+        }
+      }
+    },
     "About {0} day left": {
       "extractionState": "manual",
       "localizations": {
@@ -558,6 +569,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Aceptar trabajos"
+          }
+        }
+      }
+    },
+    "Add a printer…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Agregar una impresora…"
           }
         }
       }
@@ -767,6 +789,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Las listas de impresión en lote, las carpetas y la línea de comandos son parte de Inkvolt Pro."
+          }
+        }
+      }
+    },
+    "Batch print: many files…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir en lote: muchos archivos…"
           }
         }
       }
@@ -2014,6 +2047,17 @@
         }
       }
     },
+    "Fix printing problems…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolver problemas de impresión…"
+          }
+        }
+      }
+    },
     "Fix this first: {0}.": {
       "extractionState": "manual",
       "localizations": {
@@ -2328,6 +2372,39 @@
         }
       }
     },
+    "Go to Printer settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ir a Configuración de la impresora"
+          }
+        }
+      }
+    },
+    "Go to Scan": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ir a Escanear"
+          }
+        }
+      }
+    },
+    "Go to Status": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ir a Estado"
+          }
+        }
+      }
+    },
     "Gray [supply color, feminine]": {
       "comment": "supply color, feminine",
       "extractionState": "manual",
@@ -2404,6 +2481,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "La limpieza del cabezal, la comprobación de inyectores y la alineación no forman parte del estándar de impresión IPP, así que Inkvolt Print no puede iniciarlas en esta impresora: usa su panel de control o su página web."
+          }
+        }
+      }
+    },
+    "Help and shortcuts": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ayuda y atajos de teclado"
           }
         }
       }
@@ -3625,6 +3713,17 @@
         }
       }
     },
+    "Nothing matches “{0}”. Try another word, a printer's name or a scan preset.": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nada coincide con “{0}”. Prueba con otra palabra, el nombre de una impresora o un ajuste de escaneo."
+          }
+        }
+      }
+    },
     "Nothing waiting to print": {
       "extractionState": "manual",
       "localizations": {
@@ -3814,6 +3913,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Otra"
+          }
+        }
+      }
+    },
+    "Other printers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Otras impresoras"
           }
         }
       }
@@ -4352,6 +4462,17 @@
         }
       }
     },
+    "Print a PDF…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir un PDF…"
+          }
+        }
+      }
+    },
     "Print at actual size (100%, not \"fit to page\"), in black. Keep the area around the bars clean.": {
       "extractionState": "manual",
       "localizations": {
@@ -4429,6 +4550,17 @@
         }
       }
     },
+    "Print log…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Registro de impresión…"
+          }
+        }
+      }
+    },
     "Print network configuration page": {
       "extractionState": "manual",
       "localizations": {
@@ -4451,6 +4583,17 @@
         }
       }
     },
+    "Print photos…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir fotos…"
+          }
+        }
+      }
+    },
     "Print quality may drop soon; replace the cartridge.": {
       "extractionState": "manual",
       "localizations": {
@@ -4469,6 +4612,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Imprimir informe de calidad"
+          }
+        }
+      }
+    },
+    "Print what's on the clipboard": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Imprimir lo que está en el portapapeles"
           }
         }
       }
@@ -4528,6 +4682,17 @@
         }
       }
     },
+    "Printer maintenance…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mantenimiento de la impresora…"
+          }
+        }
+      }
+    },
     "Printer memory full": {
       "extractionState": "manual",
       "localizations": {
@@ -4583,6 +4748,17 @@
         }
       }
     },
+    "Printer settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración de la impresora"
+          }
+        }
+      }
+    },
     "Printer with no name": {
       "extractionState": "manual",
       "localizations": {
@@ -4590,6 +4766,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Impresora sin nombre"
+          }
+        }
+      }
+    },
+    "Printers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impresoras"
           }
         }
       }
@@ -4916,6 +5103,39 @@
         }
       }
     },
+    "Recent scans…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escaneos recientes…"
+          }
+        }
+      }
+    },
+    "Reconnect": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a conectar"
+          }
+        }
+      }
+    },
+    "Remove from Inkvolt Print…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quitar de Inkvolt Print…"
+          }
+        }
+      }
+    },
     "Remove the toner seal": {
       "extractionState": "manual",
       "localizations": {
@@ -5048,6 +5268,17 @@
         }
       }
     },
+    "Report a problem…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Informar un problema…"
+          }
+        }
+      }
+    },
     "Resume": {
       "extractionState": "manual",
       "localizations": {
@@ -5114,6 +5345,17 @@
         }
       }
     },
+    "Scan": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear"
+          }
+        }
+      }
+    },
     "Scan here when the scanner's button is pressed": {
       "extractionState": "manual",
       "localizations": {
@@ -5125,6 +5367,83 @@
         }
       }
     },
+    "Scan presets": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ajustes de escaneo"
+          }
+        }
+      }
+    },
+    "Scan with {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Escanear con {0}"
+          }
+        }
+      }
+    },
+    "Search again for printers": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volver a buscar impresoras"
+          }
+        }
+      }
+    },
+    "Set up a new printer's Wi-Fi…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar el Wi-Fi de una impresora nueva…"
+          }
+        }
+      }
+    },
+    "Set up in macOS": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configurar en macOS"
+          }
+        }
+      }
+    },
+    "Settings": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Configuración"
+          }
+        }
+      }
+    },
+    "Show the Fleet page (every printer)": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar la página Flota (todas las impresoras)"
+          }
+        }
+      }
+    },
     "Show this Mac on the printer's panel": {
       "extractionState": "manual",
       "localizations": {
@@ -5132,6 +5451,28 @@
           "stringUnit": {
             "state": "translated",
             "value": "Mostrar este Mac en el panel de la impresora"
+          }
+        }
+      }
+    },
+    "Show {0}": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mostrar {0}"
+          }
+        }
+      }
+    },
+    "SNMP access…": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Acceso SNMP…"
           }
         }
       }
@@ -5827,6 +6168,17 @@
           "stringUnit": {
             "state": "translated",
             "value": "Iniciando"
+          }
+        }
+      }
+    },
+    "Status": {
+      "extractionState": "manual",
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Estado"
           }
         }
       }

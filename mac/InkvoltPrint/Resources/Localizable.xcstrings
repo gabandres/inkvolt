@@ -2014,6 +2014,36 @@
         }
       }
     },
+    "Command Palette": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paleta de comandos"
+          }
+        }
+      }
+    },
+    "Command Palette…": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Paleta de comandos…"
+          }
+        }
+      }
+    },
+    "Commands": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comandos"
+          }
+        }
+      }
+    },
     "Commands: run any command, show a printer or scan with a preset by typing its name": {
       "localizations": {
         "es": {
@@ -5770,6 +5800,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escanear: %@"
+          }
+        }
+      }
+    },
+    "Search all commands": {
+      "localizations": {
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buscar en todos los comandos"
           }
         }
       }

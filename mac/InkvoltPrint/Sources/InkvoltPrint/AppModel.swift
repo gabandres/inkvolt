@@ -867,6 +867,14 @@ enum PaneRequest: Equatable {
     case printPhotos([URL])
     /// The status tab scrolled to the print queue card (a job's notification, roadmap 3.4).
     case printQueue
+    /// The printer's Settings tab (the command palette's Go to Printer settings).
+    case settings
+    /// The status card's Fix It… (the command palette's Fix printing problems…).
+    case fix
+    /// The Scan tab's Recent Scans list (the command palette's Recent scans…).
+    case recentScans
+    /// The sidebar's SNMP Access… (the command palette's).
+    case snmpAccess
 }
 
 /// The app's Mac as `FleetReader` reads it: the state file, cupsd (libcups, or demo mode's made-up queues), ImageCaptureCore's

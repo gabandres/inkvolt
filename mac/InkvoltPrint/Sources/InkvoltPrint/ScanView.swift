@@ -90,6 +90,11 @@ struct ScanView: View {
             Divider()
             SaveBar(scan: scan) { showingRecent = true }
                 .sheet(isPresented: $showingRecent) { RecentScansSheet(app: app, printer: scan.owner) }
+                .onChange(of: app.paneRequest, initial: true) { _, request in
+                    guard request == .recentScans else { return }
+                    app.paneRequest = nil
+                    showingRecent = true
+                }
         }
     }
 
