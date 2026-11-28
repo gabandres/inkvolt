@@ -653,6 +653,24 @@ struct AccessibilityCheckTests {
         try doesNotFail(inFont(Self.type1Font(t1, "[1 2]")), "31-016")
     }
 
+    /// Mac review: a CFF INDEX of 8-byte offsets 7F FF … (an offset of Int.max) trapped when added to the data's start; one
+    /// of 4-byte offsets past the data, offSize 0, and a CharStrings or charset offset written as the real 1E400 (infinite) too.
+    @Test func HostileCffIndexOffsetsAreRefused() {
+        let header: [UInt8] = [1, 0, 4, 1]
+        let int64Max: [UInt8] = [0x7F] + [UInt8](repeating: 0xFF, count: 7)
+        #expect(CffProgram.read(header + [0, 1, 8] + int64Max + int64Max + [0x41, 0, 0]) == nil)
+        #expect(CffProgram.read(header + [0, 1, 4, 0, 0, 0, 1, 0xFF, 0xFF, 0xFF, 0xFF, 0x41]) == nil)
+        #expect(CffProgram.read(header + [0, 1, 0, 0x41, 0, 0]) == nil)
+        // Names "A"; a Top DICT of 1E400 CharStrings (30, nibbles 1 E 4 0 0 end, 17); no strings, no global subroutines.
+        let topDict: [UInt8] = [30, 0x1B, 0x40, 0x0F, 17]
+        let infinite = header + [0, 1, 1, 1, 2, 0x41] + [0, 1, 1, 1, UInt8(1 + topDict.count)] + topDict + [0, 0, 0, 0]
+        #expect(CffProgram.read(infinite) == nil)
+        // A charset offset of 1E400 after a real CharStrings INDEX (at 26: one glyph, endchar): the glyphs are still read.
+        let withCharset: [UInt8] = [30, 0x1B, 0x40, 0x0F, 15, 26 + 139, 17]
+        let charset = header + [0, 1, 1, 1, 2, 0x41] + [0, 1, 1, 1, UInt8(1 + withCharset.count)] + withCharset + [0, 0, 0, 0] + [0, 1, 1, 1, 2, 14]
+        #expect(CffProgram.read(charset)?.numGlyphs == 1)
+    }
+
     @Test func CompositeFontsAndCMaps() throws {
         try passes(inFont(A11yDoc.composite(11), "<0024>").withToUnicode())
         try fails(inFont(A11yDoc.composite(11, cidExtra: ""), "<0024>").withToUnicode(), "31-005")
