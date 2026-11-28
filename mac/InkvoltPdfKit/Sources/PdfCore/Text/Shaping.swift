@@ -232,8 +232,9 @@ enum TextShaper {
     /// reads them all left to right, can read that only as a new line ("2.0", "-", "beta"); kept whole it reads
     /// "2.0-beta" in MuPDF and pdf.js, as typed. The levels are changed as Windows changes them; Core Text, which runs its
     /// own bidi, is given each such word (all of it: a part alone would leave its figures on their own) as a
-    /// left-to-right embedding.
-    private static func joinLeftToRight(_ u: [UInt16], _ levels: inout [UInt8]) -> [Range<Int>] {
+    /// left-to-right embedding. Linear: a word is found out to its ends once, however many such marks it holds (a
+    /// 100,000-character "1-a-1-a…" took some 10^10 steps when each mark scanned the whole word again).
+    static func joinLeftToRight(_ u: [UInt16], _ levels: inout [UInt8]) -> [Range<Int>] {
         func cls(_ c: UInt16) -> Bidi.Cls { Bidi.classify(UInt32(c)) }
         func leftToRight(_ c: UInt16) -> Bool { cls(c) == .L || cls(c) == .EN }
         func between(_ c: UInt16) -> Bool {
@@ -248,7 +249,12 @@ enum TextShaper {
             while j < u.count && levels[j] % 2 == 1 && between(u[j]) { j += 1 }
             if j < u.count && levels[j] % 2 == 0 && leftToRight(u[j]) {
                 for k in i..<j { levels[k] = min(levels[i - 1], levels[j]) }
-                // The whole word, out to the spaces (or right-to-left letters) on either side.
+                // The whole word, out to the spaces (or right-to-left letters) on either side: already found when the
+                // last word reaches past this mark (the same word, as its ends are the same).
+                if let last = words.last, last.upperBound > j {
+                    i = j - 1
+                    continue
+                }
                 var lo = i - 1, hi = j + 1
                 while lo > 0 && (leftToRight(u[lo - 1]) || between(u[lo - 1])) { lo -= 1 }
                 while hi < u.count && (leftToRight(u[hi]) || between(u[hi])) { hi += 1 }

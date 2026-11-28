@@ -70,3 +70,24 @@ struct ShapingTests {
         #expect(try Core2Pdf.ink(result, 0, RectD(72, 162, 300, 30)) > 0.01, "the value is drawn")
     }
 }
+
+extension ShapingTests {
+    /// Pre-release review (Mac addition): a long "1-1-1-…" word after Arabic (its digits Arabic numbers, so every "-" right
+    /// to left) was scanned whole again for each "-"
+    /// (some 10^10 steps for 100,000 characters); now each word is found once.
+    @Test func aLongWordOfMarksInRightToLeftTextJoinsInLinearTime() {
+        let token = String(repeating: "1-", count: 30_000) + "1"
+        let text = "مرحبا " + token + " שלום"
+        let units = Array(text.utf16)
+        var levels = Bidi.levels(text).levels
+        let started = Date()
+        let words = TextShaper.joinLeftToRight(units, &levels)
+        #expect(Date().timeIntervalSince(started) < 1)
+        let start = Array("مرحبا ".utf16).count
+        #expect(words == [start..<start + token.utf16.count])
+        #expect((start..<start + token.utf16.count).allSatisfy { levels[$0] % 2 == 0 })
+        // A short one still joins as before.
+        var short = Bidi.levels("مرحبا 2.0-beta").levels
+        #expect(TextShaper.joinLeftToRight(Array("مرحبا 2.0-beta".utf16), &short) == [6..<14])
+    }
+}
