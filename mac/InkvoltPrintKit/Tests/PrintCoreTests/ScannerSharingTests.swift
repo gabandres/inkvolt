@@ -16,7 +16,10 @@ import TestTiming
 /// (`ScanArea`, Windows' `WiaCapabilities.Plan`); peers are IPv4 on networks with a private address (macOS has no
 /// Private/Public setting); a request is a task the test cancels (Windows' token), answered 503; the HTTPS server, its
 /// certificate in a keychain and Bonjour are PrintMac's (`ScannerShareServerTests`, on the Mac).
-@Suite(.offThePool)
+// On the cooperative pool, not `.offThePool`: its work is short and waits on the fake scanner with a time limit, and the
+// utility queue the CPU-heavy suites share held it there for minutes on CI's runner (master's run 46107311430: "Timed out
+// waiting" in disposedItAnswersNothingAndLetsTheScannerGo, after 224 s behind PageCleanupTests and CleanUpMarksTests).
+@Suite
 struct ScannerSharingTests {
     static let usb = SystemScanner(id: "0x00110000046d0a00", name: "Example Scan 300", usb: true)
 
